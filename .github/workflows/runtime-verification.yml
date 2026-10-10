@@ -934,6 +934,69 @@ jobs:
         if: always()
         with: { name: screenshot-apple, path: /tmp/diag/, if-no-files-found: warn }
 
+  # The iOS DV.Platform bindings, run on a simulator. The apple job above
+  # builds with plain `flutter build ios`, which compiles none of Dartvel's
+  # Swift, so the shim behind share, location, contacts, the pickers,
+  # permissions, sensors, Bluetooth, notifications and the network signal has
+  # to come from `dartvel build ios` -- and then from a running app, because
+  # nothing on Linux compiles Swift or proves a symbol resolves.
+  #
+  # Actions on Danroyal001 has been billing-locked since 2026-09, so this job
+  # had not run when it was added: docs/build-targets.md records the bindings
+  # as unverified on iOS until it goes green.
+  ios-device-apis:
+    name: ios — device bindings on a simulator
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+
+      - name: Boot a simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -oE "iPhone [0-9]+[^(]*\(([-A-F0-9]+)\)" | grep -oE "[-A-F0-9]{36}")
+          echo "device: $DEVICE"
+          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          # What the test reads back: a position, and the grants a person
+          # would otherwise have to tap.
+          xcrun simctl location "$DEVICE" set 6.5244,3.3792
+          xcrun simctl privacy "$DEVICE" grant location com.example.dartvelExample || true
+          xcrun simctl privacy "$DEVICE" grant contacts com.example.dartvelExample || true
+
+      - name: Build with dartvel, which writes the shim into the Runner target
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/ios-shim-build.log) 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel build ios --simulator --debug
+          # The build must have written and wired it; a shim left out of the
+          # target compiles to nothing and every binding stays unregistered.
+          test -f ios/Runner/DartvelPlatform.swift
+          grep -q "DartvelPlatform.swift in Sources" ios/Runner.xcodeproj/project.pbxproj
+          grep -q NSCameraUsageDescription ios/Runner/Info.plist
+
+      - name: The device bindings answer on the simulator
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/ios-device-apis.log) 2>&1
+          cd examples/dartvel_example
+          # Re-grant after the install the test run does, which resets them.
+          ( sleep 90; xcrun simctl privacy "${{ steps.sim.outputs.device }}" grant location com.example.dartvelExample || true
+            xcrun simctl privacy "${{ steps.sim.outputs.device }}" grant contacts com.example.dartvelExample || true ) &
+          flutter test integration_test/ios_device_apis_test.dart -d "${{ steps.sim.outputs.device }}"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: { name: ios-device-apis, path: /tmp/diag/, if-no-files-found: warn }
+
   windows:
     name: windows — run and screenshot
     runs-on: windows-latest

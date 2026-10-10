@@ -15,7 +15,7 @@ platform of seven had any bindings at all. Six do now.
 | web | **5** | `dart:js_interop` with `package:web` |
 | Windows | **8** | `dart:ffi` to the Win32 API |
 | Android | **6** | jnigen bindings on the Android SDK |
-| iOS | **5** | `dart:ffi` to the Objective-C runtime and AudioToolbox |
+| iOS | **37** (20 need the Swift shim; unverified on iOS) | `dart:ffi` to the Objective-C runtime, AudioToolbox, and a Swift shim `dartvel build ios` compiles in |
 | macOS | **3** | `dart:ffi` to the Objective-C runtime and CoreGraphics |
 | Embedded (Tizen, webOS, eLinux, Fuchsia) | none | — |
 
@@ -174,31 +174,72 @@ called first — `NSPasteboard` rejects writes made without it — and a real
 display geometry. A mistyped Objective-C message does not fail to compile, so
 this is the only place the messaging is actually checked.
 
-## The iOS five
+## iOS
+
+`dart tool/binding_coverage.dart` counts it; on 2026-10-09 iOS claims 37 of
+103 names, up from 8. Every binding Android has, iOS has, except
+`bluetooth.pair` (below), plus `biometrics.authenticate` and
+`tracking.requestAuthorization`, which Android does not have.
+
+**Status: Partial. Unit-tested on Linux; not yet run on iOS.** The simulator
+job (`ios-device-apis` in `runtime-verification.yml`) was added with the code
+and has not run, because GitHub Actions on this account is billing-locked. Each
+row below stays unverified until that job is green.
+
+Three routes, by what a binding needs:
+
+| Route | Bindings | Backed by |
+| --- | --- | --- |
+| Dart to the Objective-C runtime and C | `clipboard.copy`, `.paste`; `haptics.*`; `deepLinks.initial`; `homeWidgets.publish`; `tracking.requestAuthorization` | `UIPasteboard`, `AudioServicesPlaySystemSound`, `NSUserDefaults`, `ATTrackingManager`. Works in any build, plain `flutter build` included |
+| Plain Dart | `files.*`, `device.*` (six) | Application Support (`dartvel-files`, `dartvel-device`, siblings so deleting a file cannot unprovision the device); probes are macOS's `sysctl`/`host_statistics64` |
+| Swift shim written by `dartvel build ios` | the other 20, below | Swift compiled into the Runner target, exporting four C symbols (`@_cdecl`) that Dart looks up with `dart:ffi`; answers come back as JSON through a `NativeCallable`. No platform channel |
 
 | Binding | Backed by |
 | --- | --- |
-| `clipboard.copy`, `clipboard.paste` | `UIPasteboard` through the Objective-C runtime |
-| `haptics.impact`, `.lightVibrate`, `.vibrate` | `AudioServicesPlaySystemSound` in AudioToolbox — plain C, thread-safe, where `UIImpactFeedbackGenerator` is neither |
+| `share.text` | `UIActivityViewController`, anchored as a popover on iPad |
+| `screen.geometry` | `UIScreen.nativeBounds` and `nativeScale`; same keys as every other target |
+| `permissions.isGranted`, `.request` | `AVCaptureDevice`, `CLLocationManager`, `CNContactStore`, `PHPhotoLibrary`, `UNUserNotificationCenter`, `CBManager`, `LAContext` |
+| `camera.takePhoto` | `UIImagePickerController`, JPEG |
+| `media.pick` | `PHPickerViewController` for images and video (iOS 14+), `UIDocumentPickerViewController` otherwise |
+| `contacts.getContacts` | `CNContactStore`, id/name/phone like Android |
+| `location.current` | `CLLocationManager.requestLocation`, the last fix when it is recent enough |
+| `nfc.isAvailable` | `NFCNDEFReaderSession.readingAvailable` |
+| `bluetooth.isEnabled`, `.adapters`, `.scanDevices`, `.devices` | `CBCentralManager`; a 4-second scan; `devices` is what this process has seen, since iOS exposes no paired list |
+| `sensors.accelerometer`, `.gyroscope` | `CMMotionManager`, one sample; acceleration converted from g to m/s² so it matches Android |
+| `biometrics.canAuthenticate`, `.authenticate` | `LAContext` |
+| `notifications.sendLocal` | `UNUserNotificationCenter`, shown in the foreground too |
+| `kiosk.enforce`, `.release` | Guided Access, which iOS grants only on a supervised device allowed Autonomous Single App Mode |
 
-The runtime is linked into the app on iOS rather than living in a dylib that
-can be opened by path, so the process itself is opened and the lookup of
-`objc_getClass` is checked before anything depends on it.
+`DV.Platform.network` is fed on iOS too, from `NWPathMonitor`: expensive or
+constrained paths report `metered`.
 
-**`screen.geometry` is absent here while macOS has it**, and the asymmetry is
-deliberate. It would come from `UIScreen.nativeBounds`, which returns a
-`CGRect`; a struct return through `objc_msgSend` needs `objc_msgSend_stret` on
-some ABIs and corrupts the stack when the wrong entry point is used. macOS
-sidesteps that with CoreGraphics, and iOS has no equivalent C path — so there
-is nowhere safe to read it from, rather than nobody having got round to it.
+**Usage descriptions.** iOS terminates an application that asks for a
+protected resource without its Info.plist key. The shim checks the key before
+every request and refuses instead, and `dartvel build ios` writes the keys
+from `dartvel.ios.permissions` in `pubspec.yaml` (a list, or a map of name to
+the sentence the prompt shows). A request for an undeclared one throws a
+`StateError` naming the key and the pubspec line.
 
-`setString:` returns void, so `clipboard.copy` reports success as the absence
-of a crash. UIKit gives no result to check and inventing one would be a lie.
+**An app built with plain `flutter build ios` has no shim.** The 20 shim
+bindings then stay unregistered and `DVIosBindings.lastFailure` says why,
+rather than each one answering null as if iOS could not do it.
 
-Notifications, haptics and window controls are absent: the first needs
-authorisation and a configured app delegate, the second must run on the main
-thread, and the third does not exist — an iOS app does not own a resizable
-window.
+Absent, with reasons:
+
+- `bluetooth.pair`, `connect`, `disconnect`, `forget`: CoreBluetooth has no
+  pairing call. iOS pairs on the first encrypted read, inside its own dialog.
+- `nfc.readTag`, `nfc.writeTag`: need the tag-reading entitlement and a reader
+  session the person starts; not wired.
+- Window controls and `display.enterFullscreen`: an iOS app owns no window and
+  is already full screen.
+
+Fixed on the way: haptics answered `null` and `DV.Platform.haptics` reads a
+`bool`, so every haptic call on iOS threw after the tap had played.
+
+Battery level, screen brightness, keep-awake, orientation lock and opening a
+URL or the Settings app are not `DV.Platform` APIs on any target yet, so they
+are not bound here; adding them is an API change. Secure storage is
+`DVKeychainAppKeyStore` (spec-status Secrets), already on iOS.
 
 ## The Android six
 
