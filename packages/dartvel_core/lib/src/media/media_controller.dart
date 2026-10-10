@@ -7,8 +7,11 @@ import '../diagnostics/diagnostics.dart';
 import '../lifecycle/lifecycle.dart';
 import '../observability/observability.dart';
 import 'audio_focus.dart';
+import 'captions.dart';
+import 'media_cache.dart';
 import 'media_signal.dart';
 import 'media_source.dart';
+import 'now_playing.dart';
 import 'player_backend.dart';
 
 /// Where a player is.
@@ -47,6 +50,9 @@ final class DVMediaEnvironment {
   DVMediaEnvironment({
     DVLifecycleSignal<DVAppLifecycle>? lifecycle,
     DVAudioFocus? focus,
+    DVNowPlaying? nowPlaying,
+    this.cache,
+    this.captionLoader,
     this.timers = const DVSystemMediaTimers(),
     this.drmAdapters = const <DVDrmAdapter>[],
     this.backgroundAudioDeclared = false,
@@ -54,10 +60,23 @@ final class DVMediaEnvironment {
     this.stallTimeout = const Duration(seconds: 3),
   })  : lifecycle = lifecycle ?? dvLifecycle.app,
         focus = focus ?? dvAudioFocus,
+        nowPlaying = nowPlaying ?? dvNowPlaying,
         diagnostics = diagnostics ?? dvLogMediaDiagnostic;
 
   final DVLifecycleSignal<DVAppLifecycle> lifecycle;
   final DVAudioFocus focus;
+
+  /// The lock screen and its transport controls. Used by a player given a
+  /// [DVMediaSession].
+  final DVNowPlaying nowPlaying;
+
+  /// The disk cache progressive `http:` sources are read through, or null
+  /// where there is none (a browser, whose HTTP cache does this).
+  final DVMediaCache? cache;
+
+  /// Reads a caption file's text. Supplied by the Flutter runtime, which can
+  /// read assets as well as URLs; without one a source track cannot load.
+  final Future<String> Function(DVMediaSource source)? captionLoader;
   final DVMediaTimers timers;
   final List<DVDrmAdapter> drmAdapters;
 
@@ -94,6 +113,15 @@ final class DVMediaDrmUnavailable implements Exception {
       '${scheme.name} is configured for this target (DV-MEDIA-102)';
 }
 
+/// Picture-in-picture was asked of a player whose target has none.
+final class DVMediaPictureInPictureUnavailable implements Exception {
+  const DVMediaPictureInPictureUnavailable();
+
+  @override
+  String toString() => 'DVMediaPictureInPictureUnavailable: this target '
+      'cannot show this player in picture-in-picture';
+}
+
 /// An adaptive stream, a backend that cannot play one, and no progressive
 /// rendition to fall back to.
 final class DVMediaStreamingUnsupported implements Exception {
@@ -116,6 +144,8 @@ final class DVMediaController {
   DVMediaController(
     this.source, {
     this.background = DVBackgroundPlayback.none,
+    this.session,
+    this.captions,
     DVMediaEnvironment? environment,
   }) : environment = environment ?? DVMediaEnvironment() {
     _own = _DVMediaSession(this);
@@ -125,11 +155,23 @@ final class DVMediaController {
     _duration = DVForwardingMediaSignal<Duration>(_own.duration);
     _buffered = DVForwardingMediaSignal<List<DVRange>>(_own.buffered);
     _error = DVForwardingMediaSignal<String?>(_own.error);
+    _videoSize = DVForwardingMediaSignal<(int, int)?>(_own.videoSize);
+    _pip = DVForwardingMediaSignal<bool>(_own.pictureInPicture);
+    _captionTrack = DVForwardingMediaSignal<String?>(_own.captionTrack);
+    _caption = DVForwardingMediaSignal<String?>(_own.caption);
+    _captionError = DVForwardingMediaSignal<String?>(_own.captionError);
   }
 
   final DVMediaSource source;
   final DVBackgroundPlayback background;
   final DVMediaEnvironment environment;
+
+  /// What the lock screen shows while this player holds it. Null keeps the
+  /// player off the now-playing surface.
+  final DVMediaSession? session;
+
+  /// The caption tracks this player offers.
+  final DVCaptions? captions;
 
   late final _DVMediaSession _own;
   late _DVMediaSession _session;
@@ -138,6 +180,11 @@ final class DVMediaController {
   late final DVForwardingMediaSignal<Duration> _duration;
   late final DVForwardingMediaSignal<List<DVRange>> _buffered;
   late final DVForwardingMediaSignal<String?> _error;
+  late final DVForwardingMediaSignal<(int, int)?> _videoSize;
+  late final DVForwardingMediaSignal<bool> _pip;
+  late final DVForwardingMediaSignal<String?> _captionTrack;
+  late final DVForwardingMediaSignal<String?> _caption;
+  late final DVForwardingMediaSignal<String?> _captionError;
   bool _released = false;
 
   /// How long "playing" may go without the position advancing before the
@@ -157,6 +204,59 @@ final class DVMediaController {
 
   /// Why the player failed, or null.
   DVMediaSignal<String?> get error => _error;
+
+  /// The decoded picture's width and height, once the backend reports it.
+  DVMediaSignal<(int, int)?> get videoSize => _videoSize;
+
+  /// Whether the video is floating in picture-in-picture, as the platform
+  /// reports it.
+  DVMediaSignal<bool> get pictureInPicture => _pip;
+
+  /// The language of the captions showing, or null when none are.
+  DVMediaSignal<String?> get captionTrack => _captionTrack;
+
+  /// The caption text for the current position, or null.
+  DVMediaSignal<String?> get caption => _caption;
+
+  /// Why the last caption track asked for could not be shown, or null.
+  DVMediaSignal<String?> get captionError => _captionError;
+
+  /// Whether [enterPictureInPicture] can work on this target.
+  bool get canPictureInPicture {
+    final DVMediaPlayerBackend? b = _session.backend;
+    return b is DVMediaPictureInPictureBackend &&
+        b.capabilities.pictureInPicture;
+  }
+
+  /// Floats the video over other applications. Throws
+  /// [DVMediaPictureInPictureUnavailable] where the target has no such
+  /// thing; [pictureInPicture] moves when the platform confirms.
+  Future<void> enterPictureInPicture() async {
+    _checkUsable();
+    if (!canPictureInPicture) {
+      throw const DVMediaPictureInPictureUnavailable();
+    }
+    final bool accepted = await (_session.backend!
+            as DVMediaPictureInPictureBackend)
+        .enterPictureInPicture();
+    if (!accepted) throw const DVMediaPictureInPictureUnavailable();
+  }
+
+  Future<void> exitPictureInPicture() async {
+    _checkUsable();
+    final DVMediaPlayerBackend? b = _session.backend;
+    if (b is DVMediaPictureInPictureBackend) await b.exitPictureInPicture();
+  }
+
+  /// Shows the captions in [language], or none when null. Throws
+  /// [ArgumentError] for a language [captions] does not offer.
+  Future<void> setCaptionTrack(String? language) {
+    _checkUsable();
+    if (language != null && _session.owner.captions?.trackFor(language) == null) {
+      throw ArgumentError.value(language, 'language', 'no such caption track');
+    }
+    return _session.selectCaptions(language);
+  }
 
   /// Whether this handle drives a session rather than following another's.
   bool get isAttached => identical(_session, _own) && _own.backend != null;
@@ -194,6 +294,11 @@ final class DVMediaController {
     _duration.retarget(target.duration);
     _buffered.retarget(target.buffered);
     _error.retarget(target.error);
+    _videoSize.retarget(target.videoSize);
+    _pip.retarget(target.pictureInPicture);
+    _captionTrack.retarget(target.captionTrack);
+    _caption.retarget(target.caption);
+    _captionError.retarget(target.captionError);
   }
 
   Future<void> play() async {
@@ -232,6 +337,11 @@ final class DVMediaController {
       _duration.retarget(_own.duration);
       _buffered.retarget(_own.buffered);
       _error.retarget(_own.error);
+    _videoSize.retarget(_own.videoSize);
+    _pip.retarget(_own.pictureInPicture);
+    _captionTrack.retarget(_own.captionTrack);
+    _caption.retarget(_own.caption);
+    _captionError.retarget(_own.captionError);
     }
     await _own.dispose();
   }
@@ -258,6 +368,20 @@ final class _DVMediaSession {
       DVMutableMediaSignal<List<DVRange>>(const <DVRange>[]);
   final DVMutableMediaSignal<String?> error =
       DVMutableMediaSignal<String?>(null);
+  final DVMutableMediaSignal<(int, int)?> videoSize =
+      DVMutableMediaSignal<(int, int)?>(null);
+  final DVMutableMediaSignal<bool> pictureInPicture =
+      DVMutableMediaSignal<bool>(false);
+  final DVMutableMediaSignal<String?> captionTrack =
+      DVMutableMediaSignal<String?>(null);
+  final DVMutableMediaSignal<String?> caption =
+      DVMutableMediaSignal<String?>(null);
+  final DVMutableMediaSignal<String?> captionError =
+      DVMutableMediaSignal<String?>(null);
+
+  final Map<String, DVCaptionTrack> _loadedTracks = <String, DVCaptionTrack>{};
+  DVCaptionTrack? _shownTrack;
+  StreamSubscription<DVPlaybackState>? _nowPlayingStates;
 
   DVMediaPlayerBackend? backend;
   StreamSubscription<DVMediaBackendEvent>? _events;
@@ -326,8 +450,23 @@ final class _DVMediaSession {
       );
     }
 
+    final DVMediaCache? cache = _env.cache;
+    if (cache != null &&
+        resolved.kind == DVMediaSourceKind.url &&
+        resolved.cache &&
+        !resolved.isAdaptive) {
+      resolved = DVMediaSource.url(
+        await cache.playbackAddress(resolved.reference),
+        streaming: DVMediaStreaming.progressive,
+        protection: resolved.protection,
+        cache: false,
+      );
+    }
+
     this.backend = backend;
     state.set(DVPlaybackState.loading);
+    final String? firstTrack = owner.captions?.initialTrack?.language;
+    if (firstTrack != null) unawaited(selectCaptions(firstTrack));
     _events = backend.events.listen(_onEvent);
     _lifecycle = _env.lifecycle.listen(_onLifecycle);
 
@@ -382,6 +521,7 @@ final class _DVMediaSession {
         if (seek < _seekIssued) return;
         final bool advanced = position != this.position.value;
         this.position.set(position);
+        _updateCue();
         if (!advanced) return;
         if (state.value == DVPlaybackState.stalled) {
           state.set(DVPlaybackState.playing);
@@ -392,6 +532,8 @@ final class _DVMediaSession {
       case DVMediaSeekCompleted(:final int generation, :final Duration position):
         if (generation >= _seekIssued) {
           this.position.set(position);
+          _updateCue();
+          _publishNowPlaying();
           if (state.value == DVPlaybackState.playing ||
               state.value == DVPlaybackState.stalled) {
             state.set(DVPlaybackState.playing);
@@ -410,7 +552,106 @@ final class _DVMediaSession {
         unawaited(_env.focus.release(owner));
       case DVMediaFailed(:final String message):
         _fail(message);
+      case DVMediaVideoSize(:final int width, :final int height):
+        videoSize.set((width, height));
+      case DVMediaPictureInPictureChanged(:final bool active):
+        pictureInPicture.set(active);
     }
+  }
+
+  // --- captions --------------------------------------------------------
+
+  Future<void> selectCaptions(String? language) async {
+    if (language == null) {
+      _shownTrack = null;
+      captionTrack.set(null);
+      caption.set(null);
+      return;
+    }
+    DVCaptionTrack? track = _loadedTracks[language];
+    if (track == null) {
+      final DVCaptionTrack? offered = owner.captions?.trackFor(language);
+      if (offered == null) return;
+      if (offered.isLoaded) {
+        track = offered;
+      } else {
+        final Future<String> Function(DVMediaSource)? load = _env.captionLoader;
+        if (load == null) {
+          captionError.set('no caption loader is bound for this target');
+          return;
+        }
+        try {
+          final String text = await load(offered.source!);
+          track = offered.withCues(DVCaptions.parse(text));
+        } on Object catch (error) {
+          if (!isDisposed) captionError.set('$error');
+          return;
+        }
+      }
+      _loadedTracks[language] = track;
+    }
+    if (isDisposed) return;
+    captionError.set(null);
+    _shownTrack = track;
+    captionTrack.set(language);
+    _updateCue();
+  }
+
+  void _updateCue() {
+    final DVCaptionTrack? track = _shownTrack;
+    caption.set(track?.cueAt(position.value)?.text);
+  }
+
+  // --- now playing -----------------------------------------------------
+
+  DVNowPlayingState get _nowPlayingState => DVNowPlayingState(
+        playing: state.value == DVPlaybackState.playing ||
+            state.value == DVPlaybackState.buffering,
+        position: position.value,
+        duration: duration.value,
+      );
+
+  Future<void> _claimNowPlaying() async {
+    final DVMediaSession? session = owner.session;
+    if (session == null || isDisposed) return;
+    _nowPlayingStates ??= state.changes.listen((_) => _publishNowPlaying());
+    await _env.nowPlaying.claim(owner, session, _nowPlayingState,
+        onCommand: _onCommand);
+  }
+
+  void _publishNowPlaying() {
+    if (owner.session == null || isDisposed) return;
+    unawaited(_env.nowPlaying.update(owner, _nowPlayingState));
+  }
+
+  void _onCommand(DVMediaCommand command) {
+    if (isDisposed || backend == null) return;
+    final Duration step = owner.session?.skipInterval ?? const Duration(seconds: 10);
+    final bool active = state.value == DVPlaybackState.playing ||
+        state.value == DVPlaybackState.buffering ||
+        state.value == DVPlaybackState.stalled;
+    Future<void> run() async {
+      switch (command.action) {
+        case DVTransportAction.play:
+          await play();
+        case DVTransportAction.pause:
+          await pause();
+        case DVTransportAction.togglePlay:
+          await (active ? pause() : play());
+        case DVTransportAction.stop:
+          await pause();
+          unawaited(seek(Duration.zero));
+        case DVTransportAction.seekForward:
+          unawaited(seek(position.value + step));
+        case DVTransportAction.seekBackward:
+          unawaited(seek(position.value - step));
+        case DVTransportAction.seekTo:
+          final Duration? to = command.position;
+          if (to != null) unawaited(seek(to));
+      }
+    }
+
+    unawaited(run().catchError((Object _) {}));
   }
 
   void _fail(String message) {
@@ -453,6 +694,7 @@ final class _DVMediaSession {
     if (!granted) throw const DVAudioFocusRefused();
     if (isDisposed) return;
     _wantsPlayback = true;
+    await _claimNowPlaying();
     await b.play();
   }
 
@@ -478,6 +720,7 @@ final class _DVMediaSession {
     final Completer<void> done = Completer<void>();
     _seeks[generation] = done;
     position.set(clamped);
+    _updateCue();
     unawaited(b.seek(clamped, generation));
     return done.future;
   }
@@ -499,6 +742,8 @@ final class _DVMediaSession {
     // unrelated turn of the event loop -- forever, under a fake clock.
     unawaited(_lifecycle?.cancel());
     unawaited(_events?.cancel());
+    unawaited(_nowPlayingStates?.cancel());
+    await _env.nowPlaying.release(owner);
     await _env.focus.release(owner);
     final DVMediaPlayerBackend? b = backend;
     if (b != null) await b.dispose();
@@ -508,6 +753,11 @@ final class _DVMediaSession {
       duration.close(),
       buffered.close(),
       error.close(),
+      videoSize.close(),
+      pictureInPicture.close(),
+      captionTrack.close(),
+      caption.close(),
+      captionError.close(),
     ]);
   }
 }

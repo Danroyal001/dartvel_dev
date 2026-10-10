@@ -57,6 +57,7 @@ dependencies:
     version: ^0.11.5
   jni: ^1.0.3
   dbus: ^0.7.15
+  http: ^1.6.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

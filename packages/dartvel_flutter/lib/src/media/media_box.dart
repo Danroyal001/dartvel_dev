@@ -13,9 +13,12 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 import '../../dartvel_flutter.dart' show DV, DVRenderSurface;
+import 'caption_file.dart';
 import 'image_view.dart';
+import 'web_media_mapping.dart';
 
 /// Whether a box plays video or audio.
 enum DVMediaKind { video, audio }
@@ -49,13 +52,110 @@ enum DVMediaControls {
 abstract final class DVMediaBackends {
   static DVMediaPlayerFactory? _player;
   static DVMediaCapture? _capture;
+  static DVCameraBackend Function()? _camera;
+  static DVCameraCapabilities _cameraCapabilities = DVCameraCapabilities.none;
+  static DVNowPlaying? _nowPlaying;
+  static DVAudioFocus? _focus;
+  static DVMediaCache? _cache;
+  static Future<void> Function(String url, int? bytes)? _precache;
+  static bool _backgroundAudioDeclared = false;
 
   /// What every controller a box makes is wired to. Replaceable, for tests
-  /// and for a generated runtime that declares DRM adapters or background
-  /// audio.
-  static DVMediaEnvironment Function() environment = DVMediaEnvironment.new;
+  /// and for a generated runtime that declares DRM adapters.
+  static DVMediaEnvironment Function() environment = _defaultEnvironment;
 
-  static void registerPlayer(DVMediaPlayerFactory factory) => _player = factory;
+  static DVMediaEnvironment _defaultEnvironment() => DVMediaEnvironment(
+        focus: _focus,
+        nowPlaying: _nowPlaying,
+        cache: _cache,
+        captionLoader: dvLoadCaptionText,
+        backgroundAudioDeclared: _backgroundAudioDeclared,
+      );
+
+  /// Binds this target's player. [backgroundAudioDeclared] is whether the
+  /// build declared what the platform needs to keep playing in the
+  /// background -- `UIBackgroundModes: audio`, a media-playback foreground
+  /// service -- as the binding found it in the running application.
+  static void registerPlayer(DVMediaPlayerFactory factory,
+      {bool? backgroundAudioDeclared}) {
+    _player = factory;
+    if (backgroundAudioDeclared != null) {
+      _backgroundAudioDeclared = backgroundAudioDeclared;
+    }
+  }
+
+  /// Binds the platform's audio focus.
+  static void registerAudioFocus(DVAudioFocusBackend backend) =>
+      _focus = DVAudioFocus(backend);
+
+  /// Binds the lock screen and its transport controls.
+  static void registerNowPlaying(DVNowPlayingBackend backend) =>
+      _nowPlaying = dvNowPlaying = DVNowPlaying(backend);
+
+  /// The disk cache progressive URLs are read through. A binding on a
+  /// target with a filesystem sets it at start-up.
+  static void useCache(DVMediaCache? cache) => _cache = cache;
+
+  static DVMediaCache? get cache => _cache;
+
+  /// How `DV.Platform.media.precache` fetches where there is no disk cache:
+  /// a browser asking its own HTTP cache to fetch.
+  static void registerPrecache(
+          Future<void> Function(String url, int? bytes) precache) =>
+      _precache = precache;
+
+  /// Binds this target's camera. [capabilities] is what the device reports
+  /// without opening it; the factory opens nothing until a box asks.
+  ///
+  /// [directory] is where photos and clips go, made private like
+  /// recordings'.
+  static void registerCamera(DVCameraBackend Function() factory,
+      {required DVCameraCapabilities capabilities, String? directory}) {
+    _camera = factory;
+    _cameraCapabilities = capabilities;
+    if (directory != null) _captureDirectory = directory;
+  }
+
+  static String? _captureDirectory;
+  static DVCaptureFiles? _captureFiles;
+
+  /// Where a camera writes on a target with no directory to give: a browser,
+  /// whose recordings are Blobs in a page-lifetime store.
+  static void useCaptureFiles(DVCaptureFiles files) => _captureFiles = files;
+
+  /// Where a camera writes, private to this account.
+  static DVCaptureFiles get captureFiles {
+    final DVCaptureFiles? files = _captureFiles;
+    if (files != null) return files;
+    final String? directory = _captureDirectory;
+    return directory == null
+        ? const _DVNoCaptureFiles()
+        : DVPrivateCaptureFiles(directory);
+  }
+
+  /// The runtime permission flow, as a camera asks it.
+  static DVCapturePermissions get capturePermissions =>
+      const _DVPlatformCapturePermissions();
+
+  static DVCameraCapabilities get cameraCapabilities => _cameraCapabilities;
+
+  /// A camera, or null where none is bound.
+  static DVCameraBackend? createCamera() => _camera?.call();
+
+  /// Fetches [source] ahead of playback. Returns false where this target
+  /// can neither cache nor ask anything else to.
+  static Future<bool> precache(DVMediaSource source, {int? bytes}) async {
+    if (source.kind != DVMediaSourceKind.url || source.isAdaptive) return false;
+    final DVMediaCache? cache = _cache;
+    if (cache != null && source.cache) {
+      await cache.precache(source.reference, bytes: bytes);
+      return true;
+    }
+    final Future<void> Function(String, int?)? fetch = _precache;
+    if (fetch == null) return false;
+    await fetch(source.reference, bytes);
+    return true;
+  }
 
   static void unregisterPlayer() => _player = null;
 
@@ -74,6 +174,7 @@ abstract final class DVMediaBackends {
     required String directory,
     DVCapturePermissions permissions = const _DVPlatformCapturePermissions(),
   }) {
+    _captureDirectory = directory;
     _capture = DVMediaCapture(
       capabilities: capabilities,
       backend: backend,
@@ -97,7 +198,17 @@ abstract final class DVMediaBackends {
   static void reset() {
     _player = null;
     _capture = null;
-    environment = DVMediaEnvironment.new;
+    _camera = null;
+    _cameraCapabilities = DVCameraCapabilities.none;
+    _captureDirectory = null;
+    _captureFiles = null;
+    _nowPlaying = null;
+    _focus = null;
+    _cache = null;
+    _precache = null;
+    _backgroundAudioDeclared = false;
+    dvNowPlaying = DVNowPlaying();
+    environment = _defaultEnvironment;
   }
 }
 
@@ -164,8 +275,28 @@ final class _DVUnavailablePlayer implements DVMediaPlayerBackend {
   Future<void> dispose() => _events.close();
 }
 
-/// What a remote-control or keyboard key does to a player.
-enum DVTransportAction { togglePlay, play, pause, stop, seekForward, seekBackward }
+/// Reads a caption file: a bundled asset, a URL or a file.
+Future<String> dvLoadCaptionText(DVMediaSource source) async {
+  switch (source.kind) {
+    case DVMediaSourceKind.asset:
+      return rootBundle.loadString(source.reference);
+    case DVMediaSourceKind.url:
+      final http.Response response =
+          await http.get(Uri.parse(source.reference));
+      if (response.statusCode >= 400) {
+        throw StateError('the captions at ${source.reference} answered '
+            '${response.statusCode}');
+      }
+      return response.body;
+    case DVMediaSourceKind.file:
+      return dvReadCaptionFile(source.reference);
+  }
+}
+
+/// A backend that draws a camera's live picture.
+abstract interface class DVCameraSurface {
+  Widget buildPreview(BuildContext context);
+}
 
 /// Remote-control keys, mapped to the controller by default.
 ///
@@ -231,6 +362,8 @@ abstract final class DVMediaTransportKeys {
         final Duration back = controller.position.value - seekStep;
         unawaited(
             controller.seek(back < Duration.zero ? Duration.zero : back));
+      case DVTransportAction.seekTo:
+        break;
     }
   }
 }
@@ -280,12 +413,16 @@ class DVMediaView extends StatefulWidget {
     this.background = DVBackgroundPlayback.none,
     this.autoplay = false,
     this.aspectRatio,
+    this.session,
+    this.captions,
     DVMediaController? controller,
   })  : ownsController = controller == null,
         controller = controller ??
             DVMediaController(
               source,
               background: background,
+              session: session,
+              captions: captions,
               environment: DVMediaBackends.environment(),
             );
 
@@ -296,6 +433,8 @@ class DVMediaView extends StatefulWidget {
         controls = from.controls,
         background = from.background,
         autoplay = from.autoplay,
+        session = from.session,
+        captions = from.captions,
         controller = from.controller,
         ownsController = from.ownsController,
         super(key: from.key);
@@ -307,6 +446,8 @@ class DVMediaView extends StatefulWidget {
   final DVBackgroundPlayback background;
   final bool autoplay;
   final double? aspectRatio;
+  final DVMediaSession? session;
+  final DVCaptions? captions;
   final DVMediaController controller;
 
   /// Whether the box made [controller], and so disposes it with the page. A
@@ -325,6 +466,7 @@ class _DVMediaViewState extends State<DVMediaView> {
 
   late DVMediaController _current;
   bool _owns = false;
+  bool _muted = false;
   DVMediaPlayerBackend? _backend;
   final List<StreamSubscription<Object?>> _subscriptions =
       <StreamSubscription<Object?>>[];
@@ -377,7 +519,11 @@ class _DVMediaViewState extends State<DVMediaView> {
       ..clear()
       ..add(_current.state.listen((_) => _changed()))
       ..add(_current.position.listen((_) => _changed()))
-      ..add(_current.duration.listen((_) => _changed()));
+      ..add(_current.duration.listen((_) => _changed()))
+      ..add(_current.caption.listen((_) => _changed()))
+      ..add(_current.captionTrack.listen((_) => _changed()))
+      ..add(_current.pictureInPicture.listen((_) => _changed()))
+      ..add(_current.videoSize.listen((_) => _changed()));
   }
 
   void _changed() {
@@ -450,9 +596,21 @@ class _DVMediaViewState extends State<DVMediaView> {
       state != DVPlaybackState.disposed;
 
   KeyEventResult _onFocusedKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent || !DV.Platform.isTV) {
-      return KeyEventResult.ignored;
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    // The keys a person expects of any player with keyboard focus, on every
+    // target: k and space toggle, j and l skip, m mutes, c cycles captions.
+    // Only while the player itself is focused, so typing on the page is
+    // never taken.
+    if (node.hasPrimaryFocus) {
+      final DVMediaKeyAction? key = DVMediaKeys.actionFor(event.logicalKey);
+      if (key != null) {
+        unawaited(DVMediaKeys.apply(key, _current, muted: _muted,
+            onMuted: (bool muted) => setState(() => _muted = muted))
+            .catchError((Object _) {}));
+        return KeyEventResult.handled;
+      }
     }
+    if (!DV.Platform.isTV) return KeyEventResult.ignored;
     final DVTransportAction? action =
         DVMediaTransportKeys.actionFor(event.logicalKey, television: true);
     // Media keys arrive through the global handler already.
@@ -465,6 +623,16 @@ class _DVMediaViewState extends State<DVMediaView> {
         DVMediaTransportKeys.apply(action, _current).catchError((Object _) {}));
     return KeyEventResult.handled;
   }
+
+  Widget _controls(DVPlaybackState state) => DVMediaStandardControls(
+        controller: _current,
+        state: state,
+        muted: _muted,
+        onMuted: (bool muted) {
+          setState(() => _muted = muted);
+          unawaited(_current.setVolume(muted ? 0 : 1).catchError((Object _) {}));
+        },
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -482,20 +650,38 @@ class _DVMediaViewState extends State<DVMediaView> {
             child: (backend as DVVideoSurface).buildSurface(context)),
       if (widget.poster != null && (failed || !started || !video))
         Positioned.fill(child: DVImageRender(widget.poster)),
+      if (_current.caption.value != null)
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: widget.controls == DVMediaControls.standard ? 56 : 16,
+          child: DVCaptionLine(_current.caption.value!),
+        ),
       if (widget.controls == DVMediaControls.standard && _playable(state))
         Positioned(
           left: 0,
           right: 0,
           bottom: 0,
-          child: _DVStandardControls(controller: _current, state: state),
+          child: _controls(state),
         ),
     ];
 
+    final String? title = widget.session?.title;
     final Widget content = Focus(
       onKeyEvent: _onFocusedKey,
       child: Semantics(
-        label: video ? 'Video player' : 'Audio player',
-        value: state.name,
+        // What the server-rendered document turns into a real <video> or
+        // <audio>: the page capture reads it off the semantics tree.
+        identifier: dvMediaSemanticsIdentifier(
+          kind: widget.kind,
+          source: widget.source,
+          poster: widget.poster,
+          captions: widget.captions,
+        ),
+        label: title == null
+            ? (video ? 'Video player' : 'Audio player')
+            : '${video ? 'Video' : 'Audio'}: $title',
+        value: _stateLabel(state),
         child: video
             ? Stack(children: layers)
             : Stack(children: <Widget>[
@@ -503,9 +689,11 @@ class _DVMediaViewState extends State<DVMediaView> {
                   Positioned.fill(child: DVImageRender(widget.poster)),
                 if (widget.controls == DVMediaControls.standard &&
                     _playable(state))
-                  _DVStandardControls(controller: _current, state: state)
+                  _controls(state)
                 else
                   const SizedBox(height: 48),
+                if (_current.caption.value != null)
+                  DVCaptionLine(_current.caption.value!),
               ]),
       ),
     );
@@ -526,11 +714,138 @@ class _DVMediaViewState extends State<DVMediaView> {
   }
 }
 
-class _DVStandardControls extends StatelessWidget {
-  const _DVStandardControls({required this.controller, required this.state});
+String _stateLabel(DVPlaybackState state) => switch (state) {
+      DVPlaybackState.idle || DVPlaybackState.loading => 'Loading',
+      DVPlaybackState.buffering => 'Buffering',
+      DVPlaybackState.paused => 'Paused',
+      DVPlaybackState.playing => 'Playing',
+      DVPlaybackState.stalled => 'Stalled',
+      DVPlaybackState.completed => 'Finished',
+      DVPlaybackState.failed => 'Could not play',
+      DVPlaybackState.disposed => 'Closed',
+    };
+
+/// `1:05` or `1:02:05`.
+String dvMediaClock(Duration time) {
+  final int hours = time.inHours;
+  final String minutes = (time.inMinutes % 60).toString();
+  final String seconds = (time.inSeconds % 60).toString().padLeft(2, '0');
+  return hours > 0
+      ? '$hours:${minutes.padLeft(2, '0')}:$seconds'
+      : '$minutes:$seconds';
+}
+
+/// What a key does to a focused player.
+enum DVMediaKeyAction {
+  togglePlay,
+  seekForward,
+  seekBackward,
+  toggleMute,
+  cycleCaptions,
+}
+
+/// The keyboard of a focused player, on every target.
+abstract final class DVMediaKeys {
+  static const Duration step = Duration(seconds: 5);
+
+  static DVMediaKeyAction? actionFor(LogicalKeyboardKey key) {
+    if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.keyK) {
+      return DVMediaKeyAction.togglePlay;
+    }
+    if (key == LogicalKeyboardKey.keyL) return DVMediaKeyAction.seekForward;
+    if (key == LogicalKeyboardKey.keyJ) return DVMediaKeyAction.seekBackward;
+    if (key == LogicalKeyboardKey.keyM) return DVMediaKeyAction.toggleMute;
+    if (key == LogicalKeyboardKey.keyC) return DVMediaKeyAction.cycleCaptions;
+    return null;
+  }
+
+  static Future<void> apply(
+    DVMediaKeyAction action,
+    DVMediaController controller, {
+    required bool muted,
+    required void Function(bool muted) onMuted,
+  }) async {
+    switch (action) {
+      case DVMediaKeyAction.togglePlay:
+        await DVMediaTransportKeys.apply(
+            DVTransportAction.togglePlay, controller);
+      case DVMediaKeyAction.seekForward:
+        unawaited(controller.seek(controller.position.value + step));
+      case DVMediaKeyAction.seekBackward:
+        final Duration back = controller.position.value - step;
+        unawaited(controller.seek(back < Duration.zero ? Duration.zero : back));
+      case DVMediaKeyAction.toggleMute:
+        onMuted(!muted);
+        await controller.setVolume(muted ? 1 : 0);
+      case DVMediaKeyAction.cycleCaptions:
+        await controller.setCaptionTrack(nextCaptionTrack(controller));
+    }
+  }
+
+  /// Off, then each track in turn, then off again.
+  static String? nextCaptionTrack(DVMediaController controller) {
+    final List<DVCaptionTrack> tracks =
+        controller.captions?.tracks ?? const <DVCaptionTrack>[];
+    if (tracks.isEmpty) return null;
+    final String? now = controller.captionTrack.value;
+    final int index =
+        tracks.indexWhere((DVCaptionTrack t) => t.language == now);
+    if (now == null) return tracks.first.language;
+    return index + 1 < tracks.length ? tracks[index + 1].language : null;
+  }
+}
+
+/// One caption cue over the picture: real text, so a screen reader reads it
+/// as it changes, Ctrl+F finds it and it follows the theme's type.
+class DVCaptionLine extends StatelessWidget {
+  const DVCaptionLine(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        container: true,
+        liveRegion: true,
+        label: text,
+        child: ExcludeSemantics(
+          child: Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xCC000000),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Padding(
+                padding: const .symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  text,
+                  textAlign: .center,
+                  style: const TextStyle(
+                      color: Color(0xFFFFFFFF), fontSize: 18, height: 1.3),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+/// The built-in controls of `DVBox.video`/`DVBox.audio`: play/pause, a
+/// labelled scrubber, the time, mute, captions and picture-in-picture where
+/// the target has it. Every control is a real button with a label, in Tab
+/// order, and the scrubber moves with the arrow keys.
+class DVMediaStandardControls extends StatelessWidget {
+  const DVMediaStandardControls({
+    super.key,
+    required this.controller,
+    required this.state,
+    required this.muted,
+    required this.onMuted,
+  });
 
   final DVMediaController controller;
   final DVPlaybackState state;
+  final bool muted;
+  final void Function(bool muted) onMuted;
 
   @override
   Widget build(BuildContext context) {
@@ -539,6 +854,8 @@ class _DVStandardControls extends StatelessWidget {
         state == DVPlaybackState.stalled;
     final Duration duration = controller.duration.value;
     final Duration position = controller.position.value;
+    final bool hasCaptions = controller.captions?.tracks.isNotEmpty ?? false;
+    final String? track = controller.captionTrack.value;
     return Material(
       type: .transparency,
       child: Row(
@@ -550,17 +867,54 @@ class _DVStandardControls extends StatelessWidget {
                 (active ? controller.pause() : controller.play())
                     .catchError((Object _) {})),
           ),
-          if (duration > Duration.zero)
+          if (duration > Duration.zero) ...<Widget>[
             Expanded(
               child: Slider(
                 value: position.inMilliseconds
                     .clamp(0, duration.inMilliseconds)
                     .toDouble(),
                 max: duration.inMilliseconds.toDouble(),
+                semanticFormatterCallback: (double ms) =>
+                    '${dvMediaClock(Duration(milliseconds: ms.round()))} '
+                    'of ${dvMediaClock(duration)}',
                 onChanged: (double ms) => unawaited(controller
                     .seek(Duration(milliseconds: ms.round()))
                     .catchError((Object _) {})),
               ),
+            ),
+            // The slider already says this to a screen reader.
+            ExcludeSemantics(
+              child: Text(
+                  '${dvMediaClock(position)} / ${dvMediaClock(duration)}'),
+            ),
+          ] else
+            const Spacer(),
+          IconButton(
+            tooltip: muted ? 'Unmute' : 'Mute',
+            icon: Icon(muted ? Icons.volume_off : Icons.volume_up),
+            onPressed: () => onMuted(!muted),
+          ),
+          if (hasCaptions)
+            IconButton(
+              tooltip: track == null ? 'Turn captions on' : 'Captions: $track',
+              isSelected: track != null,
+              icon: Icon(track == null
+                  ? Icons.closed_caption_off
+                  : Icons.closed_caption),
+              onPressed: () => unawaited(controller
+                  .setCaptionTrack(DVMediaKeys.nextCaptionTrack(controller))
+                  .catchError((Object _) {})),
+            ),
+          if (controller.canPictureInPicture)
+            IconButton(
+              tooltip: controller.pictureInPicture.value
+                  ? 'Exit picture-in-picture'
+                  : 'Picture-in-picture',
+              icon: const Icon(Icons.picture_in_picture_alt),
+              onPressed: () => unawaited((controller.pictureInPicture.value
+                      ? controller.exitPictureInPicture()
+                      : controller.enterPictureInPicture())
+                  .catchError((Object _) {})),
             ),
         ],
       ),

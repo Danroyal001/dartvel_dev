@@ -26,6 +26,7 @@ class DVSemanticNode {
     this.headingLevel,
     this.label,
     this.href,
+    this.media,
     this.children = const <DVSemanticNode>[],
   });
 
@@ -41,6 +42,10 @@ class DVSemanticNode {
   /// Where a link goes.
   final String? href;
 
+  /// What a player or camera box declared about itself: `src`, `poster` and
+  /// caption `tracks` (`srclang`, `label`, `src`). Null for every other node.
+  final Map<String, Object?>? media;
+
   final List<DVSemanticNode> children;
 
   /// Read a node emitted by the prerender step.
@@ -49,6 +54,9 @@ class DVSemanticNode {
         headingLevel: (json['level'] as num?)?.toInt(),
         label: (json['label'] as String?)?.trim(),
         href: json['href'] as String?,
+        media: json['media'] is Map
+            ? (json['media']! as Map).cast<String, Object?>()
+            : null,
         children: <DVSemanticNode>[
           for (final Object? child
               in (json['children'] as List<Object?>? ?? const <Object?>[]))
@@ -100,6 +108,11 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
     final int? level = node.headingLevel;
     if (level != null && level >= 1 && level <= 6 && hasLabel) {
       out.writeln('<h$level>${_text.convert(label)}</h$level>');
+      continue;
+    }
+
+    if (node.media != null) {
+      _writeMedia(out, node, hasLabel ? label : null);
       continue;
     }
 
@@ -166,6 +179,68 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
     }
     _write(out, node.children, depth + 1);
   }
+}
+
+/// A source a page may load: http(s), or a path relative to the site.
+/// Anything with another scheme -- `javascript:`, `data:`, `file:` -- is
+/// dropped rather than written into an attribute a browser acts on.
+String? _safeSource(Object? value) {
+  if (value is! String || value.trim().isEmpty) return null;
+  final String source = value.trim();
+  final Uri? uri = Uri.tryParse(source);
+  if (uri == null) return null;
+  if (uri.hasScheme && uri.scheme != 'http' && uri.scheme != 'https') {
+    return null;
+  }
+  return source;
+}
+
+/// A player as the element a browser plays, or a camera as a placeholder.
+///
+/// The player's own controls are not written out: in the document they are
+/// the browser's, and Flutter's Play and Mute repeated as paragraphs would
+/// be words with nothing to press.
+void _writeMedia(StringBuffer out, DVSemanticNode node, String? label) {
+  final Map<String, Object?> media = node.media!;
+  final String name = label ?? (node.role == 'camera' ? 'Camera' : 'Player');
+  final String attributeName = _attribute.convert(name);
+  if (node.role == 'camera') {
+    out.writeln('<figure role="group" aria-label="$attributeName">'
+        '<figcaption>${_text.convert(name)}: the live picture needs '
+        'JavaScript and permission to use the camera.</figcaption></figure>');
+    return;
+  }
+  final String tag = node.role == 'audio' ? 'audio' : 'video';
+  final String? src = _safeSource(media['src']);
+  if (src == null) {
+    out.writeln('<figure role="img" aria-label="$attributeName">'
+        '<figcaption>${_text.convert(name)}</figcaption></figure>');
+    return;
+  }
+  final String? poster = _safeSource(media['poster']);
+  final StringBuffer element = StringBuffer(
+      '<$tag controls preload="metadata" src="${_attribute.convert(src)}"');
+  if (poster != null && tag == 'video') {
+    element.write(' poster="${_attribute.convert(poster)}"');
+  }
+  element.write(' aria-label="$attributeName">');
+  final Object? tracks = media['tracks'];
+  if (tracks is List) {
+    for (final Object? track in tracks) {
+      if (track is! Map) continue;
+      final String? trackSrc = _safeSource(track['src']);
+      if (trackSrc == null) continue;
+      final String lang = _attribute.convert('${track['srclang'] ?? ''}');
+      final String trackLabel =
+          _attribute.convert('${track['label'] ?? track['srclang'] ?? ''}');
+      element.write('<track kind="captions" srclang="$lang" '
+          'label="$trackLabel" src="${_attribute.convert(trackSrc)}">');
+    }
+  }
+  // For a browser that cannot play it: the file itself.
+  element.write('<a href="${_attribute.convert(src)}">'
+      '${_text.convert(name)}</a></$tag>');
+  out.writeln(element);
 }
 
 /// The text of a subtree, for a node whose own label is empty.
