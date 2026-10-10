@@ -239,6 +239,7 @@ void main() {
             environment: <String, String>{'DARTVEL_UPDATES_TOKEN': token},
             run: fakes.run,
             flutterVersion: () async => '3.44.5',
+            hostOs: 'linux',
           ),
         ),
       );
@@ -506,7 +507,7 @@ void main() {
   });
 
   test(
-    'an iOS patch into a self-hosted source is refused, saying why',
+    'an iOS release off macOS is refused before anything runs',
     () async {
       await runner.run(<String>[
         'updates',
