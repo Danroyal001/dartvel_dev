@@ -79,4 +79,24 @@ $logging
     expect(source, contains("'enabled': true"));
     expect(source, contains("release: '3.1.0'"));
   });
+
+  test('the generated runtime imports every DV.log installer it calls',
+      () async {
+    // The runtime calls dvInstallApplicationLogging; if the generated
+    // flutter import omits it from its show list the client does not
+    // compile. The refusal tests above never generate a compilable runtime,
+    // so this is the check that caught the omission.
+    final Directory directory = project('''
+  logging:
+    level: info
+''');
+    await routes.generate(root_: directory.path);
+
+    final String source = runtimeOf(directory).readAsStringSync();
+    final String flutterImport = source
+        .split('\n')
+        .firstWhere((String line) =>
+            line.contains("import 'package:dartvel_flutter/dartvel_flutter.dart'"));
+    expect(flutterImport, contains('dvInstallApplicationLogging'));
+  });
 }
