@@ -6,11 +6,16 @@
 library dartvel.observability;
 
 import 'health.dart';
+import 'log_file.dart';
 import 'logging.dart';
 import 'metrics.dart';
 import 'tracing.dart';
 
 export 'health.dart';
+export 'log.dart';
+export 'log_config.dart';
+export 'log_file.dart';
+export 'log_shipping.dart';
 export 'logging.dart';
 export 'metrics.dart';
 export 'runtime_config.dart';
@@ -121,13 +126,39 @@ class DVObservability {
   }) {
     _buffer = DVMemoryLogSink(capacity: bufferCapacity);
     logger = _newLogger(
-      <DVLogSink>[if (keepBuffer) _buffer, ...sinks],
+      <DVLogSink>[
+        if (keepBuffer) _buffer,
+        if (_file != null) _file!,
+        ...sinks,
+      ],
       level: level,
     );
   }
 
+  /// The device's log file, when the runtime installed one.
+  static DVLogFile? _file;
+  static DVLogFile? get logFile => _file;
+
+  /// Writes every record that passes the level to [file] as well, and makes
+  /// it what `DV.log.export()` reads. Survives [useLogging], which replaces
+  /// the other sinks.
+  static void useLogFile(DVLogFile file) {
+    final DVLogFile? previous = _file;
+    if (previous != null) {
+      logger.sinks.remove(previous);
+      previous.close();
+    }
+    _file = file;
+    logger.sinks.add(file);
+  }
+
+  /// Empties the in-memory records.
+  static void clearRecentLogs() => _buffer.clear();
+
   /// Back to the default: the buffer, and nothing else.
   static void resetLogging() {
+    _file?.close();
+    _file = null;
     _buffer = DVMemoryLogSink();
     logger = _newLogger(<DVLogSink>[_buffer]);
   }
@@ -139,6 +170,7 @@ class DVObservability {
   static void log(
     String message, {
     DVLogLevel level = DVLogLevel.info,
+    String? tag,
     Map<String, Object?> context = const <String, Object?>{},
     String? code,
     Object? error,
@@ -147,6 +179,7 @@ class DVObservability {
       logger.log(
         message,
         level: level,
+        tag: tag,
         context: context,
         code: code,
         error: error,

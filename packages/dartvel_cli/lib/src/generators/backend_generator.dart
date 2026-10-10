@@ -8,6 +8,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVCacheConfigException,
         DVCrashConfig,
         DVCrashSinkChoice,
+        DVLogConfig,
         DVPlatformApiConfig,
         DVWebhooksConfig,
         DVWebhooksConfigException,
@@ -76,6 +77,55 @@ class BackendGenerator {
       );
     }
   }
+
+  /// `dartvel.logging`, read with the parser the runtime uses.
+  static DVLogConfig _dvLogConfig(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return const DVLogConfig();
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+    try {
+      return DVLogConfig.parse(dartvel is Map ? dartvel['logging'] : null);
+    } on ArgumentError catch (error) {
+      throw StateError(
+        'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
+      );
+    }
+  }
+
+  /// The client-logs endpoint, for an application whose devices send their
+  /// records to its own backend (`dartvel.logging.ship.enabled`). Like the
+  /// crash endpoint: the body limit enforced where the body is read, an API
+  /// key refused, nothing of a batch logged on a failure.
+  static String _dvClientLogsRouteSource(DVLogConfig logging) => '''
+  // Log records from this application's devices: dartvel.logging.ship.
+  router.post(cfg.apiBasePath + core.DVLogIngest.path, (dv.Request req) => _dvStaged(req, () async {
+    if (core.DVApiPrincipal.current != null) {
+      return _dvPolicyForbidden('no declared policy action');
+    }
+    core.DVLogIngestResult result;
+    try {
+      final core.DVLogIngest ingest = _dartvelLogIngest ??= core.DVLogIngest(
+        perInstallPerHour: ${logging.ingestPerInstallPerHour},
+        maxBytes: ${logging.ingestMaxBytes},
+        forward: core.DVLogIngest.forwarderFrom(Platform.environment),
+      );
+      if (core.dvDeclaredTooLarge(contentLength: req.headers.get('content-length'), limit: ingest.maxBytes)) {
+        result = const core.DVLogIngestResult(core.DVLogIngestOutcome.tooLarge);
+      } else {
+        final body = await core.dvReadCapped(req.body.stream, ingest.maxBytes);
+        result = body == null
+            ? const core.DVLogIngestResult(core.DVLogIngestOutcome.tooLarge)
+            : await ingest.accept(body);
+      }
+    } on Object {
+      result = const core.DVLogIngestResult(core.DVLogIngestOutcome.invalid);
+    }
+    return dv.Response(result.status,
+        headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
+        body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result.toJson()))));
+  }), maxBodyBytes: ${logging.ingestMaxBytes});
+''';
 
   /// Whether pubspec.yaml turns Studio off outright (`dartvel.admin.enabled:
   /// false`). Then nothing of it is generated. Otherwise every reference is
@@ -785,6 +835,9 @@ $openApiJson\'\'\';
     // serves the crash endpoint, and what it accepts there.
     final DVCrashConfig crashes = _dvCrashConfig(root);
     final bool servesCrashes = crashes.sink == DVCrashSinkChoice.dartvel;
+    // dartvel.logging: whether this backend receives its devices' records.
+    final DVLogConfig logging = _dvLogConfig(root);
+    final bool servesClientLogs = logging.ship;
     // The release a server's crash report names: the pubspec version, as the
     // client's does, so one release's reports from both ends group together.
     final String crashRelease = _dvCrashRelease(root);
@@ -1148,7 +1201,7 @@ dv.Response _dvTooLarge(int limit) => dv.Response(413,
     body: Stream<List<int>>.value(
         conv.utf8.encode(core.dvTooLargeMessage(limit))));
 
-${servesCrashes ? '/// The crash endpoint\'s ingest, built on the first report.\ncore.DVCrashIngest? _dartvelCrashIngest;\n\n' : ''}dv.Response _dvCsrfForbidden() => dv.Response(403,
+${servesCrashes ? '/// The crash endpoint\'s ingest, built on the first report.\ncore.DVCrashIngest? _dartvelCrashIngest;\n\n' : ''}${servesClientLogs ? '/// The client-logs endpoint\'s ingest, built on the first batch.\ncore.DVLogIngest? _dartvelLogIngest;\n\n' : ''}dv.Response _dvCsrfForbidden() => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(conv.utf8.encode('CSRF token missing')));
 
@@ -1660,7 +1713,7 @@ ${dvModuleRpcRegistrations(moduleRpcRoutes)}  // Writes a device made while it c
       }),
     );
   }));
-${platformApi?.oauth != null ? _dvOAuthRouteSource() : ''}${servesCrashes ? _dvCrashRouteSource(crashes) : ''}  // The API reference is public documentation, so a partner's tooling that
+${platformApi?.oauth != null ? _dvOAuthRouteSource() : ''}${servesCrashes ? _dvCrashRouteSource(crashes) : ''}${servesClientLogs ? _dvClientLogsRouteSource(logging) : ''}  // The API reference is public documentation, so a partner's tooling that
   // sends its key with every request is answered; a bad credential is not.
   router.get(cfg.apiBasePath + '/openapi.json', (dv.Request req) => _dvStaged(req, () async =>
       dv.Response(200,

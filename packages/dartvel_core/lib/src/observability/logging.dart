@@ -65,6 +65,7 @@ class DVLogRecord {
     required this.level,
     required this.message,
     DateTime? time,
+    this.tag,
     this.context = const <String, Object?>{},
     this.event,
     this.code,
@@ -74,9 +75,67 @@ class DVLogRecord {
     this.spanId,
   }) : time = time ?? DateTime.now();
 
+  /// Reads a record back from [toJson]'s shape: a line from the device's log
+  /// file, or one a client sent to its backend.
+  ///
+  /// Strict about the three fields every record has, because a line that is
+  /// missing one was cut short or was never a record, and reading it as one
+  /// would put a plausible line with the wrong level into an export.
+  factory DVLogRecord.fromJson(Map<String, Object?> json) {
+    final Object? time = json['time'];
+    final Object? level = json['level'];
+    final Object? message = json['message'];
+    if (time is! String || level is! String || message is! String) {
+      throw const FormatException(
+          'a log record has a time, a level and a message, each a string');
+    }
+    final DateTime? parsedTime = DateTime.tryParse(time);
+    final DVLogLevel? parsedLevel = DVLogLevel.values
+        .where((DVLogLevel candidate) => candidate.name == level)
+        .firstOrNull;
+    if (parsedTime == null || parsedLevel == null) {
+      throw FormatException('not a log record time and level', '$time $level');
+    }
+    String? text(String key) {
+      final Object? value = json[key];
+      if (value == null) return null;
+      if (value is! String) throw FormatException('$key must be a string');
+      return value;
+    }
+
+    final Object? context = json['context'];
+    if (context != null && context is! Map) {
+      throw const FormatException('context must be a map');
+    }
+    return DVLogRecord(
+      level: parsedLevel,
+      message: message,
+      time: parsedTime,
+      tag: text('tag'),
+      context: context == null
+          ? const <String, Object?>{}
+          : <String, Object?>{
+              for (final MapEntry<Object?, Object?> entry
+                  in (context as Map<Object?, Object?>).entries)
+                '${entry.key}': entry.value,
+            },
+      event: text('event'),
+      code: text('code'),
+      error: text('error'),
+      stackTrace: text('stack'),
+      traceId: text('traceId'),
+      spanId: text('spanId'),
+    );
+  }
+
   final DateTime time;
   final DVLogLevel level;
   final String message;
+
+  /// The category a record belongs to: `checkout`, `dartvel.auth`,
+  /// `native.android`. A filter in a log store, in the device's console and
+  /// in an export, where a message is only searchable by its wording.
+  final String? tag;
 
   /// The structured part. Everything a query might filter on belongs here
   /// rather than interpolated into [message], because a value inside a
@@ -104,6 +163,7 @@ class DVLogRecord {
         'time': time.toUtc().toIso8601String(),
         'level': level.name,
         'message': message,
+        if (tag != null) 'tag': tag,
         if (event != null) 'event': event,
         if (code != null) 'code': code,
         if (context.isNotEmpty) 'context': context,
@@ -190,6 +250,16 @@ class DVFanoutLogSink implements DVLogSink {
   }
 }
 
+/// Every `@DVModel.sensitiveField()` name in the application, registered by
+/// the generated `registerDartvelModels()` on the client and the server.
+///
+/// Added to rather than replaced, because a module's generated client
+/// registers its own models in the same process.
+void dvRegisterSensitiveLogFields(Iterable<String> names) =>
+    DVLogger._sensitiveFields.addAll(<String>[
+      for (final String name in names) name.toLowerCase(),
+    ]);
+
 /// The thing application code calls.
 class DVLogger {
   DVLogger({
@@ -228,6 +298,21 @@ class DVLogger {
     'ssn',
   };
 
+  /// The application's sensitive model field names, lowercased.
+  ///
+  /// Matched exactly, where [redactedKeys] is matched as substrings: a model
+  /// field named `number` is not every key containing `number`. Shared by
+  /// every logger in the process, because the declaration is the
+  /// application's and not one logger's.
+  static final Set<String> _sensitiveFields = <String>{};
+
+  /// The sensitive field names registered so far.
+  static Set<String> get sensitiveFields =>
+      Set<String>.unmodifiable(_sensitiveFields);
+
+  /// Forgets every registered sensitive field. For tests.
+  static void resetSensitiveFields() => _sensitiveFields.clear();
+
   /// What a redacted value is replaced with. Present rather than removed, so
   /// a reader can tell the difference between a secret that was there and a
   /// field that was never set.
@@ -236,6 +321,35 @@ class DVLogger {
   /// would mean an operator searching their log store for redactions finds
   /// only half of them.
   static const String redactedValue = dvRedactedMarker;
+
+  /// Credentials recognisable by their shape, redacted from every string.
+  ///
+  /// [dvRedactSecrets] knows the values `DV.Secrets` handed out, which on a
+  /// server is most of them. A device has none of those: its credentials are
+  /// a session token, a bearer header quoted back by an error and a URL with
+  /// a password in it, and those are caught by what they look like. The
+  /// group each pattern keeps is the part that is not the credential, so a
+  /// line still says which host refused the connection.
+  static final List<(RegExp, String Function(Match))> _credentialShapes =
+      <(RegExp, String Function(Match))>[
+    // A JSON Web Token: three base64url parts, the first two starting with
+    // the encoding of `{"`.
+    (
+      RegExp(r'eyJ[A-Za-z0-9_-]{2,}\.eyJ[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]+'),
+      (Match match) => redactedValue,
+    ),
+    // `Bearer <token>` / `Basic <credentials>`, wherever it was quoted.
+    (
+      RegExp(r'\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}',
+          caseSensitive: false),
+      (Match match) => '${match[1]} $redactedValue',
+    ),
+    // The password in `scheme://user:password@host`.
+    (
+      RegExp(r'(://[^/\s:@]+:)[^/\s@]+@'),
+      (Match match) => '${match[1]}$redactedValue@',
+    ),
+  ];
 
   /// Called for every record, whether or not it passes [minimumLevel].
   ///
@@ -248,6 +362,7 @@ class DVLogger {
   void log(
     String message, {
     DVLogLevel level = DVLogLevel.info,
+    String? tag,
     Map<String, Object?> context = const <String, Object?>{},
     String? event,
     String? code,
@@ -255,6 +370,7 @@ class DVLogger {
     StackTrace? stackTrace,
     String? traceId,
     String? spanId,
+    DateTime? time,
   }) {
     final DVSpan? span = dvCurrentSpan;
     final DVLogRecord record = DVLogRecord(
@@ -264,13 +380,15 @@ class DVLogger {
       // actually handed out, which is what catches a credential inside a
       // connection string, quoted back by an upstream error, or typed into a
       // sentence by hand during an incident.
-      message: dvRedactSecrets(message),
+      message: _redactText(message),
+      tag: tag,
+      time: time,
       context: _sanitise(context),
       event: event,
       code: code,
-      error: error == null ? null : dvRedactSecrets(error.toString()),
+      error: error == null ? null : _redactText(error.toString()),
       stackTrace:
-          stackTrace == null ? null : dvRedactSecrets(stackTrace.toString()),
+          stackTrace == null ? null : _redactText(stackTrace.toString()),
       // An explicit id wins: a job replaying work on behalf of a request
       // knows the trace it belongs to, and the ambient span would put it
       // under the worker's own trace instead.
@@ -285,26 +403,31 @@ class DVLogger {
     }
   }
 
-  void trace(String message, {Map<String, Object?> context = const {}}) =>
-      log(message, level: DVLogLevel.trace, context: context);
+  void trace(String message,
+          {String? tag, Map<String, Object?> context = const {}}) =>
+      log(message, level: DVLogLevel.trace, tag: tag, context: context);
 
-  void debug(String message, {Map<String, Object?> context = const {}}) =>
-      log(message, level: DVLogLevel.debug, context: context);
+  void debug(String message,
+          {String? tag, Map<String, Object?> context = const {}}) =>
+      log(message, level: DVLogLevel.debug, tag: tag, context: context);
 
   void info(
     String message, {
+    String? tag,
     Map<String, Object?> context = const <String, Object?>{},
     String? traceId,
     String? spanId,
   }) =>
       log(message,
-          context: context, traceId: traceId, spanId: spanId);
+          tag: tag, context: context, traceId: traceId, spanId: spanId);
 
-  void warn(String message, {Map<String, Object?> context = const {}}) =>
-      log(message, level: DVLogLevel.warn, context: context);
+  void warn(String message,
+          {String? tag, Map<String, Object?> context = const {}}) =>
+      log(message, level: DVLogLevel.warn, tag: tag, context: context);
 
   void error(
     String message, {
+    String? tag,
     Map<String, Object?> context = const <String, Object?>{},
     Object? error,
     StackTrace? stackTrace,
@@ -313,11 +436,21 @@ class DVLogger {
       log(
         message,
         level: DVLogLevel.error,
+        tag: tag,
         context: context,
         error: error,
         stackTrace: stackTrace,
         code: code,
       );
+
+  String _redactText(String text) {
+    String redacted = dvRedactSecrets(text);
+    for (final (RegExp shape, String Function(Match) replace)
+        in _credentialShapes) {
+      redacted = redacted.replaceAllMapped(shape, replace);
+    }
+    return redacted;
+  }
 
   /// Redacted, and reduced to values `jsonEncode` can actually render.
   ///
@@ -329,35 +462,58 @@ class DVLogger {
     if (context.isEmpty) return const <String, Object?>{};
     final Map<String, Object?> out = <String, Object?>{};
     context.forEach((String key, Object? value) {
-      out[key] = _isRedacted(key) ? redactedValue : _encodable(value);
+      out[key] = _isRedacted(key) ? redactedValue : _encodable(value, 0);
     });
     return out;
   }
 
   bool _isRedacted(String key) {
     final String lower = key.toLowerCase();
+    if (_sensitiveFields.contains(lower)) return true;
     for (final String needle in redactedKeys) {
       if (lower.contains(needle)) return true;
     }
     return false;
   }
 
-  Object? _encodable(Object? value) {
+  /// How deep a context value is followed. A model whose public form refers
+  /// back to itself would otherwise recurse until the stack runs out, in the
+  /// middle of reporting something else.
+  static const int _maxDepth = 8;
+
+  Object? _encodable(Object? value, int depth) {
     if (value == null || value is num || value is bool) return value;
+    if (depth > _maxDepth) return '…';
     // Every string on the way to a sink passes the resolved secret values,
     // however deep in the context map it sits. A password inside a URL under
     // the key `url` is the case the key-name list will never catch.
-    if (value is String) return dvRedactSecrets(value);
+    if (value is String) return _redactText(value);
     if (value is Iterable) {
-      return value.map(_encodable).toList(growable: false);
+      return value
+          .map((Object? item) => _encodable(item, depth + 1))
+          .toList(growable: false);
     }
     if (value is Map) {
       return <String, Object?>{
         for (final MapEntry<Object?, Object?> entry in value.entries)
-          '${entry.key}':
-              _isRedacted('${entry.key}') ? redactedValue : _encodable(entry.value),
+          '${entry.key}': _isRedacted('${entry.key}')
+              ? redactedValue
+              : _encodable(entry.value, depth + 1),
       };
     }
-    return dvRedactSecrets(value.toString());
+    // A generated data model is written as its public form, which leaves out
+    // its sensitive fields by construction. Its toString does not.
+    final Object? public = _publicForm(value);
+    if (public != null) return _encodable(public, depth + 1);
+    return _redactText(value.toString());
+  }
+
+  static Object? _publicForm(Object value) {
+    try {
+      final Object? public = (value as dynamic).toPublicJson();
+      return public is Map ? public : null;
+    } on NoSuchMethodError {
+      return null;
+    }
   }
 }
