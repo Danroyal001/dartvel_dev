@@ -179,6 +179,10 @@ Future<ServerHandle> serve(
   // bodyLimits. A route's own limit replaces maxBodyBytes for the requests it
   // takes, so an upload route reads more without every route doing so.
   Iterable<DVRouteBodyLimit> routeBodyLimits = const <DVRouteBodyLimit>[],
+  // Sent on every response that has not set the same header itself; an
+  // empty map sends none. See dvDefaultSecurityHeaders for what is in it and
+  // why a Content-Security-Policy is not.
+  Map<String, String> securityHeaders = dvDefaultSecurityHeaders,
 }) async {
   if (requestTimeout <= Duration.zero) {
     throw ArgumentError.value(requestTimeout, 'requestTimeout',
@@ -330,8 +334,20 @@ Future<ServerHandle> serve(
     };
   }
 
-  final routed =
+  final Future<Response> Function(Request) dispatched =
       (effectiveHandler is Router) ? effectiveHandler.call : effectiveHandler;
+  // Every response, the site's files and assembled pages as well as the
+  // router's, so no path is left without them. A WebSocket upgrade has no
+  // document to protect.
+  final bool overTls = tls != null;
+  Future<Response> routed(Request request) async {
+    final Response response = await dispatched(request);
+    if (response is! WebSocketResponse) {
+      dvApplySecurityHeaders(response.headers,
+          baseline: securityHeaders, overTls: overTls);
+    }
+    return response;
+  }
   // The preview's gate goes outermost, around the site's files and assembled
   // pages as well as the router: installed on the router alone, a link-only
   // preview's whole web build would be readable by anybody and every file

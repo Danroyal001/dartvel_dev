@@ -230,7 +230,11 @@ class CommonMiddleware {
       context.data['securityHeaders'] = {
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
-        'X-XSS-Protection': '1; mode=block',
+        // Off, not on: the filter this switched on is gone from current
+        // browsers, and where it survives its blocking mode can be used to
+        // tell what a page contains from another origin.
+        'X-XSS-Protection': '0',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
       };
     };
