@@ -277,6 +277,12 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
     'Shipping',
   ),
   DocsPageInfo(
+    DVRoutes.docstelegram,
+    'Telegram Mini Apps',
+    'Build for Telegram, use host controls and sign in',
+    'Shipping',
+  ),
+  DocsPageInfo(
     DVRoutes.docswebhosting,
     'Static web hosting',
     '`dartvel build web` on Apache or LiteSpeed',

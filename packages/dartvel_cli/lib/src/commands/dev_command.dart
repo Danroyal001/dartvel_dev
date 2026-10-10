@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../build/telegram.dart';
 import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
@@ -70,7 +71,8 @@ class DevCommand extends Command<void> {
   @override
   Future<void> run() async {
     final args = argResults!;
-    if (args.rest.isNotEmpty) usageException('Unexpected arguments: ${args.rest.join(' ')}');
+    final telegram = args.rest.length == 1 && args.rest.single == 'telegram';
+    if (args.rest.isNotEmpty && !telegram) usageException('Unexpected arguments: ${args.rest.join(' ')}');
     final root = this.root ?? Directory.current.path;
 
     // Every check that can reject the invocation, before anything is written.
@@ -179,12 +181,16 @@ class DevCommand extends Command<void> {
 
     // Build flutter args
     final flutterArgs = <String>['run'];
-    final explicitDevice = (argResults?['device'] as String?) ??
+    final explicitDevice = (argResults?['device'] as String?) ?? (telegram ? 'web-server' : null) ??
         Platform.environment['DARTVEL_DEVICE'];
     // Pairing is always served, so a development build can pair whether or
     // not anything is connected here. The local app runs as it always did
     // when there is a device to run it on; with none, pairing is the loop.
     final config = await DartvelConfig.load(Directory(root));
+    if (telegram || config.raw['telegram'] != null) {
+      await dvEnsurePlatformScaffold(root: root, platform: 'web');
+      dvPrepareTelegramShell(root, enabled: true);
+    }
     final attached = <DVDevClientAttach>{};
     final DVDevClientBundleServer? devClient =
         await _startDevClient(root, attached);
