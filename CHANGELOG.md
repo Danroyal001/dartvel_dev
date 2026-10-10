@@ -7,6 +7,7 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- Security: the native server and client libraries move to rustls 0.23.45 (RUSTSEC-2026-0285, TLS 1.3 handshake messages accepted across encryption levels) and h2 0.4.20 (RUSTSEC-2026-0258, unbounded empty DATA frames on HTTP/2). PEM certificates and keys are read with rustls-pki-types instead of the unmaintained rustls-pemfile (RUSTSEC-2025-0134); `rustls-native-certs` 0.8. Rebuilt for linux-x64 and windows-x64; the windows-x64 library had predated request body limits and was refused by `serve()`. linux-arm64 and macOS still carry the September build until they are rebuilt on their own hosts.
 - Security: every response from `serve()` now carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN` and `Referrer-Policy: strict-origin-when-cross-origin`, plus `Strict-Transport-Security` when the server terminates TLS. Before, only Studio's pages had them, so an application's pages could be framed by any site. A header a handler sets wins; `serve(securityHeaders: {})` turns them off. The `securityHeaders` middleware now sends `X-XSS-Protection: 0` instead of enabling the legacy filter.
 - Telegram Mini Apps: `dartvel build telegram` and `dartvel dev telegram` use the shared web pipeline. `DV.Platform.telegram` exposes host controls, live theme/viewport signals and storage. Configured generated backends verify Telegram initData before issuing Dartvel sessions; bot tokens stay server-side.
 
