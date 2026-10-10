@@ -3,6 +3,8 @@ library dartvel_cli.build.server_config;
 
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart' show dvDefaultSecurityHeaders;
+
 /// Makes [web] readable by a web server running as another user: every
 /// directory 755 and every file 644.
 ///
@@ -82,6 +84,11 @@ ErrorDocument 404 /404/index.html
 </IfModule>
 
 <IfModule mod_headers.c>
+  # The headers a Dartvel server sends on every response, so a static host
+  # answers the same: no sniffing a file into another type, no framing by
+  # another site, and no full URL leaking to other origins. setifempty keeps
+  # one the host already sends.
+${_apacheSecurityHeaders()}
   # Not cached, because Flutter does not content-hash any of these: a build
   # from today and a build from last year both produce a file called
   # main.dart.js. A blanket immutable rule over *.js froze the site for every
@@ -97,6 +104,48 @@ ErrorDocument 404 /404/index.html
   </FilesMatch>
 </IfModule>
 ''';
+
+String _apacheSecurityHeaders() => <String>[
+      for (final MapEntry<String, String> header in dvDefaultSecurityHeaders.entries)
+        '  Header always setifempty ${_headerName(header.key)} "${header.value}"',
+    ].join('\n');
+
+/// `x-frame-options` as `X-Frame-Options`: header names are case-insensitive,
+/// and the conventional spelling is what a person reading the file expects.
+String _headerName(String name) => name
+    .split('-')
+    .map((String part) => part.isEmpty ? part : part[0].toUpperCase() + part.substring(1))
+    .join('-');
+
+/// The first line of the `_headers` file Dartvel writes.
+const String dvStaticHeadersMarker = '# Written by dartvel build web.';
+
+/// A `_headers` file, which Netlify and Cloudflare Pages read: the same
+/// security headers as the `.htaccess` and the Dartvel server, on every path.
+String dvStaticHostHeaders() => <String>[
+      '$dvStaticHeadersMarker Rewritten on every build while this line is here.',
+      '# To keep your own edits, delete this line, or put your own file in the',
+      "# project's web/_headers, which the build copies in place of this one.",
+      '/*',
+      for (final MapEntry<String, String> header in dvDefaultSecurityHeaders.entries)
+        '  ${_headerName(header.key)}: ${header.value}',
+      '',
+    ].join('\n');
+
+/// Writes [dvStaticHostHeaders] into [web] as `_headers`, by the same rules
+/// as [dvWriteApacheConfig]. Returns whether it wrote.
+bool dvWriteStaticHostHeaders(Directory web, {required String projectRoot}) {
+  final File own = File('$projectRoot${Platform.pathSeparator}web'
+      '${Platform.pathSeparator}_headers');
+  if (own.existsSync()) return false;
+  final File output = File('${web.path}${Platform.pathSeparator}_headers');
+  if (output.existsSync() &&
+      !output.readAsStringSync().startsWith(dvStaticHeadersMarker)) {
+    return false;
+  }
+  output.writeAsStringSync(dvStaticHostHeaders());
+  return true;
+}
 
 /// The first line of every `.htaccess` Dartvel writes, and how the build tells
 /// its own file from one a person has taken over.

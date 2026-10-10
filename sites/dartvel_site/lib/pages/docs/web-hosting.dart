@@ -50,8 +50,10 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
                   'that look for that name'],
               <String>['sitemap.xml, robots.txt', 'Search engines, when '
                   'seo.siteUrl is set'],
-              <String>['.htaccess', 'Apache and LiteSpeed rules, when '
-                  'seo.siteUrl is set'],
+              <String>['.htaccess', 'Apache and LiteSpeed rules: routes, '
+                  'caching and security headers'],
+              <String>['_headers', 'The same security headers for Netlify '
+                  'and Cloudflare Pages'],
             ]),
             DocsShell(<String>[
               '# pubspec.yaml',
@@ -78,8 +80,12 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
               'index.html, main.dart.js and the service worker are checked '
                   'with the server on every visit, so a new upload reaches '
                   'returning visitors.',
-              'Put your own web/.htaccess in the project and the build copies '
-                  'yours instead.',
+              'Every response gets X-Content-Type-Options, X-Frame-Options '
+                  '(SAMEORIGIN) and a Referrer-Policy, the same headers the '
+                  'Dartvel server sends. A header your host already sets is '
+                  'kept.',
+              'Put your own web/.htaccess or web/_headers in the project and '
+                  'the build copies yours instead.',
               'The build rewrites its own .htaccess every time, so fixes to '
                   'the rules reach you. Delete the first line of the copy in '
                   'build/web and later builds leave your edits alone.',
