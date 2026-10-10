@@ -38,6 +38,7 @@ import 'package:dartvel_core/dartvel.dart' as core
         DVAdminServer,
         DVModelDataApi,
         DVPublishedPages,
+        dvDefaultSecurityHeaders,
         Headers,
         Request,
         Response,
@@ -579,7 +580,7 @@ Handler dvWebServerHandler({
         }),
       );
   final documents = DVRenderedPageCache();
-  return (Request request) async {
+  Future<Response> answer(Request request) async {
     final path = '/${request.url.path}'.replaceAll(RegExp(r'/+$'), '');
     final matched = dvMatchRoute(path.isEmpty ? '/' : path, routeMap.keys);
     final route = matched == null ? null : routeMap[matched.pattern];
@@ -634,6 +635,18 @@ Handler dvWebServerHandler({
       headers: kept.headers,
       body: notModified ? null : kept.bytes,
     );
+  }
+
+  // The headers the deployed server's serve() adds to every response, added
+  // here as well so the preview answers with what production sends.
+  return (Request request) async {
+    final Response response = await answer(request);
+    final Map<String, String> missing = <String, String>{
+      for (final MapEntry<String, String> header
+          in core.dvDefaultSecurityHeaders.entries)
+        if (!response.headers.containsKey(header.key)) header.key: header.value,
+    };
+    return missing.isEmpty ? response : response.change(headers: missing);
   };
 }
 

@@ -86,6 +86,16 @@ worth nothing, and this repository has shipped exactly that: `securityHeaders`
 resolved a map that nothing downstream read, so the headers never reached a
 response. Wire it, then prove it with a test that reads the response.
 
+The baseline headers are not a middleware a route has to remember.
+`serve()` adds `X-Content-Type-Options: nosniff`, `X-Frame-Options:
+SAMEORIGIN` and `Referrer-Policy: strict-origin-when-cross-origin` to every
+response that has not set the same header, pages and site files included,
+and `Strict-Transport-Security` when it terminates TLS itself
+(`packages/dartvel_core/lib/src/http/security_headers.dart`). A deployment
+that must be framed by another origin passes its own `securityHeaders` map;
+an empty map sends none. `dartvel dev --release` adds the same set, so the
+preview answers as production does.
+
 ## SD-7 — No SQL strings in framework or Studio code
 
 Persist through the record layer

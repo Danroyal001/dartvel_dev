@@ -70,6 +70,7 @@ Named here so a reader can find it, and cited so it cannot quietly move:
 | Erasure, subject-access export, retention | `packages/dartvel_core/lib/src/privacy/privacy.dart` |
 | Row history and conflict detection | `packages/dartvel_core/lib/src/data/record_history.dart` |
 | Rate limits, body limits, CSRF, security headers | `packages/dartvel_core/lib/src/middleware/middleware.dart` |
+| Default response headers (nosniff, framing, referrer, HSTS over TLS) | `packages/dartvel_core/lib/src/http/security_headers.dart` |
 
 How those are meant to be used, and what is not covered yet, is in
 [docs/security/secure-development.md](docs/security/secure-development.md).

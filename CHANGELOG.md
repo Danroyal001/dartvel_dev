@@ -7,6 +7,7 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- Security: every response from `serve()` now carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN` and `Referrer-Policy: strict-origin-when-cross-origin`, plus `Strict-Transport-Security` when the server terminates TLS. Before, only Studio's pages had them, so an application's pages could be framed by any site. A header a handler sets wins; `serve(securityHeaders: {})` turns them off. The `securityHeaders` middleware now sends `X-XSS-Protection: 0` instead of enabling the legacy filter.
 - Telegram Mini Apps: `dartvel build telegram` and `dartvel dev telegram` use the shared web pipeline. `DV.Platform.telegram` exposes host controls, live theme/viewport signals and storage. Configured generated backends verify Telegram initData before issuing Dartvel sessions; bot tokens stay server-side.
 
 ## 0.11.5 — 2026-10-09

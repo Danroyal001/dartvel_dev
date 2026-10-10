@@ -186,6 +186,10 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
               'Middleware runs in the order you list it. The keys that run are '
                   'auth, tenant, rateLimit, requestLogging, securityHeaders, '
                   'locale, idempotency, featureFlags, maintenance and csp.',
+              'Every response already carries X-Content-Type-Options, '
+                  'X-Frame-Options (SAMEORIGIN) and a Referrer-Policy, and HSTS '
+                  'when the server terminates TLS. A header your handler sets '
+                  'wins; pass serve() an empty securityHeaders map to send none.',
               'bodyLimit and uploadLimit cap the request body at 1 MiB and 16 '
                   'MiB, and answer 413 past it. tracing starts a trace for the '
                   'request.',

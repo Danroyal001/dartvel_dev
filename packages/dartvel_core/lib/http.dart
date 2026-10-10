@@ -10,6 +10,8 @@
 library dartvel_core.http;
 
 export 'src/http/peer_address.dart' show DVIpAddress, DVPeerAddress;
+export 'src/http/security_headers.dart'
+    show dvApplySecurityHeaders, dvDefaultSecurityHeaders, dvDefaultStrictTransportSecurity;
 export 'src/http/router.dart' show DVRouteBodyLimit, Router;
 export 'src/http/wintercg.dart'
     show Request, Response, Headers, Body, URLPattern;
