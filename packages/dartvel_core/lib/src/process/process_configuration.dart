@@ -13,7 +13,7 @@
 ///  * `cron` ticks the schedules and serves nothing.
 ///
 /// Read from `DARTVEL_ROLE` or a `--role` argument, and the port from
-/// `DARTVEL_PORT`. Every value is validated and a bad one refuses the start:
+/// `DARTVEL_PORT` (else the host's `PORT`). Every value is validated and a bad one refuses the start:
 /// a port that fell back to the generated one is a second instance crash
 /// looping on a taken port, and a misspelt role that became `web` is a worker
 /// that never works a job.
@@ -49,7 +49,8 @@ final class DVProcessConfiguration {
   /// Whether `DARTVEL_ROLE` or `--role` said so, rather than the default.
   final bool roleDeclared;
 
-  /// The port a web process binds: `DARTVEL_PORT`, else the generated one.
+  /// The port a web process binds: `DARTVEL_PORT`, else `PORT` (what most
+  /// hosts and service files set), else the generated one.
   final int port;
 
   /// The queues a worker works, in order. Empty for any other role.
@@ -121,9 +122,16 @@ final class DVProcessConfiguration {
       role = named;
     }
 
-    final String? rawPort = environment['DARTVEL_PORT'];
-    final int port =
-        rawPort == null ? generatedPort : _port('DARTVEL_PORT', rawPort);
+    // DARTVEL_PORT names this process's port. A host or service file that
+    // only sets the conventional PORT is honoured too: binding the generated
+    // port instead leaves the proxy in front of it answering 502.
+    final String? rawDartvelPort = environment['DARTVEL_PORT'];
+    final String? rawHostPort = environment['PORT'];
+    final int port = rawDartvelPort != null
+        ? _port('DARTVEL_PORT', rawDartvelPort)
+        : rawHostPort != null
+            ? _port('PORT', rawHostPort)
+            : generatedPort;
 
     final String? rawQueues = environment['DARTVEL_QUEUE'];
     List<String> queues = const <String>[];
