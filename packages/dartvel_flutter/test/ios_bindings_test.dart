@@ -7,43 +7,40 @@
 import 'dart:io' show Platform;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_flutter/src/platform/ios/ios_capabilities.dart' show dvIosShimBindings;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('capability list', () {
-    test('it claims the clipboard, haptics and the launch link', () {
-      expect(DVIosBindings.implemented, <String>{
-        'clipboard.copy',
-        'clipboard.paste',
-        'haptics.impact',
-        'haptics.lightVibrate',
-        'haptics.vibrate',
-        // Read out of the standard defaults, where the capture written into
-        // AppDelegate.swift leaves it. A home widget's tap is a widgetURL
-        // naming a route, and without this iOS opened the application at its
-        // home route instead.
-        'deepLinks.initial',
-        // What a home-screen widget shows, into the App Group container the
-        // extension reads. Never the widget's view: WidgetKit composes that
-        // in a process that cannot host a Flutter engine, which is why the
-        // tree and the state are shared at /widgets/<id> instead.
-        'homeWidgets.publish',
-        // App Tracking Transparency: the prompt a consent category declared
-        // tracking: true is granted through. Registered whatever the system
-        // version, answering -1 where it cannot be shown, so a category is
-        // never granted on a prompt nobody saw.
-        'tracking.requestAuthorization',
-
-      });
+    test('it claims the runtime half, the plain Dart half and the shim', () {
+      // The eight reached from Dart straight to the Objective-C runtime and
+      // C, which work in any build.
+      expect(
+          DVIosBindings.implemented,
+          containsAll(<String>{
+            'clipboard.copy',
+            'clipboard.paste',
+            'haptics.impact',
+            'haptics.lightVibrate',
+            'haptics.vibrate',
+            'deepLinks.initial',
+            'homeWidgets.publish',
+            'tracking.requestAuthorization',
+            // Plain Dart under Application Support.
+            'files.readBytes',
+            'device.health',
+          }));
+      // And everything the Swift shim dartvel build ios compiles in.
+      expect(DVIosBindings.implemented, containsAll(dvIosShimBindings));
     });
 
-    test('screen.geometry is absent, and macOS has it', () {
-      // Not an oversight and not effort. UIScreen.nativeBounds returns a
-      // CGRect, and a struct return through objc_msgSend needs
-      // objc_msgSend_stret on some ABIs — the wrong entry point corrupts the
-      // stack. macOS sidesteps it with CoreGraphics; iOS has no equivalent C
-      // path, so there is nowhere safe to get it from.
-      expect(DVIosBindings.implemented, isNot(contains('screen.geometry')));
+    test('screen.geometry is claimed now, through the shim', () {
+      // It was absent because UIScreen.nativeBounds returns a CGRect, and a
+      // struct return through objc_msgSend from Dart needs the right entry
+      // point or corrupts the stack. That ruled out the route, not the
+      // binding: Swift compiled into the app reads the struct in its own
+      // terms and hands back numbers.
+      expect(dvIosShimBindings, contains('screen.geometry'));
       expect(DVMacosBindings.implemented, contains('screen.geometry'));
     });
 
