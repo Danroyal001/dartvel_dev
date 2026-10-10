@@ -9,8 +9,25 @@ import '../dartvel_client/dartvel_client.dart';
 // decoder and the audio focus with it.
 Widget trailer() => DVBox.video(
       const DVMediaSource.url('https://cdn.example.com/trailer.mp4'),
-      controls: DVMediaControls.standard,
+      captions: DVCaptions.track(
+        'en',
+        const DVMediaSource.url('https://cdn.example.com/trailer.en.vtt'),
+      ),
+      session: const DVMediaSession(title: 'Launch trailer'),
     ).modifier(const DVModifier().width(640));
+// docs:end
+
+// docs:start media3d-precache
+// The first megabyte is on disk before the page that plays it opens.
+Future<bool> warmTrailer() => DV.Platform.media.precache(
+      const DVMediaSource.url('https://cdn.example.com/trailer.mp4'),
+      bytes: 1024 * 1024,
+    );
+// docs:end
+
+// docs:start media3d-camera
+Widget scanner(void Function(DVFile photo) keep) =>
+    DVBox.camera(lens: .back, onPhoto: keep);
 // docs:end
 
 // docs:start media3d-scene

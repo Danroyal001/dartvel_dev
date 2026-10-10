@@ -919,14 +919,30 @@ abstract final class DVLinuxMedia {
   /// media box reports that no player is bound.
   static bool register() {
     if (!DVGStreamer.load()) return false;
+    // A desktop process keeps running with its window hidden, so background
+    // audio needs nothing declared.
     DVMediaBackends.registerPlayer(
-        (DVMediaSource source, DVMediaKind kind) => DVGStreamerPlayer());
+        (DVMediaSource source, DVMediaKind kind) => DVGStreamerPlayer(),
+        backgroundAudioDeclared: true);
+    DVMediaBackends.useCache(DVDiskMediaCache(cacheDirectory()));
     DVMediaBackends.registerCapture(
       capabilities: DVGStreamerCapture.probe(),
       backend: DVGStreamerCapture.new,
       directory: captureDirectory(),
     );
     return true;
+  }
+
+  /// `$XDG_CACHE_HOME/<executable>/dartvel-media`: the media disk cache.
+  /// Under the cache directory, because everything in it can be fetched
+  /// again and a desktop cleaner may delete it.
+  static String cacheDirectory({Map<String, String>? environment}) {
+    final Map<String, String> env = environment ?? Platform.environment;
+    final String base = env['XDG_CACHE_HOME']?.isNotEmpty ?? false
+        ? env['XDG_CACHE_HOME']!
+        : '${env['HOME'] ?? Directory.systemTemp.path}/.cache';
+    final String app = File(Platform.resolvedExecutable).uri.pathSegments.last;
+    return '$base/$app/dartvel-media';
   }
 
   /// `$XDG_DATA_HOME/<executable>/captures`, the per-user data directory.
