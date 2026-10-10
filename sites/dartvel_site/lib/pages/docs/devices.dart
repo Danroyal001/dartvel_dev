@@ -87,8 +87,8 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
               'A window opens on the display you ask for, such as '
                   'DVDisplayHint.secondary for a projector, and '
                   'window.setFullscreen(true, on: ...) fills that display. '
-                  'If the display is not there it says no, rather than '
-                  'filling the screen in front of you.',
+                  'If that display is not connected, the call is refused and '
+                  'the current screen stays as it is.',
               'Tab workspaces keep tabs in order, let you drag one out into a '
                   'window where the target allows it, and restore them per '
                   'user and tenant.',

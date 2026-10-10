@@ -47,6 +47,7 @@ final Map<String, (Widget Function(), Future<void> Function())> docsWidgets =
   '/docs/tenancy': (() => const DocsTenancyPageGeneratedPage(), DocsTenancyPageGeneratedPage.loadLibrary),
   '/docs/privacy': (() => const DocsPrivacyPageGeneratedPage(), DocsPrivacyPageGeneratedPage.loadLibrary),
   '/docs/building': (() => const DocsBuildingPageGeneratedPage(), DocsBuildingPageGeneratedPage.loadLibrary),
+  '/docs/telegram': (() => const DocsTelegramPageGeneratedPage(), DocsTelegramPageGeneratedPage.loadLibrary),
   '/docs/web-hosting': (() => const DocsWebHostingPageGeneratedPage(), DocsWebHostingPageGeneratedPage.loadLibrary),
   '/docs/deploying': (() => const DocsDeployingPageGeneratedPage(), DocsDeployingPageGeneratedPage.loadLibrary),
   '/docs/secrets': (() => const DocsSecretsPageGeneratedPage(), DocsSecretsPageGeneratedPage.loadLibrary),
