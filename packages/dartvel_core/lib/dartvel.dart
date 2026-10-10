@@ -296,6 +296,7 @@ export 'src/sync/presence.dart' hide DVPresenceTransport;
 export 'src/tenancy/tenants.dart';
 export 'src/transaction/transaction.dart';
 export 'src/updates/ota.dart';
+export 'src/updates/patch_signing.dart';
 export 'src/updates/rollout.dart';
 export 'src/updates/shorebird_patch_source.dart';
 export 'src/updates/update_info.dart';

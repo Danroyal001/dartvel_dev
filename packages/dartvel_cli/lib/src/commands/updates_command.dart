@@ -12,7 +12,7 @@ const String _patchSourceHelp =
     'binary (with DARTVEL_UPDATES_TOKEN set to the token it was started '
     'with), or a directory a patch source is served from. Builds with '
     'Shorebird\'s Flutter at this project\'s Flutter version; needs no '
-    'Shorebird account. Android only.';
+    'Shorebird account. Android, and iOS on macOS.';
 
 void _addSelfHostedOptions(ArgParser parser) {
   parser
@@ -38,6 +38,7 @@ class UpdatesCommand extends Command<void> {
     addSubcommand(UpdatesReleaseCommand(context: context));
     addSubcommand(UpdatesPatchCommand(context: context));
     addSubcommand(UpdatesRollbackCommand(context: context));
+    addSubcommand(UpdatesRolloutCommand(context: context));
     addSubcommand(UpdatesPushCommand(context: context));
   }
 }
@@ -51,7 +52,16 @@ class UpdatesReleaseCommand extends _ShorebirdPlatformsCommand {
       'Create Shorebird releases for target platforms. Arguments after -- go '
       'to the build.';
 
-  UpdatesReleaseCommand({super.context}) : super(action: 'release');
+  UpdatesReleaseCommand({super.context}) : super(action: 'release') {
+    argParser.addOption(
+      'public-key',
+      valueHelp: 'public.pem',
+      help:
+          'With --patch-source: build this RSA public key (PEM) into the '
+          'release. Its devices then boot only patches signed by the '
+          'matching private key.',
+    );
+  }
 
   @override
   Future<void> runSelfHosted(
@@ -62,6 +72,7 @@ class UpdatesReleaseCommand extends _ShorebirdPlatformsCommand {
     platform: platform,
     source: source,
     buildArguments: argResults?.rest ?? const <String>[],
+    publicKeyPath: argResults?['public-key'] as String?,
   );
 }
 
@@ -86,6 +97,21 @@ class UpdatesPatchCommand extends _ShorebirdPlatformsCommand {
         'channel',
         defaultsTo: 'stable',
         help: 'With --patch-source: the channel the patch is published to.',
+      )
+      ..addOption(
+        'private-key',
+        valueHelp: 'private.pem',
+        help:
+            'With --patch-source: sign the patch with this RSA private key '
+            '(PEM), the pair of the --public-key its release was built with.',
+      )
+      ..addOption(
+        'rollout',
+        defaultsTo: '100',
+        valueHelp: 'percent',
+        help:
+            'With --patch-source: the share of the release\'s devices the '
+            'patch reaches at first. Raise it with `dartvel updates rollout`.',
       );
   }
 
@@ -112,6 +138,9 @@ class UpdatesPatchCommand extends _ShorebirdPlatformsCommand {
       releaseVersion: version == null || version.isEmpty ? null : version,
       channel: (argResults?['channel'] as String? ?? 'stable').trim(),
       buildArguments: argResults?.rest ?? const <String>[],
+      privateKeyPath: argResults?['private-key'] as String?,
+      rolloutPercent:
+          int.tryParse(argResults?['rollout'] as String? ?? '') ?? -1,
     );
   }
 }
@@ -209,6 +238,78 @@ class UpdatesRollbackCommand extends Command<void> {
       track,
     ];
     await _runShorebird(args, dryRun: argResults?['dry-run'] == true);
+  }
+}
+
+class UpdatesRolloutCommand extends Command<void> {
+  @override
+  final String name = 'rollout';
+
+  @override
+  final String description =
+      'Set the share of a release\'s devices a self-hosted patch reaches.';
+
+  final DVUpdatesContext? context;
+
+  UpdatesRolloutCommand({this.context}) {
+    argParser
+      ..addOption(
+        'release-version',
+        help: 'Release version containing the patch.',
+        mandatory: true,
+      )
+      ..addOption(
+        'patch-number',
+        help: 'The patch whose rollout changes.',
+        mandatory: true,
+      )
+      ..addOption(
+        'percent',
+        help:
+            'The share of devices, 0 to 100. A device reached stays reached '
+            'as the share grows.',
+        mandatory: true,
+      )
+      ..addOption(
+        'platform',
+        defaultsTo: 'android',
+        allowed: const <String>['android', 'ios'],
+      )
+      ..addOption(
+        'patch-source',
+        help:
+            'The patch source the patch was published to: its URL (with '
+            'DARTVEL_UPDATES_TOKEN set) or directory.',
+        valueHelp: 'url|dir',
+        mandatory: true,
+      );
+  }
+
+  @override
+  Future<void> run() async {
+    final int? number = int.tryParse(
+      (argResults?['patch-number'] as String).trim(),
+    );
+    final int? percent = int.tryParse(
+      (argResults?['percent'] as String).trim(),
+    );
+    if (number == null || number < 1) {
+      throw UsageException('patch-number must be a positive integer.', usage);
+    }
+    if (percent == null || percent < 0 || percent > 100) {
+      throw UsageException('percent must be 0 to 100.', usage);
+    }
+    await _selfHosted(
+      () => DVSelfHostedUpdates(context ?? DVUpdatesContext()).rollout(
+        platform: argResults?['platform'] as String? ?? 'android',
+        source: DVPatchSourceLocation.parse(
+          argResults?['patch-source'] as String,
+        ),
+        releaseVersion: (argResults?['release-version'] as String).trim(),
+        number: number,
+        percent: percent,
+      ),
+    );
   }
 }
 
