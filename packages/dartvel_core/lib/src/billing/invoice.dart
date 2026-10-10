@@ -26,6 +26,7 @@ class DVInvoice {
     this.number,
     this.hostedUrl,
     this.pdfUrl,
+    this.tax,
   });
 
   /// The provider's identifier for it.
@@ -46,6 +47,9 @@ class DVInvoice {
 
   /// A PDF, when the provider exposes one directly.
   final Uri? pdfUrl;
+
+  /// The tax the provider collected, when it acts as merchant of record.
+  final DVMoney? tax;
 
   @override
   String toString() => 'DVInvoice($id, $total, ${status.name})';
