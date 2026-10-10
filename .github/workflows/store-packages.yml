@@ -62,6 +62,20 @@ jobs:
         if: steps.cbindgen-cache.outputs.cache-hit != 'true'
         run: cargo install cbindgen --locked
 
+      - name: A throwaway release key
+        # dartvel build refuses to sign a release with the debug key, so the
+        # bundle is signed with a key made for this run and thrown away.
+        if: matrix.target == 'android'
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/ci-upload.jks" \
+            -storepass ci-store-pass -keypass ci-store-pass -alias ci \
+            -keyalg RSA -keysize 2048 -validity 1 -dname "CN=Dartvel CI"
+          {
+            echo "DARTVEL_ANDROID_KEYSTORE=$RUNNER_TEMP/ci-upload.jks"
+            echo "DARTVEL_ANDROID_KEYSTORE_PASSWORD=ci-store-pass"
+            echo "DARTVEL_ANDROID_KEY_ALIAS=ci"
+          } >> "$GITHUB_ENV"
+
       - name: Resolve dependencies
         working-directory: examples/basic_app
         run: flutter pub get

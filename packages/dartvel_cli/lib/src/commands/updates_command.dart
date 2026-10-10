@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
+import '../build/android_release_hardening.dart' show dvAndroidSigningEnvironmentFor;
 import '../updates/self_hosted_updates.dart';
 import '../utils/logger.dart';
 
@@ -407,7 +408,16 @@ Future<void> _runShorebird(List<String> args, {required bool dryRun}) async {
     return;
   }
   Logger.log('Running shorebird ${args.join(' ')}');
-  final process = await Process.start('shorebird', args);
+  // shorebird release/patch android runs the generated project's release
+  // Gradle build, which signs with the key dartvel build resolves.
+  final process = await Process.start('shorebird', args,
+      environment: args.contains('android')
+          ? <String, String>{
+              ...Platform.environment,
+              ...dvAndroidSigningEnvironmentFor(
+                  Directory.current.path, Platform.environment),
+            }
+          : null);
   await stdout.addStream(process.stdout);
   await stderr.addStream(process.stderr);
   final code = await process.exitCode;
