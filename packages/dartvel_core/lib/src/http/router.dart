@@ -221,9 +221,7 @@ class Router {
             .toList(growable: false),
       ));
     }
-    return Response.text('Not Found',
-        status: 404,
-        headers: Headers()..set('content-type', 'text/plain; charset=utf-8'));
+    return Response(404);
   }
 }
 
@@ -251,11 +249,7 @@ Response _ndjson(List<Map<String, Object?>> records) => Response.text(
         ..set('cache-control', 'no-store'),
     );
 
-Response _notFound() => Response.text(
-      'Not Found',
-      status: 404,
-      headers: Headers()..set('content-type', 'text/plain; charset=utf-8'),
-    );
+Response _notFound() => Response(404);
 
 class _Route {
   final String method;

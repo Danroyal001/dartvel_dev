@@ -25,13 +25,24 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
-import '../../dartvel.dart' show Entitlement, dvBillingCustomerKey;
+import '../../dartvel.dart'
+    show
+        BillingPlan,
+        DVBillingCheckoutSession,
+        DVBillingProvider,
+        Entitlement,
+        dvBillingCustomerKey;
 import '../billing/money.dart';
 import '../observability/observability.dart';
 import '../transaction/transaction.dart';
+import 'device.dart';
 
 /// A store that sells digital goods inside an application.
-enum DVStore { appStore, play }
+///
+/// [telegram] is Telegram Stars inside a Mini App: Telegram requires digital
+/// goods sold there to be paid in Stars, as the other two require their own
+/// billing.
+enum DVStore { appStore, play, telegram }
 
 /// What a store product is, which decides whether it has an end.
 enum DVPurchaseKind {
@@ -40,6 +51,12 @@ enum DVPurchaseKind {
 
   /// Bought once and kept, until a refund or a revocation takes it back.
   nonConsumable,
+
+  /// Bought, credited once and spent: coins, credits, a hint pack. It grants
+  /// no entitlement, because a pack of coins that kept granting would never
+  /// run out; each purchase is reported once as `consumed` and a refund as
+  /// `refunded`, and the application credits and debits its own balance.
+  consumable,
 }
 
 /// Where the running build sells from.
@@ -58,6 +75,9 @@ enum DVPurchaseChannel {
 
   /// Desktop outside a store.
   desktop,
+
+  /// A Telegram Mini App, where digital goods are paid in Stars.
+  telegram,
 }
 
 /// Where a purchase goes.
@@ -79,8 +99,12 @@ sealed class DVBillable {
   const DVBillable();
 
   /// A digital good, with the product identifier each store knows it by.
-  const factory DVBillable.digital({String? appStore, String? play}) =
-      DVDigitalBillable;
+  const factory DVBillable.digital({
+    String? appStore,
+    String? play,
+    String? telegram,
+    int? telegramStars,
+  }) = DVDigitalBillable;
 
   /// A physical good, sold through Billing's gateway on every platform.
   const factory DVBillable.physical({int? nativePrice, String? nativeCurrency}) =
@@ -89,7 +113,12 @@ sealed class DVBillable {
 
 /// See [DVBillable.digital].
 final class DVDigitalBillable extends DVBillable {
-  const DVDigitalBillable({this.appStore, this.play});
+  const DVDigitalBillable({
+    this.appStore,
+    this.play,
+    this.telegram,
+    this.telegramStars,
+  });
 
   /// The App Store Connect product identifier.
   final String? appStore;
@@ -97,11 +126,22 @@ final class DVDigitalBillable extends DVBillable {
   /// The Play Console product identifier.
   final String? play;
 
+  /// The name a Telegram Stars invoice carries for this product.
+  ///
+  /// Telegram has no product catalogue: the bot writes each invoice, so the
+  /// identifier and the price are both declared here.
+  final String? telegram;
+
+  /// The price in Stars (`XTR`, which has no minor unit). Required with
+  /// [telegram]; an invoice without a price cannot be written.
+  final int? telegramStars;
+
   /// The identifier [store] knows this product by, or null when none was
   /// declared.
   String? identifierOn(DVStore store) => switch (store) {
         DVStore.appStore => appStore,
         DVStore.play => play,
+        DVStore.telegram => telegram,
       };
 }
 
@@ -262,6 +302,107 @@ class DVStoreUnavailable implements Exception {
   String toString() => 'DVStoreUnavailable: $message';
 }
 
+/// A notification that verified and describes no purchase: Apple's `TEST`,
+/// Play's `testNotification`, a Telegram update that is not a payment.
+///
+/// Not a refusal. A store retries what it is refused, and refusing its own
+/// test message makes it retry for days; it is acknowledged and nothing is
+/// written.
+class DVStoreNothingToApply implements Exception {
+  const DVStoreNothingToApply(this.reason);
+  final String reason;
+
+  @override
+  String toString() => 'DVStoreNothingToApply: $reason';
+}
+
+/// An adapter that needs to know what each store product is.
+///
+/// Play acknowledges a subscription and a one-time product at different
+/// endpoints and its notifications do not always say which it was. Told by
+/// [DVPurchases] from the products the application declared, so the kind is
+/// stated once rather than again in the adapter's configuration.
+abstract interface class DVStoreCatalogAware {
+  void useCatalog(Map<String, DVPurchaseKind> storeProducts);
+}
+
+/// An invoice a store wrote for one purchase: Telegram Stars, where the bot
+/// writes each invoice because Telegram keeps no product catalogue.
+class DVStoreInvoice {
+  const DVStoreInvoice({required this.url, required this.receipt});
+
+  /// What the client opens.
+  final Uri url;
+
+  /// What the client presents once it is paid, for the server to look up.
+  final String receipt;
+
+  Map<String, Object?> toJson() =>
+      <String, Object?>{'url': url.toString(), 'receipt': receipt};
+
+  static DVStoreInvoice fromJson(Map<String, Object?> json) => DVStoreInvoice(
+      url: Uri.parse(json['url']! as String),
+      receipt: json['receipt']! as String);
+}
+
+/// A store adapter that writes invoices rather than reading a catalogue.
+abstract interface class DVStoreInvoiceIssuer {
+  Future<DVStoreInvoice> createInvoice({
+    required String storeProductId,
+    required String title,
+    required int amount,
+    required String appAccountToken,
+  });
+}
+
+/// The signature an App Store promotional offer is opened with.
+///
+/// Made on the server with the In-App Purchase key, because the key signs
+/// for the developer: a device holding it could give itself any offer.
+class DVStoreOfferSignature {
+  const DVStoreOfferSignature({
+    required this.keyId,
+    required this.nonce,
+    required this.timestamp,
+    required this.signature,
+  });
+
+  final String keyId;
+
+  /// A lowercase UUID, used once.
+  final String nonce;
+
+  /// Milliseconds since the epoch.
+  final int timestamp;
+
+  /// Base64 DER ECDSA P-256 over the payload Apple defines.
+  final String signature;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'keyId': keyId,
+        'nonce': nonce,
+        'timestamp': timestamp,
+        'signature': signature,
+      };
+
+  static DVStoreOfferSignature fromJson(Map<String, Object?> json) =>
+      DVStoreOfferSignature(
+        keyId: json['keyId']! as String,
+        nonce: json['nonce']! as String,
+        timestamp: json['timestamp']! as int,
+        signature: json['signature']! as String,
+      );
+}
+
+/// A store adapter that signs promotional offers.
+abstract interface class DVStoreOfferSigner {
+  Future<DVStoreOfferSignature> signOffer({
+    required String storeProductId,
+    required String offerId,
+    required String appAccountToken,
+  });
+}
+
 /// Dartvel refused to grant anything for a purchase, and why.
 class DVPurchaseRefused implements Exception {
   const DVPurchaseRefused(this.reason, {this.code});
@@ -399,6 +540,34 @@ abstract class DVPurchaseLedger {
   Future<void> releaseNotification(DVStore store, String notificationId);
 }
 
+/// What [DVPurchases.device] answers for its ledger: there is none on a
+/// device, and reading one is a mistake worth a clear message.
+class _NoLedgerOnDevice implements DVPurchaseLedger {
+  const _NoLedgerOnDevice();
+
+  Never _refuse() => throw StateError(
+      'There is no purchase ledger on a device. Grants are written on the '
+      'server from the store\'s answer; a device reads snapshots.');
+
+  @override
+  Future<DVPurchaseGrant?> find(DVStore store, String originalTransactionId) =>
+      _refuse();
+  @override
+  Future<void> put(DVPurchaseGrant grant) => _refuse();
+  @override
+  Future<void> remove(DVStore store, String originalTransactionId) => _refuse();
+  @override
+  Future<List<DVPurchaseGrant>> forCustomer(String customerKey) => _refuse();
+  @override
+  Future<List<DVPurchaseGrant>> unacknowledged() => _refuse();
+  @override
+  Future<bool> claimNotification(DVStore store, String notificationId) =>
+      _refuse();
+  @override
+  Future<void> releaseNotification(DVStore store, String notificationId) =>
+      _refuse();
+}
+
 /// A ledger in memory, for tests and development. A restart loses it.
 class DVMemoryPurchaseLedger implements DVPurchaseLedger {
   final Map<String, DVPurchaseGrant> _grants = <String, DVPurchaseGrant>{};
@@ -452,6 +621,8 @@ class DVPurchaseChange {
     required this.originalTransactionId,
     required this.granted,
     required this.revoked,
+    this.consumed = const <String>{},
+    this.refunded = const <String>{},
     this.notificationId,
     this.revokedAt,
   });
@@ -461,6 +632,14 @@ class DVPurchaseChange {
   final String originalTransactionId;
   final Set<String> granted;
   final Set<String> revoked;
+
+  /// Consumable product ids bought by this purchase, reported once: the
+  /// application credits its balance from this.
+  final Set<String> consumed;
+
+  /// Consumable product ids whose purchase the store took back: the
+  /// application debits what [consumed] credited.
+  final Set<String> refunded;
 
   /// The notification that caused it, or null for a verified receipt.
   final String? notificationId;
@@ -484,11 +663,28 @@ class DVPurchaseResult {
     this.undeclared = false,
     this.unattributed = false,
     this.refused = false,
+    this.ignored = false,
     this.reason,
+    this.code,
     this.customerKey,
     this.granted = const <Entitlement>{},
     this.revoked = const <Entitlement>{},
+    this.consumed = const <String>{},
+    this.refunded = const <String>{},
   });
+
+  /// The notification verified and carried no purchase
+  /// ([DVStoreNothingToApply]). Acknowledged; nothing written.
+  final bool ignored;
+
+  /// The diagnostic code of a refusal, when it has one.
+  final String? code;
+
+  /// Consumable product ids this credited. See [DVPurchaseChange.consumed].
+  final Set<String> consumed;
+
+  /// Consumable product ids this reversed. See [DVPurchaseChange.refunded].
+  final Set<String> refunded;
 
   /// Whether the ledger was written.
   final bool handled;
@@ -515,6 +711,47 @@ class DVPurchaseResult {
   final Set<Entitlement> granted;
   final Set<Entitlement> revoked;
 
+  /// What reaches the device. The customer key stays on the server.
+  Map<String, Object?> toJson() => <String, Object?>{
+        'handled': handled,
+        'replayed': replayed,
+        'stale': stale,
+        'undeclared': undeclared,
+        'unattributed': unattributed,
+        'refused': refused,
+        'ignored': ignored,
+        if (reason != null) 'reason': reason,
+        if (code != null) 'code': code,
+        'granted': <String>[for (final Entitlement e in granted) e.id]..sort(),
+        'revoked': <String>[for (final Entitlement e in revoked) e.id]..sort(),
+        'consumed': consumed.toList()..sort(),
+        'refunded': refunded.toList()..sort(),
+      };
+
+  static DVPurchaseResult fromJson(Map<String, Object?> json) {
+    Set<String> ids(Object? value) =>
+        <String>{if (value is List) for (final Object? id in value) '$id'};
+    return DVPurchaseResult(
+      handled: json['handled'] == true,
+      replayed: json['replayed'] == true,
+      stale: json['stale'] == true,
+      undeclared: json['undeclared'] == true,
+      unattributed: json['unattributed'] == true,
+      refused: json['refused'] == true,
+      ignored: json['ignored'] == true,
+      reason: json['reason'] as String?,
+      code: json['code'] as String?,
+      granted: <Entitlement>{
+        for (final String id in ids(json['granted'])) Entitlement(id)
+      },
+      revoked: <Entitlement>{
+        for (final String id in ids(json['revoked'])) Entitlement(id)
+      },
+      consumed: ids(json['consumed']),
+      refunded: ids(json['refunded']),
+    );
+  }
+
   /// Each of these is acknowledged to the store: none is a reason for the
   /// store to retry.
   static const DVPurchaseResult _replayed = DVPurchaseResult(replayed: true);
@@ -522,6 +759,7 @@ class DVPurchaseResult {
   static const DVPurchaseResult _undeclared = DVPurchaseResult(undeclared: true);
   static const DVPurchaseResult _unattributed =
       DVPurchaseResult(unattributed: true);
+  static const DVPurchaseResult _ignored = DVPurchaseResult(ignored: true);
 }
 
 /// An entitlement as a device holds it: what, and until when.
@@ -543,6 +781,12 @@ class DVEntitlementSnapshot {
         'entitlement': entitlement,
         'notAfter': notAfter.toUtc().toIso8601String(),
       };
+
+  static DVEntitlementSnapshot fromJson(Map<String, Object?> json) =>
+      DVEntitlementSnapshot(
+        entitlement: json['entitlement']! as String,
+        notAfter: DateTime.parse(json['notAfter']! as String).toUtc(),
+      );
 }
 
 /// The entitlement snapshots a device holds, checked against its clock.
@@ -734,6 +978,7 @@ class DVConservativeStorePolicy extends DVStorePolicy {
     final DVStore? store = switch (channel) {
       DVPurchaseChannel.appStore => DVStore.appStore,
       DVPurchaseChannel.play => DVStore.play,
+      DVPurchaseChannel.telegram => DVStore.telegram,
       DVPurchaseChannel.web || DVPurchaseChannel.desktop => null,
     };
     if (store == null) return DVPurchaseRoute.gateway;
@@ -776,7 +1021,11 @@ class DVPurchases {
     DVLogger? logger,
     void Function(DVPurchaseChange change)? onChange,
     this.perpetualSnapshotLifetime = const Duration(days: 7),
+    this.gateway,
+    Map<String, BillingPlan> gatewayPlans = const <String, BillingPlan>{},
   })  : products = List<DVPurchaseProduct>.unmodifiable(products),
+        gatewayPlans = Map<String, BillingPlan>.unmodifiable(gatewayPlans),
+        device = null,
         policy = policy ?? const DVConservativeStorePolicy(),
         _clock = clock ?? DateTime.now,
         _logger = logger,
@@ -810,7 +1059,76 @@ class DVPurchases {
         _entitlements[entitlement.id] = entitlement;
       }
     }
+    for (final DVStoreAdapter adapter in stores) {
+      if (adapter is DVStoreCatalogAware) {
+        (adapter as DVStoreCatalogAware).useCatalog(<String, DVPurchaseKind>{
+          for (final DVPurchaseProduct product in products)
+            if (product.identifierOn(adapter.store) case final String id)
+              id: product.kind,
+        });
+      }
+    }
   }
+
+  /// The device half: what `DV.Purchases` is inside an application.
+  ///
+  /// [store] opens the platform's purchase sheet -- StoreKit 2, Play Billing,
+  /// or a fake in a test -- and [backend] is this application's own server,
+  /// which verifies each receipt with the store and answers with what the
+  /// signed-in person now holds. Either left null is resolved from the
+  /// running platform the first time it is needed (`dartvel_flutter`
+  /// registers the resolvers), and a platform with neither refuses each call
+  /// with `DV-PURCHASE-009` rather than pretending to sell.
+  ///
+  /// There is no ledger on a device and no store adapter: nothing here can
+  /// grant anything. [ledger] throws if it is read.
+  DVPurchases.device({
+    required List<DVPurchaseProduct> products,
+    DVStoreClient? store,
+    DVPurchaseBackend? backend,
+    DVPurchaseChannel? channel,
+    DVStorePolicy? policy,
+    DateTime Function()? clock,
+    DVLogger? logger,
+    Future<void> Function(Uri url)? openUrl,
+    Future<String> Function(Uri url)? openInvoice,
+  })  : products = List<DVPurchaseProduct>.unmodifiable(products),
+        policy = policy ?? const DVConservativeStorePolicy(),
+        ledger = const _NoLedgerOnDevice(),
+        perpetualSnapshotLifetime = const Duration(days: 7),
+        gateway = null,
+        gatewayPlans = const <String, BillingPlan>{},
+        _clock = clock ?? DateTime.now,
+        _logger = logger,
+        _onChange = null,
+        device = DVPurchaseDevice(
+          products: products,
+          store: store,
+          backend: backend,
+          channel: channel,
+          policy: policy ?? const DVConservativeStorePolicy(),
+          clock: clock,
+          logger: logger,
+          openUrl: openUrl,
+          openInvoice: openInvoice,
+        ) {
+    final Set<String> ids = <String>{};
+    for (final DVPurchaseProduct product in products) {
+      if (!ids.add(product.id)) {
+        throw ArgumentError('product "${product.id}" is declared twice');
+      }
+    }
+  }
+
+  /// The device half, or null on the server.
+  final DVPurchaseDevice? device;
+
+  /// Billing's payment gateway, for what a web or desktop build sells, or
+  /// null when the backend has none.
+  final DVBillingProvider? gateway;
+
+  /// The gateway plan each product id is sold as on the web and desktop.
+  final Map<String, BillingPlan> gatewayPlans;
 
   final List<DVPurchaseProduct> products;
   final DVPurchaseLedger ledger;
@@ -840,6 +1158,10 @@ class DVPurchases {
   static void configure(DVPurchases purchases) => _current = purchases;
 
   static void unconfigure() => _current = null;
+
+  /// The configured purchases, or null: for the generated endpoints, which
+  /// answer 404 rather than throw in an application that sells nothing.
+  static DVPurchases? get configuredOrNull => _current;
 
   static DVPurchases get current {
     final DVPurchases? purchases = _current;
@@ -882,6 +1204,139 @@ class DVPurchases {
       policy.route(
           product: product, channel: channel, jurisdiction: jurisdiction);
 
+  /// A checkout page for [product] on Billing's gateway, for [customer].
+  ///
+  /// What a web or desktop build opens for a digital good. Refuses with
+  /// `DV-PURCHASE-009` when the backend has no gateway, when the product has
+  /// no gateway plan, or when the gateway returns no page: a web build of a
+  /// store application otherwise shows a buy button that does nothing.
+  Future<Uri> checkout(DVPurchaseProduct product, {required Object customer}) async {
+    final DVBillingProvider? provider = gateway;
+    if (provider == null) {
+      throw const DVPurchaseRefused(
+        'this backend has no payment gateway, so nothing can be sold outside '
+        'a store here. Configure DVPurchases(gateway: DVStripeBillingProvider(...)).',
+        code: 'DV-PURCHASE-009',
+      );
+    }
+    final BillingPlan? plan = gatewayPlans[product.id];
+    if (plan == null) {
+      throw DVPurchaseRefused(
+        '${product.id} has no gateway plan, so it is sold only in a store. '
+        'Add it to DVPurchases(gatewayPlans: ...).',
+        code: 'DV-PURCHASE-009',
+      );
+    }
+    final DVBillingCheckoutSession session =
+        await provider.checkout(plan: plan, customer: customer);
+    final Uri? url = session.checkoutUrl;
+    if (url == null) {
+      throw const DVPurchaseRefused(
+        'the gateway created a session with no checkout page',
+        code: 'DV-PURCHASE-009',
+      );
+    }
+    return url;
+  }
+
+  /// A Telegram Stars invoice for [product], written for [customer].
+  ///
+  /// The price is the declared `telegramStars`, never a converted one.
+  Future<DVStoreInvoice> invoice(DVPurchaseProduct product,
+      {required Object customer}) async {
+    final DVStoreAdapter adapter = _adapter(DVStore.telegram);
+    final DVDigitalBillable digital = product.billable is DVDigitalBillable
+        ? product.billable as DVDigitalBillable
+        : throw ArgumentError.value(product.id, 'product',
+            'a physical good is sold through the gateway');
+    final String? id = digital.telegram;
+    final int? stars = digital.telegramStars;
+    if (id == null || stars == null || stars <= 0) {
+      throw DVPurchaseRefused(
+        '${product.id} declares no Telegram product and Stars price',
+        code: 'DV-PURCHASE-002',
+      );
+    }
+    if (adapter is! DVStoreInvoiceIssuer) {
+      throw StateError('the telegram adapter does not write invoices');
+    }
+    return (adapter as DVStoreInvoiceIssuer).createInvoice(
+      storeProductId: id,
+      title: product.id,
+      amount: stars,
+      appAccountToken: accountTokenFor(customer),
+    );
+  }
+
+  /// The signature for App Store promotional offer [offerId] on [product],
+  /// bound to [customer]'s account token.
+  Future<DVStoreOfferSignature> signOffer(
+    DVPurchaseProduct product,
+    String offerId, {
+    required Object customer,
+  }) async {
+    final DVStoreAdapter adapter = _adapter(DVStore.appStore);
+    final String? id = product.identifierOn(DVStore.appStore);
+    if (id == null) {
+      throw DVPurchaseRefused('${product.id} is not sold on the App Store',
+          code: 'DV-PURCHASE-002');
+    }
+    if (adapter is! DVStoreOfferSigner) {
+      throw StateError(
+          'the App Store adapter has no In-App Purchase key to sign offers with');
+    }
+    return (adapter as DVStoreOfferSigner).signOffer(
+      storeProductId: id,
+      offerId: offerId,
+      appAccountToken: accountTokenFor(customer),
+    );
+  }
+
+  /// The product the application declares as [id], or null.
+  DVPurchaseProduct? productById(String id) {
+    for (final DVPurchaseProduct product in products) {
+      if (product.id == id) return product;
+    }
+    return null;
+  }
+
+  // -- the device half ---------------------------------------------------------
+
+  DVPurchaseDevice get _device =>
+      device ??
+      (throw StateError(
+          'This is the server half of DV.Purchases. Buying, listing store '
+          'products and watching entitlements happen on a device, configured '
+          'with DVPurchases.device(products: ...).'));
+
+  /// Buys [product] where this build sells it: the platform's store, the
+  /// gateway's checkout on the web and desktop, Stars in a Telegram Mini App.
+  ///
+  /// [offer] is one of the product's listed offers. Throws
+  /// [DVPurchaseRefused] with `DV-PURCHASE-009` when this build has no way
+  /// to sell the product, rather than opening nothing.
+  Future<DVPurchaseOutcome> buy(
+    DVPurchaseProduct product, {
+    DVStoreOffer? offer,
+    int quantity = 1,
+  }) =>
+      _device.buy(product, offer: offer, quantity: quantity);
+
+  /// The declared products as this device's store lists them, with prices
+  /// in the customer's own currency and the offers they are eligible for.
+  Future<List<DVStoreListing>> listings() => _device.listings();
+
+  /// Whether the signed-in person holds [entitlement] now, from the last
+  /// snapshots the backend sent. Synchronous, so a build method can read it;
+  /// see `DV.Purchases.watch(context, ...)` in dartvel_flutter.
+  bool holds(Entitlement entitlement) => _device.holds(entitlement);
+
+  /// Each time what the device holds changes.
+  Stream<void> get entitlementChanges => _device.changes;
+
+  /// Asks the backend again what the signed-in person holds.
+  Future<void> refreshEntitlements() => _device.refresh();
+
   /// Verifies [receipt] with [store] and grants what it bought to [customer].
   ///
   /// The receipt is the only thing taken from the device. What was bought,
@@ -901,6 +1356,9 @@ class DVPurchases {
     final DVStoreTransaction transaction;
     try {
       transaction = await adapter.verifyReceipt(receipt);
+    } on DVStoreNothingToApply catch (nothing) {
+      _refused(store, customerKey, nothing.reason);
+      throw DVPurchaseRefused(nothing.reason, code: 'DV-PURCHASE-003');
     } on DVStoreRefusal catch (refusal) {
       _refused(store, customerKey, refusal.reason);
       throw DVPurchaseRefused(refusal.reason, code: 'DV-PURCHASE-003');
@@ -975,6 +1433,8 @@ class DVPurchases {
     final DVStoreNotification notification;
     try {
       notification = await adapter.verifyNotification(body, headers);
+    } on DVStoreNothingToApply {
+      return DVPurchaseResult._ignored;
     } on DVStoreRefusal catch (refusal) {
       _log.log(
         'A ${store.name} notification was refused: ${refusal.reason}',
@@ -1029,24 +1489,40 @@ class DVPurchases {
   /// verified here like a new purchase. One that is refused -- by the store,
   /// or because it belongs to another application user -- is reported in its
   /// result and grants nothing, without stopping the rest.
+  ///
+  /// On a device ([DVPurchases.device]) it takes no arguments: the store is
+  /// asked what this store account owns and the backend revalidates each.
   Future<List<DVPurchaseResult>> restore({
-    required Object customer,
-    required DVStore store,
-    required List<String> receipts,
+    Object? customer,
+    DVStore? store,
+    List<String>? receipts,
   }) async {
+    final DVPurchaseDevice? onDevice = device;
+    if (onDevice != null) return onDevice.restore();
+    if (customer == null || store == null || receipts == null) {
+      throw ArgumentError(
+          'restore on the server takes the customer, the store and the '
+          'receipts the device sent');
+    }
     final List<DVPurchaseResult> results = <DVPurchaseResult>[];
     for (final String receipt in receipts) {
       try {
         results.add(await verifyPurchase(store, receipt, customer: customer));
       } on DVPurchaseRefused catch (refusal) {
-        results.add(DVPurchaseResult(refused: true, reason: refusal.reason));
+        results.add(DVPurchaseResult(
+            refused: true, reason: refusal.reason, code: refusal.code));
       }
     }
     return results;
   }
 
   /// Whether [customer] holds [entitlement] now, from the ledger.
+  ///
+  /// On a device it reads the snapshots the backend last sent and ignores
+  /// [customer]: a device holds only the signed-in person's.
   Future<bool> entitled(Object customer, Entitlement entitlement) async {
+    final DVPurchaseDevice? onDevice = device;
+    if (onDevice != null) return onDevice.entitled(entitlement);
     final DateTime now = _now;
     for (final DVPurchaseGrant grant
         in await ledger.forCustomer(dvBillingCustomerKey(customer))) {
@@ -1055,7 +1531,23 @@ class DVPurchases {
         return true;
       }
     }
-    return false;
+    return _gatewayHolds(customer, entitlement);
+  }
+
+  /// Whether the gateway holds [entitlement] for [customer], for one a
+  /// declared product unlocks.
+  Future<bool> _gatewayHolds(Object customer, Entitlement entitlement) async {
+    final DVBillingProvider? provider = gateway;
+    if (provider == null || !_entitlements.containsKey(entitlement.id)) {
+      return false;
+    }
+    try {
+      return await provider.hasEntitlement(customer, entitlement);
+    } on Exception catch (error) {
+      _log.log('The gateway could not be asked about ${entitlement.id}: $error',
+          level: DVLogLevel.warn);
+      return false;
+    }
   }
 
   /// What a device may hold for [customer]: each entitlement in force, with
@@ -1070,6 +1562,15 @@ class DVPurchases {
       for (final String id in _entitlementIdsOf(grant)) {
         final DateTime? held = ends[id];
         if (held == null || end.isAfter(held)) ends[id] = end;
+      }
+    }
+    // What the gateway holds, for a web purchase that unlocks the same
+    // entitlement on the phone. It reports no period end, so it lasts as
+    // long as a purchase that never expires: until the next sync.
+    for (final Entitlement entitlement in _entitlements.values) {
+      if (ends.containsKey(entitlement.id)) continue;
+      if (await _gatewayHolds(customer, entitlement)) {
+        ends[entitlement.id] = now.add(perpetualSnapshotLifetime);
       }
     }
     final List<String> ids = ends.keys.toList()..sort();
@@ -1151,6 +1652,7 @@ class DVPurchases {
     String? notificationId,
   }) async {
     final DateTime now = _now;
+    final bool consumable = product.kind == DVPurchaseKind.consumable;
     final bool alreadyAcknowledged = transaction.acknowledged ||
         adapter.acknowledgementWindow == null ||
         (previous != null &&
@@ -1164,7 +1666,11 @@ class DVPurchases {
       productId: product.id,
       storeProductId: transaction.storeProductId,
       purchasedAt: transaction.purchasedAt.toUtc(),
-      notAfter: transaction.notAfter?.toUtc(),
+      // A consumable ends the moment it is bought: it is credited, not held,
+      // and a grant that stayed active would unlock nothing and sync for ever.
+      notAfter: consumable
+          ? transaction.purchasedAt.toUtc()
+          : transaction.notAfter?.toUtc(),
       revokedAt: transaction.revokedAt?.toUtc(),
       acknowledged: alreadyAcknowledged,
       lastEventAt: eventAt.toUtc(),
@@ -1196,14 +1702,32 @@ class DVPurchases {
 
     final Set<String> granted = after.difference(before);
     final Set<String> revoked = before.difference(after);
+    // Credited once per purchase: the same receipt presented again finds the
+    // grant it wrote and credits nothing.
+    final Set<String> consumed = <String>{
+      if (consumable && previous == null && next.revokedAt == null) product.id,
+    };
+    final Set<String> refunded = <String>{
+      if (consumable &&
+          previous != null &&
+          previous.revokedAt == null &&
+          next.revokedAt != null)
+        product.id,
+    };
     final void Function(DVPurchaseChange change)? onChange = _onChange;
-    if (onChange != null && (granted.isNotEmpty || revoked.isNotEmpty)) {
+    if (onChange != null &&
+        (granted.isNotEmpty ||
+            revoked.isNotEmpty ||
+            consumed.isNotEmpty ||
+            refunded.isNotEmpty)) {
       context.afterCommit(() => onChange(DVPurchaseChange(
             customerKey: customerKey,
             store: next.store,
             originalTransactionId: next.originalTransactionId,
             granted: granted,
             revoked: revoked,
+            consumed: consumed,
+            refunded: refunded,
             notificationId: notificationId,
             revokedAt: next.revokedAt,
           )));
@@ -1214,6 +1738,8 @@ class DVPurchases {
       customerKey: customerKey,
       granted: <Entitlement>{for (final String id in granted) _entitlements[id]!},
       revoked: <Entitlement>{for (final String id in revoked) _entitlements[id]!},
+      consumed: consumed,
+      refunded: refunded,
     );
   }
 

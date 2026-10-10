@@ -56,7 +56,7 @@ class FakeServer {
       (shelf.Request request) {
         seen.add(request);
         if ('/${request.url.path}' != path) {
-          return shelf.Response.notFound('Not Found');
+          return shelf.Response.notFound('');
         }
         return shelf.Response(
           status,

@@ -49,20 +49,31 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'purchases',
-          title: 'Check app store purchases on your server',
+          title: 'Sell in-app purchases, checked on your server',
           children: <Widget>[
             Bullets(<String>[
+              'DV.Purchases.buy opens StoreKit 2 on iOS and macOS and Play '
+                  'Billing on Android, the gateway checkout on the web and '
+                  'desktop, and Stars in a Telegram Mini App.',
+              'Subscriptions with trials and offers, non-consumables and '
+                  'consumables. Ask to Buy and slow payments come back as '
+                  'pending and finish later.',
+              'The device sends the receipt to your server, which asks the '
+                  'store. Only then is the purchase finished, and only what the '
+                  'server accepted.',
               'DVPurchases writes a grant only from the store\'s own answer '
-                  'about a receipt, and refuses one bought under another '
-                  'account.',
-              'Store notifications are signature-checked, applied once and in '
-                  'order, and access ends when the paid period and grace end.',
-              'A refund or chargeback is told apart from a lapse, so '
-                  'DVCommerce can reverse the sale.',
+                  'and refuses one bought under another account.',
+              'App Store Server Notifications v2 and Play Real-time Developer '
+                  'Notifications are signature-checked, applied once and in '
+                  'order. A refund or chargeback is told apart from a lapse.',
             ]),
+            DocsCode('purchases-products'),
+            DocsCode('purchases-buy'),
+            DocsCode('purchases-watch'),
+            DocsCode('purchases-server'),
             DocsStatus('Purchases and Entitlements', missing: <String>[
-              'No real App Store or Play adapters yet, and no StoreKit or Play '
-                  'Billing binding, so DV.Purchases.buy does not exist.',
+              'The StoreKit 2 binding has not run on a Mac, and no purchase '
+                  'has gone through a real App Store, Play or Telegram sandbox.',
               'Products are not generated from models.',
             ]),
           ],

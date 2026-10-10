@@ -6366,12 +6366,15 @@ So the route is decided by the platform and the goods, and the application
 writes one call:
 
 ```dart
-await DV.Purchases.buy(Book.pro, customer: user);
+final DVPurchaseOutcome outcome = await DV.Purchases.buy(Book.pro);
 ```
 
 On iOS, iPadOS, tvOS, macOS from the App Store and Android from Play, a
-digital product goes to the store. On the web, on desktop outside a store, and
-for anything physical, it goes to Billing's gateway. Nothing in application
+digital product goes to the store. In a Telegram Mini App it is paid in Stars,
+which Telegram requires for digital goods there. On the web, on desktop outside
+a store, and for anything physical, it goes to Billing's gateway, and a backend
+with no gateway refuses the purchase with `DV-PURCHASE-009` rather than showing
+a button that opens nothing. Nothing in application
 code branches on the platform, because a branch written once in an application
 is a branch nobody revisits when a store changes its rules.
 
@@ -6400,6 +6403,43 @@ that cannot finish is the cheap failure here; the one that ships is not.
 `DVBillable.digital` requires a product identifier for every store target the
 project builds for. A missing one is `DV-PURCHASE-002` at build time rather
 than a purchase sheet that fails to open in front of a customer.
+
+## On the device
+
+`DV.Purchases` on a device is `DVPurchases.device(products: ...)`. It holds no
+ledger and no store adapter, so nothing on the device can grant anything. Its
+store client is StoreKit 2 on iOS and macOS, through a Swift shim `dartvel
+build` compiles into the Runner and Dart reaches over FFI, and Play Billing on
+Android, through a Java bridge `dartvel build` writes and Dart reaches over
+JNI. Neither uses a platform channel. Both are written only when the pubspec
+declares `dartvel.purchases`.
+
+The purchase flow is the same everywhere:
+
+1. `DV.Purchases.listings()` reads each product as the store lists it: the
+   price in the customer's currency, and the offers (introductory price, free
+   trial, promotional, win-back, Play base plans and offers) with whether the
+   store account is eligible.
+2. `buy(product, offer: ...)` opens the store's sheet with the account token
+   the server issued for the signed-in person. An App Store promotional offer
+   is signed on the server with the In-App Purchase key first; the key never
+   reaches a device.
+3. The receipt goes to the backend, which verifies it with the store and
+   answers with what the person now holds.
+4. Only a transaction the server accepted is finished, and a consumable is
+   consumed then, so it can be bought again. A refused or unverified one stays
+   unfinished: StoreKit presents it again at the next launch, and Play refunds
+   what is never acknowledged.
+
+Ask to Buy and slow payment methods return `DVPurchasePending`. The purchase
+completes later on the store's update stream, which the device listens to for
+the life of the application, and arrives as an entitlement change like any
+other. `DV.Purchases.watch(context, entitlement)` rebuilds the widget when it
+does.
+
+A consumable grants no entitlement. Each purchase is reported once as
+`consumed` (on the outcome and on `onChange`) and a refund as `refunded`, and
+the application keeps its own balance.
 
 ## The store owns the price
 
@@ -6539,6 +6579,7 @@ reading it in a rejection notice a week later.
 | `DV-PURCHASE-006` | a purchase was granted and not acknowledged to the store within its window | `error` |
 | `DV-PURCHASE-007` | store prices could not be read; no price is shown rather than a converted one | `warning` |
 | `DV-PURCHASE-008` | an offline conflict strategy is declared on a server-authored entitlement model | build `error` |
+| `DV-PURCHASE-009` | this build has no way to sell a product: no store on the device, no gateway on the backend, or no gateway plan for the product | `error` |
 
 ## Deliberately absent
 

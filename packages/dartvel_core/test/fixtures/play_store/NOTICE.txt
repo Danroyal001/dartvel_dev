@@ -1,0 +1,4 @@
+Test-only RSA keys generated with `openssl genpkey -algorithm RSA` for
+`purchases_play_store_test.dart`. They sign nothing outside the test: one
+stands in for a Play service account, one for Google's Pub/Sub OIDC signer,
+and one for a forger. Never use them anywhere else.

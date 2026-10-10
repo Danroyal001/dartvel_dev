@@ -666,6 +666,19 @@ class DVSessionClient {
     _session.set(null);
   }
 
+  /// Sends one request to the application's own backend as this session:
+  /// the bearer token on a device, the cookie and CSRF token in a browser.
+  ///
+  /// For the framework's own endpoints that act for the signed-in person,
+  /// such as `DV.Purchases` verifying a receipt. Generated backend function
+  /// calls already go through the generated client.
+  Future<DVHttpResponse> send(
+    String method,
+    String path, {
+    Map<String, Object?>? body,
+  }) =>
+      _request(method, path, body: body, bearer: _token);
+
   Future<DVHttpResponse> _request(
     String method,
     String path, {
