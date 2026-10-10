@@ -815,6 +815,23 @@ class DVShorebirdPatchSource {
     return DVPatchInstallUsage(appId: appId, month: period, byPatch: byPatch);
   }
 
+  /// Installs counted in [month] (the current one when null) across every
+  /// app this source serves: what a hosted project is billed on.
+  int installTotal({String? month}) {
+    final Directory installs = Directory(
+      <String>[root, ledgerName, 'installs'].join(Platform.pathSeparator),
+    );
+    if (!installs.existsSync()) return 0;
+    int total = 0;
+    for (final Directory app in installs.listSync().whereType<Directory>()) {
+      total += installUsage(
+        app.uri.pathSegments.lastWhere((String s) => s.isNotEmpty),
+        month: month,
+      ).total;
+    }
+    return total;
+  }
+
   /// Where the device reached this server: the Host it sent and the scheme a
   /// proxy in front reports, since a server behind TLS termination is
   /// reached over https and answers over http.
