@@ -39,6 +39,24 @@ void main() {
       );
     });
 
+    test('PORT, as hosts and service files set it, when DARTVEL_PORT is not set', () {
+      expect(resolve(const <String, String>{'PORT': '8762'}).port, 8762);
+    });
+
+    test('DARTVEL_PORT wins over PORT', () {
+      expect(
+        resolve(const <String, String>{'DARTVEL_PORT': '8081', 'PORT': '8762'}).port,
+        8081,
+      );
+    });
+
+    test('a PORT that is not a port refuses the start', () {
+      expect(
+        () => resolve(const <String, String>{'PORT': 'abc'}),
+        refusedNaming('PORT is "abc"'),
+      );
+    });
+
     for (final String bad in <String>[
       'abc',
       '',
