@@ -1070,6 +1070,13 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-PURCHASE-009',
+      reason:
+          'this build has no way to sell a product: no store on the device, '
+          'no gateway on the backend, or no gateway plan for the product',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-RELEASE-001',
       reason: 'health gate tripped; the rollout was rolled back',
       level: 'error',

@@ -37,6 +37,7 @@ import 'src/auth/auth_frame.dart';
 import 'src/routing/nav_link.dart' show DVNavLink;
 import 'src/auth/qr_code.dart' show DVQrImage;
 import 'src/auth/session_client.dart';
+import 'src/purchases/purchases_runtime.dart' show dvInstallPurchaseRuntime;
 // conditional SEO implementation
 import 'src/browser_extension_platform_memory.dart'
     if (dart.library.html) 'src/browser_extension_platform_web.dart'
@@ -687,6 +688,39 @@ export 'package:dartvel_core/dartvel.dart'
         DVStoreRefusal,
         DVStoreTransaction,
         DVStoreUnavailable,
+        // The device half: what DV.Purchases.buy, listings and restore take
+        // and return, and the fake store a test buys through.
+        DVStoreCatalogAware,
+        DVStoreNothingToApply,
+        DVStoreInvoice,
+        DVStoreInvoiceIssuer,
+        DVStoreOfferSignature,
+        DVStoreOfferSigner,
+        DVStoreOffer,
+        DVStoreOfferKind,
+        DVStoreListing,
+        DVStorePurchaseRequest,
+        DVStoreTransactionState,
+        DVStoreDeviceTransaction,
+        DVStorePurchaseOutcome,
+        DVStorePurchased,
+        DVStorePending,
+        DVStoreCancelled,
+        DVStoreFailed,
+        DVStoreClient,
+        DVPurchaseVerdict,
+        DVPurchaseBackend,
+        DVInProcessPurchaseBackend,
+        DVHttpPurchaseBackend,
+        DVPurchaseOutcome,
+        DVPurchaseCompleted,
+        DVPurchasePending,
+        DVPurchaseCancelled,
+        DVPurchaseRedirected,
+        DVPurchaseFailed,
+        DVPurchaseDevice,
+        DVFakeStoreClient,
+        DVFakeStoreResponse,
         LocalAnalyticsProvider,
         formControlsFactories,
         registerFormControlsFactory,
@@ -752,6 +786,8 @@ export 'src/analytics/consent_ui.dart';
 export 'src/auth/ask_for_code.dart';
 export 'src/auth/qr_code.dart';
 export 'src/auth/session_client.dart';
+export 'src/purchases/purchases_runtime.dart'
+    show DVPurchasesWatch, dvPurchaseChannel, dvInstallPurchaseRuntime;
 export 'src/auth/session_token_file_io.dart'
     if (dart.library.js_interop) 'src/auth/session_token_file_web.dart';
 export 'src/crashes/crashes.dart';
@@ -9977,7 +10013,10 @@ class DV {
   /// `DV.Purchases`: store purchases, verified on the server. Throws until
   /// `DVPurchases.configure(...)` has run, rather than inventing a store that
   /// believes whatever it is told.
-  static DVPurchases get Purchases => DVPurchases.current;
+  static DVPurchases get Purchases {
+    dvInstallPurchaseRuntime();
+    return DVPurchases.current;
+  }
   static DVDatabase get DB => const DVDatabase();
   static DVDatabase get Database => const DVDatabase();
   static DVCache get Cache => const DVCache();

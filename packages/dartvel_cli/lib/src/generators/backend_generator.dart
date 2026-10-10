@@ -15,7 +15,8 @@ import 'package:dartvel_core/dartvel.dart'
         dvMiddlewareKeysBuilt,
         dvMiddlewareKeysUnbuiltReason,
         dvMiddlewareKeysWrapping,
-        dvPageMiddlewareRefusal;
+        dvPageMiddlewareRefusal,
+        dvPurchasesDeclared;
 // dartvel.capture, read with the parser the generated server reads it with.
 import 'package:dartvel_core/framework.dart'
     show DVCaptureConfig, DVCaptureConfigError;
@@ -105,6 +106,50 @@ class BackendGenerator {
       throw StateError('pubspec.yaml: $error');
     }
   }
+
+  /// Whether the pubspec declares `dartvel.purchases`, read with the rule the
+  /// native builds use.
+  static bool _dvServesPurchases(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return false;
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    return dvPurchasesDeclared(doc is Map ? doc['dartvel'] : null);
+  }
+
+  /// The purchase endpoints, for an application that declares
+  /// `dartvel.purchases`.
+  ///
+  /// The device's calls run behind the authentication stage, because each
+  /// acts for the signed-in session, and every POST is CSRF-checked like
+  /// the session endpoints: a forged cross-site POST must not spend a
+  /// browser's session on a checkout. The store notifications run on the
+  /// request's tenant and nothing else -- a store sends no session and no
+  /// CSRF token, and each adapter checks its store's own signature.
+  static String _dvPurchasesRouteSource() => '''
+  // dartvel.purchases: receipts verified with the store, entitlements read
+  // back, and the stores' server notifications.
+  router.get(cfg.apiBasePath + core.DVHttpPurchaseBackend.accountTokenPath, (dv.Request req) => _dvStaged(req, () => core.DVPurchaseEndpoints.accountToken(req)));
+  router.get(cfg.apiBasePath + core.DVHttpPurchaseBackend.entitlementsPath, (dv.Request req) => _dvStaged(req, () => core.DVPurchaseEndpoints.entitlements(req)));
+  router.post(cfg.apiBasePath + core.DVHttpPurchaseBackend.verifyPath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVPurchaseEndpoints.verify(req);
+  }), maxBodyBytes: core.DVPurchaseEndpoints.deviceMaxBytes);
+  router.post(cfg.apiBasePath + core.DVHttpPurchaseBackend.checkoutPath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVPurchaseEndpoints.checkout(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVHttpPurchaseBackend.invoicePath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVPurchaseEndpoints.invoice(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVHttpPurchaseBackend.offerSignaturePath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVPurchaseEndpoints.offerSignature(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVHttpPurchaseBackend.appleNotificationsPath, (dv.Request req) => core.dvWithRequestTenant(req, () => core.DVPurchaseEndpoints.notification(req, core.DVStore.appStore)), maxBodyBytes: core.DVPurchaseEndpoints.notificationMaxBytes);
+  router.post(cfg.apiBasePath + core.DVHttpPurchaseBackend.playNotificationsPath, (dv.Request req) => core.dvWithRequestTenant(req, () => core.DVPurchaseEndpoints.notification(req, core.DVStore.play)), maxBodyBytes: core.DVPurchaseEndpoints.notificationMaxBytes);
+  router.post(cfg.apiBasePath + core.DVHttpPurchaseBackend.telegramNotificationsPath, (dv.Request req) => core.dvWithRequestTenant(req, () => core.DVPurchaseEndpoints.notification(req, core.DVStore.telegram)), maxBodyBytes: core.DVPurchaseEndpoints.notificationMaxBytes);
+''';
 
   /// The pubspec's version, or `unversioned` -- what the generated client
   /// names the release too.
@@ -784,6 +829,9 @@ $openApiJson\'\'\';
     // serves the crash endpoint, and what it accepts there.
     final DVCrashConfig crashes = _dvCrashConfig(root);
     final bool servesCrashes = crashes.sink == DVCrashSinkChoice.dartvel;
+    // dartvel.purchases: the device's purchase calls and the stores'
+    // notifications. Absent, nothing is registered and the routes 404.
+    final bool servesPurchases = _dvServesPurchases(root);
     // The release a server's crash report names: the pubspec version, as the
     // client's does, so one release's reports from both ends group together.
     final String crashRelease = _dvCrashRelease(root);
@@ -1648,7 +1696,7 @@ ${dvModuleRpcRegistrations(moduleRpcRoutes)}  // Writes a device made while it c
       }),
     );
   }));
-${platformApi?.oauth != null ? _dvOAuthRouteSource() : ''}${servesCrashes ? _dvCrashRouteSource(crashes) : ''}  // The API reference is public documentation, so a partner's tooling that
+${platformApi?.oauth != null ? _dvOAuthRouteSource() : ''}${servesCrashes ? _dvCrashRouteSource(crashes) : ''}${servesPurchases ? _dvPurchasesRouteSource() : ''}  // The API reference is public documentation, so a partner's tooling that
   // sends its key with every request is answered; a bad credential is not.
   router.get(cfg.apiBasePath + '/openapi.json', (dv.Request req) => _dvStaged(req, () async =>
       dv.Response(200,

@@ -85,9 +85,17 @@ export 'src/commerce/disputes.dart';
 export 'src/commerce/payouts.dart';
 export 'src/commerce/promotions.dart';
 export 'src/commerce/tax.dart';
+export 'src/purchases/app_store.dart';
 export 'src/purchases/database_ledger.dart';
+export 'src/purchases/device.dart';
+export 'src/purchases/endpoints.dart';
+export 'src/purchases/fake_device_store.dart';
+export 'src/purchases/play_billing_names.dart';
 export 'src/purchases/fake_store.dart';
+export 'src/purchases/storekit_names.dart';
+export 'src/purchases/play_store.dart';
 export 'src/purchases/purchases.dart';
+export 'src/purchases/telegram_stars.dart';
 // LDAP is a raw TCP protocol, so a browser cannot speak it. Exported
 // unconditionally this pulls dart:io into every web build, which is what broke
 // the site build -- as a cascade of unrelated type errors in another file

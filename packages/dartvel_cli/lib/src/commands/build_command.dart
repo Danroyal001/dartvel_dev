@@ -27,12 +27,15 @@ import 'package:dartvel_core/dartvel.dart'
         DVFileStorageConfig;
 
 import '../build/android_home_widget.dart';
+// dvPurchasesDeclared is the same rule in both bridges; the Apple one is used.
+import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
 import '../build/android_capture_bridge.dart';
 import '../build/file_storage_permissions.dart';
 import '../build/scene3d_native.dart';
 import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/apple_home_widget.dart';
+import '../build/apple_storekit.dart';
 import '../build/apple_widget_reload.dart';
 import '../build/apple_widget_target.dart';
 import '../build/deep_link_files.dart';
@@ -1098,6 +1101,13 @@ class BuildCommand extends Command<void> {
     // that nothing compiles.
     if (platform == 'ios' || platform == 'macos') {
       _writeAppleHomeWidgets(_projectRoot, platform);
+      // The StoreKit 2 bridge DV.Purchases reaches over the Objective-C
+      // runtime, for a project that declares dartvel.purchases. Before Xcode
+      // reads the project, like the widget shim it sits beside.
+      if (dvWriteAppleStoreKit(
+          _projectRoot, platform, _dartvelSection(_projectRoot))) {
+        Logger.log('   Purchases: StoreKit 2 bridge compiled into $platform/Runner.');
+      }
     }
     if (platform == 'ios' || platform == 'macos') {
       // Before Xcode reads Info.plist and the entitlements: what
@@ -1119,6 +1129,8 @@ class BuildCommand extends Command<void> {
       _writeAndroidKioskFiles(_projectRoot);
       _writeAndroidHomeWidgets(_projectRoot);
       _writeAndroidDeepLinks(_projectRoot, deepLinks);
+      // Before Gradle resolves dependencies: the billing library is one.
+      _writeAndroidBilling(_projectRoot);
     }
     // A development build pairs with `dartvel dev`: the tunnel,
     // the activity a scanned link opens, and the entrypoint that starts it.
@@ -1885,6 +1897,39 @@ class BuildCommand extends Command<void> {
   /// `permissions.request`. What the pubspec list adds is the manifest lines
   /// without which a runtime request is refused instantly, with no dialog
   /// shown and the same answer a person tapping Deny gives.
+  void _writeAndroidBilling(String root) {
+    // Play Billing for DV.Purchases: the bridge Dart polls over JNI and the
+    // library it is compiled against, only for a project that declares
+    // dartvel.purchases. Both come back out when the declaration does, so an
+    // application that stopped selling stops shipping the BILLING
+    // permission the library adds to the manifest.
+    final bool sells = dvPurchasesDeclared(_dartvelSection(root));
+    final File bridge = File(p.join(root, dvAndroidBillingBridgePath));
+    if (sells) {
+      bridge.parent.createSync(recursive: true);
+      bridge.writeAsStringSync(dvAndroidBillingBridgeSource());
+    } else if (bridge.existsSync()) {
+      bridge.deleteSync();
+    }
+    for (final (String name, bool kotlinScript) in const <(String, bool)>[
+      ('android/app/build.gradle.kts', true),
+      ('android/app/build.gradle', false),
+    ]) {
+      final File gradle = File(p.join(root, name));
+      if (!gradle.existsSync()) continue;
+      final String before = gradle.readAsStringSync();
+      final String after = dvAndroidGradleWithBilling(before,
+          include: sells, kotlinScript: kotlinScript);
+      if (after != before) gradle.writeAsStringSync(after);
+      if (sells) Logger.log('   Purchases: Google Play Billing linked.');
+      return;
+    }
+    if (sells) {
+      Logger.log('⚠️  dartvel.purchases is declared and there is no '
+          'android/app/build.gradle to add Play Billing to.');
+    }
+  }
+
   void _writeAndroidCaptureBridge(String root) {
     final File manifest = File(
         p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
