@@ -9,6 +9,8 @@ class DVIosBindings {
 
   static bool get isRegistered => false;
 
+  static String? get lastFailure => null;
+
   /// What iOS covers — a fact about the platform rather than about where this
   /// code runs, so the list can be asserted anywhere.
   static const Set<String> implemented = dvIosImplementedBindings;

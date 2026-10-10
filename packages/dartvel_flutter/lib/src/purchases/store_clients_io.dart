@@ -1,6 +1,8 @@
 import 'dart:io' show Platform;
 
-import 'package:dartvel_core/dartvel.dart';
+// dartvel_core has its own Platform enum (build targets), which would hide
+// dart:io's and leave Platform.operatingSystem unresolved.
+import 'package:dartvel_core/dartvel.dart' hide Platform;
 
 import 'play_billing_jni.dart';
 import 'storekit_ffi.dart';
