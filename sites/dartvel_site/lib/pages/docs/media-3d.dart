@@ -37,19 +37,47 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
               'as interrupted, with the partial file kept.',
           'Protected content with no DRM adapter is refused up front, '
               'never played broken.',
+          'Captions are WebVTT or SubRip files, shown as real text over '
+              'the picture, so a screen reader reads them and Ctrl+F finds '
+              'them.',
+          'The built-in controls are labelled buttons in Tab order; a '
+              'focused player answers k or space, j, l, m and c.',
+          'A session puts the player on the lock screen, and its buttons '
+              'drive the same player.',
+          'Remote files are read through a disk cache, and precache fetches '
+              'the start of a video before anyone presses play.',
         ]),
         DocsCode('media3d-video'),
+        DocsCode('media3d-precache'),
         DocsStatus(
           'Media Playback and Capture',
           missing: <String>[
             'Linux plays through GStreamer, and only the audio: video frames '
-                'are not drawn yet.',
-            'No player or recorder backend yet for Android, iOS, macOS, '
-                'Windows, the web or TVs, and no camera capture anywhere.',
-            'No captions, lock-screen controls, picture-in-picture or '
-                'casting.',
+                'are not drawn yet. Linux has no lock-screen controls or '
+                'camera yet.',
+            'The browser player and camera are written but not yet checked '
+                'in a real browser.',
+            'No player or camera backend yet for Android, iOS, macOS, '
+                'Windows or TVs.',
+            'No casting.',
           ],
         ),
+      ],
+    ),
+    DocsSection(
+      id: 'camera',
+      title: 'Show the camera, take photos and record',
+      children: <Widget>[
+        Bullets(<String>[
+          'DVBox.camera opens the camera while it is on screen, closes it '
+              'when the page closes or the app goes to the background, and '
+              'opens it again when the app comes back.',
+          'It is not ready until the device says so; a refused permission '
+              'is a typed error, not an empty picture.',
+          'Photos and clips are written where only your app can read them, '
+              'and a clip is the same recording session recordVideo gives.',
+        ]),
+        DocsCode('media3d-camera'),
       ],
     ),
     DocsSection(
