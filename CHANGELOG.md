@@ -8,6 +8,8 @@ changes are called out explicitly below.
 ## Unreleased
 
 - Telegram Mini Apps: `dartvel build telegram` and `dartvel dev telegram` use the shared web pipeline. `DV.Platform.telegram` exposes host controls, live theme/viewport signals and storage. Configured generated backends verify Telegram initData before issuing Dartvel sessions; bot tokens stay server-side.
+- `DV.log` is one structured log stream on every target: a tag and fields on every record, a method per level, the platform log mirrored over FFI (logcat, the Apple unified log, journald, the browser console), a capped rotating log file on each device with `DV.log.export()`, `share()` and `clear()`, warnings as crash breadcrumbs, and opt-in shipping to the application's own backend under `dartvel.logging.ship`. Sensitive data model fields, credential-shaped values and resolved secrets are redacted before any destination sees a record.
+- **Breaking (Flutter):** `DV.log` takes `level: DVLogLevel.warn` rather than a string and returns nothing, the same as on the server; drop the `await`. It no longer sends every line to product analytics as an event, and neither does `DV.ObservabilityAndLogging.error`.
 
 ## 0.11.5 — 2026-10-09
 

@@ -1278,6 +1278,13 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-LOG-001',
+      reason:
+          'an install sent more log records this hour than the backend accepts; '
+          'the rest were counted, not written',
+      level: 'warning',
+    ),
+    DVDiagnostic(
       code: 'DV-CRASH-004',
       reason: 'reports from this device were rate-limited for this release',
       level: 'warning',

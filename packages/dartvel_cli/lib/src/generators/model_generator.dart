@@ -67,6 +67,9 @@ class ModelGenerator {
     // a raw query reading across every tenant. The database layer has no
     // idea what a model is, so the only place that knows has to say so.
     final scopedTables = <String>{};
+    // Every model's sensitive field names, for DV.log's redaction: the
+    // logger cannot redact a field nothing told it about.
+    final sensitiveLogFields = <String>{};
 
     // The currency every declared nativePrice is in. Read once: a model
     // cannot have its own, because a catalogue priced in three currencies is
@@ -701,6 +704,7 @@ class ModelGenerator {
           '  /// Field names marked @DVModel.sensitiveField(), excluded from',
         );
         sb.writeln('  /// public serialization and generated display.');
+        sensitiveLogFields.addAll(sensitiveFieldNames);
         sb.writeln(
           '  static const Set<String> sensitiveFields = <String>{${sensitiveFieldNames.map((n) => "'$n'").join(', ')}};',
         );
@@ -3171,6 +3175,12 @@ class ModelGenerator {
     sb.writeln(
       '  dvRegisterTenantScopedTables(<String>{'
       '${scopedTables.map((String t) => "'$t'").join(', ')}});',
+    );
+    // Sensitive fields are redacted from every log record by name, on the
+    // client and the server alike.
+    sb.writeln(
+      '  dvRegisterSensitiveLogFields(<String>{'
+      '${(sensitiveLogFields.toList()..sort()).map((String name) => "'$name'").join(', ')}});',
     );
     for (final className in classesGenerated) {
       sb.writeln('  _register$className();');
