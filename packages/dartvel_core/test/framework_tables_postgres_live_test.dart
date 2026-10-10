@@ -35,7 +35,7 @@ final DVJobPayloadCodec<_Ping> _pingCodec = DVJobPayloadCodec<_Ping>(
 
 const Entitlement _analytics = Entitlement('analytics');
 
-const DVPurchaseProduct _pro = DVPurchaseProduct(
+final DVPurchaseProduct _pro = DVPurchaseProduct(
   'book_pro',
   billable: DVBillable.digital(play: 'book_pro'),
   entitlements: <Entitlement>{_analytics},
@@ -399,7 +399,7 @@ void main() {
       ),
     );
     await DVPurchases(
-      products: const <DVPurchaseProduct>[_pro],
+      products: <DVPurchaseProduct>[_pro],
       stores: <DVStoreAdapter>[play],
       ledger: ledger(),
       clock: () => now,
