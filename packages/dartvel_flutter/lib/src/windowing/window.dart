@@ -538,7 +538,7 @@ class DVWindow {
 
   Future<void> _logCode(String code, String detail) async {
     try {
-      await DV.log('$code  $detail', level: 'debug', context: <String, Object>{'route': route.path});
+      DV.log('$code  $detail', level: .debug, tag: 'dartvel.windowing', context: <String, Object>{'route': route.path});
     } catch (_) {
       // Logging is not what the window is for.
     }
@@ -676,9 +676,10 @@ class DVWindow {
     }
   }
 
-  Future<void> _emitIgnored(String call) => DV.log(
+  Future<void> _emitIgnored(String call) async => DV.log(
         'DV-WINDOW-001  $call ignored on a virtual window.',
-        level: 'debug',
+        level: .debug,
+        tag: 'dartvel.windowing',
         context: <String, Object>{
           'route': route.path,
           'presentation': presentation.name,
@@ -1408,11 +1409,12 @@ class DVWindowManager {
     DVWindow window,
     DVWindowDegradation degradation,
     DVWindowKind requested,
-  ) =>
+  ) async =>
       DV.log(
         '${degradation.code}  Window request presented as '
         '${window.presentation.name}.',
-        level: degradation.level,
+        level: DVLogLevel.parse(degradation.level),
+        tag: 'dartvel.windowing',
         context: <String, Object>{
           'route': window.route.path,
           'requested': requested.name,
@@ -1517,10 +1519,11 @@ class DVWindowManager {
     const DVWindowDegradation degradation =
         DVWindowDegradation.restoredRouteUnresolvable;
     try {
-      await DV.log(
+      DV.log(
         '${degradation.code}  ${dropped.length} restored route(s) no longer '
         'resolve; the workspace came back without them.',
-        level: degradation.level,
+        level: DVLogLevel.parse(degradation.level),
+        tag: 'dartvel.windowing',
         context: <String, Object>{
           'workspace': name,
           'routes': dropped.join(', '),
