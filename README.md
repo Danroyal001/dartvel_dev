@@ -227,6 +227,7 @@ what it drew was checked, usually on every push.
 | :--- | :--- |
 | `linux`, `web`, `android`, `macos`, `ios`, `windows` | ✅ Build and run in CI (emulator and simulator for the mobile targets) |
 | `web-server` | ✅ Builds and runs on the host it is built on: linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64 and windows-arm64, each verified in CI |
+| `telegram` | Web build with Telegram SDK, host controls, theme/safe-area updates and server-verified sign-in; see [Telegram Mini Apps](docs/telegram-mini-apps.md) for verification limits |
 | `tvos` | ✅ Builds and runs on a simulator in debug. Signed device builds are not verified |
 | `sony-elinux` | ✅ Builds and runs on a virtual device, debug and release |
 | `chrome-extension`, `firefox-extension` | ✅ Build and run, loaded in the real browser |

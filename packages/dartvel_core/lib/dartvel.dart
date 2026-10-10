@@ -34,6 +34,7 @@ import 'src/schema/schema_change.dart' show DVAddColumn;
 import 'src/search/search_tuning.dart';
 import 'src/tenancy/tenants.dart';
 
+export 'src/platform/telegram_config.dart';
 export 'src/ai/ai.dart';
 export 'src/ai/ai_eval.dart';
 export 'src/ai/ai_features.dart';

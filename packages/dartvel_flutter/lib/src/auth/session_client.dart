@@ -29,6 +29,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/widgets.dart' show BuildContext, Element;
 
 import '../../dartvel_flutter.dart' show DVAuthProvider, DVAuthUser;
+import '../platform/telegram/telegram.dart';
 
 /// What a session from this install is recorded as: the platform and the
 /// kind of client, such as `Android app` or `Web browser`.
@@ -847,8 +848,17 @@ class DVSessionAuthProvider implements DVAuthProvider {
   Future<DVAuthUser> signInAnonymously() async => _unsupported('signInAnonymously');
 
   @override
-  Future<DVAuthUser> signInWithProvider(String provider) async =>
-      _unsupported('signInWithProvider');
+  Future<DVAuthUser> signInWithProvider(String provider) async {
+    if (provider != 'telegram') return _unsupported('signInWithProvider');
+    final telegram = dvTelegramHere();
+    if (telegram == null || telegram.initData.isEmpty) {
+      throw StateError('Open this app in Telegram to sign in');
+    }
+    return client.signIn(
+      email: 'telegram:${telegram.user?.id ?? 'unknown'}',
+      password: telegram.initData,
+    );
+  }
 
   @override
   Future<DVAuthUser> signInWithRawOAuth(Map<String, Object?> oauth) async =>

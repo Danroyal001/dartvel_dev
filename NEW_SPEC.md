@@ -14432,6 +14432,8 @@ dartvel build fuchsia
 dartvel build vscode
 dartvel build chrome-extension
 dartvel build firefox-extension
+dartvel build telegram              # shared web renderer + Telegram host SDK
+dartvel dev telegram
 dartvel build horizon               # Meta Quest: an Android 2D panel app
 dartvel build visionos              # Apple Vision Pro: the iPad app (macOS)
 
@@ -14440,7 +14442,14 @@ dartvel build visionos              # Apple Vision Pro: the iPad app (macOS)
 dartvel build android-xr
 ```
 
-Each target is driven by the platform's dedicated Flutter embedder or host
+Telegram Mini Apps use the ordinary web pipeline and existing page shell. Public
+metadata lives under `dartvel.telegram`; `DV.Platform.telegram` is null outside
+Telegram and exposes host controls, storage, theme and viewport signals. The
+generated backend validates signed initData using a server-only bot token before
+issuing a session. See `docs/telegram-mini-apps.md` for setup, API and limits;
+native payment fulfillment and bot registration remain application responsibilities.
+
+Each embedded or extension target is driven by the platform's dedicated Flutter embedder or host
 extension generator rather than plain `flutter build`:
 
 - **webOS** → `flutter-webos` (LG)

@@ -20,7 +20,7 @@ String? dvFlutterPlatformFor(String platform) => switch (platform) {
       'linux' => 'linux',
       'macos' => 'macos',
       'windows' => 'windows',
-      'web' || 'web-server' || 'chrome-extension' || 'firefox-extension' => 'web',
+      'web' || 'web-server' || 'telegram' || 'chrome-extension' || 'firefox-extension' => 'web',
       _ => null,
     };
 
