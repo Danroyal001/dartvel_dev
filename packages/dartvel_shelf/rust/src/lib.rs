@@ -11,7 +11,6 @@ use futures_util::StreamExt as _;
 use once_cell::sync::OnceCell;
 use std::{
     collections::HashMap,
-    io::Cursor,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
@@ -21,10 +20,9 @@ use tokio::sync::{mpsc, oneshot, Notify};
 use serde::Deserialize;
 
 use rustls::{
-    pki_types::{CertificateDer, PrivateKeyDer},
+    pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
     ServerConfig,
 };
-use rustls_pemfile::Item;
 
 mod codec;
 pub use codec::{aw_codec_decode, aw_codec_encode};
@@ -848,15 +846,12 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
             return 2;
         }
         // SAFETY: FfiBuf contract guarantees ptr is valid for len bytes
-        let mut r = Cursor::new(unsafe { std::slice::from_raw_parts(cert_pem.ptr, cert_pem.len) });
+        let pem = unsafe { std::slice::from_raw_parts(cert_pem.ptr, cert_pem.len) };
         let mut out = Vec::<CertificateDer<'static>>::new();
-        for item in rustls_pemfile::read_all(&mut r) {
-            let item = match item {
-                Ok(item) => item,
+        for cert in CertificateDer::pem_slice_iter(pem) {
+            match cert {
+                Ok(cert) => out.push(cert),
                 Err(_) => return 2,
-            };
-            if let Item::X509Certificate(cert) = item {
-                out.push(cert);
             }
         }
         if out.is_empty() {
@@ -870,30 +865,15 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
             return 3;
         }
         // SAFETY: FfiBuf contract guarantees ptr is valid for len bytes
-        let mut r = Cursor::new(unsafe { std::slice::from_raw_parts(key_pem.ptr, key_pem.len) });
-        let mut key: Option<PrivateKeyDer<'static>> = None;
-        for item in rustls_pemfile::read_all(&mut r) {
-            let item = match item {
-                Ok(item) => item,
-                Err(_) => return 3,
-            };
-            match item {
-                Item::Pkcs8Key(k) => {
-                    key = Some(PrivateKeyDer::from(k));
-                    break;
-                }
-                // Only the first of these wins: a PKCS#8 key later in the
-                // file still takes precedence by breaking out above.
-                Item::Pkcs1Key(k) if key.is_none() => {
-                    key = Some(PrivateKeyDer::from(k));
-                }
-                Item::Sec1Key(k) if key.is_none() => {
-                    key = Some(PrivateKeyDer::from(k));
-                }
-                _ => {}
-            }
-        }
-        match key {
+        let pem = unsafe { std::slice::from_raw_parts(key_pem.ptr, key_pem.len) };
+        // A PKCS#8 key anywhere in the file wins; otherwise the first PKCS#1
+        // or SEC1 key, as before the parser moved into rustls-pki-types.
+        let pkcs8 = match PrivatePkcs8KeyDer::pem_slice_iter(pem).next() {
+            Some(Ok(key)) => Some(PrivateKeyDer::from(key)),
+            Some(Err(_)) => return 3,
+            None => None,
+        };
+        match pkcs8.or_else(|| PrivateKeyDer::from_pem_slice(pem).ok()) {
             Some(k) => k,
             None => return 3,
         }
