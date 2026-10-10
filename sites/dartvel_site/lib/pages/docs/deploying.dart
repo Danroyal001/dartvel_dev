@@ -131,8 +131,8 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
             ], rows: <List<String>>[
               <String>['DARTVEL_ROLE', 'web, worker or cron. With none, it '
                   'serves HTTP and runs schedules'],
-              <String>['DARTVEL_PORT', 'The HTTP port. Defaults to '
-                  'dartvel.backendPort'],
+              <String>['DARTVEL_PORT', 'The HTTP port. Else the host\'s '
+                  'PORT, else dartvel.backendPort'],
               <String>['DARTVEL_QUEUE', 'The queues a worker works, comma '
                   'separated'],
               <String>['DARTVEL_HEALTH_PORT', '/healthz for a worker or cron '
