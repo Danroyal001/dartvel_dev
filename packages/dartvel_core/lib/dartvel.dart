@@ -80,6 +80,8 @@ export 'src/billing/paddle.dart';
 export 'src/billing/stripe.dart';
 export 'src/billing/subscription_lifecycle.dart';
 export 'src/billing/webhooks.dart';
+export 'src/billing/bachs.dart';
+export 'src/billing/config.dart';
 export 'src/commerce/commerce.dart';
 export 'src/commerce/disputes.dart';
 export 'src/commerce/payouts.dart';
@@ -1522,6 +1524,18 @@ class BillingPlan {
     this.trialDays = 0,
   }) : assert(trialDays >= 0, 'a trial is a number of free days, or none');
 
+  @override
+  bool operator ==(Object other) =>
+      other is BillingPlan &&
+      other.id == id &&
+      other.displayName == displayName &&
+      other.priceMinorUnits == priceMinorUnits &&
+      other.currency == currency &&
+      other.trialDays == trialDays;
+
+  @override
+  int get hashCode => Object.hash(id, displayName, priceMinorUnits, currency, trialDays);
+
   static const pro = BillingPlan(
     id: 'pro',
     displayName: 'Pro',
@@ -1534,6 +1548,15 @@ class Entitlement {
   final String id;
 
   const Entitlement(this.id);
+
+  @override
+  bool operator ==(Object other) => other is Entitlement && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
+
+  @override
+  String toString() => 'Entitlement($id)';
 
   static const analytics = Entitlement('analytics');
 }

@@ -129,6 +129,29 @@ void main() {
       expect(invoice.status, DVInvoiceStatus.paid);
     });
 
+    test('the tax Paddle collected as merchant of record is on the invoice',
+        () async {
+      final DVPaddleBillingProvider p = DVPaddleBillingProvider(
+        apiKey: 'pdl_live_key',
+        webhookSecret: 's',
+        prices: const <String, String>{},
+        entitlements: const <String, Set<Entitlement>>{},
+        fetch: (String method, Uri url, Map<String, String> h,
+                String? b) async =>
+            (
+              200,
+              '{"data":[{"id":"txn_1","customer_id":"ctm_1",'
+                  '"status":"completed","billed_at":"2026-09-03T12:00:00Z",'
+                  '"details":{"totals":{"subtotal":"4000","tax":"800",'
+                  '"total":"4800","currency_code":"EUR"}}}]}'
+            ),
+      );
+
+      final DVInvoice invoice = (await p.invoices('ctm_1')).single;
+      expect(invoice.total, DVMoney(amount: 4800, currency: 'EUR'));
+      expect(invoice.tax, DVMoney(amount: 800, currency: 'EUR'));
+    });
+
     test('a transaction for another customer is dropped', () async {
       final DVPaddleBillingProvider p = DVPaddleBillingProvider(
         apiKey: 'pdl_live_key',

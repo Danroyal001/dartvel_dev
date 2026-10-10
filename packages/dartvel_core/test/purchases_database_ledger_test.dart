@@ -10,7 +10,7 @@ import 'package:test/test.dart';
 
 const Entitlement analytics = Entitlement('analytics');
 
-const DVPurchaseProduct pro = DVPurchaseProduct(
+final DVPurchaseProduct pro = DVPurchaseProduct(
   'book_pro',
   billable: DVBillable.digital(play: 'book_pro'),
   entitlements: <Entitlement>{analytics},
@@ -42,7 +42,7 @@ void main() {
       late DVFakeStoreAdapter play;
 
       DVPurchases instance() => DVPurchases(
-            products: const <DVPurchaseProduct>[pro],
+            products: <DVPurchaseProduct>[pro],
             stores: <DVStoreAdapter>[play],
             ledger: DVDatabasePurchaseLedger(db),
             clock: () => start.add(const Duration(hours: 3)),

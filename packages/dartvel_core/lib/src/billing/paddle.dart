@@ -78,12 +78,19 @@ class DVPaddleBillingProvider
       throw DVBillingError('Plan "${plan.id}" has no Paddle price configured.');
     }
     await _assertPriceAgrees(plan, price);
-    final Map<String, Object?> json = await _post('/transactions', <String, Object?>{
+    final String customerKey = dvBillingCustomerKey(customer);
+    final Map<String, Object?> body = <String, Object?>{
       'items': <Object?>[
         <String, Object?>{'price_id': price, 'quantity': 1},
       ],
-      'custom_data': <String, Object?>{'customer': dvBillingCustomerKey(customer)},
-    });
+      'custom_data': <String, Object?>{'customer': customerKey},
+    };
+    // When the customer key is a Paddle customer id (ctm_), attach it so the
+    // webhook that grants names the customer the application asked about.
+    if (RegExp(r'^ctm_').hasMatch(customerKey)) {
+      body['customer_id'] = customerKey;
+    }
+    final Map<String, Object?> json = await _post('/transactions', body);
     final Object? data = json['data'];
     final Map<Object?, Object?> txn = data is Map ? data : const <Object?, Object?>{};
     final Object? checkout = txn['checkout'];
@@ -254,6 +261,8 @@ class DVPaddleBillingProvider
       final Object? totals = details is Map ? details['totals'] : null;
       final int? total =
           totals is Map ? int.tryParse('${totals['total'] ?? ''}') : null;
+      final int? tax =
+          totals is Map ? int.tryParse('${totals['tax'] ?? ''}') : null;
       final Object? currency = totals is Map ? totals['currency_code'] : null;
       if (total == null ||
           total < 0 ||
@@ -271,6 +280,9 @@ class DVPaddleBillingProvider
             ? row['invoice_number'] as String
             : null,
         total: DVMoney(amount: total, currency: currency),
+        tax: tax != null && tax >= 0
+            ? DVMoney(amount: tax, currency: currency)
+            : null,
         status: _invoiceStatus('${row['status'] ?? ''}'),
         createdAt: DateTime.tryParse('${row['billed_at'] ?? ''}')?.toUtc() ??
             DateTime.tryParse('${row['created_at'] ?? ''}')?.toUtc() ??
