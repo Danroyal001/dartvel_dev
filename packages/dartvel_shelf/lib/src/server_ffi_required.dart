@@ -73,6 +73,7 @@ Future<ServerHandle> serve(
   Duration requestTimeout = const Duration(seconds: 60),
   int maxBodyBytes = 1024 * 1024,
   Iterable<DVRouteBodyLimit> routeBodyLimits = const <DVRouteBodyLimit>[],
+  Map<String, String> securityHeaders = dvDefaultSecurityHeaders,
 }) async {
   throw StateError(
     'Dartvel Shelf server requires the FFI native backend. Build with dart.library.ffi and the ffigen-generated server bindings.',
