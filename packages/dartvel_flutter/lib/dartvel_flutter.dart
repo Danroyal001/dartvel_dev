@@ -763,7 +763,6 @@ export 'src/auth/session_client.dart';
 export 'src/auth/session_token_file_io.dart'
     if (dart.library.js_interop) 'src/auth/session_token_file_web.dart';
 export 'src/crashes/crashes.dart';
-export 'src/logging/logging.dart';
 // The documentation site: the widgets that draw the document `dartvel docs`
 // writes, so a project hosting its documentation under a mount of its own can
 // reach them. The document itself is re-exported from dartvel_core below.
@@ -778,6 +777,7 @@ export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
 export 'src/kiosk/session_clear.dart';
 export 'src/lifecycle/app_lifecycle_bridge.dart';
+export 'src/logging/logging.dart';
 // The renderer behind DVBox.image is not a second image widget, so it is
 // not exported; what the site build needs from it is.
 export 'src/media/image_view.dart'
