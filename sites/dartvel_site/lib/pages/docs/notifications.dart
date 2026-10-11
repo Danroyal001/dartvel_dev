@@ -148,8 +148,8 @@ Widget _docsNotificationsPage(BuildContext context) => const DocsArticle(
                   'has not: no Firebase project or Android device was '
                   'available, so no token has come from a phone and no '
                   'message has been delivered to one.',
-              'A click on a notification is tested in the worker, not in a '
-                  'browser, and Firefox and Safari have not been tried.',
+              'A click on a notification is tested in the worker and has not '
+                  'been tried in a browser. Nor have Firefox and Safari.',
               'A tap on a notification while the Android app is already '
                   'running in the background is not reported as opened.',
               'No attachments, bounce webhooks or List-Unsubscribe header.',

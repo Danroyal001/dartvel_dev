@@ -137,6 +137,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '    --build-name                 Build name/version',
       '    --[no-]obfuscate             Obfuscate code (release only)',
       '                                 (defaults to on)',
+      '    --[no-]upload-symbols        After an Android release build, send its mapping and debug symbols to the crash backend (dartvel.crashes.symbols.url). The token is read from DARTVEL_SYMBOLS_TOKEN. Also on with dartvel.crashes.symbols.upload: true; `dartvel symbols upload` does it separately.',
       '    --[no-]tree-shake-icons      Tree shake icons',
       '                                 (defaults to on)',
       '    --[no-]prerender             Read the semantics tree of each page into the HTML a crawler sees. --no-prerender skips it, and every page then ships with an empty body to anything that does not run scripts. For a build nobody serves: a screenshot, a smoke test, a local run.',
@@ -782,6 +783,16 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     ],
   ),
   DocsCliCommand(
+    name: 'push',
+    description: 'Push notification setup: Web Push VAPID keys.',
+    subcommands: <DocsCliCommand>[
+      DocsCliCommand(
+        name: 'vapid-keys',
+        description: 'Generate a VAPID key pair for Web Push. Prints the private key once.',
+      ),
+    ],
+  ),
+  DocsCliCommand(
     name: 'queue',
     description: 'Work and inspect Dartvel queues.',
     subcommands: <DocsCliCommand>[
@@ -842,6 +853,45 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
         description: 'Summarise docs/spec-status.json: what is built and what is not.',
         options: <String>[
           '    --contracts    List the frozen surfaces that are not finished.',
+        ],
+      ),
+    ],
+  ),
+  DocsCliCommand(
+    name: 'store',
+    description: 'Answers the app stores ask for, from the project.',
+    subcommands: <DocsCliCommand>[
+      DocsCliCommand(
+        name: 'data-safety',
+        description: 'Play Console Data safety answers (import CSV) from the project\'s declarations. What cannot be derived is listed as TODO, never guessed.',
+        options: <String>[
+          '    --format            What to print when --out is not given.',
+          '                        [csv (default), json, worksheet]',
+          '    --out               Write data-safety.csv and data-safety-worksheet.md here.',
+          '    --template          The CSV exported from Play Console\'s Data safety page. Its identifiers are used for every data type it lists.',
+          '    --unverified-ids    Also write rows under identifiers Google does not publish (recalled from the Console template). The Console shows an error for any it does not know; check the import preview.',
+        ],
+      ),
+    ],
+  ),
+  DocsCliCommand(
+    name: 'symbols',
+    description: 'Collect a release build\'s mapping and debug symbols, and upload them to the crash backend.',
+    subcommands: <DocsCliCommand>[
+      DocsCliCommand(
+        name: 'collect',
+        description: 'Gather the R8 mapping, Flutter split-debug-info and native symbols of the last Android release build into build/symbols/<release>.',
+        options: <String>[
+          '    --release    The release the bundle is for. Defaults to the pubspec version.',
+        ],
+      ),
+      DocsCliCommand(
+        name: 'upload',
+        description: 'Send build/symbols/<release> to the crash backend. The token is read from DARTVEL_SYMBOLS_TOKEN.',
+        options: <String>[
+          '    --url        The backend\'s origin. Defaults to dartvel.crashes.symbols.url.',
+          '    --release    The release to upload. Defaults to the pubspec version.',
+          '    --dir        A bundle directory to upload instead.',
         ],
       ),
     ],
