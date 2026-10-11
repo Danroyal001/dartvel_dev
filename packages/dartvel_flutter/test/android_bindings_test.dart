@@ -77,6 +77,14 @@ void main() {
         // NotificationManager. This was recorded as needing an Activity; it
         // does not.
         'notifications.sendLocal',
+        // Firebase Cloud Messaging through the DartvelPush class, for a
+        // project that declares dartvel.push.android. Registered only where
+        // the class is found.
+        'push.token',
+        'push.unsubscribe',
+        'push.drainMessages',
+        'push.subscribeToTopic',
+        'push.unsubscribeFromTopic',
         // The shared device runtime, reading procfs. All six, because four
         // of six would leave DV.Platform.device half working.
         'device.capabilityManifest',
@@ -100,6 +108,13 @@ void main() {
       expect(
         DVAndroidBindings.implemented,
         containsAll(DVAndroidCapture.implemented),
+      );
+    });
+
+    test('the push bindings are all claimed together', () {
+      expect(
+        DVAndroidBindings.implemented,
+        containsAll(DVAndroidPush.implemented),
       );
     });
 

@@ -27,10 +27,12 @@ import 'package:dartvel_core/dartvel.dart'
         dvOfflineRoute,
         DVDocsMount,
         DVFileStorageConfig,
+        DVFcmAppConfig,
         DVPushConfig,
         DVWebPushConfig;
 
 import '../build/android_home_widget.dart';
+import '../build/android_push_bridge.dart';
 // dvPurchasesDeclared is the same rule in both bridges; the Apple one is used.
 import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
 import '../build/android_capture_bridge.dart';
@@ -1127,6 +1129,13 @@ class BuildCommand extends Command<void> {
       } else {
         _writeAndroidBilling(_projectRoot);
       }
+      // And so is Firebase Cloud Messaging, for dartvel.push.android. Only a
+      // Google Play build: FCM needs Play services, which Fire OS does not have
+      // and a target riding on this pipeline may leave out.
+      final String? noPush = leftOut[DVPlatformStep.push];
+      _writeAndroidPush(_projectRoot,
+          enabled: platform == 'android' && noPush == null,
+          reason: noPush);
     }
     // After every other manifest writer, so the INTERNET line and the
     // <application> attributes are decided on the manifest that ships.
@@ -1994,7 +2003,12 @@ class BuildCommand extends Command<void> {
     final DVFileStorageConfig fileStorage =
         DVFileStorageConfig.parse(_dartvelSection(root)['fileStorage']);
     final List<String> requested = <String>[
-      ...dvAndroidRequestedPermissions(_dartvelSection(root)),
+      // dartvel.push.android implies the notifications permission, which
+      // Android 13 and later will not show a banner without.
+      ...dvAndroidPushPermissions(
+        declared: _androidPushConfig(root) != null,
+        requested: dvAndroidRequestedPermissions(_dartvelSection(root)),
+      ),
     ];
     // dartvel.fileStorage asks for its own, so a project declares what it
     // reads once rather than again under dartvel.android.permissions.
@@ -3119,13 +3133,82 @@ class BuildCommand extends Command<void> {
         'precached; a failed navigation goes to $dvOfflineRoute/.');
   }
 
-  /// `dartvel.push.web`, read strictly; exits the build on a bad declaration.
-  DVWebPushConfig? _webPushConfig(String root) {
+  /// `dartvel.push`, read strictly; exits the build on a bad declaration.
+  DVPushConfig _pushConfig(String root) {
     try {
-      return DVPushConfig.parse(_dartvelSection(root)['push']).web;
+      return DVPushConfig.parse(_dartvelSection(root)['push']);
     } on ArgumentError catch (error) {
       Logger.log('❌ ${error.name ?? 'dartvel.push'}: ${error.message}');
       exit(1);
+    }
+  }
+
+  DVWebPushConfig? _webPushConfig(String root) => _pushConfig(root).web;
+
+  DVFcmAppConfig? _androidPushConfig(String root) =>
+      _pushConfig(root).androidFcm;
+
+  /// Firebase Cloud Messaging for `PushNotifications` on Android: the bridge
+  /// Dart calls, the service Firebase starts, the manifest entry, the Gradle
+  /// dependency and the string resources it initialises from, for a project
+  /// that declares `dartvel.push.android.fcm`. All of it comes back out when
+  /// the declaration does, or when the target is not a Google Play build.
+  void _writeAndroidPush(String root, {required bool enabled, String? reason}) {
+    final DVFcmAppConfig? declared = _androidPushConfig(root);
+    final DVFcmAppConfig? fcm = enabled ? declared : null;
+    if (declared != null && !enabled) {
+      Logger.log('   Push: dartvel.push.android is not in this build: '
+          '${reason ?? 'it is for Google Play builds, and this target has no '
+              'Firebase Cloud Messaging.'}');
+    }
+
+    final File manifest = File(
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (manifest.existsSync()) {
+      final String before = manifest.readAsStringSync();
+      final String after = dvAndroidPushManifest(before, include: fcm != null);
+      if (after != before) manifest.writeAsStringSync(after);
+    }
+
+    final Map<String, String> files = <String, String>{
+      dvAndroidPushBridgePath: dvAndroidPushBridgeSource(),
+      dvAndroidPushServicePath: dvAndroidPushServiceSource(),
+      if (fcm != null) dvAndroidFirebaseResourcesPath: dvAndroidFirebaseResources(fcm),
+    };
+    for (final String path in <String>[
+      dvAndroidPushBridgePath,
+      dvAndroidPushServicePath,
+      dvAndroidFirebaseResourcesPath,
+    ]) {
+      final File file = File(p.join(root, path));
+      if (fcm != null && files.containsKey(path)) {
+        file.parent.createSync(recursive: true);
+        file.writeAsStringSync(files[path]!);
+      } else if (file.existsSync()) {
+        file.deleteSync();
+      }
+    }
+
+    for (final (String name, bool kotlinScript) in const <(String, bool)>[
+      ('android/app/build.gradle.kts', true),
+      ('android/app/build.gradle', false),
+    ]) {
+      final File gradle = File(p.join(root, name));
+      if (!gradle.existsSync()) continue;
+      final String before = gradle.readAsStringSync();
+      final String after = dvAndroidGradleWithPush(before,
+          include: fcm != null, kotlinScript: kotlinScript);
+      if (after != before) gradle.writeAsStringSync(after);
+      if (fcm != null) {
+        Logger.log('   Push: Firebase Cloud Messaging linked for project '
+            '"${fcm.projectId}". The sending credential is the '
+            'FCM_SERVICE_ACCOUNT_JSON secret.');
+      }
+      return;
+    }
+    if (fcm != null) {
+      Logger.log('⚠️  dartvel.push.android is declared and there is no '
+          'android/app/build.gradle to add Firebase to.');
     }
   }
 

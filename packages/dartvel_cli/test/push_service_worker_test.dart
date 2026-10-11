@@ -252,6 +252,7 @@ globalThis.__run = async (scenario) => {
     const event = {
       notification: {
         data: scenario.data,
+        title: scenario.title, body: scenario.body,
         close: () => { record.closed = true; },
       },
       waitUntil: (promise) => waited.push(promise),

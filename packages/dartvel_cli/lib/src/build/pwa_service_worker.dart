@@ -257,7 +257,13 @@ self.addEventListener('notificationclick', (event) => {
     if (windows.length > 0) {
       const client = windows[0];
       await client.focus();
-      client.postMessage({ type: 'dartvel-push-open', url: target.pathname + target.search, data });
+      client.postMessage({
+        type: 'dartvel-push-open',
+        title: event.notification.title,
+        body: event.notification.body,
+        url: target.pathname + target.search,
+        data,
+      });
       return;
     }
     await self.clients.openWindow(target.href);
