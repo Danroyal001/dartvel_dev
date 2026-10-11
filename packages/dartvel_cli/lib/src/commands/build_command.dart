@@ -26,9 +26,18 @@ import 'package:dartvel_core/dartvel.dart'
         dvIosUsageKeysFor,
         dvOfflineRoute,
         DVDocsMount,
-        DVFileStorageConfig;
+        DVFileStorageConfig,
+        DVCrashBuildMode,
+        DVCrashConfig,
+        DVFcmAppConfig,
+        DVPushConfig,
+        DVWebPushConfig;
 
 import '../build/android_home_widget.dart';
+import '../build/android_crash_handler.dart';
+import '../build/android_push_bridge.dart';
+import '../build/symbols_bundle.dart';
+import 'symbols_command.dart';
 // dvPurchasesDeclared is the same rule in both bridges; the Apple one is used.
 import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
 import '../build/android_capture_bridge.dart';
@@ -413,6 +422,13 @@ class BuildCommand extends Command<void> {
       ..addOption('build-name', help: 'Build name/version')
       ..addFlag('obfuscate',
           defaultsTo: true, help: 'Obfuscate code (release only)')
+      ..addFlag('upload-symbols',
+          defaultsTo: false,
+          help: 'After an Android release build, send its mapping and debug '
+              'symbols to the crash backend (dartvel.crashes.symbols.url). '
+              'The token is read from DARTVEL_SYMBOLS_TOKEN. Also on with '
+              'dartvel.crashes.symbols.upload: true; `dartvel symbols upload` '
+              'does it separately.')
       ..addFlag('tree-shake-icons', defaultsTo: true, help: 'Tree shake icons')
       ..addFlag('prerender',
           defaultsTo: true,
@@ -1092,7 +1108,7 @@ class BuildCommand extends Command<void> {
     if (platform == 'android' || platform == 'fireos') {
       // Before the kiosk block, so a manifest that gets both keeps them in
       // a stable order and the diff stays readable.
-      _writeAndroidContextProvider(_projectRoot);
+      _writeAndroidContextProvider(_projectRoot, buildMode);
       // After the Context provider and before the kiosk, because it adds to
       // the same manifest and the order the blocks appear in is the order
       // they are written.
@@ -1125,6 +1141,15 @@ class BuildCommand extends Command<void> {
       } else {
         _writeAndroidBilling(_projectRoot);
       }
+      // And so is Firebase Cloud Messaging, for dartvel.push.android. Only a
+      // Google Play build: FCM needs Play services, which Fire OS does not have
+      // and a target riding on this pipeline may leave out.
+      final String? noPush = leftOut[DVPlatformStep.push];
+      _writeAndroidPush(_projectRoot,
+          enabled: platform == 'android' && noPush == null,
+          reason: noPush);
+      // Gradle writes native debug symbols only when asked.
+      _writeAndroidSymbolsRequest(_projectRoot);
     }
     // After every other manifest writer, so the INTERNET line and the
     // <application> attributes are decided on the manifest that ships.
@@ -1231,6 +1256,10 @@ class BuildCommand extends Command<void> {
       }
     }
 
+    // When this build began: the symbols it writes are newer than this, and
+    // the ones an earlier build left in the same directories are not.
+    final DateTime buildStartedAt = DateTime.now();
+
     // Printed before starting, so a log that ends here says exactly what was
     // invoked. A macOS build once stopped at this point and produced nothing
     // for 41 minutes; the log could not even show the command.
@@ -1263,6 +1292,14 @@ class BuildCommand extends Command<void> {
     if (exitCode == null) return DVBuildTargetResult.failed;
 
     if (exitCode == 0) {
+      if (androidFamily && buildMode == '--release') {
+        // The mapping and debug symbols this build wrote are what a crash
+        // from it can be read with, and the next build overwrites them.
+        if (!await _collectAndroidSymbols(_projectRoot, buildStartedAt)) {
+          Logger.log('❌ $platform build failed');
+          return DVBuildTargetResult.failed;
+        }
+      }
       if (platform == 'web' || platform == 'web-server') {
         final root = _projectRoot;
         // First, before anything reads build/web or lists its parts: Studio's
@@ -1608,7 +1645,7 @@ class BuildCommand extends Command<void> {
   /// without this there is none to reach it through. That is not a theory:
   /// they were all dead on a real device, because they were written against
   /// a package:jni symbol that is declared in a header and never defined.
-  void _writeAndroidContextProvider(String root) {
+  void _writeAndroidContextProvider(String root, String buildMode) {
     final File manifest = File(
         p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) {
@@ -1623,6 +1660,25 @@ class BuildCommand extends Command<void> {
     final File source = File(p.join(root, dvAndroidContextProviderPath));
     source.parent.createSync(recursive: true);
     source.writeAsStringSync(dvAndroidContextProviderSource());
+
+    // The provider installs the JVM crash handler, so the class it calls is
+    // written beside it. Switched off, per build mode, by dartvel.crashes.
+    bool crashesOn = true;
+    try {
+      crashesOn = dvSymbolsProject(root).crashes.enabledIn(switch (buildMode) {
+        '--release' => DVCrashBuildMode.release,
+        '--profile' => DVCrashBuildMode.profile,
+        _ => DVCrashBuildMode.debug,
+      });
+    } on ArgumentError {
+      // Reported where dartvel.crashes is read strictly.
+    }
+    final File crashHandler = File(p.join(root, dvAndroidCrashHandlerPath));
+    crashHandler.parent.createSync(recursive: true);
+    crashHandler.writeAsStringSync(dvAndroidCrashHandlerSource(
+      release: dvSymbolsProject(root).release,
+      enabled: crashesOn,
+    ));
   }
 
   /// Writes what an Android development build needs to pair with `dartvel
@@ -1992,7 +2048,12 @@ class BuildCommand extends Command<void> {
     final DVFileStorageConfig fileStorage =
         DVFileStorageConfig.parse(_dartvelSection(root)['fileStorage']);
     final List<String> requested = <String>[
-      ...dvAndroidRequestedPermissions(_dartvelSection(root)),
+      // dartvel.push.android implies the notifications permission, which
+      // Android 13 and later will not show a banner without.
+      ...dvAndroidPushPermissions(
+        declared: _androidPushConfig(root) != null,
+        requested: dvAndroidRequestedPermissions(_dartvelSection(root)),
+      ),
     ];
     // dartvel.fileStorage asks for its own, so a project declares what it
     // reads once rather than again under dartvel.android.permissions.
@@ -2946,6 +3007,16 @@ class BuildCommand extends Command<void> {
   Future<void> _writePwaManifest(String root) async {
     final pwa = _dartvelSection(root)['pwa'];
     final settings = pwa is Map ? pwa : const <Object?, Object?>{};
+    // Web push rides the service worker, so a project that declares it and
+    // switches the worker off would build cleanly and never receive a push.
+    final DVWebPushConfig? webPush = _webPushConfig(root);
+    if (webPush != null &&
+        (settings['enabled'] == false || settings['serviceWorker'] == false)) {
+      Logger.log('❌ dartvel.push.web needs the service worker, and '
+          'dartvel.pwa switches it off. Remove dartvel.push.web or turn the '
+          'worker back on.');
+      exit(1);
+    }
     if (settings['enabled'] == false) return;
 
     final name = '${settings['name'] ?? _packageName(root) ?? 'Dartvel App'}';
@@ -3091,6 +3162,9 @@ class BuildCommand extends Command<void> {
         // On unless the project says otherwise: a backend call made offline
         // is queued and replayed, which is the behaviour a PWA promises.
         backgroundSync: settings['backgroundSync'] != false,
+        // dartvel.push.web: the push and notificationclick handlers. The one
+        // worker serves web and web-server alike, so both get them.
+        push: _webPushConfig(root) != null,
         // Studio and the API are left to the browser: Studio is its own
         // application, and an API answer is not an asset to keep until the
         // next deploy.
@@ -3099,9 +3173,152 @@ class BuildCommand extends Command<void> {
       ),
     );
 
+    // And registered. Flutter's bootstrap only updates a registration that
+    // already exists; without this the worker above is never installed.
+    final File bootstrap = File(p.join(web.path, 'flutter_bootstrap.js'));
+    if (bootstrap.existsSync()) {
+      bootstrap.writeAsStringSync(
+          dvBootstrapRegisteringServiceWorker(bootstrap.readAsStringSync()));
+    }
+
     Logger.log('   Service worker written: '
         '${routes.length} route(s) and ${parts.length} page part(s) '
         'precached; a failed navigation goes to $dvOfflineRoute/.');
+  }
+
+  /// Asks Gradle for the native debug symbols zip, when the project declares
+  /// `dartvel.crashes.symbols` and crash reporting is on in release.
+  void _writeAndroidSymbolsRequest(String root) {
+    bool include = false;
+    try {
+      final DVCrashConfig crashes = dvSymbolsProject(root).crashes;
+      include = crashes.symbolsUrl != null &&
+          crashes.enabledIn(DVCrashBuildMode.release);
+    } on ArgumentError {
+      // The build reads dartvel.crashes strictly where it is used; a bad
+      // declaration is reported there, not here.
+    }
+    for (final (String name, bool kotlinScript) in const <(String, bool)>[
+      ('android/app/build.gradle.kts', true),
+      ('android/app/build.gradle', false),
+    ]) {
+      final File gradle = File(p.join(root, name));
+      if (!gradle.existsSync()) continue;
+      final String before = gradle.readAsStringSync();
+      final String after = dvAndroidGradleWithNativeSymbols(before,
+          include: include, kotlinScript: kotlinScript);
+      if (after != before) gradle.writeAsStringSync(after);
+      return;
+    }
+  }
+
+  /// Gathers the release build's symbols into `build/symbols/<release>`, and
+  /// uploads them when asked to. False only when an upload that was asked for
+  /// failed: a build that cannot publish its symbols has produced a release
+  /// whose crashes will be unreadable, and saying so loudly beats a green
+  /// build.
+  Future<bool> _collectAndroidSymbols(String root, DateTime builtSince) async {
+    final DVSymbolsCollection result;
+    try {
+      result = dvCollectProjectSymbols(root, builtSince: builtSince);
+    } on Object catch (error) {
+      Logger.log('⚠️  Could not collect symbols for crash reports: $error');
+      return true;
+    }
+    for (final String warning in result.warnings) {
+      Logger.log('⚠️  $warning');
+    }
+    if (result.isEmpty) return true;
+    Logger.log('   Symbols for ${result.manifest.release}: '
+        '${result.manifest.files.length} file(s) in '
+        '${p.relative(result.directory, from: root)}.');
+    bool upload = argResults?['upload-symbols'] == true;
+    try {
+      upload = upload || dvSymbolsProject(root).crashes.uploadSymbolsOnBuild;
+    } on ArgumentError {
+      // Reported where dartvel.crashes is read.
+    }
+    if (!upload) return true;
+    return dvUploadProjectSymbols(root, release: result.manifest.release);
+  }
+
+  /// `dartvel.push`, read strictly; exits the build on a bad declaration.
+  DVPushConfig _pushConfig(String root) {
+    try {
+      return DVPushConfig.parse(_dartvelSection(root)['push']);
+    } on ArgumentError catch (error) {
+      Logger.log('❌ ${error.name ?? 'dartvel.push'}: ${error.message}');
+      exit(1);
+    }
+  }
+
+  DVWebPushConfig? _webPushConfig(String root) => _pushConfig(root).web;
+
+  DVFcmAppConfig? _androidPushConfig(String root) =>
+      _pushConfig(root).androidFcm;
+
+  /// Firebase Cloud Messaging for `PushNotifications` on Android: the bridge
+  /// Dart calls, the service Firebase starts, the manifest entry, the Gradle
+  /// dependency and the string resources it initialises from, for a project
+  /// that declares `dartvel.push.android.fcm`. All of it comes back out when
+  /// the declaration does, or when the target is not a Google Play build.
+  void _writeAndroidPush(String root, {required bool enabled, String? reason}) {
+    final DVFcmAppConfig? declared = _androidPushConfig(root);
+    final DVFcmAppConfig? fcm = enabled ? declared : null;
+    if (declared != null && !enabled) {
+      Logger.log('   Push: dartvel.push.android is not in this build: '
+          '${reason ?? 'it is for Google Play builds, and this target has no '
+              'Firebase Cloud Messaging.'}');
+    }
+
+    final File manifest = File(
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (manifest.existsSync()) {
+      final String before = manifest.readAsStringSync();
+      final String after = dvAndroidPushManifest(before, include: fcm != null);
+      if (after != before) manifest.writeAsStringSync(after);
+    }
+
+    final Map<String, String> files = <String, String>{
+      dvAndroidPushBridgePath: dvAndroidPushBridgeSource(),
+      dvAndroidPushServicePath: dvAndroidPushServiceSource(),
+      if (fcm != null) dvAndroidFirebaseResourcesPath: dvAndroidFirebaseResources(fcm),
+    };
+    for (final String path in <String>[
+      dvAndroidPushBridgePath,
+      dvAndroidPushServicePath,
+      dvAndroidFirebaseResourcesPath,
+    ]) {
+      final File file = File(p.join(root, path));
+      if (fcm != null && files.containsKey(path)) {
+        file.parent.createSync(recursive: true);
+        file.writeAsStringSync(files[path]!);
+      } else if (file.existsSync()) {
+        file.deleteSync();
+      }
+    }
+
+    for (final (String name, bool kotlinScript) in const <(String, bool)>[
+      ('android/app/build.gradle.kts', true),
+      ('android/app/build.gradle', false),
+    ]) {
+      final File gradle = File(p.join(root, name));
+      if (!gradle.existsSync()) continue;
+      final String before = gradle.readAsStringSync();
+      final String after = dvAndroidGradleWithPush(before,
+          include: fcm != null, kotlinScript: kotlinScript);
+      if (after != before) gradle.writeAsStringSync(after);
+      if (fcm != null) {
+        Logger.log('   Push: Firebase Cloud Messaging linked for project '
+            '"${fcm.projectId}". The sending credential is the '
+            'FCM_SERVICE_ACCOUNT_JSON secret.');
+      }
+      return;
+    }
+    if (fcm != null) {
+      Logger.log('⚠️  dartvel.push.android is declared and there is no '
+          'android/app/build.gradle to add Firebase to.');
+    }
   }
 
   /// The admin mount the worker leaves alone, when this build serves one.

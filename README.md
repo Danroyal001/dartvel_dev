@@ -100,7 +100,7 @@ the same executable. See [the binary layout and HTTP policy](docs/web-server-bin
 | **Queues & Jobs** | `@DVJob` with typed dispatch and handlers on seven adapters: in-memory, database, Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The four hosted ones are tested in CI against a real broker. No delayed jobs, backoff schedule or uniqueness keys yet | ⚠️ Partial |
 | **Cache** | `DV.Cache.get/set/has/delete`, with read-through (`compute:`), tags and a stale window as options, on a server and a device alike. The default store is `dartvel.cache` in pubspec.yaml: memory, database, Redis or Memcached; `DV.Cache.withAdapter` switches store in code. No model query cache or invalidation generated from model writes yet | ⚠️ Partial |
 | **File Storage** | One surface on both sides: the filesystem this process is standing on (a server's disk, or the directory an app owns on a device), memory, S3 and S3-compatible stores (R2, MinIO), Azure Blob and Google Cloud Storage. No streaming put and get yet | ⚠️ Partial |
-| **Notifications** | SMTP and HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM, APNS over HTTP/2, Web Push (RFC 8291/8292) and Twilio SMS. No bounce webhooks, attachments or durable inbox yet | ⚠️ Partial |
+| **Notifications** | SMTP and HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM (service-account tokens from Secrets, topics, data messages; the Android and web device halves are built from `dartvel.push`), APNS over HTTP/2, Web Push (RFC 8291/8292) and Twilio SMS. No push has met a real FCM or browser push service yet. No bounce webhooks, attachments or durable inbox | ⚠️ Partial |
 | **Search** | SQLite FTS5, PostgreSQL full-text, Meilisearch, Algolia and OpenSearch/Elasticsearch behind one provider contract | ✅ Shipped |
 | **Semantic Search** | `@DVModel(semantic: true)` gives a data model `useSemanticSearch` and `semanticSearch`: embeddings queued on save, keyword, semantic and hybrid modes, tenant scoping pushed into the vector query. The only vector adapter is in-memory | ⚠️ Partial |
 | **SEO** | `dartvel build web` writes head tags, JSON-LD, per-route HTML from the semantics tree, `sitemap.xml` and `robots.txt` | ✅ Shipped |
@@ -108,7 +108,7 @@ the same executable. See [the binary layout and HTTP policy](docs/web-server-bin
 | **AI Integration** | Adapters for Claude, OpenAI, Gemini, OpenRouter and Ollama plus a deterministic local one, structured output, tool calling and agents . tool approvals, lazy MCP tool catalogs and per-step agent middleware are designed, not built | ⚠️ Partial |
 | **Feature Flags** | Typed flags from `@DVFlags`, percentage and targeted rollout, `dartvel flags list` and `prune`. Nothing publishes rules per environment yet | ⚠️ Partial |
 | **OTA Updates** | `dartvel updates release`, `patch` and `rollback` over Shorebird, or into a patch source your own web-server binary hosts. Patches apply on Android; iOS is not proven | ⚠️ Partial |
-| **Crash Reporting** | Crashes written by the handler and sent on the next launch, breadcrumbs, fingerprints, release health. No native signal or JVM handlers yet | ⚠️ Partial |
+| **Crash Reporting** | Crashes written by the handler and sent on the next launch, breadcrumbs, fingerprints, release health. Android: a JVM handler, and release symbols (R8 mapping, `--split-debug-info`) collected at build, uploaded with `dartvel symbols upload` and used to read each report. No native signal handler, iOS dSYMs or web source maps yet | ⚠️ Partial |
 | **Usage Metering** | Per-tenant counters and gauges with limits, billing periods and reporting to a billing provider. No `@DVMeter` generation or CLI yet | ⚠️ Partial |
 | **Observability** | `DV.log`: one structured stream on every target, mirrored to logcat, the Apple unified log, journald and the browser console over FFI, a capped rotating log file on each device with export and share, sensitive fields and secrets redacted, opt-in shipping to your own backend. Prometheus metrics on `/metrics`, real health checks on `/health`, W3C Trace Context. No OTLP exporter, and native code cannot log into the stream yet | ⚠️ Partial |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` keeps fields out of public serialization, logs and AI context; `encrypted: true` adds AES-256-GCM at rest on the generated model's own read and write path | ⚠️ Partial |
@@ -1001,23 +1001,111 @@ same directory on Android and the web, and `fileStorage` works everywhere.
 
 ## 🔔 Push notifications
 
-`FirebasePushProvider` sends through FCM's HTTP v1 API. Minting a Google
-access token needs RSA JWT signing, which Dartvel does not bundle, so the token
-comes from your own credentials layer and is fetched per send — an expired one
-is never reused:
+Declare the targets once in `pubspec.yaml`. Nothing goes in `android/` or in a
+service worker by hand: the build writes both.
 
-```dart
-DV.Notifications.register(
-  FirebasePushProvider(
-    projectId: 'my-project',
-    accessToken: () => googleCredentials.accessToken(),
-  ),
-);
+```yaml
+dartvel:
+  push:
+    web:
+      vapidPublicKey: BNc...          # `dartvel push vapid-keys` prints a pair
+    android:
+      fcm:                            # the Firebase console's four values
+        projectId: my-project
+        appId: "1:1234567890:android:abc123"
+        apiKey: AIza...
+        senderId: "1234567890"
 ```
 
-A stale device token surfaces as `DVPushProviderException` with
-`isUnregisteredToken == true`, which is the signal to prune the token rather
-than retry it.
+**Sending.** The service-account key file from the Firebase console is the
+`FCM_SERVICE_ACCOUNT_JSON` secret (the JSON, or its base64); the VAPID private
+key and contact are `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`. Neither belongs in
+`pubspec.yaml`, and the parser refuses one that is there.
+
+```dart
+DV.Notifications.register(FirebasePushProvider.fromSecrets());
+DV.Notifications.register(WebPushProvider.fromSecrets());
+```
+
+`fromSecrets()` signs the service-account JWT and exchanges it for access
+tokens itself (cached until a minute before they expire, one retry after a
+401), and the key is redacted from logs and is in no error message. Beyond
+`send`, `FirebasePushProvider` has `sendTopic(topic, message)` and
+`sendData(token, data)`, and FCM's error codes arrive on
+`DVPushProviderException`: `isUnregisteredToken` means drop the token,
+`isRetryable` means try again later. Passing your own `accessToken:` supplier
+still works.
+
+**Receiving.** One API on Android and the web:
+
+```dart
+final String? token = await PushNotifications.getToken();  // FCM token, or a browser subscription
+await PushNotifications.requestPermission();               // from a tap, never at launch
+PushNotifications.onMessage.listen((PushNotification note) { ... });
+PushNotifications.onMessageOpenedApp.listen((PushNotification note) { ... });
+```
+
+Hand the token to your server; it is what `DVNotificationRoutes.pushTokens`
+(Android) or `.webPushSubscriptions` (web) take. Starting push asks for no
+permission. On Android the build writes the Firebase service, the JNI bridge,
+the manifest entry, the Gradle dependency and the string resources Firebase
+reads (no `google-services.json`, no plugin), and declares
+`POST_NOTIFICATIONS`. On the web the one generated service worker, shared by
+`web` and `web-server`, gets `push` and `notificationclick` handlers. FCM needs
+Google Play services, so Fire OS and Horizon OS builds leave it out; Web Push
+has no topics, and `subscribeToTopic` there says so.
+
+Verified: the request and error shapes against Google's reference, the
+generated Java compiled against `firebase-messaging` 26.0.0, the service worker
+run under node, and a release APK built with all of it. **Web Push was run for
+real**: in Chrome 155 against Chrome's own push service, a web build's
+`PushNotifications.getToken()` returned a real subscription, `WebPushProvider`
+sent it an encrypted, VAPID-signed message that the service accepted (201), the
+message arrived on `PushNotifications.onMessage`, and with every window closed
+the worker showed the notification itself. That run also found that nothing
+registered the service worker on a first visit under Flutter 3.47 (its
+bootstrap only updates a registration that exists), so `dartvel build` now
+registers it. Not verified: a token from a real Android device or a message
+delivered by FCM (no Firebase project or device was available), a notification
+click in a browser, and push in Firefox or Safari.
+
+---
+
+## 🪲 Crash symbols
+
+A release build is obfuscated, so its stacks are unreadable until they are read
+with that build's symbols. For an Android release, `dartvel build android`
+gathers them into `build/symbols/<release>/` (R8's `mapping.txt`, Flutter's
+`--split-debug-info` files with their build ids, and Gradle's native symbols
+when asked), keeping only what this build wrote:
+
+```yaml
+dartvel:
+  crashes:
+    sink: dartvel
+    symbols:
+      url: https://api.example.com   # https, or http to this machine
+      upload: true                   # optional: upload at the end of a release build
+```
+
+```sh
+export DARTVEL_SYMBOLS_TOKEN=...     # the same secret the backend runs with
+dartvel symbols upload               # or: dartvel build android --upload-symbols
+```
+
+The backend serves the upload when `sink: dartvel` is declared and the token
+secret is set (with none, the route answers 404 to everyone), checks each file
+against its hash, and completes a release only when its manifest and every file
+it lists have arrived. The crash endpoint then reads each report with its own
+release's symbols: Java and Kotlin frames through the mapping, Dart frames
+through the `.symbols` file whose build id the stack names. A bug keeps its
+group across releases because the group id comes from the original names. A
+report whose release has no symbols says `symbolicated: false`.
+
+A Java or Kotlin crash is recorded by a handler the build installs before the
+Flutter engine starts, into the same store Dart sends from at the next launch.
+Not built: the native signal handler, iOS dSYMs, web source maps, and reading
+native frames (the native symbols are stored, not yet used).
 
 ---
 

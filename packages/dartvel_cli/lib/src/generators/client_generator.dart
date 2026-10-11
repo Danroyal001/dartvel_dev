@@ -8,6 +8,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVFileStorageConfig,
         DVHomeWidgetSpec,
         DVLogConfig,
+        DVPushConfig,
         dvHomeWidgetAnnotationArgs,
         dvHomeWidgetDeclaration,
         dvHomeWidgetDeclaredName,
@@ -31,6 +32,7 @@ import 'page_names.dart';
 import 'model_names.dart';
 import 'primary_constructors.dart';
 import 'page_policy.dart';
+import 'push_runtime.dart';
 import 'symbol_qualifier.dart';
 import '../commands/build_command.dart' show dvTerminalOptInFrom;
 import 'static_paths_generator.dart';
@@ -752,7 +754,7 @@ import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform,
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVLogConfig, DVFileStorageConfig, DVDevServerHost, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVModuleRpc, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
 import 'package:dartvel_core/framework.dart' show DVOfflineReplay, DVOfflineSync, dvLocalOfflineDatabase, dvOfflineSendOverHttp;
-${_scene3dImportSource(dv)}${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVNetworkStatus, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVDeviceStorage, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, dvInstallApplicationLogging, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
+${_scene3dImportSource(dv)}${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVNetworkStatus, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor,${dvPushRuntimeImports(_pushConfig(dv))} DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVDeviceStorage, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, dvInstallApplicationLogging, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
 import 'dartvel_config.g.dart' as cfg;
 ${_runtimeImportSource(runtimePackages)}import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'flags.g.dart' show registerDartvelFlags;
@@ -911,7 +913,7 @@ ${_runtimeInstallSource(runtimePackages, telegramConfigured: dv['telegram'] != n
   // manages. Set before any store below is made, and read only when a token
   // is first written, so no keyring is asked anything at startup.
   DVWindowSharedStore.defaultAppKeys = () => dvAppKeyStoreFor('$pkgName');
-${_memoryConfigSource(dv)}${_windowingDeclarationSource(dv)}${_sharedStoreTuningSource(dv)}${_deviceKioskInstallSource(dv)}
+${dvPushRuntimeCall(_pushConfig(dv))}${_memoryConfigSource(dv)}${_windowingDeclarationSource(dv)}${_sharedStoreTuningSource(dv)}${_deviceKioskInstallSource(dv)}
   // Every @DVClientCron schedule, registered and ticking. The entries were
   // generated and nothing started them, so a schedule declared on a page
   // never ran once. Starts no timer when the application declares none.
@@ -966,7 +968,7 @@ DVCrashInstallation? installDartvelCrashReporting({DVCrashStore? store, DVCrashS
       evenUnderTest: evenUnderTest,
     );
 
-${_launchNegotiationSource(linked, terminalProvider)}
+${dvPushRuntimeFunction(_pushConfig(dv))}${_launchNegotiationSource(linked, terminalProvider)}
 
 /// Takes the single-instance lock and opens what this launch asked for, or
 /// hands it to the process that has the lock and ends this one. Desktop
@@ -2731,6 +2733,17 @@ Future<void> _runTerminal(List<String> arguments) async {
   /// parsed by the same parser dartvel doctor checks. There is no policy
   /// that is not in the declaration, so a kiosk window opened at runtime
   /// uses a declared one rather than an ad-hoc one.
+  /// `dartvel.push`. A declaration the build cannot read is treated as none
+  /// here: `dartvel build` reads it strictly and stops, and a generator that
+  /// threw would hide that message behind its own.
+  static DVPushConfig _pushConfig(YamlMap dv) {
+    try {
+      return DVPushConfig.parse(dv['push']);
+    } on ArgumentError {
+      return const DVPushConfig();
+    }
+  }
+
   static bool _hasDeviceKiosk(YamlMap dv) {
     final Object? kiosk = dv['kiosk'];
     return kiosk is Map && kiosk['enabled'] == true && (kiosk['scope'] ?? 'device') == 'device';

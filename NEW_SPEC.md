@@ -3636,6 +3636,67 @@ Native push registration and delivery adapters must use generated FFI/ffigen or
 JNI/jnigen bindings where native code is required. Browser push uses generated
 web bindings. Dartvel must not use Flutter platform channels for these APIs.
 
+### Push on Android and the web
+
+Push is declared once, in `pubspec.yaml`, and each target is wired by the build:
+
+```yaml
+dartvel:
+  push:
+    web:
+      vapidPublicKey: BNc...        # the public half; the private key is a Secret
+    android:
+      fcm:                          # the four values the Firebase console shows
+        projectId: my-project
+        appId: "1:1234567890:android:abc123"
+        apiKey: AIza...
+        senderId: "1234567890"
+```
+
+**Sending** is the server's. `FirebasePushProvider.fromSecrets()` reads the
+service-account key file from the `FCM_SERVICE_ACCOUNT_JSON` secret (the JSON,
+or its base64), signs the RS256 assertion and exchanges it for a short-lived
+access token itself, caches it until a minute before it expires, and retries
+once with a fresh token on a 401. The key is read through `DV.Secrets`, so it is
+redacted from any log line, and is in no exception message. It sends to a
+registration token, to a topic (`sendTopic`) or as a data-only message
+(`sendData`), and FCM's error codes come back as `DVPushProviderException`:
+`UNREGISTERED` is `isUnregisteredToken` (drop the token), `QUOTA_EXCEEDED`,
+`UNAVAILABLE` and `INTERNAL` are `isRetryable`. `WebPushProvider.fromSecrets()`
+reads `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`; `dartvel push vapid-keys` makes
+the pair. Neither private credential is ever in `pubspec.yaml`, and the config
+parser refuses one that is.
+
+**Receiving** is the device's, through one provider for both targets:
+
+```dart
+final String? token = await PushNotifications.getToken();   // FCM token, or the
+                                                            // browser subscription
+await PushNotifications.requestPermission();                // from a tap, never at launch
+PushNotifications.onMessage.listen((PushNotification note) { ... });
+PushNotifications.onMessageOpenedApp.listen((PushNotification note) { ... });
+```
+
+The token is what `DVNotificationRoutes.pushTokens` takes on Android and
+`.webPushSubscriptions` takes on the web. The permission prompt is the
+application's to ask for from a user action: starting the provider asks for
+nothing, because a browser stops showing the prompt after a few dismissals and a
+site that spends the first one at load has spent its only chance.
+
+On Android, `dartvel build android` writes a Java `FirebaseMessagingService`
+and a bridge Dart polls over JNI, the manifest entry, the Gradle dependency and
+the four string resources Firebase initialises from (so there is no
+`google-services.json`, no Gradle plugin, and nothing to edit in the generated
+`android/`); `POST_NOTIFICATIONS` is declared for you. Messages are kept in
+`SharedPreferences` until Dart asks, so one that woke the process with no engine
+running is not lost. FCM needs Google Play services: the Fire OS and Horizon OS
+builds strip it. On the web, the one generated service worker, which web and
+web-server share, carries the `push` and `notificationclick` handlers: a push
+while a window is visible is handed to the page, otherwise a notification is
+shown (the rule that keeps a browser from revoking the subscription), and a
+click opens only a page of the same origin. Topics are FCM's; Web Push has none,
+and `subscribeToTopic` there says so.
+
 Notification features:
 - user notification preferences
 - quiet hours
@@ -5490,7 +5551,7 @@ report that was recovered and sent.
 | --- | --- |
 | Flutter | `FlutterError.onError` and `PlatformDispatcher.onError` |
 | Dart | uncaught errors in the guarded zone, and errors on every spawned isolate |
-| Android | the JVM's uncaught-exception handler and a native signal handler |
+| Android | the JVM's uncaught-exception handler (built), and a native signal handler (not built) |
 | iOS and macOS | `NSException`, Mach exceptions, and signals |
 | Linux and Windows | signal handlers and structured exception handling |
 | Web | `error` and `unhandledrejection` on the window, plus the isolate's own |
@@ -5543,16 +5604,58 @@ answer and the running behaviour come from one place.
 A release build is obfuscated and stripped, which is what makes its stacks
 unreadable. `dartvel build` writes the debug information for each target as
 part of the build rather than as a step somebody remembers, and `dartvel
-crashes symbols upload` puts it in the symbol store keyed by release and
-build id.
+symbols upload` puts it in the symbol store keyed by release (and, for Dart,
+build id).
 
-None of the symbol handling in this part is built. `dartvel build` writes no
-debug information, `DV-CRASH-002` is never raised, nothing uploads symbols or
-archives source maps, and reports are not symbolicated.
+**Android is built.** `dartvel build android --release` gathers what this build
+wrote into `build/symbols/<release>/` with a `manifest.json`: R8's
+`mapping.txt`, Flutter's `--split-debug-info` `.symbols` files with their ELF
+build ids, and, when `dartvel.crashes.symbols` is declared, Gradle's native
+debug symbols zip. Only files newer than the build go in, because Flutter's
+debug-info directory is not emptied between builds and last week's symbols would
+otherwise be filed under this release. The release is the pubspec `version`, as
+the app reports it.
+
+```yaml
+dartvel:
+  crashes:
+    sink: dartvel
+    symbols:
+      url: https://api.example.com   # the backend's origin; https, or http to this machine
+      upload: true                   # optional: upload at the end of a release build
+```
+
+`dartvel symbols upload` (or `--upload-symbols`, or `upload: true`) sends the
+bundle to the backend the app's crash reports go to, with the token in the
+`DARTVEL_SYMBOLS_TOKEN` environment variable (never an argument) and a SHA-256
+per file. The backend serves `PUT <apiBasePath>/_dartvel/symbols/<release>/<file>`
+when `sink: dartvel` is declared and the same secret is set there; with no
+secret the route answers 404 to everyone. It checks who is asking before it
+reads a body, refuses a name that could leave the release's directory, checks
+each file against its hash, and marks a release complete only when the manifest
+arrives and every file it lists is there as listed. The crash endpoint then
+reads each report with **its own release's** symbols and no other's: Java
+frames are retraced through the mapping (line ranges and inlined chains
+included), Dart frames are decoded from the native stack with the `.symbols`
+file whose build id the stack names, and the group id is recomputed from the
+original names, so a bug keeps its group across releases. A report whose
+release has no symbols says so (`symbolicated: false`) instead of showing the
+compiler's names as if they were the program's.
+
+On Android a Java or Kotlin crash is recorded by a handler the build installs
+from the Context provider, before the Flutter engine exists. It writes the
+crash into the directory the Dart crash store reads at the next launch, in that
+store's format and with the same group id, and then hands the exception to the
+handler that was there, so the process dies as Android intended.
+
+Not built: iOS dSYMs and web source maps; native (C, C++, Rust) frames, whose
+symbols are uploaded and kept but not yet read; `DV-CRASH-002`; the native
+signal handler.
 
 A build that obfuscates and keeps no symbols is refused (`DV-CRASH-002`).
 Shipping one produces crash reports that can never be read, and the failure
-arrives weeks later when somebody needs them.
+arrives weeks later when somebody needs them. (The Android build warns when it
+collects no mapping or no Dart symbols; it does not yet refuse.)
 
 On the web the source maps are **archived with the release and not deployed**.
 Serving them publishes the source, and not serving them makes every web stack

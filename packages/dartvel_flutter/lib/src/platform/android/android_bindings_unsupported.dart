@@ -47,3 +47,12 @@ class DVAndroidCapture {
 
   static void reset() {}
 }
+/// The push bridge, unavailable here, and present so the name resolves for the
+/// reason [DVAndroidCapture] is.
+class DVAndroidPush {
+  const DVAndroidPush._();
+
+  static const Set<String> implemented = dvAndroidPushBindings;
+
+  static String? get lastFailure => null;
+}

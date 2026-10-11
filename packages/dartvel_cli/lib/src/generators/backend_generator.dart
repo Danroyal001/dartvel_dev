@@ -244,6 +244,12 @@ class BackendGenerator {
         perInstallPerHour: ${crashes.ingestPerInstallPerHour},
         perSourcePerHour: ${crashes.ingestPerSourcePerHour},
         maxBytes: ${crashes.ingestMaxBytes},
+        // Reports from a release build arrive in the compiler's names; the
+        // release's uploaded symbols turn them back.
+        symbolicator: _dartvelSymbolicator ??= core.DVRepositoryCrashSymbolicator(
+          repository: _dartvelSymbolRepository(),
+          dartDecoder: const symbols.DVNativeStackSymbolizer(),
+        ),
       );
       if (core.dvDeclaredTooLarge(contentLength: req.headers.get('content-length'), limit: ingest.maxBytes)) {
         result = const core.DVCrashIngestResult(core.DVCrashIngestOutcome.tooLarge);
@@ -263,6 +269,18 @@ class BackendGenerator {
     // is refused before it is read, and above the server's limit it is not
     // refused before the ingest can answer it.
   }), maxBodyBytes: ${crashes.ingestMaxBytes});
+''';
+
+  /// The symbols endpoint, for an application whose crash reports come to it.
+  ///
+  /// Not behind the authentication stage, for the reason the OAuth routes are
+  /// not: the caller is a build machine presenting a bearer token of its own
+  /// (DARTVEL_SYMBOLS_TOKEN), which the stage would read as an API key and
+  /// refuse. With no token set the route answers 404 to everybody, so a
+  /// backend that never opted in exposes nothing.
+  static String _dvSymbolsRouteSource(DVCrashConfig crashes) => '''
+  // Symbols for crash reports: dartvel.crashes.sink is dartvel.
+  router.put(cfg.apiBasePath + core.DVSymbolEndpoints.pattern, (dv.Request req) => core.dvWithRequestTenant(req, () => core.DVSymbolEndpoints.put(req, _dartvelSymbolIngest ??= core.DVSymbolIngest(repository: _dartvelSymbolRepository()))), maxBodyBytes: core.DVSymbolIngest.defaultMaxFileBytes);
 ''';
 
   /// The OAuth provider's endpoints, for an application that declares
@@ -989,7 +1007,7 @@ import 'package:dartvel_core/dv.dart' as dvapi;
 // generated backend should be able to hand a table writes from outside.
 import 'package:dartvel_core/framework.dart' as framework;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
-${telegramProvider?.serverImport == null ? '' : "import '${telegramProvider!.serverImport}' as ${telegramProvider.name};\n"}import 'package:mime/mime.dart';
+${telegramProvider?.serverImport == null ? '' : "import '${telegramProvider!.serverImport}' as ${telegramProvider.name};\n"}${servesCrashes ? "import 'package:dartvel_shelf/symbols.dart' as symbols;\n" : ''}import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages, dartvelStudioModels;
 ${studioModules.map(((String, String) m) => "import 'package:${m.$1}/dartvel_client/model_pages.g.dart' as ${m.$2} show dartvelStudioModels;\n").join()}import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
@@ -1267,7 +1285,7 @@ dv.Response _dvTooLarge(int limit) => dv.Response(413,
     body: Stream<List<int>>.value(
         conv.utf8.encode(core.dvTooLargeMessage(limit))));
 
-${servesCrashes ? '/// The crash endpoint\'s ingest, built on the first report.\ncore.DVCrashIngest? _dartvelCrashIngest;\n\n' : ''}${servesClientLogs ? '/// The client-logs endpoint\'s ingest, built on the first batch.\ncore.DVLogIngest? _dartvelLogIngest;\n\n' : ''}dv.Response _dvCsrfForbidden() => dv.Response(403,
+${servesCrashes ? '/// The crash endpoint\'s ingest, built on the first report.\ncore.DVCrashIngest? _dartvelCrashIngest;\n\n/// Reads a report with the symbols uploaded for its release.\ncore.DVRepositoryCrashSymbolicator? _dartvelSymbolicator;\n\n/// The symbols endpoint\'s ingest, built on the first upload.\ncore.DVSymbolIngest? _dartvelSymbolIngest;\n\n/// Where this process keeps symbols: DARTVEL_SYMBOLS_DIR, else beside the\n/// application (.dartvel/symbols), which survives the restart a deploy causes.\ncore.DVSymbolRepository _dartvelSymbolRepository() => core.DVDirectorySymbolRepository(\n  core.dvServerSymbolsDirectoryFor(\n    appId: \'$pkgName\',\n    environment: Platform.environment,\n    currentDirectory: Directory.current.path,\n    tempDirectory: Directory.systemTemp.path,\n  ),\n);\n\n' : ''}${servesClientLogs ? '/// The client-logs endpoint\'s ingest, built on the first batch.\ncore.DVLogIngest? _dartvelLogIngest;\n\n' : ''}dv.Response _dvCsrfForbidden() => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(conv.utf8.encode('CSRF token missing')));
 
@@ -1779,7 +1797,7 @@ ${dvModuleRpcRegistrations(moduleRpcRoutes)}  // Writes a device made while it c
       }),
     );
   }));
-${platformApi?.oauth != null ? _dvOAuthRouteSource() : ''}${servesCrashes ? _dvCrashRouteSource(crashes) : ''}${servesClientLogs ? _dvClientLogsRouteSource(logging) : ''}${servesPurchases ? _dvPurchasesRouteSource() : ''}  // The API reference is public documentation, so a partner's tooling that
+${platformApi?.oauth != null ? _dvOAuthRouteSource() : ''}${servesCrashes ? _dvCrashRouteSource(crashes) : ''}${servesCrashes ? _dvSymbolsRouteSource(crashes) : ''}${servesClientLogs ? _dvClientLogsRouteSource(logging) : ''}${servesPurchases ? _dvPurchasesRouteSource() : ''}  // The API reference is public documentation, so a partner's tooling that
   // sends its key with every request is answered; a bad credential is not.
   router.get(cfg.apiBasePath + '/openapi.json', (dv.Request req) => _dvStaged(req, () async =>
       dv.Response(200,

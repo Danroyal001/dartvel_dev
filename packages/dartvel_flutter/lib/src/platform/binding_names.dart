@@ -55,6 +55,15 @@ const Set<String> dvNativeBindingNames = <String>{
   'install.prompt',
   'media.pick',
   'notifications.sendLocal',
+  // Push: the registration the push service gave this device (an FCM token on
+  // Android, a Web Push subscription in a browser), the messages it received
+  // since the last drain, and topic membership where the service has topics.
+  // Read by DVDevicePushProvider; the permission prompt is permissions.request.
+  'push.drainMessages',
+  'push.subscribeToTopic',
+  'push.token',
+  'push.unsubscribe',
+  'push.unsubscribeFromTopic',
   'permissions.isGranted',
   'permissions.request',
   'share.text',

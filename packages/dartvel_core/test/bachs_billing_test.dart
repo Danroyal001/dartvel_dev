@@ -336,7 +336,7 @@ void main() {
 
       expect(result.handled, isTrue);
       expect(result.customer, 'cust_1');
-      expect(result.granted, <Entitlement>{reports});
+      expect(result.granted.map((entitlement) => entitlement.id).toSet(), <String>{reports.id});
       expect(await bachs.hasEntitlement('cust_1', reports), isTrue);
     });
 
@@ -421,7 +421,7 @@ void main() {
       await bachs.handleWebhook(active, sign(active, nowSeconds));
       final DVBillingWebhookResult revoked =
           await bachs.handleWebhook(canceled, sign(canceled, nowSeconds));
-      expect(revoked.revoked, <Entitlement>{reports});
+      expect(revoked.revoked.map((entitlement) => entitlement.id).toSet(), <String>{reports.id});
       final DVBillingWebhookResult stale =
           await bachs.handleWebhook(retried, sign(retried, nowSeconds));
 
@@ -448,7 +448,7 @@ void main() {
       final DVBillingWebhookResult result =
           await bachs.handleWebhook(downgraded, sign(downgraded, nowSeconds));
 
-      expect(result.revoked, <Entitlement>{exports});
+      expect(result.revoked.map((entitlement) => entitlement.id).toSet(), <String>{exports.id});
       expect(await bachs.hasEntitlement('cust_1', reports), isTrue);
       expect(await bachs.hasEntitlement('cust_1', exports), isFalse);
     });
@@ -501,7 +501,7 @@ void main() {
       final DVBillingWebhookResult result =
           await bachs.handleWebhook(paid, sign(paid, nowSeconds));
       expect(result.handled, isTrue);
-      expect(result.granted, <Entitlement>{exports});
+      expect(result.granted.map((entitlement) => entitlement.id).toSet(), <String>{exports.id});
       expect(await bachs.hasEntitlement('cust_9', exports), isTrue);
     });
 
