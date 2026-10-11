@@ -33,7 +33,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
               'Before you rely on a feature, check capability. Calling one '
                   'the target lacks is an error that names it.',
               'Linux binds the most today. Android and iOS bind about the '
-                  'same set; on iOS most of it is Swift that dartvel build ios '
+                  'same set; on iOS most of it is Swift that `dartvel build ios` '
                   'compiles into the app. A test checks '
                   'that every binding a target claims has a handler behind '
                   'it, and on Android an emulator job checks it again.',
