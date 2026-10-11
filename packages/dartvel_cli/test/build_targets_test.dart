@@ -355,6 +355,30 @@ void main() {
       expect(exitCode, 0);
     });
 
+    test('dartvel targets alone lists free and paid targets and runs nothing',
+        () async {
+      final StringBuffer printed = StringBuffer();
+      final List<String> ran = <String>[];
+      await IOOverrides.runZoned(
+        () => (CommandRunner<void>('dartvel', 'test')
+              ..addCommand(TargetsCommand(
+                root: root.path,
+                processRun: (String executable, List<String> arguments,
+                    {String? workingDirectory}) async {
+                  ran.add(executable);
+                  return ProcessResult(0, 0, '', '');
+                },
+              )))
+            .run(<String>['targets']),
+        stdout: () => _BufferStdout(printed),
+      );
+      expect(printed.toString(), contains('web-server'));
+      expect(printed.toString(), contains('visionos'));
+      expect(printed.toString(), contains('not installed'));
+      expect(ran, isEmpty);
+      expect(exitCode, 0);
+    });
+
     test('refuses anything but pro', () async {
       await IOOverrides.runZoned(
         () => (CommandRunner<void>('dartvel', 'test')

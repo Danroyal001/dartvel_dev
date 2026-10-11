@@ -27,8 +27,21 @@ typedef TargetsProcessRun = Future<ProcessResult> Function(
 class TargetsCommand extends Command<void> {
   TargetsCommand({this.root, TargetsProcessRun? processRun})
       : _processRun = processRun ?? _run {
-    addSubcommand(_TargetsAddCommand(this));
+    // `add` is read from the arguments rather than registered as a
+    // subcommand: a command with subcommands cannot run on its own, and
+    // `dartvel targets` alone is the listing.
+    argParser
+      ..addOption('path',
+          help: 'With add: a local checkout of the package, instead of the '
+              'git repository (for development).')
+      ..addOption('git-url',
+          defaultsTo: dvTargetsProGitUrl,
+          help: 'With add: the repository the package is fetched from.')
+      ..addOption('git-ref', help: 'With add: a branch, tag or commit to pin.');
   }
+
+  @override
+  String get invocation => 'dartvel targets [add pro]';
 
   /// The project; the working directory when null.
   final String? root;
@@ -54,6 +67,17 @@ class TargetsCommand extends Command<void> {
 
   @override
   Future<void> run() async {
+    final List<String> rest = argResults?.rest ?? const <String>[];
+    if (rest.isNotEmpty) {
+      if (rest.first != 'add') {
+        Logger.log('❌ Unknown: dartvel targets ${rest.join(' ')}. '
+            'Run dartvel targets, or dartvel targets add pro.');
+        exitCode = 64; // EX_USAGE
+        return;
+      }
+      await _add(rest.skip(1).toList());
+      return;
+    }
     final String project = _root;
     final List<DVTargetPackage> packages = dvTargetPackages(project);
     Logger.log('Free targets (built by this CLI):');
@@ -83,43 +107,14 @@ class TargetsCommand extends Command<void> {
       Logger.log('To build paid targets on this machine: dartvel targets add pro');
     }
   }
-}
 
-class _TargetsAddCommand extends Command<void> {
-  _TargetsAddCommand(this._parent) {
-    argParser
-      ..addOption('path',
-          help: 'A local checkout of the package, instead of the git '
-              'repository (for development).')
-      ..addOption('git-url',
-          defaultsTo: dvTargetsProGitUrl,
-          help: 'The repository the package is fetched from.')
-      ..addOption('git-ref', help: 'A branch, tag or commit to pin.');
-  }
-
-  final TargetsCommand _parent;
-
-  @override
-  final String name = 'add';
-
-  @override
-  final String description =
-      'Add a targets package to this project as a dev dependency. `pro` is '
-      'the paid targets package, which needs the access a Dartvel Cloud plan '
-      'grants to its private repository.';
-
-  @override
-  String get invocation => 'dartvel targets add pro';
-
-  @override
-  Future<void> run() async {
-    final List<String> rest = argResults?.rest ?? const <String>[];
+  Future<void> _add(List<String> rest) async {
     if (rest.length != 1 || rest.single != 'pro') {
       Logger.log('❌ Name the package to add: dartvel targets add pro');
       exitCode = 64; // EX_USAGE
       return;
     }
-    final String project = _parent._root;
+    final String project = _root;
     if (!File('$project/pubspec.yaml').existsSync()) {
       Logger.log('❌ No pubspec.yaml here. Run this in a Dartvel project.');
       exitCode = 66; // EX_NOINPUT
@@ -144,7 +139,7 @@ class _TargetsAddCommand extends Command<void> {
       'dev:$dvTargetsProPackage:${jsonEncode(source)}',
     ];
     Logger.log('   $tool ${arguments.join(' ')}');
-    final ProcessResult result = await _parent._processRun(tool, arguments,
+    final ProcessResult result = await _processRun(tool, arguments,
         workingDirectory: project);
     stdout.write(result.stdout);
     stderr.write(result.stderr);

@@ -849,17 +849,11 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
   DocsCliCommand(
     name: 'targets',
     description: 'List the build targets this install can build, and add the paid targets package (dartvel targets add pro).',
-    subcommands: <DocsCliCommand>[
-      DocsCliCommand(
-        name: 'add',
-        description: 'Add a targets package to this project as a dev dependency. `pro` is the paid targets package, which needs the access a Dartvel Cloud plan grants to its private repository.',
-        options: <String>[
-          '    --path       A local checkout of the package, instead of the git repository (for development).',
-          '    --git-url    The repository the package is fetched from.',
-          '                 (defaults to "https://github.com/Danroyal001/dartvel_enterprise.git")',
-          '    --git-ref    A branch, tag or commit to pin.',
-        ],
-      ),
+    options: <String>[
+      '    --path       With add: a local checkout of the package, instead of the git repository (for development).',
+      '    --git-url    With add: the repository the package is fetched from.',
+      '                 (defaults to "https://github.com/Danroyal001/dartvel_enterprise.git")',
+      '    --git-ref    With add: a branch, tag or commit to pin.',
     ],
   ),
   DocsCliCommand(
