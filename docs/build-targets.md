@@ -11,9 +11,17 @@ the artifact. Rows that are not verified say so and say why.
 ## Verified status
 
 Verified on Linux x64 (Ubuntu 24.04), Flutter 3.44.5 / Dart 3.12.2. Most
-Flutter targets were verified against `examples/dartvel_example`; the VS Code
-target was verified against a disposable copy of `examples/basic_app` with the
-local Dartvel `dartvel_vscode` fork added as a dependency.
+Flutter targets were verified against `examples/dartvel_example`.
+
+> **Paid targets.** `visionos`, `horizon`, `chrome-extension`,
+> `firefox-extension`, `vscode`, `telegram`, the terminal targets
+> (`<desktop>-cli`/`-tui`, `fuchsia-cli`) and `fuchsia` are not built by the
+> free CLI from the release after 0.11.5: they need a Dartvel Cloud plan and
+> the private `dartvel_targets_pro` package, and their evidence lives with
+> that package. On a free install `dartvel build <target>` for one of them
+> exits 69 with a message naming the plan, `dartvel build <target> --cloud`
+> and `dartvel targets add pro`. The extension point they implement,
+> `DVBuildTarget`, is public (`package:dartvel_cli/build_targets.dart`).
 
 
 > **The native server is opt-in.** `dartvel_shelf.dll`, `libdartvel_shelf.so`
@@ -39,7 +47,6 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | Target | Status | Evidence |
 |---|---|---|
 | `web` | ✅ Builds | `build/web` (43 MB) with `flutter_bootstrap.js`, `main.dart.js`, assets, CanvasKit; Wasm dry run passes |
-| `telegram` | ✅ Builds and **runs** (mocked host) | `build/web`, the same Flutter web build and prerender as `web` with `https://telegram.org/js/telegram-web-app.js` in `<head>` before `flutter_bootstrap.js`. Verified 2026-10-09 on a fresh `dartvel create` app with `dartvel.telegram` declared: `dartvel build telegram` wrote 8 route pages; the bundle served locally and the `dartvel build web-server` binary (started with `TELEGRAM_BOT_TOKEN`) were each opened in headless Chrome with the SDK request answered by a mocked `Telegram.WebApp`. Both passed 13 checks: SDK loads before Flutter, the first-frame document carries the page text, the page shell calls `ready`/`expand` and subscribes to theme, viewport and safe-area events, find-in-page and drag selection work, a host theme switch repaints, a viewport change from 800 to 500 shrinks the page body by 300px, and safe-area 40 + content inset 46 moves the app bar down 86px. Screenshots in `docs/evidence/telegram/`. The same `web` and `web-server` builds of a project without the section are byte-identical to main's HTML. Not verified: a real Telegram client, native dialogs and storage, Stars payments, the host back button against a pushed route. See [Telegram Mini Apps](telegram-mini-apps.md) |
 | `web-server` (linux-x64) | ✅ Builds and **runs** | `build/server`, **29.9 MB**, one executable carrying the backend, the native server library and the web app. Verified 2026-09-16 on a `dartvel create` app with a model and two backend functions: the file was copied alone into an empty directory and started with only `PATH` and `DARTVEL_PORT` set. It printed `dartvel: no DATABASE_URL, creating SQLite database .../dartvel_data/data.db` and `dartvel: created table notes`; `GET /` answered `text/html` with the page head, `GET /main.dart.js` answered 200 with 2,878,353 bytes, `POST /api/add_note` wrote a row, and after a stop and a second start (`dartvel: SQLite database ...`, no table created) `GET /api/notes` returned it. Headless Chromium rendered the app from the binary with no console errors. The binary was produced by the build's own compile-and-carry step after `flutter build web`; on this host the full command stopped earlier, in the semantics capture, with a Chrome navigation timeout under load. `test/web_server_binary_test.dart` runs the whole command in CI. Also run on every push that touches the server by `.github/workflows/web-server-hosts.yml`, green in run 35231239142 (commit `7cdd277d`) |
 | `web-server` (linux-arm64) | ✅ Builds and **runs** | `build/server` built on `ubuntu-24.04-arm` with the `linux-arm64` library committed under `packages/dartvel_shelf/lib/native/linux-arm64/`. On the runner, `.github/workflows/web-server-hosts.yml` (run 35231239142, commit `7cdd277d`) checked out the committed library, failing if it is absent, and ran with `--run-skipped` so nothing could pass by skipping: `native_symbols_test` (the committed library exports every symbol the bindings declare), `binary_payload_test` (a payload spliced into a real compiled program is read back by it), `compiled_executable_test` (a compiled program handed the library serves a request), `server_binary_build_test` (the compiled backend and its Studio served from a copy alone) and `web_server_binary_test`: `dartvel create`, `dartvel build web-server`, the executable copied alone into an empty directory and started with only a search path and `DARTVEL_PORT` (on Windows also `SystemRoot`, `TEMP`), `GET /` answering `text/html` with the page head, `GET /main.dart.js` served from inside the binary, `POST /api/add_note` writing into the `dartvel_data/data.db` it created, `GET /api/notes` returning that row after a stop and a second start, and Studio served to a granted account and to nobody else. Flutter 3.44.5 from its git tag, because Flutter publishes no Linux arm64 SDK archive. Not verified here: a browser rendering the page, which the site job in `runtime-verification.yml` does on linux-x64 only |
 | `web-server` (macos-arm64) | ✅ Builds and **runs** | `build/server` built on `macos-latest` with the `macos-arm64` library committed under `packages/dartvel_shelf/lib/native/macos-arm64/`. On the runner, `.github/workflows/web-server-hosts.yml` (run 35231239142, commit `7cdd277d`) checked out the committed library, failing if it is absent, and ran with `--run-skipped` so nothing could pass by skipping: `native_symbols_test` (the committed library exports every symbol the bindings declare), `binary_payload_test` (a payload spliced into a real compiled program is read back by it), `compiled_executable_test` (a compiled program handed the library serves a request), `server_binary_build_test` (the compiled backend and its Studio served from a copy alone) and `web_server_binary_test`: `dartvel create`, `dartvel build web-server`, the executable copied alone into an empty directory and started with only a search path and `DARTVEL_PORT` (on Windows also `SystemRoot`, `TEMP`), `GET /` answering `text/html` with the page head, `GET /main.dart.js` served from inside the binary, `POST /api/add_note` writing into the `dartvel_data/data.db` it created, `GET /api/notes` returning that row after a stop and a second start, and Studio served to a granted account and to nobody else. The payload is appended after the Mach-O image; the ad-hoc signature is left as `dart compile exe` wrote it, which `codesign --verify` rejects under strict validation and the kernel runs (probe run 35224245361). Not verified: Developer ID signing, notarization, or a copy downloaded through a browser. Not verified here: a browser rendering the page, which the site job in `runtime-verification.yml` does on linux-x64 only |
@@ -49,8 +56,6 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `linux` | ✅ Builds and **runs** | `build/linux/x64/release/bundle/dartvel_example`, 23.8 KB launcher + bundle. Runtime-verified under Xvfb: the release binary ran headless (software EGL), stayed alive, and a root-window screenshot showed the full UI — `DV.Platform` live-reporting `linux`/`desktop`, signals active (`showcase-ready`). The first target verified by running, not only building. **Re-verified 2026-08-15** after the native-asset hook was rewritten (`976ccfa8`, `db93571b`): the hook compiled `x86_64-unknown-linux-gnu` from an empty target directory, `libdartvel_shelf.so` (6.5 MB) was bundled into `bundle/lib/`, and the binary ran and rendered as before |
 | `android` | ✅ Builds; release APK checked with aapt2, apksigner and apkanalyzer | `build/app/outputs/flutter-apk/app-release.apk`, 47.9 MB. **Re-verified 2026-10-11** on a fresh `dartvel create` project, Linux x64, Flutter 3.47.5, with a test key generated by `keytool` and named in `dartvel.android.signing.keyProperties`: `dartvel build android` produced a 52.2 MB release APK. `apksigner verify --print-certs` shows `CN=Dartvel E2E Test` (the test key, SHA-256 `1d0416cc…2b1b07`), not `CN=Android Debug`; `aapt2 dump xmltree` shows `android.permission.INTERNET`, `allowBackup=false`, `usesCleartextTraffic=false`, `networkSecurityConfig` and `dataExtractionRules`, no `debuggable`, and only `MainActivity` and androidx's `DUMP`-guarded profile receiver exported; `apkanalyzer dex packages` lists `dev.dartvel.jni.DartvelActivityBridge` with `state`, `granted`, `begin` and `poll` under their own names. The same build on main before the change was debug-signed, had no INTERNET or backup setting, and R8 had removed `DartvelActivityBridge`. With no key, `dartvel build android` is refused before generation and plain `flutter build apk --release` fails at `:app:preReleaseBuild`; `flutter build apk --debug` still builds, debug-signed. Not run on a device |
 | `fireos` | ✅ Builds | Same APK path; `fireos` maps onto the Android toolchain |
-| `horizon` | ✅ Builds; APK checked with aapt2. Not run on a headset | 2026-10-09, Linux x64, a fresh `dartvel create` project: `build/app/outputs/flutter-apk/app-release.apk` (18.3 MB), arm64-v8a only, minSdk 32, targetSdk 34, install-location auto, head tracking not required, `com.oculus.supportedDevices` and a 1024x640 dp panel layout, no prohibited permission; the build's own aapt2 check passed after refusing the first run for x86_64 and armeabi-v7a `libdartjni.so`. Debug-signed. See [Meta Horizon OS](#meta-horizon-os-quest) |
-| `visionos` | ⏳ Planned: wired, never run | Needs macOS and Xcode; not run because GitHub Actions on this account is billing-locked. The iOS build Vision Pro runs as Designed for iPad. See [visionOS](#visionos-apple-vision-pro) |
 | `windows` | ✅ Builds | **Verified on a Windows runner**, artifact downloaded and inspected rather than inferred: `dartvel_example.exe` (89 KB, PE32+ executable GUI x86-64), `dartvel_shelf.dll` (7.2 MB, the Rust runtime), `flutter_windows.dll`, `data/`. Run [32587129093](https://github.com/Danroyal001/dartvel_dev/actions/runs/32587129093). Took eight attempts and **seven bugs** — two earlier runs had burned 257 and 226 minutes in silence. Four of the seven were not Windows quirks but silent corruption on every platform, exposed only because a Windows path forced the issue: `esc` never escaped backslashes; `routeFromRel` normalised separators with a doubled backslash and stripped its prefix before normalising; the same doubled-backslash fault sat in six more sites across two packages; and four glob patterns were built with `p.join`, where the separator is always `/` and a backslash is the escape character. See [Windows](#windows) |
 | `macos` | ✅ Builds | **Verified on a macOS runner**, artifact downloaded and inspected: `dartvel_example.app/Contents/MacOS/dartvel_example` is a **Mach-O universal binary (x86_64 + arm64)**, with `dartvel_shelf.framework` — the Rust runtime — bundled into `Contents/Frameworks`. Run [32602765861](https://github.com/Danroyal001/dartvel_dev/actions/runs/32602765861). The 41-minute silence was never Flutter: the native asset hook buffered its output, so a long C compile was indistinguishable from a wedge. Bounding and streaming it turned the hang into a visible failure, which turned out to be **cc-rs invoked with no `-isysroot`** — `SDKROOT` was unset, so every C crate (`ring`, `zstd-sys`, `aws-lc-sys`) failed to find its headers. The hook now asks `xcrun` for the SDK path, chosen from the target rather than the host. `aws-lc-rs` was also dropped: it is rustls's default provider, this crate uses `ring`, and it was compiling a large C codebase for nothing on every platform. See [macOS](#macos) |
 | `ios` | ✅ Builds | **Verified on a macOS runner**, not this host: `build/ios/iphoneos/Runner.app` (15.4 MB), artifact directory listed. Run [31554165981](https://github.com/Danroyal001/dartvel_dev/actions/runs/31554165981). The device bindings shim (`ios/Runner/DartvelPlatform.swift`, added 2026-10-09) has **not been compiled yet**: see [iOS device bindings](#ios-device-bindings) |
@@ -58,10 +63,6 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
 | `sony-elinux` | ✅ Release bundle assembles; a bundle assembled the same way **runs** | `dartvel build sony-elinux` does not use `flutter-elinux`: it assembles a **release** bundle from the Linux desktop release build and Sony's embedder artifacts, refuses debug and profile, and **skips when those artifacts are not installed** under `~/.dartvel/toolchains/dartvel_elinux/artifacts`, which is what the platform build matrix sees. The runtime-verification workflow assembles debug and release bundles the same way in its own steps and runs both on a virtual device (Weston on Xvfb). Release needs the from-source engine, since the official standalone one is JIT. See [Sony eLinux](#sony-elinux) |
 | `webos` | ⚠️ `dartvel build webos` skips; a package assembled in CI runs in a Wayland window on ARM under emulation; not run on a television | `dartvel build webos` drives LG's `flutter-webos`, which bundles Dart 3.10.9 and cannot resolve a Dartvel project, so it skips naming that. The runtime-verification and `webos-window` workflows assemble the package without it, from stock Flutter 3.44.5 and LG's engine. Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
-| `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
-| `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
-| `chrome-extension` | ✅ Builds and **runs** | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. Loaded unpacked in Chrome and its page photographed rendering the example in run [35025146988](https://github.com/Danroyal001/dartvel_dev/actions/runs/35025146988). See [Browser extensions](#browser-extensions) |
-| `firefox-extension` | ✅ Builds and **runs** | `build/firefox-extension`: the same bundle with an event-page `background.scripts` manifest — verified to differ from the Chromium one, not copy it |
 
 Flutter has **no desktop cross-compilation**. A Windows desktop build requires
 Windows, a Linux desktop build requires Linux, and the Apple targets require
@@ -174,9 +175,7 @@ patching every vendor script.
 | `flutter-tizen` | `git clone` | `dartvel_tizen` |
 | `flutter-elinux` | `git clone` | `dartvel_elinux` |
 | `flutter-webos` | `git clone` | `dartvel_webos` |
-| the Fuchsia embedder checkout (no binary) | `git clone` | `dartvel_fuchsia` |
 | `ares` (webOS CLI) | `npm install -g @webos-tools/cli` |
-| `npm` (VS Code extension host) | Manual Node.js/npm install |
 | Linux desktop deps (`clang`, `cmake`, `ninja`, `pkg-config`, GTK 3) | `apt-get` |
 
 It deliberately will **not** install licence-gated or multi-gigabyte vendor
@@ -199,266 +198,6 @@ embedder against the Flutter version Dartvel ships.
 | `tizen` | [Danroyal001/dartvel_tizen](https://github.com/Danroyal001/dartvel_tizen) | `flutter-tizen/flutter-tizen` | Samsung |
 | `sony-elinux` | [Danroyal001/dartvel_elinux](https://github.com/Danroyal001/dartvel_elinux) | `sony/flutter-elinux` | Sony |
 | `webos` | [Danroyal001/dartvel_webos](https://github.com/Danroyal001/dartvel_webos) | `lg-flutter-webos/flutter-webos` | LG |
-| `fuchsia` | [Danroyal001/dartvel_fuchsia](https://github.com/Danroyal001/dartvel_fuchsia) | `fuchsia/flutter-embedder` | Fuchsia |
-| `vscode` | [Danroyal001/dartvel_vscode](https://github.com/Danroyal001/dartvel_vscode) | `SlowGen/flutter_vscode` | VS Code |
-
-### Fuchsia
-
-**Four Dartvel bugs stood between "never executed" and "builds the bundle",
-and each one hid the next.** Recorded because the shape is worth remembering:
-every layer failed in a way that looked like the target being unsupported.
-
-1. **Bazel was never installed.** CI piped `curl` into `/usr/local/bin`
-   without `sudo` and exited 23, and `|| true` swallowed it. Fuchsia was never
-   reached at all, while the run looked like a Fuchsia failure.
-2. **The build plan named an executable that does not exist.** It resolved
-   `dartvel_fuchsia` on PATH, though the comment directly above the code says
-   Fuchsia has no embedder binary — it is a Bazel workspace. The lookup could
-   only fail, so the target could only skip. The unit test asserted
-   `executable == 'dartvel_fuchsia'`, so it passed on the broken behaviour: it
-   checked the plan's shape, never that the thing named could be found.
-3. **`$FUCHSIA_EMBEDDER_DIR` was unset.** The script named the exact path
-   Dartvel had just cloned the checkout to. Dartvel now sets it, per the rule
-   that tools installed during a run must reach child processes.
-4. **The architecture default was wrong for this target.** `--arch` defaults to
-   arm64, which suits TVs and boards; Fuchsia's embedder ships an x64 prebuilt
-   engine only. A plain `dartvel build fuchsia` therefore asked for an engine
-   that does not exist without anyone choosing arm64.
-
-A fifth wall is in the fork rather than in Dartvel: `build_flutter_app.sh`
-calls `build_and_run_example.sh`, which after building tries to run the app on
-a device via `tools/ffx`. CI has no device and no `ffx`. The fork needs a
-build-only entry point before this target can produce an inspectable artifact.
-
-
-Driven by Fuchsia's out-of-tree Flutter embedder
-([fuchsia.googlesource.com/flutter-embedder](https://fuchsia.googlesource.com/flutter-embedder/)),
-forked to [Danroyal001/dartvel_fuchsia](https://github.com/Danroyal001/dartvel_fuchsia)
-so it can be pinned and patched like the vendor embedders.
-
-This fork is a different proposition from the other three, and the difference
-is worth stating plainly rather than discovering mid-build:
-
-- Upstream calls itself an in-progress, experimental runtime and states it has
-  no commit queue. Its most recent commit is from early 2023.
-- It is **not a Flutter CLI wrapper.** There is no embedder binary to invoke.
-  It is a Bazel workspace, and upstream builds only directories under
-  `src/examples` carrying a hand-written `<name>_pkg` target — so upstream has
-  no path for an app outside its workspace at all.
-- The fork closes that: `src/flutter/defs.bzl` adds the `flutter_application`
-  rule upstream's own TODO asks for, and `scripts/build_flutter_app.sh` takes
-  the path of any Flutter package, runs `flutter build bundle`, stages the
-  assets under `src/apps`, and builds them. `dartvel build fuchsia` calls that
-  script with the project path.
-- Nothing handed to the embedder is Dartvel-specific. A Dartvel app is an
-  ordinary Flutter package, so the same script serves a plain `flutter create`
-  app — the fork stays a general embedder rather than becoming a Dartvel one.
-- **arm64 needs an engine build.** Upstream committed a 291 MB arm64
-  `libflutter_engine.so`, which exceeds GitHub's 100 MB limit and was stripped
-  on import; the 59 MB x64 engine survived. Build one with
-  `scripts/build_and_copy_engine_artifacts.sh` before targeting arm64.
-
-The fork's history is **not** hash-identical to upstream. Upstream committed
-prebuilt engine binaries (`libflutter_engine.so`, ~290 MB each, across several
-revisions), and GitHub rejects any file over 100 MB. Git LFS would spend more
-than the free quota to carry a 2023 engine Dartvel cannot use, so blobs over
-90 MB were stripped from every commit on import — 1.1 GB down to 108 MB. The
-repository obtains those artifacts through `scripts/setup_engine.sh` and
-`scripts/build_and_copy_engine_artifacts.sh` anyway, which is the supported
-route. The fork's README records this.
-
-Host support is Linux only — upstream's README states it cannot be built on
-macOS or Windows natively — so `dartvel build fuchsia` skips with that reason
-on other hosts rather than failing part-way through.
-
-On the upstream history: the Flutter team handed Flutter-on-Fuchsia
-maintenance back to the Fuchsia team and planned to move it out of the engine
-into this custom embedder — see
-[Flutter-on-Fuchsia Velocity](https://fuchsia.dev/fuchsia-src/contribute/roadmap/2021/flutter_on_fuchsia_velocity).
-Fuchsia code is still touched in the engine as recently as the 3.44.0 release
-notes, so this reads as an ownership handover that stalled rather than a clean
-removal. Treat any stronger claim as unverified.
-
-### Building the engine: four attempts, and where it stops
-
-Unblocking Fuchsia needs the fork re-pinned to a modern Flutter, and
-`bootstrap.sh` requires the engine and the Flutter pin stay aligned, so the
-engine has to be rebuilt. Flutter publishes **no Fuchsia embedder artifact at
-any revision** — checked against `flutter_infra_release` for the 3.44.5 engine
-hash, where `linux-x64/artifacts.zip` is 200 and every Fuchsia path is 404 —
-so there is nothing to download instead.
-
-`dartvel engine plan --os fuchsia` describes that build now, and four of them
-have run. Each moved the failure, and the last two are the same failure:
-
-| Attempt | gn arguments | Where it stopped |
-|---|---|---|
-| 1 | `--target-os fuchsia --fuchsia-cpu x64 --runtime-mode release` | Whole tree compiled; link failed on every embedder symbol with `R_X86_64_PC32 … recompile with -fPIC` |
-| 2 | added `--embedder-for-target` | Identical |
-| 3 | `--unopt`, debug, output `fuchsia_debug_unopt_x64` | **Embedder symbols link.** Fails later on `R_X86_64_TPOFF32 against dart::OSThread::current_vm_thread_ cannot be used with -shared` |
-| 4 | dropped `--no-prebuilt-dart-sdk`, matching the fork's script exactly | Identical to 3 |
-
-The last is a thread-local compiled for an executable being linked into a
-shared library: the Dart VM's `current_vm_thread_` under a local-exec TLS
-model. The Linux embedder library links today, so the Linux path configures a
-TLS model that works with `-shared` and the Fuchsia path does not.
-
-Two things were read rather than guessed, after guessing cost the first three
-builds. `tools/gn` defines `--fuchsia` as a plain alias for `--target-os
-fuchsia`, so that spelling was never the difference. The rest of the arguments
-come from the fork's own `build_and_copy_engine_artifacts.sh`, which is the
-only known-working invocation of this build.
-
-**Status: the engine does not build at 3.44.5, and that is where this stops.**
-Attempt 4 matches the fork's invocation exactly and fails, so this is not a
-missing flag. The fork's committed engine is from 2023, Flutter handed
-Flutter-on-Fuchsia maintenance back to the Fuchsia team, and nothing indicates
-this build has been run since. Treat a Fuchsia embedder library as an
-unsupported configuration of a modern engine until someone shows otherwise —
-the next real step is finding which Flutter version last built one, not
-another flag.
-
-## Extension-host targets
-
-Extension-host targets compile Flutter into the host's webview/runtime shape
-instead of using plain `flutter build web`.
-
-### VS Code
-
-`dartvel build vscode` follows the `flutter_vscode` flow:
-
-1. Generate Dartvel routes/client/backend artifacts.
-2. Run `dart run build_runner build --delete-conflicting-outputs` so annotated
-   VS Code controller APIs emit current bindings. This runs `flutter_vscode`'s
-   builders, not Dartvel's: Dartvel's own generation is step 1, and it is the
-   only generator Dartvel ships.
-3. Run `dart run flutter_vscode:generate_vscode_extension` to create/update
-   the VS Code extension scaffold, typed controller bindings, and webview
-   helper wiring.
-4. Run `flutter pub get`.
-5. Run `npm install`.
-6. Run `npm run compile`.
-
-The target requires Node.js/npm, a project dependency on `flutter_vscode`, and
-`build_runner` in `dev_dependencies`. `dartvel build vscode` validates the
-pubspec dependencies before running the scaffold generator. `dartvel doctor
---target vscode` reports whether npm is available.
-
-After the compile step, Dartvel validates the artifact shape and freshness so a
-zero exit code without current-build output cannot be reported as success.
-Verified evidence from the disposable `examples/basic_app` copy:
-
-- `dart run dartvel_cli:dartvel build vscode --no-auto-install`
-- Extension host output: `out/src/extension.js`,
-  `out/lib/vscode_api.handlers.js`, and `out/src/vscode_invoke.js`.
-- Flutter webview bundle output: `build/web/flutter_bootstrap.js`,
-  `build/web/main.dart.js`, and `build/web/assets/`.
-- Generated extension metadata: `package.json` produced by the Dartvel fork's
-  scaffold flow.
-
-#### Running the extension, and the two bugs it found
-
-`firefox-extension` had only ever been built. Loading it turned up two faults
-that a Chromium-only check could not see, and neither announced itself.
-
-**The generated CSP forbade the renderer.** Both extension targets shipped
-`script-src 'self'; object-src 'self'`. Flutter's web renderer compiles
-WebAssembly, which MV3 blocks without `'wasm-unsafe-eval'`.
-
-**The build fetched CanvasKit from a CDN.** Without `--no-web-resources-cdn`,
-Flutter loads it from `https://www.gstatic.com` at run time, and an extension
-page may not:
-
-```
-TypeError: error loading dynamically imported module: https://www.gstatic.com/...
-```
-
-That one is wrong independently of any CSP — an extension that downloads its
-renderer does not work offline, and ships a third-party fetch for a store to
-ask about. The build arguments moved into `browserExtensionBuildArguments`
-because they had been inline in the build command where nothing could check
-them.
-
-**And `/index.html` was not a route.** An extension opens its page at
-`moz-extension://<uuid>/index.html`, so the router rendered its own 404. Anyone
-landing on a static host's file directly hits the same path; the generated
-redirect now resolves it.
-
-**None of this was visible in a screenshot.** Four captures of a white page
-said nothing, because every DOM check passed: the scripts loaded,
-`window._flutter` was defined, WebAssembly compiled, CanvasKit fetched 200.
-The error existed only in the page's console, which is why the job captures it
-now. Then the fixed build produced a *rendered* 404 that passed the colour
-check — the second time in this session a capture check has waved through a
-page that was drawn and wrong. The job reads the page's text as well.
-
-`tool/ci/firefox_shot.py` drives Firefox through Marionette rather than using
-`firefox --screenshot`, which fires on the load event, before a Flutter
-application has started. Reaching a `moz-extension://` URL needs the chrome
-context and `-remote-allow-system-access`; release Firefox will not install an
-unsigned add-on at all, so the job uses Developer Edition and a zipped XPI —
-an unpacked directory in a profile is ignored silently.
-
-### Tizen (Samsung)
-
-**Verified Flutter: 3.44.4 / Dart 3.12.2** — clears Dartvel's dependency floor.
-
-A complete, signed TPK is produced end to end:
-
-```
-✓ Built build/tizen/tpk/com.example.dartvel_example-1.0.0.tpk (9.3MB)
-```
-
-It contains `lib/libapp.so`, `lib/libflutter_engine.so`,
-`lib/libflutter_tizen_tv.so`, `res/icudtl.dat` and `res/flutter_assets/` — a
-runnable Flutter application.
-
-> **This required a fix in the Dartvel fork.** A native build first produced a
-> 15KB TPK holding only the compiled runner, an icon and the manifest, with
-> `lib/` and `res/` empty: a package that installs and does nothing. The
-> payload was staged correctly in `tizen/flutter/ephemeral/{lib,res}`, and
-> `tizen package -e <ephemeralDir>` is meant to inject it — but on current
-> Tizen SDK CLI versions (10.x) that call reports success while producing a
-> TPK without it. The fork now copies the payload into the app root before
-> building, so it is part of the build rather than a post-hoc injection.
-> This is exactly the class of problem the forks exist to absorb.
-
-Getting that far required, beyond the embedder:
-
-1. **A Tizen platform scaffold.** `dartvel build tizen` needs a `tizen/`
-   directory the way Android builds need `android/`. Generate the native one:
-   ```bash
-   flutter-tizen create --platforms tizen --tizen-language cpp .
-   ```
-   Without it the build stops at `This project is not configured for Tizen`.
-   The default scaffold is C#/.NET; `--tizen-language cpp` matches the native
-   GCC toolchain below.
-
-2. **Tizen SDK packages** — the base SDK is not enough:
-   ```bash
-   <tizen-studio>/package-manager/package-manager-cli.bin install \
-     NativeCLI NativeToolchain-Gcc-9.2 IOT-Headed-6.0-NativeAppDevelopment-CLI
-   ```
-   `NativeCLI` pulls in `tizen-core`, which provides the `tz` tool. flutter-tizen
-   packages TPKs through `tz` with no fallback, so the SDK must be recent enough
-   to ship it.
-
-3. **A signing certificate.** Release packaging fails with
-   `No certificate profile found` until one exists:
-   ```bash
-   tizen certificate -a Dartvel -p <password> -c KR -s Seoul -ct Seoul \
-     -o Dartvel -u Dev -e dev@example.com -n dartvel-author
-   tizen security-profiles add -n DartvelProfile \
-     -a ~/tizen-studio-data/keystore/author/author.p12 -p <password>
-   ```
-
-**Ubuntu 24.04 notes.** Tizen Studio's package manager needs `python3.8`,
-which 24.04 does not ship (available from the deadsnakes PPA). Its bundled
-LLVM 10 links against `libtinfo.so.5`; symlinking `libtinfo.so.6` is not
-enough because the ncurses 5 ABI symbols are genuinely absent — install the
-real `libtinfo5` package.
-
-### The three blocked targets share a shape, not a cause
 
 ## Runtime verification
 
@@ -473,7 +212,6 @@ exist to catch.
 | `linux` | ✅ | The showcase under Xvfb: platform `linux`, device `desktop`, signal `showcase-ready` |
 | `web` | ✅ | The same page in headless Chrome: platform `web`, device `web` |
 | `sony-elinux` | ✅ | The showcase on a **virtual eLinux device** — Weston on the X11 backend, Sony's Wayland embedder, software GL. Debug **and release**: the release capture has no DEBUG banner and shows the production backend |
-| `linux-cli` | ✅ | The TUI photographed inside xterm, plus 20,874 true-colour writes captured through a pty |
 
 What running found that building could not:
 
@@ -578,35 +316,6 @@ runtime-verification workflow has since run a release bundle assembled this
 way, with the from-source release engine in place of the official one, on a
 virtual device.
 
-**Terminal builds and native assets do not currently compose, and that is
-Flutter's constraint rather than Dartvel's.** `dartvel-cli-flt` assembles a bundle
-from `flutter build bundle`, which is the only Flutter command that emits an
-asset bundle without also building a GUI shell. On Linux, a project with native
-assets — which every Dartvel project has, because the Rust runtime is one —
-fails there with:
-
-```
-Target dart_build failed: Could not read compiler configurations for build
-hooks, expected build/flutter_assets/linux/x64/debug/CMakeCache.txt to exist.
-```
-
-That path cannot exist. Flutter derives the native-asset compiler
-configuration from a CMake cache under the *bundle output directory*, and
-`flutter build bundle` never runs CMake — only the desktop build does, and it
-writes its cache under `build/linux/x64/<mode>/` instead. So the two are
-mutually exclusive as things stand.
-
-The bundle assembly itself is proven: `dartvel-cli-flt build` against the flt
-fork's own `sample_app`, which has no native assets, produces a bundle that
-starts and runs. What is unproven is a *Dartvel* application in a terminal,
-and this is why.
-
-Two ways out, neither yet taken. A desktop build could be run purely to produce
-the assets, with its GUI binary discarded — which honours the rule that a
-`-cli` build *bundles* no GUI, since nothing GUI is shipped, at the cost of
-building one to throw away. Or `flutter assemble` could be driven directly with
-the native-asset configuration supplied rather than inferred, which is the
-cleaner answer and the larger one.
 
 **What actually blocks webOS, measured rather than assumed.** This file has
 said at various times that webOS needs a Dart 3.12 embedder, and that its
@@ -1033,141 +742,6 @@ so the matrix reported a green tvOS job for an iPhone app.
 
 ---
 
-### Meta Horizon OS (Quest)
-
-**Builds; the APK is checked; not run on a headset.** Verified 2026-10-09 on
-Linux x64, Flutter 3.47.5, on a fresh `dartvel create` project (no `android/`
-folder until the build generated it):
-
-- `dartvel build horizon` generated the scaffold, wrote the Horizon entries,
-  and ran `flutter build apk --release ... --target-platform android-arm64
-  --android-project-arg=dartvelMinSdk=32 --android-project-arg=dartvelTargetSdk=34
-  --android-project-arg=dartvelAbiFilters=arm64-v8a --dart-define=DARTVEL_PLATFORM=horizon`.
-- `build/app/outputs/flutter-apk/app-release.apk`, 18.3 MB (sha256
-  `f8f87552...ee68`). `aapt2 dump badging`: `minSdkVersion:'32'`,
-  `targetSdkVersion:'34'`, `install-location:'auto'`,
-  `uses-feature-not-required: name='android.hardware.vr.headtracking' version='1'`,
-  `native-code: 'arm64-v8a'`. Permissions were `VIBRATE`, `USE_BIOMETRIC`
-  and the app's own dynamic-receiver permission, none of them on Meta's
-  prohibited list. `aapt2 dump xmltree` shows `com.oculus.supportedDevices` =
-  `quest2|questpro|quest3|quest3s` and a `<layout>` on `MainActivity` of
-  1024x640 dp. `lib/` holds only `arm64-v8a` libraries.
-- The build's own aapt2 check printed "checked with aapt2: a Horizon OS panel
-  app". **The first run failed it, correctly**: `--target-platform` limits
-  Flutter's own code only, and the `jni` package's `libdartjni.so` still came
-  for `armeabi-v7a` and `x86_64`. The `dartvelAbiFilters` property fixed that.
-- The APK is signed with Android's debug key, as Flutter's template signs
-  release builds. The store needs your own release key.
-
-What the build writes, all from Meta's docs: head tracking `required="false"`
-(required is for immersive apps), `com.oculus.supportedDevices`, the panel
-`<layout>`, `installLocation="auto"`, and targetSdk 34 (required of apps
-created since 2026-03-01) with minSdk 32 (the accepted range is 29-34), from
-[Application Manifests for Release Builds](https://developers.meta.com/horizon/resources/publish-mobile-manifest/)
-and [create app](https://developers.meta.com/horizon/documentation/android-apps/create-app/).
-It never adds `com.oculus.intent.category.VR`, which launches an immersive
-OpenXR app. The kiosk and home-widget blocks are left out, because their
-components need `BIND_DEVICE_ADMIN` and `BIND_APPWIDGET`, which are on the
-[prohibited list](https://developers.meta.com/horizon/resources/permissions-prohibited/).
-An `android` build after a `horizon` one takes every Horizon entry back out of
-the shared `android/` project; the Gradle hook is inert without the
-properties.
-
-Not verified, and needed before calling it shipped:
-
-- Installing on a Quest (`adb install`, developer mode) and photographing the
-  panel; controller, hand and keyboard input reaching the page. Meta says
-  controllers, hands, mice and styluses arrive as Android motion events on a
-  panel and the thumbstick as scroll axes, and hands have no back gesture.
-- An upload through the Horizon Store's own checks, and a release-signed APK.
-- Horizon OS has no Google Mobile Services; a plugin that needs them fails at
-  run time and nothing checks for that.
-- Not on Dartvel Cloud yet.
-
-### visionOS (Apple Vision Pro)
-
-**Planned: wired, not yet run.** `dartvel build visionos` is accepted, checks
-for a macOS host and Xcode, and runs `flutter build ios --release --no-codesign
---dart-define=DARTVEL_PLATFORM=visionos` (`--simulator` for a simulator
-build). It has not been run, because it needs a Mac and GitHub Actions on this
-account is billing-locked. On Linux it skips with "linux cannot build
-visionos", and `dartvel doctor --target visionos` says it builds on macOS with
-Xcode.
-
-Why it is the iOS build:
-
-- Flutter has no visionOS support. [flutter/flutter#128313](https://github.com/flutter/flutter/issues/128313)
-  is open (P3, "would require significant investment"), and the Flutter team
-  said in June 2024 that not building it is a deliberate decision. No
-  maintained community engine for `xros` was found.
-- Apple runs iPad and iPhone apps on Vision Pro unchanged, "Designed for
-  iPad": such an app "links against the iOS SDK and runs in visionOS without
-  needing to add a visionOS destination", and is published there
-  automatically unless it is opted out in App Store Connect
-  ([Making your existing app compatible with visionOS](https://developer.apple.com/documentation/visionos/making-your-app-compatible-with-visionos)).
-  Compatible apps have no camera capture, Core Motion, HealthKit, or location
-  beyond the standard service, and see at most two touches.
-- flutter/flutter#129638 records running a Flutter iOS app on the visionOS
-  simulator from Xcode and attaching `flutter attach`. Nobody has recorded one
-  on a device.
-
-What needs a Mac (to be run in CI once Actions is available, or on any Mac):
-
-1. `dartvel build visionos` on a `dartvel create` project, and the
-   `build/ios/iphoneos/Runner.app` listed.
-2. `dartvel build visionos --simulator --profile development`, the app
-   installed into an Apple Vision Pro simulator (`xcrun simctl install`), launched, and a
-   screenshot showing `Platform: visionos` and `Device: headset`.
-3. A signed build on a device.
-
-Native visionOS -- a SwiftUI `WindowGroup` hosting `FlutterViewController`
-through `UIViewControllerRepresentable`, volumes, and RealityKit in an
-`ImmersiveSpace` -- needs a Flutter engine that builds for `xros`
-(`xrsimulator` on the simulator), which does not exist. It is not attempted
-here.
-
-### Browser extensions
-
-`chrome-extension` and `firefox-extension` are not embedder targets. They are
-Flutter web output plus a generated manifest and background script, so any host
-that can build web can build them. Two build flags are load-bearing rather than
-stylistic: `--csp`, because manifest V3 forbids `eval`, and
-`--pwa-strategy=none`, because Flutter's service worker fights the extension's
-own — the assembler also deletes `flutter_service_worker.js` from the bundle if
-it appears, since two service workers contend over fetch handling.
-
-The two manifests genuinely differ, and must: Chromium runs a manifest V3
-`service_worker`, while Firefox runs an event page and refuses to load a
-manifest declaring `service_worker`.
-
-```jsonc
-// chrome-extension/manifest.json     // firefox-extension/manifest.json
-"background": {                       "background": {
-  "service_worker": "background.js",    "scripts": ["background.js"]
-  "type": "module"                    }
-}
-```
-
-Verified 2026-08-15 against `examples/dartvel_example`: both bundles build,
-carry all four artifacts a browser needs to load them unpacked
-(`index.html`, `main.dart.js`, `manifest.json`, `background.js`), share one CSP
-with no `unsafe-eval` or `unsafe-inline`, and drop Flutter's service worker.
-
-Loaded and run in run
-[35025146988](https://github.com/Danroyal001/dartvel_dev/actions/runs/35025146988):
-the Chrome build unpacked into Chrome and the Firefox build into Firefox
-Developer Edition. Each screenshot shows the extension page rendering the
-example's home page. Before `94877d65` both jobs failed in their build step
-with exit 78. The module trust gate refused the example after `dartvel
-routes` had generated the `notes` module's client, so they never got as far
-as a browser.
-
-Two things applications should know. The generated background script resolves
-`globalThis.browser ?? globalThis.chrome` rather than being emitted per target,
-so one script serves both. And `browser_specific_settings.gecko.id` is only
-emitted when `dartvel.extension.geckoId` is set in `pubspec.yaml` — fine for a
-temporary Firefox install, required before distribution.
-
 ### Device file storage (`DV.Platform.fileStorage`, `dartvel.fileStorage`)
 
 Checked on 2026-10-02 against a copy of `examples/basic_app` declaring
@@ -1326,10 +900,6 @@ the download was kept only after each file's size and SHA-256 matched, and
 | `fireos` | Linux | `app-debug.apk`, 157 MB, the same checks | The same |
 | `ios` | macOS | `Runner.app` with a Mach-O `Runner` | Xcode |
 | `tvos` | macOS | Simulator `Runner.app` whose plist names `appletv`, Mach-O `Runner` | Xcode. The `flutter-tvos` embedder is installed by the build |
-| `chrome-extension` | Linux | 39 files: MV3 manifest with a service worker, `index.html`, `main.dart.js` | Nothing extra |
-| `firefox-extension` | Linux | 39 files: manifest with `background.scripts` | Nothing extra |
-| `vscode` | Linux | 46 files: `package.json`, `out/src/extension.js` (the file `main` names), `build/web` | Node. Not `node_modules`, which stays on the worker |
-| `linux-cli` | Linux | `build/terminal`: the `flt` binary, `libflutter_engine.so`, assets, `run.sh`, no GTK runner | Linux desktop build packages and Rust. The `dartvel_cli_flt` embedder is cloned and built by the build |
 | `sony-elinux` | Linux | Release bundle: `flutter-client`, engine, AOT `libapp.so`, no GTK runner | Sony's `flutter-client` built against the official engine, and the from-source release engine, under `~/.dartvel/toolchains/dartvel_elinux/artifacts` |
 | `tizen` | Linux | Signed TPK, 9.5 MB, with `author-signature.xml`, `libflutter_engine.so` and `libapp.so` | Tizen Studio 10.0 CLI installed with `--accept-license`, `NativeToolchain-Gcc-9.2`, `IOT-Headed-6.0-NativeAppDevelopment-CLI`, an author certificate and an unlocked keyring, as flutter-tizen's own CI installs them |
 
@@ -1357,8 +927,6 @@ bug in the local build too:
 | Target | Why |
 |---|---|
 | `webos` | `dartvel build webos` skips on every host: LG's `flutter-webos` bundles Dart 3.10.9, below Dartvel's 3.12.0 floor |
-| `fuchsia` | Skips the same way; the embedder resolves Dart 2.19 |
-| `windows-cli`, `macos-cli` | The terminal embedder builds for Linux only: its build script fetches the Linux engine on any host but macOS, and its bundle step passes `--target-platform linux-x64` on every host |
 | `macos`, `windows`, `linux`, `web`, `web-server` | Accepted by Cloud and not yet built end to end by `cloud-e2e.yml` |
 
 ---
@@ -1386,8 +954,7 @@ writes, and what it leaves alone:
 | `linux` | The template's `gdk_rgba_parse(&background_color, "#000000")` in `my_application.cc`, which is the colour behind the view. The GTK runner already shows its window only on the first frame, so there is no blank window to paint. **Light colour only**: the runner has no dependable way to read the desktop's dark preference | Unit-tested |
 | `windows` | **Nothing, deliberately.** `flutter_window.cpp` registers `SetNextFrameCallback` and shows the window from it, so the window does not exist on screen until Flutter has drawn | — |
 
-The embedder targets (`tizen`, `sony-elinux`, `webos`, `fuchsia`, `tvos`,
-`vscode`) and the browser extensions get no splash yet: their launch is owned
+The embedder targets (`tizen`, `sony-elinux`, `webos`, `tvos`) get no splash yet: their launch is owned
 by the vendor embedder or the host, and none of them was checked for what it
 shows before the first frame.
 

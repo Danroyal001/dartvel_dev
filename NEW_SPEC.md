@@ -8034,6 +8034,12 @@ externally, and a kiosk-window reset that touched state outside its namespace.
 
 Stability: `Draft` · Status: `Partial`
 
+> The terminal-only targets (`<desktop>-cli`/`-tui`, `fuchsia-cli`) are paid
+> from the release after 0.11.5 (see Free and paid targets under Embedded,
+> Television, and Extension Build Targets). The `dartvel.terminal` opt-in, which
+> links the terminal backend beside the GUI in a free desktop build, and the
+> runtime surface stay in the free framework.
+
 A Dartvel application can present itself in a terminal instead of a window,
 without being a different application. The same widgets, the same pages, the
 same generated model pages and Studio documents — drawn as cells rather than
@@ -8732,6 +8738,10 @@ linked when a volume, an immersive space, or an anchor is used — usage decides
 as it does for terminal rendering and 3D.
 
 ## Build targets
+
+`horizon` and `visionos` are paid targets from the release after 0.11.5 (see
+Free and paid targets under Embedded, Television, and Extension Build
+Targets).
 
 ```bash
 dartvel build android-xr      # APK/AAB with the XR manifest and Jetpack XR bindings
@@ -14517,6 +14527,40 @@ recorded per target in `docs/build-targets.md`. Fuchsia is blocked today: its
 embedder bundles a Flutter too old for Dartvel and its engine does not build
 at the Flutter version Dartvel ships.
 
+
+## Free and paid targets
+
+Targets Flutter officially supports are free and built by the open CLI:
+Android (and Fire OS), iOS, web and web-server, Windows, macOS and Linux,
+embedded Linux (Sony eLinux) and the television platforms (tvOS, Tizen,
+webOS). The rest are **paid**, from the release after 0.11.5: visionOS,
+Horizon OS, the Chromium and Firefox browser extensions, the VS Code
+extension, Telegram Mini Apps, terminal rendering (`<desktop>-cli`/`-tui`,
+`fuchsia-cli`) and Fuchsia. They are included in every Dartvel Cloud plan and
+built by the private `dartvel_targets_pro` package; their behaviour is still
+specified here, in the sections that describe each.
+
+The open CLI keeps a public extension point for them, `DVBuildTarget` in
+`package:dartvel_cli/build_targets.dart`. A package declares the targets it
+provides in a `dartvel_targets.yaml` at its root and ships an executable that
+registers them and runs the CLI; `dartvel build <target>` finds the package
+through the project's resolved dependencies and runs the build through it. A
+target either builds itself or rides a free platform's pipeline with a
+`DVPlatformVariant`: extra Flutter arguments, steps left out (kiosk, home
+widgets, purchases, the dev client), and hooks before and after the Flutter
+build. A free target's name cannot be registered by a package.
+
+Asking for a paid target on a free install is never a stack trace and never a
+silent skip. `dartvel build visionos` exits 69 with what the target is, that
+any Cloud plan includes it, `dartvel build visionos --cloud` to build it on
+Cloud, and `dartvel targets add pro` to add the package to the project.
+`dartvel doctor --target` answers the same way. No telemetry is sent, no
+licence key is checked at build time, and nothing about the package reaches
+a built application. Releases 0.11.5 and earlier built these targets in the
+open and remain MIT licensed.
+
+The commands, free and paid:
+
 ```bash
 dartvel build webos
 dartvel build tizen                 # alias: tpk
@@ -14524,6 +14568,7 @@ dartvel build sony-elinux
 dartvel build sony-elinux-iso
 dartvel build sony-elinux-img
 dartvel build tvos
+# Paid from the release after 0.11.5 (any Dartvel Cloud plan):
 dartvel build fuchsia
 dartvel build vscode
 dartvel build chrome-extension
