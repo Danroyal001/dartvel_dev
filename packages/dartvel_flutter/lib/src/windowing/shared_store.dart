@@ -228,20 +228,48 @@ class DVWindowSharedStore {
 
   /// Namespaces an application may not touch.
   ///
-  /// `workspace.` is DVTabWorkspace's layout state; `xr.` holds world anchor
-  /// tokens (`xr.anchors.*`); `dv.` is everything else the framework keeps
-  /// here. A prefix rule, not a substring one: `myapp.workspace.name`
-  /// collides with nothing and stays legal.
-  static const List<String> reservedPrefixes = <String>['dv.', 'workspace.', 'xr.'];
+  /// `workspace.` is DVTabWorkspace's layout state; `dv.` is everything else
+  /// the framework keeps here. A package that keeps state of its own claims a
+  /// prefix with [reserveNamespace]. A prefix rule, not a substring one:
+  /// `myapp.workspace.name` collides with nothing and stays legal.
+  static List<String> get reservedPrefixes => List<String>.unmodifiable(_reserved);
+  static final List<String> _reserved = <String>['dv.', 'workspace.'];
 
   /// Namespaces written only encrypted under the application key, whatever
   /// cipher the store was given, and refused when no key can be had.
   ///
-  /// `xr.anchors.` holds world anchor tokens, and a token re-localizes a
-  /// physical place -- often a room in somebody's home. The store's cipher
-  /// is a choice about view state, where the default of none costs a tab
-  /// order; it is not a choice anybody made about that.
-  static const List<String> sealedPrefixes = <String>['xr.anchors.'];
+  /// None are sealed by default; a package claims one with [reserveNamespace]
+  /// when what it keeps there is sensitive (world anchor tokens re-localize a
+  /// physical place -- often a room in somebody's home). The store's cipher is
+  /// a choice about view state, where the default of none costs a tab order;
+  /// it is not a choice anybody made about that.
+  static List<String> get sealedPrefixes => List<String>.unmodifiable(_sealed);
+  static final List<String> _sealed = <String>[];
+
+  /// Claims [prefix] for a package: applications are refused it, as they are
+  /// refused `dv.`, and the package reaches it through [namespace]. [sealed]
+  /// keeps every value there encrypted under the application key.
+  static void reserveNamespace(String prefix, {bool sealed = false}) {
+    if (!_reserved.contains(prefix)) _reserved.add(prefix);
+    if (sealed && !_sealed.contains(prefix)) _sealed.add(prefix);
+  }
+
+  /// Hands back a prefix claimed with [reserveNamespace]. The framework's own
+  /// `dv.` and `workspace.` stay reserved.
+  static void releaseNamespace(String prefix) {
+    if (prefix == 'dv.' || prefix == 'workspace.') return;
+    _reserved.remove(prefix);
+    _sealed.remove(prefix);
+  }
+
+  /// The handle a package keeps its state in the namespace it claimed with.
+  DVSharedStoreNamespace namespace(String prefix) {
+    if (!_reserved.contains(prefix)) {
+      throw StateError('$prefix has not been claimed; call '
+          'DVWindowSharedStore.reserveNamespace first.');
+    }
+    return DVSharedStoreNamespace._(this, prefix);
+  }
 
   /// A source with no key store: what a store has until one is configured.
   static Future<DVAppKeyStore?> noAppKeys() async => null;
@@ -255,7 +283,7 @@ class DVWindowSharedStore {
   /// was set still uses it.
   static DVAppKeyStoreSource defaultAppKeys = noAppKeys;
 
-  static bool _isSealed(String key) => sealedPrefixes.any(key.startsWith);
+  static bool _isSealed(String key) => _sealed.any(key.startsWith);
 
   /// The application key cipher, resolved on first use, or
   /// [DVSharedStoreSealUnavailable] naming [key].
@@ -278,7 +306,7 @@ class DVWindowSharedStore {
 
   /// Throws if [key] is in a reserved namespace.
   static void _reject(String key) {
-    for (final String prefix in reservedPrefixes) {
+    for (final String prefix in _reserved) {
       if (key.startsWith(prefix)) throw DVSharedStoreKeyError(key, prefix);
     }
   }
@@ -534,4 +562,39 @@ class DVWindowSharedStore {
     _signals.clear();
     _latest.clear();
   }
+}
+
+/// One claimed namespace of a [DVWindowSharedStore], for the package that
+/// claimed it. Every key must start with the prefix.
+class DVSharedStoreNamespace {
+  DVSharedStoreNamespace._(this._store, this.prefix);
+
+  final DVWindowSharedStore _store;
+
+  /// The claimed prefix.
+  final String prefix;
+
+  void _own(String key) {
+    if (!key.startsWith(prefix)) {
+      throw ArgumentError.value(key, 'key', 'is outside the $prefix namespace');
+    }
+  }
+
+  Future<DVJsonValue?> get(String key) {
+    _own(key);
+    return _store.getReserved(key);
+  }
+
+  /// Writes [value], or removes the key when it is null. A sealed namespace
+  /// throws [DVSharedStoreSealUnavailable] when no application key can be had.
+  Future<void> set(String key, DVJsonValue? value) {
+    _own(key);
+    return _store.setReserved(key, value);
+  }
+
+  /// The keys kept in this namespace.
+  Future<List<String>> keys() async => <String>[
+        for (final String key in await _store.keys())
+          if (key.startsWith(prefix)) key,
+      ];
 }

@@ -1,9 +1,9 @@
 library dartvel_flutter;
 
 export 'src/default_theme.dart';
-export 'src/platform/telegram/telegram.dart';
-import 'src/platform/telegram/telegram.dart';
-import 'src/platform/telegram/frame.dart';
+export 'src/platform/platform_host.dart';
+export 'src/windowing/window_space_backend.dart';
+import 'src/platform/platform_host.dart';
 export 'src/auth/auth_frame.dart';
 
 import 'dart:async';
@@ -42,9 +42,6 @@ import 'src/auth/qr_code.dart' show DVQrImage;
 import 'src/auth/session_client.dart';
 import 'src/purchases/purchases_runtime.dart' show dvInstallPurchaseRuntime;
 // conditional SEO implementation
-import 'src/browser_extension_platform_memory.dart'
-    if (dart.library.html) 'src/browser_extension_platform_web.dart'
-    as browser_extension_platform;
 import 'src/crashes/crashes.dart';
 import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
@@ -69,13 +66,9 @@ import 'src/platform/file_associations.dart';
 import 'src/platform/launch_at_login.dart';
 import 'src/platform/network.dart';
 import 'src/platform/printing.dart';
-import 'src/platform/terminal_graphics.dart';
-import 'src/platform/terminal_graphics_web.dart'
-    if (dart.library.io) 'src/platform/terminal_graphics_io.dart'
-    as terminal_graphics;
-import 'src/platform/terminal_size.dart';
-import 'src/platform/terminal_size_web.dart'
-    if (dart.library.io) 'src/platform/terminal_size_io.dart' as terminal_size;
+import 'src/platform/display_availability.dart';
+import 'src/platform/display_availability_web.dart'
+    if (dart.library.io) 'src/platform/display_availability_io.dart' as display_availability;
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/progress/top_progress.dart';
 import 'src/pwa/install_prompt.dart';
@@ -162,59 +155,12 @@ export 'package:dartvel_core/dartvel.dart'
         DVSceneView,
         DVTransform,
         DVVec3,
-        // XR: presenting a scene in space -- capability, poses, anchors, the
-        // device adapter and its headless device, and the session runtime.
+        // Anchors a scene can be placed on (the XR runtime itself is a paid package).
         DVAnchor,
         DVAnchorType,
-        DVComfort,
-        DVComfortOptions,
-        DVComfortResolution,
-        DVConsentSpatialConsent,
         DVHand,
-        DVImmersion,
-        DVLocomotion,
-        DVMemorySpatialAnchorStore,
         DVPlane,
         DVSceneAnchorPlacement,
-        DVSpatialAnchorNotStored,
-        DVSpatialAnchorStatus,
-        DVSpatialAnchorStore,
-        DVSpatialCapability,
-        DVSpatialConsent,
-        DVSpatialConvention,
-        DVSpatialDataUse,
-        DVSpatialFrameMonitor,
-        DVSpatialInput,
-        DVSpatialInputAction,
-        DVSpatialInputEvent,
-        DVSpatialInputSource,
-        DVSpatialLighting,
-        DVSpatialLightProbe,
-        DVSpatialPersistence,
-        DVSpatialPersistenceKind,
-        DVSpatialPose,
-        DVSpatialPresentation,
-        DVSpatialRefusal,
-        DVSpatialSession,
-        DVSpatialSessionState,
-        DVSpatialSpaceKind,
-        DVSpatialSpaceRequest,
-        DVVolumeOptions,
-        DVXRAnchorChanged,
-        DVXRBindingException,
-        DVXRDevice,
-        DVXRDeviceEvent,
-        DVXRDiagnosticSink,
-        DVXRFakeDevice,
-        DVXRFrameTimed,
-        DVXRHeadPoseChanged,
-        DVXRInput,
-        DVXRPassthroughChanged,
-        DVXRPermissionRevoked,
-        DVXRRuntime,
-        DVXRSpaceEnded,
-        DVXRTrackingChanged,
-        dvLogXRDiagnostic,
         DVMemoryConfig,
         DVMemoryDiagnostic,
         DVMemoryException,
@@ -880,8 +826,7 @@ export 'src/platform/macos/macos_bindings.dart';
 export 'src/platform/network.dart';
 export 'src/platform/printing.dart';
 export 'src/platform/raster.dart';
-export 'src/platform/terminal_graphics.dart';
-export 'src/platform/terminal_size.dart';
+export 'src/platform/display_availability.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/webcrypto_key_store_io.dart'
     if (dart.library.js_interop) 'src/platform/webcrypto_key_store_web.dart';
@@ -943,7 +888,6 @@ export 'src/windowing/shared_store.dart';
 export 'src/windowing/tab_workspace.dart';
 export 'src/windowing/window.dart';
 export 'src/windowing/window_state.dart';
-export 'src/xr/xr.dart';
 
 // ==========================================
 // UI & Styling Primitives (NEW_SPEC.md)
@@ -6859,26 +6803,6 @@ class DVDisplayControls {
   }
 }
 
-class DVBrowserExtension {
-  const DVBrowserExtension();
-
-  bool get isAvailable => isChromium || isFirefox;
-  bool get isChromium => browser_extension_platform.isChromiumExtension();
-  bool get isFirefox => browser_extension_platform.isFirefoxExtension();
-
-  Map<String, Object?> getManifest() {
-    return browser_extension_platform.getManifest();
-  }
-
-  Future<Object?> sendMessage(Object? message) {
-    return browser_extension_platform.sendMessage(message);
-  }
-
-  Future<void> tabsCreate(String url, {bool active = true}) {
-    return browser_extension_platform.tabsCreate(url, active: active);
-  }
-}
-
 /// What a dual-mode application should do at startup.
 ///
 /// Returned rather than performed: the prompt is an outcome the caller acts
@@ -6959,106 +6883,41 @@ DVLaunchOutcome resolveLaunchSurface({
 /// every application to ship both backends.
 enum DVRenderSurface { gui, terminal }
 
-/// The terminal an application is drawing into.
+/// Something a render backend attached to the running application: the
+/// terminal a terminal build is drawing into, for one.
 ///
-/// Null whenever the surface is a GUI: asking a window for its column count is
-/// a question with no answer, and a fabricated one would be worse than none.
-/// The terminal being drawn into.
-///
-/// [size] is a signal, so a layout responds to a resized terminal through
-/// the same reactive path a resized window uses: the size is read from the
-/// terminal the process is attached to and read again when the terminal
-/// says it changed -- SIGWINCH on POSIX, see [windowChanges].
-class DVTerminalSurface {
-  DVTerminalSurface({
-    required this.graphics,
-    required DVTerminalSize Function() read,
-    required Stream<void> resizes,
-  })  : _read = read,
-        size = ValueNotifier<DVTerminalSize>(read()) {
-    _resizes = resizes.listen((_) {
-      final DVTerminalSize next = _read();
-      if (next != size.value) size.value = next;
-    });
-  }
-
-  /// A terminal whose size never changes. For tests and for backends that
-  /// report no resizes.
-  DVTerminalSurface.fixed({
-    required int columns,
-    required int rows,
-    required this.graphics,
-  })  : _read = (() => DVTerminalSize(columns: columns, rows: rows)),
-        size = ValueNotifier<DVTerminalSize>(DVTerminalSize(columns: columns, rows: rows)),
-        _resizes = null;
-
-  /// The terminal this process is attached to: its size from stdout, its
-  /// resizes from the window-change signal. 80 by 24 where there is none,
-  /// as every terminal program has assumed since there were terminals.
-  factory DVTerminalSurface.attached({required DVTerminalGraphics graphics}) =>
-      DVTerminalSurface(
-        graphics: graphics,
-        read: readAttachedSize,
-        resizes: windowChanges(),
-      );
-
-  /// The terminal this process is attached to, having asked it which graphics
-  /// protocol it speaks.
-  ///
-  /// This is what a terminal backend calls at startup, and it is the only
-  /// thing that ever produces a [DVTerminalGraphics]. [DVTerminalSurface.attached]
-  /// takes one as an argument, which meant every value the API ever reported
-  /// was a constant somebody typed rather than an answer from the terminal in
-  /// front of the user.
-  ///
-  /// [negotiate] is the question; the default asks the attached terminal. It
-  /// is injectable because the answer decides whether a layout draws pixels or
-  /// cells, and a decision that important should be assertable without a pty.
-  static Future<DVTerminalSurface> attach({
-    Future<DVTerminalGraphics> Function()? negotiate,
-  }) async {
-    final DVTerminalGraphics graphics = await (negotiate ??
-        terminal_graphics.dvNegotiateAttachedTerminalGraphics)();
-    return DVTerminalSurface(
-      graphics: graphics,
-      read: readAttachedSize,
-      resizes: windowChanges(),
-    );
-  }
-
-  static DVTerminalSize readAttachedSize() => terminal_size.dvReadAttachedTerminalSize();
-
-  /// One event per window-change signal; empty where the platform has none.
-  static Stream<void> windowChanges() => terminal_size.dvTerminalWindowChanges();
-
-  final DVTerminalGraphics graphics;
-  final DVTerminalSize Function() _read;
-  StreamSubscription<void>? _resizes;
-
-  /// Columns and rows, as a signal.
-  final ValueNotifier<DVTerminalSize> size;
-
-  int get columns => size.value.columns;
-  int get rows => size.value.rows;
-
-  void dispose() {
-    unawaited(_resizes?.cancel());
-    _resizes = null;
-    size.dispose();
-  }
-
-  @override
-  String toString() =>
-      'DVTerminalSurface(${columns}x$rows, ${graphics.name})';
+/// The framework only keeps it so a layout can ask which surface it is on and
+/// the owner of the attachment can read it back; what it is lives in the
+/// package that installed it.
+abstract interface class DVAttachedSurface {
+  void dispose();
 }
 
 /// Whether this process can open a window. See [dvDisplayAvailableIn].
-bool dvDisplayAvailable() => terminal_size.dvDisplayAvailable();
+bool dvDisplayAvailable() => display_availability.dvDisplayAvailable();
 
 class DVPlatform {
-  /// The Telegram host, or null in an ordinary browser/native app.
-  DVTelegram? get telegram => dvTelegramHere();
   const DVPlatform();
+
+  /// Registers the environment the application can be hosted in (a package
+  /// does this once at startup). A host with the same id is replaced.
+  void registerHost(DVPlatformHost host) => DVPlatformHosts.register(host);
+
+  /// Forgets the host named [id].
+  void unregisterHost(String id) => DVPlatformHosts.unregister(id);
+
+  /// Every registered host. Empty unless a package registered one.
+  List<DVPlatformHost> get hosts => DVPlatformHosts.all;
+
+  /// The registered hosts the application is running inside right now.
+  List<DVPlatformHost> get activeHosts => DVPlatformHosts.active;
+
+  /// The registered host named [id], active or not.
+  DVPlatformHost? host(String id) => DVPlatformHosts.byId(id);
+
+  /// The credential an active host provides for signing in with [provider].
+  DVHostCredential? hostSignInCredential(String provider) =>
+      DVPlatformHosts.signInCredential(provider);
 
   static DVDeviceKiosk? _deviceKiosk;
 
@@ -7102,7 +6961,7 @@ class DVPlatform {
   }
 
   static DVRenderSurface? _surfaceOverride;
-  static DVTerminalSurface? _terminal;
+  static DVAttachedSurface? _attached;
 
   /// Where this application's frames are landing.
   ///
@@ -7111,9 +6970,11 @@ class DVPlatform {
   /// always saw.
   DVRenderSurface get surface => _surfaceOverride ?? DVRenderSurface.gui;
 
-  /// The terminal being drawn into, or null when this is a GUI.
-  DVTerminalSurface? get terminal =>
-      surface == DVRenderSurface.terminal ? _terminal : null;
+  /// What the render backend attached (the terminal being drawn into), or
+  /// null when this is a GUI. Typed access to it comes with the package that
+  /// installed it.
+  DVAttachedSurface? get attachedSurface =>
+      surface == DVRenderSurface.terminal ? _attached : null;
 
   /// Installs the surface the runtime actually started on.
   ///
@@ -7122,10 +6983,10 @@ class DVPlatform {
   /// so a stale terminal can never end up describing a window.
   void useRenderSurface(
     DVRenderSurface? surface, {
-    DVTerminalSurface? terminal,
+    DVAttachedSurface? attached,
   }) {
     _surfaceOverride = surface;
-    _terminal = surface == DVRenderSurface.terminal ? terminal : null;
+    _attached = surface == DVRenderSurface.terminal ? attached : null;
   }
 
   static const String _platformOverride =
@@ -7168,8 +7029,8 @@ class DVPlatform {
   /// Whether this build is for a headset. A panel is an ordinary window, so
   /// this is for what to offer -- larger targets, a back button where hands
   /// have no back gesture -- never for whether a page works.
-  /// `DV.Platform.window.capability.spatial` stays null until a native XR
-  /// binding reports what the headset can present.
+  /// `DV.Platform.window.capability.spatial` stays null until a registered
+  /// `DVWindowSpaceBackend` reports what the headset can present.
   bool get isHeadset =>
       _deviceTypeOverride == 'headset' || dvIsHeadsetPlatform(currentPlatform);
   bool get isWindows => currentPlatform == 'windows';
@@ -7179,9 +7040,9 @@ class DVPlatform {
   bool get isFuchsia => currentPlatform == 'fuchsia';
   bool get isWeb => currentPlatform == 'web';
   bool get isChromiumExtension =>
-      browser_extension_platform.isChromiumExtension();
+      DVPlatformHosts.hasFlag(DVPlatformHost.chromiumExtensionFlag);
   bool get isFirefoxExtension =>
-      browser_extension_platform.isFirefoxExtension();
+      DVPlatformHosts.hasFlag(DVPlatformHost.firefoxExtensionFlag);
 
   bool get isTizen =>
       currentPlatform == 'tizen' || currentPlatform == 'tizenos';
@@ -7338,7 +7199,6 @@ class DVPlatform {
   DVHaptics get haptics => const DVHaptics();
   DVContacts get contacts => const DVContacts();
   DVPermissions get permissions => const DVPermissions();
-  DVBrowserExtension get browserExtension => const DVBrowserExtension();
 
   /// The PWA install prompt, where the platform offers one.
   /// What this device can reach, as a signal: online, metered, offline,
@@ -9845,8 +9705,8 @@ class DVStorage {
   /// [DVMemoryFileStorageAdapter]; pass an [S3FileStorageAdapter] for an
   /// object store.
   ///
-  /// Browser-extension storage still takes precedence where the host provides
-  /// it, since that is the only storage such a target can reach.
+  /// An active host's storage (a browser extension's, from a package that
+  /// registers one) still takes precedence where the host provides it, since that is the only storage such a target can reach.
   void configure(DVFileStorageAdapter adapter) {
     if (_bound != null) {
       throw StateError(
@@ -9860,29 +9720,30 @@ class DVStorage {
 
   DVFileStorageAdapter get adapter => _bound ?? _adapter;
 
-  // Browser-extension storage replaces the app default only. A bound
-  // storage names its adapter on purpose.
-  bool get _extension =>
-      _bound == null && browser_extension_platform.supportsFileStorage();
+  // An active host's storage (a browser extension's) replaces the app
+  // default only. A bound storage names its adapter on purpose.
+  DVFileStorageAdapter? get _host =>
+      _bound == null ? DVPlatformHosts.fileStorage : null;
 
   Future<void> put(String key, List<int> bytes, {String? contentType}) async {
-    if (_extension) {
-      await browser_extension_platform.fileStoragePut(key, bytes);
+    final DVFileStorageAdapter? host = _host;
+    if (host != null) {
+      await host.put(key, bytes, contentType: contentType);
       return;
     }
     await adapter.put(key, bytes, contentType: contentType);
   }
 
   Future<List<int>> get(String key) async {
-    if (_extension) {
-      return browser_extension_platform.fileStorageGet(key);
-    }
+    final DVFileStorageAdapter? host = _host;
+    if (host != null) return host.get(key);
     return adapter.get(key);
   }
 
   Future<void> delete(String key) async {
-    if (_extension) {
-      await browser_extension_platform.fileStorageDelete(key);
+    final DVFileStorageAdapter? host = _host;
+    if (host != null) {
+      await host.delete(key);
       return;
     }
     await adapter.delete(key);
@@ -10300,13 +10161,6 @@ class DVNavigation {
   const DVNavigation();
 
   static GoRouter? _router;
-  static StreamSubscription<void>? _telegramBack;
-  static GoRouter? _telegramRouteOwner;
-  static void _syncTelegramBack() {
-    final telegram = dvTelegramHere();
-    if (telegram == null || _telegramRouteOwner == null) return;
-    unawaited(_telegramRouteOwner!.canPop() ? telegram.backButton.show() : telegram.backButton.hide());
-  }
 
   /// Called by the generated `createDartvelRouter()`. Navigation needs a
   /// handle to the live router because [to] is used in callbacks such as
@@ -10318,24 +10172,13 @@ class DVNavigation {
     // it is set where every Dartvel router is attached.
     GoRouter.optionURLReflectsImperativeAPIs = true;
     _router = router;
-    unawaited(_telegramBack?.cancel());
-    final telegram = dvTelegramHere();
-    _telegramBack = telegram?.backButton.clicks.listen((_) {
-      if (router.canPop()) router.pop();
-    });
-    _telegramRouteOwner?.routeInformationProvider.removeListener(_syncTelegramBack);
-    _telegramRouteOwner = telegram == null ? null : router;
-    _telegramRouteOwner?.routeInformationProvider.addListener(_syncTelegramBack);
-    _syncTelegramBack();
+    DVPlatformHosts.attachRouter(router);
   }
 
   /// Forgets the attached router. Tests that build their own router should
   /// call this in teardown so one test cannot navigate another's.
   static void detach() {
-    unawaited(_telegramBack?.cancel());
-    _telegramBack = null;
-    _telegramRouteOwner?.routeInformationProvider.removeListener(_syncTelegramBack);
-    _telegramRouteOwner = null;
+    DVPlatformHosts.detachRouter();
     _router = null;
   }
 
@@ -10887,7 +10730,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
   }
 
   @override
-  Widget build(BuildContext context) => DVTelegramFrame(child: Builder(builder: _buildPage));
+  Widget build(BuildContext context) => DVHostFrame(child: Builder(builder: _buildPage));
 
   Widget _buildPage(BuildContext context) {
     // The module this page belongs to may have replaced its chrome or taken

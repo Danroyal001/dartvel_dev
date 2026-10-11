@@ -22,6 +22,7 @@ import 'http_hosts_generator.dart';
 import 'job_generator.dart';
 import 'model_generator.dart';
 import 'platform_api_generator.dart';
+import '../build/runtime_packages.dart' show dvRuntimeRefusalFor;
 import 'privacy_declarations.dart';
 import 'static_paths_generator.dart';
 
@@ -58,6 +59,14 @@ Future<void> generate({
   }
   final pkgName = config.packageName;
   final dv = config.raw;
+
+  // A section that configures a paid runtime, with no package providing it:
+  // said once, here, rather than skipped into an app that does nothing with it.
+  final String? runtimeRefusal = dvRuntimeRefusalFor(root, dv);
+  if (runtimeRefusal != null) {
+    stderr.writeln(runtimeRefusal);
+    exit(69); // EX_UNAVAILABLE
+  }
 
   // Deprecated config keys: the same list and wording `dartvel doctor` uses.
   for (final String warning in dvDeprecatedConfigWarnings(dv, p.join(root, 'pubspec.yaml'))) {

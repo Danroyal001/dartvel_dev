@@ -163,7 +163,12 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
                 'They come with every Dartvel Cloud plan instead of the free '
                 'install: Apple Vision Pro, Meta Quest, Chrome and Firefox '
                 'extensions, VS Code extensions, Telegram Mini Apps, apps that '
-                'run in a terminal, and Fuchsia.'),
+                'run in a terminal, and Fuchsia. The runtimes behind '
+                'them (the Telegram host, the XR runtime behind DV.Window, '
+                'the terminal surface and the browser-extension runtime) '
+                'come with the same plans, as the dartvel_runtimes_pro '
+                'package that plugs into extension points in the free '
+                'framework. Every free target runs without it.'),
             DocsTable(columns: <String>[
               'Target',
               'What it builds',

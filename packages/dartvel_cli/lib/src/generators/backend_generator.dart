@@ -4,7 +4,6 @@ import 'package:crypto/crypto.dart' show sha256;
 import 'package:dartvel_core/dartvel.dart'
     show
         DVCacheConfig,
-        DVTelegramConfig,
         DVCacheConfigException,
         DVCrashConfig,
         DVCrashSinkChoice,
@@ -36,6 +35,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../build/graphql_options.dart';
+import '../build/runtime_packages.dart';
 import '../build/server_options.dart';
 import '../updates/shorebird_config.dart';
 import '../graph/module_mounts.dart';
@@ -939,8 +939,21 @@ $openApiJson\'\'\';
       final Object? dartvel = doc is Map ? doc['dartvel'] : null;
       return dartvel is Map ? dartvel['telegram'] : null;
     }();
+    // The runtime package that supplies the sign-in provider for a configured
+    // section (the Telegram runtime is a paid package). A section nobody
+    // supplies a provider for is refused, not skipped into a server that
+    // signs nobody in.
     final bool telegram = telegramSection != null;
-    if (telegram) DVTelegramConfig.fromMap((telegramSection as Map).cast<Object?, Object?>());
+    if (telegram) dvReadRuntimeSection('telegram', telegramSection);
+    final DVRuntimePackage? telegramProvider = !telegram
+        ? null
+        : dvRuntimePackages(root)
+            .where((DVRuntimePackage package) =>
+                package.serverImport != null && package.authProviders.containsKey('telegram'))
+            .firstOrNull;
+    if (telegram && telegramProvider == null) {
+      throw FormatException(dvRuntimeRefusal('telegram', because: 'pubspec.yaml sets dartvel.telegram'));
+    }
     final bool authenticates = platformApi != null;
     final bool studioOff = _dvStudioDeclaredOff(root);
     final String? corsSource = server.corsSource;
@@ -994,7 +1007,7 @@ import 'package:dartvel_core/dv.dart' as dvapi;
 // generated backend should be able to hand a table writes from outside.
 import 'package:dartvel_core/framework.dart' as framework;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
-${servesCrashes ? "import 'package:dartvel_shelf/symbols.dart' as symbols;\n" : ''}import 'package:mime/mime.dart';
+${telegramProvider?.serverImport == null ? '' : "import '${telegramProvider!.serverImport}' as ${telegramProvider.name};\n"}${servesCrashes ? "import 'package:dartvel_shelf/symbols.dart' as symbols;\n" : ''}import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages, dartvelStudioModels;
 ${studioModules.map(((String, String) m) => "import 'package:${m.$1}/dartvel_client/model_pages.g.dart' as ${m.$2} show dartvelStudioModels;\n").join()}import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
@@ -1998,10 +2011,10 @@ ${studioOff ? '  // Studio is off (dartvel.admin.enabled: false): no grants to r
   // this process's database, so they outlive a restart and every web process
   // sees them. An application that installed its own provider keeps it; with
   // no database there is nowhere to keep an account, and none is installed.
-  if ($telegram && !core.DVAuthEndpoints.installed) {
+${telegramProvider == null ? '' : '''  if (!core.DVAuthEndpoints.installed) {
     core.DVAuthEndpoints.install(credentials: core.DVCredentialGuard(
-      provider: dv.DVTelegramAuthProvider(validator: dv.DVTelegramInitDataValidator.fromEnvironment())));
-  }
+      provider: ${telegramProvider.name}.${telegramProvider.authProviders['telegram']}));
+  }'''}
   if (dartvelDatabase != null && !core.DVAuthEndpoints.installed) {
     core.DVAuthEndpoints.install(credentials: core.DVCredentialGuard(provider: core.DVDatabaseAuthProvider(dartvelDatabase)));
   }${authenticates ? '''

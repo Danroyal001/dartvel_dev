@@ -271,14 +271,18 @@ per-target evidence is in
 `visionos`, `horizon`, `chrome-extension`, `firefox-extension`, `vscode`,
 `telegram`, the terminal targets (`linux-cli`, `macos-cli`, `windows-cli`,
 `fuchsia-cli`, each also `-tui`) and `fuchsia` are included in every Dartvel
-Cloud plan and are not part of the free install. On a free install
+Cloud plan and are not part of the free install. So are the runtime APIs that
+go with them: `DV.Platform.telegram`, Telegram sign-in and Stars, the XR
+runtime behind `DV.Window`, `DVTerminalSurface` and `DVBrowserExtension` now
+live in the private `dartvel_runtimes_pro` package. On a free install
 `dartvel build visionos` says so and exits 69; nothing is built and nothing is
 sent anywhere. To build one:
 
 - on Dartvel Cloud: `dartvel build visionos --cloud`;
 - on your machine: `dartvel targets add pro`, which adds the private
-  `dartvel_targets_pro` package to the project as a dev dependency (it needs
-  the repository access a Cloud plan grants). `dartvel build <target>` then
+  `dartvel_targets_pro` package to the project as a dev dependency and
+  `dartvel_runtimes_pro` as a dependency (they need the repository access a
+  Cloud plan grants; `dartvel targets add runtimes` adds only the runtimes). `dartvel build <target>` then
   runs through that package. It adds build steps only: nothing from it, and no
   licence key, reaches the application you ship.
 
@@ -312,6 +316,36 @@ with `context.buildPlatform('android', variant: DVPlatformVariant(...))`,
 adding Flutter arguments, leaving out steps (kiosk, home widgets, purchases,
 the dev client) and running `prepare`/`finish` hooks around the Flutter build.
 A free target's name cannot be registered.
+
+#### Runtimes from a package
+
+The runtime APIs behind the paid targets (the Telegram Mini App host and its
+sign-in, the XR runtime behind `DV.Window`, the terminal surface and the
+browser-extension runtime) are not in the free packages either; they plug into
+public extension points (`DVPlatformHost`, `DVWindowSpaceBackend`,
+`DVAttachedSurface`, `AuthProvider`, `DVStoreAdapter`). A package that provides
+runtimes carries a `dartvel_runtimes.yaml`, read like `dartvel_targets.yaml`:
+
+```yaml
+runtimes: [telegram]
+client:
+  import: package:acme_runtimes/acme_runtimes.dart
+  install: dvInstallAcmeRuntimes      # void Function(Map<String, Object?> sections)
+  terminal_surface: AcmeTerminal.attach()   # for a terminal-only build
+server:
+  import: package:acme_runtimes/server.dart
+  auth_providers:
+    telegram: acmeTelegramAuthProvider()
+```
+
+The generated client imports `client.import` and calls `client.install` at
+startup with the `dartvel:` sections that configure runtimes (`telegram`); the
+generated backend installs the provider named for a configured section.
+`dartvel.telegram` in `pubspec.yaml` with no package providing it stops
+generation with exit 69 and says how to get one. `dartvel targets add runtimes`
+adds the paid `dartvel_runtimes_pro` package as a dependency; `add pro` adds it
+with `dartvel_targets_pro`. A section that configures a runtime holds public
+metadata only: a key that reads as a secret (`botToken`) is refused.
 
 A build checks host support and the tools it needs before generating
 anything, so it never starts something it cannot finish. Flutter has no

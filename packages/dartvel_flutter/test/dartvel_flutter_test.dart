@@ -193,11 +193,6 @@ void main() {
     expect(platform.isSonyELinux, isFalse);
     expect(platform.isAndroidTV, isFalse);
     expect(platform.isAppleTV, isFalse);
-    expect(platform.browserExtension.isAvailable, isFalse);
-    expect(
-      () => platform.browserExtension.getManifest(),
-      throwsA(isA<StateError>()),
-    );
   });
 
   test('integration APIs provide concrete local behavior', () async {
