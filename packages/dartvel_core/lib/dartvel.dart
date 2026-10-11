@@ -1564,13 +1564,11 @@ class BillingPlan {
 class Entitlement {
   final String id;
 
+  // No operator == on purpose: applications declare entitlements in const
+  // sets (`const <Entitlement>{pro}`), and a const set only takes elements
+  // with primitive equality. Code that matches entitlements read at run time
+  // (pubspec, webhooks) compares their ids.
   const Entitlement(this.id);
-
-  @override
-  bool operator ==(Object other) => other is Entitlement && other.id == id;
-
-  @override
-  int get hashCode => id.hashCode;
 
   @override
   String toString() => 'Entitlement($id)';
