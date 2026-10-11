@@ -89,7 +89,7 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
               <String>['tvos', 'macOS with Xcode', 'Builds and runs on the '
                   'simulator. Signed device builds are not verified'],
               <String>['visionos', 'macOS with Xcode', 'Planned: wired as the '
-                  'iPad app Vision Pro runs, not yet built on a Mac'],
+                  'iPad app Vision Pro runs; not yet built on a Mac'],
               <String>['tizen (alias tpk)', 'Tizen Studio', 'Builds a signed '
                   'TPK. CI can only skip it'],
               <String>['sony-elinux', 'Linux', 'Builds and runs in release on '
@@ -194,7 +194,7 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
                   'decide what to offer, such as a back button for hands.',
             ]),
             DocsNote('Not yet run on a headset',
-                'The Quest build has been checked with Android\'s own tools, '
+                'The Quest build has been checked with Android\'s own tools; '
                 'not on a Quest. The Vision Pro build has not yet been built '
                 'on a Mac.'),
           ],

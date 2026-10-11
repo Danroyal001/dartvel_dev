@@ -73,7 +73,7 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
               'when the page closes or the app goes to the background, and '
               'opens it again when the app comes back.',
           'It is not ready until the device says so; a refused permission '
-              'is a typed error, not an empty picture.',
+              'is a typed error, never an empty picture.',
           'Photos and clips are written where only your app can read them, '
               'and a clip is the same recording session recordVideo gives.',
         ]),
