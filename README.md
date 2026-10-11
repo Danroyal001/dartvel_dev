@@ -1054,9 +1054,17 @@ has no topics, and `subscribeToTopic` there says so.
 
 Verified: the request and error shapes against Google's reference, the
 generated Java compiled against `firebase-messaging` 26.0.0, the service worker
-run under node, and a release APK built with all of it. Not verified: a token
-from a real device, a message delivered by FCM, or a push through a browser's
-real push service. No credentials existed to try them.
+run under node, and a release APK built with all of it. **Web Push was run for
+real**: in Chrome 155 against Chrome's own push service, a web build's
+`PushNotifications.getToken()` returned a real subscription, `WebPushProvider`
+sent it an encrypted, VAPID-signed message that the service accepted (201), the
+message arrived on `PushNotifications.onMessage`, and with every window closed
+the worker showed the notification itself. That run also found that nothing
+registered the service worker on a first visit under Flutter 3.47 (its
+bootstrap only updates a registration that exists), so `dartvel build` now
+registers it. Not verified: a token from a real Android device or a message
+delivered by FCM (no Firebase project or device was available), a notification
+click in a browser, and push in Firefox or Safari.
 
 ---
 

@@ -144,9 +144,12 @@ Widget _docsNotificationsPage(BuildContext context) => const DocsArticle(
           title: 'Status',
           children: <Widget>[
             DocsStatus('Mail and Notifications', missing: <String>[
-              'No push has been delivered by a real FCM project or a real '
-                  'browser push service, and none has been received on a '
-                  'device. No credentials existed to try.',
+              'Web Push has been run against Chrome\'s real push service. FCM '
+                  'has not: no Firebase project or Android device was '
+                  'available, so no token has come from a phone and no '
+                  'message has been delivered to one.',
+              'A click on a notification is tested in the worker, not in a '
+                  'browser, and Firefox and Safari have not been tried.',
               'A tap on a notification while the Android app is already '
                   'running in the background is not reported as opened.',
               'No attachments, bounce webhooks or List-Unsubscribe header.',
