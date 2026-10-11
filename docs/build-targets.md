@@ -15,7 +15,7 @@ Flutter targets were verified against `examples/dartvel_example`.
 
 > **Paid targets.** `visionos`, `horizon`, `chrome-extension`,
 > `firefox-extension`, `vscode`, `telegram`, the terminal targets
-> (`<desktop>-cli`/`-tui`, `fuchsia-cli`) and `fuchsia` are not built by the
+> (`<desktop>-cli`/`-tui`, `fuchsia-cli`), `fuchsia` and `mcu` are not built by the
 > free CLI from the release after 0.11.5: they need a Dartvel Cloud plan and
 > the private `dartvel_targets_pro` package, and their evidence lives with
 > that package. On a free install `dartvel build <target>` for one of them
@@ -237,6 +237,17 @@ someone's machine is not Dartvel's call.
 Toolchains Dartvel manages itself live in `~/.dartvel/toolchains/`.
 
 ---
+
+## Microcontrollers (`mcu`, paid)
+
+A microcontroller with no Linux (ESP32-S3, STM32) cannot run Flutter or the
+Dart runtime, so `dartvel build mcu` does not run Dart there: it compiles the
+app's pages to C that draws with LVGL and writes an ESP-IDF project. **The app
+has to be built entirely from Dartvel primitives (`DVBox`, `DVText`,
+`DVModifier` and signals) for this target to work.** A Flutter widget, a
+package widget or code the compiler cannot translate stops the build with its
+file and line, and nothing is generated; the same page keeps working on every
+other target. It is a paid target in `dartvel_targets_pro`.
 
 ## Embedded and television targets
 

@@ -365,6 +365,9 @@ const Map<String, String> dvPaidTargets = <String, String>{
   'fuchsia-cli': 'Fuchsia, rendered in a terminal (alias fuchsia-tui)',
   'fuchsia-tui': 'Fuchsia, rendered in a terminal',
   'telegram': 'Telegram Mini App, the web build inside Telegram',
+  'mcu': 'Microcontroller with no Linux (ESP32-S3): C + LVGL. The app must be '
+      'built entirely from Dartvel primitives (DVBox, DVText, DVModifier and '
+      'signals)',
 };
 
 /// The package that implements [dvPaidTargets].
