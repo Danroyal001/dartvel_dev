@@ -124,6 +124,32 @@ void main() {
       await expectLater(provider().checkout(plan: other, customer: 'u'), throwsA(isA<DVBillingError>()));
       expect(requests, isEmpty);
     });
+
+    test('a Paddle customer id is attached to the transaction, so the '
+        'webhook that grants names the customer the app asks about', () async {
+      // Paddle reports a subscription under its customer_id. A transaction
+      // with no customer gets a new one at checkout, and the grant lands
+      // under an id the application has never seen.
+      final DVPaddleBillingProvider p = provider(responses: <String, (int, String)>{
+        '/transactions': (201, '{"data":{"id":"txn_2","checkout":{"url":"https://pay.example/txn_2"}}}'),
+      });
+      await p.checkout(plan: pro, customer: 'ctm_7');
+      final Map<Object?, Object?> body =
+          jsonDecode(requests.last.$3!) as Map<Object?, Object?>;
+      expect(body['customer_id'], 'ctm_7');
+    });
+
+    test('an application key that is not a Paddle customer is only custom data',
+        () async {
+      final DVPaddleBillingProvider p = provider(responses: <String, (int, String)>{
+        '/transactions': (201, '{"data":{"id":"txn_3"}}'),
+      });
+      await p.checkout(plan: pro, customer: 'user_7');
+      final Map<Object?, Object?> body =
+          jsonDecode(requests.last.$3!) as Map<Object?, Object?>;
+      expect(body.containsKey('customer_id'), isFalse);
+      expect(body['custom_data'], <String, Object?>{'customer': 'user_7'});
+    });
   });
 
   group('webhooks', () {

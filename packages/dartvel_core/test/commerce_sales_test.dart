@@ -27,6 +27,7 @@ const String table = '''
 
 const DVTaxAddress london = DVTaxAddress(country: 'GB');
 const Entitlement pro = Entitlement('pro');
+final Entitlement proForSets = Entitlement('pro');
 
 DVMoney gbp(int amount) => DVMoney(amount: amount, currency: 'GBP');
 
@@ -167,7 +168,7 @@ void main() {
         lines: lines ?? <DVOrderLine>[line('a', 1000)],
         to: london,
         codes: codes,
-        entitlements: const <Entitlement>{pro},
+        entitlements: <Entitlement>{proForSets},
       );
 
   Future<bool> entitled() => billing.hasEntitlement('customer:alice', pro);
@@ -382,10 +383,10 @@ void main() {
   });
 
   group('a store refund', () {
-    const DVPurchaseProduct book = DVPurchaseProduct(
+    final DVPurchaseProduct book = DVPurchaseProduct(
       'book_pro',
       billable: DVBillable.digital(play: 'book_pro'),
-      entitlements: <Entitlement>{pro},
+      entitlements: <Entitlement>{proForSets},
     );
 
     late DateTime clock;
@@ -431,7 +432,7 @@ void main() {
       };
       play = DVFakeStoreAdapter(DVStore.play, signingKey: 'k');
       purchases = DVPurchases(
-        products: const <DVPurchaseProduct>[book],
+        products: <DVPurchaseProduct>[book],
         stores: <DVStoreAdapter>[play],
         ledger: DVMemoryPurchaseLedger(),
         clock: () => clock,

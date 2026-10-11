@@ -13,7 +13,7 @@ import 'package:test/test.dart';
 const Entitlement analytics = Entitlement('analytics');
 const Entitlement exports = Entitlement('exports');
 
-const DVPurchaseProduct pro = DVPurchaseProduct(
+final DVPurchaseProduct pro = DVPurchaseProduct(
   'book_pro',
   billable: DVBillable.digital(
     appStore: 'com.example.book.pro',
@@ -22,7 +22,7 @@ const DVPurchaseProduct pro = DVPurchaseProduct(
   entitlements: <Entitlement>{analytics},
 );
 
-const DVPurchaseProduct lifetime = DVPurchaseProduct(
+final DVPurchaseProduct lifetime = DVPurchaseProduct(
   'book_lifetime',
   billable: DVBillable.digital(
     appStore: 'com.example.book.lifetime',
@@ -119,7 +119,7 @@ void main() {
     logs = DVMemoryLogSink();
     changes = <DVPurchaseChange>[];
     purchases = DVPurchases(
-      products: const <DVPurchaseProduct>[pro, lifetime],
+      products: <DVPurchaseProduct>[pro, lifetime],
       stores: <DVStoreAdapter>[play, apple],
       ledger: DVMemoryPurchaseLedger(),
       clock: () => now,
