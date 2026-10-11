@@ -142,6 +142,21 @@ class DVMySqlDatabaseAdapter
   Future<void> _connect() async {
     final connection = await (_connector ?? dvConnectMySql)(host, port);
     _connection = connection;
+    try {
+      await _handshake(connection);
+    } catch (_) {
+      // A connection that failed its handshake (an untrusted certificate, a
+      // refused login) is dead. Leaving it set made the next call, and close(),
+      // write to a closed socket and report that instead of the real cause.
+      _connection = null;
+      try {
+        await connection.close();
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  Future<void> _handshake(DVMySqlConnection connection) async {
     connection.input.listen(
       (List<int> chunk) {
         _buffer.addAll(chunk);
