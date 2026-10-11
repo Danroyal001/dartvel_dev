@@ -35,6 +35,8 @@ final class DVCrashConfig {
     this.ingestPerInstallPerHour = 30,
     int? ingestPerSourcePerHour,
     this.ingestMaxBytes = 262144,
+    this.symbolsUrl,
+    this.uploadSymbolsOnBuild = false,
   })  : assert(ingestPerSourcePerHour == null ||
             ingestPerSourcePerHour >= ingestPerInstallPerHour),
         _ingestPerSourcePerHour = ingestPerSourcePerHour;
@@ -81,6 +83,16 @@ final class DVCrashConfig {
   /// With `sink: dartvel`, the largest report body the backend accepts.
   final int ingestMaxBytes;
 
+  /// The origin of the deployment `dartvel symbols upload` sends a release's
+  /// mapping and debug symbols to (`dartvel.crashes.symbols.url`). A build-time
+  /// concern only: it is not part of [toDeclaration], so the device never
+  /// learns where its release's symbols go.
+  final Uri? symbolsUrl;
+
+  /// Whether `dartvel build android --release` uploads the symbols it just
+  /// collected, rather than leaving that to `dartvel symbols upload`.
+  final bool uploadSymbolsOnBuild;
+
   bool enabledIn(DVCrashBuildMode mode) => !disabledIn.contains(mode);
 
   /// The settings `dartvel.crashes` accepts.
@@ -93,6 +105,7 @@ final class DVCrashConfig {
     'fullReportsPerRelease',
     'identity',
     'ingest',
+    'symbols',
   ];
 
   static const String _section = 'dartvel.crashes';
@@ -253,7 +266,40 @@ final class DVCrashConfig {
       }
     }
 
+    Uri? symbolsUrl;
+    bool uploadSymbolsOnBuild = false;
+    final Object? symbols = section['symbols'];
+    if (symbols != null) {
+      if (symbols is! Map) {
+        throw ArgumentError.value(symbols, '$_section.symbols',
+            'must be a map: symbols: {url: https://api.example.com, upload: true}');
+      }
+      for (final Object? key in symbols.keys) {
+        if (key != 'url' && key != 'upload') {
+          throw ArgumentError.value(symbols[key], '$_section.symbols.$key',
+              'is not a symbols setting; the settings are url and upload');
+        }
+      }
+      final Object? url = symbols['url'];
+      if (url != null) symbolsUrl = _symbolsOrigin(url);
+      final Object? upload = symbols['upload'];
+      if (upload != null) {
+        if (upload is! bool) {
+          throw ArgumentError.value(upload, '$_section.symbols.upload',
+              'must be true or false');
+        }
+        uploadSymbolsOnBuild = upload;
+      }
+      if (uploadSymbolsOnBuild && symbolsUrl == null) {
+        throw ArgumentError.value(null, '$_section.symbols.url',
+            'is required with upload: true -- the build has nowhere to send '
+            'the symbols');
+      }
+    }
+
     return DVCrashConfig(
+      symbolsUrl: symbolsUrl,
+      uploadSymbolsOnBuild: uploadSymbolsOnBuild,
       disabledIn: disabledIn,
       sink: sink,
       nonFatalSampleRate: rate == null ? 1 : (rate as num).toDouble(),
@@ -264,6 +310,31 @@ final class DVCrashConfig {
       ingestPerSourcePerHour: perSourcePerHour,
       ingestMaxBytes: maxBytes,
     );
+  }
+
+  /// [url] as the origin symbols are uploaded to. https, or http to this
+  /// machine: the upload carries a bearer token, and sending that in the clear
+  /// to another host hands it to anyone on the path.
+  static Uri _symbolsOrigin(Object url) {
+    const String where = '$_section.symbols.url';
+    if (url is! String || url.trim().isEmpty) {
+      throw ArgumentError.value(url, where, 'must be the backend\'s origin, '
+          'such as https://api.example.com');
+    }
+    final Uri? uri = Uri.tryParse(url.trim());
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      throw ArgumentError.value(url, where, 'must be an absolute URL such as '
+          'https://api.example.com');
+    }
+    final bool loopback = uri.host == 'localhost' ||
+        uri.host == '127.0.0.1' ||
+        uri.host == '[::1]' ||
+        uri.host == '::1';
+    if (uri.scheme != 'https' && !(uri.scheme == 'http' && loopback)) {
+      throw ArgumentError.value(url, where, 'must be https (or http to this '
+          'machine): the upload carries a token');
+    }
+    return uri;
   }
 
   /// The declaration this configuration reads back from: what the generator

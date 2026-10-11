@@ -49,6 +49,10 @@ enum DVPlatformStep {
   /// The store billing library and bridge (`dartvel.purchases`).
   purchases,
 
+  /// Firebase Cloud Messaging (`dartvel.push.android`), which needs Google
+  /// Play services.
+  push,
+
   /// The pairing a development build carries for `dartvel dev`.
   devClient,
 }

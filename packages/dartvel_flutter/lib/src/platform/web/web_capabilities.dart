@@ -45,6 +45,13 @@ const Set<String> dvWebImplementedBindings = <String>{
   // The Notification API, subject to permission.
   'notifications.sendLocal',
 
+  // Web Push: the PushManager subscription and the messages the generated
+  // service worker forwards. Registered only where the browser has the Push
+  // API, and only answering once notifications are granted.
+  'push.token',
+  'push.unsubscribe',
+  'push.drainMessages',
+
   // navigator.share, which Firefox on the desktop does not have. Probed, so
   // that browser leaves the name unregistered rather than throwing a
   // TypeError from inside the binding.
@@ -174,6 +181,12 @@ const Set<String> dvWebUnconditionalBindings = <String>{
 /// name stays out, because a shorter list that is true is worth more than a
 /// longer one that is not.
 const Map<String, String> dvWebUnavailableBindings = <String, String>{
+  'push.subscribeToTopic': 'Web Push has no topics: a subscription is one '
+      'endpoint belonging to one browser profile, and the push service offers '
+      'no way to address a group of them. Topic membership is the '
+      'application server\'s to keep.',
+  'push.unsubscribeFromTopic': 'The other half of topics, which Web Push '
+      'does not have; see push.subscribeToTopic.',
   'clipboard.readSelection': 'The X11 PRIMARY selection, which is what a '
       'middle-click pastes on a Unix desktop. It is a second clipboard that '
       'only X has -- there is no browser API for it, and aliasing it onto the '
