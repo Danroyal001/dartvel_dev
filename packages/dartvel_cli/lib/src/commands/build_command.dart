@@ -34,6 +34,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVWebPushConfig;
 
 import '../build/android_home_widget.dart';
+import '../build/android_crash_handler.dart';
 import '../build/android_push_bridge.dart';
 import '../build/symbols_bundle.dart';
 import 'symbols_command.dart';
@@ -1107,7 +1108,7 @@ class BuildCommand extends Command<void> {
     if (platform == 'android' || platform == 'fireos') {
       // Before the kiosk block, so a manifest that gets both keeps them in
       // a stable order and the diff stays readable.
-      _writeAndroidContextProvider(_projectRoot);
+      _writeAndroidContextProvider(_projectRoot, buildMode);
       // After the Context provider and before the kiosk, because it adds to
       // the same manifest and the order the blocks appear in is the order
       // they are written.
@@ -1644,7 +1645,7 @@ class BuildCommand extends Command<void> {
   /// without this there is none to reach it through. That is not a theory:
   /// they were all dead on a real device, because they were written against
   /// a package:jni symbol that is declared in a header and never defined.
-  void _writeAndroidContextProvider(String root) {
+  void _writeAndroidContextProvider(String root, String buildMode) {
     final File manifest = File(
         p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) {
@@ -1659,6 +1660,25 @@ class BuildCommand extends Command<void> {
     final File source = File(p.join(root, dvAndroidContextProviderPath));
     source.parent.createSync(recursive: true);
     source.writeAsStringSync(dvAndroidContextProviderSource());
+
+    // The provider installs the JVM crash handler, so the class it calls is
+    // written beside it. Switched off, per build mode, by dartvel.crashes.
+    bool crashesOn = true;
+    try {
+      crashesOn = dvSymbolsProject(root).crashes.enabledIn(switch (buildMode) {
+        '--release' => DVCrashBuildMode.release,
+        '--profile' => DVCrashBuildMode.profile,
+        _ => DVCrashBuildMode.debug,
+      });
+    } on ArgumentError {
+      // Reported where dartvel.crashes is read strictly.
+    }
+    final File crashHandler = File(p.join(root, dvAndroidCrashHandlerPath));
+    crashHandler.parent.createSync(recursive: true);
+    crashHandler.writeAsStringSync(dvAndroidCrashHandlerSource(
+      release: dvSymbolsProject(root).release,
+      enabled: crashesOn,
+    ));
   }
 
   /// Writes what an Android development build needs to pair with `dartvel

@@ -120,6 +120,12 @@ public final class DartvelContext extends ContentProvider {
     // The application's, not the provider's. They are the same object on
     // every version anyone runs, but not by contract, and asking is one word.
     sContext = context == null ? null : context.getApplicationContext();
+    // Java and Kotlin crashes never reach Dart, and this is the earliest the
+    // application can hear about them: before Application.onCreate returns,
+    // so before the Flutter engine. The handler writes into the directory the
+    // Dart crash store reads at the next launch. A no-op when
+    // dartvel.crashes has reporting off for this build.
+    DartvelCrash.install(sContext);
     if (sContext instanceof Application) {
       ((Application) sContext).registerActivityLifecycleCallbacks(
           new Application.ActivityLifecycleCallbacks() {
