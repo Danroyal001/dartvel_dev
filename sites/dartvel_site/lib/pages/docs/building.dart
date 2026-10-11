@@ -116,6 +116,38 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'android-release',
+          title: 'Android release builds',
+          children: <Widget>[
+            DocsText('A release build of android, fireos or horizon is signed '
+                'with your own key. Without one the build stops before it '
+                'starts and says how to set one up. It is never signed with '
+                'the debug key.'),
+            DocsYaml('yaml-android-release'),
+            DocsShell(<String>[
+              'keytool -genkeypair -v -keystore upload.jks -keyalg RSA '
+                  '-keysize 4096 -validity 10000 -alias upload',
+              'dartvel build android',
+            ]),
+            Bullets(<String>[
+              'The properties file holds storeFile, storePassword, keyAlias '
+                  'and keyPassword. storeFile is relative to the file.',
+              'In CI, set DARTVEL_ANDROID_KEYSTORE, '
+                  'DARTVEL_ANDROID_KEYSTORE_PASSWORD and '
+                  'DARTVEL_ANDROID_KEY_ALIAS instead.',
+              'The app may use the network. Set internet: false if it never '
+                  'does.',
+              'Backup is off, including copying to a new phone. With '
+                  'allowBackup: true, the app\'s databases, its sign-in and '
+                  'its offline data still stay on the device.',
+              'Plain HTTP is refused except to the hosts you list. Debug '
+                  'builds can also reach your computer from the emulator.',
+              'Release builds keep the Java Dartvel calls by name, so '
+                  'shrinking the app does not break the camera or payments.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'embedded',
           title: 'TVs and embedded devices use vendor embedders',
           children: <Widget>[
