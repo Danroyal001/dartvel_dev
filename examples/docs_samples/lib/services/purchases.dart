@@ -83,11 +83,14 @@ void configurePurchasesServer(DVBillingProvider stripe) {
     products: <DVPurchaseProduct>[proMonthly, coins],
     stores: <DVStoreAdapter>[
       DVAppStoreAdapter(bundleId: 'com.example.app'),
-      DVPlayStoreAdapter(
+      // The service account comes from DV.Secrets (PLAY_SERVICE_ACCOUNT_JSON);
+      // the rest is `dartvel: purchases: play:` in pubspec.yaml.
+      DVPlayStoreAdapter.fromSecrets(const DVPlayStoreConfig(
         packageName: 'com.example.app',
-        serviceAccountEmail: DV.Secrets.get('PLAY_SERVICE_ACCOUNT_EMAIL'),
-        serviceAccountPrivateKeyPem: DV.Secrets.get('PLAY_SERVICE_ACCOUNT_KEY'),
-      ),
+        pushAudience:
+            'https://example.com/api/_dartvel/purchases/notifications/play',
+        pushServiceAccount: 'play-push@example.iam.gserviceaccount.com',
+      )),
     ],
     ledger: DVDatabasePurchaseLedger(DV.Database.configuredAdapter!),
     // Optional: what the web and desktop sell through.

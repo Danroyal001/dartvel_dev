@@ -19,6 +19,8 @@ import 'package:dartvel_core/dartvel.dart'
         dvMiddlewareKeysWrapping,
         dvPageMiddlewareRefusal,
         dvPurchasesDeclared;
+import '../build/android_billing_bridge.dart' as android_billing
+    show dvPurchasesPlayConfig;
 // dartvel.capture, read with the parser the generated server reads it with.
 import 'package:dartvel_core/framework.dart'
     show DVCaptureConfig, DVCaptureConfigError;
@@ -164,7 +166,10 @@ class BackendGenerator {
     final File pubspec = File(p.join(root, 'pubspec.yaml'));
     if (!pubspec.existsSync()) return false;
     final Object? doc = loadYaml(pubspec.readAsStringSync());
-    return dvPurchasesDeclared(doc is Map ? doc['dartvel'] : null);
+    final Object? section = doc is Map ? doc['dartvel'] : null;
+    // Reads dartvel.purchases.play too, so a misspelt setting stops here.
+    android_billing.dvPurchasesPlayConfig(section);
+    return dvPurchasesDeclared(section);
   }
 
   /// The purchase endpoints, for an application that declares
