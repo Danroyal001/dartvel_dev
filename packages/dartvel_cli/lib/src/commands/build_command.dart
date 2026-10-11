@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../build/node_runtime_bundle.dart';
+import '../analysis/tooltip_lint.dart';
 import '../build/accessibility_audit.dart';
 import '../build/studio_data.dart';
 import '../build/studio_parts.dart';
@@ -706,6 +707,21 @@ class BuildCommand extends Command<void> {
         Logger.log(line);
       }
       Logger.log('   Run `dartvel doctor` for the whole picture.');
+      exit(78); // EX_CONFIG
+    }
+
+    // Everything hoverable has a tooltip, and it is the control's name.
+    // Mandatory in every Dartvel app: a debug build refuses a nameless icon
+    // control at run time, and this is the same rule read from the source so a
+    // release build cannot ship one either.
+    final List<DVTooltipFinding> untooltipped = dvScanProjectForTooltips(root);
+    if (untooltipped.isNotEmpty) {
+      Logger.log('❌ ${untooltipped.length} control(s) have no tooltip. '
+          'Everything hoverable has a tooltip, and the same words are its '
+          'screen-reader name:');
+      for (final DVTooltipFinding finding in untooltipped) {
+        Logger.log('   $finding');
+      }
       exit(78); // EX_CONFIG
     }
 

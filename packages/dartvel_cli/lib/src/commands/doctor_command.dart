@@ -6,6 +6,7 @@ import 'package:dartvel_core/dartvel.dart' show DVKioskTarget;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../analysis/tooltip_lint.dart';
 import '../build/deep_link_files.dart';
 import '../build/build_target.dart';
 import '../build/target_packages.dart';
@@ -529,6 +530,18 @@ class DoctorCommand extends Command<void> {
       backendDir: config?.backendDir ?? 'lib/backend',
     );
     layout.lines.forEach(Logger.log);
+
+    // Everything hoverable has a tooltip; the build fails on the same list.
+    final List<DVTooltipFinding> untooltipped = dvScanProjectForTooltips(cwd);
+    if (untooltipped.isEmpty) {
+      Logger.log('[+] every control has a tooltip');
+    } else {
+      Logger.log('[!] ${untooltipped.length} control(s) have no tooltip '
+          '(dartvel build fails on these):');
+      for (final DVTooltipFinding finding in untooltipped) {
+        Logger.log('      $finding');
+      }
+    }
 
     final env = File(p.join(cwd, '.env'));
     if (env.existsSync()) {
