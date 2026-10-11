@@ -109,4 +109,62 @@ void main() {
       await expectLater(DV.Platform.window.restoreState('main'), completes);
     });
   });
+
+  group('a namespace a package claims', () {
+    // A runtime package that keeps state in the shared store (the XR runtime
+    // keeps world anchor tokens) claims a prefix. Applications are refused it
+    // exactly as they are refused `dv.`; the package reads and writes it
+    // through a handle, and a claimed prefix can be sealed.
+    tearDown(() => DVWindowSharedStore.releaseNamespace('acme.'));
+
+    test('is refused to applications once claimed', () {
+      expect(() => store.set('acme.token', const DVJsonString('x')), returnsNormally);
+      DVWindowSharedStore.reserveNamespace('acme.');
+      expect(() => store.set('acme.token', const DVJsonString('x')),
+          throwsA(isA<DVSharedStoreKeyError>()));
+      expect(DVWindowSharedStore.reservedPrefixes, contains('acme.'));
+    });
+
+    test('is read and written through its handle', () async {
+      DVWindowSharedStore.reserveNamespace('acme.');
+      final DVSharedStoreNamespace namespace = store.namespace('acme.');
+      await namespace.set('acme.token', const DVJsonString('x'));
+      expect(await namespace.get('acme.token'), const DVJsonString('x'));
+      expect(await namespace.keys(), <String>['acme.token']);
+      await namespace.set('acme.token', null);
+      expect(await namespace.get('acme.token'), isNull);
+    });
+
+    test('a handle refuses a key outside its prefix', () async {
+      DVWindowSharedStore.reserveNamespace('acme.');
+      final DVSharedStoreNamespace namespace = store.namespace('acme.');
+      expect(() => namespace.set('other.token', const DVJsonString('x')),
+          throwsA(isA<ArgumentError>()));
+      expect(() => namespace.get('dv.window.main'), throwsA(isA<ArgumentError>()));
+    });
+
+    test('a handle for a prefix nobody claimed is refused', () {
+      expect(() => store.namespace('nobody.'), throwsA(isA<StateError>()));
+    });
+
+    test('a sealed claim is refused while no application key can be had', () async {
+      DVWindowSharedStore.reserveNamespace('acme.', sealed: true);
+      expect(DVWindowSharedStore.sealedPrefixes, contains('acme.'));
+      final DVSharedStoreNamespace namespace = store.namespace('acme.');
+      await expectLater(namespace.set('acme.token', const DVJsonString('x')),
+          throwsA(isA<DVSharedStoreSealUnavailable>()));
+    });
+
+    test('releasing a claim hands the prefix back', () {
+      DVWindowSharedStore.reserveNamespace('acme.', sealed: true);
+      DVWindowSharedStore.releaseNamespace('acme.');
+      expect(DVWindowSharedStore.reservedPrefixes, isNot(contains('acme.')));
+      expect(DVWindowSharedStore.sealedPrefixes, isNot(contains('acme.')));
+    });
+
+    test('the framework reserves only its own namespaces by default', () {
+      expect(DVWindowSharedStore.reservedPrefixes, <String>['dv.', 'workspace.']);
+      expect(DVWindowSharedStore.sealedPrefixes, isEmpty);
+    });
+  });
 }

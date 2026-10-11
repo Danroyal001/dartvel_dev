@@ -1,10 +1,11 @@
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVCacheConfig, DVTelegramConfig;
+import 'package:dartvel_core/dartvel.dart' show DVCacheConfig;
 import 'package:dartvel_core/framework.dart' show DVCaptureConfig;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../build/runtime_packages.dart' show dvReadRuntimeSection;
 import '../utils/helpers.dart';
 import '../generators/primary_constructors.dart';
 
@@ -34,7 +35,7 @@ class DartvelConfig {
   /// `dartvel.cache`: where the generated server keeps `DV.Cache` entries.
   /// Null when the project names no store, which leaves them in memory.
   final DVCacheConfig? cache;
-  final DVTelegramConfig? telegram;
+  final Map<String, Object?>? telegram;
 
   /// `dartvel.capture`: where captured data models are delivered, or null
   /// when the project declares none. Parsed here, so a declaration the
@@ -145,7 +146,7 @@ class DartvelConfig {
       // DVCacheConfigException, DV-CACHE-001 to 003, for one it cannot.
       cache: DVCacheConfig.read(raw['cache']),
       capture: DVCaptureConfig.parse(raw['capture']),
-      telegram: raw['telegram'] == null ? null : DVTelegramConfig.fromMap((raw['telegram'] as Map).cast<Object?, Object?>()),
+      telegram: raw['telegram'] == null ? null : dvReadRuntimeSection('telegram', raw['telegram']),
     );
   }
 

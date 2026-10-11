@@ -243,9 +243,12 @@ development machine does not have.
 `telegram`, the terminal targets (`linux-cli`, `macos-cli`, `windows-cli`,
 `fuchsia-cli`, each also `-tui`) and `fuchsia` are targets Flutter does not
 officially support. From the release after 0.11.5 they are included in every Dartvel Cloud plan
-and are not part of the free install: `dartvel build visionos --cloud` builds
-one on Cloud, and `dartvel targets add pro` adds the private package that
-builds them on your machine. On a free install `dartvel build visionos` says
+and are not part of the free install, and neither are the runtime APIs that go
+with them (`DV.Platform.telegram`, Telegram sign-in and Stars, the XR runtime
+behind `DV.Window`, `DVTerminalSurface`, `DVBrowserExtension`), which live in
+the private `dartvel_runtimes_pro` package behind public extension points: `dartvel build visionos --cloud` builds
+one on Cloud, and `dartvel targets add pro` adds the private packages that
+build them, and provide those runtimes, on your machine. On a free install `dartvel build visionos` says
 which plan unlocks it and exits; it never fails with a stack trace, sends
 nothing anywhere, and puts no licence key in your app. Dartvel 0.11.5 and
 earlier built them in the open and remain MIT licensed. The extension point
