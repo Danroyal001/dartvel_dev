@@ -2,46 +2,34 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 // Shown, not whole: dartvel_core exports a Platform enum that would shadow
 // dart:io's Platform, which this file uses for environment and OS checks.
-import 'package:dartvel_core/dartvel.dart' show DVKioskTarget, DVXRConfig;
+import 'package:dartvel_core/dartvel.dart' show DVKioskTarget;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../build/deep_link_files.dart';
-import '../build/spatial_targets.dart';
+import '../build/build_target.dart';
+import '../build/target_packages.dart';
 import '../build/static_seo.dart' show dvGuardedRoutes;
-import '../utils/android_sdk.dart';
 import '../config/dartvel_config.dart';
 import '../doctor/kiosk_check.dart';
 import '../doctor/memory_check.dart';
 import '../doctor/module_check.dart';
 import '../doctor/project_layout_check.dart';
 import '../utils/logger.dart';
-import '../utils/toolchain.dart';
 import 'build_command.dart'
-    show
-        browserExtensionBuildPlatforms,
-        embeddedBuildPlatforms,
-        extensionBuildPlatforms,
-        normalizeBuildTarget,
-        terminalBuildPlan,
-        terminalBuildTargets;
+    show embeddedBuildPlatforms, dvTargetContextFor;
 
 /// Targets `dartvel doctor --target` accepts.
 ///
 /// Derived from the build command's own sets rather than restated, because a
 /// hand-maintained copy drifts: tvOS became an embedder target and could not
 /// be asked about, while the browser extensions had check logic that the
-/// option's allowlist made unreachable.
-final List<String> doctorTargets = <String>[
-  // Headsets: the Android SDK and aapt2 for horizon, Xcode on a Mac for
-  // visionos, and the dartvel.xr declaration both read.
-  ...spatialBuildPlatforms,
+/// option's allowlist made unreachable. A paid target is accepted so that
+/// asking about one says how to get it, and a target a package registered
+/// answers for itself.
+List<String> get doctorTargets => <String>[
   ...embeddedBuildPlatforms,
-  ...extensionBuildPlatforms,
-  ...browserExtensionBuildPlatforms,
-  // Terminal targets need the dartvel_cli_flt embedder, which is no more a plain
-  // Flutter SDK than flutter-tizen is. Third time this list drifted.
-  ...terminalBuildTargets,
+  for (final String name in <String>{...dvPaidTargets.keys, ...DVBuildTargets.names}) name,
   // Not a toolchain question. `flutter doctor` answers that for these two;
   // what it cannot answer is whether the site the deep links point at serves
   // the verification documents this application needs (DV-LINKS-002 to 004).
@@ -74,8 +62,9 @@ class DoctorCommand extends Command<void> {
       'target',
       allowed: doctorTargets,
       help:
-          'Validate the toolchain for an embedded, TV or extension build '
-          'target, or, for android and ios, the deep-link verification '
+          'Validate the toolchain for an embedded or TV build target, '
+          'answer for a paid target through its package (or say how to get '
+          'it), or, for android and ios, the deep-link verification '
           'documents the declared domains serve. Comma-separate several: '
           '--target android,ios.',
     );
@@ -258,16 +247,23 @@ class DoctorCommand extends Command<void> {
     Logger.log('Dartvel Doctor — target: $target');
     Logger.log('==================================================\n');
 
-    // Terminal targets answer from the build plan itself rather than from a
-    // second copy here. A doctor that names a different executable from the
-    // one the build runs is worse than no doctor: it reports ready for
-    // something that will not build.
-    if (terminalBuildTargets.contains(target)) {
-      await _checkTerminalToolchain(target);
+    // A target a package provides answers from the package, which knows what
+    // its build runs; without the package, say how to get it.
+    final DVBuildTarget? packaged = DVBuildTargets.lookup(target);
+    if (packaged != null) {
+      await packaged.doctor(dvTargetContextFor(root ?? Directory.current.path));
       return;
     }
-    if (spatialBuildPlatforms.contains(target)) {
-      await _checkSpatialToolchain(target);
+    if (dvPaidTargets.containsKey(target)) {
+      final String project = root ?? Directory.current.path;
+      final DVTargetPackage? provider = dvTargetPackageFor(project, target);
+      if (provider != null && !dvIsDelegatedRun()) {
+        exitCode = await dvDelegateToTargetPackage(
+            provider, <String>['doctor', '--target', target],
+            projectRoot: project);
+        return;
+      }
+      Logger.log('[!] ${dvTargetRefusal(target)}');
       return;
     }
 
@@ -277,25 +273,9 @@ class DoctorCommand extends Command<void> {
       'sony-elinux' => 'flutter-elinux',
       'webos' => 'flutter-webos',
       'tvos' => 'flutter-tvos',
-      // The Fuchsia embedder is a checkout driven by its own scripts, not a
-      // Flutter CLI wrapper on PATH.
-      // The script the build runs, so doctor and build agree about what has
-      // to be present. Reporting a different file answers a different
-      // question from "can this target build".
-      'fuchsia' =>
-        '${dartvelToolchainRoot(Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '')}'
-            '/dartvel_fuchsia/$fuchsiaAppBuildScript',
-      'vscode' => 'npm',
-      // A browser extension is Flutter web output plus a generated manifest,
-      // so the web toolchain is the whole requirement.
-      'chrome-extension' || 'firefox-extension' => 'flutter',
       _ => 'flutter',
     };
-    final label = switch (target) {
-      'vscode' => 'toolchain',
-      'chrome-extension' || 'firefox-extension' => 'toolchain',
-      _ => 'embedder',
-    };
+    const label = 'embedder';
 
     final available = await _isExecutableAvailable(executable);
     if (available) {
@@ -303,16 +283,8 @@ class DoctorCommand extends Command<void> {
       Logger.log('\n[+] Target $target looks ready to build.');
     } else {
       Logger.log('[!] $target $label: $executable not found on PATH');
-      Logger.log(switch (target) {
-        'vscode' =>
-          '    Install Node.js/npm before running `dartvel build vscode`.',
-        'chrome-extension' || 'firefox-extension' =>
-          '    Install Flutter with web support before running '
-              '`dartvel build $target`.',
-        _ =>
-          '    Install the $target Flutter embedder before running '
-              '`dartvel build $target`.',
-      });
+      Logger.log('    Install the $target Flutter embedder before running '
+          '`dartvel build $target`.');
     }
 
     if (target == 'sony-elinux') {
@@ -376,85 +348,6 @@ class DoctorCommand extends Command<void> {
     } catch (_) {}
     Logger.log('[!] Git: Not found (recommended for version control)');
     return true; // Not critical
-  }
-
-  /// `dartvel doctor --target horizon|visionos`: what the build needs, asked
-  /// the way the build asks it, and whether `dartvel.xr` reads.
-  Future<void> _checkSpatialToolchain(String target) async {
-    var ready = true;
-    final File pubspec = File(p.join(root ?? Directory.current.path, 'pubspec.yaml'));
-    if (pubspec.existsSync()) {
-      try {
-        final Object? document = loadYaml(pubspec.readAsStringSync());
-        final Object? dartvel = document is Map ? document['dartvel'] : null;
-        final DVXRConfig config = DVXRConfig.parse(dartvel is Map ? dartvel['xr'] : null);
-        if (config.problems.isEmpty) {
-          Logger.log('[+] dartvel.xr: a ${config.panel.width}x${config.panel.height} dp panel'
-              '${target == 'horizon' ? ' for ${config.horizonSupportedDevices}' : ''}');
-        } else {
-          ready = false;
-          for (final String problem in config.problems) {
-            Logger.log('[!] $problem');
-          }
-        }
-      } on Object catch (error) {
-        ready = false;
-        Logger.log('[!] pubspec.yaml does not read: $error');
-      }
-    }
-    if (target == 'horizon') {
-      if (dvAndroidSdkInstalled()) {
-        Logger.log('[+] horizon toolchain: Android SDK found');
-      } else {
-        ready = false;
-        Logger.log('[!] horizon toolchain: no Android SDK. Install it and set '
-            'ANDROID_HOME (https://developer.android.com/studio).');
-      }
-      final String? aapt2 = dvLocateAapt2();
-      if (aapt2 != null) {
-        Logger.log('[+] horizon APK check: $aapt2');
-      } else {
-        Logger.log('[!] horizon APK check: no aapt2 in the SDK build-tools, so '
-            'the built APK cannot be checked against the Horizon Store rules.');
-      }
-    } else {
-      if (!Platform.isMacOS) {
-        ready = false;
-        Logger.log('[!] visionos builds on macOS with Xcode: it is the iOS '
-            'build Vision Pro runs as Designed for iPad.');
-      } else if (await _isExecutableAvailable('xcodebuild')) {
-        Logger.log('[+] visionos toolchain: xcodebuild found');
-        final ProcessResult sdks =
-            await Process.run('xcodebuild', const <String>['-showsdks'], runInShell: true);
-        Logger.log('${sdks.stdout}'.contains('xrsimulator')
-            ? '[+] visionOS simulator SDK installed, for trying the build in a Vision Pro simulator'
-            : '[i] No visionOS simulator SDK. The build does not need it; trying it in a '
-                'Vision Pro simulator does (Xcode > Settings > Components).');
-      } else {
-        ready = false;
-        Logger.log('[!] visionos toolchain: xcodebuild not found. Install Xcode.');
-      }
-    }
-    Logger.log(ready
-        ? '\n[+] Target $target looks ready to build.'
-        : '\n[!] Target $target is not ready to build.');
-  }
-
-  Future<void> _checkTerminalToolchain(String target) async {
-    final plan = terminalBuildPlan(normalizeBuildTarget(target).platform);
-    final available = await _isExecutableAvailable(plan.toolchain);
-    if (available) {
-      Logger.log('[+] $target embedder: ${plan.toolchain} found');
-      Logger.log('\n[+] Target $target looks ready to build.');
-      return;
-    }
-    Logger.log('[!] $target embedder: ${plan.toolchain} not found on PATH');
-    Logger.log(
-      '    Terminal rendering uses the dartvel_cli_flt embedder, which renders '
-      'from Rust through the Kitty graphics protocol. `flutter build '
-      '${plan.platform}` cannot produce a terminal binary, so this target is '
-      'skipped rather than substituted.',
-    );
   }
 
   Future<void> _checkShorebird() async {

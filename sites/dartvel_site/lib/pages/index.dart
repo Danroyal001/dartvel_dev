@@ -88,7 +88,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
     const DVText(
       'You write pages, data models and backend functions. Dartvel generates '
       'the routes, forms, typed client and API server, and builds the app for '
-      'phones, desktops, the web, TVs and browser extensions.',
+      'phones, desktops, the web and TVs.',
     ).modifier(
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 17, desktop: 20))
@@ -490,14 +490,13 @@ Widget _targets(BuildContext context) => Section(
   dark: true,
   children: <Widget>[
     const Eyebrow('BUILD TARGETS', onDark: true),
-    const Heading('Sixteen targets build today.', onDark: true),
+    const Heading('Eleven targets build today.', onDark: true),
     DVBox.wrapLine(<Widget>[
       // Named the way you type them after dartvel build, and checked against
       // docs/build-targets.md by platform_breadth_test.dart.
       for (final String target in const <String>[
         'web',
         'web-server',
-        'telegram',
         'android',
         'ios',
         'macos',
@@ -505,29 +504,40 @@ Widget _targets(BuildContext context) => Section(
         'linux',
         'fireos',
         'tvos',
-        'horizon',
         'tizen',
         'sony-elinux',
-        'vscode',
+      ])
+        SiteChip(target, onDark: true),
+    ], spacing: 8),
+    const Bullets(onDark: true, <String>[
+      'These come with a Dartvel Cloud plan: targets Flutter does not '
+          'officially support.',
+    ]),
+    DVBox.wrapLine(<Widget>[
+      for (final String target in const <String>[
+        'visionos',
+        'horizon',
         'chrome-extension',
         'firefox-extension',
+        'vscode',
+        'telegram',
+        'linux-cli',
       ])
         SiteChip(target, onDark: true),
     ], spacing: 8),
     const Bullets(onDark: true, <String>[
       'Verified means the build ran and its output was inspected.',
-      'Terminal apps build for Linux. webOS, Fuchsia and terminal apps on macOS and '
-          'Windows are in progress.',
+      'webOS is in progress.',
     ]),
     const UpstreamCredits(
       onDark: true,
       ids: <String>[
-        'tvos', 'tizen', 'elinux', 'vscode', 'webos', 'fuchsia', 'flt',
+        'tvos', 'tizen', 'elinux', 'webos',
       ],
     ),
     const Stats(onDark: true, <Figure>[
-      Figure('16', 'targets that build'),
-      Figure('4', 'targets in progress'),
+      Figure('11', 'targets that build'),
+      Figure('1', 'target in progress'),
       Figure('6', 'packages on pub.dev'),
     ]),
     const ExternalLink('Check the build log for each target', kBuildTargetsUrl,

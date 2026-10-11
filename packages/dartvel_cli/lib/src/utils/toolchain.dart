@@ -77,27 +77,11 @@ class ToolRequirement {
 /// Where Dartvel installs toolchains it manages itself.
 String dartvelToolchainRoot(String home) => '$home/.dartvel/toolchains';
 
-/// The terminal embedder binary under the toolchain [root].
-///
-/// Where `cargo install --root <root>/dartvel_cli_flt --bin dartvel-cli-flt`
-/// writes it, which on Windows carries `.exe`. A bare name there would be
-/// reported missing while installed, and the build would skip.
-String terminalEmbedderExecutable(String root, {String? hostOs}) =>
-    '$root/dartvel_cli_flt/bin/dartvel-cli-flt'
-    '${(hostOs ?? Platform.operatingSystem) == 'windows' ? '.exe' : ''}';
-
-/// A Dartvel app is an ordinary Flutter package, so nothing Dartvel-specific
-/// is handed to the embedder: this is the same entry point a plain
-/// `flutter create` app uses, and the fork keeps it that way so it stays a
-/// general embedder rather than a Dartvel one.
-const String fuchsiaAppBuildScript = 'scripts/build_flutter_app.sh';
-
-
 /// The tools [platform] needs, beyond a working Flutter SDK.
 ///
 /// Repository names and executable names differ on purpose: the Dartvel forks
-/// are `dartvel_tizen`, `dartvel_elinux`, `dartvel_webos`, `dartvel_tvos` and
-/// `dartvel_fuchsia`, but the binaries inside them are upstream's own
+/// are `dartvel_tizen`, `dartvel_elinux`, `dartvel_webos` and `dartvel_tvos`,
+/// but the binaries inside them are upstream's own
 /// `flutter-tizen`, `flutter-elinux`, `flutter-webos` and `flutter-tvos`.
 /// Renaming those would mean patching every vendor script and would break
 /// tracking upstream.
@@ -117,22 +101,8 @@ List<ToolRequirement> toolRequirementsFor(
       // Flutter's own web toolchain; nothing extra to install.
       return const <ToolRequirement>[];
 
-    case 'vscode':
-      return const <ToolRequirement>[
-        ToolRequirement(
-          executable: 'npm',
-          name: 'Node.js/npm',
-          installHint:
-              'Install Node.js with npm. Dartvel uses npm to install and '
-              'compile the generated VS Code extension host package.',
-        ),
-      ];
-
     case 'android':
     case 'fireos':
-    // Horizon OS is the Android build; aapt2, which checks the APK, ships in
-    // the SDK's build-tools.
-    case 'horizon':
       return const <ToolRequirement>[
         ToolRequirement(
           executable: 'sdkmanager',
@@ -205,8 +175,6 @@ List<ToolRequirement> toolRequirementsFor(
 
     case 'macos':
     case 'ios':
-    // Vision Pro runs the iOS build as Designed for iPad.
-    case 'visionos':
       return const <ToolRequirement>[
         ToolRequirement(
           executable: 'xcodebuild',
@@ -294,97 +262,6 @@ List<ToolRequirement> toolRequirementsFor(
           installHint:
               'Build them with the `Embedder artifacts` workflow and unpack '
               'the result into $root/dartvel_elinux/artifacts.',
-        ),
-      ];
-
-    // Terminal rendering. One embedder for every -cli/-tui target, since the
-    // suffix chooses a presentation rather than a platform.
-    case 'linux-cli' || 'linux-tui':
-    case 'windows-cli' || 'windows-tui':
-    case 'macos-cli' || 'macos-tui':
-    case 'fuchsia-cli' || 'fuchsia-tui':
-      return <ToolRequirement>[
-        ToolRequirement(
-          // An absolute path under the Dartvel toolchain root, not a bare
-          // name. A bare name is looked up on PATH, and a plan naming a
-          // command that nothing installs is how the Fuchsia target stayed
-          // green for weeks while being unbuildable.
-          executable: terminalEmbedderExecutable(root, hostOs: hostOs),
-          name: 'Dartvel terminal embedder (dartvel_cli_flt)',
-          installHint:
-              'git clone --depth 1 https://github.com/Danroyal001/dartvel_cli_flt.git '
-              '$root/dartvel_cli_flt/src, then cargo install --path '
-              '$root/dartvel_cli_flt/src/flt-cli --bin dartvel-cli-flt --root '
-              '$root/dartvel_cli_flt — needs a Rust toolchain.',
-          // A clone and a build rather than `cargo install --git`: the binary
-          // belongs to the flt-cli package, and at run time it builds the
-          // embedder from the checkout it was installed from, so the checkout
-          // has to be one that stays. Without the Flutter submodule the fork
-          // links the engine of the flutter on PATH, the one that builds the
-          // bundle.
-          installCommand: <String>[
-            'git',
-            'clone',
-            '--depth',
-            '1',
-            'https://github.com/Danroyal001/dartvel_cli_flt.git',
-            '$root/dartvel_cli_flt/src',
-          ],
-          postInstall: <String>[
-            'cargo',
-            'install',
-            '--path',
-            '$root/dartvel_cli_flt/src/flt-cli',
-            '--bin',
-            'dartvel-cli-flt',
-            '--root',
-            '$root/dartvel_cli_flt',
-          ],
-        ),
-      ];
-
-    case 'fuchsia':
-      return <ToolRequirement>[
-        ToolRequirement(
-          // Not a PATH executable like the other embedders: the Fuchsia
-          // embedder is a Bazel workspace driven by scripts inside its own
-          // checkout, so what has to be present is the checkout itself.
-          //
-          // Specifically the script the *build* runs, not the one that sets
-          // the checkout up. Checking bootstrap.sh passed for a checkout that
-          // could not perform a build, which is the shape of "reports ready
-          // and cannot build" that the Build Toolchain Rule exists to stop.
-          // postInstall below still runs bootstrap.sh; it is an installation
-          // step rather than the thing whose absence should block a build.
-          executable: '$root/dartvel_fuchsia/$fuchsiaAppBuildScript',
-          name: 'Fuchsia Flutter embedder',
-          installHint:
-              'git clone https://github.com/Danroyal001/dartvel_fuchsia.git '
-              'and run its scripts/bootstrap.sh.',
-          installCommand: <String>[
-            'git',
-            'clone',
-            '--depth',
-            '1',
-            // Deliberately not --recurse-submodules: combined with --depth 1
-            // it fails, because a shallow submodule fetch only gets the tip
-            // and googletest is pinned off-tip. bootstrap.sh below initialises
-            // them unshallowed, which is the mechanism that works.
-            'https://github.com/Danroyal001/dartvel_fuchsia.git',
-            '$root/dartvel_fuchsia',
-          ],
-          // A clone is not an install here. The bootstrap initialises the
-          // submodules and produces tools/bazel; --build-only stops it before
-          // the SSH keys, git hooks and the multi-gigabyte emulator image,
-          // which exist for running on a device rather than producing one.
-          postInstall: <String>[
-            '$root/dartvel_fuchsia/scripts/bootstrap.sh',
-            '--build-only',
-          ],
-          postInstallEnvironment: <String, String>{
-            'FUCHSIA_EMBEDDER_DIR': '$root/dartvel_fuchsia',
-          },
-          pathHint: '$root/dartvel_fuchsia/tools',
         ),
       ];
 

@@ -36,12 +36,9 @@ on:
         required: false
         default: linux
         type: choice
-        # fuchsia is here for the one target still recorded as blocked. Its
-        # embedder fork bundles a Flutter older than Dart 3.4, and bootstrap.sh
-        # requires the engine and the Flutter pin stay aligned, so moving off
-        # that pin means building the engine rather than downloading one --
-        # Flutter publishes no Fuchsia embedder artifact at any revision.
-        options: [linux, fuchsia]
+        # Linux only. The Fuchsia engine moved with the Fuchsia target to the
+        # paid targets package.
+        options: [linux]
       arch:
         description: Target CPU
         required: false

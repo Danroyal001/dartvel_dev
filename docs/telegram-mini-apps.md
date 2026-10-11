@@ -1,5 +1,11 @@
 # Telegram Mini Apps
 
+> **`telegram` is a paid target** from the release after 0.11.5: `dartvel build
+> telegram` and `dartvel dev telegram` come with any Dartvel Cloud plan through
+> the private `dartvel_targets_pro` package (`dartvel targets add pro`). The
+> runtime API below is still part of the free framework, so a web build can
+> load Telegram's SDK itself; the free CLI no longer adds it.
+
 `dartvel build telegram` compiles the application's ordinary web renderer and
 writes `build/web`. `dartvel dev telegram` runs the Flutter web-server device
 with the official Telegram SDK in the existing web shell. Every page retains
@@ -17,9 +23,10 @@ dartvel:
 
 The generated client exports `DartvelConfig.telegram`, a `DVTelegramConfig`.
 Unknown fields, including bot tokens, are refused. Required permissions are
-metadata: request contact/write consent from a user action. With this section,
-`dartvel build web-server` carries the same SDK and serves Mini Apps at each
-route's URL. Builds with no Telegram configuration do not install the SDK.
+metadata: request contact/write consent from a user action. Before the
+target moved, declaring this section also put the SDK into `dartvel build web`
+and `web-server` output; the free CLI no longer does, and plain web builds
+never install it.
 
 Create a bot in [BotFather](https://t.me/BotFather), then use `/newapp` to register
 a named Mini App, or configure the main Mini App under `/mybots`. Set the menu
