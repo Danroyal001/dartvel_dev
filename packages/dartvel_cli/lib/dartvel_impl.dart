@@ -39,6 +39,7 @@ import 'src/commands/plugin_command.dart';
 import 'src/commands/prerender_command.dart';
 import 'src/commands/preview_command.dart';
 import 'src/commands/privacy_command.dart';
+import 'src/commands/store_command.dart';
 import 'src/commands/queue_command.dart';
 import 'src/commands/routes_command.dart';
 import 'src/commands/shell_command.dart';
@@ -105,6 +106,7 @@ DartvelCommandRunner dartvelCommandRunner() =>
       ..addCommand(PreviewCommand())
       ..addCommand(PrerenderCommand())
       ..addCommand(PrivacyCommand())
+      ..addCommand(StoreCommand())
       ..addCommand(PluginCommand())
       ..addCommand(AddCommand())
       ..addCommand(ModulesCommand())

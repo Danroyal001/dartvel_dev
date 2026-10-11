@@ -26,11 +26,26 @@
 library dartvel_cli.build.android_billing_bridge;
 
 import 'package:dartvel_core/dartvel.dart'
-    show dvAndroidBillingBridgeClass, dvAndroidBillingLibrary;
+    show DVPlayStoreConfig, dvAndroidBillingBridgeClass, dvAndroidBillingLibrary;
 
 /// Where the bridge is written, relative to the project root.
 const String dvAndroidBillingBridgePath =
     'android/app/src/main/java/$dvAndroidBillingBridgeClass.java';
+
+/// `dartvel.purchases.play`, or null when the project declares none.
+///
+/// Throws a [StateError] for a setting Dartvel does not read: a build that
+/// is going to refuse every Play notification must stop before it ships.
+DVPlayStoreConfig? dvPurchasesPlayConfig(Object? dartvelSection) {
+  if (dartvelSection is! Map) return null;
+  final Object? purchases = dartvelSection['purchases'];
+  if (purchases is! Map) return null;
+  try {
+    return DVPlayStoreConfig.maybeParse(purchases['play']);
+  } on ArgumentError catch (error) {
+    throw StateError('pubspec.yaml: ${error.message}');
+  }
+}
 
 /// Whether [dartvelSection] (the pubspec's `dartvel:` map) declares
 /// purchases: a map of settings, or `true`.
