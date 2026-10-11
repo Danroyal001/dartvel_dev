@@ -254,6 +254,7 @@ export 'src/modules/modules.dart';
 // written, tested through a src/ import, and callable by no application.
 export 'src/notifications/fcm.dart';
 export 'src/notifications/push.dart';
+export 'src/notifications/push_config.dart';
 export 'src/notifications/push_exception.dart';
 export 'src/notifications/web_push.dart';
 export 'src/notifications/web_push_vapid.dart';
