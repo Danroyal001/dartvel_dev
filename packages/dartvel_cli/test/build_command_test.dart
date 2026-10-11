@@ -4,7 +4,6 @@ import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/build_command.dart';
 import 'package:dartvel_cli/src/utils/toolchain.dart';
 import 'package:dartvel_core/dartvel.dart' show DVImageVariants;
-import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -370,18 +369,6 @@ void main() {
       }
     });
 
-    test('Fuchsia has no scaffold: it stages the app into a Bazel workspace',
-        () {
-      final plan = resolveEmbeddedBuildPlan(
-        platform: 'fuchsia',
-        buildMode: '--release',
-        arch: 'x64',
-      );
-
-      expect(plan, isNotNull);
-      expect(plan!.scaffoldDirectory, isNull);
-    });
-
     test('returns null for non-embedded platforms', () {
       expect(
         resolveEmbeddedBuildPlan(
@@ -399,7 +386,8 @@ void main() {
       expect(allBuildPlatforms, contains('tizen'));
       expect(allBuildPlatforms, contains('sony-elinux'));
       expect(allBuildPlatforms, contains('webos'));
-      expect(allBuildPlatforms, contains('vscode'));
+      // A paid target is never part of a free 'all'.
+      expect(allBuildPlatforms, isNot(contains('vscode')));
       expect(allBuildPlatforms, isNot(contains('sony-elinux-iso')));
       expect(allBuildPlatforms, isNot(contains('sony-elinux-img')));
     });
@@ -501,112 +489,9 @@ void main() {
       }
     });
 
-    test('a terminal target builds where its base platform builds', () {
-      // The embedder links a host engine and does not cross-build, so the
-      // answer is the base platform's. Asked as linux-cli, because preflight
-      // has to be asked under that name to check the embedder at all.
-      expect(isPlatformAvailableOn('linux-cli', 'linux'), isTrue);
-      expect(isPlatformAvailableOn('linux-tui', 'linux'), isTrue);
-      expect(isPlatformAvailableOn('linux-cli', 'macos'), isFalse);
-      expect(isPlatformAvailableOn('windows-cli', 'linux'), isFalse);
-    });
-  });
-
-  group('validateVSCodeArtifacts', () {
-    test('requires extension JavaScript and Flutter webview assets', () {
-      final temp = Directory.systemTemp.createTempSync('dartvel_vscode_test_');
-      try {
-        final buildStartedAt = DateTime.now();
-        var validation =
-            validateVSCodeArtifacts(temp.path, since: buildStartedAt);
-        expect(validation.isValid, isFalse);
-        expect(
-          validation.missing,
-          containsAll(<String>[
-            'compiled extension host JavaScript under out/ or dist/',
-            'build/web/flutter_bootstrap.js',
-            'build/web/assets/',
-          ]),
-        );
-
-        Directory('${temp.path}/out').createSync();
-        File('${temp.path}/out/extension.js').writeAsStringSync('compiled');
-        Directory('${temp.path}/build/web/assets').createSync(recursive: true);
-        File('${temp.path}/build/web/assets/AssetManifest.json')
-            .writeAsStringSync('{}');
-        File('${temp.path}/build/web/flutter_bootstrap.js')
-            .writeAsStringSync('boot');
-
-        validation = validateVSCodeArtifacts(temp.path, since: buildStartedAt);
-        expect(validation.isValid, isTrue);
-        expect(validation.missing, isEmpty);
-      } finally {
-        temp.deleteSync(recursive: true);
-      }
-    });
-
-    test('rejects stale artifacts from a previous build', () {
-      final temp = Directory.systemTemp.createTempSync('dartvel_vscode_test_');
-      try {
-        Directory('${temp.path}/out').createSync();
-        final extension = File('${temp.path}/out/extension.js')
-          ..writeAsStringSync('old');
-        Directory('${temp.path}/build/web/assets').createSync(recursive: true);
-        final asset = File('${temp.path}/build/web/assets/AssetManifest.json')
-          ..writeAsStringSync('{}');
-        final bootstrap = File('${temp.path}/build/web/flutter_bootstrap.js')
-          ..writeAsStringSync('boot');
-        final oldTime = DateTime(2000);
-        extension.setLastModifiedSync(oldTime);
-        asset.setLastModifiedSync(oldTime);
-        bootstrap.setLastModifiedSync(oldTime);
-
-        final validation = validateVSCodeArtifacts(
-          temp.path,
-          since: DateTime(2026),
-        );
-
-        expect(validation.isValid, isFalse);
-        expect(
-          validation.missing,
-          containsAll(<String>[
-            'compiled extension host JavaScript under out/ or dist/',
-            'build/web/flutter_bootstrap.js',
-            'build/web/assets/',
-          ]),
-        );
-      } finally {
-        temp.deleteSync(recursive: true);
-      }
-    });
   });
 
   group('BuildCommand', () {
-    test('a terminal build is preflighted under its own name, so the embedder is checked', () async {
-      // Preflighted as plain linux, the embedder was never among the missing
-      // tools, never installed, and the terminal build skipped on every
-      // machine that did not already have it.
-      final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
-      final preflightPlatforms = <String>[];
-      final command = BuildCommand(
-        root: temp.path,
-        preflight: (String platform, {bool? autoInstall}) async {
-          preflightPlatforms.add(platform);
-          return false;
-        },
-        processRun: (String executable, List<String> arguments,
-                {String? workingDirectory, bool runInShell = false}) async =>
-            ProcessResult(0, 0, '', ''),
-        hasBuildRunner: (String root) => false,
-      );
-      try {
-        await (CommandRunner<void>('dartvel', 'test')..addCommand(command))
-            .run(<String>['build', 'linux-tui']);
-      } finally {
-        temp.deleteSync(recursive: true);
-      }
-      expect(preflightPlatforms, <String>['linux-cli']);
-    });
 
     test('skips generation when target preflight skips every platform',
         () async {
@@ -675,192 +560,6 @@ void main() {
       ]);
     });
 
-    test('builds vscode extension after dartvel generation', () async {
-      final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
-      final oldExitCode = exitCode;
-      final processInvocations = <String>[];
-      final command = BuildCommand(
-        root: temp.path,
-        preflight: (String platform, {bool? autoInstall}) async => true,
-        processRun: (
-          String executable,
-          List<String> arguments, {
-          String? workingDirectory,
-          bool runInShell = false,
-        }) async {
-          processInvocations.add(<String>[executable, ...arguments].join(' '));
-          if (executable == 'npm' &&
-              arguments.length == 2 &&
-              arguments[0] == 'run' &&
-              arguments[1] == 'compile') {
-            final root = workingDirectory ?? temp.path;
-            Directory('$root/out').createSync(recursive: true);
-            File('$root/out/extension.js').writeAsStringSync('compiled');
-            Directory('$root/build/web/assets').createSync(recursive: true);
-            File('$root/build/web/assets/AssetManifest.json')
-                .writeAsStringSync('{}');
-            File('$root/build/web/flutter_bootstrap.js')
-                .writeAsStringSync('boot');
-          }
-          return ProcessResult(0, 0, '', '');
-        },
-        hasBuildRunner: (String root) => true,
-      );
-      final runner = CommandRunner<void>('dartvel', 'test')
-        ..addCommand(command);
-      int? observedExitCode;
-
-      try {
-        File('${temp.path}/pubspec.yaml').writeAsStringSync('''
-name: vscode_app
-dependencies:
-  flutter_vscode: ^0.0.1
-dev_dependencies:
-  build_runner: ^2.5.4
-''');
-        await runner.run(<String>['build', 'vscode']);
-        observedExitCode = exitCode;
-      } finally {
-        temp.deleteSync(recursive: true);
-        exitCode = oldExitCode;
-      }
-
-      expect(observedExitCode, oldExitCode);
-      expect(processInvocations, <String>[
-        'dart run dartvel_cli:dartvel routes --render gui',
-        'dart run build_runner build --delete-conflicting-outputs',
-        'dart run flutter_vscode:generate_vscode_extension',
-        'flutter pub get',
-        'npm install',
-        'npm run compile',
-      ]);
-    });
-
-    test('vscode build fails before scaffold commands without build_runner',
-        () async {
-      final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
-      final oldExitCode = exitCode;
-      final processInvocations = <String>[];
-      final command = BuildCommand(
-        root: temp.path,
-        preflight: (String platform, {bool? autoInstall}) async => true,
-        processRun: (
-          String executable,
-          List<String> arguments, {
-          String? workingDirectory,
-          bool runInShell = false,
-        }) async {
-          processInvocations.add(<String>[executable, ...arguments].join(' '));
-          return ProcessResult(0, 0, '', '');
-        },
-        hasBuildRunner: (String root) => false,
-      );
-      final runner = CommandRunner<void>('dartvel', 'test')
-        ..addCommand(command);
-
-      try {
-        File('${temp.path}/pubspec.yaml').writeAsStringSync('''
-name: vscode_app
-dependencies:
-  flutter_vscode: ^0.0.1
-''');
-        await runner.run(<String>['build', 'vscode']);
-        expect(exitCode, 1);
-      } finally {
-        temp.deleteSync(recursive: true);
-        exitCode = oldExitCode;
-      }
-
-      expect(processInvocations, <String>[
-        'dart run dartvel_cli:dartvel routes --render gui',
-      ]);
-    });
-
-    test('vscode build fails when compile exits without artifacts', () async {
-      final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
-      final oldExitCode = exitCode;
-      final processInvocations = <String>[];
-      final command = BuildCommand(
-        root: temp.path,
-        preflight: (String platform, {bool? autoInstall}) async => true,
-        processRun: (
-          String executable,
-          List<String> arguments, {
-          String? workingDirectory,
-          bool runInShell = false,
-        }) async {
-          processInvocations.add(<String>[executable, ...arguments].join(' '));
-          return ProcessResult(0, 0, '', '');
-        },
-        hasBuildRunner: (String root) => true,
-      );
-      final runner = CommandRunner<void>('dartvel', 'test')
-        ..addCommand(command);
-
-      try {
-        File('${temp.path}/pubspec.yaml').writeAsStringSync('''
-name: vscode_app
-dependencies:
-  flutter_vscode: ^0.0.1
-dev_dependencies:
-  build_runner: ^2.5.4
-''');
-        await runner.run(<String>['build', 'vscode']);
-        expect(exitCode, 1);
-      } finally {
-        temp.deleteSync(recursive: true);
-        exitCode = oldExitCode;
-      }
-
-      expect(processInvocations, <String>[
-        'dart run dartvel_cli:dartvel routes --render gui',
-        'dart run build_runner build --delete-conflicting-outputs',
-        'dart run flutter_vscode:generate_vscode_extension',
-        'flutter pub get',
-        'npm install',
-        'npm run compile',
-      ]);
-    });
-
-    test('vscode build fails before scaffold commands without flutter_vscode',
-        () async {
-      final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
-      final oldExitCode = exitCode;
-      final processInvocations = <String>[];
-      final command = BuildCommand(
-        root: temp.path,
-        preflight: (String platform, {bool? autoInstall}) async => true,
-        processRun: (
-          String executable,
-          List<String> arguments, {
-          String? workingDirectory,
-          bool runInShell = false,
-        }) async {
-          processInvocations.add(<String>[executable, ...arguments].join(' '));
-          return ProcessResult(0, 0, '', '');
-        },
-        hasBuildRunner: (String root) => false,
-      );
-      final runner = CommandRunner<void>('dartvel', 'test')
-        ..addCommand(command);
-
-      try {
-        File('${temp.path}/pubspec.yaml').writeAsStringSync('''
-name: vscode_app
-dependencies:
-  flutter:
-    sdk: flutter
-''');
-        await runner.run(<String>['build', 'vscode']);
-      } finally {
-        temp.deleteSync(recursive: true);
-        exitCode = oldExitCode;
-      }
-
-      expect(processInvocations, <String>[
-        'dart run dartvel_cli:dartvel routes --render gui',
-      ]);
-    });
   });
 
   buildTimeoutTests();
@@ -869,76 +568,7 @@ dependencies:
   terminalOptInTests();
   everyBuildPathIsBoundedTests();
 
-  group('fuchsia', () {
-    test('is an embedded target, not a Flutter-path one', () {
-      expect(embeddedBuildPlatforms, contains('fuchsia'));
-      expect(isPlatformAvailableOn('fuchsia', 'linux'), isFalse);
-    });
-
-    test('its embedder builds on Linux only', () {
-      // The embedder's own README states it cannot be built on macOS or
-      // Windows natively, so those hosts skip rather than fail mid-build.
-      expect(embeddedHostRequirement('fuchsia'), 'linux');
-      expect(embeddedHostRequirement('tizen'), isNull);
-      expect(embeddedHostRequirement('webos'), isNull);
-      expect(embeddedHostRequirement('sony-elinux'), isNull);
-    });
-
-    test('the build plan drives the embedder script, not a flutter wrapper',
-        () {
-      // Unlike flutter-tizen or flutter-webos there is no embedder binary:
-      // the Fuchsia embedder is a Bazel workspace with its own script.
-      final plan = resolveEmbeddedBuildPlan(
-        platform: 'fuchsia',
-        buildMode: '--release',
-        arch: 'x64',
-        appPath: '/work/my_app',
-        toolchainHome: '/home/dev',
-      );
-
-      expect(plan, isNotNull);
-      // An absolute path into the checkout, not a bare name. This test used to
-      // assert the name `dartvel_fuchsia` — which is nothing that is ever
-      // installed, so the build could only ever skip. The plan was shaped
-      // right and unrunnable, and asserting the shape did not catch it.
-      expect(plan!.executable,
-          '/home/dev/.dartvel/toolchains/dartvel_fuchsia/$fuchsiaAppBuildScript');
-      expect(p.isAbsolute(plan.executable), isTrue);
-      expect(plan.arguments, containsAllInOrder(<String>['--cpu', 'x64']));
-      // The embedder's scripts locate their workspace through this variable
-      // and refuse to run without it. Dartvel installed the checkout, so it
-      // knows the answer and should not ask the developer to edit a profile.
-      expect(plan.environment['FUCHSIA_EMBEDDER_DIR'],
-          '/home/dev/.dartvel/toolchains/dartvel_fuchsia');
-    });
-
-    test('the app is passed by path, so nothing Dartvel-specific is handed '
-        'to the embedder', () {
-      // A Dartvel app is an ordinary Flutter package. The embedder stays a
-      // general one: the same script serves a plain `flutter create` app.
-      final plan = resolveEmbeddedBuildPlan(
-        platform: 'fuchsia',
-        buildMode: '--release',
-        arch: 'x64',
-        appPath: '/work/my_app',
-        toolchainHome: '/home/dev',
-      );
-
-      expect(plan!.arguments, contains('/work/my_app'));
-      expect(plan.arguments.join(' '), isNot(contains('dartvel_app')));
-    });
-
-    test('defaults to x64, because that is the only engine the embedder ships',
-        () {
-      // --arch defaults to arm64 for TVs and embedded boards. Fuchsia has an
-      // x64 prebuilt engine only, so inheriting that default made a plain
-      // `dartvel build fuchsia` fail with "no arm64 engine in
-      // src/embedder/engine/debug_arm64" without anyone choosing arm64.
-      expect(resolveEmbeddedArch('fuchsia', 'arm64'), 'x64');
-      expect(resolveEmbeddedArch('tizen', 'arm64'), 'arm64');
-      expect(resolveEmbeddedArch('sony-elinux', 'arm64'), 'arm64');
-    });
-
+  group('resolveEmbeddedArch', () {
     test('sony-elinux defaults to the host, the one arch it can assemble', () {
       // The bundle is assembled from the host's own desktop build, which does
       // not cross-compile, so the arm64 default refused every plain
@@ -952,39 +582,9 @@ dependencies:
       expect(resolveEmbeddedArch('tizen', 'arm64', host: 'x64'), 'arm64');
     });
 
-    test('an explicit --arch still wins, engine present or not', () {
-      // Someone who has built an arm64 engine should be able to use it, and
-      // the embedder says so clearly enough if they have not.
-      expect(resolveEmbeddedArch('fuchsia', 'arm64', explicit: true), 'arm64');
-    });
-
-    test('asks the embedder to build, not to run', () {
-      // The fork's build_flutter_app.sh otherwise hands off to
-      // build_and_run_example.sh, which starts a package server and bazel-runs
-      // the component through ffx. There is no device in CI and no ffx on a
-      // runner, so without this the build does all its work and then fails at
-      // the last step. `dartvel build` produces artifacts; running is a
-      // different verb.
-      final plan = resolveEmbeddedBuildPlan(
-        platform: 'fuchsia',
-        buildMode: '--release',
-        arch: 'x64',
-        appPath: '/work/my_app',
-        toolchainHome: '/home/dev',
-      );
-
-      expect(plan!.arguments, contains('--build-only'));
-    });
-
-    test('an arm64 build asks the embedder for arm64', () {
-      final plan = resolveEmbeddedBuildPlan(
-        platform: 'fuchsia',
-        buildMode: '--release',
-        arch: 'arm64',
-        appPath: '/work/my_app',
-      );
-
-      expect(plan!.arguments, containsAllInOrder(<String>['--cpu', 'arm64']));
+    test('the TV and embedded targets keep the arm64 default', () {
+      expect(resolveEmbeddedArch('tizen', 'arm64'), 'arm64');
+      expect(resolveEmbeddedArch('sony-elinux', 'arm64'), 'arm64');
     });
   });
 }
@@ -1136,182 +736,6 @@ void planMatchesPreflightTests() {
 }
 
 void terminalRenderingTests() {
-  group('terminal builds do not quietly become GUI builds', () {
-    // The tests below this group check that `linux-cli` *resolves* to a
-    // terminal presentation, and every one of them passed while
-    // `dartvel build linux-cli` ran `flutter build linux`, produced an
-    // ordinary GUI binary, and printed "Build complete".
-    //
-    // That is the failure the project's own rule names: asserting the name of
-    // a plan instead of what the plan does. A terminal target needs the flt
-    // embedder, which is not a Flutter CLI wrapper — `flutter build linux`
-    // cannot produce a terminal binary under any flag.
-
-    test('a terminal-only build refuses to run a GUI flutter build', () {
-      // The plan for a terminal target must not be the desktop one. Asserting
-      // on the resolved command rather than on a label, because the label was
-      // already correct while the command was wrong.
-      final plan = terminalBuildPlan('linux');
-      expect(
-        plan.usesFlutterDesktopBuild,
-        isFalse,
-        reason: 'flutter build linux links the GUI backend; a -cli target that '
-            'ran it would ship exactly what the suffix promises to exclude',
-      );
-    });
-
-    test('a terminal build reports the embedder it needs', () {
-      // It must name what is missing rather than skipping wordlessly, and it
-      // must name the fork, since the whole point of the fork is that upstream
-      // does not produce distributable binaries.
-      final plan = terminalBuildPlan('linux');
-      expect(plan.toolchain, contains('flt'));
-    });
-
-    test('a missing embedder skips rather than falling back to GUI', () {
-      // The Build Toolchain Rule: skip cleanly when the toolchain is absent,
-      // and never start a build that cannot finish. Falling back to the
-      // desktop build is worse than either, because it finishes.
-      final outcome = terminalBuildOutcome(
-        terminalBuildPlan('linux'),
-        toolchainPresent: false,
-      );
-
-      expect(outcome.shouldRun, isFalse);
-      expect(outcome.message, contains('dartvel-cli-flt'));
-      expect(outcome.message, isNot(contains('flutter build')),
-          reason: 'suggesting the desktop build as a substitute is the bug, '
-              'not the remedy');
-    });
-
-    test('a present embedder runs the terminal build', () {
-      final outcome = terminalBuildOutcome(
-        terminalBuildPlan('linux'),
-        toolchainPresent: true,
-      );
-      expect(outcome.shouldRun, isTrue);
-    });
-
-    test('every terminal-capable platform has a plan, not just linux', () {
-      // A platform that resolves a -cli name but has no plan behind it would
-      // fall through to the desktop build again, which is how this started.
-      for (final platform in terminalCapablePlatforms) {
-        final plan = terminalBuildPlan(platform);
-        expect(plan.usesFlutterDesktopBuild, isFalse,
-            reason: '$platform-cli must not run a GUI build');
-      }
-    });
-
-    test('the plan passes dartvel-cli-flt only the options it accepts', () {
-      // Its build command takes --project, --out and --release. The plan
-      // used to append the Flutter mode flag, so a development build ran
-      // `dartvel-cli-flt build linux --debug` and clap refused it: the target
-      // never built through `dartvel build` at all.
-      const accepted = <String>{'--project', '--out', '--release'};
-      for (final mode in <String>['--debug', '--profile', '--release']) {
-        final plan = terminalBuildPlan('linux', buildMode: mode);
-        final flags = plan.arguments.where((String a) => a.startsWith('--'));
-        expect(accepted, containsAll(flags), reason: mode);
-      }
-      expect(terminalBuildPlan('linux', buildMode: '--debug').arguments,
-          isNot(contains('--release')));
-      // A release is asked for as one, and the embedder refuses it by name
-      // rather than being handed a debug build under a release profile.
-      expect(terminalBuildPlan('linux', buildMode: '--release').arguments,
-          contains('--release'));
-    });
-  });
-
-  group('terminal builds on each host', () {
-    test('only Linux needs the desktop build for native-asset settings', () {
-      // Flutter reads a Linux project's hook compiler from the desktop
-      // build's CMakeCache.txt, so linux-cli runs that build first. macOS
-      // takes its compiler from Xcode and Windows from vswhere, and neither
-      // host can run `flutter build linux` -- running it there failed every
-      // macos-cli and windows-cli build before the embedder was reached.
-      expect(terminalBuildNeedsDesktopCompilerSettings('linux'), isTrue);
-      expect(terminalBuildNeedsDesktopCompilerSettings('macos'), isFalse);
-      expect(terminalBuildNeedsDesktopCompilerSettings('windows'), isFalse);
-    });
-
-    test('a terminal target builds on its own host and no other', () {
-      expect(isPlatformAvailableOn('macos-cli', 'macos'), isTrue);
-      expect(isPlatformAvailableOn('windows-cli', 'windows'), isTrue);
-      expect(isPlatformAvailableOn('macos-cli', 'windows'), isFalse);
-      expect(isPlatformAvailableOn('windows-tui', 'macos'), isFalse);
-    });
-
-    test('the plan names the host the embedder builds for', () {
-      for (final String host in <String>['macos', 'windows']) {
-        final plan = terminalBuildPlan(host,
-            buildMode: '--debug', toolchainHome: '/h', hostOs: host);
-        expect(plan.arguments.take(2), <String>['build', host]);
-        expect(plan.usesFlutterDesktopBuild, isFalse);
-      }
-    });
-  });
-
-  group('terminal target resolution', () {
-    test('-cli resolves to the base platform with a terminal presentation',
-        () {
-      // A presentation, not a platform: linux-cli is still the linux target.
-      final resolved = normalizeBuildTarget('linux-cli');
-      expect(resolved.platform, 'linux');
-      expect(resolved.format, 'tui');
-    });
-
-    test('-tui is the same target under another name', () {
-      // -tui says what it does, -cli says where it runs.
-      expect(normalizeBuildTarget('linux-tui'),
-          equals(normalizeBuildTarget('linux-cli')));
-    });
-
-    test('every desktop target and fuchsia accept the suffix', () {
-      for (final platform in <String>['linux', 'windows', 'macos', 'fuchsia']) {
-        for (final suffix in <String>['cli', 'tui']) {
-          final resolved = normalizeBuildTarget('$platform-$suffix');
-          expect(resolved.platform, platform, reason: '$platform-$suffix');
-          expect(resolved.format, 'tui', reason: '$platform-$suffix');
-        }
-      }
-    });
-
-    test('a plain target is unchanged', () {
-      // The regression that matters: adding a suffix must not alter the
-      // meaning of the targets that already worked.
-      expect(normalizeBuildTarget('linux').platform, 'linux');
-      expect(normalizeBuildTarget('linux').format, isNull);
-      expect(normalizeBuildTarget('sony-elinux-iso').format, 'iso');
-      expect(normalizeBuildTarget('tpk').platform, 'tizen');
-    });
-
-    test('the suffixes are accepted arguments', () {
-      for (final target in <String>[
-        'linux-cli',
-        'linux-tui',
-        'windows-cli',
-        'macos-tui',
-        'fuchsia-cli',
-      ]) {
-        expect(buildPlatformArguments, contains(target));
-      }
-    });
-
-    test('a suffix on a target that cannot render in a terminal is refused',
-        () {
-      // Not because Android has no terminal — Termux is one. Because a
-      // linux-cli binary cannot run there: Termux is Android userland, so it
-      // uses bionic rather than glibc and has no /lib/ld-linux-aarch64.so.1
-      // to load a linux-gnu binary with. Supporting it would mean an
-      // Android-triple build and an engine that runs without an Activity,
-      // which is a project rather than a suffix.
-      //
-      // Accepting the suffix and quietly building something else would be
-      // worse than refusing it.
-      expect(() => normalizeBuildTarget('android-cli'), throwsFormatException);
-      expect(() => normalizeBuildTarget('web-tui'), throwsFormatException);
-    });
-  });
 
   group('terminal backend selection', () {
     test('a plain desktop build links no terminal backend', () {

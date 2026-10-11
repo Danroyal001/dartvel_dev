@@ -256,18 +256,62 @@ Android, iOS, macOS, Linux and Windows; used by project builds and Dartvel Previ
 `profile`, or `release` (the default).
 
 Targets: `web`, `web-server`, `android`, `fireos`, `ios`, `macos`, `windows`,
-`linux`, `tvos`, `tizen` (alias `tpk`), `sony-elinux` (with `--format bundle|iso|img`),
-`webos`, `fuchsia`, `vscode`, `chrome-extension`, `firefox-extension`, and the
-terminal targets `linux-cli`, `macos-cli`, `windows-cli` and `fuchsia-cli`
-(each also spelled `-tui`).
+`linux`, `tvos`, `tizen` (alias `tpk`), `sony-elinux` (with `--format bundle|iso|img`)
+and `webos`. These are free.
 
 Not all of these build today. `web`, `web-server`, `linux`, `android`,
-`fireos`, `windows`, `macos`, `ios`, `vscode` and the two browser extensions
-build and have been checked; `tvos` is verified for the simulator only; `tizen`
-needs Tizen Studio installed by hand; `webos` skips because LG's toolchain
-bundles a Dart too old for Dartvel; `fuchsia` is blocked. The per-target
-evidence is in
+`fireos`, `windows`, `macos` and `ios` build and have been checked; `tvos` is
+verified for the simulator only; `tizen` needs Tizen Studio installed by hand;
+`webos` skips because LG's toolchain bundles a Dart too old for Dartvel. The
+per-target evidence is in
 [docs/build-targets.md](https://github.com/Danroyal001/dartvel_dev/blob/main/docs/build-targets.md).
+
+#### Paid targets
+
+`visionos`, `horizon`, `chrome-extension`, `firefox-extension`, `vscode`,
+`telegram`, the terminal targets (`linux-cli`, `macos-cli`, `windows-cli`,
+`fuchsia-cli`, each also `-tui`) and `fuchsia` are included in every Dartvel
+Cloud plan and are not part of the free install. On a free install
+`dartvel build visionos` says so and exits 69; nothing is built and nothing is
+sent anywhere. To build one:
+
+- on Dartvel Cloud: `dartvel build visionos --cloud`;
+- on your machine: `dartvel targets add pro`, which adds the private
+  `dartvel_targets_pro` package to the project as a dev dependency (it needs
+  the repository access a Cloud plan grants). `dartvel build <target>` then
+  runs through that package. It adds build steps only: nothing from it, and no
+  licence key, reaches the application you ship.
+
+`dartvel targets` lists what this install can build. Dartvel 0.11.5 and
+earlier built these targets in the open and remain MIT licensed.
+
+#### Build targets from a package
+
+A target the CLI does not build itself is a `DVBuildTarget` from
+`package:dartvel_cli/build_targets.dart`. A package declares its targets in a
+`dartvel_targets.yaml` at its root:
+
+```yaml
+executable: dartvel_targets   # bin/dartvel_targets.dart
+targets: [hologram]
+```
+
+and its executable registers them and runs the CLI:
+
+```dart
+import 'package:dartvel_cli/build_targets.dart';
+
+Future<void> main(List<String> arguments) =>
+    dvRunWithTargets(arguments, <DVBuildTarget>[HologramTarget()]);
+```
+
+`dartvel build hologram` in a project that depends on the package finds it
+through `.dart_tool/package_config.json` and runs the build through that
+executable. A target either builds itself or rides a free platform's pipeline
+with `context.buildPlatform('android', variant: DVPlatformVariant(...))`,
+adding Flutter arguments, leaving out steps (kiosk, home widgets, purchases,
+the dev client) and running `prepare`/`finish` hooks around the Flutter build.
+A free target's name cannot be registered.
 
 A build checks host support and the tools it needs before generating
 anything, so it never starts something it cannot finish. Flutter has no
@@ -284,7 +328,7 @@ you; the build prints what to install instead.
 
 ### Android release builds
 
-A release build of `android`, `fireos` or `horizon` is signed with your own
+A release build of `android` or `fireos` (and of the paid `horizon`) is signed with your own
 key and is refused, before anything is generated, when there is none. Dartvel
 never signs a release with the debug key. Keep the key out of the repository
 and point at it one of two ways:
@@ -426,7 +470,7 @@ dependency, the configured pages, backend and models folders, `.env`) and then
 prints `flutter doctor`. `[+]` passed, `[!]` needs attention, `[-]` is
 information: a project with no models has no models folder, and that is fine.
 
-`--target` checks one embedded, TV, extension or terminal target's toolchain,
+`--target` checks one embedded or TV target's toolchain (a paid target answers through its package, or says how to get it),
 or, for `android` and `ios`, the deep-link verification files your declared
 domains serve. `--modules` verifies every module pin against what the
 application grants.
