@@ -97,6 +97,15 @@ dartvel:
     source: subdomain
   # docs:end
 
+  # docs:start yaml-android-release
+  android:
+    signing:
+      keyProperties: ../secrets/key.properties   # kept out of the repository
+    internet: true          # the default
+    allowBackup: false      # the default
+    cleartextHosts: [printer.local]   # plain HTTP only to these
+  # docs:end
+
   # docs:start yaml-cache
   cache:
     store: redis        # memory (default), database, redis or memcached

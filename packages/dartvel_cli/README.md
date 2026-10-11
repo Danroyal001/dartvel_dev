@@ -282,6 +282,38 @@ you; the build prints what to install instead.
 `--cloud` sends the build to Dartvel Cloud, which needs a paid plan and a token
 (`--cloud-token` or `DARTVEL_CLOUD_TOKEN`).
 
+### Android release builds
+
+A release build of `android`, `fireos` or `horizon` is signed with your own
+key and is refused, before anything is generated, when there is none. Dartvel
+never signs a release with the debug key. Keep the key out of the repository
+and point at it one of two ways:
+
+```yaml
+dartvel:
+  android:
+    signing:
+      keyProperties: ../secrets/key.properties   # storeFile (relative to this file), storePassword, keyAlias, keyPassword
+    internet: true           # INTERNET in the main manifest (the default)
+    allowBackup: false       # the default
+    cleartextHosts: []       # hosts a release may reach over plain HTTP
+```
+
+or the variables `DARTVEL_ANDROID_KEYSTORE`, `DARTVEL_ANDROID_KEYSTORE_PASSWORD`
+and `DARTVEL_ANDROID_KEY_ALIAS` (plus `DARTVEL_ANDROID_KEY_PASSWORD` when it
+differs), as a CI secret store sets them. `android/key.properties`, Flutter's
+own convention, is read last. The key reaches Gradle through the environment
+only.
+
+The generated Android project also gets, on every build: `INTERNET` in the
+main manifest (Flutter declares it only for debug and profile), backup off
+with rules that stop device-to-device transfer too (with `allowBackup: true`
+the databases, the session token and the offline store are still excluded),
+cleartext refused through a network security config except to
+`cleartextHosts` (debug and profile also reach localhost and the emulator
+host), and an R8 rule keeping the `dev.dartvel` classes Dart calls over JNI.
+Debug and profile builds are otherwise unchanged.
+
 ## Deploying
 
 ```sh

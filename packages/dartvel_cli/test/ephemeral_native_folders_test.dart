@@ -144,7 +144,16 @@ dartvel:
     name: "Custom App Title"
   splash:
     color: "#123456"
+  android:
+    signing:
+      keyProperties: signing/key.properties
 ''');
+      // A release build needs a release key; a placeholder is enough, since
+      // no Gradle runs here.
+      Directory(p.join(temp.path, 'signing')).createSync();
+      File(p.join(temp.path, 'signing', 'upload.jks')).writeAsStringSync('');
+      File(p.join(temp.path, 'signing', 'key.properties')).writeAsStringSync(
+          'storeFile=upload.jks\nstorePassword=s\nkeyAlias=upload\nkeyPassword=k\n');
       Directory(p.join(temp.path, 'lib')).createSync(recursive: true);
       File(p.join(temp.path, 'lib', 'main.dart')).writeAsStringSync('void main() {}');
 

@@ -2092,6 +2092,14 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '  return result.value; // rethrows if the task failed, timed out or was cancelled',
     '}',
   ],
+  'yaml-android-release': <String>[
+    'android:',
+    '  signing:',
+    '    keyProperties: ../secrets/key.properties   # kept out of the repository',
+    '  internet: true          # the default',
+    '  allowBackup: false      # the default',
+    '  cleartextHosts: [printer.local]   # plain HTTP only to these',
+  ],
   'yaml-auth-pages': <String>[
     'auth:',
     '  pages:',

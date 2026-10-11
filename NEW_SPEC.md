@@ -15734,6 +15734,51 @@ at the moment of use, so a laptop and a server read one declaration with a
 different resolver, and a declared credential that does not resolve is
 reported as `DV-STORE-001`.
 
+## Android release signing and defaults
+
+A release build of `android`, `fireos` or `horizon` is signed with the
+application's own key, and never with the debug key. Without a key the build
+is refused before anything is generated, with how to make and declare one:
+
+```yaml
+dartvel:
+  android:
+    signing:
+      keyProperties: ../secrets/key.properties   # storeFile, storePassword, keyAlias, keyPassword
+    internet: true          # default
+    allowBackup: false      # default
+    cleartextHosts: []      # default
+```
+
+The key is found in this order: the `DARTVEL_ANDROID_KEYSTORE`,
+`DARTVEL_ANDROID_KEYSTORE_PASSWORD` and `DARTVEL_ANDROID_KEY_ALIAS` variables
+(`DARTVEL_ANDROID_KEY_PASSWORD` when the key's password differs), the
+properties file `signing.keyProperties` names (its `storeFile` relative to
+the file), then `android/key.properties`. It reaches Gradle through the
+environment only, never the command line or a generated file, and the Gradle
+block the build writes fails a release build that has no key rather than
+falling back. Debug and profile builds keep the debug key.
+
+Every Android build also writes, into the generated project:
+
+- `android.permission.INTERNET` in the main manifest, unless `internet: false`.
+  Flutter declares it only for debug and profile.
+- `allowBackup="false"` with data extraction and full-backup rules that
+  exclude every domain, so a device-to-device transfer is stopped too. With
+  `allowBackup: true` the databases, the device runtime's state (the sealed
+  session token) and the offline data models are still excluded.
+- `usesCleartextTraffic="false"` and a network security config refusing
+  cleartext except to `cleartextHosts`. Debug and profile builds may also
+  reach `localhost`, `127.0.0.1`, `10.0.2.2` and `10.0.3.2`.
+- An R8 rule keeping `dev.dartvel.**`, the classes Dart reaches by name over
+  JNI. Without it R8 removes the activity bridge from a release APK.
+
+Every component the build adds is unexported unless something outside the
+application has to start it. There are three: the kiosk's home-screen alias,
+the kiosk's device-admin receiver, guarded by `BIND_DEVICE_ADMIN`, and the
+pairing activity a scanned link opens, which is in the debug source set
+only. `android:debuggable` is never set.
+
 ## Tracks, rollout and metadata
 
 Designed. The track is read from `dartvel.deploy.stores.play.track` today, and none

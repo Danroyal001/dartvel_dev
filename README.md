@@ -209,6 +209,7 @@ dartvel build              # every target this host can build
 dartvel build web
 dartvel build web-server   # one executable: backend, web app and Studio
 dartvel build android --profile development   # a build dartvel dev can pair with
+dartvel build android      # release: signed with your key (dartvel.android.signing), never the debug key
 dartvel build tizen        # alias: dartvel build tpk
 dartvel build sony-elinux --format iso        # also: sony-elinux-iso, sony-elinux-img
 dartvel build webos

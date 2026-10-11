@@ -39,6 +39,7 @@ import '../build/scene3d_native.dart';
 import '../build/spatial_targets.dart';
 import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
+import '../build/android_release_hardening.dart';
 import '../build/apple_home_widget.dart';
 import '../build/apple_storekit.dart';
 import '../build/apple_widget_reload.dart';
@@ -859,9 +860,19 @@ class BuildCommand extends Command<void> {
     final bool terminalOnlyBuild =
         renderBackends.contains(DVRenderBackend.terminal) &&
             !renderBackends.contains(DVRenderBackend.gui);
+    // Android release builds refused for want of a release key, before any
+    // generation: a build that cannot be signed correctly cannot finish.
+    var refused = 0;
     for (final platform in platforms) {
       final String checked = terminalOnlyBuild ? '$platform-cli' : platform;
       if (await preflight(checked, autoInstall: autoInstall)) {
+        final String? keyProblem =
+            isRelease ? _androidReleaseKeyProblem(root, platform) : null;
+        if (keyProblem != null) {
+          Logger.log('❌ $keyProblem');
+          refused += 1;
+          continue;
+        }
         buildablePlatforms.add(platform);
       } else {
         skipped += 1;
@@ -869,6 +880,14 @@ class BuildCommand extends Command<void> {
     }
 
     if (buildablePlatforms.isEmpty) {
+      if (refused > 0) {
+        stages.failed();
+        Logger.log('');
+        Logger.log('❌ Build completed with $refused failed target(s) and '
+            '$skipped skipped target(s).');
+        exitCode = 1;
+        return;
+      }
       Logger.log('');
       Logger.log('✅ Build complete with $skipped skipped target(s).');
       return;
@@ -938,7 +957,7 @@ class BuildCommand extends Command<void> {
     final terminalOnly = renderBackends.contains(DVRenderBackend.terminal) &&
         !renderBackends.contains(DVRenderBackend.gui);
 
-    var failures = 0;
+    var failures = refused;
     for (final p in buildablePlatforms) {
       // What this target can do with the home widgets the application
       // declares. Per target rather than once, because a single command
@@ -1083,6 +1102,35 @@ class BuildCommand extends Command<void> {
     // The native project this target is built from: android/ for Horizon OS,
     // ios/ for Vision Pro. Every writer below prepares that project.
     final String project = dvNativeProjectFor(platform);
+    // Before anything is generated: a release build with no release key is
+    // one that cannot finish correctly, and the debug key is not a fallback.
+    final bool androidFamily =
+        const <String>{'android', 'fireos', 'horizon'}.contains(platform);
+    DVAndroidReleaseConfig? androidRelease;
+    _androidSigningEnvironment = null;
+    if (androidFamily) {
+      try {
+        androidRelease =
+            DVAndroidReleaseConfig.parse(_dartvelSection(_projectRoot));
+      } on FormatException catch (error) {
+        Logger.log('❌ ${error.message}');
+        return _PlatformBuildResult.failed;
+      }
+      if (buildMode == '--release') {
+        final DVAndroidSigningResolution signing = dvResolveAndroidSigning(
+          root: _projectRoot,
+          config: androidRelease,
+          environment: Platform.environment,
+        );
+        if (signing.signing == null) {
+          Logger.log('❌ ${signing.problem}');
+          return _PlatformBuildResult.failed;
+        }
+        _androidSigningEnvironment = signing.signing!.environment;
+        Logger.log('   Release key: ${signing.signing!.keyAlias} from '
+            '${signing.signing!.source}.');
+      }
+    }
     final bool scaffoldOk = await dvEnsurePlatformScaffold(
       root: _projectRoot,
       platform: project,
@@ -1171,6 +1219,9 @@ class BuildCommand extends Command<void> {
       // blocks are taken back out of the shared manifest.
       _stripAndroidForHorizon(_projectRoot);
     }
+    // After every other manifest writer, so the INTERNET line and the
+    // <application> attributes are decided on the manifest that ships.
+    if (androidRelease != null) _writeAndroidRelease(_projectRoot, androidRelease);
     // A development build pairs with `dartvel dev`: the tunnel,
     // the activity a scanned link opens, and the entrypoint that starts it.
     if (_profile.isDevelopment && dvDevClientPlatforms.contains(platform)) {
@@ -1260,12 +1311,20 @@ class BuildCommand extends Command<void> {
     // for 41 minutes; the log could not even show the command.
     Logger.log('   flutter ${args.join(' ')}');
 
+    final Map<String, String>? signingEnvironment = _androidSigningEnvironment;
     final proc = await (_processStart ?? Process.start)(
       'flutter',
       args,
       workingDirectory: _projectRoot,
       runInShell: true,
-      environment: _buildEnvironment,
+      // The release key reaches Gradle through the environment only: never
+      // through the command line, which the log above prints and `ps` shows.
+      environment: signingEnvironment == null
+          ? _buildEnvironment
+          : <String, String>{
+              ...(_buildEnvironment ?? Platform.environment),
+              ...signingEnvironment,
+            },
     );
 
     proc.stdout.listen((data) => stdout.add(data));
@@ -1972,6 +2031,76 @@ class BuildCommand extends Command<void> {
       Logger.log('⚠️  dartvel.purchases is declared and there is no '
           'android/app/build.gradle to add Play Billing to.');
     }
+  }
+
+  /// Why a release build of [platform] cannot be signed, or null when it can
+  /// or [platform] is not built from the Android project.
+  String? _androidReleaseKeyProblem(String root, String platform) {
+    if (!const <String>{'android', 'fireos', 'horizon'}.contains(platform)) {
+      return null;
+    }
+    try {
+      return dvResolveAndroidSigning(
+        root: root,
+        config: DVAndroidReleaseConfig.parse(_dartvelSection(root)),
+        environment: Platform.environment,
+      ).problem;
+    } on FormatException catch (error) {
+      return error.message;
+    }
+  }
+
+  /// The release defaults from `dartvel.android`: INTERNET, backup, the
+  /// network security config, the R8 keep rules and release signing.
+  void _writeAndroidRelease(String root, DVAndroidReleaseConfig config) {
+    final File manifest = File(
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) return;
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidHardenedManifest(before, config);
+    if (after != before) manifest.writeAsStringSync(after);
+
+    final Map<String, String> files = <String, String>{
+      dvAndroidNetworkSecurityConfigPath: dvAndroidNetworkSecurityConfig(
+          config.cleartextHosts,
+          development: false),
+      // Debug and profile builds may also reach the machine they are
+      // developed on; their resources override main's of the same name.
+      dvAndroidDebugNetworkSecurityConfigPath: dvAndroidNetworkSecurityConfig(
+          config.cleartextHosts,
+          development: true),
+      dvAndroidProfileNetworkSecurityConfigPath:
+          dvAndroidNetworkSecurityConfig(config.cleartextHosts,
+              development: true),
+      dvAndroidBackupRulesPath:
+          dvAndroidBackupRules(allowBackup: config.allowBackup),
+      dvAndroidDataExtractionRulesPath:
+          dvAndroidDataExtractionRules(allowBackup: config.allowBackup),
+    };
+    final File rules = File(p.join(root, dvAndroidProguardRulesPath));
+    files[dvAndroidProguardRulesPath] = dvAndroidProguardRules(
+        rules.existsSync() ? rules.readAsStringSync() : '');
+    for (final MapEntry<String, String> file in files.entries) {
+      File(p.join(root, file.key))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(file.value);
+    }
+
+    for (final (String name, bool kotlinScript) in const <(String, bool)>[
+      ('android/app/build.gradle.kts', true),
+      ('android/app/build.gradle', false),
+    ]) {
+      final File gradle = File(p.join(root, name));
+      if (!gradle.existsSync()) continue;
+      final String gradleBefore = gradle.readAsStringSync();
+      final String gradleAfter =
+          dvAndroidGradleWithSigning(gradleBefore, kotlinScript: kotlinScript);
+      if (gradleAfter != gradleBefore) gradle.writeAsStringSync(gradleAfter);
+      break;
+    }
+    Logger.log('   Android release: INTERNET ${config.internet ? 'declared' : 'not declared'}, '
+        'backup ${config.allowBackup ? 'allowed (databases and Dartvel state excluded)' : 'off'}, '
+        'cleartext ${config.cleartextHosts.isEmpty ? 'refused' : 'only to ${config.cleartextHosts.join(', ')}'}.');
   }
 
   void _writeAndroidCaptureBridge(String root) {
@@ -4443,6 +4572,10 @@ class BuildCommand extends Command<void> {
   /// so without this the build would install a toolchain and then immediately
   /// report it as missing.
   final _installedToolPaths = <String>[];
+
+  /// The release key for the Android build in progress, as the environment
+  /// Gradle reads it from; null for every other build.
+  Map<String, String>? _androidSigningEnvironment;
 
 
   /// Whether [platform]'s embedder bundles a Dart older than Dartvel's floor.

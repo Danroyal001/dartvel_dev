@@ -21,6 +21,9 @@ import 'package:dartvel_core/dartvel.dart'
     show DVDeepLinkConfig, dvDeepLinkCovers;
 import 'package:path/path.dart' as p;
 
+import '../utils/build_runner.dart' show readPubspecYaml;
+import 'android_release_hardening.dart';
+
 export 'package:dartvel_core/dartvel.dart' show DVDeepLinkConfig;
 
 const String _assetLinks = 'assetlinks.json';
@@ -145,36 +148,35 @@ String dvIosAssociatedDomains(String entitlements, DVDeepLinkConfig? links) {
       '${stripped.substring(close)}';
 }
 
-/// The SHA-256 of the certificate `android/key.properties` signs with, as
-/// keytool prints it, or null when there is no release signing configured
-/// or keytool cannot read it.
+/// The SHA-256 of the certificate a release build signs with, as keytool
+/// prints it, or null when there is no release key configured or keytool
+/// cannot read it.
+///
+/// The same key `dartvel build android` signs with: the DARTVEL_ANDROID_*
+/// variables, `dartvel.android.signing`, then `android/key.properties`.
 Future<String?> dvAndroidSigningFingerprint(String root) async {
-  final File properties = File(p.join(root, 'android', 'key.properties'));
-  if (!properties.existsSync()) return null;
-  final Map<String, String> values = <String, String>{
-    for (final String line in properties.readAsLinesSync())
-      if (line.contains('='))
-        line.substring(0, line.indexOf('=')).trim(): line
-            .substring(line.indexOf('=') + 1)
-            .trim(),
-  };
-  final String? store = values['storeFile'];
-  final String? alias = values['keyAlias'];
-  final String? password = values['storePassword'];
-  if (store == null || alias == null || password == null) return null;
-  final String storePath = p.isAbsolute(store)
-      ? store
-      : p.join(root, 'android', 'app', store);
+  final DVAndroidReleaseConfig config;
+  try {
+    config = DVAndroidReleaseConfig.parse(readPubspecYaml(root)?['dartvel']);
+  } on FormatException {
+    return null;
+  }
+  final DVAndroidSigning? signing = dvResolveAndroidSigning(
+    root: root,
+    config: config,
+    environment: Platform.environment,
+  ).signing;
+  if (signing == null) return null;
   try {
     final ProcessResult result = await Process.run('keytool', <String>[
       '-list',
       '-v',
       '-keystore',
-      storePath,
+      signing.storeFile,
       '-alias',
-      alias,
+      signing.keyAlias,
       '-storepass',
-      password,
+      signing.storePassword,
     ]);
     if (result.exitCode != 0) return null;
     return RegExp(
