@@ -48,8 +48,8 @@ void main() {
     expect(provider, isA<DVBachsBillingProvider>());
     final DVBachsBillingProvider bachs = provider as DVBachsBillingProvider;
     expect(bachs.products, <String, String>{'team': 'prod_team'});
-    expect(bachs.entitlements, <String, Set<Entitlement>>{
-      'prod_team': <Entitlement>{const Entitlement('reports')},
+    expect(entitlementIds(bachs.entitlements), <String, Set<String>>{
+      'prod_team': <String>{'reports'},
     });
   });
 
@@ -64,8 +64,8 @@ void main() {
       'entitlements': <String, Object?>{'pro': <Object?>['analytics']},
     }).createProvider();
     expect(provider, isA<DVPaddleBillingProvider>());
-    expect((provider as DVPaddleBillingProvider).entitlements,
-        <String, Set<Entitlement>>{'pri_pro': <Entitlement>{Entitlement.analytics}});
+    expect(entitlementIds((provider as DVPaddleBillingProvider).entitlements),
+        <String, Set<String>>{'pri_pro': <String>{'analytics'}});
   });
 
   test('a missing secret fails when the provider is built, naming it', () {
@@ -113,3 +113,11 @@ void main() {
     });
   });
 }
+
+/// Entitlements have no value equality (they live in const sets), so tests
+/// compare what a provider was built with by id.
+Map<String, Set<String>> entitlementIds(Map<String, Set<Entitlement>> byProduct) =>
+    <String, Set<String>>{
+      for (final MapEntry<String, Set<Entitlement>> entry in byProduct.entries)
+        entry.key: <String>{for (final Entitlement entitlement in entry.value) entitlement.id},
+    };
