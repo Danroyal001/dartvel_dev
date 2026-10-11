@@ -3173,6 +3173,14 @@ class BuildCommand extends Command<void> {
       ),
     );
 
+    // And registered. Flutter's bootstrap only updates a registration that
+    // already exists; without this the worker above is never installed.
+    final File bootstrap = File(p.join(web.path, 'flutter_bootstrap.js'));
+    if (bootstrap.existsSync()) {
+      bootstrap.writeAsStringSync(
+          dvBootstrapRegisteringServiceWorker(bootstrap.readAsStringSync()));
+    }
+
     Logger.log('   Service worker written: '
         '${routes.length} route(s) and ${parts.length} page part(s) '
         'precached; a failed navigation goes to $dvOfflineRoute/.');

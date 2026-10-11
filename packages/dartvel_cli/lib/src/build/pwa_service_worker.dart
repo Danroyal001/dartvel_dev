@@ -440,3 +440,37 @@ List<String> dvPrecacheRoutes(Iterable<String> routes) {
   return precache.toList();
 }
 
+
+/// Marks the registration script in `flutter_bootstrap.js`, so a second build
+/// finds it instead of appending another.
+const String dvServiceWorkerRegistrationMarker =
+    '/* dartvel: service worker registration */';
+
+/// [bootstrap] (Flutter's `flutter_bootstrap.js`) that also registers the
+/// worker the build wrote.
+///
+/// Flutter's own bootstrap registers `flutter_service_worker.js` on a first
+/// visit only in releases before 3.47; from there it updates a registration
+/// that already exists and never makes one (the unconditional path is the
+/// deprecated `serviceWorkerUrl` setting). So a Dartvel site relied on the
+/// loader for a registration the loader no longer makes, and its worker -- the
+/// offline page, the replayed writes, push -- was written, shipped and never
+/// installed.
+///
+/// It registers the URL the loader would, `?v=` and all, so the two do not
+/// take turns replacing each other's script; and it waits for `load`, so the
+/// registration never competes with the app's first frame.
+String dvBootstrapRegisteringServiceWorker(String bootstrap) {
+  if (bootstrap.contains(dvServiceWorkerRegistrationMarker)) return bootstrap;
+  final String? version =
+      RegExp(r'serviceWorkerVersion:\s*"([^"]+)"').firstMatch(bootstrap)?.group(1);
+  final String url = version == null
+      ? 'flutter_service_worker.js'
+      : 'flutter_service_worker.js?v=$version';
+  final String separator = bootstrap.endsWith('\n') ? '' : '\n';
+  return '$bootstrap$separator$dvServiceWorkerRegistrationMarker\n'
+      '(()=>{if(!("serviceWorker"in navigator))return;'
+      'addEventListener("load",()=>{'
+      'navigator.serviceWorker.register(new URL("$url",document.baseURI).href)'
+      '.catch(()=>{});});})();\n';
+}

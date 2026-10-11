@@ -81,8 +81,21 @@ class DVWebPushBrowser {
     );
   }
 
+  /// The registration with an active worker. On a first visit the build's
+  /// registration script has only just run, so this waits a little for the
+  /// worker to activate instead of answering "none" in the first second of
+  /// the app's life; null if nothing is registered, which is the truth for a
+  /// site built with its service worker off.
   static Future<web.ServiceWorkerRegistration?> _registration() async {
-    return await web.window.navigator.serviceWorker.getRegistration().toDart;
+    final web.ServiceWorkerContainer container = web.window.navigator.serviceWorker;
+    final web.ServiceWorkerRegistration? existing =
+        await container.getRegistration().toDart;
+    if (existing != null && existing.active != null) return existing;
+    try {
+      return await container.ready.toDart.timeout(const Duration(seconds: 15));
+    } on TimeoutException {
+      return null;
+    }
   }
 
   /// The subscription as JSON, or null while permission is not granted or

@@ -96,8 +96,22 @@ on a fresh `dartvel create` project with a `keytool` test key. Built, not run:
   differences are R8 `rewriteFrame` rules that depend on the exception type,
   outline call sites, and caller frames R8 omits at line 0; none is applied.
 
+Web Push, run for real the same day: Chrome 155 (headless, a temporary
+profile) loaded `dartvel build web` output served from `127.0.0.1`, with the
+notification permission granted. `PushNotifications.getToken()` returned a
+subscription whose endpoint is `https://fcm.googleapis.com/fcm/send/...`;
+`WebPushProvider.fromSecrets()` posted an encrypted, VAPID-signed message to it
+and the service answered `201`; the page printed the message from
+`PushNotifications.onMessage` with its title, body and data. With every page of
+the site closed, a second push made the worker show the notification itself
+(`getNotifications()` returned it with its data). Before this the probe found
+`navigator.serviceWorker.getRegistration()` empty: Flutter 3.47's bootstrap
+only updates a registration that exists, so the build now appends the
+registration to `flutter_bootstrap.js` (`service_worker_registration_test.dart`).
+
 Not run: the APK on a device or emulator (this host has no KVM), a token from
-FCM, a message delivered, or an uncaught exception recorded on a phone. The
+FCM, a message delivered by FCM, a notification click in a browser, or an
+uncaught exception recorded on a phone. The
 generated backend, the upload and the symbolicated reports were run for real
 over HTTP against an AOT snapshot compiled with `--obfuscate`
 (`test/symbols_backend_test.dart`); the Dart decoder has not been run against
