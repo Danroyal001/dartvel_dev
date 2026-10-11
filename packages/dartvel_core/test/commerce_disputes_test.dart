@@ -25,6 +25,7 @@ const String table = '''
 ''';
 
 const Entitlement pro = Entitlement('pro');
+final Entitlement proForSets = Entitlement('pro');
 const String secret = 'whsec_test';
 
 DVMoney gbp(int amount) => DVMoney(amount: amount, currency: 'GBP');
@@ -223,7 +224,7 @@ void main() {
         ),
       ],
       to: const DVTaxAddress(country: 'GB'),
-      entitlements: const <Entitlement>{pro},
+      entitlements: <Entitlement>{proForSets},
     );
     payouts = DVPayouts(
       ledger: DVMemoryPayoutLedger(),
