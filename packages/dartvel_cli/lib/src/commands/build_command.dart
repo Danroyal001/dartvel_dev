@@ -33,6 +33,7 @@ import '../build/android_home_widget.dart';
 import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
 import '../build/android_capture_bridge.dart';
 import '../build/file_storage_permissions.dart';
+import 'store_command.dart' show dvWriteDataSafetyFiles;
 import '../build/scene3d_native.dart';
 import '../build/build_target.dart';
 import '../build/target_packages.dart';
@@ -1351,6 +1352,9 @@ class BuildCommand extends Command<void> {
           return DVBuildTargetResult.failed;
         }
       }
+      if (platform == 'android' && format == 'aab') {
+        _writeDataSafetyBesideBundle(_projectRoot, buildMode);
+      }
       Logger.log('✅ $label build successful');
       return DVBuildTargetResult.succeeded;
     } else {
@@ -1956,6 +1960,24 @@ class BuildCommand extends Command<void> {
     Logger.log('   Android release: INTERNET ${config.internet ? 'declared' : 'not declared'}, '
         'backup ${config.allowBackup ? 'allowed (databases and Dartvel state excluded)' : 'off'}, '
         'cleartext ${config.cleartextHosts.isEmpty ? 'refused' : 'only to ${config.cleartextHosts.join(', ')}'}.');
+  }
+
+  /// The Play Data Safety answers, written next to the App Bundle so they
+  /// are uploaded from the same place. A failure here does not fail a build
+  /// that produced a good bundle; it is said instead.
+  void _writeDataSafetyBesideBundle(String root, String buildMode) {
+    final String? directory = dvPackageOutput(
+        platform: 'android', format: 'aab', buildMode: buildMode);
+    if (directory == null) return;
+    try {
+      final List<String> files = dvWriteDataSafetyFiles(
+          root: root, directory: p.join(root, directory));
+      Logger.log('   Play Data safety: wrote ${files.map(p.basename).join(' and ')} '
+          'to $directory. Open the worksheet: every TODO in it is a question '
+          'only you can answer.');
+    } on Object catch (error) {
+      Logger.log('⚠️  Play Data safety answers were not written: $error');
+    }
   }
 
   void _writeAndroidCaptureBridge(String root) {

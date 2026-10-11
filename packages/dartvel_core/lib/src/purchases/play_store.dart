@@ -28,6 +28,8 @@ import 'package:pointycastle/asn1.dart';
 import 'package:pointycastle/export.dart';
 
 import '../billing/webhooks.dart' show DVBillingFetch;
+import '../http/outbound.dart' show DVHttp;
+import '../secrets/secrets.dart' show DVSecrets;
 import 'purchases.dart';
 
 /// Decodes a PKCS#8 (`BEGIN PRIVATE KEY`) or PKCS#1 (`BEGIN RSA PRIVATE
@@ -81,6 +83,72 @@ BigInt _bigInt(List<int> bytes) {
   return value;
 }
 
+/// `dartvel.purchases.play`: what a project says about Google Play that is
+/// not secret. The service account is a secret and stays in DV Secrets; see
+/// [DVPlayStoreAdapter.fromSecrets].
+final class DVPlayStoreConfig {
+  const DVPlayStoreConfig({
+    required this.packageName,
+    this.pushAudience,
+    this.pushServiceAccount,
+  });
+
+  /// The application id.
+  final String packageName;
+
+  /// The Pub/Sub push endpoint's URL, which is the audience of Google's OIDC
+  /// token.
+  final String? pushAudience;
+
+  /// The service account the Pub/Sub subscription pushes as.
+  final String? pushServiceAccount;
+
+  static const Set<String> _keys = <String>{
+    'packageName',
+    'pushAudience',
+    'pushServiceAccount',
+  };
+
+  /// Null when the block is absent; otherwise [parse].
+  static DVPlayStoreConfig? maybeParse(Object? section) =>
+      section == null ? null : DVPlayStoreConfig.parse(section);
+
+  /// Reads the block strictly: a misspelt key is a setting that looks
+  /// honoured and is not, and here it would refuse every notification.
+  factory DVPlayStoreConfig.parse(Object? section) {
+    if (section is! Map) {
+      throw ArgumentError.value(
+          section, 'dartvel.purchases.play', 'must be a map');
+    }
+    for (final Object? key in section.keys) {
+      if (!_keys.contains(key)) {
+        throw ArgumentError('dartvel.purchases.play.$key is not a setting '
+            'Dartvel reads; accepted: ${_keys.join(', ')}');
+      }
+    }
+    String? text(String key) {
+      final Object? value = section[key];
+      if (value == null) return null;
+      if (value is! String || value.trim().isEmpty) {
+        throw ArgumentError('dartvel.purchases.play.$key must be a '
+            'non-empty string');
+      }
+      return value.trim();
+    }
+
+    final String? packageName = text('packageName');
+    if (packageName == null) {
+      throw ArgumentError('dartvel.purchases.play.packageName is required: '
+          'every Developer API path and notification names the application');
+    }
+    return DVPlayStoreConfig(
+      packageName: packageName,
+      pushAudience: text('pushAudience'),
+      pushServiceAccount: text('pushServiceAccount'),
+    );
+  }
+}
+
 /// Google Play's server-side verification and notifications.
 class DVPlayStoreAdapter implements DVStoreAdapter, DVStoreCatalogAware {
   DVPlayStoreAdapter({
@@ -95,15 +163,77 @@ class DVPlayStoreAdapter implements DVStoreAdapter, DVStoreCatalogAware {
   })  : _serviceAccountEmail = serviceAccountEmail,
         _serviceAccountKey = serviceAccountPrivateKeyPem == null
             ? null
-            : dvRsaPrivateKeyFromPem(serviceAccountPrivateKeyPem),
+            : _readServiceAccountKey(serviceAccountPrivateKeyPem),
         _injectedToken = accessToken,
-        _fetch = fetch ?? _noNetwork,
+        _fetch = fetch ?? _viaDvHttp,
         _clock = clock ?? DateTime.now {
     if (accessToken == null &&
         (serviceAccountEmail == null || serviceAccountPrivateKeyPem == null)) {
       throw ArgumentError(
           'DVPlayStoreAdapter needs a service account (email and private '
           'key) or an accessToken function to call the Play Developer API');
+    }
+  }
+
+  /// Builds the adapter from a project's declaration and DV Secrets.
+  ///
+  /// The credential is read from `PLAY_SERVICE_ACCOUNT_JSON`, the service
+  /// account file as Google issues it, or from `PLAY_SERVICE_ACCOUNT_EMAIL`
+  /// and `PLAY_SERVICE_ACCOUNT_KEY` when the two are kept apart. Push
+  /// settings left out of [config] are read from `PLAY_PUSH_AUDIENCE` and
+  /// `PLAY_PUSH_SERVICE_ACCOUNT`; with neither, every push is refused.
+  ///
+  /// Nothing read from a secret is repeated in an error: a message gets
+  /// pasted into tickets and chat, and a private key must not be in them.
+  factory DVPlayStoreAdapter.fromSecrets(
+    DVPlayStoreConfig config, {
+    DVBillingFetch? fetch,
+    DateTime Function()? clock,
+    DVSecrets secrets = const DVSecrets(),
+  }) {
+    String? email;
+    String? key;
+    final String? file = secrets.maybeGet('PLAY_SERVICE_ACCOUNT_JSON');
+    if (file != null && file.trim().isNotEmpty) {
+      final Object? decoded;
+      try {
+        decoded = jsonDecode(file);
+      } on Object {
+        throw StateError('PLAY_SERVICE_ACCOUNT_JSON is not a JSON file');
+      }
+      if (decoded is! Map ||
+          (decoded['type'] != null && decoded['type'] != 'service_account')) {
+        throw StateError(
+            'PLAY_SERVICE_ACCOUNT_JSON is not a service account key file');
+      }
+      final Object? fileEmail = decoded['client_email'];
+      final Object? fileKey = decoded['private_key'];
+      email = fileEmail is String ? fileEmail : null;
+      key = fileKey is String ? fileKey : null;
+    } else {
+      email = secrets.maybeGet('PLAY_SERVICE_ACCOUNT_EMAIL');
+      key = secrets.maybeGet('PLAY_SERVICE_ACCOUNT_KEY');
+    }
+    if (email == null || email.isEmpty || key == null || key.isEmpty) {
+      throw StateError(
+          'Google Play has no service account: set PLAY_SERVICE_ACCOUNT_JSON '
+          '(the key file) or PLAY_SERVICE_ACCOUNT_EMAIL and '
+          'PLAY_SERVICE_ACCOUNT_KEY in DV Secrets');
+    }
+    try {
+      return DVPlayStoreAdapter(
+        packageName: config.packageName,
+        serviceAccountEmail: email,
+        serviceAccountPrivateKeyPem: key,
+        fetch: fetch,
+        clock: clock,
+        pushAudience:
+            config.pushAudience ?? secrets.maybeGet('PLAY_PUSH_AUDIENCE'),
+        pushServiceAccountEmail: config.pushServiceAccount ??
+            secrets.maybeGet('PLAY_PUSH_SERVICE_ACCOUNT'),
+      );
+    } on ArgumentError {
+      throw StateError('the Google Play service account key is not readable');
     }
   }
 
@@ -130,10 +260,31 @@ class DVPlayStoreAdapter implements DVStoreAdapter, DVStoreCatalogAware {
   static final Uri _certificatesUri =
       Uri.parse('https://www.googleapis.com/oauth2/v3/certs');
 
-  static Future<(int, String)> _noNetwork(
-          String m, Uri u, Map<String, String> h, String? b) =>
-      throw const DVStoreUnavailable(
-          'No HTTP transport was configured for Google Play.');
+  static RSAPrivateKey _readServiceAccountKey(String pem) {
+    try {
+      return dvRsaPrivateKeyFromPem(pem);
+    } on Object {
+      // The parser's error can quote the input; this one cannot.
+      throw ArgumentError(
+          'the Google Play service account private key is not a PEM key');
+    }
+  }
+
+  /// The wire when none is given: DV.Http, to the Google hosts this class
+  /// names itself. Never a host from a request, so declaring nothing in
+  /// `dartvel.http` is right and nothing a device sends picks the target.
+  static Future<(int, String)> _viaDvHttp(
+      String method, Uri url, Map<String, String> headers, String? body) async {
+    if (url.scheme != 'https' ||
+        (url.host != 'oauth2.googleapis.com' &&
+            url.host != 'androidpublisher.googleapis.com' &&
+            url.host != 'www.googleapis.com')) {
+      throw const DVStoreUnavailable('a non-Google host was refused');
+    }
+    final response = await const DVHttp().send(method, url,
+        headers: headers, body: body, allowUndeclaredHost: true);
+    return (response.status, await response.body!.text());
+  }
 
   @override
   DVStore get store => DVStore.play;

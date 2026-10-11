@@ -40,6 +40,36 @@ flutter {
 ''';
 
 void main() {
+  group('dartvel.purchases.play', () {
+    test('is read from the purchases block', () {
+      final config = dvPurchasesPlayConfig(<String, Object?>{
+        'purchases': <String, Object?>{
+          'play': <String, Object?>{'packageName': 'com.example.app'},
+        },
+      });
+      expect(config?.packageName, 'com.example.app');
+    });
+
+    test('is absent for purchases: true or no block', () {
+      expect(dvPurchasesPlayConfig(<String, Object?>{'purchases': true}), isNull);
+      expect(dvPurchasesPlayConfig(<String, Object?>{}), isNull);
+      expect(dvPurchasesPlayConfig(null), isNull);
+    });
+
+    test('a misspelt setting stops the build instead of refusing every push', () {
+      expect(
+          () => dvPurchasesPlayConfig(<String, Object?>{
+                'purchases': <String, Object?>{
+                  'play': <String, Object?>{
+                    'packageName': 'com.example.app',
+                    'pushAudiance': 'x',
+                  },
+                },
+              }),
+          throwsA(isA<StateError>()));
+    });
+  });
+
   group('dartvel.purchases', () {
     test('is declared by a map or by true', () {
       expect(dvPurchasesDeclared(<String, Object?>{'purchases': <String, Object?>{}}),

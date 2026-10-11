@@ -66,6 +66,14 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
               'App Store Server Notifications v2 and Play Real-time Developer '
                   'Notifications are signature-checked, applied once and in '
                   'order. A refund or chargeback is told apart from a lapse.',
+              'Play: the service account lives in DV.Secrets '
+                  '(PLAY_SERVICE_ACCOUNT_JSON), the package name and the Pub/Sub '
+                  'push audience under dartvel.purchases.play, and a push is '
+                  'believed only with Google\'s signed token for that audience.',
+              'dartvel build android --format aab also writes the Play Data '
+                  'safety answers (data-safety.csv and a worksheet) beside the '
+                  'bundle. It fills in only what Dartvel itself sends and lists '
+                  'the rest as questions for you.',
             ]),
             DocsCode('purchases-products'),
             DocsCode('purchases-buy'),
@@ -73,7 +81,9 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
             DocsCode('purchases-server'),
             DocsStatus('Purchases and Entitlements', missing: <String>[
               'The StoreKit 2 binding has not run on a Mac, and no purchase '
-                  'has gone through a real App Store, Play or Telegram sandbox.',
+                  'has gone through a real App Store, Play or Telegram sandbox. '
+                  'The Play Billing binding has not run on an Android device, '
+                  'and the Play adapter has only met recorded Google responses.',
               'Products are not generated from models.',
             ]),
           ],

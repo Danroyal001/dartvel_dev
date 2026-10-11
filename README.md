@@ -169,6 +169,7 @@ dartvel updates rollback --release-version 1.2.0 --patch-number 3
 
 # Stores and deployment
 dartvel deploy --store play        # also: appstore, testflight, firebase-app-distribution
+dartvel store data-safety --out store/   # Play Data safety CSV + worksheet from the pubspec (docs/data-safety.md)
 dartvel deploy --provider vercel    # also: firebase-hosting, netlify, cloudflare
 
 # Database
@@ -208,6 +209,7 @@ dartvel build web
 dartvel build web-server   # one executable: backend, web app and Studio
 dartvel build android --profile development   # a build dartvel dev can pair with
 dartvel build android      # release: signed with your key (dartvel.android.signing), never the debug key
+dartvel build android --format aab   # an App Bundle for Play, with data-safety.csv and a worksheet beside it
 dartvel build tizen        # alias: dartvel build tpk
 dartvel build sony-elinux --format iso        # also: sony-elinux-iso, sony-elinux-img
 dartvel build webos
