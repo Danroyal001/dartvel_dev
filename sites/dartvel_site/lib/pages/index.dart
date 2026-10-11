@@ -509,10 +509,7 @@ Widget _targets(BuildContext context) => Section(
       ])
         SiteChip(target, onDark: true),
     ], spacing: 8),
-    const Bullets(onDark: true, <String>[
-      'These come with a Dartvel Cloud plan: targets Flutter does not '
-          'officially support.',
-    ]),
+    const Eyebrow('WITH A DARTVEL CLOUD PLAN', onDark: true),
     DVBox.wrapLine(<Widget>[
       for (final String target in const <String>[
         'visionos',
