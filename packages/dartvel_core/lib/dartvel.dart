@@ -3747,6 +3747,30 @@ class WebPushProvider implements DVNotificationProvider {
     this.transport = dvSendHttpRequest,
   });
 
+  /// A provider whose VAPID identity is in Secrets: `VAPID_PRIVATE_KEY`, the
+  /// 32-byte private scalar as unpadded base64url (what `web-push
+  /// generate-vapid-keys` prints), and `VAPID_SUBJECT`, the `mailto:` or
+  /// `https:` contact. The public key is derived from the private one, so the
+  /// two cannot disagree; hand [vapidPublicKey] to the browser.
+  factory WebPushProvider.fromSecrets({
+    Duration timeToLive = const Duration(hours: 24),
+    DVHttpSend transport = dvSendHttpRequest,
+  }) {
+    const secrets = DVSecrets();
+    final Uint8List privateKey =
+        dvWebPushBase64Decode(secrets.get('VAPID_PRIVATE_KEY').trim());
+    return WebPushProvider(
+      vapidKeys: DVWebPushKeyPair.fromPrivateKey(privateKey),
+      subject: secrets.get('VAPID_SUBJECT').trim(),
+      timeToLive: timeToLive,
+      transport: transport,
+    );
+  }
+
+  /// The public half of the identity key as unpadded base64url: the
+  /// `applicationServerKey` the browser subscribes with. Not a secret.
+  String get vapidPublicKey => dvWebPushBase64Encode(vapidKeys.publicKey);
+
   @override
   DVNotificationProviderKind get kind => DVNotificationProviderKind.webPush;
 
