@@ -27,12 +27,16 @@ import 'package:dartvel_core/dartvel.dart'
         dvOfflineRoute,
         DVDocsMount,
         DVFileStorageConfig,
+        DVCrashBuildMode,
+        DVCrashConfig,
         DVFcmAppConfig,
         DVPushConfig,
         DVWebPushConfig;
 
 import '../build/android_home_widget.dart';
 import '../build/android_push_bridge.dart';
+import '../build/symbols_bundle.dart';
+import 'symbols_command.dart';
 // dvPurchasesDeclared is the same rule in both bridges; the Apple one is used.
 import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
 import '../build/android_capture_bridge.dart';
@@ -417,6 +421,13 @@ class BuildCommand extends Command<void> {
       ..addOption('build-name', help: 'Build name/version')
       ..addFlag('obfuscate',
           defaultsTo: true, help: 'Obfuscate code (release only)')
+      ..addFlag('upload-symbols',
+          defaultsTo: false,
+          help: 'After an Android release build, send its mapping and debug '
+              'symbols to the crash backend (dartvel.crashes.symbols.url). '
+              'The token is read from DARTVEL_SYMBOLS_TOKEN. Also on with '
+              'dartvel.crashes.symbols.upload: true; `dartvel symbols upload` '
+              'does it separately.')
       ..addFlag('tree-shake-icons', defaultsTo: true, help: 'Tree shake icons')
       ..addFlag('prerender',
           defaultsTo: true,
@@ -1136,6 +1147,8 @@ class BuildCommand extends Command<void> {
       _writeAndroidPush(_projectRoot,
           enabled: platform == 'android' && noPush == null,
           reason: noPush);
+      // Gradle writes native debug symbols only when asked.
+      _writeAndroidSymbolsRequest(_projectRoot);
     }
     // After every other manifest writer, so the INTERNET line and the
     // <application> attributes are decided on the manifest that ships.
@@ -1242,6 +1255,10 @@ class BuildCommand extends Command<void> {
       }
     }
 
+    // When this build began: the symbols it writes are newer than this, and
+    // the ones an earlier build left in the same directories are not.
+    final DateTime buildStartedAt = DateTime.now();
+
     // Printed before starting, so a log that ends here says exactly what was
     // invoked. A macOS build once stopped at this point and produced nothing
     // for 41 minutes; the log could not even show the command.
@@ -1274,6 +1291,14 @@ class BuildCommand extends Command<void> {
     if (exitCode == null) return DVBuildTargetResult.failed;
 
     if (exitCode == 0) {
+      if (androidFamily && buildMode == '--release') {
+        // The mapping and debug symbols this build wrote are what a crash
+        // from it can be read with, and the next build overwrites them.
+        if (!await _collectAndroidSymbols(_projectRoot, buildStartedAt)) {
+          Logger.log('❌ $platform build failed');
+          return DVBuildTargetResult.failed;
+        }
+      }
       if (platform == 'web' || platform == 'web-server') {
         final root = _projectRoot;
         // First, before anything reads build/web or lists its parts: Studio's
@@ -3131,6 +3156,62 @@ class BuildCommand extends Command<void> {
     Logger.log('   Service worker written: '
         '${routes.length} route(s) and ${parts.length} page part(s) '
         'precached; a failed navigation goes to $dvOfflineRoute/.');
+  }
+
+  /// Asks Gradle for the native debug symbols zip, when the project declares
+  /// `dartvel.crashes.symbols` and crash reporting is on in release.
+  void _writeAndroidSymbolsRequest(String root) {
+    bool include = false;
+    try {
+      final DVCrashConfig crashes = dvSymbolsProject(root).crashes;
+      include = crashes.symbolsUrl != null &&
+          crashes.enabledIn(DVCrashBuildMode.release);
+    } on ArgumentError {
+      // The build reads dartvel.crashes strictly where it is used; a bad
+      // declaration is reported there, not here.
+    }
+    for (final (String name, bool kotlinScript) in const <(String, bool)>[
+      ('android/app/build.gradle.kts', true),
+      ('android/app/build.gradle', false),
+    ]) {
+      final File gradle = File(p.join(root, name));
+      if (!gradle.existsSync()) continue;
+      final String before = gradle.readAsStringSync();
+      final String after = dvAndroidGradleWithNativeSymbols(before,
+          include: include, kotlinScript: kotlinScript);
+      if (after != before) gradle.writeAsStringSync(after);
+      return;
+    }
+  }
+
+  /// Gathers the release build's symbols into `build/symbols/<release>`, and
+  /// uploads them when asked to. False only when an upload that was asked for
+  /// failed: a build that cannot publish its symbols has produced a release
+  /// whose crashes will be unreadable, and saying so loudly beats a green
+  /// build.
+  Future<bool> _collectAndroidSymbols(String root, DateTime builtSince) async {
+    final DVSymbolsCollection result;
+    try {
+      result = dvCollectProjectSymbols(root, builtSince: builtSince);
+    } on Object catch (error) {
+      Logger.log('⚠️  Could not collect symbols for crash reports: $error');
+      return true;
+    }
+    for (final String warning in result.warnings) {
+      Logger.log('⚠️  $warning');
+    }
+    if (result.isEmpty) return true;
+    Logger.log('   Symbols for ${result.manifest.release}: '
+        '${result.manifest.files.length} file(s) in '
+        '${p.relative(result.directory, from: root)}.');
+    bool upload = argResults?['upload-symbols'] == true;
+    try {
+      upload = upload || dvSymbolsProject(root).crashes.uploadSymbolsOnBuild;
+    } on ArgumentError {
+      // Reported where dartvel.crashes is read.
+    }
+    if (!upload) return true;
+    return dvUploadProjectSymbols(root, release: result.manifest.release);
   }
 
   /// `dartvel.push`, read strictly; exits the build on a bad declaration.

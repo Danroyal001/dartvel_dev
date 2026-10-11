@@ -36,6 +36,7 @@ DVSymbolsManifest sample() => DVSymbolsManifest(
     );
 
 void main() {
+  directoryTests();
   group('manifest', () {
     test('round-trips through JSON', () {
       final DVSymbolsManifest read = DVSymbolsManifest.fromJson(
@@ -111,6 +112,29 @@ void main() {
       expect((await repo.manifest('1.4.0+12'))!.files, hasLength(3));
       expect(await repo.hasRelease('1.4.0+12'), isTrue);
       expect(await repo.hasRelease('9.9.9'), isFalse);
+    });
+  });
+}
+
+void directoryTests() {
+  group('the server symbols directory', () {
+    String dir({Map<String, String> env = const <String, String>{}, String cwd = '/srv/app'}) =>
+        dvServerSymbolsDirectoryFor(
+            appId: 'shop', environment: env, currentDirectory: cwd, tempDirectory: '/tmp');
+
+    test('is the declared one when the deployment mounts one', () {
+      expect(dir(env: <String, String>{'DARTVEL_SYMBOLS_DIR': '/data/symbols'}),
+          '/data/symbols');
+    });
+
+    test('is beside the application otherwise', () {
+      expect(dir(), '/srv/app/.dartvel/symbols');
+      expect(dir(cwd: '/srv/app/'), '/srv/app/.dartvel/symbols');
+    });
+
+    test('is never the root of the machine', () {
+      expect(dir(cwd: '/'), '/tmp/dartvel-symbols/shop');
+      expect(dir(cwd: ''), '/tmp/dartvel-symbols/shop');
     });
   });
 }

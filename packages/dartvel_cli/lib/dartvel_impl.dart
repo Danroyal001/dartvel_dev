@@ -46,6 +46,7 @@ import 'src/commands/routes_command.dart';
 import 'src/commands/shell_command.dart';
 import 'src/commands/key_command.dart';
 import 'src/commands/push_command.dart';
+import 'src/commands/symbols_command.dart';
 import 'src/commands/test_command.dart';
 import 'src/commands/updates_command.dart';
 import 'src/commands/upgrade_command.dart';
@@ -118,6 +119,7 @@ DartvelCommandRunner dartvelCommandRunner() =>
       ..addCommand(CacheCommand())
       ..addCommand(KeyCommand())
       ..addCommand(PushCommand())
+      ..addCommand(SymbolsCommand())
       ..addCommand(DbCommand())
       ..addCommand(GenerateCommand())
       ..addCommand(I18nCommand())
