@@ -30,6 +30,22 @@ Future<String> runtimeFor({
       await Directory.systemTemp.createTemp('dartvel_terminal_');
   addTearDown(() => root.deleteSync(recursive: true));
 
+  // The terminal surface comes from a runtime package (a paid one in
+  // practice); this fixture stands in for it.
+  final Directory runtime = Directory(p.join(root.path, 'fake_terminal'))
+    ..createSync();
+  File(p.join(runtime.path, 'dartvel_runtimes.yaml')).writeAsStringSync(
+    'runtimes: [terminal]\n'
+    'client:\n'
+    '  import: package:fake_terminal/fake_terminal.dart\n'
+    '  terminal_surface: FakeTerminal.attach()\n',
+  );
+  Directory(p.join(root.path, '.dart_tool')).createSync();
+  File(p.join(root.path, '.dart_tool', 'package_config.json')).writeAsStringSync(
+    '{"configVersion":2,"packages":[{"name":"fake_terminal",'
+    '"rootUri":"../fake_terminal","packageUri":"lib/"}]}',
+  );
+
   Directory(p.join(root.path, 'lib', 'pages')).createSync(recursive: true);
   Directory(p.join(root.path, 'lib', 'dartvel_client'))
       .createSync(recursive: true);
@@ -138,14 +154,14 @@ void main() {
 
     test('installs the surface it is drawing on', () async {
       // The only thing in a shipped application that ever produces a
-      // DVTerminalGraphics. Without it DV.Platform.surface reports a GUI from
-      // inside a terminal, and DV.Platform.terminal is null.
+      // terminal surface. Without it DV.Platform.surface reports a GUI from
+      // inside a terminal, and nothing is attached.
       final String source = await runtimeFor(
         renderBackends: <DVRenderBackend>{DVRenderBackend.terminal},
       );
       expect(source, contains('DV.Platform.useRenderSurface('));
       expect(source, contains('DVRenderSurface.terminal,'));
-      expect(source, contains('terminal: await DVTerminalSurface.attach()'));
+      expect(source, contains('attached: await fake_terminal.FakeTerminal.attach()'));
     });
 
     test('never goes looking for a terminal runner beside itself', () async {

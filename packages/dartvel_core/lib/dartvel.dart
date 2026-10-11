@@ -36,7 +36,6 @@ import 'src/schema/schema_change.dart' show DVAddColumn;
 import 'src/search/search_tuning.dart';
 import 'src/tenancy/tenants.dart';
 
-export 'src/platform/telegram_config.dart';
 export 'src/ai/ai.dart';
 export 'src/ai/ai_eval.dart';
 export 'src/ai/ai_features.dart';
@@ -100,7 +99,6 @@ export 'src/purchases/fake_store.dart';
 export 'src/purchases/storekit_names.dart';
 export 'src/purchases/play_store.dart';
 export 'src/purchases/purchases.dart';
-export 'src/purchases/telegram_stars.dart';
 // LDAP is a raw TCP protocol, so a browser cannot speak it. Exported
 // unconditionally this pulls dart:io into every web build, which is what broke
 // the site build -- as a cascade of unrelated type errors in another file
@@ -338,7 +336,6 @@ export 'src/webhooks/standard_webhooks.dart';
 export 'src/webhooks/cloudevents.dart';
 export 'src/widgets/home_widget.dart';
 export 'src/windowing/single_instance.dart';
-export 'src/xr/xr.dart';
 
 typedef RequestType = dv.Request;
 typedef ResponseType = dv.Response;

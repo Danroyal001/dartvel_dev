@@ -67,7 +67,9 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
         Bullets(<String>[
           'DV.Purchases.buy opens StoreKit 2 on iOS and macOS and Play '
               'Billing on Android, the gateway checkout on the web and '
-              'desktop, and Stars in a Telegram Mini App.',
+              'desktop. A store that writes its own invoices, such as Telegram '
+              'Stars, plugs in as a store adapter from a paid runtime '
+              'package.',
           'Subscriptions with trials and offers, non-consumables and '
               'consumables. Ask to Buy and slow payments come back as '
               'pending and finish later.',
@@ -96,7 +98,7 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
           'Purchases and Entitlements',
           missing: <String>[
             'The StoreKit 2 binding has not run on a Mac, and no purchase '
-                'has gone through a real App Store, Play or Telegram sandbox. '
+                'has gone through a real App Store or Play sandbox. '
                 'The Play Billing binding has not run on an Android device, '
                 'and the Play adapter has only met recorded Google responses.',
             'Products are not generated from models.',

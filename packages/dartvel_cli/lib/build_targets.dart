@@ -9,6 +9,13 @@ import 'src/build/build_target.dart';
 
 export 'src/build/build_target.dart';
 export 'src/build/render_backends.dart' show DVRenderBackend;
+export 'src/build/runtime_packages.dart'
+    show
+        DVRuntimePackage,
+        dvRuntimeManifestFile,
+        dvReadRuntimeManifest,
+        dvPaidRuntimes,
+        dvRuntimesProPackage;
 export 'src/build/target_packages.dart'
     show DVTargetPackage, dvTargetManifestFile, dvReadTargetManifest;
 export 'src/utils/toolchain.dart'

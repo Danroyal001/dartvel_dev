@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../build/build_target.dart';
+import '../build/runtime_packages.dart';
 import '../build/target_packages.dart';
 import '../utils/build_runner.dart' show hasPubDependency;
 import '../utils/logger.dart';
@@ -15,6 +16,9 @@ const String dvTargetsProGitUrl =
 
 /// The package's directory inside [dvTargetsProGitUrl].
 const String dvTargetsProGitPath = 'packages/dartvel_targets_pro';
+
+/// The paid runtimes package's directory inside [dvTargetsProGitUrl].
+const String dvRuntimesProGitPath = 'packages/dartvel_runtimes_pro';
 
 typedef TargetsProcessRun = Future<ProcessResult> Function(
   String executable,
@@ -33,7 +37,8 @@ class TargetsCommand extends Command<void> {
     argParser
       ..addOption('path',
           help: 'With add: a local checkout of the package, instead of the '
-              'git repository (for development).')
+              'git repository (for development). For `add pro`, the runtimes '
+              'package is taken from beside it.')
       ..addOption('git-url',
           defaultsTo: dvTargetsProGitUrl,
           help: 'With add: the repository the package is fetched from.')
@@ -41,7 +46,7 @@ class TargetsCommand extends Command<void> {
   }
 
   @override
-  String get invocation => 'dartvel targets [add pro]';
+  String get invocation => 'dartvel targets [add pro|runtimes]';
 
   /// The project; the working directory when null.
   final String? root;
@@ -63,7 +68,8 @@ class TargetsCommand extends Command<void> {
   @override
   final String description =
       'List the build targets this install can build, and add the paid '
-      'targets package (dartvel targets add pro).';
+      'packages: dartvel targets add pro (targets and runtimes) or '
+      'dartvel targets add runtimes (runtimes only).';
 
   @override
   Future<void> run() async {
@@ -109,8 +115,9 @@ class TargetsCommand extends Command<void> {
   }
 
   Future<void> _add(List<String> rest) async {
-    if (rest.length != 1 || rest.single != 'pro') {
-      Logger.log('❌ Name the package to add: dartvel targets add pro');
+    if (rest.length != 1 || (rest.single != 'pro' && rest.single != 'runtimes')) {
+      Logger.log('❌ Name the package to add: dartvel targets add pro, or '
+          'dartvel targets add runtimes');
       exitCode = 64; // EX_USAGE
       return;
     }
@@ -122,12 +129,19 @@ class TargetsCommand extends Command<void> {
     }
     final String? path = argResults?['path'] as String?;
     final String? ref = argResults?['git-ref'] as String?;
-    final Map<String, Object?> source = path != null
-        ? <String, Object?>{'path': path}
+    final bool targets = rest.single == 'pro';
+    // With --path: the checkout of the package being added, and for `pro` the
+    // runtimes package is its sibling.
+    Map<String, Object?> sourceOf(String gitPath) => path != null
+        ? <String, Object?>{
+            'path': gitPath == dvRuntimesProGitPath && targets
+                ? '$path/../dartvel_runtimes_pro'
+                : path,
+          }
         : <String, Object?>{
             'git': <String, Object?>{
               'url': argResults?['git-url'] as String,
-              'path': dvTargetsProGitPath,
+              'path': gitPath,
               if (ref != null) 'ref': ref,
             },
           };
@@ -136,7 +150,10 @@ class TargetsCommand extends Command<void> {
     final List<String> arguments = <String>[
       'pub',
       'add',
-      'dev:$dvTargetsProPackage:${jsonEncode(source)}',
+      // The build targets run in the CLI, so they are a dev dependency; the
+      // runtimes run inside the application and its server, so they are not.
+      if (targets) 'dev:$dvTargetsProPackage:${jsonEncode(sourceOf(dvTargetsProGitPath))}',
+      '$dvRuntimesProPackage:${jsonEncode(sourceOf(dvRuntimesProGitPath))}',
     ];
     Logger.log('   $tool ${arguments.join(' ')}');
     final ProcessResult result = await _processRun(tool, arguments,
@@ -144,13 +161,14 @@ class TargetsCommand extends Command<void> {
     stdout.write(result.stdout);
     stderr.write(result.stderr);
     if (result.exitCode != 0) {
-      Logger.log('❌ $dvTargetsProPackage could not be added. Fetching it '
+      Logger.log('❌ The paid packages could not be added. Fetching them '
           'needs read access to its repository, which comes with a Dartvel '
           'Cloud plan; check that git can reach $dvTargetsProGitUrl.');
       exitCode = result.exitCode;
       return;
     }
-    Logger.log('✅ $dvTargetsProPackage added. `dartvel targets` lists what '
-        'it provides; `dartvel build <target>` builds one.');
+    Logger.log('✅ ${targets ? '$dvTargetsProPackage and ' : ''}'
+        '$dvRuntimesProPackage added. `dartvel targets` lists what they '
+        'provide; `dartvel build <target>` builds one.');
   }
 }

@@ -352,6 +352,9 @@ void main() {
       expect(ran.single, startsWith('flutter pub add dev:dartvel_targets_pro:'));
       expect(ran.single, contains(dvTargetsProGitUrl));
       expect(ran.single, contains(dvTargetsProGitPath));
+      // The runtimes ride along: they are a regular dependency of the app.
+      expect(ran.single, contains(' dartvel_runtimes_pro:'));
+      expect(ran.single, contains(dvRuntimesProGitPath));
       expect(exitCode, 0);
     });
 

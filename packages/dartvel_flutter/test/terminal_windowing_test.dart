@@ -17,6 +17,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 const orders = DVRouteTarget('/orders');
 
+class _Attached implements DVAttachedSurface {
+  @override
+  void dispose() {}
+}
+
 void main() {
   setUp(DVWindowManager.reset);
   tearDown(() {
@@ -29,11 +34,7 @@ void main() {
   void renderInTerminal() {
     DV.Platform.useRenderSurface(
       DVRenderSurface.terminal,
-      terminal: DVTerminalSurface.fixed(
-        columns: 120,
-        rows: 40,
-        graphics: DVTerminalGraphics.ansi,
-      ),
+      attached: _Attached(),
     );
   }
 

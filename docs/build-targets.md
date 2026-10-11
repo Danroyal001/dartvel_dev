@@ -21,7 +21,10 @@ Flutter targets were verified against `examples/dartvel_example`.
 > that package. On a free install `dartvel build <target>` for one of them
 > exits 69 with a message naming the plan, `dartvel build <target> --cloud`
 > and `dartvel targets add pro`. The extension point they implement,
-> `DVBuildTarget`, is public (`package:dartvel_cli/build_targets.dart`).
+> `DVBuildTarget`, is public (`package:dartvel_cli/build_targets.dart`). The
+> runtime APIs that go with them (Telegram host and sign-in, the XR runtime,
+> the terminal surface, the browser-extension runtime) are in the private
+> `dartvel_runtimes_pro` package, behind public extension points.
 
 
 > **The native server is opt-in.** `dartvel_shelf.dll`, `libdartvel_shelf.so`

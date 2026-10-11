@@ -57,15 +57,23 @@ class DVWindowingCapability {
     this.displays = false,
     this.displayKiosk = false,
     this.spatial,
+    this.spatialPanels = false,
   });
 
   /// What the target can do in space: null on every target that is not a
   /// headset or glasses. The one capability application code may branch on
   /// to decide whether to offer a spatial control.
-  final DVSpatialCapability? spatial;
+  ///
+  /// Opaque to the framework: it is whatever the registered
+  /// [DVWindowSpaceBackend] reports as its `capability`.
+  final Object? spatial;
+
+  /// Whether the spatial target presents tabs as panels, so that tearing one
+  /// out is possible (set by the backend).
+  final bool spatialPanels;
 
   /// This capability with [spatial] in it.
-  DVWindowingCapability withSpatial(DVSpatialCapability? spatial) => DVWindowingCapability(
+  DVWindowingCapability withSpatial(Object? spatial, {bool panels = false}) => DVWindowingCapability(
         multiWindow: multiWindow,
         sameEngine: sameEngine,
         tearOut: tearOut,
@@ -75,6 +83,7 @@ class DVWindowingCapability {
         displays: displays,
         displayKiosk: displayKiosk,
         spatial: spatial,
+        spatialPanels: panels,
       );
 
   /// Whether a window can own a display as a kiosk: pinned, fullscreen, its
@@ -105,7 +114,7 @@ class DVWindowingCapability {
         multiWindow: multiWindow,
         sameEngine: sameEngine,
         // Tearing a tab out of a workspace on a headset yields a panel.
-        tearOut: tearOut || (spatial?.panels ?? false),
+        tearOut: tearOut || spatialPanels,
         inPageViews: inPageViews,
         ownedWindows: ownedWindows,
         applicationModal: applicationModal,
@@ -122,6 +131,7 @@ class DVWindowingCapability {
         // pinned is not overruled by a count read before enumeration ran.
         displayKiosk: spatial == null && (displayKiosk || (multiWindow && count > 1)),
         spatial: spatial,
+        spatialPanels: spatialPanels,
       );
 
   /// The capability of the running target.
@@ -447,15 +457,11 @@ class DVWindowOptions {
   /// For [DVWindowKind.kiosk]: the declared policy the window obeys.
   final DVWindowKiosk? kiosk;
 
-  /// For [DVWindowKind.volume]: the size it asks for. A hint; the OS decides.
-  final DVVolumeOptions? volume;
-
-  /// For [DVWindowKind.immersive]: passthrough or full.
-  final DVImmersion immersion;
-
-  /// For [DVWindowKind.immersive]: the locomotion it offers, under the
-  /// comfort policy.
-  final DVComfortOptions? comfort;
+  /// For [DVWindowKind.volume] and [DVWindowKind.immersive]: what the
+  /// registered [DVWindowSpaceBackend] understands (a volume's size, an
+  /// immersion level, comfort options). The framework hands it over
+  /// uninterpreted.
+  final Object? space;
 
   const DVWindowOptions({
     this.size,
@@ -468,9 +474,7 @@ class DVWindowOptions {
     this.modality,
     this.isExternal = false,
     this.kiosk,
-    this.volume,
-    this.immersion = DVImmersion.full,
-    this.comfort,
+    this.space,
   });
 
   /// An OS-delivered open request.
@@ -529,7 +533,7 @@ class DVWindow {
 
   /// The session presenting this window in space, for a volume or immersive
   /// space that got one. Ends when the window closes.
-  DVSpatialSession? spatial;
+  DVWindowSpaceSession? spatial;
 
   void _code(String code, String detail) {
     codes.add(code);
@@ -748,6 +752,22 @@ class DVWindowManager {
     _capabilityOverride = value;
   }
 
+  static DVWindowSpaceBackend? _spaceBackend;
+
+  /// Registers what presents volumes and immersive spaces in space. A package
+  /// that brings a spatial runtime calls this once at startup.
+  static void registerSpaceBackend(DVWindowSpaceBackend backend) {
+    _spaceBackend = backend;
+  }
+
+  /// Removes the registered space backend, if any.
+  static void unregisterSpaceBackend() {
+    _spaceBackend = null;
+  }
+
+  /// The registered space backend, or null.
+  static DVWindowSpaceBackend? get spaceBackend => _spaceBackend;
+
   /// How a browser window is opened, on the web.
   ///
   /// A seam rather than a direct call, so the two answers a browser gives --
@@ -772,7 +792,7 @@ class DVWindowManager {
     _capabilityOverride = null;
     browserWindowOpener = dvOpenBrowserWindow;
     _shared = null;
-    DVXR.clear();
+    _spaceBackend?.reset();
   }
 
   /// What the windowing layer measures. See [DVWindowPerformance].
@@ -947,7 +967,7 @@ class DVWindowManager {
 
   DVWindowingCapability get capability {
     final DVWindowingCapability detected = _detectCapability();
-    return (detected.spatial == null ? detected.withSpatial(DVXR.capability) : detected)
+    return (detected.spatial == null ? detected.withSpatial(_spaceBackend?.capability, panels: _spaceBackend?.panels ?? false) : detected)
         .withDisplayCount(_displays.value.length);
   }
 
@@ -1275,32 +1295,26 @@ class DVWindowManager {
     final bool volume = options.kind == DVWindowKind.volume;
     final String windowCode = volume ? 'DV-WINDOW-014' : 'DV-WINDOW-015';
     final List<String> codes = <String>[];
-    DVSpatialSession? session;
+    DVWindowSpaceSession? session;
     DVWindowDegradation degradation;
+    final DVWindowSpaceBackend? backend = _spaceBackend;
     if (_declared.enabled == false) {
       degradation = DVWindowDegradation.disabledByConfig;
       codes.addAll(<String>['DV-WINDOW-005', windowCode]);
+    } else if (backend == null) {
+      // No package registered a way to present in space: a page, and the code
+      // that says which kind of window was asked for.
+      degradation = DVWindowDegradation.capabilityUnsupported;
+      codes.add(windowCode);
     } else {
-      final DVSpatialPresentation presented = await DVXR.runtime.present(DVSpatialSpaceRequest(
-        kind: volume ? DVSpatialSpaceKind.volume : DVSpatialSpaceKind.immersive,
+      final DVWindowSpacePresentation presented = await backend.present(DVWindowSpaceRequest(
+        kind: options.kind,
         route: route.path,
-        immersion: options.immersion,
-        volume: options.volume,
-        comfort: options.comfort,
+        options: options.space,
       ));
       session = presented.session;
       codes.addAll(presented.codes);
-      degradation = switch (presented.refusal) {
-        null => DVWindowDegradation.none,
-        DVSpatialRefusal.bindingMissing ||
-        DVSpatialRefusal.bindingFailed =>
-          DVWindowDegradation.bindingRefused,
-        DVSpatialRefusal.platformRefused => DVWindowDegradation.platformRefused,
-        DVSpatialRefusal.noCapability ||
-        DVSpatialRefusal.exclusive ||
-        DVSpatialRefusal.backgrounded =>
-          DVWindowDegradation.capabilityUnsupported,
-      };
+      degradation = presented.degradation;
     }
     // An immersive space belongs to the window that opened it: the one named,
     // or main. A volume belongs to nobody.
@@ -1320,9 +1334,13 @@ class DVWindowManager {
     window.codes.addAll(codes);
     window.spatial = session;
     if (degradation == DVWindowDegradation.disabledByConfig) {
-      // The XR runtime was never asked, so nothing has reported these.
+      // The backend was never asked, so nothing has reported these.
       for (final String code in codes) {
         unawaited(window._logCode(code, 'windowing is disabled in configuration; presented as a page'));
+      }
+    } else if (backend == null) {
+      for (final String code in codes) {
+        unawaited(window._logCode(code, 'no spatial runtime is registered; presented as a page'));
       }
     }
     _windows.add(window);
@@ -1331,10 +1349,8 @@ class DVWindowManager {
     if (session != null) {
       // The system can end a space -- the home gesture, another application
       // taking the immersive space -- and the window goes with it.
-      session.state.listen((DVSpatialSessionState state) {
-        if (state == DVSpatialSessionState.ended && _windows.contains(window)) {
-          unawaited(window.close());
-        }
+      session.ended.listen((_) {
+        if (_windows.contains(window)) unawaited(window.close());
       });
     } else if (DV.Navigation.isAttached) {
       DV.Navigation.navigate(route);

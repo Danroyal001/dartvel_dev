@@ -27,7 +27,7 @@ void showError(String reason) {}
 Future<void> buyPro() async {
   // docs:start purchases-buy
   // In the app. The store sheet on iOS and Android, the gateway checkout on
-  // the web and desktop, Stars in Telegram: one call, no platform branch.
+  // the web and desktop: one call, no platform branch.
   DVPurchases.configure(DVPurchases.device(products: <DVPurchaseProduct>[
     proMonthly,
     coins,
