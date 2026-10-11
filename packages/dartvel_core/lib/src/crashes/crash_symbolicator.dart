@@ -165,7 +165,14 @@ class DVRepositoryCrashSymbolicator implements DVCrashSymbolicator {
 
     final String? decoded = await decoder.decode(stack, symbolFiles: bytes);
     if (decoded == null) return report.copyWith(symbolicated: false);
-    final List<DVCrashFrame> frames = DVCrashFrame.parse(decoded);
+    // The decoder passes the header lines (pid, tid, base addresses) through
+    // beside the frames it decoded. Those differ on every run, so a group id
+    // taken from them would put each occurrence of one bug in a group of its
+    // own; only the frames are kept.
+    final List<DVCrashFrame> frames = DVCrashFrame.parse(decoded
+        .split('\n')
+        .where((String line) => line.trimLeft().startsWith('#'))
+        .join('\n'));
     if (frames.isEmpty) return report.copyWith(symbolicated: false);
     return report.copyWith(
       frames: frames,

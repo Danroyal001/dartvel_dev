@@ -208,6 +208,26 @@ void main() {
           DVCrashFingerprint.of(errorType: 'StateError', frames: out.frames));
     });
 
+    test('the decoder\'s header lines do not become frames or the group id',
+        () async {
+      String decodedWithPid(int pid) => '''
+*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+pid: $pid, tid: 4300, name 1.ui
+build_id: 'c0ffee00c0ffee00c0ffee00c0ffee00'
+#0      Checkout.pay (package:shop/checkout.dart:88:7)''';
+      final DVMemorySymbolRepository repo = await repoWithDart();
+      final DVCrashReport one = await DVRepositoryCrashSymbolicator(
+        repository: repo,
+        dartDecoder: _FakeDecoder(answer: decodedWithPid(1)),
+      ).symbolicate(dartReport());
+      final DVCrashReport two = await DVRepositoryCrashSymbolicator(
+        repository: repo,
+        dartDecoder: _FakeDecoder(answer: decodedWithPid(2)),
+      ).symbolicate(dartReport());
+      expect(one.frames, hasLength(1));
+      expect(one.fingerprint, two.fingerprint);
+    });
+
     test('a stack of another build is not decoded with this one\'s files',
         () async {
       final _FakeDecoder decoder = _FakeDecoder(answer: '#0 x (package:a/a.dart:1:1)');
