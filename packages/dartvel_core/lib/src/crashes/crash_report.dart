@@ -84,6 +84,18 @@ class DVCrashFrame {
     'package:stack_trace/',
     'package:test_api/',
     'package:matcher/',
+    // The JVM's own: a frame on Android is `jvm:<class>`, and the platform's
+    // frames are on nearly every stack there, like the Dart SDK's.
+    'jvm:java.',
+    'jvm:javax.',
+    'jvm:android.',
+    'jvm:androidx.',
+    'jvm:com.android.',
+    'jvm:dalvik.',
+    'jvm:libcore.',
+    'jvm:kotlin.',
+    'jvm:kotlinx.',
+    'jvm:dev.dartvel.jni.',
   ];
 
   /// Whether this frame is in the framework rather than the application.
@@ -424,13 +436,19 @@ class DVCrashReport {
     this.symbolicated,
   });
 
-  DVCrashReport copyWith({bool? symbolicated}) => DVCrashReport(
+  DVCrashReport copyWith({
+    bool? symbolicated,
+    List<DVCrashFrame>? frames,
+    String? errorType,
+    String? fingerprint,
+  }) =>
+      DVCrashReport(
         id: id,
         kind: kind,
-        errorType: errorType,
+        errorType: errorType ?? this.errorType,
         message: message,
-        frames: frames,
-        fingerprint: fingerprint,
+        frames: frames ?? this.frames,
+        fingerprint: fingerprint ?? this.fingerprint,
         context: context,
         occurredAt: occurredAt,
         sessionLength: sessionLength,

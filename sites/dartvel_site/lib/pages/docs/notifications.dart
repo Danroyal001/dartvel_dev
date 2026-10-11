@@ -74,13 +74,88 @@ Widget _docsNotificationsPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'push-setup',
+          title: 'Push to Android and the browser',
+          children: <Widget>[
+            DocsText('Name the targets under dartvel.push in pubspec.yaml: '
+                'web takes the public half of your VAPID key (`dartvel push '
+                'vapid-keys` makes a pair), and android.fcm takes the four '
+                'values the Firebase console shows for the app. The build '
+                'writes everything else, so nothing in android/ or in a '
+                'service worker is edited by hand.'),
+            Bullets(<String>[
+              'The credentials that send are Secrets, never pubspec.yaml: '
+                  'FCM_SERVICE_ACCOUNT_JSON for FCM, VAPID_PRIVATE_KEY and '
+                  'VAPID_SUBJECT for Web Push. The config parser refuses a '
+                  'private key written in pubspec.yaml.',
+              'FirebasePushProvider.fromSecrets signs the service-account '
+                  'token request itself, keeps the access token until just '
+                  'before it expires and retries once after a 401. The key '
+                  'is redacted from logs and is in no error message.',
+            ]),
+            DocsCode('push-send'),
+          ],
+        ),
+        DocsSection(
+          id: 'push-receive',
+          title: 'Receive push in the app',
+          children: <Widget>[
+            DocsCode('push-receive'),
+            Bullets(<String>[
+              'getToken is an FCM registration token on Android and the '
+                  'browser subscription on the web. Send it to your server, '
+                  'where DVNotificationRoutes takes it as pushTokens or '
+                  'webPushSubscriptions.',
+              'Starting push asks for no permission. requestPermission is for '
+                  'a tap: a browser stops showing the prompt after a few '
+                  'dismissals, so asking at load spends the only chance.',
+              'On Android the build writes the Firebase service, the JNI '
+                  'bridge, the manifest entry, the Gradle dependency and the '
+                  'string resources Firebase reads, so there is no '
+                  'google-services.json. A message that arrives while the app '
+                  'is not running is kept until Dart asks.',
+              'On the web the one generated service worker, shared by web and '
+                  'web-server, shows a notification when no window is visible, '
+                  'hands the message to the page when one is, and opens only '
+                  'pages of your own origin when it is clicked.',
+              'Fire OS and Horizon OS have no Google Play services, so their '
+                  'builds leave FCM out.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'push-server',
+          title: 'Topics and data messages',
+          children: <Widget>[
+            DocsCode('push-topic'),
+            Bullets(<String>[
+              'A topic reaches every device subscribed to it. Web Push has no '
+                  'topics, and subscribeToTopic there says so.',
+              'A data message shows nothing; the app receives it and decides.',
+              'FCM answers a token it no longer knows with UNREGISTERED. That '
+                  'is isUnregisteredToken on the exception: drop the token. '
+                  'isRetryable is true for quota, unavailable and internal '
+                  'errors.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'status',
           title: 'Status',
           children: <Widget>[
             DocsStatus('Mail and Notifications', missing: <String>[
+              'Web Push has been run against Chrome\'s real push service. FCM '
+                  'has not: no Firebase project or Android device was '
+                  'available, so no token has come from a phone and no '
+                  'message has been delivered to one.',
+              'A click on a notification is tested in the worker and has not '
+                  'been tried in a browser. Nor have Firefox and Safari.',
+              'A tap on a notification while the Android app is already '
+                  'running in the background is not reported as opened.',
               'No attachments, bounce webhooks or List-Unsubscribe header.',
               'Mail is sent directly, and not through the job queue.',
-              'Desktop and TV push kinds have no implementation.',
+              'Desktop and TV push kinds have no implementation, and iOS has '
+                  'no device registration yet.',
             ]),
           ],
         ),

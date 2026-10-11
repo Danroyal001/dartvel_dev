@@ -48,6 +48,7 @@ import 'web_media_js.dart';
 import 'web_nfc_js.dart';
 import 'web_permissions_js.dart';
 import 'web_player_js.dart';
+import 'web_push_js.dart';
 import 'web_sensors_js.dart';
 
 // Re-exported so the capability lists and DVWebPermissionDenied reach an
@@ -401,6 +402,10 @@ class DVWebBindings {
     DVWebPlayer.register();
     if (DVWebContacts.available) DVWebContacts.register(register);
     if (DVWebNfc.available) DVWebNfc.register(register);
+    // Web Push: the subscription and the messages the generated worker
+    // forwards. Probed, so a browser without the Push API leaves the names
+    // unregistered; nothing here ever shows the permission prompt.
+    if (DVWebPushBrowser.available) DVWebPushBrowser.register(register);
     DVWebMedia.registerPicker(register);
     DVWebBluetooth.register(register);
     DVWebDevice.register(register);

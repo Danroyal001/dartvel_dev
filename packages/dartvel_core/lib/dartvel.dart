@@ -22,6 +22,8 @@ import 'src/http/transport.dart';
 // import 'dart:io'; // Removed to avoid breaking web builds
 import 'src/http/wintercg.dart' as dv;
 import 'src/mail/smtp.dart';
+import 'src/notifications/fcm.dart';
+import 'src/notifications/push_exception.dart';
 import 'src/notifications/web_push.dart';
 import 'src/notifications/web_push_vapid.dart';
 import 'src/observability/observability.dart';
@@ -250,7 +252,11 @@ export 'src/modules/modules.dart';
 // The device side of push. Exported by nothing until now, so the API that
 // registers a device, requests permission and subscribes to a topic was
 // written, tested through a src/ import, and callable by no application.
+export 'src/notifications/fcm.dart';
 export 'src/notifications/push.dart';
+export 'src/notifications/push_config.dart';
+export 'src/notifications/push_exception.dart';
+export 'src/notifications/push_names.dart';
 export 'src/notifications/web_push.dart';
 export 'src/notifications/web_push_vapid.dart';
 // The framework's own implementation of the observability namespace. The
@@ -1561,13 +1567,11 @@ class BillingPlan {
 class Entitlement {
   final String id;
 
+  // No operator == on purpose: applications declare entitlements in const
+  // sets (`const <Entitlement>{pro}`), and a const set only takes elements
+  // with primitive equality. Code that matches entitlements read at run time
+  // (pubspec, webhooks) compares their ids.
   const Entitlement(this.id);
-
-  @override
-  bool operator ==(Object other) => other is Entitlement && other.id == id;
-
-  @override
-  int get hashCode => id.hashCode;
 
   @override
   String toString() => 'Entitlement($id)';
@@ -3363,62 +3367,65 @@ class DVSentNotification {
 
 /// Supplies a short-lived OAuth2 access token for a push service.
 ///
-/// Minting one requires signing a service-account JWT, which needs an RSA
-/// implementation Dartvel does not bundle. Applications supply the token from
-/// their own credentials layer instead, and it is fetched per send so an
-/// expired token is never reused.
+/// Fetched per send so an expired token is never reused. Most applications
+/// do not write one: [FirebasePushProvider.fromSecrets] mints tokens from the
+/// service account in Secrets ([DVGoogleAccessTokens]).
 typedef DVAccessTokenSupplier = Future<String> Function();
-
-/// Thrown when a push service rejects a notification.
-class DVPushProviderException implements Exception {
-  final String provider;
-  final int? statusCode;
-  final String message;
-  final String? responseBody;
-
-  const DVPushProviderException(
-    this.provider,
-    this.message, {
-    this.statusCode,
-    this.responseBody,
-  });
-
-  /// True when the service says this device token is no longer valid, so the
-  /// application should stop sending to it and prune its record.
-  bool get isUnregisteredToken {
-    if (statusCode == 404) return true;
-    final body = responseBody;
-    if (body == null) return false;
-    return body.contains('UNREGISTERED') || body.contains('NOT_FOUND');
-  }
-
-  @override
-  String toString() {
-    final status = statusCode == null ? '' : ' (HTTP $statusCode)';
-    final body = responseBody == null || responseBody!.isEmpty
-        ? ''
-        : '\nResponse: $responseBody';
-    return 'DVPushProviderException[$provider]$status: $message$body';
-  }
-}
 
 /// Firebase Cloud Messaging, HTTP v1.
 ///
 /// The recipient is an FCM registration token. A stale token surfaces as a
 /// [DVPushProviderException] whose [DVPushProviderException.isUnregisteredToken]
 /// is true, which is the signal to drop it rather than retry.
+///
+/// [FirebasePushProvider.fromSecrets] is the usual way to build one: the
+/// service-account key file in the `FCM_SERVICE_ACCOUNT_JSON` secret is the
+/// only credential. [sendTopic] reaches every device subscribed to a topic and
+/// [sendData] sends a data-only message the app handles itself.
 class FirebasePushProvider implements DVNotificationProvider {
   final String projectId;
   final DVAccessTokenSupplier accessToken;
   final Uri baseUrl;
   final DVHttpSend transport;
+  final FirebasePushOptions options;
+
+  /// Called when FCM answers 401, before one retry with a fresh token. Drop
+  /// the cached token here; [FirebasePushProvider.fromSecrets] does.
+  final Future<void> Function()? onUnauthorized;
 
   FirebasePushProvider({
     required this.projectId,
     required this.accessToken,
     Uri? baseUrl,
     this.transport = dvSendHttpRequest,
+    this.options = const FirebasePushOptions(),
+    this.onUnauthorized,
   }) : baseUrl = baseUrl ?? Uri.https('fcm.googleapis.com');
+
+  /// A provider whose credentials are the service account in the
+  /// `FCM_SERVICE_ACCOUNT_JSON` secret. The private key is read through
+  /// [DVSecrets], so it is redacted from logs, and is not part of any error.
+  factory FirebasePushProvider.fromSecrets({
+    DVHttpSend transport = dvSendHttpRequest,
+    FirebasePushOptions options = const FirebasePushOptions(),
+    Uri? baseUrl,
+    DateTime Function()? clock,
+  }) {
+    final DVGoogleServiceAccount account = DVGoogleServiceAccount.fromSecrets();
+    final DVGoogleAccessTokens tokens = DVGoogleAccessTokens(
+      account: account,
+      transport: transport,
+      clock: clock,
+    );
+    return FirebasePushProvider(
+      projectId: account.projectId,
+      accessToken: tokens.call,
+      onUnauthorized: () async => tokens.invalidate(),
+      transport: transport,
+      options: options,
+      baseUrl: baseUrl,
+    );
+  }
 
   @override
   DVNotificationProviderKind get kind => DVNotificationProviderKind.firebase;
@@ -3432,34 +3439,126 @@ class FirebasePushProvider implements DVNotificationProvider {
         'A push notification needs an FCM registration token.',
       );
     }
+    await _post(<String, Object?>{
+      'token': recipient,
+      ..._notificationBlock(message),
+    });
+  }
 
-    final token = await accessToken();
-    final response = await transport(
-      DVHttpRequest(
-        url: baseUrl.replace(path: '/v1/projects/$projectId/messages:send'),
-        headers: <String, String>{
-          'content-type': 'application/json',
-          'authorization': 'Bearer $token',
-        },
-        body: utf8.encode(jsonEncode(<String, Object?>{
-          'message': <String, Object?>{
-            'token': recipient,
-            'notification': <String, Object?>{
-              'title': message.title,
-              'body': message.body,
-            },
-            if (message.data.isNotEmpty) 'data': message.data,
+  /// Sends [message] to every device subscribed to [topic].
+  Future<void> sendTopic(String topic, DVNotificationMessage message) async {
+    await _post(<String, Object?>{
+      'topic': _topicName(topic),
+      ..._notificationBlock(message),
+    });
+  }
+
+  /// Sends a data-only message to [token]: no notification is shown, the app
+  /// receives [data] and decides. [highPriority] wakes a sleeping device, at a
+  /// battery cost, so it is opt-in.
+  Future<void> sendData(
+    String token,
+    Map<String, String> data, {
+    bool highPriority = false,
+  }) async {
+    if (token.trim().isEmpty) {
+      throw ArgumentError.value(token, 'token',
+          'A push message needs an FCM registration token.');
+    }
+    _checkDataKeys(data);
+    await _post(<String, Object?>{
+      'token': token,
+      'data': data,
+      ..._androidBlock(forcePriority: highPriority ? 'high' : null),
+    });
+  }
+
+  static final RegExp _topicShape = RegExp(r'^[a-zA-Z0-9\-_.~%]+$');
+
+  static String _topicName(String topic) {
+    final String name =
+        topic.startsWith('/topics/') ? topic.substring('/topics/'.length) : topic;
+    if (!_topicShape.hasMatch(name)) {
+      throw ArgumentError.value(topic, 'topic',
+          'An FCM topic matches [a-zA-Z0-9-_.~%]+.');
+    }
+    return name;
+  }
+
+  static void _checkDataKeys(Map<String, String> data) {
+    for (final String key in data.keys) {
+      if (key == 'from' || key.startsWith('gcm') || key.startsWith('google')) {
+        throw ArgumentError.value(key, 'data',
+            'FCM reserves "from" and any key starting with "gcm" or "google".');
+      }
+    }
+  }
+
+  Map<String, Object?> _notificationBlock(DVNotificationMessage message) {
+    _checkDataKeys(message.data);
+    return <String, Object?>{
+      'notification': <String, Object?>{
+        'title': message.title,
+        'body': message.body,
+      },
+      if (message.data.isNotEmpty) 'data': message.data,
+      ..._androidBlock(),
+    };
+  }
+
+  Map<String, Object?> _androidBlock({String? forcePriority}) {
+    final String? priority = forcePriority ?? options.androidPriority?.name;
+    if (priority == null && !options.hasAndroidOptions) {
+      return const <String, Object?>{};
+    }
+    return <String, Object?>{
+      'android': <String, Object?>{
+        if (priority != null) 'priority': priority,
+        if (options.timeToLive != null) 'ttl': '${options.timeToLive!.inSeconds}s',
+        if (options.collapseKey != null) 'collapse_key': options.collapseKey,
+        if (options.androidChannelId != null)
+          'notification': <String, Object?>{'channel_id': options.androidChannelId},
+      },
+    };
+  }
+
+  Future<void> _post(Map<String, Object?> message) async {
+    final List<int> body = utf8.encode(jsonEncode(<String, Object?>{
+      'message': message,
+      if (options.dryRun) 'validate_only': true,
+    }));
+
+    Future<DVHttpResponse> attempt() async {
+      final String token = await accessToken();
+      return transport(
+        DVHttpRequest(
+          url: baseUrl.replace(path: '/v1/projects/$projectId/messages:send'),
+          headers: <String, String>{
+            'content-type': 'application/json',
+            'authorization': 'Bearer $token',
           },
-        })),
-      ),
-    );
+          body: body,
+        ),
+      );
+    }
+
+    DVHttpResponse response = await attempt();
+    final Future<void> Function()? refresh = onUnauthorized;
+    if (response.statusCode == 401 && refresh != null) {
+      // The cached token was refused: drop it and try once with a new one. A
+      // second 401 is a credentials problem, reported rather than looped on.
+      await refresh();
+      response = await attempt();
+    }
 
     if (!response.isSuccess) {
+      final String? errorCode = dvFcmErrorCode(response.body);
       throw DVPushProviderException(
         'firebase',
-        'The push service rejected the notification.',
+        dvFcmFailureReason(errorCode, response.statusCode),
         statusCode: response.statusCode,
         responseBody: response.body,
+        errorCode: errorCode,
       );
     }
   }
@@ -3667,6 +3766,30 @@ class WebPushProvider implements DVNotificationProvider {
     this.timeToLive = const Duration(hours: 24),
     this.transport = dvSendHttpRequest,
   });
+
+  /// A provider whose VAPID identity is in Secrets: `VAPID_PRIVATE_KEY`, the
+  /// 32-byte private scalar as unpadded base64url (what `web-push
+  /// generate-vapid-keys` prints), and `VAPID_SUBJECT`, the `mailto:` or
+  /// `https:` contact. The public key is derived from the private one, so the
+  /// two cannot disagree; hand [vapidPublicKey] to the browser.
+  factory WebPushProvider.fromSecrets({
+    Duration timeToLive = const Duration(hours: 24),
+    DVHttpSend transport = dvSendHttpRequest,
+  }) {
+    const secrets = DVSecrets();
+    final Uint8List privateKey =
+        dvWebPushBase64Decode(secrets.get('VAPID_PRIVATE_KEY').trim());
+    return WebPushProvider(
+      vapidKeys: DVWebPushKeyPair.fromPrivateKey(privateKey),
+      subject: secrets.get('VAPID_SUBJECT').trim(),
+      timeToLive: timeToLive,
+      transport: transport,
+    );
+  }
+
+  /// The public half of the identity key as unpadded base64url: the
+  /// `applicationServerKey` the browser subscribes with. Not a secret.
+  String get vapidPublicKey => dvWebPushBase64Encode(vapidKeys.publicKey);
 
   @override
   DVNotificationProviderKind get kind => DVNotificationProviderKind.webPush;
