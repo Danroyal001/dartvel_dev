@@ -12,7 +12,7 @@ import 'package:test/test.dart';
 
 const Entitlement analytics = Entitlement('analytics');
 
-const DVPurchaseProduct pro = DVPurchaseProduct(
+final DVPurchaseProduct pro = DVPurchaseProduct(
   'book_pro',
   billable: DVBillable.digital(
     appStore: 'com.example.book.pro',
@@ -21,7 +21,7 @@ const DVPurchaseProduct pro = DVPurchaseProduct(
   entitlements: <Entitlement>{analytics},
 );
 
-const DVPurchaseProduct mug = DVPurchaseProduct(
+final DVPurchaseProduct mug = DVPurchaseProduct(
   'mug',
   billable: DVBillable.physical(nativePrice: 1200),
   entitlements: <Entitlement>{},
@@ -212,7 +212,7 @@ void main() {
 
     test('a digital good with no identifier for the store is DV-PURCHASE-002',
         () {
-      const DVPurchaseProduct playOnly = DVPurchaseProduct(
+      final DVPurchaseProduct playOnly = DVPurchaseProduct(
         'book_pro',
         billable: DVBillable.digital(play: 'book_pro'),
         entitlements: <Entitlement>{analytics},
@@ -226,7 +226,7 @@ void main() {
 
     test('an application policy replaces the default', () {
       final DVPurchases purchases = DVPurchases(
-        products: const <DVPurchaseProduct>[pro],
+        products: <DVPurchaseProduct>[pro],
         stores: const <DVStoreAdapter>[],
         ledger: DVMemoryPurchaseLedger(),
         policy: const ExternalLinkPolicy(),
