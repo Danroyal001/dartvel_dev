@@ -450,9 +450,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Terminal Rendering',
-    '`dartvel build linux-cli`',
-    'Present: terminal size as a signal and launch negotiation. Absent: the '
-        'renderer and a distributable runner.',
+    '`dartvel.terminal: true`',
+    'Present: terminal size as a signal and launch negotiation. The '
+        'terminal-only builds come with a Dartvel Cloud plan.',
   ),
   (
     '3D Scenes',
@@ -633,8 +633,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Embedded, Television, and Extension Build Targets',
     'Tizen, webOS, eLinux',
-    'Present: Tizen, VS Code and Sony eLinux release builds. Absent: '
-        '`dartvel build webos`, whose embedder ships Dart 3.10.9, and Fuchsia.',
+    'Present: Tizen and Sony eLinux release builds. Absent: '
+        '`dartvel build webos`, whose embedder ships Dart 3.10.9. Extensions '
+        'and Fuchsia come with a Dartvel Cloud plan.',
   ),
   (
     'Unified Development, Transparency, and Contracts',
@@ -724,7 +725,7 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
         Eyebrow('BUILT ON'),
         Heading('The projects under the build targets and updates.', level: 2),
         Body(
-          'The TV, embedded, extension and terminal targets run on '
+          'The TV and embedded targets run on '
           'embedders other people wrote. Dartvel keeps a pinned fork of '
           'each, and the building docs list what every fork changes.',
         ),
@@ -733,10 +734,7 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
             'tizen',
             'elinux',
             'webos',
-            'fuchsia',
-            'vscode',
             'tvos',
-            'flt',
           ],
         ),
         UpstreamCredit('shorebird', lead: 'DV.Updates runs on the'),

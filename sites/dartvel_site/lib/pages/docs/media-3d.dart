@@ -140,8 +140,8 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
           missing: <String>[
             'No native XR binding on any target yet, so spatial windows are '
                 'not available on a device.',
-            'No `dartvel build` target for Android XR, Meta Horizon or '
-                'visionOS.',
+            'No `dartvel build` target for Android XR. Meta Horizon and '
+                'visionOS build as 2D panels with a Dartvel Cloud plan.',
           ],
         ),
       ],

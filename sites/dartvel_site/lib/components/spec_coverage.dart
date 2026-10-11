@@ -268,7 +268,7 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       DVRoutes.docsbuilding, 'TVs and embedded devices use vendor embedders',
       anchor: 'embedded'),
   SpecCoverage('Terminal Rendering', 'Shipping', DVRoutes.docsbuilding,
-      'Build for the terminal', anchor: 'terminal'),
+      'Paid targets', anchor: 'paid'),
   SpecCoverage('App Store Deployment and Privacy Manifests', 'Shipping',
       DVRoutes.cloud,
       'Build and upload to Google Play or the App Store in one step.'),

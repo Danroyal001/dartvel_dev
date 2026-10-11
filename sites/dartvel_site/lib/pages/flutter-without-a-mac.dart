@@ -35,7 +35,7 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
                 'the admin.'),
             Bullets(<String>[
               'On Windows or Linux: `dartvel dev`, and `dartvel build web`, '
-                  'web-server, android, tizen and vscode. Flutter does not '
+                  'web-server, android and tizen. Flutter does not '
                   'cross-compile desktops, so windows builds on Windows, and '
                   'linux and sony-elinux build on Linux.',
               'The Mac is needed for `dartvel build ios`, macos and tvos, and '
@@ -45,7 +45,7 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
                   'below.',
             ]),
             UpstreamCredits(ids: <String>[
-              'tizen', 'elinux', 'vscode',
+              'tizen', 'elinux',
             ]),
           ],
         ),
@@ -63,7 +63,7 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
                 <String>['`dartvel build web` and web-server', 'No'],
                 <String>['`dartvel build android`, and ship to Google Play', 'No'],
                 <String>['`dartvel build windows` or linux', 'No Mac, and each on its own operating system'],
-                <String>['`dartvel build tizen`, sony-elinux, vscode', 'No'],
+                <String>['`dartvel build tizen` and sony-elinux', 'No'],
                 <String>['Backend, database, auth, queues, Studio', 'No'],
                 <String>['`dartvel build ios`, macos, tvos', 'Yes, Xcode'],
                 <String>['Signing an IPA, and App Store submission', 'Yes, Xcode'],

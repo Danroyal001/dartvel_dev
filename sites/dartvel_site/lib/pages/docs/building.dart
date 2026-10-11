@@ -5,17 +5,16 @@ import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
   title: 'Dartvel build targets: every platform and its status',
-  description: 'Build one Dartvel app for phones, desktops, the web, TVs, '
-      'browser extensions and the terminal, with the verified status '
-      'of every target.',
+  description: 'Build one Dartvel app for phones, desktops, the web and '
+      'TVs, with the verified status of every target, and the paid targets '
+      'every Dartvel Cloud plan includes.',
   showAppBar: false,
 )
 @pragma('vm:entry-point')
 Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsbuilding,
       lead: <String>[
-        'Build one app for phones, desktops, the web, TVs, browser extensions '
-            'and the terminal.',
+        'Build one app for phones, desktops, the web and TVs.',
         'Each target below shows what has been verified by running the build.',
       ],
       sections: <DocsSection>[
@@ -78,8 +77,6 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
               <String>['web', 'Any host', 'Builds, and runs in headless Chrome'],
               <String>['android', 'The Android SDK', 'Builds an APK'],
               <String>['fireos', 'The Android SDK', 'Builds the Android APK'],
-              <String>['horizon', 'The Android SDK', 'Builds a Meta Quest '
-                  'panel app, checked with aapt2. Not yet run on a headset'],
               <String>['ios', 'macOS with Xcode', 'Builds, verified on a macOS '
                   'runner'],
               <String>['macos', 'macOS', 'Builds a universal binary'],
@@ -88,8 +85,6 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
               <String>['linux', 'Linux', 'Builds and runs'],
               <String>['tvos', 'macOS with Xcode', 'Builds and runs on the '
                   'simulator. Signed device builds are not verified'],
-              <String>['visionos', 'macOS with Xcode', 'Planned: wired as the '
-                  'iPad app Vision Pro runs, not yet built on a Mac'],
               <String>['tizen (alias tpk)', 'Tizen Studio', 'Builds a signed '
                   'TPK. CI can only skip it'],
               <String>['sony-elinux', 'Linux', 'Builds and runs in release on '
@@ -98,16 +93,6 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
                   'skips: LG\'s CLI cannot resolve a Dartvel project. A package '
                   'assembled in CI runs in a Wayland window under ARM '
                   'emulation. Not run on a TV'],
-              <String>['fuchsia', 'Linux', 'Blocked: the embedder\'s Flutter '
-                  'is too old to resolve dependencies'],
-              <String>['vscode', 'npm', 'Builds a VS Code extension'],
-              <String>['chrome-extension', 'Any host', 'Builds and runs'],
-              <String>['firefox-extension', 'Any host', 'Builds and runs'],
-              <String>['linux-cli', 'Linux', 'Runs in a terminal in the '
-                  'verification workflow'],
-              <String>['windows-cli, macos-cli, fuchsia-cli', 'That OS', 'Not '
-                  'verified, and not expected to build: the terminal '
-                  'embedder builds for Linux only'],
               <String>['web-server', 'Any host', 'See Servers and deploying'],
             ]),
             DocsText('The evidence for every row, with CI run links, is in '
@@ -119,7 +104,7 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
           id: 'android-release',
           title: 'Android release builds',
           children: <Widget>[
-            DocsText('A release build of android, fireos or horizon is signed '
+            DocsText('A release build of android or fireos is signed '
                 'with your own key. Without one the build stops before it '
                 'starts and says how to set one up. It is never signed with '
                 'the debug key.'),
@@ -152,69 +137,63 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
           title: 'TVs and embedded devices use vendor embedders',
           children: <Widget>[
             Bullets(<String>[
-              'tizen, sony-elinux, webos, fuchsia and tvos build through the '
+              'tizen, sony-elinux, webos and tvos build through the '
                   'platform\'s own Flutter embedder.',
               'Dartvel keeps a pinned fork of each, which it can install for '
                   'you.',
               '--arch picks arm, arm64 or x64 for embedded builds. It '
-                  'defaults to arm64, to x64 for fuchsia, and to this '
+                  'defaults to arm64, and to this '
                   'machine\'s own for sony-elinux.',
             ]),
             DocsNote('sony-elinux-iso and sony-elinux-img',
                 'These names are accepted. Today they build the same bundle as '
                 'sony-elinux, with no disk image.'),
             UpstreamCredits(
-              ids: <String>['tizen', 'elinux', 'webos', 'fuchsia', 'tvos'],
+              ids: <String>['tizen', 'elinux', 'webos', 'tvos'],
               lead: 'Thanks to the embedders these targets are built on:',
               link: false,
             ),
           ],
         ),
         DocsSection(
-          id: 'headsets',
-          title: 'Headsets: Meta Quest and Apple Vision Pro',
+          id: 'paid',
+          title: 'Paid targets',
           children: <Widget>[
+            DocsText('Some targets are not officially supported by Flutter. '
+                'They come with every Dartvel Cloud plan instead of the free '
+                'install: Apple Vision Pro, Meta Quest, Chrome and Firefox '
+                'extensions, VS Code extensions, Telegram Mini Apps, apps that '
+                'run in a terminal, and Fuchsia.'),
+            DocsTable(columns: <String>[
+              'Target',
+              'What it builds',
+            ], rows: <List<String>>[
+              <String>['visionos', 'The iPad app Apple Vision Pro runs'],
+              <String>['horizon', 'A Meta Quest panel app'],
+              <String>['chrome-extension, firefox-extension',
+                  'A browser extension'],
+              <String>['vscode', 'A VS Code extension'],
+              <String>['telegram', 'A Telegram Mini App'],
+              <String>['linux-cli, macos-cli, windows-cli, fuchsia-cli',
+                  'The app in a terminal, with no window'],
+              <String>['fuchsia', 'A Fuchsia package'],
+            ]),
             DocsShell(<String>[
-              'dartvel build horizon      # Meta Quest, Horizon OS',
-              'dartvel build visionos     # Apple Vision Pro, on a Mac',
-              'dartvel doctor --target horizon',
+              'dartvel build visionos --cloud   # build it on Dartvel Cloud',
+              'dartvel targets add pro          # or add the package and build here',
+              'dartvel targets                  # what this install can build',
             ]),
             Bullets(<String>[
-              'Both open your app as a 2D panel. Your pages need no changes.',
-              'horizon is the Android build with what the Horizon Store asks '
-                  'of a panel app. Dartvel reads the finished APK back and '
-                  'stops the build if the store would refuse it.',
-              'Set the panel size and the headsets under dartvel.xr in '
-                  'pubspec.yaml: panel width and height in dp, and '
-                  'horizon devices.',
-              'visionos is the iPad app, which Vision Pro runs as Designed '
-                  'for iPad. Flutter has no visionOS engine, so there are no '
-                  'native windows, volumes or immersive spaces yet.',
-              'DV.Platform.isHeadset is true in both builds. Use it to '
-                  'decide what to offer, such as a back button for hands.',
+              'Without a plan, dartvel build visionos says which plan '
+                  'includes it and stops. Nothing is built or sent.',
+              'The package adds build steps only. Nothing from it, and no '
+                  'licence key, ends up in your app.',
+              'Dartvel 0.11.5 and earlier built these targets in the open, '
+                  'and those releases stay MIT licensed.',
             ]),
-            DocsNote('Not yet run on a headset',
-                'The Quest build has been checked with Android\'s own tools, '
-                'not on a Quest. The Vision Pro build has not yet been built '
-                'on a Mac.'),
-          ],
-        ),
-        DocsSection(
-          id: 'terminal',
-          title: 'Build for the terminal',
-          children: <Widget>[
-            DocsShell(<String>[
-              'dartvel build linux-cli     # terminal only, no GUI code',
-              'dartvel build linux-tui     # the same target',
-            ]),
-            Bullets(<String>[
-              'A -cli build links the terminal renderer and no GUI.',
-              'Set dartvel.terminal: true to link both into a normal desktop '
-                  'build.',
-              'build-targets.md records that terminal builds and native assets '
-                  'do not yet compose.',
-            ]),
-            UpstreamCredit('flt', lead: 'Terminal rendering is built on'),
+            DocsNote('Your own targets',
+                'The way a paid target plugs in is public. Any package can add '
+                'a build target the same way: see the CLI README.'),
           ],
         ),
         DocsSection(
