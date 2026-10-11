@@ -26,7 +26,9 @@ import 'package:dartvel_core/dartvel.dart'
         dvIosUsageKeysFor,
         dvOfflineRoute,
         DVDocsMount,
-        DVFileStorageConfig;
+        DVFileStorageConfig,
+        DVPushConfig,
+        DVWebPushConfig;
 
 import '../build/android_home_widget.dart';
 // dvPurchasesDeclared is the same rule in both bridges; the Apple one is used.
@@ -2946,6 +2948,16 @@ class BuildCommand extends Command<void> {
   Future<void> _writePwaManifest(String root) async {
     final pwa = _dartvelSection(root)['pwa'];
     final settings = pwa is Map ? pwa : const <Object?, Object?>{};
+    // Web push rides the service worker, so a project that declares it and
+    // switches the worker off would build cleanly and never receive a push.
+    final DVWebPushConfig? webPush = _webPushConfig(root);
+    if (webPush != null &&
+        (settings['enabled'] == false || settings['serviceWorker'] == false)) {
+      Logger.log('❌ dartvel.push.web needs the service worker, and '
+          'dartvel.pwa switches it off. Remove dartvel.push.web or turn the '
+          'worker back on.');
+      exit(1);
+    }
     if (settings['enabled'] == false) return;
 
     final name = '${settings['name'] ?? _packageName(root) ?? 'Dartvel App'}';
@@ -3091,6 +3103,9 @@ class BuildCommand extends Command<void> {
         // On unless the project says otherwise: a backend call made offline
         // is queued and replayed, which is the behaviour a PWA promises.
         backgroundSync: settings['backgroundSync'] != false,
+        // dartvel.push.web: the push and notificationclick handlers. The one
+        // worker serves web and web-server alike, so both get them.
+        push: _webPushConfig(root) != null,
         // Studio and the API are left to the browser: Studio is its own
         // application, and an API answer is not an asset to keep until the
         // next deploy.
@@ -3102,6 +3117,16 @@ class BuildCommand extends Command<void> {
     Logger.log('   Service worker written: '
         '${routes.length} route(s) and ${parts.length} page part(s) '
         'precached; a failed navigation goes to $dvOfflineRoute/.');
+  }
+
+  /// `dartvel.push.web`, read strictly; exits the build on a bad declaration.
+  DVWebPushConfig? _webPushConfig(String root) {
+    try {
+      return DVPushConfig.parse(_dartvelSection(root)['push']).web;
+    } on ArgumentError catch (error) {
+      Logger.log('❌ ${error.name ?? 'dartvel.push'}: ${error.message}');
+      exit(1);
+    }
   }
 
   /// The admin mount the worker leaves alone, when this build serves one.
