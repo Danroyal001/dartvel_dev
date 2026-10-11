@@ -37,7 +37,14 @@ class _SocketMySqlConnection implements DVMySqlConnection {
     // encrypted packet, which is the auth result.
     final StreamController<List<int>> relay =
         _relay ??= StreamController<List<int>>();
-    await _pump?.cancel();
+    // Paused, never cancelled. Cancelling the last listener of a dart:io
+    // Socket tears down the raw subscription underneath it, so
+    // SecureSocket.secure() then detaches a dead socket and the handshake
+    // dies with "Connection terminated during handshake". A paused listener
+    // keeps the raw socket alive for secure() to take over; the server sends
+    // nothing between the SSLRequest and our ClientHello, so nothing is
+    // buffered behind it.
+    _pump?.pause();
 
     final Socket secure = await SecureSocket.secure(
       _socket,
