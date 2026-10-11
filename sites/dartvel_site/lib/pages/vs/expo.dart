@@ -39,7 +39,7 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
                   '`dartvel dev` prints a QR code; scan it and the app pairs and '
                   'hot reloads over your network.',
               '`dartvel build android`, ios, macos, windows, linux, tvos, '
-                  'tizen, sony-elinux, vscode and more. --cloud sends the '
+                  'tizen, sony-elinux and more. --cloud sends the '
                   'build to Dartvel Cloud, which is not open yet.',
               '`dartvel deploy --store play`, appstore, testflight or '
                   'firebase-app-distribution hands the upload to that '
@@ -81,7 +81,7 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
               ],
             ),
             UpstreamCredits(ids: <String>[
-              'tizen', 'tvos', 'elinux', 'vscode',
+              'tizen', 'tvos', 'elinux',
             ]),
           ],
         ),

@@ -38,7 +38,8 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
         Bullets(<String>[
           'One Dart codebase for Android, iOS, macOS, Windows, Linux, '
               'the web, Samsung TVs, Apple TV, Android TV, Sony embedded '
-              'Linux and a Linux terminal. LG webOS is in progress.',
+              'Linux, and a Linux terminal with a Dartvel Cloud plan. LG webOS '
+              'is in progress.',
           'Each embedded and TV target is driven by a dedicated Flutter '
               'embedder, the vendor\'s own for Samsung and Sony and a '
               'community one for Apple TV, pinned in a fork so it tracks '
@@ -47,7 +48,7 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
               'separate product.',
         ]),
         CodeBlock(<String>[
-          'dartvel build linux        # and -cli for a terminal build',
+          'dartvel build linux        # and -cli for a terminal build (paid)',
           'dartvel build tizen        # Samsung TVs',
           'dartvel build tvos         # Apple TV',
           'dartvel build sony-elinux  # embedded Linux',
@@ -103,7 +104,8 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
             <String>[
               'Terminal',
               'No terminal renderer',
-              '`dartvel build linux-cli` renders in a terminal',
+              '`dartvel build linux-cli` renders in a terminal, with a Dartvel '
+                  'Cloud plan',
             ],
           ],
         ),

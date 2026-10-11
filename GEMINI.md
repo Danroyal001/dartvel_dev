@@ -137,6 +137,7 @@ gap.
 
 ## Embedder Fork Rule
 
+- **Paid targets live outside this repository.** From the release after 0.11.5, `visionos`, `horizon`, `chrome-extension`, `firefox-extension`, `vscode`, `telegram`, the terminal targets (`<desktop>-cli`/`-tui`, `fuchsia-cli`) and `fuchsia` are built by the private `dartvel_targets_pro` package in `dartvel_enterprise`, against the public `DVBuildTarget` extension point in `package:dartvel_cli/build_targets.dart`. The rows and rules below that name them describe that package now. Do not add their build code back here, and do not move a target between the free and paid lists without the owner's decision; a free install refuses a paid target with `dvTargetRefusal`, never a stack trace.
 - Embedded/TV targets are driven by the platform vendor's dedicated Flutter embedder, never by plain `flutter build`. Extension-host targets are driven by their host embedder/generator rather than ad hoc Flutter web packaging. Dartvel maintains a fork of each so the embedder can be pinned, patched, and tracked against the Flutter version Dartvel ships with.
 
 | Target | Fork | Upstream | Vendor |

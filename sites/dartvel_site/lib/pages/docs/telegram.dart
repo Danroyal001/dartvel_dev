@@ -20,12 +20,12 @@ Widget _docsTelegramPage(BuildContext context) => const DocsArticle(
       title: 'Build and develop',
       children: <Widget>[
         DocsShell(<String>[
+          'dartvel targets add pro   # with a Dartvel Cloud plan',
           'dartvel build telegram',
           'dartvel dev telegram',
-          'dartvel build web-server',
         ]),
         DocsText(
-          'The Telegram target writes build/web and loads Telegram’s official SDK before Flutter starts. A web-server build loads the same SDK when dartvel.telegram is configured, serving each page at its own URL.',
+          'The Telegram target comes with a Dartvel Cloud plan: dartvel targets add pro adds it to a project. It writes build/web and loads Telegram’s official SDK before Flutter starts. The host API below is part of the free framework.',
         ),
         DocsShell(<String>[
           'dartvel:',

@@ -1,19 +1,11 @@
-import 'package:dartvel_cli/src/commands/build_command.dart';
 import 'package:dartvel_cli/src/utils/toolchain.dart';
 import 'package:test/test.dart';
 
 void main() {
   visualStudioDetectionTests();
-  fuchsiaInstallTests();
   group('toolRequirementsFor', () {
     test('web needs nothing beyond Flutter itself', () {
       expect(toolRequirementsFor('web'), isEmpty);
-    });
-
-    test('vscode requires npm for extension host compilation', () {
-      final executables =
-          toolRequirementsFor('vscode').map((r) => r.executable).toList();
-      expect(executables, <String>['npm']);
     });
 
     test('each embedded target requires its vendor embedder', () {
@@ -194,143 +186,7 @@ void main() {
     });
   });
 
-  group('terminal toolchain', () {
-    test('a terminal target requires the flt fork and can fetch it', () {
-      final requirements =
-          toolRequirementsFor('linux-cli', home: '/home/dev');
-
-      expect(requirements, isNotEmpty,
-          reason: 'with no requirement, preflight finds nothing missing and '
-              'never offers to install the embedder — the target just skips '
-              'forever with no way forward');
-      final embedder = requirements.single;
-      expect(embedder.installCommand!.join(' '),
-          contains('https://github.com/Danroyal001/dartvel_cli_flt'));
-      expect(embedder.method, InstallMethod.automatic,
-          reason: 'an embedder fork is fetchable unattended; only the '
-              'licence-gated vendor SDKs are not');
-    });
-
-    test('the executable is where Dartvel installs it, not a bare name', () {
-      // The Fuchsia lesson: a plan naming a bare command that nothing ever
-      // installs is unbuildable and looks fine. Dartvel-managed toolchains
-      // live under ~/.dartvel/toolchains, so that is the path to check.
-      final embedder =
-          toolRequirementsFor('linux-cli', home: '/home/dev').single;
-      expect(embedder.executable, startsWith('/home/dev/.dartvel/toolchains/'));
-      expect(embedder.executable, contains('dartvel-cli-flt'));
-    });
-
-    test('the install puts the binary where preflight looks for it', () {
-      // It used to be `cargo install --git <fork> dartvel-cli-flt`, and no
-      // package in the fork is called that -- the binary belongs to flt-cli --
-      // so the install failed on every machine and the target skipped.
-      //
-      // Followed the way cargo follows it: `--root R --bin B` writes R/bin/B,
-      // from the package at --path, which must be inside what was cloned.
-      final embedder =
-          toolRequirementsFor('linux-cli', home: '/home/dev').single;
-      final clone = embedder.installCommand!;
-      expect(clone.take(2), <String>['git', 'clone']);
-      final String checkout = clone.last;
-
-      final install = embedder.postInstall!;
-      expect(install.take(2), <String>['cargo', 'install']);
-      String option(String name) => install[install.indexOf(name) + 1];
-      expect(option('--path'), startsWith('$checkout/'));
-      expect('${option('--root')}/bin/${option('--bin')}', embedder.executable);
-    });
-
-    test('every terminal target names the same embedder', () {
-      // -cli and -tui are one target under two names, and macos-cli must not
-      // quietly require something different from linux-cli.
-      final executables = <String>{
-        for (final target in terminalBuildTargets)
-          toolRequirementsFor(target, home: '/home/dev').single.executable,
-      };
-      expect(executables, hasLength(1));
-    });
-
-    test('on Windows the embedder is the .exe cargo installs', () {
-      // cargo writes `--root R --bin B` to R/bin/B.exe on Windows. Checking
-      // for the bare name there reports an installed embedder as missing,
-      // reinstalls it on every build, and then skips anyway.
-      final embedder = toolRequirementsFor('windows-cli',
-              home: r'C:\Users\dev', hostOs: 'windows')
-          .single;
-      expect(embedder.executable, endsWith('/bin/dartvel-cli-flt.exe'));
-
-      final install = embedder.postInstall!;
-      String option(String name) => install[install.indexOf(name) + 1];
-      expect('${option('--root')}/bin/${option('--bin')}.exe',
-          embedder.executable);
-    });
-
-    test('off Windows the embedder has no extension', () {
-      for (final String host in <String>['linux', 'macos']) {
-        final embedder = toolRequirementsFor('$host-cli',
-                home: '/home/dev', hostOs: host)
-            .single;
-        expect(embedder.executable, endsWith('/bin/dartvel-cli-flt'),
-            reason: host);
-      }
-    });
-
-    test('the Windows build runs exactly what Windows checks', () {
-      final plan = terminalBuildPlan('windows',
-          toolchainHome: r'C:\Users\dev', hostOs: 'windows');
-      expect(
-          toolRequirementsFor('windows-cli',
-                  home: r'C:\Users\dev', hostOs: 'windows')
-              .single
-              .executable,
-          plan.toolchain);
-    });
-
-    test('the build runs exactly what this checks', () {
-      // The invariant the embedder targets are held to, applied here before
-      // this target grows the same defect.
-      for (final target in terminalBuildTargets) {
-        final plan = terminalBuildPlan(
-          normalizeBuildTarget(target).platform,
-          toolchainHome: '/home/dev',
-        );
-        final checked = toolRequirementsFor(target, home: '/home/dev')
-            .map((ToolRequirement r) => r.executable);
-        expect(checked, contains(plan.toolchain),
-            reason: '$target would build with "${plan.toolchain}" while '
-                'preflight checks something else');
-      }
-    });
-  });
-
-  group('fuchsia toolchain', () {
-    test('requires the forked embedder checkout', () {
-      final requirements = toolRequirementsFor('fuchsia', home: '/home/dev');
-
-      expect(requirements, hasLength(1));
-      final embedder = requirements.single;
-      // A checkout, not a binary on PATH: the embedder is driven by scripts
-      // inside its own tree.
-      //
-      // Specifically the script the build runs. This asserted bootstrap.sh,
-      // which is the installation step — so preflight was answering "was this
-      // checkout set up" when the question is "can it build". Both files
-      // happen to exist in the fork, so nothing was broken; the check was
-      // simply weaker than it read, in exactly the way that let a Fuchsia plan
-      // name an executable nothing installs and stay green for weeks.
-      expect(embedder.executable,
-          '/home/dev/.dartvel/toolchains/dartvel_fuchsia/$fuchsiaAppBuildScript');
-      expect(embedder.postInstall?.join(' '), contains('bootstrap.sh'),
-          reason: 'bootstrap.sh is still how the checkout is prepared — it '
-              'unshallows the submodules the clone deliberately skipped — but '
-              'it runs after installation rather than being the thing whose '
-              'absence blocks a build');
-      expect(embedder.installCommand, isNotNull);
-      expect(embedder.installCommand!.join(' '),
-          contains('https://github.com/Danroyal001/dartvel_fuchsia.git'));
-      expect(embedder.method, InstallMethod.automatic);
-    });
+  group('absolute requirements', () {
 
     test('an absolute requirement is checked as a path, not a PATH lookup', () {
       // `which /some/path` answers a different question from "is it there".
@@ -412,62 +268,6 @@ void visualStudioDetectionTests() {
         isInstalled: (String executable) => false,
       );
       expect(missing, isNotEmpty);
-    });
-  });
-}
-
-// The Fuchsia embedder is a Bazel workspace, not a binary. Cloning it is not
-// installing it: without submodules and a Bazel bootstrap there is no
-// tools/bazel, so a build reaches the last step and dies on
-// "./tools/bazel: No such file or directory" having already done all its work.
-void fuchsiaInstallTests() {
-  group('installing the Fuchsia embedder', () {
-    ToolRequirement fuchsia() =>
-        toolRequirementsFor('fuchsia', home: '/home/dev').single;
-
-    test('does not shallow-clone submodules, which cannot work', () {
-      // The requirement is that submodules end up initialised — bootstrap.sh
-      // does that with `git submodule update --recursive --init`, unshallowed.
-      //
-      // Asking git for both --depth 1 and --recurse-submodules fails: a
-      // shallow submodule fetch only gets the tip, and googletest is pinned to
-      // a commit that is not it. "Fetched in submodule path
-      // 'third_party/googletest', but it did not contain 7b0ac59d". This test
-      // originally asserted --recurse-submodules, which was the wrong
-      // mechanism for the right requirement.
-      final command = fuchsia().installCommand!;
-      expect(
-        command.contains('--depth') && command.contains('--recurse-submodules'),
-        isFalse,
-        reason: 'a shallow clone cannot recurse submodules pinned off-tip',
-      );
-    });
-
-    test('runs the bootstrap, because a clone is not an install', () {
-      // Every other embedder is a binary on PATH and cloning is enough. This
-      // one has to be prepared.
-      expect(fuchsia().postInstall, isNotNull,
-          reason: 'cloning a Bazel workspace does not make it buildable');
-      expect(fuchsia().postInstall!.join(' '), contains('bootstrap.sh'));
-    });
-
-    test('the bootstrap is told where the workspace is', () {
-      // Its scripts locate themselves through FUCHSIA_EMBEDDER_DIR and refuse
-      // to run without it — the same variable the build invocation already
-      // sets. Dartvel chose the directory, so it knows the answer; asking a
-      // developer to export it for a directory we created is the wrong half of
-      // the bargain.
-      expect(
-        fuchsia().postInstallEnvironment?['FUCHSIA_EMBEDDER_DIR'],
-        '/home/dev/.dartvel/toolchains/dartvel_fuchsia',
-      );
-    });
-
-    test('bootstraps for a build, not for a device', () {
-      // The full bootstrap downloads a multi-gigabyte emulator image, makes
-      // SSH keys and installs git hooks — all of it for running on hardware
-      // that CI does not have.
-      expect(fuchsia().postInstall, contains('--build-only'));
     });
   });
 }

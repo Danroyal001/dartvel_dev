@@ -78,20 +78,24 @@ const Map<String, String> _binutils = <String, String>{
 /// Which operating system the engine is built to run on.
 ///
 /// This is a separate axis from the architecture and cannot be folded into
-/// it. A Fuchsia x64 engine and a Linux x64 engine are the same cpu and
-/// different builds: gn takes `--fuchsia-cpu` rather than `--linux-cpu`, and
-/// the sysroot comes from the Fuchsia SDK that gclient fetches rather than
-/// from `build/linux/debian_*`.
+/// it: the same cpu on another operating system is a different build, with
+/// its own cpu argument and its own sysroot. Linux is the one this package
+/// builds; the Fuchsia engine moved with the Fuchsia target to the paid
+/// targets package.
 enum EngineOs {
-  linux('linux', cpuArgument: '--linux-cpu'),
+  linux('linux',
+      cpuArgument: '--linux-cpu',
+      buildsUnoptimised: false,
+      needsEmbedderForTarget: false,
+      usesDebianSysroot: true);
 
-  /// Fuchsia. The last target still recorded as blocked, and the reason this
-  /// axis exists: unblocking it means re-pinning the embedder fork to a
-  /// modern Flutter, and bootstrap.sh requires the engine and the Flutter pin
-  /// stay aligned, so the engine has to be rebuilt.
-  fuchsia('fuchsia', cpuArgument: '--fuchsia-cpu');
-
-  const EngineOs(this.gnName, {required this.cpuArgument});
+  const EngineOs(
+    this.gnName, {
+    required this.cpuArgument,
+    required this.buildsUnoptimised,
+    required this.needsEmbedderForTarget,
+    required this.usesDebianSysroot,
+  });
 
   /// What `tools/gn` calls this under `--target-os`.
   final String gnName;
@@ -99,23 +103,16 @@ enum EngineOs {
   /// The argument this target names its cpu with.
   final String cpuArgument;
 
-  /// Whether this target builds unoptimised.
-  ///
-  /// Fuchsia does. The embedder fork's own engine script passes `--unopt` and
-  /// copies out of `out/fuchsia_debug_unopt_x64/so.unstripped/`, and it is
-  /// the only configuration of this engine anyone has shipped. A release
-  /// build of it fails at the link on every embedder symbol at once.
-  bool get buildsUnoptimised => this == EngineOs.fuchsia;
+  /// Whether this target builds unoptimised (`--unopt`).
+  final bool buildsUnoptimised;
 
   /// Whether the embedder library must be built for the target rather than
-  /// the host. Linux links it today without asking, and adding the flag
-  /// everywhere to fix one target is how a working build stops working.
-  bool get needsEmbedderForTarget => this == EngineOs.fuchsia;
+  /// the host (`--embedder-for-target`). Linux links it today without asking,
+  /// and adding the flag everywhere is how a working build stops working.
+  final bool needsEmbedderForTarget;
 
-  /// Whether the Debian sysroots under `build/linux` apply. They do not on
-  /// Fuchsia, where pointing `--target-sysroot` at one is not a worse build
-  /// but a build gn refuses to configure.
-  bool get usesDebianSysroot => this == EngineOs.linux;
+  /// Whether the Debian sysroots under `build/linux` apply.
+  final bool usesDebianSysroot;
 }
 
 /// Which engine flavour to build.

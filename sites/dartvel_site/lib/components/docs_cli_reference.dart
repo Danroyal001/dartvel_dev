@@ -109,7 +109,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     description: 'Build for production. Pass a platform (dartvel build web) or omit it to build every available platform.',
     options: <String>[
       '-p, --platform                   Target platform (or pass it positionally)',
-      '                                 [android, ios, web, windows, macos, linux, fireos, horizon, visionos, tizen, sony-elinux, webos, tvos, fuchsia, vscode, chrome-extension, firefox-extension, web-server, telegram, tpk, sony-elinux-iso, sony-elinux-img, linux-cli, linux-tui, windows-cli, windows-tui, macos-cli, macos-tui, fuchsia-cli, fuchsia-tui, all (default)]',
+      '                                 [android, ios, web, windows, macos, linux, fireos, tizen, sony-elinux, webos, tvos, web-server, tpk, sony-elinux-iso, sony-elinux-img, all (default), visionos, horizon, chrome-extension, firefox-extension, vscode, linux-cli, linux-tui, macos-cli, macos-tui, windows-cli, windows-tui, fuchsia, fuchsia-cli, fuchsia-tui, telegram]',
       '    --profile                    What kind of build to make.',
       '',
       '          [development]          Flutter debug (JIT). On Android, iOS, macOS, Linux and Windows it carries the dev-client pairing, so `dartvel dev` can hot reload it over the network.',
@@ -426,8 +426,8 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     description: 'Check your environment and project for common issues.',
     options: <String>[
       '    --modules    Verify every module pin (digest, signing key, publisher, version) and compare what each module uses against what this application grants.',
-      '    --target     Validate the toolchain for an embedded, TV or extension build target, or, for android and ios, the deep-link verification documents the declared domains serve. Comma-separate several: --target android,ios.',
-      '                 [horizon, visionos, tizen, sony-elinux, webos, tvos, fuchsia, vscode, chrome-extension, firefox-extension, linux-cli, linux-tui, windows-cli, windows-tui, macos-cli, macos-tui, fuchsia-cli, fuchsia-tui, android, ios]',
+      '    --target     Validate the toolchain for an embedded or TV build target, answer for a paid target through its package (or say how to get it), or, for android and ios, the deep-link verification documents the declared domains serve. Comma-separate several: --target android,ios.',
+      '                 [tizen, sony-elinux, webos, tvos, visionos, horizon, chrome-extension, firefox-extension, vscode, linux-cli, linux-tui, macos-cli, macos-tui, windows-cli, windows-tui, fuchsia, fuchsia-cli, fuchsia-tui, telegram, android, ios]',
     ],
   ),
   DocsCliCommand(
@@ -441,7 +441,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
           '    --arch              Architecture to build for.',
           '                        [x64 (default), arm64, arm]',
           '    --os                Target operating system.',
-          '                        [linux (default), fuchsia]',
+          '                        [linux (default)]',
           '    --mode              Engine runtime mode.',
           '                        [debug, profile, release (default)]',
           '    --src-root          Absolute path to engine/src, so paths handed to gn resolve.',
@@ -456,7 +456,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
           '    --arch    Architecture to build for.',
           '              [x64 (default), arm64, arm]',
           '    --os      Target operating system.',
-          '              [linux (default), fuchsia]',
+          '              [linux (default)]',
           '    --mode    Engine runtime mode.',
           '              [debug, profile, release (default)]',
         ],
@@ -844,6 +844,16 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
           '    --contracts    List the frozen surfaces that are not finished.',
         ],
       ),
+    ],
+  ),
+  DocsCliCommand(
+    name: 'targets',
+    description: 'List the build targets this install can build, and add the paid targets package (dartvel targets add pro).',
+    options: <String>[
+      '    --path       With add: a local checkout of the package, instead of the git repository (for development).',
+      '    --git-url    With add: the repository the package is fetched from.',
+      '                 (defaults to "https://github.com/Danroyal001/dartvel_enterprise.git")',
+      '    --git-ref    With add: a branch, tag or commit to pin.',
     ],
   ),
   DocsCliCommand(

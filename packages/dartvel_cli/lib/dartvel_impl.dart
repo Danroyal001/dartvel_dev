@@ -22,6 +22,7 @@ import 'src/commands/spec_command.dart';
 import 'src/commands/engine_command.dart';
 import 'src/commands/ensure_path_command.dart';
 import 'src/commands/build_command.dart';
+import 'src/commands/targets_command.dart';
 import 'src/commands/cache_command.dart';
 import 'src/commands/compatibility_check_command.dart';
 import 'src/commands/db_command.dart';
@@ -90,6 +91,7 @@ DartvelCommandRunner dartvelCommandRunner() =>
       ..addCommand(AnalyzeCommand())
       ..addCommand(McpCommand())
       ..addCommand(BuildCommand())
+      ..addCommand(TargetsCommand())
       ..addCommand(ArtifactCommand())
       ..addCommand(CaptureCommand())
       ..addCommand(WebosCommand())

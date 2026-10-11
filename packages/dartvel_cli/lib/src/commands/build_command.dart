@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import '../build/telegram.dart';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
@@ -27,8 +26,7 @@ import 'package:dartvel_core/dartvel.dart'
         dvIosUsageKeysFor,
         dvOfflineRoute,
         DVDocsMount,
-        DVFileStorageConfig,
-        DVXRConfig;
+        DVFileStorageConfig;
 
 import '../build/android_home_widget.dart';
 // dvPurchasesDeclared is the same rule in both bridges; the Apple one is used.
@@ -37,7 +35,8 @@ import '../build/android_capture_bridge.dart';
 import '../build/file_storage_permissions.dart';
 import 'store_command.dart' show dvWriteDataSafetyFiles;
 import '../build/scene3d_native.dart';
-import '../build/spatial_targets.dart';
+import '../build/build_target.dart';
+import '../build/target_packages.dart';
 import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/android_release_hardening.dart';
@@ -48,10 +47,8 @@ import '../build/apple_widget_target.dart';
 import '../build/deep_link_files.dart';
 import '../build/ios_deep_links.dart';
 import '../build/ios_platform_shim.dart';
-import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
-import '../build/native_assets_config.dart';
 import '../build/launcher_identity.dart';
 import '../build/platform_scaffold.dart';
 import '../build/native_splash.dart';
@@ -134,12 +131,9 @@ const flutterBuildPlatforms = <String>[
   'fireos',
 ];
 
-/// The Fuchsia embedder's script for building an arbitrary Flutter package.
-///
-
 /// Embedded/television platforms built through dedicated Flutter embedders:
-/// `flutter-tizen` (Samsung), `flutter-elinux` (Sony), `flutter-webos` (LG),
-/// `flutter-tvos` (community, Apple TV), and Fuchsia's out-of-tree embedder.
+/// `flutter-tizen` (Samsung), `flutter-elinux` (Sony), `flutter-webos` (LG)
+/// and `flutter-tvos` (community, Apple TV).
 ///
 /// tvOS lives here and not in [flutterBuildPlatforms]: Apple ships no tvOS
 /// Flutter embedder, and `flutter build ios` produces an iPhone app whatever
@@ -149,12 +143,6 @@ const embeddedBuildPlatforms = <String>[
   'sony-elinux',
   'webos',
   'tvos',
-  'fuchsia',
-];
-
-/// Extension-host platforms built through host-specific Flutter embedders.
-const extensionBuildPlatforms = <String>[
-  'vscode',
 ];
 
 /// Web output served by a Dartvel server rather than written to files.
@@ -167,25 +155,17 @@ const webServerBuildPlatforms = <String>[
   'web-server',
 ];
 
-/// Browser extension bundles. These are Flutter web output plus a generated
-/// manifest and background script, not a separate embedder.
-const browserExtensionBuildPlatforms = <String>[
-  'chrome-extension',
-  'firefox-extension',
-];
-
-/// The set built by `--platform all`. Distribution-image formats
+/// The free set built by `--platform all`. Distribution-image formats
 /// (`sony-elinux-iso`/`sony-elinux-img`) are intentionally excluded; they are
-/// explicit packaging targets, not part of a general build.
+/// explicit packaging targets, not part of a general build. Targets a package
+/// registered (see [DVBuildTarget]) are added to it when the package is
+/// installed.
 const allBuildPlatforms = <String>[
   ...flutterBuildPlatforms,
-  ...spatialBuildPlatforms,
   ...embeddedBuildPlatforms,
-  ...extensionBuildPlatforms,
-  ...browserExtensionBuildPlatforms,
 ];
 
-/// Everything `dartvel build <platform>` accepts, positionally or via
+/// Every free target `dartvel build <platform>` accepts, positionally or via
 /// `--platform`. Includes the distribution-image and alias target names, which
 /// [normalizeBuildTarget] resolves to a base platform.
 const buildPlatformArguments = <String>[
@@ -194,163 +174,23 @@ const buildPlatformArguments = <String>[
   // static web build and a server one, since they are two answers to the
   // same question and the second would overwrite the first.
   ...webServerBuildPlatforms,
-  'telegram',
   'tpk',
   'sony-elinux-iso',
   'sony-elinux-img',
-  ...terminalBuildTargets,
   'all',
 ];
 
-/// Targets that can render into a terminal.
-///
-/// Desktop platforms and Fuchsia. The suffix is refused elsewhere rather than
-/// accepted and ignored, because building something other than what the name
-/// promises is worse than refusing the name.
-///
-/// Android is refused for a reason worth writing down, since the obvious
-/// objection is that Termux exists. It does, but a `linux-cli` binary cannot
-/// run in it: Termux is Android userland, so it uses bionic rather than glibc
-/// and has no `/lib/ld-linux-aarch64.so.1` to load a `linux-gnu` binary with.
-/// Supporting it would need an Android-triple build and a Flutter engine that
-/// runs without an Activity — a project, not a suffix.
-const terminalCapablePlatforms = <String>[
-  'linux',
-  'windows',
-  'macos',
-  'fuchsia',
-];
-
-/// `linux-cli`, `linux-tui`, and the same for every terminal-capable platform.
-///
-/// `-tui` says what it does and `-cli` says where it runs; they resolve
-/// identically.
-const terminalBuildTargets = <String>[
-  'linux-cli', 'linux-tui',
-  'windows-cli', 'windows-tui',
-  'macos-cli', 'macos-tui',
-  'fuchsia-cli', 'fuchsia-tui',
-];
-
-/// How a terminal build is actually produced.
-///
-/// This exists because `dartvel build linux-cli` resolved its target
-/// correctly, printed "Rendering: terminal only", then ran
-/// `flutter build linux` and reported success — shipping a GUI binary under a
-/// name that promises no GUI. The resolution tests all passed throughout,
-/// because they asserted what the target was called rather than what building
-/// it did.
-///
-/// `flt` is not a Flutter CLI wrapper like `flutter-tizen` or `flutter-webos`.
-/// It uses Flutter's Custom Embedder API from Rust and renders through the
-/// Kitty graphics protocol, so no combination of flags to `flutter build`
-/// produces a terminal binary. There is no fallback to degrade to.
-class TerminalBuildPlan {
-  const TerminalBuildPlan({
-    required this.platform,
-    required this.toolchain,
-    required this.arguments,
-  });
-
-  /// The base platform this renders on — `linux`, not `linux-cli`.
-  final String platform;
-
-  /// The executable that performs the build, looked up on PATH.
-  final String toolchain;
-
-  final List<String> arguments;
-
-  /// Whether this plan would run a GUI desktop build.
-  ///
-  /// Computed from the command rather than declared, so that an implementation
-  /// which later resolves to `flutter build linux` fails the assertion instead
-  /// of satisfying it by construction.
-  bool get usesFlutterDesktopBuild =>
-      toolchain == 'flutter' &&
-      arguments.length >= 2 &&
-      arguments.first == 'build' &&
-      const <String>{'linux', 'windows', 'macos'}.contains(arguments[1]);
-}
-
-/// The plan for rendering [platform] into a terminal.
-///
-/// [platform] is the base platform, so `linux` rather than `linux-cli`.
-TerminalBuildPlan terminalBuildPlan(
-  String platform, {
-  String? buildMode,
-  String? toolchainHome,
-  String? hostOs,
-}) {
-  final root = dartvelToolchainRoot(toolchainHome ?? resolveToolchainHome());
-  return TerminalBuildPlan(
-    platform: platform,
-    // The fork, not upstream: upstream `flt` runs an app in development and
-    // does not produce a distributable binary, and supplying that is the
-    // fork's reason to exist.
-    //
-    // An absolute path under the toolchain root rather than a bare name,
-    // because that is where Dartvel installs it — and a plan naming something
-    // nothing installs is the Fuchsia defect.
-    toolchain: terminalEmbedderExecutable(root, hostOs: hostOs),
-    // dartvel-cli-flt takes --release and nothing for any other mode: it
-    // refuses a release by name, since it has no AOT yet, rather than being
-    // handed a Flutter mode flag it does not parse.
-    arguments: <String>[
-      'build',
-      platform,
-      if (buildMode == '--release') '--release',
-    ],
-  );
-}
-
-/// Whether a terminal build of [platform] first needs the desktop build's
-/// compiler settings for the project's build hooks.
-///
-/// Linux only. Flutter reads a Linux hook compiler from the desktop build's
-/// CMakeCache.txt, which `flutter build bundle` never writes. It takes the Mac
-/// compiler from Xcode and the Windows one from vswhere, and neither host can
-/// run `flutter build linux` at all.
-bool terminalBuildNeedsDesktopCompilerSettings(String platform) =>
-    platform == 'linux';
-
-/// Whether a terminal build can proceed, and what to say when it cannot.
-class TerminalBuildOutcome {
-  const TerminalBuildOutcome({required this.shouldRun, required this.message});
-
-  final bool shouldRun;
-  final String message;
-}
-
-/// Decides what to do about a terminal build for [plan].
-///
-/// Separated from the loop that runs it so the decision can be asserted on
-/// without spawning a build. The rule it implements is the Build Toolchain
-/// Rule: check tooling before doing work, and skip cleanly rather than start
-/// something that cannot finish.
-///
-/// It deliberately does not name `flutter build` as an alternative. That is
-/// what the code used to do silently, and suggesting it would be recommending
-/// the bug.
-TerminalBuildOutcome terminalBuildOutcome(
-  TerminalBuildPlan plan, {
-  required bool toolchainPresent,
-}) {
-  if (toolchainPresent) {
-    return TerminalBuildOutcome(
-      shouldRun: true,
-      message: 'Building ${plan.platform} for the terminal with '
-          '${plan.toolchain}.',
-    );
-  }
-  return TerminalBuildOutcome(
-    shouldRun: false,
-    message: 'Skipping ${plan.platform}-cli: ${plan.toolchain} is not '
-        'installed. Terminal rendering uses the dartvel_cli_flt embedder, which '
-        'renders through the Kitty graphics protocol from Rust — there is no '
-        'way to produce a terminal binary from the desktop toolchain, so this '
-        'target is skipped rather than substituted.',
-  );
-}
+/// Every name `dartvel build` accepts: the free targets, the paid ones (which
+/// it refuses with [dvTargetRefusal] unless a package provides them) and any
+/// a package registered in this process.
+List<String> buildTargetArguments() => <String>[
+      ...buildPlatformArguments,
+      for (final String name in <String>{
+        ...dvPaidTargets.keys,
+        ...DVBuildTargets.names,
+      })
+        if (!buildPlatformArguments.contains(name)) name,
+    ];
 
 /// Whether `pubspec.yaml` opts this application into terminal rendering.
 ///
@@ -394,7 +234,7 @@ bool dvTerminalOptInFrom(Object? dartvel) {
 /// |---|---|---|
 /// | plain desktop | yes | no |
 /// | desktop + `dartvel.terminal: true` | yes | yes |
-/// | `-cli` / `-tui` | no | yes |
+/// | a terminal-only target (`format: tui`) | no | yes |
 ///
 /// A terminal build contains no GUI backend at all — not a window that stays
 /// closed. A plain desktop build contains no terminal code. Nothing gives an
@@ -435,7 +275,7 @@ String resolveRequestedPlatform({
   if (positional.isEmpty) return optionValue;
 
   final requested = positional.first;
-  if (!buildPlatformArguments.contains(requested)) {
+  if (!buildTargetArguments().contains(requested)) {
     throw FormatException(
       '"$requested" is not a known build platform. '
       'Allowed: ${buildPlatformArguments.join(', ')}.',
@@ -463,47 +303,20 @@ String resolveRequestedPlatform({
 ///
 /// Web is host-independent. Android and its `fireos` variant are treated as
 /// available everywhere because they depend on the Android SDK rather than the
-/// host OS; a missing SDK surfaces as Flutter's own diagnostic.
-/// The host OS an embedded target's embedder requires, or null when it runs
-/// anywhere.
-///
-/// Separate from [isPlatformAvailableOn], which answers whether plain
-/// `flutter build` can serve a target — embedded targets never can. An
-/// embedder can still be host-constrained: Fuchsia's states it builds on Linux
-/// only, not macOS or Windows natively.
-String? embeddedHostRequirement(String platform) => switch (platform) {
-      'fuchsia' => 'linux',
-      _ => null,
-    };
-
+/// host OS; a missing SDK surfaces as Flutter's own diagnostic. A target a
+/// package registered answers for itself.
 bool isPlatformAvailableOn(String platform, String hostOs) {
-  // A terminal build needs the host its base platform needs: the embedder
-  // links a host engine and does not cross-build.
-  for (final suffix in const <String>['-cli', '-tui']) {
-    if (!platform.endsWith(suffix)) continue;
-    final base = platform.substring(0, platform.length - suffix.length);
-    return terminalCapablePlatforms.contains(base) &&
-        isPlatformAvailableOn(base, hostOs);
-  }
+  final DVBuildTarget? packaged = DVBuildTargets.lookup(platform);
+  if (packaged != null) return packaged.availableOn(hostOs);
   switch (platform) {
     case 'web':
     case 'web-server':
-    case 'telegram':
     case 'android':
     case 'fireos':
-    // An Android build with the Horizon OS manifest.
-    case 'horizon':
-      return true;
-    // A browser extension is web output; any host that can build web can
-    // build it.
-    case 'chrome-extension':
-    case 'firefox-extension':
       return true;
     case 'ios':
     case 'macos':
     case 'tvos':
-    // The iOS build Vision Pro runs as Designed for iPad.
-    case 'visionos':
       return hostOs == 'macos';
     case 'windows':
       return hostOs == 'windows';
@@ -544,7 +357,7 @@ class BuildCommand extends Command<void> {
     argParser
       ..addOption('platform',
           abbr: 'p',
-          allowed: buildPlatformArguments,
+          allowed: buildTargetArguments(),
           defaultsTo: 'all',
           help: 'Target platform (or pass it positionally)')
       ..addOption('profile',
@@ -642,6 +455,12 @@ class BuildCommand extends Command<void> {
   /// The profile of the build being run, set once `run` has parsed it.
   DVBuildProfile _profile = DVBuildProfile.release;
 
+  /// The options of the build being run, for a packaged target.
+  DVBuildOptions _options = const DVBuildOptions(
+    buildMode: '--release',
+    profile: 'release',
+  );
+
   /// The project being built, read once per use rather than cached, so a
   /// command constructed before the CLI knows its directory still builds the
   /// directory it is run in.
@@ -692,26 +511,57 @@ class BuildCommand extends Command<void> {
     final String? packageFormat = argResults?['format'] as String?;
     final bool? codesignFlag = argResults?['codesign'] as bool?;
     final String? exportOptionsPlist = argResults?['export-options-plist'] as String?;
-    final String? packageProblem = dvPackageFormatProblem(
-      platform: normalizeBuildTarget(rawPlatform).platform,
-      format: packageFormat,
-      simulator: argResults?['simulator'] as bool? ?? false,
-      codesign: codesignFlag,
-      exportOptionsPlist: exportOptionsPlist,
-    );
+    final bool cloudRequested = argResults?['cloud'] == true;
+
+    // A target this CLI does not build itself. Registered in this process, it
+    // is built below like any other; otherwise a package in the project's
+    // dependencies provides it and the build is run through that package's
+    // executable; otherwise it is refused, saying how to get it. Dartvel
+    // Cloud builds paid targets for a paid account, so --cloud goes on to the
+    // cloud whatever is installed here.
+    final DVBuildTarget? packagedTarget = DVBuildTargets.lookup(rawPlatform);
+    if (packagedTarget == null &&
+        dvIsPackageTarget(rawPlatform) &&
+        !cloudRequested) {
+      final DVTargetPackage? provider = dvTargetPackageFor(root, rawPlatform);
+      if (provider != null && !dvIsDelegatedRun()) {
+        exitCode = await dvDelegateToTargetPackage(
+          provider,
+          <String>['build', ...?argResults?.arguments],
+          projectRoot: root,
+        );
+        return;
+      }
+      if (provider != null) {
+        Logger.log('❌ ${provider.name} declares $rawPlatform in its '
+            '$dvTargetManifestFile but did not register it.');
+      } else {
+        Logger.log('❌ ${dvTargetRefusal(rawPlatform)}');
+      }
+      exitCode = 69; // EX_UNAVAILABLE
+      return;
+    }
+
+    final String? packageProblem = packagedTarget?.packageFormatProblem(
+          format: packageFormat,
+          simulator: argResults?['simulator'] as bool? ?? false,
+        ) ??
+        dvPackageFormatProblem(
+          platform: normalizeBuildTarget(rawPlatform).platform,
+          format: packageFormat,
+          simulator: argResults?['simulator'] as bool? ?? false,
+          codesign: codesignFlag,
+          exportOptionsPlist: exportOptionsPlist,
+        );
     if (packageProblem != null) {
       Logger.log('❌ $packageProblem');
       exitCode = 64; // EX_USAGE
       return;
     }
 
-    if (argResults?['cloud'] == true) {
-      final normalizedCloud = normalizeBuildTarget(rawPlatform);
-      // A terminal build keeps its suffix: the request has no format, and
-      // `linux` alone is the GUI build.
-      final String cloudTarget = normalizedCloud.format == 'tui'
-          ? '${normalizedCloud.platform}-cli'
-          : normalizedCloud.platform;
+    if (cloudRequested) {
+      final String cloudTarget = dvPaidTargetAliases[rawPlatform] ??
+          normalizeBuildTarget(rawPlatform).platform;
       if (cloudTarget == 'all') {
         Logger.log('❌ Name the target to build in the cloud, for example '
             'dartvel build ios --cloud.');
@@ -753,18 +603,42 @@ class BuildCommand extends Command<void> {
     // platform plus a format; an explicit `--format` overrides the default.
     final normalized = normalizeBuildTarget(rawPlatform);
     final platforms = normalized.platform == 'all'
-        ? allBuildPlatforms
+        ? <String>[
+            ...allBuildPlatforms,
+            for (final DVBuildTarget packaged in DVBuildTargets.all)
+              if (packaged.buildsWithAll) packaged.name,
+          ]
         : [normalized.platform];
     final format = formatFlag ?? normalized.format;
+    _options = DVBuildOptions(
+      buildMode: buildProfile.flutterFlag,
+      profile: buildProfile.name,
+      entryPoint: target,
+      simulator: simulator,
+      arch: arch,
+      archExplicit: archExplicit,
+      format: format,
+      buildNumber: buildNumber,
+      buildName: buildName,
+      obfuscate: obfuscate && isRelease,
+      treeShakeIcons: treeShakeIcons,
+      splitPerAbi: splitPerAbi,
+      deviceProfile: deviceProfile,
+      timeout: buildTimeout,
+      codesign: codesignFlag ?? true,
+      exportOptionsPlist: exportOptionsPlist,
+      autoInstall: autoInstall,
+    );
 
     // Resolved once, before any target runs, so a mistyped opt-in is reported
     // before minutes of generation rather than after.
     final Set<DVRenderBackend> renderBackends;
     try {
-      renderBackends = resolveRenderBackends(
-        format: format,
-        terminalOptIn: readTerminalOptIn(readPubspecYaml(root)),
-      );
+      renderBackends = packagedTarget?.renderBackends ??
+          resolveRenderBackends(
+            format: format,
+            terminalOptIn: readTerminalOptIn(readPubspecYaml(root)),
+          );
     } on FormatException catch (error) {
       Logger.log('❌ ${error.message}');
       exit(78); // EX_CONFIG
@@ -824,7 +698,7 @@ class BuildCommand extends Command<void> {
     final DVModuleCallCheck moduleCalls =
         DVModuleCallCheck.run(root, platforms: platforms.toSet(), <DVModuleEnvironment>{
       for (final String platform in platforms)
-        (platform == 'web' || platform == 'telegram')
+        (DVBuildTargets.lookup(platform)?.basePlatform ?? platform) == 'web'
             ? DVModuleEnvironment.web
             : (platform == 'server' || platform == 'backend')
                 ? DVModuleEnvironment.backend
@@ -856,19 +730,17 @@ class BuildCommand extends Command<void> {
     var skipped = 0;
     final buildablePlatforms = <String>[];
     final preflight = _preflightOverride ?? _preflight;
-    // A terminal-only build is checked under its terminal name, which is
-    // what brings the embedder into the check and the install.
-    final bool terminalOnlyBuild =
-        renderBackends.contains(DVRenderBackend.terminal) &&
-            !renderBackends.contains(DVRenderBackend.gui);
     // Android release builds refused for want of a release key, before any
     // generation: a build that cannot be signed correctly cannot finish.
     var refused = 0;
     for (final platform in platforms) {
-      final String checked = terminalOnlyBuild ? '$platform-cli' : platform;
-      if (await preflight(checked, autoInstall: autoInstall)) {
-        final String? keyProblem =
-            isRelease ? _androidReleaseKeyProblem(root, platform) : null;
+      if (await preflight(platform, autoInstall: autoInstall)) {
+        // A packaged target built from the Android project needs the same
+        // release key.
+        final String? keyProblem = isRelease
+            ? _androidReleaseKeyProblem(
+                root, DVBuildTargets.lookup(platform)?.basePlatform ?? platform)
+            : null;
         if (keyProblem != null) {
           Logger.log('❌ $keyProblem');
           refused += 1;
@@ -952,12 +824,6 @@ class BuildCommand extends Command<void> {
 
     final buildMode = buildProfile.flutterFlag;
 
-    // A terminal-only build must not reach the desktop branch below. It used
-    // to, which is how `dartvel build linux-cli` produced a GUI binary and
-    // called it a success.
-    final terminalOnly = renderBackends.contains(DVRenderBackend.terminal) &&
-        !renderBackends.contains(DVRenderBackend.gui);
-
     var failures = refused;
     for (final p in buildablePlatforms) {
       // What this target can do with the home widgets the application
@@ -975,26 +841,16 @@ class BuildCommand extends Command<void> {
       }
       if (!homeWidgets.ok) exit(78); // EX_CONFIG
 
-      if (terminalOnly) {
-        final plan = terminalBuildPlan(p, buildMode: buildMode);
-        final outcome = terminalBuildOutcome(
-          plan,
-          toolchainPresent: _isOnPath(plan.toolchain),
-        );
-        Logger.log(outcome.shouldRun
-            ? '🔨 ${outcome.message}'
-            : '⏭️  ${outcome.message}');
-        if (!outcome.shouldRun) {
-          skipped += 1;
-          continue;
-        }
-        final result = await _buildTerminal(plan, timeout: buildTimeout);
-        switch (result) {
-          case _PlatformBuildResult.succeeded:
+      // A target a package registered builds itself, with the pipeline's
+      // own pieces handed to it.
+      final DVBuildTarget? packaged = DVBuildTargets.lookup(p);
+      if (packaged != null) {
+        switch (await packaged.build(_TargetContext(this, root))) {
+          case DVBuildTargetResult.succeeded:
             break;
-          case _PlatformBuildResult.skipped:
+          case DVBuildTargetResult.skipped:
             skipped += 1;
-          case _PlatformBuildResult.failed:
+          case DVBuildTargetResult.failed:
             failures += 1;
         }
         continue;
@@ -1011,11 +867,11 @@ class BuildCommand extends Command<void> {
           target: target,
         );
         switch (result) {
-          case _PlatformBuildResult.succeeded:
+          case DVBuildTargetResult.succeeded:
             break;
-          case _PlatformBuildResult.skipped:
+          case DVBuildTargetResult.skipped:
             skipped += 1;
-          case _PlatformBuildResult.failed:
+          case DVBuildTargetResult.failed:
             failures += 1;
         }
         continue;
@@ -1032,32 +888,28 @@ class BuildCommand extends Command<void> {
               arch: resolveEmbeddedArch(p, arch, explicit: archExplicit),
               target: target,
             )
-          : browserExtensionBuildPlatforms.contains(p)
-              ? await _buildBrowserExtension(p, buildMode, root, target: target)
-              : extensionBuildPlatforms.contains(p)
-                  ? await _buildVSCodeExtension(root)
-                  : await _buildPlatform(
-                      p,
-                      buildMode,
-                      timeout: buildTimeout,
-                      target: target,
-                      splitPerAbi: splitPerAbi,
-                      buildNumber: buildNumber,
-                      buildName: buildName,
-                      obfuscate: obfuscate && isRelease,
-                      treeShakeIcons: treeShakeIcons,
-                      deviceProfile: deviceProfile,
-                      simulator: simulator,
-                      format: format,
-                      codesign: codesignFlag ?? true,
-                      exportOptionsPlist: exportOptionsPlist,
-                    );
+          : await _buildPlatform(
+              p,
+              buildMode,
+              timeout: buildTimeout,
+              target: target,
+              splitPerAbi: splitPerAbi,
+              buildNumber: buildNumber,
+              buildName: buildName,
+              obfuscate: obfuscate && isRelease,
+              treeShakeIcons: treeShakeIcons,
+              deviceProfile: deviceProfile,
+              simulator: simulator,
+              format: format,
+              codesign: codesignFlag ?? true,
+              exportOptionsPlist: exportOptionsPlist,
+            );
       switch (result) {
-        case _PlatformBuildResult.succeeded:
+        case DVBuildTargetResult.succeeded:
           break;
-        case _PlatformBuildResult.skipped:
+        case DVBuildTargetResult.skipped:
           skipped += 1;
-        case _PlatformBuildResult.failed:
+        case DVBuildTargetResult.failed:
           failures += 1;
       }
     }
@@ -1082,7 +934,7 @@ class BuildCommand extends Command<void> {
     Logger.log('✅ Build complete!');
   }
 
-  Future<_PlatformBuildResult> _buildPlatform(
+  Future<DVBuildTargetResult> _buildPlatform(
     String platform,
     String buildMode, {
     String? target,
@@ -1097,16 +949,66 @@ class BuildCommand extends Command<void> {
     String? format,
     bool codesign = true,
     String? exportOptionsPlist,
+    DVPlatformVariant? variant,
   }) async {
+    final _VariantRun run = _VariantRun();
+    try {
+      return await _buildPlatformSteps(
+        platform,
+        buildMode,
+        target: target,
+        splitPerAbi: splitPerAbi,
+        buildNumber: buildNumber,
+        buildName: buildName,
+        obfuscate: obfuscate,
+        treeShakeIcons: treeShakeIcons,
+        simulator: simulator,
+        timeout: timeout,
+        deviceProfile: deviceProfile,
+        format: format,
+        codesign: codesign,
+        exportOptionsPlist: exportOptionsPlist,
+        variant: variant,
+        run: run,
+      );
+    } finally {
+      // A variant that prepared the project is told the build ended, however
+      // it ended, so whatever it wrote can come back out.
+      final finish = variant?.finish;
+      if (finish != null && run.prepared && !run.finished) {
+        await finish(_TargetContext(this, _projectRoot), built: false);
+      }
+    }
+  }
+
+  Future<DVBuildTargetResult> _buildPlatformSteps(
+    String platform,
+    String buildMode, {
+    String? target,
+    bool splitPerAbi = false,
+    String? buildNumber,
+    String? buildName,
+    bool obfuscate = false,
+    bool treeShakeIcons = false,
+    bool simulator = false,
+    Duration? timeout,
+    String? deviceProfile,
+    String? format,
+    bool codesign = true,
+    String? exportOptionsPlist,
+    DVPlatformVariant? variant,
+    required _VariantRun run,
+  }) async {
+    // What the build reports itself as: the platform, or the target a package
+    // registered riding on its pipeline.
+    final String label = variant?.name ?? platform;
     Logger.log('');
-    Logger.log('🔨 Building for $platform...');
-    // The native project this target is built from: android/ for Horizon OS,
-    // ios/ for Vision Pro. Every writer below prepares that project.
-    final String project = dvNativeProjectFor(platform);
+    Logger.log('🔨 Building for $label...');
+    final String project = platform;
     // Before anything is generated: a release build with no release key is
     // one that cannot finish correctly, and the debug key is not a fallback.
     final bool androidFamily =
-        const <String>{'android', 'fireos', 'horizon'}.contains(platform);
+        const <String>{'android', 'fireos'}.contains(platform);
     DVAndroidReleaseConfig? androidRelease;
     _androidSigningEnvironment = null;
     if (androidFamily) {
@@ -1115,7 +1017,7 @@ class BuildCommand extends Command<void> {
             DVAndroidReleaseConfig.parse(_dartvelSection(_projectRoot));
       } on FormatException catch (error) {
         Logger.log('❌ ${error.message}');
-        return _PlatformBuildResult.failed;
+        return DVBuildTargetResult.failed;
       }
       if (buildMode == '--release') {
         final DVAndroidSigningResolution signing = dvResolveAndroidSigning(
@@ -1125,7 +1027,7 @@ class BuildCommand extends Command<void> {
         );
         if (signing.signing == null) {
           Logger.log('❌ ${signing.problem}');
-          return _PlatformBuildResult.failed;
+          return DVBuildTargetResult.failed;
         }
         _androidSigningEnvironment = signing.signing!.environment;
         Logger.log('   Release key: ${signing.signing!.keyAlias} from '
@@ -1137,7 +1039,7 @@ class BuildCommand extends Command<void> {
       platform: project,
       processRun: _processRun,
     );
-    if (!scaffoldOk) return _PlatformBuildResult.failed;
+    if (!scaffoldOk) return DVBuildTargetResult.failed;
     // dartvel.deepLinks, before anything is built for a target it names
     // nothing for (DV-LINKS-001): a link file with no application in it is a
     // link that opens the browser, from a build that succeeded.
@@ -1146,7 +1048,7 @@ class BuildCommand extends Command<void> {
       deepLinks = DVDeepLinkConfig.parse(_dartvelSection(_projectRoot)['deepLinks']);
     } on FormatException catch (error) {
       Logger.log('❌ ${error.message}');
-      return _PlatformBuildResult.failed;
+      return DVBuildTargetResult.failed;
     }
     final List<String> linkErrors = deepLinks?.missingIdentifiers(<String>{
           project == 'fireos' ? 'android' : project,
@@ -1156,7 +1058,7 @@ class BuildCommand extends Command<void> {
       for (final String error in linkErrors) {
         Logger.log('❌ $error');
       }
-      return _PlatformBuildResult.failed;
+      return DVBuildTargetResult.failed;
     }
     // Before Xcode packages the bundle: the document and URL types live in
     // its Info.plist.
@@ -1177,7 +1079,7 @@ class BuildCommand extends Command<void> {
     if (project == 'ios' || project == 'macos') {
       // Before Xcode reads Info.plist and the entitlements: what
       // dartvel.fileStorage lets the app reach outside its own container.
-      if (!_writeAppleFileStorage(_projectRoot, project)) return _PlatformBuildResult.failed;
+      if (!_writeAppleFileStorage(_projectRoot, project)) return DVBuildTargetResult.failed;
     }
     if (project == 'ios') _writeIosDeepLinks(_projectRoot);
     // Before Xcode reads the project: the Swift the iOS DV.Platform
@@ -1195,44 +1097,50 @@ class BuildCommand extends Command<void> {
       // the same manifest and the order the blocks appear in is the order
       // they are written.
       _writeAndroidCaptureBridge(_projectRoot);
-      _writeAndroidKioskFiles(_projectRoot);
-      _writeAndroidHomeWidgets(_projectRoot);
+      // A target riding on this pipeline may leave a step out; what an
+      // earlier build wrote for it then comes back out of the shared project.
+      final Map<DVPlatformStep, String> leftOut =
+          variant?.leaveOut ?? const <DVPlatformStep, String>{};
+      final String? noKiosk = leftOut[DVPlatformStep.kiosk];
+      if (noKiosk != null) {
+        _stripAndroidKiosk(_projectRoot, label, noKiosk);
+      } else {
+        _writeAndroidKioskFiles(_projectRoot);
+      }
+      final String? noWidgets = leftOut[DVPlatformStep.homeWidgets];
+      if (noWidgets != null) {
+        _stripAndroidHomeWidgets(_projectRoot, label, noWidgets);
+      } else {
+        _writeAndroidHomeWidgets(_projectRoot);
+      }
       _writeAndroidDeepLinks(_projectRoot, deepLinks);
       // Before Gradle resolves dependencies: the billing library is one.
-      _writeAndroidBilling(_projectRoot);
-    }
-    if (project == 'android') {
-      // Last among the manifest writers, and for every Android-family build:
-      // an android build after a horizon one takes the Horizon entries back
-      // out, so a phone APK never carries a headset's store metadata.
-      if (!_writeHorizonProject(_projectRoot, enabled: platform == 'horizon')) {
-        return _PlatformBuildResult.failed;
+      final String? noPurchases = leftOut[DVPlatformStep.purchases];
+      if (noPurchases != null) {
+        if (dvPurchasesDeclared(_dartvelSection(_projectRoot))) {
+          Logger.log('[i] dartvel.purchases is not in the $label build: '
+              '$noPurchases');
+        }
+        _writeAndroidBilling(_projectRoot, include: false);
+      } else {
+        _writeAndroidBilling(_projectRoot);
       }
-    }
-    if (platform == 'horizon') {
-      _writeAndroidContextProvider(_projectRoot);
-      _writeAndroidCaptureBridge(_projectRoot);
-      _writeAndroidDeepLinks(_projectRoot, deepLinks);
-      // Not the kiosk or the home widgets. Both rest on components the
-      // Horizon Store refuses -- a device-admin receiver is guarded by
-      // BIND_DEVICE_ADMIN and a widget provider by BIND_APPWIDGET -- and a
-      // headset has no home screen to put a widget on. An android build's
-      // blocks are taken back out of the shared manifest.
-      _stripAndroidForHorizon(_projectRoot);
     }
     // After every other manifest writer, so the INTERNET line and the
     // <application> attributes are decided on the manifest that ships.
     if (androidRelease != null) _writeAndroidRelease(_projectRoot, androidRelease);
     // A development build pairs with `dartvel dev`: the tunnel,
     // the activity a scanned link opens, and the entrypoint that starts it.
-    if (_profile.isDevelopment && dvDevClientPlatforms.contains(platform)) {
+    if (_profile.isDevelopment &&
+        dvDevClientPlatforms.contains(platform) &&
+        !(variant?.leaveOut.containsKey(DVPlatformStep.devClient) ?? false)) {
       final bool written = switch (platform) {
         'ios' || 'macos' => _writeAppleDevClient(_projectRoot, platform, target),
         'linux' => _writeLinuxDevClient(_projectRoot, target),
         'windows' => _writeWindowsDevClient(_projectRoot, target),
         _ => _writeAndroidDevClient(_projectRoot, target),
       };
-      if (!written) return _PlatformBuildResult.failed;
+      if (!written) return DVBuildTargetResult.failed;
     } else if (project == 'ios' || project == 'macos') {
       // A profile or release build of a project that was built for
       // development: the tunnel and the development Info.plist come back out
@@ -1262,37 +1170,54 @@ class BuildCommand extends Command<void> {
       }
     }
 
-    final args = resolveFlutterBuildArguments(
-      platform: platform,
-      buildMode: buildMode,
-      target: dvDevelopmentBuildTarget(
+    final args = <String>[
+      ...resolveFlutterBuildArguments(
         platform: platform,
-        profile: _profile,
-        target: target,
+        buildMode: buildMode,
+        // A target that leaves the dev client out keeps its own entrypoint.
+        target: (variant?.leaveOut.containsKey(DVPlatformStep.devClient) ??
+                false)
+            ? target
+            : dvDevelopmentBuildTarget(
+                platform: platform,
+                profile: _profile,
+                target: target,
+              ),
+        splitPerAbi: splitPerAbi,
+        buildNumber: buildNumber,
+        buildName: buildName,
+        obfuscate: obfuscate,
+        treeShakeIcons: treeShakeIcons,
+        deviceProfile: deviceProfile,
+        simulator: simulator,
+        format: format,
+        codesign: codesign,
+        exportOptionsPlist: exportOptionsPlist,
+        // Before the build, because the app is handed the list as a
+        // compile-time value: which images have variants, and how wide each is.
+        imageVariants: _imageVariants(_projectRoot, platform),
+        // Studio's routes, compiled into the application where this build's
+        // server will guard them.
+        studio: platform == 'web-server' && _servesStudio(_projectRoot) != null,
       ),
-      splitPerAbi: splitPerAbi,
-      buildNumber: buildNumber,
-      buildName: buildName,
-      obfuscate: obfuscate,
-      treeShakeIcons: treeShakeIcons,
-      deviceProfile: deviceProfile,
-      simulator: simulator,
-      format: format,
-      codesign: codesign,
-      exportOptionsPlist: exportOptionsPlist,
-      // Before the build, because the app is handed the list as a
-      // compile-time value: which images have variants, and how wide each is.
-      imageVariants: _imageVariants(_projectRoot, platform),
-      // Studio's routes, compiled into the application where this build's
-      // server will guard them.
-      studio: platform == 'web-server' && _servesStudio(_projectRoot) != null,
-    );
+      ...?variant?.flutterArguments,
+    ];
 
     // Check if platform is available
     if (!await _isPlatformAvailable(platform)) {
       Logger.log(
           '⚠️  Platform $platform not available on this system. Skipping...');
-      return _PlatformBuildResult.skipped;
+      return DVBuildTargetResult.skipped;
+    }
+
+    // The target riding on this pipeline, once Dartvel's own writers have
+    // prepared the project and before Flutter reads it.
+    final prepare = variant?.prepare;
+    if (prepare != null || variant?.finish != null) run.prepared = true;
+    if (prepare != null &&
+        !await prepare(_TargetContext(this, _projectRoot))) {
+      Logger.log('❌ $label build failed');
+      return DVBuildTargetResult.failed;
     }
 
     // Before the build copies web/index.html into the output, so the built
@@ -1300,8 +1225,7 @@ class BuildCommand extends Command<void> {
     // page without one is laid out by a phone at a notional 980 CSS pixels
     // and scaled down, which makes every breakpoint report "desktop" on a
     // phone.
-    if (platform == 'web' || platform == 'web-server' || platform == 'telegram') {
-      dvPrepareTelegramShell(_projectRoot, enabled: platform == 'telegram' || _dartvelSection(_projectRoot)['telegram'] != null);
+    if (platform == 'web' || platform == 'web-server') {
       if (dvEnsureProjectViewport(_projectRoot)) {
         Logger.log('   Added a viewport meta to web/index.html.');
       }
@@ -1336,17 +1260,17 @@ class BuildCommand extends Command<void> {
       timeout: timeout,
       description: 'flutter build $platform',
     );
-    if (exitCode == null) return _PlatformBuildResult.failed;
+    if (exitCode == null) return DVBuildTargetResult.failed;
 
     if (exitCode == 0) {
-      if (platform == 'web' || platform == 'web-server' || platform == 'telegram') {
+      if (platform == 'web' || platform == 'web-server') {
         final root = _projectRoot;
         // First, before anything reads build/web or lists its parts: Studio's
         // code comes out of the web root, whose every file is public, and a
         // static build is checked to carry none of it.
         if (!_separateStudioCode(root, platform)) {
           Logger.log('❌ $platform build failed');
-          return _PlatformBuildResult.failed;
+          return DVBuildTargetResult.failed;
         }
         // Before the capture loads a page: the variants DVImageView asks for
         // have to be there, or the capture records a 404 for every image.
@@ -1370,7 +1294,7 @@ class BuildCommand extends Command<void> {
               await _writeAdminDashboard(root);
           if (!dashboard.ok) {
             Logger.log('❌ $platform build failed');
-            return _PlatformBuildResult.failed;
+            return DVBuildTargetResult.failed;
           }
           final DVAdminMount? admin = dashboard.admin;
           // The documentation site, when pubspec asks for one: compiled
@@ -1380,7 +1304,7 @@ class BuildCommand extends Command<void> {
               await _writeDocsSite(root, server: true, admin: admin);
           if (!documentation.ok) {
             Logger.log('❌ $platform build failed');
-            return _PlatformBuildResult.failed;
+            return DVBuildTargetResult.failed;
           }
           // Before the executable packs build/web into itself: what is not
           // minified by now ships inside the binary as it was written.
@@ -1388,9 +1312,9 @@ class BuildCommand extends Command<void> {
           // The backend that serves all of it, as one executable file.
           if (await _buildServerBinary(root,
                   admin: admin, docs: documentation.docs) ==
-              _PlatformBuildResult.failed) {
+              DVBuildTargetResult.failed) {
             Logger.log('❌ $platform build failed');
-            return _PlatformBuildResult.failed;
+            return DVBuildTargetResult.failed;
           }
         } else {
           await _writeStaticPages(root);
@@ -1400,7 +1324,7 @@ class BuildCommand extends Command<void> {
               await _writeDocsSite(root, server: false, admin: null);
           if (!documentation.ok) {
             Logger.log('❌ $platform build failed');
-            return _PlatformBuildResult.failed;
+            return DVBuildTargetResult.failed;
           }
           // After the per-route pages, so the pass takes the indentation out
           // of every one of them rather than only out of the shell.
@@ -1418,20 +1342,24 @@ class BuildCommand extends Command<void> {
       if (platform == 'windows') _writeWindowsDesktopFiles(_projectRoot);
       if (!_bundleNodeRuntime(_projectRoot, platform)) {
         Logger.log('❌ $platform build failed');
-        return _PlatformBuildResult.failed;
+        return DVBuildTargetResult.failed;
       }
-      if (platform == 'horizon' && !await _checkHorizonApk(_projectRoot, buildMode)) {
-        Logger.log('❌ $platform build failed');
-        return _PlatformBuildResult.failed;
+      final finish = variant?.finish;
+      if (finish != null) {
+        run.finished = true;
+        if (!await finish(_TargetContext(this, _projectRoot), built: true)) {
+          Logger.log('❌ $label build failed');
+          return DVBuildTargetResult.failed;
+        }
       }
       if (platform == 'android' && format == 'aab') {
         _writeDataSafetyBesideBundle(_projectRoot, buildMode);
       }
-      Logger.log('✅ $platform build successful');
-      return _PlatformBuildResult.succeeded;
+      Logger.log('✅ $label build successful');
+      return DVBuildTargetResult.succeeded;
     } else {
-      Logger.log('❌ $platform build failed');
-      return _PlatformBuildResult.failed;
+      Logger.log('❌ $label build failed');
+      return DVBuildTargetResult.failed;
     }
   }
 
@@ -1439,7 +1367,7 @@ class BuildCommand extends Command<void> {
   /// server library inside: the web-server build's executable, at the path
   /// `dartvel deploy`'s image runs as /app/server and `dartvel infra`'s units
   /// start as /opt/<app>/server.
-  Future<_PlatformBuildResult> _buildServerBinary(String root,
+  Future<DVBuildTargetResult> _buildServerBinary(String root,
       {required DVAdminMount? admin, required DVDocsMount? docs}) async {
     Logger.log('🔨 Compiling the backend into one executable...');
     final host = dvHostServerLibrary();
@@ -1447,7 +1375,7 @@ class BuildCommand extends Command<void> {
         dvLocateServerLibrary(root, subdir: host.subdir, name: host.name);
     if (lookup.file == null) {
       Logger.log('⚠️  build/server not written: ${lookup.problem}');
-      return _PlatformBuildResult.skipped;
+      return DVBuildTargetResult.skipped;
     }
     final DVServerBinaryResult result = await dvBuildServerBinary(
       root: root,
@@ -1481,9 +1409,9 @@ class BuildCommand extends Command<void> {
       Logger.log('   $line');
     }
     if (!result.ok) {
-      return _PlatformBuildResult.failed;
+      return DVBuildTargetResult.failed;
     }
-    return _PlatformBuildResult.succeeded;
+    return DVBuildTargetResult.succeeded;
   }
 
   /// `dartvel.web.server`, or nothing.
@@ -1493,86 +1421,12 @@ class BuildCommand extends Command<void> {
     return server is Map ? server : const <Object?, Object?>{};
   }
 
-  /// Builds embedded/television targets through their dedicated Flutter
-  /// embedders (`flutter-tizen`, `flutter-elinux`). The bundle is always built
-  /// first; `iso`/`img` are distribution-packaging steps layered on top of the
-  /// bundle and require the configured Sony eLinux image toolchain.
-  Future<_PlatformBuildResult> _buildTerminal(
-    TerminalBuildPlan plan, {
-    required Duration? timeout,
-  }) async {
-    // The embedder runs `flutter build bundle`, and for a project with build
-    // hooks -- which every Dartvel application has, the Rust runtime being
-    // one -- that step wants a compiler configuration nothing puts where it
-    // looks. The desktop build writes one; this is a configuration step, not
-    // a second artifact, and nothing from it ships.
-    final String mode = plan.arguments.contains('--release') ? 'release' : 'debug';
-    final String root = _projectRoot;
-    if (terminalBuildNeedsDesktopCompilerSettings(plan.platform) &&
-        !await _configureNativeAssets(root, mode: mode, timeout: timeout)) {
-      return _PlatformBuildResult.failed;
-    }
-
-    final command = '${plan.toolchain} ${plan.arguments.join(' ')}';
-    Logger.log('   $command');
-    final process = await Process.start(
-      plan.toolchain,
-      plan.arguments,
-      workingDirectory: root,
-      mode: ProcessStartMode.inheritStdio,
-    );
-    final exitCode =
-        await _awaitBuild(process, timeout: timeout, description: command);
-    if (exitCode == null) return _PlatformBuildResult.failed;
-    if (exitCode != 0) {
-      Logger.log('❌ ${plan.platform} terminal build failed (exit $exitCode)');
-      return _PlatformBuildResult.failed;
-    }
-    Logger.log('✅ ${plan.platform} terminal build successful');
-    return _PlatformBuildResult.succeeded;
-  }
-
-  /// Makes sure the bundle build will find the compiler configuration this
-  /// project's build hooks need.
-  ///
-  /// Runs the desktop build when there is no cache to copy. That is a
-  /// configuration step and not a second artifact: what ships is the
-  /// terminal bundle, and the desktop output is left where it lands.
-  Future<bool> _configureNativeAssets(
-    String root, {
-    required String mode,
-    required Duration? timeout,
-  }) async {
-    if (dvConfigureNativeAssets(root, mode: mode).ready) return true;
-
-    Logger.log('   Configuring native assets: the bundle build needs the '
-        'desktop build\'s compiler settings.');
-    final Process process = await Process.start(
-      'flutter',
-      <String>['build', 'linux', '--$mode'],
-      workingDirectory: root,
-      mode: ProcessStartMode.inheritStdio,
-      runInShell: true,
-    );
-    final int? exitCode = await _awaitBuild(process,
-        timeout: timeout, description: 'flutter build linux --$mode');
-    if (exitCode != 0) {
-      Logger.log('❌ The desktop build that writes the native-asset compiler '
-          'settings failed, so the terminal build cannot start.');
-      return false;
-    }
-
-    final DVNativeAssetsConfig result = dvConfigureNativeAssets(root, mode: mode);
-    if (!result.ready) Logger.log('❌ ${result.reason}');
-    return result.ready;
-  }
-
   /// Assembles an eLinux release bundle from the desktop release build.
   ///
   /// See build/elinux_bundle.dart for why this does not go through
   /// flutter-elinux: that tool is pinned to Flutter 3.29.3, fifteen minor
   /// versions behind Dartvel's floor, and a release bundle does not need it.
-  Future<_PlatformBuildResult> _buildELinuxBundle({
+  Future<DVBuildTargetResult> _buildELinuxBundle({
     required String root,
     required String arch,
     required bool isRelease,
@@ -1588,7 +1442,7 @@ class BuildCommand extends Command<void> {
       Logger.log('⏭️  Skipping sony-elinux: only release bundles can be '
           'assembled. Debug and profile need an engine built for those modes, '
           'which is not published as a standalone embedder artifact.');
-      return _PlatformBuildResult.skipped;
+      return DVBuildTargetResult.skipped;
     }
 
     final artifacts =
@@ -1598,7 +1452,7 @@ class BuildCommand extends Command<void> {
       Logger.log('⏭️  Skipping sony-elinux: the embedder artifacts are not '
           'installed at $artifacts. Build them with the "Embedder artifacts" '
           'workflow and unpack the result there.');
-      return _PlatformBuildResult.skipped;
+      return DVBuildTargetResult.skipped;
     }
 
     // The desktop build supplies the app, the assets and the AOT library.
@@ -1614,9 +1468,9 @@ class BuildCommand extends Command<void> {
       obfuscate: false,
       treeShakeIcons: true,
     );
-    if (desktop != _PlatformBuildResult.succeeded) {
+    if (desktop != DVBuildTargetResult.succeeded) {
       Logger.log('❌ sony-elinux: the host build it assembles from failed');
-      return _PlatformBuildResult.failed;
+      return DVBuildTargetResult.failed;
     }
 
     // The desktop build is host-native, so the bundle architecture is the
@@ -1630,7 +1484,7 @@ class BuildCommand extends Command<void> {
       );
     } on UnsupportedError catch (error) {
       Logger.log('❌ sony-elinux: ${error.message}');
-      return _PlatformBuildResult.failed;
+      return DVBuildTargetResult.failed;
     }
 
     final desktopBundle = '$root/build/linux/$bundleArch/release/bundle';
@@ -1646,7 +1500,7 @@ class BuildCommand extends Command<void> {
       );
     } on UnsupportedError catch (error) {
       Logger.log('❌ sony-elinux: ${error.message}');
-      return _PlatformBuildResult.failed;
+      return DVBuildTargetResult.failed;
     }
 
     Directory(outDir).createSync(recursive: true);
@@ -1663,7 +1517,7 @@ class BuildCommand extends Command<void> {
         // Naming the missing piece, because an incomplete bundle is still a
         // directory and fails on the device instead of here.
         Logger.log('❌ sony-elinux: ${copy.from} is missing');
-        return _PlatformBuildResult.failed;
+        return DVBuildTargetResult.failed;
       }
       file.copySync(destination);
     }
@@ -1686,7 +1540,7 @@ class BuildCommand extends Command<void> {
       Logger.log('   ${supervisor.written.join(', ')}: install under '
           '/etc/systemd/system and enable it.');
     }
-    return _PlatformBuildResult.succeeded;
+    return DVBuildTargetResult.succeeded;
   }
 
   /// The architecture this machine builds natively for.
@@ -2004,13 +1858,14 @@ class BuildCommand extends Command<void> {
   /// `permissions.request`. What the pubspec list adds is the manifest lines
   /// without which a runtime request is refused instantly, with no dialog
   /// shown and the same answer a person tapping Deny gives.
-  void _writeAndroidBilling(String root) {
+  void _writeAndroidBilling(String root, {bool include = true}) {
     // Play Billing for DV.Purchases: the bridge Dart polls over JNI and the
     // library it is compiled against, only for a project that declares
     // dartvel.purchases. Both come back out when the declaration does, so an
     // application that stopped selling stops shipping the BILLING
-    // permission the library adds to the manifest.
-    final bool sells = dvPurchasesDeclared(_dartvelSection(root));
+    // permission the library adds to the manifest. [include] false takes
+    // them out for a target that leaves purchases out.
+    final bool sells = include && dvPurchasesDeclared(_dartvelSection(root));
     final File bridge = File(p.join(root, dvAndroidBillingBridgePath));
     if (sells) {
       bridge.parent.createSync(recursive: true);
@@ -2040,7 +1895,7 @@ class BuildCommand extends Command<void> {
   /// Why a release build of [platform] cannot be signed, or null when it can
   /// or [platform] is not built from the Android project.
   String? _androidReleaseKeyProblem(String root, String platform) {
-    if (!const <String>{'android', 'fireos', 'horizon'}.contains(platform)) {
+    if (!const <String>{'android', 'fireos'}.contains(platform)) {
       return null;
     }
     try {
@@ -2343,105 +2198,35 @@ class BuildCommand extends Command<void> {
         'device-admin receiver for dpm set-device-owner.');
   }
 
-  /// The Horizon OS panel-app entries in android/, or taken back out of it
-  /// for every other Android-family build. False when dartvel.xr is wrong or
-  /// the Gradle file is not one Dartvel can make the SDK levels overridable
-  /// in, since a Horizon build at Flutter's own levels is refused by the store.
-  bool _writeHorizonProject(String root, {required bool enabled}) {
-    final DVXRConfig config = DVXRConfig.parse(_dartvelSection(root)['xr']);
-    if (enabled && config.problems.isNotEmpty) {
-      for (final String problem in config.problems) {
-        Logger.log('❌ $problem');
-      }
-      return false;
-    }
-    final File manifest =
-        File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
-    if (manifest.existsSync()) {
-      final String before = manifest.readAsStringSync();
-      final String after = dvHorizonManifest(before, config, enabled: enabled);
-      if (after != before) manifest.writeAsStringSync(after);
-    } else if (enabled) {
-      Logger.log('❌ android/app/src/main/AndroidManifest.xml is not there, so '
-          'the Horizon OS entries reach nothing.');
-      return false;
-    }
-    if (!enabled) return true;
-    for (final String name in const <String>['build.gradle.kts', 'build.gradle']) {
-      final File gradle = File(p.join(root, 'android', 'app', name));
-      if (!gradle.existsSync()) continue;
-      final String before = gradle.readAsStringSync();
-      final String? after = dvHorizonGradle(before);
-      if (after == null) {
-        Logger.log('❌ android/app/$name sets minSdk and targetSdk in a way '
-            'Dartvel does not recognise, so the Horizon build cannot set the '
-            'levels Meta requires (minSdk $dvHorizonMinSdk, targetSdk '
-            '$dvHorizonTargetSdk).');
-        return false;
-      }
-      if (after != before) gradle.writeAsStringSync(after);
-      Logger.log('   Horizon OS: a ${config.panel.width}x${config.panel.height} dp '
-          'panel for ${config.horizonSupportedDevices}, minSdk $dvHorizonMinSdk, '
-          'targetSdk $dvHorizonTargetSdk, arm64.');
-      return true;
-    }
-    Logger.log('❌ android/app has no build.gradle.kts or build.gradle.');
-    return false;
-  }
-
-  /// The kiosk and home-widget blocks an android build wrote, out of the
-  /// manifest a Horizon build shares with it.
-  void _stripAndroidForHorizon(String root) {
+  /// The kiosk blocks an android build wrote, out of the manifest a target
+  /// that leaves the kiosk out shares with it. [reason] is said when the
+  /// project declares a kiosk.
+  void _stripAndroidKiosk(String root, String label, String reason) {
     final File manifest =
         File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) return;
     final String before = manifest.readAsStringSync();
-    final String after = dvAndroidHomeWidgetManifest(
-        dvAndroidKioskManifest(before, const DVAndroidKiosk(enabled: false)),
-        const <DVHomeWidgetSpec>[]);
+    final String after =
+        dvAndroidKioskManifest(before, const DVAndroidKiosk(enabled: false));
     if (after != before) manifest.writeAsStringSync(after);
     if (DVAndroidKiosk.of(root).ownsTheDevice) {
-      Logger.log('[i] dartvel.kiosk is not in the horizon build: a device-admin '
-          'receiver needs BIND_DEVICE_ADMIN, which the Horizon Store refuses.');
+      Logger.log('[i] dartvel.kiosk is not in the $label build: $reason');
     }
   }
 
-  /// Reads the built APK back with aapt2 and refuses it when the Horizon
-  /// Store's upload check would. The merged manifest is what is checked, so
-  /// a permission a plugin added is caught here and not at upload.
-  Future<bool> _checkHorizonApk(String root, String buildMode) async {
-    final String apk = dvHorizonApkPath(root, buildMode);
-    if (!File(apk).existsSync()) {
-      Logger.log('❌ $apk was not written.');
-      return false;
+  /// The home-widget blocks an android build wrote, out of the manifest a
+  /// target that leaves home widgets out shares with it.
+  void _stripAndroidHomeWidgets(String root, String label, String reason) {
+    final File manifest =
+        File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) return;
+    final String before = manifest.readAsStringSync();
+    final String after =
+        dvAndroidHomeWidgetManifest(before, const <DVHomeWidgetSpec>[]);
+    if (after != before) manifest.writeAsStringSync(after);
+    if (ClientGenerator.homeWidgetsIn(root).isNotEmpty) {
+      Logger.log('[i] Home widgets are not in the $label build: $reason');
     }
-    final String? aapt2 = dvLocateAapt2();
-    if (aapt2 == null) {
-      Logger.log('⚠️  No aapt2 in the Android SDK build-tools, so $apk was not '
-          'checked against the Horizon Store\'s manifest rules.');
-      return true;
-    }
-    final ProcessResult badging = await _processRun(aapt2, <String>['dump', 'badging', apk]);
-    final ProcessResult tree = await _processRun(
-        aapt2, <String>['dump', 'xmltree', '--file', 'AndroidManifest.xml', apk]);
-    if (badging.exitCode != 0 || tree.exitCode != 0) {
-      Logger.log('❌ aapt2 could not read $apk: ${badging.stderr}${tree.stderr}');
-      return false;
-    }
-    final List<String> problems = dvHorizonApkProblems(
-      badging: '${badging.stdout}',
-      manifestTree: '${tree.stdout}',
-      config: DVXRConfig.parse(_dartvelSection(root)['xr']),
-    );
-    if (problems.isEmpty) {
-      Logger.log('   $apk checked with aapt2: a Horizon OS panel app.');
-      return true;
-    }
-    Logger.log('❌ $apk would be refused by the Horizon Store:');
-    for (final String problem in problems) {
-      Logger.log('   • $problem');
-    }
-    return false;
   }
 
   /// A provider, its metadata and its layout for every `@DVHomeWidget`.
@@ -2858,7 +2643,7 @@ class BuildCommand extends Command<void> {
     }
   }
 
-  Future<_PlatformBuildResult> _buildEmbedded(
+  Future<DVBuildTargetResult> _buildEmbedded(
     String platform,
     String buildMode, {
     String? format,
@@ -2886,7 +2671,7 @@ class BuildCommand extends Command<void> {
     );
     if (plan == null) {
       Logger.log('❌ Unsupported embedded platform: $platform');
-      return _PlatformBuildResult.failed;
+      return DVBuildTargetResult.failed;
     }
 
     if (!await _isExecutableAvailable(plan.executable)) {
@@ -2897,7 +2682,7 @@ class BuildCommand extends Command<void> {
             : '⚠️  ${plan.executable} not found on PATH. '
                 'Install the $platform embedder to build this target. Skipping...',
       );
-      return _PlatformBuildResult.skipped;
+      return DVBuildTargetResult.skipped;
     }
 
     // Before anything is generated: the embedder is installed, and the
@@ -2912,7 +2697,7 @@ class BuildCommand extends Command<void> {
     final String? tooOld = await _embedderBelowFloor(platform, plan);
     if (tooOld != null) {
       Logger.log('⚠️  $tooOld');
-      return _PlatformBuildResult.skipped;
+      return DVBuildTargetResult.skipped;
     }
 
     // These embedders refuse a project with no platform directory. That
@@ -2962,7 +2747,7 @@ class BuildCommand extends Command<void> {
             : Duration(minutes: (timeout.inMinutes ~/ 3).clamp(1, 10)),
         description: 'generating the $scaffoldDir/ scaffold',
       );
-      if (scaffoldCode == null) return _PlatformBuildResult.failed;
+      if (scaffoldCode == null) return DVBuildTargetResult.failed;
       final generated = Directory(p.join(_projectRoot, scaffoldDir));
       if (scaffoldCode != 0 || !generated.existsSync()) {
         // A vendor `create` that fails partway still leaves the directory
@@ -2983,10 +2768,10 @@ class BuildCommand extends Command<void> {
           // is a true message about the wrong thing, and it sent people
           // looking for a fault in the project.
           Logger.log('⚠️  $refused');
-          return _PlatformBuildResult.skipped;
+          return DVBuildTargetResult.skipped;
         }
         Logger.log('❌ Could not generate the $scaffoldDir/ scaffold.');
-        return _PlatformBuildResult.failed;
+        return DVBuildTargetResult.failed;
       }
       Logger.log('   Generated $scaffoldDir/.');
     }
@@ -3023,7 +2808,7 @@ class BuildCommand extends Command<void> {
       timeout: timeout,
       description: '$label build',
     );
-    if (exitCode == null) return _PlatformBuildResult.failed;
+    if (exitCode == null) return DVBuildTargetResult.failed;
 
     if (exitCode != 0) {
       // The toolchain refusing this project for a stated reason is a skip,
@@ -3036,10 +2821,10 @@ class BuildCommand extends Command<void> {
       );
       if (refused != null) {
         Logger.log('⚠️  $refused');
-        return _PlatformBuildResult.skipped;
+        return DVBuildTargetResult.skipped;
       }
       Logger.log('❌ $label build failed');
-      return _PlatformBuildResult.failed;
+      return DVBuildTargetResult.failed;
     }
     Logger.log('✅ $platform bundle build successful');
 
@@ -3052,154 +2837,9 @@ class BuildCommand extends Command<void> {
         'Sony eLinux image toolchain, which is not available in this '
         'environment. Bundle built; image assembly skipped.',
       );
-      return _PlatformBuildResult.skipped;
+      return DVBuildTargetResult.skipped;
     }
-    return _PlatformBuildResult.succeeded;
-  }
-
-  /// Builds a Chromium or Firefox extension bundle.
-  ///
-  /// This is Flutter web output plus a generated manifest and background
-  /// script. The build flags are load-bearing rather than stylistic and live
-  /// in [browserExtensionBuildArguments], where they can be tested -- one of
-  /// them was missing for as long as this target existed.
-  Future<_PlatformBuildResult> _buildBrowserExtension(
-    String platform,
-    String buildMode,
-    String root, {
-    String? target,
-  }) async {
-    final extensionTarget = BrowserExtensionTarget.forTarget(platform);
-    if (extensionTarget == null) {
-      Logger.log('❌ Unknown browser extension target "$platform".');
-      return _PlatformBuildResult.failed;
-    }
-
-    Logger.log('');
-    Logger.log('🔨 Building for $platform...');
-    final bool scaffoldOk = await dvEnsurePlatformScaffold(
-      root: root,
-      platform: platform,
-      processRun: _processRun,
-    );
-    if (!scaffoldOk) return _PlatformBuildResult.failed;
-
-    final pubspec = readPubspecYaml(root);
-    if (pubspec == null) {
-      Logger.log('❌ No readable pubspec.yaml at $root.');
-      return _PlatformBuildResult.failed;
-    }
-    final config = BrowserExtensionConfig.fromPubspec(pubspec);
-
-    final arguments =
-        browserExtensionBuildArguments(buildMode: buildMode, target: target);
-    Logger.log('   flutter ${arguments.join(' ')}');
-    final result = await _processRun(
-      'flutter',
-      arguments,
-      workingDirectory: root,
-      runInShell: true,
-    );
-    if (result.exitCode != 0) {
-      Logger.log('❌ $platform build failed');
-      stdout.write(result.stdout);
-      stderr.write(result.stderr);
-      return _PlatformBuildResult.failed;
-    }
-
-    final outputDir = p.join(root, 'build', platform);
-    try {
-      assembleExtensionBundle(
-        webBuildDir: p.join(root, 'build', 'web'),
-        outputDir: outputDir,
-        config: config,
-        target: extensionTarget,
-      );
-    } on FileSystemException catch (error) {
-      Logger.log('❌ Could not assemble the extension bundle: ${error.message}');
-      return _PlatformBuildResult.failed;
-    }
-
-    final artifacts = validateExtensionArtifacts(outputDir);
-    if (!artifacts.isValid) {
-      Logger.log('❌ $platform build did not produce a loadable extension.');
-      for (final missing in artifacts.missing) {
-        Logger.log('   Missing: $missing');
-      }
-      return _PlatformBuildResult.failed;
-    }
-
-    Logger.log(
-      '✅ ${extensionTarget.label} extension built at build/$platform '
-      '(${config.name} ${config.version})',
-    );
-    return _PlatformBuildResult.succeeded;
-  }
-
-  Future<_PlatformBuildResult> _buildVSCodeExtension(String root) async {
-    Logger.log('');
-    Logger.log('🔨 Building for vscode...');
-    final buildStartedAt = DateTime.now();
-
-    if (!hasPubDependency(root, 'flutter_vscode')) {
-      Logger.log(
-        '❌ vscode build requires a flutter_vscode dependency in pubspec.yaml.',
-      );
-      Logger.log(
-        '   Add flutter_vscode, then run `dartvel build vscode` again.',
-      );
-      return _PlatformBuildResult.failed;
-    }
-
-    if (!_hasBuildRunner(root)) {
-      Logger.log(
-        '❌ vscode build requires build_runner to generate controller bindings.',
-      );
-      Logger.log(
-        '   Add build_runner to dev_dependencies, then run `dartvel build vscode` again.',
-      );
-      return _PlatformBuildResult.failed;
-    }
-
-    final commands = <({String executable, List<String> arguments})>[
-      (
-        executable: 'dart',
-        arguments: <String>['run', 'flutter_vscode:generate_vscode_extension'],
-      ),
-      (executable: 'flutter', arguments: <String>['pub', 'get']),
-      (executable: 'npm', arguments: <String>['install']),
-      (executable: 'npm', arguments: <String>['run', 'compile']),
-    ];
-
-    for (final command in commands) {
-      Logger.log(
-        '   ${command.executable} ${command.arguments.join(' ')}',
-      );
-      final result = await _processRun(
-        command.executable,
-        command.arguments,
-        workingDirectory: root,
-        runInShell: true,
-      );
-      if (result.exitCode != 0) {
-        Logger.log('❌ vscode build failed');
-        stdout.write(result.stdout);
-        stderr.write(result.stderr);
-        return _PlatformBuildResult.failed;
-      }
-    }
-
-    final artifacts = validateVSCodeArtifacts(root, since: buildStartedAt);
-    if (!artifacts.isValid) {
-      Logger.log('❌ vscode build did not produce required artifacts.');
-      for (final missing in artifacts.missing) {
-        Logger.log('   Missing: $missing');
-      }
-      return _PlatformBuildResult.failed;
-    }
-
-    Logger.log('✅ vscode extension build successful');
-    return _PlatformBuildResult.succeeded;
+    return DVBuildTargetResult.succeeded;
   }
 
   /// Write the PWA manifest into a finished web build.
@@ -4475,7 +4115,7 @@ class BuildCommand extends Command<void> {
   /// for one with no declared image and no remote host -- then there is
   /// nothing to hand the application, and it renders exactly as it did.
   DVImageVariants _imageVariants(String root, String platform) {
-    if (platform != 'web' && platform != 'web-server' && platform != 'telegram') {
+    if (platform != 'web' && platform != 'web-server') {
       return const DVImageVariants();
     }
     final DVImageVariants declared =
@@ -4682,22 +4322,10 @@ class BuildCommand extends Command<void> {
       }
     }
 
-    // An embedder that only runs on one host is still unavailable elsewhere,
-    // even though embedded targets are otherwise exempt from the host check.
-    final embedderHost = embeddedHostRequirement(platform);
-    if (embedderHost != null && embedderHost != Platform.operatingSystem) {
-      Logger.log('');
-      Logger.log('🔨 Checking $platform...');
-      Logger.log(
-        '⚠️  The $platform embedder builds on $embedderHost only, not '
-        '${Platform.operatingSystem}. Skipping...',
-      );
-      return false;
-    }
-
+    // A target a package registered answers for its own host.
+    final DVBuildTarget? packaged = DVBuildTargets.lookup(platform);
     if (!isPlatformAvailableOn(platform, Platform.operatingSystem) &&
-        !embeddedBuildPlatforms.contains(platform) &&
-        !extensionBuildPlatforms.contains(platform)) {
+        (packaged != null || !embeddedBuildPlatforms.contains(platform))) {
       Logger.log('');
       Logger.log('🔨 Checking $platform...');
       Logger.log(
@@ -4707,18 +4335,24 @@ class BuildCommand extends Command<void> {
     }
 
     final home = resolveToolchainHome();
-    // A terminal build still runs the desktop build for its native-asset
-    // compiler settings, so it needs the base platform's tools and the
-    // embedder.
-    final String base = normalizeBuildTarget(platform).platform;
+    // A packaged target needs the tools of the free platform it rides on and
+    // its own.
+    final String? base = packaged?.basePlatform;
     var missing = <ToolRequirement>[
-      if (base != platform)
+      if (base != null)
         ...missingRequirements(base, isInstalled: isExecutableOnPath, home: home),
-      ...missingRequirements(
-        platform,
-        isInstalled: isExecutableOnPath,
-        home: home,
-      ),
+      if (packaged == null)
+        ...missingRequirements(
+          platform,
+          isInstalled: isExecutableOnPath,
+          home: home,
+        )
+      else
+        ...packaged
+            .requirements(home: home, hostOs: Platform.operatingSystem)
+            .where((ToolRequirement requirement) =>
+                !(requirement.probe?.call() ??
+                    isExecutableOnPath(requirement.executable))),
     ];
     if (missing.isEmpty) return true;
 
@@ -4789,23 +4423,135 @@ class BuildCommand extends Command<void> {
   }
 }
 
-enum _PlatformBuildResult { succeeded, failed, skipped }
+/// Whether a variant's hooks have run, so `finish` is called exactly once.
+class _VariantRun {
+  bool prepared = false;
+  bool finished = false;
+}
+
+/// The [DVBuildTargetContext] a packaged target is handed: the command's own
+/// pipeline, behind the interface.
+class _TargetContext implements DVBuildTargetContext {
+  _TargetContext(this._command, this.projectRoot);
+
+  final BuildCommand _command;
+
+  @override
+  final String projectRoot;
+
+  @override
+  DVBuildOptions get options => _command._options;
+
+  @override
+  String get hostOs => Platform.operatingSystem;
+
+  @override
+  String get toolchainHome => resolveToolchainHome();
+
+  @override
+  Map<Object?, Object?> get dartvelSection =>
+      _command._dartvelSection(projectRoot);
+
+  @override
+  Map<String, String>? get environment => _command._buildEnvironment;
+
+  @override
+  void log(String line) => Logger.log(line);
+
+  @override
+  Future<ProcessResult> run(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+  }) {
+    if (environment == null) {
+      return _command._processRun(executable, arguments,
+          workingDirectory: workingDirectory ?? projectRoot, runInShell: true);
+    }
+    return Process.run(executable, arguments,
+        workingDirectory: workingDirectory ?? projectRoot,
+        environment: <String, String>{
+          ...(this.environment ?? Platform.environment),
+          ...environment,
+        },
+        runInShell: true);
+  }
+
+  @override
+  Future<int?> stream(
+    String executable,
+    List<String> arguments, {
+    required String description,
+    String? workingDirectory,
+    Map<String, String>? environment,
+  }) async {
+    final Process process = await Process.start(
+      executable,
+      arguments,
+      workingDirectory: workingDirectory ?? projectRoot,
+      mode: ProcessStartMode.inheritStdio,
+      runInShell: true,
+      environment: environment == null
+          ? this.environment
+          : <String, String>{
+              ...(this.environment ?? Platform.environment),
+              ...environment,
+            },
+    );
+    return _command._awaitBuild(process,
+        timeout: options.timeout, description: description);
+  }
+
+  @override
+  bool isOnPath(String executable) => _command._isOnPath(executable);
+
+  @override
+  bool hasDependency(String package) => hasPubDependency(projectRoot, package);
+
+  @override
+  Future<bool> ensureScaffold(String platform) => dvEnsurePlatformScaffold(
+        root: projectRoot,
+        platform: platform,
+        processRun: _command._processRun,
+      );
+
+  @override
+  Future<DVBuildTargetResult> buildPlatform(
+    String platform, {
+    DVPlatformVariant? variant,
+    DVBuildOptions? options,
+  }) {
+    final DVBuildOptions use = options ?? this.options;
+    return _command._buildPlatform(
+      platform,
+      use.buildMode,
+      target: use.entryPoint,
+      splitPerAbi: use.splitPerAbi,
+      buildNumber: use.buildNumber,
+      buildName: use.buildName,
+      obfuscate: use.obfuscate,
+      treeShakeIcons: use.treeShakeIcons,
+      simulator: use.simulator,
+      timeout: use.timeout,
+      deviceProfile: use.deviceProfile,
+      format: use.format,
+      codesign: use.codesign,
+      exportOptionsPlist: use.exportOptionsPlist,
+      variant: variant,
+    );
+  }
+}
+
+/// A [DVBuildTargetContext] for [root] outside a build, for
+/// `dartvel doctor --target`: the options are a release build's defaults.
+DVBuildTargetContext dvTargetContextFor(String root) =>
+    _TargetContext(BuildCommand(root: root), root);
+
 
 /// Splits a distribution-format target name into a base platform plus an output
 /// format. Non-distribution targets pass through unchanged with a null format.
 ({String platform, String? format}) normalizeBuildTarget(String target) {
-  for (final suffix in const <String>['-cli', '-tui']) {
-    if (!target.endsWith(suffix)) continue;
-    final base = target.substring(0, target.length - suffix.length);
-    if (!terminalCapablePlatforms.contains(base)) {
-      throw FormatException(
-        '$base cannot render in a terminal. Terminal builds are available for '
-        '${terminalCapablePlatforms.join(', ')}.',
-        target,
-      );
-    }
-    return (platform: base, format: 'tui');
-  }
   return switch (target) {
     'sony-elinux-iso' => (platform: 'sony-elinux', format: 'iso'),
     'sony-elinux-img' => (platform: 'sony-elinux', format: 'img'),
@@ -4900,108 +4646,8 @@ EmbeddedBuildPlan _withScaffold(
       _ => null,
     };
 
-class VSCodeArtifactValidation {
-  const VSCodeArtifactValidation({
-    required this.hasExtensionHostOutput,
-    required this.hasFlutterBootstrap,
-    required this.hasFlutterAssets,
-  });
-
-  final bool hasExtensionHostOutput;
-  final bool hasFlutterBootstrap;
-  final bool hasFlutterAssets;
-
-  bool get isValid =>
-      hasExtensionHostOutput && hasFlutterBootstrap && hasFlutterAssets;
-
-  List<String> get missing {
-    final missing = <String>[];
-    if (!hasExtensionHostOutput) {
-      missing.add('compiled extension host JavaScript under out/ or dist/');
-    }
-    if (!hasFlutterBootstrap) {
-      missing.add('build/web/flutter_bootstrap.js');
-    }
-    if (!hasFlutterAssets) {
-      missing.add('build/web/assets/');
-    }
-    return List<String>.unmodifiable(missing);
-  }
-}
-
-VSCodeArtifactValidation validateVSCodeArtifacts(String root,
-    {DateTime? since}) {
-  return VSCodeArtifactValidation(
-    hasExtensionHostOutput: _containsJavaScriptFile(
-          Directory(p.join(root, 'out')),
-          since: since,
-        ) ||
-        _containsJavaScriptFile(Directory(p.join(root, 'dist')), since: since),
-    hasFlutterBootstrap: _existsAndIsFresh(
-      File(p.join(root, 'build', 'web', 'flutter_bootstrap.js')),
-      since: since,
-    ),
-    hasFlutterAssets: _directoryExistsAndIsFresh(
-      Directory(p.join(root, 'build', 'web', 'assets')),
-      since: since,
-    ),
-  );
-}
-
-bool _containsJavaScriptFile(Directory directory, {DateTime? since}) {
-  if (!directory.existsSync()) return false;
-  return directory
-      .listSync(recursive: true, followLinks: false)
-      .whereType<File>()
-      .any((file) => file.path.endsWith('.js') && _isFresh(file, since));
-}
-
-bool _directoryExistsAndIsFresh(Directory directory, {DateTime? since}) {
-  if (!directory.existsSync()) return false;
-  if (since == null) return true;
-  return directory
-      .listSync(recursive: true, followLinks: false)
-      .whereType<File>()
-      .any((file) => _isFresh(file, since));
-}
-
-bool _existsAndIsFresh(File file, {DateTime? since}) {
-  return file.existsSync() && _isFresh(file, since);
-}
-
-/// How far below the build's start time an artifact's timestamp may sit and
-/// still count as produced by that build.
-///
-/// The build start is a `DateTime.now()` carrying microseconds; a file's mtime
-/// is whatever the filesystem chose to record, which is second-granular on
-/// several and two-second-granular on FAT. So an artifact written a moment
-/// after the build began can carry a timestamp numerically below it, and a
-/// strict comparison reports a file that is right there as missing.
-///
-/// Two seconds covers the coarsest granularity in use. It does not weaken what
-/// the check is for: a leftover from an earlier build is minutes or hours old,
-/// not two seconds.
-const _timestampGranularitySlack = Duration(seconds: 2);
-
-bool _isFresh(FileSystemEntity entity, DateTime? since) {
-  if (since == null) return true;
-  final floor = since.subtract(_timestampGranularitySlack);
-  return !entity.statSync().modified.isBefore(floor);
-}
-
-/// Embedded targets whose default architecture is not the global one.
-///
-/// `--arch` defaults to arm64, which is right for TVs and embedded boards.
-/// Fuchsia's embedder ships an x64 prebuilt engine only, so inheriting that
-/// default asks it for an engine that does not exist — and a `dartvel build
-/// all` would ask for it without anyone having chosen arm64 at all.
-const embeddedArchDefaults = <String, String>{'fuchsia': 'x64'};
-
 /// [arch] unless [platform] defaults differently and the caller did not ask.
-///
-/// An explicit `--arch` always wins: a developer who has built an arm64
-/// Fuchsia engine should be able to use it, and the embedder's own error is
-/// clear if they have not.
+/// An explicit `--arch` always wins.
 ///
 /// sony-elinux defaults to [host] when it is given: its bundle is assembled
 /// from the host's own desktop build, which does not cross-compile, so any
@@ -5010,9 +4656,7 @@ String resolveEmbeddedArch(String platform, String arch,
         {bool explicit = false, String? host}) =>
     explicit
         ? arch
-        : (embeddedArchDefaults[platform] ??
-            (platform == 'sony-elinux' ? host : null) ??
-            arch);
+        : ((platform == 'sony-elinux' ? host : null) ?? arch);
 
 /// How long a build may run before it is treated as stalled.
 ///
@@ -5107,38 +4751,6 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       if (target != null) args.addAll(<String>['--target', target]);
       return _withScaffold(
           'tvos', 'flutter-tvos', List<String>.unmodifiable(args));
-    case 'fuchsia':
-      // Unlike the other three, Fuchsia's embedder is not a Flutter CLI
-      // wrapper — there is no embedder binary at all. It is a Bazel workspace,
-      // and its build script takes the path of a Flutter package to stage in
-      // and build.
-      //
-      // So the executable is the script's absolute path inside the checkout,
-      // not a bare name. A bare name is looked up on PATH, and nothing named
-      // `dartvel_fuchsia` is ever installed there — which is exactly how this
-      // target reported "not found on PATH" and skipped on a runner that had
-      // just installed the embedder successfully.
-      final root =
-          dartvelToolchainRoot(toolchainHome ?? resolveToolchainHome());
-      final args = <String>[
-        appPath ?? '.',
-        '--cpu',
-        arch == 'arm64' ? 'arm64' : 'x64',
-        // Build the package and stop. Without this the fork's script hands off
-        // to build_and_run_example.sh, which starts a package server and
-        // bazel-runs the component through ffx — so the build does all its work
-        // and then fails at the last step on any machine with no device.
-        // `dartvel build` produces artifacts; running is a different verb.
-        '--build-only',
-      ];
-      if (target != null) args.addAll(<String>['--target', target]);
-      return EmbeddedBuildPlan(
-        '$root/dartvel_fuchsia/$fuchsiaAppBuildScript',
-        List<String>.unmodifiable(args),
-        environment: Map<String, String>.unmodifiable(<String, String>{
-          'FUCHSIA_EMBEDDER_DIR': '$root/dartvel_fuchsia',
-        }),
-      );
     default:
       return null;
   }
@@ -5166,12 +4778,10 @@ List<String> resolveFlutterBuildArguments({
   final command = switch (platform) {
     'android' when bundle => 'appbundle',
     'ios' when ipa => 'ipa',
-    'android' || 'fireos' || 'horizon' => 'apk',
-    // Vision Pro runs the iPad app; there is no visionOS Flutter build.
-    'visionos' => 'ios',
+    'android' || 'fireos' => 'apk',
     // The same Flutter web build. What differs is what Dartvel writes beside
     // it afterwards: a manifest rather than a file per route.
-    'web-server' || 'telegram' => 'web',
+    'web-server' => 'web',
     _ => platform,
   };
   final args = <String>['build', command, buildMode];
@@ -5241,20 +4851,6 @@ List<String> resolveFlutterBuildArguments({
     // A simulator app is never signed; a device build is built unsigned and
     // signed where it is distributed.
     args.add(simulator ? '--simulator' : '--no-codesign');
-  } else if (platform == 'visionos') {
-    // The same unsigned iOS build. Whether a Vision Pro simulator takes the
-    // simulator build has not been run yet: see docs/build-targets.md.
-    args.add(simulator ? '--simulator' : '--no-codesign');
-  }
-
-  // Horizon OS: 64-bit, at the SDK levels the Horizon Store requires.
-  if (platform == 'horizon') args.addAll(dvHorizonFlutterArguments());
-
-  // A Horizon APK and a Vision Pro build cannot tell at run time that they
-  // are on a headset without a native binding -- Horizon OS reports Android,
-  // a Designed-for-iPad app reports iOS -- so the build says so, as tvOS does.
-  if (platform == 'horizon' || platform == 'visionos') {
-    args.add('--dart-define=DARTVEL_PLATFORM=$platform');
   }
 
   return List<String>.unmodifiable(args);
@@ -5272,9 +4868,6 @@ String? dvPackageFormatProblem({
   bool? codesign,
   String? exportOptionsPlist,
 }) {
-  if (format == 'aab' && platform == 'horizon') {
-    return "dartvel build horizon makes an APK, the package Meta's Horizon OS publishing docs describe; leave out --format aab.";
-  }
   if (format == 'aab' && platform != 'android') {
     return '--format aab is an Android App Bundle; build it with dartvel build android --format aab.';
   }

@@ -43,9 +43,9 @@ is settled and nothing is built behind it yet.
 artifact inspected. That proves it compiles and links. It does not prove the
 application starts, so most targets go further: the
 [runtime verification workflow](.github/workflows/runtime-verification.yml)
-launches the app on every push and photographs what it drew: Linux, Linux in a
-terminal, the web, Android on an emulator, macOS, iOS and tvOS on simulators,
-Windows, Sony eLinux on a virtual device, and both browser extensions. The
+launches the app on every push and photographs what it drew: Linux, the web,
+Android on an emulator, macOS, iOS and tvOS on simulators, Windows and Sony
+eLinux on a virtual device. The
 web-server build is started and asked for each route. A capture is checked for
 *pixels*. Every job used to end at `test -s capture.png`, which a blank screen
 satisfies: a crash before the first frame still writes a full-size image of
@@ -53,11 +53,9 @@ one colour.
 
 webOS runs in a Wayland window on ARM under emulation in its own workflow. Its
 engine is a 32-bit ARM build Google does not publish, so Dartvel builds it
-from source. It has not been run on a television. Fuchsia is blocked on its
-engine, which does not build at Flutter 3.44.5: four attempts are recorded,
-and the last matches the embedder fork's own invocation and still fails on a
-Dart VM thread-local linked into a shared library. Tizen and VS Code build and
-have not been run.
+from source. It has not been run on a television. Tizen builds and has not
+been run. The paid targets (see [Paid targets](#paid-targets)) are verified in
+the private repository that builds them.
 
 If you hit something that claims to work and does not, that is a bug in these
 docs as much as in the code. Please report it.
@@ -130,7 +128,7 @@ the same executable. See [the binary layout and HTTP policy](docs/web-server-bin
 | **Secrets** | Declared under `dartvel.secrets`, with `DV-SECRETS-001` failing a build that reaches a backend secret from client code, and the application key held in the Windows, macOS, Android and iOS key stores. No Vault or KMS adapters | ⚠️ Partial |
 | **i18n** | CLDR plural rules, typed translation keys, route locale negotiation, and `dartvel i18n extract`/`check` over ARB catalogues | ✅ Shipped |
 | **Accessibility** | Contrast and tap-target checks, `DVTable` keyboard navigation, and keyboard, D-pad and switch control on every page with nothing added, plus a release gate in `dartvel build web` that audits the semantics tree a real browser produced. Every form is a keyboard form too: Tab walks it, Enter submits from the last field, and password fields get a `DVVisibilityToggle` eye by default | ✅ Shipped |
-| **Terminal Rendering** | `-cli`/`-tui` targets, build-time backend selection, terminal size and graphics detection. The renderer lives in the `dartvel_cli_flt` fork, which a build needs installed | ⚠️ Partial |
+| **Terminal Rendering** | Build-time backend selection (`dartvel.terminal`), terminal size and graphics detection. The terminal-only `-cli`/`-tui` targets are paid | ⚠️ Partial |
 | **Multi-Window** | A window is a route and `open()` never fails. Real OS windows open on Linux through `dartvel_windowing`; elsewhere `DV.Window` degrades and reports a stable code | ⚠️ Partial |
 | **Kiosk Mode** | Policies validated by `dartvel doctor`, the idle and reset clock, and hardware-key blocking on Linux | ⚠️ Partial |
 | **Build Targets** | Mobile, web, desktop, TV and embedded through vendor embedders, with toolchain preflight and auto-install | ⚠️ Partial, see [Build Targets](#-build-targets) |
@@ -216,10 +214,7 @@ dartvel build tizen        # alias: dartvel build tpk
 dartvel build sony-elinux --format iso        # also: sony-elinux-iso, sony-elinux-img
 dartvel build webos
 dartvel build tvos --simulator   # the only unsigned tvOS build
-dartvel build horizon      # Meta Quest: an Android 2D panel app, checked with aapt2
-dartvel build visionos     # Apple Vision Pro: the iPad app (macOS only)
-dartvel build linux-cli    # the terminal backend and no GUI code
-dartvel build vscode       # VS Code extension host + Flutter webview
+dartvel targets           # what this install can build, free and paid
 ```
 
 A short version of [docs/build-targets.md](docs/build-targets.md), which has
@@ -230,24 +225,31 @@ what it drew was checked, usually on every push.
 | :--- | :--- |
 | `linux`, `web`, `android`, `macos`, `ios`, `windows` | ✅ Build and run in CI (emulator and simulator for the mobile targets) |
 | `web-server` | ✅ Builds and runs on the host it is built on: linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64 and windows-arm64, each verified in CI |
-| `telegram` | Web build with Telegram SDK, host controls, theme/safe-area updates and server-verified sign-in; see [Telegram Mini Apps](docs/telegram-mini-apps.md) for verification limits |
 | `tvos` | ✅ Builds and runs on a simulator in debug. Signed device builds are not verified |
 | `sony-elinux` | ✅ Builds and runs on a virtual device, debug and release |
-| `chrome-extension`, `firefox-extension` | ✅ Build and run, loaded in the real browser |
-| `linux-cli` | ✅ Runs in a pty in CI, with the terminal embedder built there. Locally the build needs `dartvel_cli_flt` installed |
 | `webos` | ✅ Runs in a Wayland window on ARM under emulation. Not run on a television |
 | `fireos` | ✅ Builds (the Android toolchain) |
-| `horizon` | ✅ Builds an APK that `aapt2` reads back as a Horizon OS panel app (manifest, SDK levels, arm64, no prohibited permissions). Not yet run on a headset |
-| `visionos` | ⏳ Planned: the command is wired (the unsigned iOS build Vision Pro runs as Designed for iPad, macOS only) and has not yet been run on a Mac |
 | `tizen` / `tpk` | ✅ Builds a signed TPK where Tizen Studio is installed. CI can only check that it skips, since the SDK is licence-gated |
-| `vscode` | ✅ Builds. Not run |
-| `fuchsia` | ❌ Blocked: the Fuchsia embedder engine does not build at Flutter 3.44.5 |
 
 Flutter has **no desktop cross-compilation**. Windows needs Windows, and the
 Apple targets need macOS. `dartvel build` skips what the host cannot build
 instead of failing the whole run, and the
 [CI matrix](.github/workflows/platform-build-matrix.yml) covers the hosts a
 development machine does not have.
+
+### Paid targets
+
+`visionos`, `horizon`, `chrome-extension`, `firefox-extension`, `vscode`,
+`telegram`, the terminal targets (`linux-cli`, `macos-cli`, `windows-cli`,
+`fuchsia-cli`, each also `-tui`) and `fuchsia` are targets Flutter does not
+officially support. From the release after 0.11.5 they are included in every Dartvel Cloud plan
+and are not part of the free install: `dartvel build visionos --cloud` builds
+one on Cloud, and `dartvel targets add pro` adds the private package that
+builds them on your machine. On a free install `dartvel build visionos` says
+which plan unlocks it and exits; it never fails with a stack trace, sends
+nothing anywhere, and puts no licence key in your app. Dartvel 0.11.5 and
+earlier built them in the open and remain MIT licensed. The extension point
+is public: see [the CLI README](packages/dartvel_cli/README.md#build-targets-from-a-package).
 
 **New here? [docs/getting-started.md](docs/getting-started.md)** walks through
 a project, a page, a model and a backend function.
@@ -269,17 +271,14 @@ Dartvel auto-installs the embedders (from its forks), the webOS `ares` CLI, and 
 
 ### Embedder forks
 
-Embedded, TV and terminal targets run through a dedicated Flutter embedder, never plain `flutter build`. Dartvel forks each one so it can be pinned and patched against the Flutter version Dartvel ships:
+Embedded and TV targets run through a dedicated Flutter embedder, never plain `flutter build`. Dartvel forks each one so it can be pinned and patched against the Flutter version Dartvel ships:
 
 | Target | Embedder fork | Upstream | Vendor |
 | :--- | :--- | :--- | :--- |
 | `tizen` | [Danroyal001/dartvel_tizen](https://github.com/Danroyal001/dartvel_tizen) | [flutter-tizen/flutter-tizen](https://github.com/flutter-tizen/flutter-tizen) | Samsung |
 | `sony-elinux` | [Danroyal001/dartvel_elinux](https://github.com/Danroyal001/dartvel_elinux) | [sony/flutter-elinux](https://github.com/sony/flutter-elinux) | Sony |
 | `webos` | [Danroyal001/dartvel_webos](https://github.com/Danroyal001/dartvel_webos) | [lg-flutter-webos/flutter-webos](https://github.com/lg-flutter-webos/flutter-webos) | LG |
-| `fuchsia` | [Danroyal001/dartvel_fuchsia](https://github.com/Danroyal001/dartvel_fuchsia) | [fuchsia/flutter-embedder](https://fuchsia.googlesource.com/flutter-embedder/) | Fuchsia |
-| `vscode` | [Danroyal001/dartvel_vscode](https://github.com/Danroyal001/dartvel_vscode) | [SlowGen/flutter_vscode](https://github.com/SlowGen/flutter_vscode) | VS Code |
 | `tvos` | [Danroyal001/dartvel_tvos](https://github.com/Danroyal001/dartvel_tvos) | [fluttertv/flutter-tvos](https://github.com/fluttertv/flutter-tvos) | Apple TV (community) |
-| `<desktop>-cli` | [Danroyal001/dartvel_cli_flt](https://github.com/Danroyal001/dartvel_cli_flt) | [jiahaog/flt](https://github.com/jiahaog/flt) | Terminal (community) |
 
 Vendor embedders download a prebuilt Flutter engine per version, so a target
 can lag behind Dartvel's Flutter, and bumping a version pin cannot fix that.
@@ -671,14 +670,14 @@ dartvel key cloud                      # list them by name, never by value
 dartvel build tizen --cloud            # a signed TPK, without Tizen Studio here
 dartvel build sony-elinux --cloud      # an eLinux release bundle
 dartvel build tvos --cloud --simulator # an Apple TV app, on a macOS worker
-dartvel build vscode --cloud           # a VS Code extension and its web build
+dartvel build visionos --cloud         # a paid target, built on a macOS worker
 dartvel build android --cloud          # streams the log, downloads to build/cloud/android
 dartvel deploy --store play --cloud    # builds an App Bundle in release and uploads it
 ```
 
 Built end to end in CI against the service and a worker: Android, Fire OS,
-iOS, tvOS (simulator), Tizen, Sony eLinux, `linux-cli`, and Chrome, Firefox
-and VS Code extensions. macOS, Windows, Linux, web and web-server are accepted
+iOS, tvOS (simulator), Tizen and Sony eLinux, and the paid `linux-cli` and
+Chrome, Firefox and VS Code extensions. macOS, Windows, Linux, web and web-server are accepted
 and not yet run end to end. webOS and Fuchsia are not on Cloud, because their
 embedders ship a Dart below Dartvel's floor and no local build finishes either.
 [docs/build-targets.md](docs/build-targets.md#dartvel-cloud) has what each

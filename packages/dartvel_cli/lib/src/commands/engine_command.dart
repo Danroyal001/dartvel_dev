@@ -58,7 +58,7 @@ void _addTargetOptions(ArgParser parser) {
         defaultsTo: 'x64')
     ..addOption('os',
         help: 'Target operating system.',
-        allowed: <String>['linux', 'fuchsia'],
+        allowed: <String>['linux'],
         defaultsTo: 'linux')
     ..addOption('mode',
         help: 'Engine runtime mode.',

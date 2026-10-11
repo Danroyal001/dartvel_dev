@@ -233,20 +233,6 @@ void main() {
           .toList();
     }
 
-    test('a -cli target generates for the terminal', () async {
-      expect(
-        await generationArgumentsFor(<String>['build', 'linux-cli']),
-        <String>['dart run dartvel_cli:dartvel routes --render terminal'],
-      );
-    });
-
-    test('a -tui target is the same target', () async {
-      expect(
-        await generationArgumentsFor(<String>['build', 'linux-tui']),
-        <String>['dart run dartvel_cli:dartvel routes --render terminal'],
-      );
-    });
-
     test('a plain desktop target generates for the GUI', () async {
       expect(
         await generationArgumentsFor(<String>['build', 'linux']),

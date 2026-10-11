@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import '../build/telegram.dart';
 import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
@@ -22,7 +21,10 @@ import '../generators/routes_generator.dart';
 import '../utils/build_runner.dart';
 import '../utils/lan_address.dart';
 import '../utils/linux_utils.dart';
+import '../build/build_target.dart';
 import '../build/dev_studio.dart';
+import '../build/target_packages.dart';
+import 'build_command.dart' show dvTargetContextFor;
 import '../build/platform_scaffold.dart';
 import '../build/seo_head.dart';
 import '../utils/logger.dart';
@@ -71,9 +73,31 @@ class DevCommand extends Command<void> {
   @override
   Future<void> run() async {
     final args = argResults!;
-    final telegram = args.rest.length == 1 && args.rest.single == 'telegram';
-    if (args.rest.isNotEmpty && !telegram) usageException('Unexpected arguments: ${args.rest.join(' ')}');
     final root = this.root ?? Directory.current.path;
+    // `dartvel dev <target>`: a target a package provides that has a
+    // development loop of its own. Without the package it is refused, saying
+    // how to get it, as `dartvel build <target>` is.
+    final String? targetName = args.rest.length == 1 ? args.rest.single : null;
+    if (args.rest.length > 1 || (targetName != null && !dvIsPackageTarget(targetName))) {
+      usageException('Unexpected arguments: ${args.rest.join(' ')}');
+    }
+    final DVBuildTarget? devTarget =
+        targetName == null ? null : DVBuildTargets.lookup(targetName);
+    if (targetName != null && devTarget == null) {
+      final DVTargetPackage? provider = dvTargetPackageFor(root, targetName);
+      if (provider != null && !dvIsDelegatedRun()) {
+        exitCode = await dvDelegateToTargetPackage(
+            provider, <String>['dev', ...args.arguments],
+            projectRoot: root);
+        return;
+      }
+      Logger.log('❌ ${dvTargetRefusal(targetName)}');
+      exitCode = 69; // EX_UNAVAILABLE
+      return;
+    }
+    if (devTarget != null && devTarget.devDevice == null) {
+      usageException('${devTarget.name} has no development loop; build it with dartvel build ${devTarget.name}.');
+    }
 
     // Every check that can reject the invocation, before anything is written.
     // A command that fixed a project's documentation and then complained about
@@ -181,15 +205,15 @@ class DevCommand extends Command<void> {
 
     // Build flutter args
     final flutterArgs = <String>['run'];
-    final explicitDevice = (argResults?['device'] as String?) ?? (telegram ? 'web-server' : null) ??
+    final explicitDevice = (argResults?['device'] as String?) ?? devTarget?.devDevice ??
         Platform.environment['DARTVEL_DEVICE'];
     // Pairing is always served, so a development build can pair whether or
     // not anything is connected here. The local app runs as it always did
     // when there is a device to run it on; with none, pairing is the loop.
     final config = await DartvelConfig.load(Directory(root));
-    if (telegram || config.raw['telegram'] != null) {
-      await dvEnsurePlatformScaffold(root: root, platform: 'web');
-      dvPrepareTelegramShell(root, enabled: true);
+    if (devTarget != null && !await devTarget.prepareDev(dvTargetContextFor(root))) {
+      exitCode = 1;
+      return;
     }
     final attached = <DVDevClientAttach>{};
     final DVDevClientBundleServer? devClient =
