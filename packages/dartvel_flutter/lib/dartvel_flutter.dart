@@ -1,6 +1,8 @@
 library dartvel_flutter;
 
 export 'src/default_theme.dart';
+export 'src/accessibility/tooltips.dart'
+    show DVIconButton, DVTooltipTarget, dvDeriveLabel;
 export 'src/platform/platform_host.dart';
 export 'src/windowing/window_space_backend.dart';
 import 'src/platform/platform_host.dart';
@@ -35,6 +37,7 @@ import 'package:meta/meta.dart';
 import 'src/accessibility/keyboard_scroll.dart';
 import 'src/accessibility/page_escape.dart';
 import 'src/accessibility/switch_control.dart';
+import 'src/accessibility/tooltips.dart';
 import 'src/auth/ask_for_code.dart';
 import 'src/auth/auth_frame.dart';
 import 'src/routing/nav_link.dart' show DVNavLink;
@@ -1095,6 +1098,14 @@ class DVModifier {
   /// A video behind the box's content, muted and looping.
   final DVMediaSource? bgVideo;
   final String? semanticLabelValue;
+
+  /// What the control is, shown on hover, keyboard focus and long press, and
+  /// the same words as its screen-reader name. See [DVTooltipTarget].
+  final String? tooltipValue;
+
+  /// The application file and line that wrote `.onTap`, kept in debug builds
+  /// so a control with no name can be reported where it was drawn.
+  final String? tapSite;
   final String? semanticHintValue;
   final bool? semanticButtonValue;
 
@@ -1166,6 +1177,8 @@ class DVModifier {
     this.bgImage,
     this.bgVideo,
     this.semanticLabelValue,
+    this.tooltipValue,
+    this.tapSite,
     this.semanticHintValue,
     this.semanticButtonValue,
     this.semanticHeadingValue,
@@ -1220,6 +1233,8 @@ class DVModifier {
         bgImage = null,
         bgVideo = null,
         semanticLabelValue = null,
+        tooltipValue = null,
+        tapSite = null,
         semanticHintValue = null,
         semanticButtonValue = null,
         semanticHeadingValue = null,
@@ -1274,6 +1289,8 @@ class DVModifier {
     DecorationImage? bgImage,
     DVMediaSource? bgVideo,
     String? semanticLabelValue,
+    String? tooltipValue,
+    String? tapSite,
     String? semanticHintValue,
     bool? semanticButtonValue,
     int? semanticHeadingValue,
@@ -1346,6 +1363,10 @@ class DVModifier {
       semanticLabelValue: clearInteraction
           ? null
           : (semanticLabelValue ?? this.semanticLabelValue),
+      tooltipValue: clearInteraction
+          ? null
+          : (tooltipValue ?? this.tooltipValue),
+      tapSite: clearInteraction ? null : (tapSite ?? this.tapSite),
       semanticHintValue: clearInteraction
           ? null
           : (semanticHintValue ?? this.semanticHintValue),
@@ -1696,6 +1717,8 @@ class DVModifier {
         onTapCallback: other.onTapCallback ?? onTapCallback,
         bgImage: other.bgImage ?? bgImage,
         semanticLabelValue: other.semanticLabelValue ?? semanticLabelValue,
+        tooltipValue: other.tooltipValue ?? tooltipValue,
+        tapSite: other.tapSite ?? tapSite,
         semanticHintValue: other.semanticHintValue ?? semanticHintValue,
         semanticButtonValue: other.semanticButtonValue ?? semanticButtonValue,
         semanticHeadingValue:
@@ -1729,9 +1752,21 @@ class DVModifier {
         borderRadius: borderRadius ?? BorderRadius.circular(8),
       );
 
-  DVModifier onTap(VoidCallback callback) => _copyWith(onTapCallback: callback);
+  /// Makes the box or text a control. The control must be named: by the words
+  /// inside it, or by [tooltip] / [semanticLabel]. An icon with neither is an
+  /// error naming the line that wrote this call.
+  DVModifier onTap(VoidCallback callback) =>
+      _copyWith(onTapCallback: callback, tapSite: dvCallSite());
+
+  /// Same as [onTap].
   DVModifier onPressed(VoidCallback callback) =>
-      _copyWith(onTapCallback: callback);
+      _copyWith(onTapCallback: callback, tapSite: dvCallSite());
+
+  /// What this is, in words: the tooltip on mouse hover, keyboard focus and
+  /// long press, and the screen-reader name, and (on the server-rendered page)
+  /// the element's `title` and `aria-label`. Required of every control that is
+  /// only a picture; a control with text takes it from the text.
+  DVModifier tooltip(String value) => _copyWith(tooltipValue: value);
 
   /// An editable text field. [helper] is shown under it at all times, where
   /// [hint] shows only while it is empty and focused.
@@ -1967,6 +2002,13 @@ class DVBox<T> extends StatelessWidget {
   final bool _scrollable;
   final List<T>? _items;
   final Widget Function(BuildContext, T)? _itemBuilder;
+
+  /// The widgets this box was handed, for reading the words on a control
+  /// without building it. Not for application code.
+  List<Widget> get labelChildren => <Widget>[
+        if (_child != null) _child,
+        ...?_children,
+      ];
 
   const DVBox([Widget? child, DVModifier? modifier])
       : _child = child,
@@ -2666,6 +2708,8 @@ class DVBox<T> extends StatelessWidget {
       result = _DVPressable(
         onTap: m!.onTapCallback!,
         name: m.semanticLabelValue,
+        tooltip: m.tooltipValue,
+        site: m.tapSite,
         // A control the application said is a button, and a tappable thing
         // that never said: a tap callback is a control someone is meant to be
         // able to operate, and on a keyboard or a remote the only way to
@@ -2673,6 +2717,16 @@ class DVBox<T> extends StatelessWidget {
         // `.onTap()` get the focus, the keys and the ring from here.
         button: m.semanticButtonValue ?? true,
         borderRadius: m.borderRadius,
+        child: result,
+      );
+    }
+
+    if (m?.onTapCallback == null && m?.tooltipValue != null) {
+      // Hoverable without being pressable (a status chip, a badge): it still
+      // says what it is.
+      result = DVTooltipTarget(
+        label: m!.tooltipValue,
+        required: false,
         child: result,
       );
     }
@@ -3455,9 +3509,17 @@ class _DVPressable extends StatefulWidget {
     required this.onTap,
     required this.child,
     required this.name,
+    this.tooltip,
+    this.site,
     this.button = true,
     this.borderRadius,
   });
+
+  /// The tooltip, when the application gave one other than the name.
+  final String? tooltip;
+
+  /// The file and line that wrote the tap, for the error a nameless icon gets.
+  final String? site;
 
   final VoidCallback onTap;
 
@@ -3536,6 +3598,19 @@ class _DVPressableState extends State<_DVPressable> {
 
   @override
   Widget build(BuildContext context) {
+    // The name is one string doing three jobs -- the tooltip, the screen
+    // reader's label, and the HTML's title/aria-label -- so a control cannot
+    // say one thing to a mouse and another to a reader. It is the name the
+    // application gave, else the tooltip it gave, else the words inside.
+    return DVTooltipTarget(
+      label: widget.name ?? widget.tooltip,
+      site: widget.site,
+      builder: _control,
+      child: widget.child,
+    );
+  }
+
+  Widget _control(BuildContext context, String? resolved) {
     return Actions(
       actions: _activate(),
       child: Focus(
@@ -3557,7 +3632,7 @@ class _DVPressableState extends State<_DVPressable> {
           builder: (BuildContext context) => Semantics(
             button: widget.button,
             enabled: true,
-            label: widget.name,
+            label: resolved,
             // The one action a reader is offered. Without it the node is a
             // button that a screen reader can see but not press, which is
             // worse than not being a button.
@@ -3586,7 +3661,7 @@ class _DVPressableState extends State<_DVPressable> {
                   // way. A subtree that appeared and vanished with the focus
                   // would throw away whatever state was in it -- the caret in a
                   // field inside a box somebody can tap, say.
-                  key: ValueKey<String>('dv-control:${widget.name}'),
+                  key: ValueKey<String>('dv-control:${resolved ?? widget.name}'),
                   // The ring is drawn by the control rather than taken from a
                   // theme that may not exist: an application that never
                   // installed Material widgets still gets a visible focus,
@@ -3846,7 +3921,9 @@ class DVText extends StatelessWidget {
       // application reached for.
       result = _DVPressable(
         onTap: modifier.onTapCallback!,
-        name: modifier.semanticLabelValue ?? text,
+        name: modifier.semanticLabelValue ?? modifier.tooltipValue ?? text,
+        tooltip: modifier.tooltipValue ?? text,
+        site: modifier.tapSite,
         button: modifier.semanticButtonValue ?? true,
         borderRadius: modifier.borderRadius,
         child: result,

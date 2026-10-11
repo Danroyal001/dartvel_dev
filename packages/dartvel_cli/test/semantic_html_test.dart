@@ -47,7 +47,7 @@ void main() {
       // four unrelated pages rather than a site.
       expect(
         dvSemanticHtml(<DVSemanticNode>[node(href: '/docs', label: 'Docs')]),
-        '<a href="/docs">Docs</a>',
+        '<a href="/docs" title="Docs" aria-label="Docs">Docs</a>',
       );
     });
 
@@ -59,7 +59,7 @@ void main() {
             node(label: 'from \$0'),
           ]),
         ]),
-        '<a href="/pricing">Pricing from \$0</a>',
+        '<a href="/pricing" title="Pricing from \$0" aria-label="Pricing from \$0">Pricing from \$0</a>',
       );
     });
 
@@ -75,7 +75,7 @@ void main() {
             node(href: '/docs', label: 'Docs'),
           ]),
         ]),
-        '<nav>\n<a href="/docs">Docs</a>\n</nav>',
+        '<nav>\n<a href="/docs" title="Docs" aria-label="Docs">Docs</a>\n</nav>',
       );
     });
 
@@ -145,7 +145,7 @@ void main() {
 ''');
 
       expect(dvSemanticHtml(nodes),
-          '<nav>\n<a href="/docs">Docs</a>\n<h1>Title</h1>\n</nav>');
+          '<nav>\n<a href="/docs" title="Docs" aria-label="Docs">Docs</a>\n<h1>Title</h1>\n</nav>');
     });
 
     test('nothing at all is not a crash', () {
@@ -214,13 +214,34 @@ void wrappingControlTests() {
     expect(html, contains('<h2>Pick a provider</h2>'));
   });
 
+  test('every control carries its name as a title and an aria-label', () {
+    // The tooltip a pointer sees and the name a reader hears are one string,
+    // on the server-rendered page as in the running app.
+    final String html = dvSemanticHtml(const <DVSemanticNode>[
+      DVSemanticNode(role: 'button', label: 'Open settings'),
+      DVSemanticNode(href: '/cart', label: 'Cart "3"'),
+    ]);
+    expect(html, contains('title="Open settings" aria-label="Open settings"'));
+    expect(html, contains('title="Cart &quot;3&quot;" aria-label="Cart &quot;3&quot;"'));
+  });
+
+  test('a link with no label of its own is named by what is inside it', () {
+    final String html = dvSemanticHtml(const <DVSemanticNode>[
+      DVSemanticNode(href: '/cart', children: <DVSemanticNode>[
+        DVSemanticNode(label: 'Cart'),
+      ]),
+    ]);
+    expect(html, contains('title="Cart" aria-label="Cart"'));
+  });
+
   test('a button with nothing inside is still just a button', () {
     const List<DVSemanticNode> tree = <DVSemanticNode>[
       DVSemanticNode(role: 'button', label: 'Copy code to clipboard'),
     ];
 
     expect(dvSemanticHtml(tree),
-        '<p><strong>Copy code to clipboard</strong></p>');
+        '<p><strong role="button" title="Copy code to clipboard" '
+            'aria-label="Copy code to clipboard">Copy code to clipboard</strong></p>');
   });
 
   test('an image that wraps something keeps it too', () {

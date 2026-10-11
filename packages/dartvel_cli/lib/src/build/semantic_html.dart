@@ -98,10 +98,13 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
     // A link is a link even when it wraps other things: an anchor around an
     // image and a caption is one destination, not three.
     if (node.href != null && node.href!.isNotEmpty) {
-      final String inner =
-          hasLabel ? _text.convert(label) : _flatten(node.children);
-      if (inner.isEmpty) continue;
-      out.writeln('<a href="${_attribute.convert(node.href!)}">$inner</a>');
+      final String name = hasLabel ? label : _flattenRaw(node.children);
+      if (name.isEmpty) continue;
+      // title and aria-label are the control's name twice over: the tooltip a
+      // pointer sees and the name a screen reader reads, the same words the
+      // running app shows on hover (see tooltips.dart in dartvel_flutter).
+      out.writeln('<a href="${_attribute.convert(node.href!)}"'
+          '${_nameAttributes(name)}>${_text.convert(name)}</a>');
       continue;
     }
 
@@ -169,7 +172,10 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
         // "To the bottom To the bottom" as the entire crawler-visible body of
         // every page on the site: the scroll button's node sat above the
         // document, and the document went out with it.
-        if (hasLabel) out.writeln('<p><strong>${_text.convert(label)}</strong></p>');
+        if (hasLabel) {
+          out.writeln('<p><strong role="button"${_nameAttributes(label)}>'
+              '${_text.convert(label)}</strong></p>');
+        }
         _write(out, node.children, depth + 1);
         continue;
     }
@@ -243,8 +249,16 @@ void _writeMedia(StringBuffer out, DVSemanticNode node, String? label) {
   out.writeln(element);
 }
 
+/// ` title="..." aria-label="..."` for [name].
+String _nameAttributes(String name) {
+  final String escaped = _attribute.convert(name);
+  return ' title="$escaped" aria-label="$escaped"';
+}
+
 /// The text of a subtree, for a node whose own label is empty.
-String _flatten(List<DVSemanticNode> nodes) {
+String _flatten(List<DVSemanticNode> nodes) => _text.convert(_flattenRaw(nodes));
+
+String _flattenRaw(List<DVSemanticNode> nodes) {
   final parts = <String>[];
   void walk(List<DVSemanticNode> current) {
     for (final DVSemanticNode node in current) {
@@ -255,5 +269,5 @@ String _flatten(List<DVSemanticNode> nodes) {
   }
 
   walk(nodes);
-  return _text.convert(parts.join(' ').trim());
+  return parts.join(' ').trim();
 }
