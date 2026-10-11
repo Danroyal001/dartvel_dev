@@ -15,6 +15,7 @@ import '../observability/logging.dart';
 import 'crash_config.dart';
 import 'crash_report.dart';
 import 'crash_reporting.dart';
+import 'crash_symbolicator.dart';
 
 /// Where the backend keeps the reports it accepts.
 abstract class DVCrashReportRepository {
@@ -183,6 +184,7 @@ class DVCrashIngest {
     this.perInstallPerHour = 30,
     int? perSourcePerHour,
     this.maxBytes = 262144,
+    this.symbolicator,
     DateTime Function()? clock,
     void Function(String line)? log,
   })  : perSourcePerHour =
@@ -214,6 +216,10 @@ class DVCrashIngest {
   static const Duration _window = Duration(hours: 1);
 
   final DVCrashReportRepository repository;
+
+  /// Reads a report with its release's symbols before it is stored, when the
+  /// deployment holds them. Null stores reports as they arrive.
+  final DVCrashSymbolicator? symbolicator;
 
   /// Reports stored per install per hour; past it they are counted.
   final int perInstallPerHour;
@@ -325,7 +331,7 @@ class DVCrashIngest {
 
     final bool kept;
     try {
-      kept = await repository.put(report, receivedAt: now);
+      kept = await repository.put(await _symbolicated(report), receivedAt: now);
     } on Object catch (error) {
       _log('a crash report could not be stored (${error.runtimeType}); the '
           'client keeps it and sends it again');
@@ -339,6 +345,20 @@ class DVCrashIngest {
     _recent[installId] = recent..add((now, report.id));
     _fromSource[source] = fromSource..add(now);
     return const DVCrashIngestResult(DVCrashIngestOutcome.stored);
+  }
+
+  /// [report] read with its symbols. A symbolicator that fails costs the
+  /// report its names, never the report.
+  Future<DVCrashReport> _symbolicated(DVCrashReport report) async {
+    final DVCrashSymbolicator? reader = symbolicator;
+    if (reader == null) return report;
+    try {
+      return await reader.symbolicate(report);
+    } on Object catch (error) {
+      _log('a crash report could not be symbolicated (${error.runtimeType}); '
+          'it is stored as it arrived');
+      return report;
+    }
   }
 
   static bool _usable(String value) =>

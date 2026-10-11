@@ -127,14 +127,30 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
               'With sink: dartvel under dartvel.crashes, your own backend '
                   'receives reports. Server processes record a 500, a failing '
                   'schedule and a dead-lettered job.',
+              'On Android a Java or Kotlin crash is recorded too, by a handler '
+                  'installed before the Flutter engine starts. It writes into '
+                  'the store Dart sends from on the next launch, then lets '
+                  'Android end the process as it would have.',
+              'A release build is obfuscated. `dartvel build android` collects '
+                  'that build\'s R8 mapping and Flutter debug symbols into '
+                  'build/symbols, and `dartvel symbols upload` (or '
+                  'dartvel.crashes.symbols.upload) sends them to your backend '
+                  'with the DARTVEL_SYMBOLS_TOKEN secret. Each report is then '
+                  'read with its own release\'s symbols and no other\'s, and '
+                  'grouped by the original names so a bug keeps its group '
+                  'across releases.',
+              'A report whose release has no symbols says it is not '
+                  'symbolicated instead of showing the compiler\'s names.',
             ]),
             DocsStatus('Crash Reporting and Release Health', missing: <String>[
-              'No native crash handlers for Android, iOS or Windows, so a crash '
-                  'below Dart is not caught.',
-              'Nothing reads stored reports back yet: no grouping, no Studio '
-                  'view and no Sentry or Crashlytics sink.',
-              'No symbol upload or source maps, so stack traces are not '
-                  'symbolicated.',
+              'No native signal handler on Android, and no handlers at all on '
+                  'iOS or Windows, so a crash below Java and Dart is not '
+                  'caught.',
+              'Symbols are collected and read for Android only: no iOS dSYMs '
+                  'and no web source maps. Native frames are stored but not '
+                  'read.',
+              'Nothing reads stored reports back yet: no grouping view, no '
+                  'Studio view and no Sentry or Crashlytics sink.',
             ]),
           ],
         ),

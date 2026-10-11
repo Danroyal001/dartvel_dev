@@ -18,6 +18,7 @@ Matcher refusing(String key) => throwsA(
     );
 
 void main() {
+  symbolsConfigTests();
   test('nothing declared is enabled everywhere with the runtime defaults', () {
     final DVCrashConfig config = DVCrashConfig.parse(null);
 
@@ -197,6 +198,104 @@ void main() {
 
     test('a section that is not a map', () {
       expect(() => DVCrashConfig.parse('on'), refusing('dartvel.crashes'));
+    });
+  });
+}
+
+// dartvel.crashes.symbols: where `dartvel symbols upload` sends a release's
+// mapping and debug symbols. Read as strictly as the rest for the same
+// reason, and for one more: the upload carries a bearer token, so a URL that
+// would send it in cleartext to another machine is refused outright.
+void symbolsConfigTests() {
+  group('dartvel.crashes.symbols', () {
+    test('is absent by default and uploads nothing on its own', () {
+      final DVCrashConfig config = DVCrashConfig.parse(null);
+      expect(config.symbolsUrl, isNull);
+      expect(config.uploadSymbolsOnBuild, isFalse);
+    });
+
+    test('reads the backend origin and the build-time upload switch', () {
+      final DVCrashConfig config = DVCrashConfig.parse(<String, Object?>{
+        'sink': 'dartvel',
+        'symbols': <String, Object?>{
+          'url': 'https://api.example.com',
+          'upload': true,
+        },
+      });
+      expect(config.symbolsUrl, Uri.parse('https://api.example.com'));
+      expect(config.uploadSymbolsOnBuild, isTrue);
+    });
+
+    test('the symbols settings do not leak into the runtime declaration', () {
+      // The device has no business knowing where the symbols go.
+      final DVCrashConfig config = DVCrashConfig.parse(<String, Object?>{
+        'symbols': <String, Object?>{'url': 'https://api.example.com'},
+      });
+      expect(config.toDeclaration().containsKey('symbols'), isFalse);
+      expect('${config.toDeclaration()}', isNot(contains('api.example.com')));
+    });
+
+    test('a cleartext url to another machine is refused, loopback is not', () {
+      expect(
+        () => DVCrashConfig.parse(<String, Object?>{
+          'symbols': <String, Object?>{'url': 'http://api.example.com'},
+        }),
+        refusing('dartvel.crashes.symbols.url'),
+      );
+      expect(
+        DVCrashConfig.parse(<String, Object?>{
+          'symbols': <String, Object?>{'url': 'http://localhost:8080'},
+        }).symbolsUrl,
+        Uri.parse('http://localhost:8080'),
+      );
+      expect(
+        DVCrashConfig.parse(<String, Object?>{
+          'symbols': <String, Object?>{'url': 'http://127.0.0.1:8080'},
+        }).symbolsUrl,
+        isNotNull,
+      );
+    });
+
+    test('a url that is not an origin is refused', () {
+      for (final Object bad in <Object>['api.example.com', '', 'ftp://x', 5]) {
+        expect(
+          () => DVCrashConfig.parse(<String, Object?>{
+            'symbols': <String, Object?>{'url': bad},
+          }),
+          refusing('dartvel.crashes.symbols.url'),
+          reason: '$bad',
+        );
+      }
+    });
+
+    test('an unknown symbols setting is refused, naming it', () {
+      expect(
+        () => DVCrashConfig.parse(<String, Object?>{
+          'symbols': <String, Object?>{'token': 'abc'},
+        }),
+        refusing('dartvel.crashes.symbols.token'),
+      );
+    });
+
+    test('upload: true without a url has nowhere to go', () {
+      expect(
+        () => DVCrashConfig.parse(<String, Object?>{
+          'symbols': <String, Object?>{'upload': true},
+        }),
+        refusing('dartvel.crashes.symbols.url'),
+      );
+    });
+
+    test('upload must be true or false', () {
+      expect(
+        () => DVCrashConfig.parse(<String, Object?>{
+          'symbols': <String, Object?>{
+            'url': 'https://api.example.com',
+            'upload': 'yes',
+          },
+        }),
+        refusing('dartvel.crashes.symbols.upload'),
+      );
     });
   });
 }
