@@ -1,3 +1,7 @@
+## Unreleased
+
+- **Breaking (paid runtimes):** `DV.Platform.telegram`, `DVTelegramFrame`, `DVBrowserExtension`/`DV.Platform.browserExtension`, `DVTerminalSurface`/`DV.Platform.terminal` and the XR runtime (`DVXR`, `DV.Test.fakeXR`) moved to the private `dartvel_runtimes_pro` package and need a paid plan from the next release. New public extension points: `DVPlatformHost` (`DV.Platform.registerHost`, `hosts`, `activeHosts`), `DVWindowSpaceBackend` (`DVWindowManager.registerSpaceBackend`; `DVWindowOptions.volume`/`immersion`/`comfort` become `DVWindowOptions.space`, `DVWindowingCapability.spatial` and `DVWindow.spatial` are opaque), `DVAttachedSurface` (`DV.Platform.useRenderSurface(..., attached:)`, `DV.Platform.attachedSurface`) and `DVWindowSharedStore.reserveNamespace` (the `xr.` namespace is no longer reserved until a package claims it). Without a backend a volume or immersive window is a page saying `DV-WINDOW-014`/`015`. 0.11.5 and earlier remain MIT.
+
 ## 0.11.5
 
 - Route config carries `cache`; page updates purge the rendered-page cache.

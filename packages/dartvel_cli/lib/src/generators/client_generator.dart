@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart'
     show
-        DVTelegramConfig,
         DVCrashBuildMode,
         DVCrashConfig,
         DVFileStorageConfig,
@@ -19,6 +18,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVPublicEnvLibrary,
         dvGeneratePublicEnvLibrary;
 
+import '../build/runtime_packages.dart';
 import 'assets_generator.dart';
 import 'account_generator.dart';
 import 'config_routes.dart';
@@ -719,6 +719,19 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
     final bool terminalOnly = linked.contains(DVRenderBackend.terminal) &&
         !linked.contains(DVRenderBackend.gui);
 
+    // The runtimes a package supplies (hosts, spatial backends, the terminal
+    // surface). Read from the project's resolved dependencies; none on a
+    // free install, and nothing is linked for them then.
+    final List<DVRuntimePackage> runtimePackages = dvRuntimePackages(root);
+    final DVRuntimePackage? terminalProvider = runtimePackages
+        .where((DVRuntimePackage package) =>
+            package.terminalSurface != null && package.clientImport != null)
+        .firstOrNull;
+    if (terminalOnly && terminalProvider == null) {
+      throw FormatException(dvRuntimeRefusal('terminal',
+          because: 'A terminal-only build (-cli, -tui) uses the terminal runtime'));
+    }
+
     // The release a crash report names: the pubspec's version, which is what
     // a store listing and an OTA patch are keyed by. A project without one
     // says so in every report rather than borrowing a number.
@@ -739,9 +752,9 @@ import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform,
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVLogConfig, DVFileStorageConfig, DVDevServerHost, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVModuleRpc, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
 import 'package:dartvel_core/framework.dart' show DVOfflineReplay, DVOfflineSync, dvLocalOfflineDatabase, dvOfflineSendOverHttp;
-${_scene3dImportSource(dv)}${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVNetworkStatus, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVDeviceStorage, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, dvInstallApplicationLogging, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
+${_scene3dImportSource(dv)}${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVNetworkStatus, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVDeviceStorage, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, dvInstallApplicationLogging, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
 import 'dartvel_config.g.dart' as cfg;
-import 'home_widgets.g.dart' show dartvelHomeWidgets;
+${_runtimeImportSource(runtimePackages)}import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'flags.g.dart' show registerDartvelFlags;
 import 'http.g.dart' show configureDartvelHttp;
 import 'analytics.g.dart' show configureDartvelAnalytics;
@@ -813,7 +826,7 @@ ${_studioOn(dv) ? '  // Studio runs on this project\'s server: an installed app 
   // DV.Platform.clipboard.copy().
   registerPlatformBindings();
   DVStartupProfile.current.mark('bindings');
-  // DV.Platform.fileStorage, after the bindings: on Android its directory is
+${_runtimeInstallSource(runtimePackages, telegramConfigured: dv['telegram'] != null)}  // DV.Platform.fileStorage, after the bindings: on Android its directory is
   // the files directory they found. The declaration is dartvel.fileStorage.
   DVDeviceStorage.declare(
     appId: '$pkgName',
@@ -953,7 +966,7 @@ DVCrashInstallation? installDartvelCrashReporting({DVCrashStore? store, DVCrashS
       evenUnderTest: evenUnderTest,
     );
 
-${_launchNegotiationSource(linked)}
+${_launchNegotiationSource(linked, terminalProvider)}
 
 /// Takes the single-instance lock and opens what this launch asked for, or
 /// hands it to the process that has the lock and ends this one. Desktop
@@ -2540,16 +2553,17 @@ ${(() {
       }
     }
 
-    final telegram = dv['telegram'];
-    final telegramConfig = telegram == null ? null : DVTelegramConfig.fromMap((telegram as Map).cast<Object?, Object?>());
+    final Map<String, Object?>? telegramSection =
+        dv['telegram'] == null ? null : dvReadRuntimeSection('telegram', dv['telegram']);
     final configContent = '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
-import 'package:dartvel_core/dartvel.dart' show DVTelegramConfig;
 ${_hasKioskPolicies(dv) ? "import 'package:dartvel_flutter/dartvel_flutter.dart' show DVKioskPolicy;\n" : ''}
 /// Centrally generated Dartvel configuration matching your pubspec.yaml.
 class DartvelConfig {
-  /// Telegram metadata; no bot token is emitted into this client.
-  static const DVTelegramConfig? telegram = ${telegramConfig == null ? 'null' : 'DVTelegramConfig(botUsername: ${jsonEncode(telegramConfig.botUsername)}, shortName: ${jsonEncode(telegramConfig.shortName)}, requiredPermissions: <String>${jsonEncode(telegramConfig.requiredPermissions)})'};
+  /// The `dartvel.telegram` section as written, for the runtime package that
+  /// understands it. Public metadata only: a key that reads as a secret is
+  /// refused when the pubspec is read.
+  static const Map<String, Object?>? telegram = ${telegramSection == null ? 'null' : _dartLiteral(telegramSection, 2)};
   /// The database provider (e.g. sqlite, postgres, mysql).
   static const databaseProvider = '$dbProvider';
   
@@ -2592,7 +2606,10 @@ ${_kioskPoliciesSource(dv)}${_deviceProfilesSource(dv)}
   /// from the arguments and the display -- `--tui` starts in the terminal,
   /// no display with both backends asks -- and a terminal outcome hands the
   /// process to the terminal runner beside the GUI binary.
-  static String _launchNegotiationSource(Set<DVRenderBackend> renderBackends) {
+  static String _launchNegotiationSource(
+    Set<DVRenderBackend> renderBackends,
+    DVRuntimePackage? terminalProvider,
+  ) {
     final bool gui = renderBackends.contains(DVRenderBackend.gui);
     final bool terminal = renderBackends.contains(DVRenderBackend.terminal);
     if (!terminal) {
@@ -2620,7 +2637,7 @@ Future<void> negotiateDartvelLaunch(List<String> arguments) async {}
       // It deliberately does not reach for the terminal runner the way the
       // dual-mode build does. This binary is that runner; launching it from
       // here would look for a name with the suffix twice, or find itself.
-      return r'''
+      return '''
 /// The rendering backends this build links: the terminal alone. A `-cli` or
 /// `-tui` build contains no GUI backend -- not a window that stays closed.
 const Set<DVRenderSurface> dartvelLinkedSurfaces = <DVRenderSurface>{DVRenderSurface.terminal};
@@ -2635,7 +2652,7 @@ Future<void> negotiateDartvelLaunch(List<String> arguments) async {
   if (kIsWeb) return;
   DV.Platform.useRenderSurface(
     DVRenderSurface.terminal,
-    terminal: await DVTerminalSurface.attach(),
+    attached: await ${terminalProvider!.name}.${terminalProvider.terminalSurface},
   );
 }
 ''';
@@ -2685,6 +2702,29 @@ Future<void> _runTerminal(List<String> arguments) async {
 }
 ''';
   }
+
+  /// The imports for the runtime packages the project depends on.
+  static String _runtimeImportSource(List<DVRuntimePackage> packages) => <String>[
+        for (final DVRuntimePackage package in packages)
+          if (package.clientImport != null)
+            "import '${package.clientImport}' as ${package.name};\n",
+      ].join();
+
+  /// Installs each runtime package, handing it the `dartvel:` sections that
+  /// configure runtimes. Nothing for a project with no runtime package.
+  static String _runtimeInstallSource(
+    List<DVRuntimePackage> packages, {
+    required bool telegramConfigured,
+  }) =>
+      <String>[
+        for (final DVRuntimePackage package in packages)
+          if (package.clientImport != null && package.clientInstall != null)
+            '  // ${package.name}: hosts, spatial backends and surfaces for runtimes this\n'
+                '  // framework does not ship, plugged into its public extension points.\n'
+                '  ${package.name}.${package.clientInstall}(<String, Object?>{'
+                "${telegramConfigured ? "'telegram': cfg.DartvelConfig.telegram" : ''}"
+                '});\n',
+      ].join();
 
   /// `DVKioskPolicies.<name>`: every named policy under dartvel.kiosk.policies,
   /// as the kiosk section's own settings with the named entry's over them,

@@ -6425,8 +6425,9 @@ final DVPurchaseOutcome outcome = await DV.Purchases.buy(Book.pro);
 ```
 
 On iOS, iPadOS, tvOS, macOS from the App Store and Android from Play, a
-digital product goes to the store. In a Telegram Mini App it is paid in Stars,
-which Telegram requires for digital goods there. On the web, on desktop outside
+digital product goes to the store. A store that writes its own invoices plugs
+in as a store adapter (Telegram Stars, paid in a Telegram Mini App, is one,
+from the paid runtimes package). On the web, on desktop outside
 a store, and for anything physical, it goes to Billing's gateway, and a backend
 with no gateway refuses the purchase with `DV-PURCHASE-009` rather than showing
 a button that opens nothing. Nothing in application
@@ -14559,6 +14560,40 @@ licence key is checked at build time, and nothing about the package reaches
 a built application. Releases 0.11.5 and earlier built these targets in the
 open and remain MIT licensed.
 
+### Paid runtimes
+
+The runtime APIs that go with those targets are paid with them, and leave the
+open packages the same way: behind public extension points, in the private
+`dartvel_runtimes_pro` package (`dartvel targets add runtimes`, or `add pro`
+for both packages). They are the Telegram Mini App runtime (`DV.Platform.telegram`,
+the page frame, Telegram sign-in and initData validation, Stars purchases), the
+XR runtime behind `DV.Window` volumes and immersive spaces, the terminal
+surface (`DVTerminalSurface`) and the browser-extension runtime
+(`DVBrowserExtension`). The open packages keep only the generic hooks, so
+anyone can write a runtime of their own:
+
+- `DVPlatformHost` (`dartvel_flutter`), registered with
+  `DV.Platform.registerHost`: a page frame, router attachment, the credential
+  for `DV.Auth.signInWithProvider(<name>)`, a replacement `DV.FileStorage`
+  adapter and platform flags, active only inside its host.
+- `DVWindowSpaceBackend`, registered with `DVWindowManager.registerSpaceBackend`:
+  what presents `DVWindowKind.volume` and `immersive` windows. With none, they
+  are pages and say `DV-WINDOW-014`/`015`.
+- `DVAttachedSurface`, given to `DV.Platform.useRenderSurface`: what a render
+  backend attaches (the terminal being drawn into).
+- `AuthProvider` and `DVStoreAdapter` with `DVStoreInvoiceIssuer` (already
+  public) for sign-in and invoice-writing stores, and
+  `DVWindowSharedStore.reserveNamespace` for a package's own state.
+- `dartvel_runtimes.yaml` at a package's root, read by the CLI like
+  `dartvel_targets.yaml`: the generated client imports the package and calls its
+  install function with the `dartvel:` sections that configure runtimes, a
+  terminal-only build attaches the surface it supplies, and the generated
+  backend installs the sign-in provider it supplies for a configured section.
+
+`dartvel.telegram` without the package stops generation with exit 69 and the
+same kind of message a paid target gives. The Telegram runtime's setup, API and
+limits are documented with the package. Releases 0.11.5 and earlier shipped
+these runtimes in the open and remain MIT licensed.
 The commands, free and paid:
 
 ```bash
@@ -14584,11 +14619,12 @@ dartvel build android-xr
 ```
 
 Telegram Mini Apps use the ordinary web pipeline and existing page shell. Public
-metadata lives under `dartvel.telegram`; `DV.Platform.telegram` is null outside
-Telegram and exposes host controls, storage, theme and viewport signals. The
-generated backend validates signed initData using a server-only bot token before
-issuing a session. See `docs/telegram-mini-apps.md` for setup, API and limits;
-native payment fulfillment and bot registration remain application responsibilities.
+metadata lives under `dartvel.telegram`; with the paid runtime installed,
+`DV.Platform.telegram` is null outside Telegram and exposes host controls,
+storage, theme and viewport signals, and the generated backend validates signed
+initData using a server-only bot token before issuing a session. Setup, API and
+limits are documented with the paid `dartvel_runtimes_pro` package; native
+payment fulfillment and bot registration remain application responsibilities.
 
 Each embedded or extension target is driven by the platform's dedicated Flutter embedder or host
 extension generator rather than plain `flutter build`:

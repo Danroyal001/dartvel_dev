@@ -29,7 +29,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/widgets.dart' show BuildContext, Element;
 
 import '../../dartvel_flutter.dart' show DVAuthProvider, DVAuthUser;
-import '../platform/telegram/telegram.dart';
+import '../platform/platform_host.dart';
 
 /// What a session from this install is recorded as: the platform and the
 /// kind of client, such as `Android app` or `Web browser`.
@@ -862,14 +862,11 @@ class DVSessionAuthProvider implements DVAuthProvider {
 
   @override
   Future<DVAuthUser> signInWithProvider(String provider) async {
-    if (provider != 'telegram') return _unsupported('signInWithProvider');
-    final telegram = dvTelegramHere();
-    if (telegram == null || telegram.initData.isEmpty) {
-      throw StateError('Open this app in Telegram to sign in');
-    }
+    final DVHostCredential? credential = DVPlatformHosts.signInCredential(provider);
+    if (credential == null) return _unsupported('signInWithProvider');
     return client.signIn(
-      email: 'telegram:${telegram.user?.id ?? 'unknown'}',
-      password: telegram.initData,
+      email: credential.identifier,
+      password: credential.secret,
     );
   }
 

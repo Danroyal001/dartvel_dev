@@ -48,38 +48,6 @@ void main() {
     });
   });
 
-  test('a grab handler fires from a hand ray in a spatial session', () async {
-    final List<String> grabbed = <String>[];
-    final DVSceneResolved resolved = DVScene(nodes: <DVSceneNode>[
-      DVMesh.box(const DVVec3(0.5, 0.5, 0.5))
-          .id('crate')
-          .position(const DVVec3(0, 1, -2))
-          .onGrab(() => grabbed.add('crate')),
-    ]).resolve();
-    final DVXRFakeDevice device = DVXRFakeDevice();
-    final DVXRRuntime runtime = DVXRRuntime(
-      device: device,
-      capability: DVSpatialCapability.headset(),
-      permissions: const _Granted(),
-      diagnostics: (String c, String m, Map<String, Object?> x) {},
-    );
-    final DVSpatialSession session = (await runtime.present(const DVSpatialSpaceRequest(
-      kind: DVSpatialSpaceKind.volume,
-      route: '/crate',
-    )))
-        .session!;
-    await session.attach(DVSceneGraph(resolved.document),
-        onGrab: resolved.grabHandlers, onRelease: resolved.releaseHandlers);
-
-    device.emit(DVXRInput(DVSpatialInputEvent.ray(
-        DVSpatialInputAction.grab, DVSpatialInputSource.hand,
-        origin: const DVVec3(0, 1, 0), direction: const DVVec3(0, 0, -1))));
-    await Future<void>.delayed(.zero);
-
-    expect(grabbed, <String>['crate']);
-    await runtime.dispose();
-  });
-
   testWidgets('flat, an anchored passthrough scene draws, and reports both codes once',
       (WidgetTester tester) async {
     final DVMemoryLogSink logs = DVMemoryLogSink();
@@ -130,11 +98,4 @@ void main() {
     expect(codes.where((String c) => c == 'DV-XR-001'), hasLength(1));
     expect(codes.where((String c) => c == 'DV-XR-002'), hasLength(1));
   });
-}
-
-final class _Granted implements DVCapturePermissions {
-  const _Granted();
-
-  @override
-  Future<bool> request(String permission) async => true;
 }

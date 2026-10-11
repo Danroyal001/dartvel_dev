@@ -847,10 +847,27 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     ],
   ),
   DocsCliCommand(
+    name: 'store',
+    description: 'Answers the app stores ask for, from the project.',
+    subcommands: <DocsCliCommand>[
+      DocsCliCommand(
+        name: 'data-safety',
+        description: 'Play Console Data safety answers (import CSV) from the project\'s declarations. What cannot be derived is listed as TODO, never guessed.',
+        options: <String>[
+          '    --format            What to print when --out is not given.',
+          '                        [csv (default), json, worksheet]',
+          '    --out               Write data-safety.csv and data-safety-worksheet.md here.',
+          '    --template          The CSV exported from Play Console\'s Data safety page. Its identifiers are used for every data type it lists.',
+          '    --unverified-ids    Also write rows under identifiers Google does not publish (recalled from the Console template). The Console shows an error for any it does not know; check the import preview.',
+        ],
+      ),
+    ],
+  ),
+  DocsCliCommand(
     name: 'targets',
-    description: 'List the build targets this install can build, and add the paid targets package (dartvel targets add pro).',
+    description: 'List the build targets this install can build, and add the paid packages: dartvel targets add pro (targets and runtimes) or dartvel targets add runtimes (runtimes only).',
     options: <String>[
-      '    --path       With add: a local checkout of the package, instead of the git repository (for development).',
+      '    --path       With add: a local checkout of the package, instead of the git repository (for development). For `add pro`, the runtimes package is taken from beside it.',
       '    --git-url    With add: the repository the package is fetched from.',
       '                 (defaults to "https://github.com/Danroyal001/dartvel_enterprise.git")',
       '    --git-ref    With add: a branch, tag or commit to pin.',
