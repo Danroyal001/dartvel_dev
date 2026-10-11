@@ -256,6 +256,7 @@ export 'src/notifications/fcm.dart';
 export 'src/notifications/push.dart';
 export 'src/notifications/push_config.dart';
 export 'src/notifications/push_exception.dart';
+export 'src/notifications/push_names.dart';
 export 'src/notifications/web_push.dart';
 export 'src/notifications/web_push_vapid.dart';
 // The framework's own implementation of the observability namespace. The

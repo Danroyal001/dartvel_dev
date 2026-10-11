@@ -888,6 +888,7 @@ export 'src/platform/webcrypto_key_store_io.dart'
 export 'src/platform/windows/windows_bindings.dart';
 export 'src/progress/top_progress.dart' show DVTopProgress, DVTopProgressBar;
 export 'src/pwa/install_prompt.dart';
+export 'src/push/device_push.dart';
 export 'src/routing/account_pages.dart';
 export 'src/routing/config_routes.dart';
 export 'src/routing/host_routers.dart';
