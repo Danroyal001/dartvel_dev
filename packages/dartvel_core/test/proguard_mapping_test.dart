@@ -12,8 +12,10 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
 import 'fixtures/r8_mapping.dart';
+import 'fixtures/r8_real_mapping.dart';
 
 void main() {
+  realR8Tests();
   late DVProguardMapping mapping;
   setUp(() => mapping = DVProguardMapping.parse(r8Mapping));
 
@@ -164,6 +166,74 @@ com.example.A -> a.A:
           DVProguardMapping.parse(r8Mapping.replaceAll('\n', '\r\n'));
       expect(crlf.originalClass('a.a.a'), 'com.example.shop.CheckoutActivity');
       expect(crlf.retraceFrame('a.a.a', 'onCreate', 2).single.line, 13);
+    });
+  });
+}
+
+// The expected frames below are what R8's own `retrace` printed for the same
+// mapping excerpt and stack lines (fixtures/r8_real_mapping.dart).
+void realR8Tests() {
+  final DVProguardMapping mapping = DVProguardMapping.parse(r8RealMapping);
+  String frames(String className, String method, int? line) =>
+      mapping.retraceFrame(className, method, line).join('\n');
+
+  group('against R8\'s own retrace', () {
+    const String base = 'com.google.android.gms:play-services-base@@18.9.0';
+    const String basement = 'com.google.android.gms:play-services-basement@@18.9.0';
+
+    test('a minified range onto a single original line maps every line to it',
+        () {
+      // `5:14 -> :1:1` is line 1 for all of 5..14, not 1 + (line - 5).
+      expect(frames('tx', 'a', 11),
+          'com.google.android.gms.signin.internal.SignInClientImpl.createServiceInterface($base:1)');
+    });
+
+    test('an inlined method is a frame of its own class, in that class\'s file',
+        () {
+      expect(frames('tx', 'a', 21), '''
+com.google.android.gms.signin.internal.zaf.<init>($base:1)
+com.google.android.gms.signin.internal.SignInClientImpl.createServiceInterface($base:2)''');
+    });
+
+    test('line 0 means no line, and prints none', () {
+      expect(frames('tx', 'e', 3), '''
+com.google.android.gms.common.internal.ClientSettings.getRealClientPackageName($base)
+com.google.android.gms.signin.internal.SignInClientImpl.getGetServiceRequestExtraArgs($base:1)''');
+    });
+
+    test('an inlined class\'s file is the one the mapping gives that class', () {
+      expect(frames('tx', 'e', 7), '''
+com.google.android.gms.common.internal.BaseGmsClient.getContext($basement)
+com.google.android.gms.signin.internal.SignInClientImpl.getGetServiceRequestExtraArgs($base:2)''');
+    });
+
+    test('the method the line places is not listed twice', () {
+      // The chain ends with the same method again at line 0.
+      expect(frames('w1', '<clinit>', 4), '''
+com.google.android.datatransport.runtime.AutoProtoEncoderDoNotUseEncoder\$ClientMetricsEncoder.<init>(AutoProtoEncoderDoNotUseEncoder.java:50)
+com.google.android.datatransport.runtime.AutoProtoEncoderDoNotUseEncoder\$ClientMetricsEncoder.<clinit>(AutoProtoEncoderDoNotUseEncoder.java:51)''');
+      expect(frames('w1', '<clinit>', 24),
+          'com.google.android.datatransport.runtime.AutoProtoEncoderDoNotUseEncoder\$ClientMetricsEncoder.<clinit>(AutoProtoEncoderDoNotUseEncoder.java)');
+    });
+
+    test('a lambda class R8 made up shows the real method inlined into it, '
+        'and not itself', () {
+      const String store =
+          'com.google.android.datatransport.runtime.scheduling.persistence';
+      expect(frames('dv', 'apply', 13),
+          '$store.SQLiteEventStore.lambda\$loadBatch\$8(SQLiteEventStore.java:354)');
+      expect(frames('dv', 'apply', 15), '''
+$store.AutoValue_EventStoreConfig.getLoadBatchSize(AutoValue_EventStoreConfig.java:38)
+$store.SQLiteEventStore.lambda\$loadBatch\$8(SQLiteEventStore.java:354)''');
+    });
+
+    test('a frame that is only a made-up class is left out of a trace', () {
+      expect(mapping.retrace('\tat dv.<init>(SourceFile:3)'), isEmpty);
+    });
+
+    test('a Kotlin facade class is in its .kt file', () {
+      expect(frames('kotlin.collections.ArraysKt___ArraysJvmKt', 'a', 1),
+          'kotlin.collections.ArraysKt___ArraysJvmKt.calculateMaximumDisplayMetrics(ArraysKt___ArraysJvm.kt:5)');
     });
   });
 }

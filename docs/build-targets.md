@@ -69,6 +69,40 @@ Windows, a Linux desktop build requires Linux, and the Apple targets require
 macOS. `dartvel build` skips a target its host cannot build rather than
 failing the whole run.
 
+### Android push and crash symbols
+
+`dartvel build android` with `dartvel.push.android.fcm` and
+`dartvel.crashes.symbols` declared, **2026-10-11**, Linux x64, Flutter 3.47.5,
+on a fresh `dartvel create` project with a `keytool` test key. Built, not run:
+
+- `app-release.apk`, 52.7 MB, signed (`apksigner verify` shows the test key).
+  `aapt2 dump permissions` lists `POST_NOTIFICATIONS` and
+  `com.google.android.c2dm.permission.RECEIVE`; the manifest has
+  `dev.dartvel.jni.DartvelMessagingService` with `exported=false` and the
+  `com.google.firebase.MESSAGING_EVENT` filter; `aapt2 dump resources` shows
+  `google_app_id`, `google_api_key`, `gcm_defaultSenderId` and `project_id`
+  with the declared values, and no `google-services.json` exists.
+- `apkanalyzer dex packages` lists `dev.dartvel.jni.DartvelPush` (`start`,
+  `poll`, `drainMessages` under their own names, which Dart finds by name over
+  JNI), `DartvelCrash` and `DartvelMessagingService` after R8.
+- `build/symbols/0.0.1/` holds `mapping.txt` (8.9 MB, 79,597 lines), three
+  `app.android-*.symbols` files with their ELF build ids, a 27 MB
+  `native-debug-symbols.zip` and `manifest.json`.
+- The Java was also compiled against the real `android.jar` and
+  `firebase-messaging` 26.0.0 / 25.1.3, and the JVM crash handler was run on a
+  JVM and its record read back with `DVCrashReport.fromJson`.
+- `mapping.txt` was retraced by `DVProguardMapping` and by the `retrace` tool
+  in the SDK on 3,000 frames from that file: 96 percent print identically. The
+  differences are R8 `rewriteFrame` rules that depend on the exception type,
+  outline call sites, and caller frames R8 omits at line 0; none is applied.
+
+Not run: the APK on a device or emulator (this host has no KVM), a token from
+FCM, a message delivered, or an uncaught exception recorded on a phone. The
+generated backend, the upload and the symbolicated reports were run for real
+over HTTP against an AOT snapshot compiled with `--obfuscate`
+(`test/symbols_backend_test.dart`); the Dart decoder has not been run against
+Flutter's engine-built `libapp.so`.
+
 ### Linux native bindings
 
 `DVLinuxBindings.register()` binds eight names to libX11, libgtk-3 and GDBus

@@ -46,12 +46,23 @@ class _Range {
 class _Member {
   _Member({
     required this.originalName,
+    required this.originalClass,
     required this.minified,
     required this.original,
     required this.originalIsSingleLine,
   });
 
   final String originalName;
+
+  /// The class the original method is declared in when it is not the class
+  /// the member is listed under: R8 writes an inlined method as
+  /// `com.example.Other.helper`, and a frame for it is in `Other`.
+  final String? originalClass;
+
+  /// R8 marks code it made up (a lambda's bridge, an outline) with a
+  /// `synthesized` metadata line; a retraced stack leaves those frames out.
+  bool synthetic = false;
+
   final _Range? minified;
   final _Range? original;
 
@@ -64,16 +75,23 @@ class _MappedClass {
   final String original;
   String? sourceFile;
 
+  /// A class R8 made up (a lambda, an API-level outline). Its frames are not
+  /// in the source, and a retraced stack leaves them out.
+  bool synthetic = false;
+
   /// Members by minified name, in file order: for one minified range, the
   /// order is an inlining chain, innermost first.
   final Map<String, List<_Member>> members = <String, List<_Member>>{};
+  _Member? lastMember;
 }
 
 /// A parsed mapping.
 class DVProguardMapping {
-  DVProguardMapping._(this._classes);
+  DVProguardMapping._(this._classes, [Map<String, String>? files])
+      : _files = files ?? const <String, String>{};
 
   final Map<String, _MappedClass> _classes;
+  final Map<String, String> _files;
 
   /// An empty mapping, which retraces nothing.
   factory DVProguardMapping.empty() =>
@@ -87,6 +105,8 @@ class DVProguardMapping {
       r'^\s+(?:(\d+):(\d+):)?[^\s()]+\s+([^\s()]+)\(([^)]*)\)(?::(\d+)(?::(\d+))?)?\s+->\s+(\S+)$');
   static final RegExp _sourceFile =
       RegExp(r'"id"\s*:\s*"sourceFile"\s*,\s*"fileName"\s*:\s*"([^"]+)"');
+  static final RegExp _synthesized =
+      RegExp(r'"id"\s*:\s*"com\.android\.tools\.r8\.synthesized"');
 
   /// Parses [text]. Lines it does not understand are skipped: a mapping with
   /// a member line from a newer R8 is still good for every line it can read.
@@ -100,6 +120,9 @@ class DVProguardMapping {
         // it, at the left margin.
         final RegExpMatch? file = _sourceFile.firstMatch(raw);
         if (file != null && current != null) current.sourceFile = file.group(1);
+        if (current != null && _synthesized.hasMatch(raw)) {
+          current.synthetic = true;
+        }
         continue;
       }
       if (!raw.startsWith(' ') && !raw.startsWith('\t')) {
@@ -117,6 +140,7 @@ class DVProguardMapping {
       if (line.startsWith('#')) {
         final RegExpMatch? file = _sourceFile.firstMatch(line);
         if (file != null) current.sourceFile = file.group(1);
+        if (_synthesized.hasMatch(line)) current.lastMember?.synthetic = true;
         continue;
       }
       final RegExpMatch? match = _methodLine.firstMatch(raw);
@@ -125,10 +149,13 @@ class DVProguardMapping {
       final String? minEnd = match.group(2);
       final String? origStart = match.group(5);
       final String? origEnd = match.group(6);
-      current.members
-          .putIfAbsent(match.group(7)!, () => <_Member>[])
-          .add(_Member(
-            originalName: match.group(3)!,
+      // `com.example.Other.helper` is a method inlined from another class.
+      final String qualified = match.group(3)!;
+      final int lastDot = qualified.lastIndexOf('.');
+      final _Member member = _Member(
+            originalName:
+                lastDot < 0 ? qualified : qualified.substring(lastDot + 1),
+            originalClass: lastDot < 0 ? null : qualified.substring(0, lastDot),
             minified: minStart == null
                 ? null
                 : _Range(int.parse(minStart), int.parse(minEnd!)),
@@ -136,10 +163,21 @@ class DVProguardMapping {
                 ? null
                 : _Range(int.parse(origStart),
                     int.parse(origEnd ?? origStart)),
-            originalIsSingleLine: origStart != null && origEnd == null,
-          ));
+            // `:30` and `:30:30` both say every minified line in the range is
+            // line 30.
+            originalIsSingleLine:
+                origStart != null && (origEnd == null || origEnd == origStart),
+          );
+      current.members.putIfAbsent(match.group(7)!, () => <_Member>[]).add(member);
+      current.lastMember = member;
     }
-    return DVProguardMapping._(classes);
+    // Source files by original class, for frames of a class that is not the
+    // one the stack named.
+    final Map<String, String> files = <String, String>{
+      for (final _MappedClass mapped in classes.values)
+        if (mapped.sourceFile != null) mapped.original: mapped.sourceFile!,
+    };
+    return DVProguardMapping._(classes, files);
   }
 
   /// How many classes the mapping renames.
@@ -204,16 +242,76 @@ class DVProguardMapping {
     }
     // When ranged members match, an unranged one is not part of the chain.
     final bool anyRanged = matching.any((_Member m) => m.minified != null);
-    return <DVRetracedFrame>[
+    final List<_Member> chain = <_Member>[
       for (final _Member member in matching)
-        if (!anyRanged || member.minified != null)
-          DVRetracedFrame(
-            className: mapped.original,
-            methodName: member.originalName,
-            fileName: file,
-            line: _originalLine(member, line),
-          ),
+        if (!anyRanged || member.minified != null) member,
     ];
+    // Code R8 made up is not in the source; a trace shows the frames that are.
+    // A chain that is nothing but such code keeps all of it rather than
+    // vanishing.
+    //
+    // A synthetic class's own methods are such code (a lambda's `apply`), but
+    // the real methods inlined into them are not: those frames stay.
+    final List<_Member> real = chain
+        .where((_Member m) =>
+            !m.synthetic && !(mapped.synthetic && _isOwn(mapped, m)))
+        .toList(growable: false);
+    if (real.isEmpty && mapped.synthetic) return const <DVRetracedFrame>[];
+    return _withoutRepeats(<DVRetracedFrame>[
+      for (final _Member member in real.isEmpty ? chain : real)
+        _frameOf(mapped, member, line),
+    ]);
+  }
+
+  /// R8 lists the method that contains inlined code a second time, with no
+  /// line (`:0`), after the inlined frames. It is the same method as the one
+  /// the line did place, not another frame of the stack: keep one, the one
+  /// with a line.
+  static List<DVRetracedFrame> _withoutRepeats(List<DVRetracedFrame> frames) {
+    final List<DVRetracedFrame> out = <DVRetracedFrame>[];
+    for (final DVRetracedFrame frame in frames) {
+      final int index = out.indexWhere((DVRetracedFrame kept) =>
+          kept.className == frame.className &&
+          kept.methodName == frame.methodName &&
+          (kept.line == null || frame.line == null));
+      if (index < 0) {
+        out.add(frame);
+      } else if (out[index].line == null && frame.line != null) {
+        out[index] = frame;
+      }
+    }
+    return out;
+  }
+
+  /// Whether [member] is a method of the class it is listed under, rather
+  /// than one inlined from another. R8 qualifies a member's original name with
+  /// its class, and for a class it generated it uses the short name, so a
+  /// member is its own class's when the qualifier is that class's name or the
+  /// end of it.
+  static bool _isOwn(_MappedClass mapped, _Member member) {
+    final String? qualifier = member.originalClass;
+    return qualifier == null ||
+        qualifier == mapped.original ||
+        mapped.original.endsWith('.$qualifier');
+  }
+
+  DVRetracedFrame _frameOf(_MappedClass mapped, _Member member, int? line) {
+    // An inlined method is a frame of the class it was written in.
+    final bool own = _isOwn(mapped, member);
+    final String className = own ? mapped.original : member.originalClass!;
+    // A frame inlined from another class is in that class's file when the
+    // mapping names it, and in the file its name implies when it does not.
+    final String file = own
+        ? (mapped.sourceFile ?? _fileOf(mapped.original))
+        : (_files[className] ?? _fileOf(className));
+    final int? original = _originalLine(member, line);
+    return DVRetracedFrame(
+      className: className,
+      methodName: member.originalName,
+      fileName: file,
+      // R8 writes 0 for "no line information", and a trace shows none.
+      line: original != null && original > 0 ? original : null,
+    );
   }
 
   static int? _originalLine(_Member member, int? line) {
@@ -225,11 +323,15 @@ class DVProguardMapping {
     return original.from + (line - minified.from);
   }
 
-  /// `Outer$Inner` is declared in `Outer.java`.
+  /// `Outer$Inner` is declared in `Outer.java`; Kotlin's `FooKt` facade is
+  /// `Foo.kt`.
   static String _fileOf(String className) {
     final String simple = className.substring(className.lastIndexOf('.') + 1);
     final int dollar = simple.indexOf(r'$');
-    return '${dollar < 0 ? simple : simple.substring(0, dollar)}.java';
+    final String outer = dollar < 0 ? simple : simple.substring(0, dollar);
+    return outer.length > 2 && outer.endsWith('Kt')
+        ? '${outer.substring(0, outer.length - 2)}.kt'
+        : '$outer.java';
   }
 
   // `\tat a.a.a.onCreate(SourceFile:2)`
@@ -244,15 +346,18 @@ class DVProguardMapping {
   String retrace(String trace) {
     if (isEmpty) return trace;
     final StringBuffer out = StringBuffer();
-    final List<String> lines = LineSplitterLite.split(trace).toList();
-    for (int i = 0; i < lines.length; i++) {
-      if (i > 0) out.write('\n');
-      out.write(_retraceLine(lines[i]));
+    bool first = true;
+    for (final String line in LineSplitterLite.split(trace)) {
+      final String? retraced = _retraceLine(line);
+      if (retraced == null) continue;
+      if (!first) out.write('\n');
+      first = false;
+      out.write(retraced);
     }
     return out.toString();
   }
 
-  String _retraceLine(String line) {
+  String? _retraceLine(String line) {
     final RegExpMatch? frame = _frame.firstMatch(line);
     if (frame != null) {
       final String where = frame.group(4)!;
@@ -260,6 +365,8 @@ class DVProguardMapping {
       final List<DVRetracedFrame> frames =
           retraceFrame(frame.group(2)!, frame.group(3)!, number);
       if (frames.length == 1 && frames.single.fileName == null) return line;
+      // Every frame was R8's own (a lambda's bridge): nothing of the source.
+      if (frames.isEmpty) return null;
       return frames
           .map((DVRetracedFrame f) => '${frame.group(1)}$f')
           .join('\n');
