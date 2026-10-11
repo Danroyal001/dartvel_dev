@@ -80,7 +80,7 @@ class DVSymbolIngest {
   DVSymbolIngest({
     required this.repository,
     Future<String?> Function()? token,
-    this.maxFileBytes = 256 * 1024 * 1024,
+    this.maxFileBytes = defaultMaxFileBytes,
     this.failuresPerHour = 20,
     DateTime Function()? clock,
     void Function(String line)? log,
@@ -90,6 +90,10 @@ class DVSymbolIngest {
 
   /// The secret the uploader presents as `Authorization: Bearer <token>`.
   static const String tokenSecret = 'DARTVEL_SYMBOLS_TOKEN';
+
+  /// The largest file accepted unless the deployment says otherwise: a
+  /// native-symbols zip can be a few hundred megabytes.
+  static const int defaultMaxFileBytes = 256 * 1024 * 1024;
 
   /// The header carrying the SHA-256 the uploader computed.
   static const String checksumHeader = 'x-dartvel-sha256';
@@ -116,12 +120,12 @@ class DVSymbolIngest {
   static Future<String?> _tokenFromSecrets() async =>
       const DVSecrets().maybeGet(tokenSecret);
 
-  Future<DVSymbolIngestResult> accept({
-    required String release,
-    required String name,
-    required List<int> body,
+  /// Who is asking, before a body is read: null when [authorization] is the
+  /// token, otherwise the refusal. The HTTP route calls this first, so an
+  /// unauthenticated caller is turned away before a 200 MB body is read for
+  /// them; [accept] calls it again, so no other caller can skip it.
+  Future<DVSymbolIngestResult?> authorize({
     required String? authorization,
-    required String? sha256,
     String source = DVClientAddress.unknownSource,
   }) async {
     final String? expected = await _token();
@@ -149,6 +153,20 @@ class DVSymbolIngest {
       return const DVSymbolIngestResult(DVSymbolIngestOutcome.unauthorized);
     }
     if (failed.isEmpty) _failures.remove(source);
+    return null;
+  }
+
+  Future<DVSymbolIngestResult> accept({
+    required String release,
+    required String name,
+    required List<int> body,
+    required String? authorization,
+    required String? sha256,
+    String source = DVClientAddress.unknownSource,
+  }) async {
+    final DVSymbolIngestResult? refused =
+        await authorize(authorization: authorization, source: source);
+    if (refused != null) return refused;
 
     if (!dvSymbolReleaseOk(release) || !dvSymbolFileNameOk(name)) {
       return const DVSymbolIngestResult(DVSymbolIngestOutcome.invalid);

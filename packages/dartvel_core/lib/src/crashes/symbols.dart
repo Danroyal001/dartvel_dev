@@ -214,3 +214,30 @@ class DVMemorySymbolRepository implements DVSymbolRepository {
   Future<bool> hasRelease(String release) async =>
       _manifests.containsKey(release);
 }
+
+/// Where a server process keeps symbols.
+///
+/// `DARTVEL_SYMBOLS_DIR` when the deployment mounts one; otherwise beside the
+/// application, in `.dartvel/symbols` under [currentDirectory]. A process
+/// whose working directory is the root -- a container started with no WORKDIR
+/// -- keeps them under [tempDirectory] rather than writing to `/`. The same
+/// rules the crash records follow, for the same reason: it has to survive the
+/// restart a deploy causes.
+String dvServerSymbolsDirectoryFor({
+  required String appId,
+  required Map<String, String> environment,
+  required String currentDirectory,
+  required String tempDirectory,
+}) {
+  final String declared = (environment['DARTVEL_SYMBOLS_DIR'] ?? '').trim();
+  if (declared.isNotEmpty) return declared;
+  String cwd = currentDirectory.trim();
+  while (cwd.length > 1 && (cwd.endsWith('/') || cwd.endsWith(r'\'))) {
+    cwd = cwd.substring(0, cwd.length - 1);
+  }
+  final bool root = cwd.isEmpty ||
+      cwd == '/' ||
+      cwd == r'\' ||
+      RegExp(r'^[A-Za-z]:\\?$').hasMatch(cwd);
+  return root ? '$tempDirectory/dartvel-symbols/$appId' : '$cwd/.dartvel/symbols';
+}
