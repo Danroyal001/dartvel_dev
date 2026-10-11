@@ -32,3 +32,18 @@ Contributions open once the API surface settles — concretely, once the section
 this project depends on are marked `Contract` rather than `Draft` in
 `docs/spec-status.json`. A contributor licence agreement will be required at
 that point, so that the licence can still be moved forward on everyone's behalf.
+
+## Running the database tests
+
+`packages/dartvel_core/test/mysql_adapter_test.dart` talks to a real MySQL or
+MariaDB and skips visibly when none is reachable. It reads the port from
+`DARTVEL_TEST_MYSQL_PORT` (default 3306), so a disposable container can sit
+next to a server that already uses 3306:
+
+```sh
+docker run -d --name dartvel-mysql-test -p 127.0.0.1:3307:3306 \
+  -e MARIADB_ROOT_PASSWORD=dartvel-root -e MARIADB_DATABASE=dartvel_test \
+  -e MARIADB_USER=dartvel -e MARIADB_PASSWORD=dartvel mariadb:11.8
+cd packages/dartvel_core
+DARTVEL_TEST_MYSQL_PORT=3307 dart test test/mysql_adapter_test.dart
+```

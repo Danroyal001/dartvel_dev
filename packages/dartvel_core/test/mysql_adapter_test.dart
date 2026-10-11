@@ -1,15 +1,21 @@
 // Runs against a real MySQL/MariaDB at localhost:3306 — no scripted server,
 // no fake. Skips visibly when none is reachable rather than passing silently.
 import 'dart:io';
+import 'dart:io' as io show Platform;
 
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
+
+// DARTVEL_TEST_MYSQL_PORT points the suite at a server that is not on the
+// default port, such as a disposable container next to a production MySQL.
+final int _port =
+    int.tryParse(io.Platform.environment['DARTVEL_TEST_MYSQL_PORT'] ?? '') ?? 3306;
 
 Future<bool> _reachable() async {
   try {
     final socket = await Socket.connect(
       '127.0.0.1',
-      3306,
+      _port,
       timeout: const Duration(seconds: 1),
     );
     await socket.close();
@@ -22,7 +28,7 @@ Future<bool> _reachable() async {
 void main() async {
   if (!await _reachable()) {
     test(
-      'mysql adapter (skipped: no MySQL at localhost:3306)',
+      'mysql adapter (skipped: no MySQL at localhost:$_port)',
       () {},
       skip: 'Start mariadb-server with a dartvel_test database to run these.',
     );
@@ -33,6 +39,7 @@ void main() async {
 
   setUp(() async {
     adapter = DVMySqlDatabaseAdapter(
+      port: _port,
       database: 'dartvel_test',
       user: 'dartvel',
       password: 'dartvel',
@@ -189,5 +196,37 @@ void main() async {
     expect(await cache.read('greeting'), <String, Object?>{'text': 'hello'});
     await cache.remove('greeting');
     expect(await cache.read('greeting'), isNull);
+  });
+
+  Future<String> cipherFor(DVSslMode mode) async {
+    final tls = DVMySqlDatabaseAdapter(
+      port: _port,
+      database: 'dartvel_test',
+      user: 'dartvel',
+      password: 'dartvel',
+      sslMode: mode,
+    );
+    try {
+      final rows = await tls.query("SHOW STATUS LIKE 'Ssl_cipher'");
+      return '${rows.single['Value']}';
+    } finally {
+      await tls.close();
+    }
+  }
+
+  test('prefer and require really upgrade to TLS and keep working', () async {
+    expect(await cipherFor(DVSslMode.prefer), isNotEmpty);
+    expect(await cipherFor(DVSslMode.require), isNotEmpty);
+  });
+
+  test('disable stays in plaintext', () async {
+    expect(await cipherFor(DVSslMode.disable), isEmpty);
+  });
+
+  test('verifyFull refuses a certificate that is not trusted', () async {
+    await expectLater(
+      cipherFor(DVSslMode.verifyFull),
+      throwsA(isA<HandshakeException>()),
+    );
   });
 }
