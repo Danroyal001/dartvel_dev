@@ -1,4 +1,4 @@
-## Unreleased
+## 0.12.0
 
 - **Breaking (paid runtimes):** `DVTelegramAuthProvider` and `DVTelegramInitDataValidator` moved to the private `dartvel_runtimes_pro` package (`package:dartvel_runtimes_pro/server.dart`) and need a paid plan from the next release; the generated backend installs the provider the package supplies for `dartvel.telegram`. 0.11.5 and earlier remain MIT.
 

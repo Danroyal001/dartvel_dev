@@ -1,7 +1,7 @@
 
 name: dartvel_core
 description: The pure-Dart runtime shared by Dartvel apps, servers and the CLI — records with history, auth, jobs, cache, notifications, privacy and webhooks.
-version: 0.11.5
+version: 0.12.0
 repository: https://github.com/Danroyal001/dartvel_dev
 homepage: https://dartvel.dev
 environment:
@@ -62,7 +62,14 @@ dev_dependencies:
 # AKIDEXAMPLE / wJalrXUtnFEMI...EXAMPLEKEY is what AWS publishes for verifying
 # a signing implementation, and the signature this suite asserts is only
 # reproducible with them.
+# Throwaway keys generated with openssl for the purchase, App Store and push
+# tests only (test/fixtures/play_store/NOTICE.txt, test/fixtures/fcm_test_key.dart).
+# They sign nothing real; no Apple, Google or Firebase account trusts them.
 false_secrets:
+  - /test/fixtures/app_store/test_only_*.key.pem
+  - /test/fixtures/app_store/test_only_offer_key.p8
+  - /test/fixtures/fcm_test_key.dart
+  - /test/fixtures/play_store/*.pem
   - /test/aws_sigv4_test.dart
   - /test/file_storage_test.dart
   - /test/mail_providers_test.dart

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
-## Unreleased
+## 0.12.0 — 2026-10-12
 
 - Fix: a control with both `.semanticButton()` and `.onTap()` was announced as two nested buttons, the outer one with no name. The tap control now carries the name and the button role alone. The `dartvel build` accessibility audit caught it on the docs pages' "On this page" entries.
 - **Breaking (accessibility):** everything hoverable now has a tooltip, and the tooltip is the control's name. Anything made with `.onTap()` / `.onPressed()` shows a tooltip on mouse hover, keyboard focus and long press, reads the same words to a screen reader, and (on the server-rendered page) carries them as `title` and `aria-label` on every link and button. A control with text takes it from its text; a control that is only an icon needs `.tooltip('...')` on its `DVModifier` (or `.semanticLabel()`), or must be a new `DVIconButton(icon:, label:, onPressed:)` whose `label` is required. An icon-only control with no name now throws in a debug build naming the file and line, and `dartvel build` fails (and `dartvel doctor` reports) on the same rule read from the source: `IconButton`, `FloatingActionButton` and `PopupMenuButton` without `tooltip:`, icon-only `DVModifier` controls, and icon-only `InkWell`/`GestureDetector` with no `Tooltip` around them. The generated page HTML for links and buttons gains `title`/`aria-label` attributes, so a build that diffs exact markup will see them.
