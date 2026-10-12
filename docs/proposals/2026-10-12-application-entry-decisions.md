@@ -18,8 +18,8 @@ Approved, with these changes:
 5. **Microcontrollers: Rust everywhere, with bindings.** Replace the shipped C/ESP-IDF output (dartvel_enterprise
    PR #3, `dartvel_targets_pro/lib/src/mcu/`) with Rust: screens compiled from Dartvel primitives (DVBox, DVText,
    DVModifier, signals) to Rust that drives LVGL through Rust bindings (`lvgl`/`lv_binding_rust` or equivalent),
-   on `esp-hal`/`esp-idf-svc` for ESP32 and Embassy for nRF/RP/STM32. `@DVDevice` (sensors, commands, transports)
-   from the proposal is added on top, also Rust. The rule stays: the app must be built entirely from Dartvel
+   on `esp-hal`/`esp-idf-svc` for ESP32 and Embassy for nRF/RP/STM32. The app itself is what runs on the board:
+   `DV.run` becomes the firmware's `main` (revised 13 Oct 2026; the `@DVDevice` design is withdrawn). The rule stays: the app must be built entirely from Dartvel
    primitives; anything else is a build error with file and line. MCU stays a paid target.
 6. **Open questions answered:** `@DVBoot`/`@DVAppRoot` as annotations — yes. Force-snapshot opt-in for a home
    widget — yes (`render: DVHomeWidgetRender.snapshot`). Bound keys — keep, ship with the Apple widget step.
