@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../build/node_runtime_bundle.dart';
+import '../analysis/conventions_check.dart';
 import '../analysis/tooltip_lint.dart';
 import '../build/accessibility_audit.dart';
 import '../build/studio_data.dart';
@@ -456,6 +457,9 @@ class BuildCommand extends Command<void> {
               'no SDK for the target: iOS and macOS build on a macOS worker. '
               'Prints the build log as it runs and downloads the artifacts '
               'into build/cloud/<target>. Needs a paid Dartvel Cloud plan.')
+      ..addFlag('strict',
+          defaultsTo: false,
+          help: 'Treat convention warnings (DV-CONV-xxx) as errors.')
       ..addOption('cloud-os',
           allowed: const <String>['linux', 'macos', 'windows'],
           help: 'With --cloud and web-server: the operating system of the '
@@ -723,6 +727,27 @@ class BuildCommand extends Command<void> {
         Logger.log('   $finding');
       }
       exit(78); // EX_CONFIG
+    }
+
+    // Convention checks: reported as warnings, or errors with --strict.
+    final bool strict = argResults?['strict'] == true;
+    final List<DVConventionFinding> conventionFindings =
+        dvScanProjectForConventions(root);
+    if (conventionFindings.isNotEmpty) {
+      if (strict) {
+        Logger.log('❌ ${conventionFindings.length} convention finding(s) '
+            '(DV-CONV-xxx):');
+        for (final f in conventionFindings) {
+          Logger.log('   $f');
+        }
+        exit(78); // EX_CONFIG
+      } else {
+        Logger.log('⚠ ${conventionFindings.length} convention warning(s) '
+            '(DV-CONV-xxx); use --strict to treat as errors:');
+        for (final f in conventionFindings) {
+          Logger.log('   $f');
+        }
+      }
     }
 
     // A call the build can see reaching a module operation declared

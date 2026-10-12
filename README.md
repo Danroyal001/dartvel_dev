@@ -146,6 +146,7 @@ explains one.
 dartvel create my_app              # alias: new
 dartvel init                       # add Dartvel to an existing Flutter project
 dartvel doctor
+`dartvel doctor --conventions`        # check DV-CONV-0xx convention rules
 dartvel doctor --target tizen      # check one target's toolchain
 
 # Develop: generation, hot reload, backend, native runtime, device pairing

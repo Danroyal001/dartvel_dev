@@ -21,7 +21,8 @@ what that means before building anything you have to keep.
 - **Rust and `cbindgen`** if you want the native backend runtime. Without them
   the native asset build skips with a message and the rest still works.
 - Platform toolchains only for the platforms you build. `dartvel doctor`
-  reports what is missing before you need it.
+  reports what is missing before you need it. `dartvel doctor --conventions`
+  checks DV-CONV-0xx rules; `dartvel build --strict` treats warnings as errors.
 
 ---
 
