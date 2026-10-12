@@ -77,6 +77,7 @@ const Map<String, Map<String, String>> dvDartvelDependencyConstraints =
     'dartvel_core': '^$dartvelPackageVersion',
     'jni': '^1.0.3',
     'dbus': '^0.7.15',
+    'http': '^1.6.0',
   },
 };
 
