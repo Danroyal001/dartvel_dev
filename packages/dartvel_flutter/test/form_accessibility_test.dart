@@ -216,7 +216,7 @@ void main() {
       // offers the action that moves the focus there for someone who cannot
       // press Tab.
       final SemanticsData focused = tester
-          .getSemantics(find.bySemanticsLabel('Save'))
+          .getSemantics(find.bySemanticsLabel('Save').first)
           .getSemanticsData();
       expect(focused.flagsCollection.isFocused.toBoolOrNull(), isTrue);
       expect(focused.hasAction(SemanticsAction.focus), isTrue);

@@ -36,6 +36,29 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'tooltips',
+          title: 'Everything hoverable has a tooltip',
+          children: <Widget>[
+            DocsText('There are no guess games. A control that can be pressed '
+                'or hovered tells a pointer, a keyboard and a screen reader '
+                'what it is, with one string.'),
+            Bullets(<String>[
+              'The tooltip shows on mouse hover, on keyboard focus and on a '
+                  'long press on touch.',
+              'The same words are the screen-reader name and, in the page '
+                  'served to a browser before the app starts, the element\'s '
+                  'title and aria-label.',
+              'A control that draws text takes the tooltip from the text. A '
+                  'control that is only an icon says what it is with '
+                  '.tooltip(\'Delete order\') on its modifier, or is a '
+                  'DVIconButton, whose label is a required parameter.',
+              'A control with no name stops the build: a debug '
+                  'build throws naming the file and line, and `dartvel build` '
+                  'fails with the same list. `dartvel doctor` reports it too.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'keyboard',
           title: 'Reach a form and a button from the keyboard',
           children: <Widget>[

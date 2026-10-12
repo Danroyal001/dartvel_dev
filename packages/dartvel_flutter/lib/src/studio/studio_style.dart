@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart'
-    show ColorScheme, Icon, IconData, Icons, Material, ThemeData, Tooltip;
+    show ColorScheme, Icon, IconData, Icons, Material, ThemeData;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
@@ -512,15 +512,8 @@ abstract final class DVStudioStyle {
   /// A tooltip needs an overlay to draw into. Studio is normally mounted in an
   /// application that has one, but it is a widget like any other and can be
   /// pumped without, and a label is not worth throwing over.
-  static Widget tooltip(String message, Widget child) => Builder(
-        builder: (BuildContext context) => Overlay.maybeOf(context) == null
-            ? child
-            : Tooltip(
-                message: message,
-                waitDuration: const Duration(milliseconds: 400),
-                child: child,
-              ),
-      );
+  static Widget tooltip(String message, Widget child) =>
+      DVTooltipTarget(label: message, required: false, child: child);
 }
 
 /// A button in Studio: the look of [DVStudioStyle.control], and the behaviour
@@ -615,15 +608,18 @@ class _DVStudioControlState extends State<DVStudioControl> {
               label: widget.label,
               onTap: widget.onTap,
               excludeSemantics: true,
-              child: DVStudioStyle.control(
+              child: DVStudioStyle.tooltip(
                 widget.label,
-                enabled: true,
-                primary: widget.primary,
-                icon: widget.icon,
-                // The ring is drawn by the control rather than taken from the
-                // theme, so it is the same on every surface Studio is drawn
-                // on: the canvas, a panel, a sheet.
-                focused: _focused,
+                DVStudioStyle.control(
+                  widget.label,
+                  enabled: true,
+                  primary: widget.primary,
+                  icon: widget.icon,
+                  // The ring is drawn by the control rather than taken from
+                  // the theme, so it is the same on every surface Studio is
+                  // drawn on: the canvas, a panel, a sheet.
+                  focused: _focused,
+                ),
               ),
             ),
           ),
@@ -762,7 +758,9 @@ class _DVStudioIconButtonState extends State<DVStudioIconButton> {
               label: widget.tooltip,
               onTap: widget.onTap,
               excludeSemantics: true,
-              child: button,
+              // Inside the node, so the tooltip is on the button without
+              // changing the shape of the semantics tree a reader is given.
+              child: DVStudioStyle.tooltip(widget.tooltip, button),
             ),
           ),
         ),

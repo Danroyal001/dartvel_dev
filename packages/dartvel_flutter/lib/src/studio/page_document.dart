@@ -588,8 +588,12 @@ extension DVPageDocumentSource on DVPageDocument {
     properties = dvStudioEffectiveProperties(node, properties);
     final action = node.action;
     if (action != null && action['type'] == 'navigate') {
-      source =
-          "$source.onPressed(DV.Navigation.to(const DVRouteTarget('${_escape('${action['to']}')}')))";
+      // Words on the node name it; otherwise the action says where it goes.
+      final String name = dvStudioNodeHasText(properties)
+          ? ''
+          : ".tooltip('${_escape(dvStudioActionName(node, properties))}')";
+      source = "$source$name"
+          ".onPressed(DV.Navigation.to(const DVRouteTarget('${_escape('${action['to']}')}')))";
       any = true;
     }
     // Every style, from the table the renderer applies. Written out here as
@@ -825,6 +829,9 @@ Widget dvStudioStyled(
 
   final action = node.action;
   if (withAction && action != null && action['type'] == 'navigate') {
+    if (!dvStudioNodeHasText(properties)) {
+      modifier = modifier.tooltip(dvStudioActionName(node, properties));
+    }
     modifier = modifier.onPressed(
       DV.Navigation.to(DVRouteTarget('${action['to']}')),
     );
@@ -835,6 +842,21 @@ Widget dvStudioStyled(
   if (built is DVText) return built.modifier(modifier);
   if (built is DVBox) return built.modifier(modifier);
   return DVBox(built).modifier(modifier);
+}
+
+/// Whether the node draws words, which then name it with no help.
+bool dvStudioNodeHasText(Map<String, Object?> properties) =>
+    '${properties['text'] ?? ''}'.trim().isNotEmpty;
+
+/// What a node's action is called: its own words if it has any, else where it
+/// goes. Everything a person can press says what it is, so a box or an image
+/// someone linked in Studio is never a nameless target.
+String dvStudioActionName(DVPageNode node, Map<String, Object?> properties) {
+  for (final String key in <String>['label', 'text', 'alt']) {
+    final Object? value = properties[key];
+    if (value != null && '$value'.trim().isNotEmpty) return '$value'.trim();
+  }
+  return 'Go to ${node.action?['to']}';
 }
 
 const Map<Object?, FontWeight> _fontWeights = <Object?, FontWeight>{
