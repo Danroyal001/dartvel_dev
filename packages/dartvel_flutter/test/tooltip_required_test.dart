@@ -6,6 +6,7 @@
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -148,5 +149,31 @@ void main() {
       expect(dvStudioActionName(image, <String, Object?>{'alt': 'Pricing table'}),
           'Pricing table');
     });
+  });
+
+  testWidgets(
+      'semanticButton() with onTap is one named button, not a nameless one '
+      'wrapped around a named one', (WidgetTester tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(_app(
+      DVText('Deploy with dartvel deploy').modifier(
+        DVModifier().semanticButton().onTap(() {}),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final List<SemanticsData> buttons = <SemanticsData>[];
+    void visit(SemanticsNode node) {
+      final SemanticsData data = node.getSemanticsData();
+      if (data.flagsCollection.isButton) buttons.add(data);
+      node.visitChildren((SemanticsNode child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(tester.getSemantics(find.byType(MaterialApp)).owner!.rootSemanticsNode!);
+    expect(buttons.map((SemanticsData data) => data.label).toList(),
+        <String>['Deploy with dartvel deploy']);
+    handle.dispose();
   });
 }
