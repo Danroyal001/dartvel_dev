@@ -133,8 +133,8 @@ generates and which never pass through `main` boot exactly the same way.
 
 `DV.run` starts more than an app. It starts a server, a queue worker, a cron
 process, a command-line tool, a headless home-widget refresh, a background job
-woken by a push message, and the host side of a microcontroller fleet. Most of
-those have no widgets, so naming the function after `runApp` would describe the
+woken by a push message, and — compiled rather than executed — the firmware of
+a microcontroller. Most of those have no widgets, so naming the function after `runApp` would describe the
 one case in which it is least needed.
 
 There is no `DV.runApp`, `DV.runServer` or `DV.runHeadless`. One function reads
@@ -390,7 +390,7 @@ The table is the contract. Each row says which entries a target has, what
 | Horizon OS, visionOS, Android XR | app (panels), plus Android's entries on Horizon | as the base platform | `Experimental` |
 | Wear OS | app, homeWidget (Tiles), background, push | `FlutterActivity` | `Experimental` |
 | watchOS | complications only (below) | none — no Flutter embedder | `Unsupported` → complications |
-| Microcontrollers | none — see *Microcontrollers* | none | `Designed` |
+| Microcontrollers (`mcu`) | app, compiled to firmware — see *Microcontrollers* | LVGL display, drawn by generated firmware | `Partial` |
 
 ### Android and Fire OS
 
@@ -589,60 +589,60 @@ device.
 
 Stability: `Draft` · Status: `Partial`
 
-**Dartvel code does not run on a microcontroller, and this section does not
-pretend otherwise.** Dart's runtimes — the VM and AOT alike — need an operating
-system with virtual memory and megabytes of RAM; there is no Dart target for
-Cortex-M, ESP32 or RISC-V microcontrollers. `dart2wasm` emits WebAssembly with
-the garbage-collection proposal, which the WebAssembly runtimes that fit on a
-microcontroller do not run reliably. A board that runs Linux (Cortex-A: a
-Raspberry Pi, an i.MX module) is not a microcontroller; it is an embedded Linux
-target and `DV.run` runs on it normally.
+A microcontroller target runs **the application itself**, compiled rather than
+executed. Dart's runtimes — the VM and AOT alike — need an operating system with
+virtual memory and megabytes of RAM, and there is no Dart target for Cortex-M,
+ESP32 or RISC-V microcontrollers, so `dartvel build mcu` does not ship a Dart
+runtime to the board: it compiles the application's entry, pages and signals to
+Rust firmware. A board that runs Linux (Cortex-A: a Raspberry Pi, an i.MX
+module) is not a microcontroller; it is an embedded Linux target and `DV.run`
+runs on it as it does on any desktop.
 
-What Dartvel does with a microcontroller is what an application actually needs
-from one: **treat it as a device in the application**, declared in Dart, with
-its firmware generated and its interface typed.
+`main` is the same one line:
 
 ```dart
-@DVDevice(
-  boards: <DVBoard>[DVBoard.esp32c3, DVBoard.rp2350],
-  transports: <DVDeviceTransport>[DVDeviceTransport.ble, DVDeviceTransport.wifi],
-)
-abstract class _Thermostat {
-  @DVDevice.sensor(every: Duration(seconds: 30))
-  double get temperature;
-
-  @DVDevice.command()
-  Future<void> setHeating(bool on);
-}
+void main(List<String> args) => DV.run(args);
 ```
 
-- **The firmware is generated**, in Rust on Embassy (nRF, RP, STM32) and
-  `esp-hal` (ESP32), from the declaration and a board profile. Rust is already
-  a Dartvel implementation language under `native/`; custom drivers live in
-  `native/mcu/<device>/` and are linked, never edited into generated code.
-  The firmware's `main` is generated — it is the device's counterpart of
-  `DV.run`, with its own boot sequence (watchdog, transport, pairing, telemetry
-  loop) and no Dart in it.
-- **The host side is a module.** `DV.Modules.thermostat` is the generated typed
-  client, used from an app (over BLE or the local network) or from the backend
-  (over MQTT or HTTP ingest). Telemetry lands as a generated data model through
-  the backend, so it is policy-checked, tenant-scoped and synced like any other
-  model; commands are typed calls with the authorization of a backend function.
-- **Screens.** A device with a display shows pages built **entirely from
-  Dartvel primitives** — `DVBox`, `DVText`, `DVModifier` and signals. `dartvel
-  build mcu` compiles them to Rust that draws with LVGL through Rust bindings
-  (on `esp-hal`/`esp-idf-svc` for ESP32, Embassy elsewhere); signals become
-  device state, derived signals functions, `onTap` an LVGL event. Anything
-  else in a page is a build error naming the file and line, not a blank
-  screen. The first board is the ESP32-S3-BOX-3; the first release of this
-  target emitted C, and all firmware output is Rust from here on (owner's
-  decision, 12 Oct 2026). `@DVDevice.screen()` binds such a page to device
-  state.
+and on an `mcu` build that line becomes the firmware's `main`. The boot is the
+sequence above, lowered to what a microcontroller has:
+
+| Phase | On a microcontroller |
+|---|---|
+| 1 | hardware watchdog armed; log sink (serial/RTT) opened; generated configuration compiled in |
+| 3 | board drivers and storage (flash key-value) brought up from the board profile |
+| 4 | `@DVBoot` functions that the compiler can lower; any other is a build error |
+| 5 | LVGL started; the first route's screen built |
+| 6 | `ready` when the first frame has been flushed to the display |
+| 8 | there is no shutdown; power loss is the only exit, so state is written as it changes |
+
+The only entry is `app`. There is no home widget, push, background or worker
+entry on a microcontroller, and asking for one is `DV-RUN-005`.
+
+- **Pages are built entirely from Dartvel primitives** — `DVBox`, `DVText`,
+  `DVModifier` and signals — and compile to Rust that draws with LVGL through
+  Rust bindings (`esp-hal`/`esp-idf-svc` on ESP32, Embassy on nRF, RP and STM32).
+  Routes become screens, signals become firmware state, derived signals become
+  functions, and `onTap` becomes an LVGL event. Anything else in a page is a
+  build error naming the file and line, never a blank screen.
+- **Rust everywhere.** All firmware output is Rust; the first release of this
+  target emitted C, and that output is retired (owner's decision, 12 Oct 2026).
+  Custom drivers are Rust under `native/mcu/` and are linked through bindings,
+  never edited into generated code.
+- **Boards.** The first board is the ESP32-S3-BOX-3. A board is a profile (chip,
+  display, touch, flash, pins) under `dartvel.mcu.board` in `pubspec.yaml`; the
+  build checks the application against it before generating anything.
 - **Firmware updates** are signed bundles delivered through the same channels
   and staged rollout as OTA patches.
 
+```yaml
+dartvel:
+  mcu:
+    board: esp32-s3-box-3   # the default
+```
+
 ```bash
-dartvel build mcu --device thermostat --board esp32c3
+dartvel build mcu
 dartvel doctor --target mcu
 ```
 
@@ -651,10 +651,10 @@ Flutter-supported platform.
 
 | Code | Reason | Level |
 |---|---|---|
-| `DV-MCU-001` | Dart code is reachable from a device declaration's firmware; it cannot run there | build `error` |
-| `DV-MCU-002` | the board profile lacks a capability the declaration uses | build `error` |
-| `DV-MCU-003` | firmware and host disagree on the device protocol version | `error` |
-| `DV-MCU-004` | a screen uses a widget that cannot be lowered for the device | build `error` |
+| `DV-MCU-001` | code reachable from a page or `@DVBoot` function cannot be lowered to firmware (the call is named) | build `error` |
+| `DV-MCU-002` | the board profile lacks a capability the application uses (display, touch, storage) | build `error` |
+| `DV-MCU-003` | the firmware does not fit the board's flash or RAM; the largest screens are listed | build `error` |
+| `DV-MCU-004` | a page uses a widget that is not a Dartvel primitive and cannot be drawn with LVGL | build `error` |
 
 
 ## Configuration
@@ -699,7 +699,8 @@ someone can reproduce.
 - **Dartvel owning `main.dart`.** It is the application's file. Brownfield hosts
   and adopted projects own their entry, and a framework that regenerated it
   would be overwriting somebody's code.
-- **Dart on a microcontroller.** Covered above.
+- **A Dart runtime on a microcontroller.** The application is compiled to Rust
+  firmware instead; covered above.
 - **A boot that waits on the network.** Covered above.
 
 
