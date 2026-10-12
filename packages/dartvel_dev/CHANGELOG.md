@@ -1,3 +1,7 @@
+## 0.12.0
+
+- Released with the rest of Dartvel 0.12.0; see the repository CHANGELOG.
+
 ## 0.11.5
 
 - Version alignment with Dartvel 0.11.5.
