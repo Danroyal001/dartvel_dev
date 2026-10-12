@@ -2742,18 +2742,25 @@ class DVBox<T> extends StatelessWidget {
       );
     }
 
-    if (m?.semanticLabelValue != null ||
+    // A tappable control already carries its name and its button role on the
+    // pressable's own node. Declaring them again here wrapped that node in a
+    // second, nameless button -- a reader heard "button" twice and the
+    // accessibility audit failed the build on it.
+    final bool pressable = m?.onTapCallback != null;
+    final String? outerLabel = pressable ? null : m?.semanticLabelValue;
+    final bool? outerButton = pressable ? null : m?.semanticButtonValue;
+    if (outerLabel != null ||
         m?.semanticHintValue != null ||
-        m?.semanticButtonValue != null ||
+        outerButton != null ||
         m?.semanticHeadingValue != null ||
         m?.semanticRoleValue != null) {
       result = Semantics(
-        label: m?.semanticLabelValue,
+        label: outerLabel,
         hint: m?.semanticHintValue,
-        button: m?.semanticButtonValue,
+        button: outerButton,
         headingLevel: m?.semanticHeadingValue,
         identifier: m?.semanticRoleValue,
-        excludeSemantics: m?.semanticLabelValue != null,
+        excludeSemantics: outerLabel != null,
         child: result,
       );
       if (m?.semanticHeadingValue != null) {
@@ -3937,10 +3944,16 @@ class DVText extends StatelessWidget {
     // words are one node: unmerged, a screen reader announces "heading" and
     // then the text, and anything reading the tree sees a heading with no
     // name.
+    // A pressable text already carries its name and its button role on the
+    // pressable's own node; declaring them again here nested a second button
+    // around it, and a reader heard the control twice.
+    final bool textPressable = modifier != null &&
+        modifier.onTapCallback != null &&
+        modifier.inputValue == false;
     if (modifier != null &&
-        (modifier.semanticLabelValue != null ||
+        ((!textPressable && modifier.semanticLabelValue != null) ||
             modifier.semanticHintValue != null ||
-            modifier.semanticButtonValue != null ||
+            (!textPressable && modifier.semanticButtonValue != null) ||
             modifier.semanticHeadingValue != null ||
             modifier.semanticRoleValue != null)) {
       // A role has to name the node itself. Merging the text's own node into
@@ -3952,12 +3965,15 @@ class DVText extends StatelessWidget {
       final bool ownsLabel = modifier.semanticRoleValue != null &&
           modifier.semanticLabelValue == null;
       result = Semantics(
-        label: ownsLabel ? text : modifier.semanticLabelValue,
+        label: ownsLabel
+            ? text
+            : (textPressable ? null : modifier.semanticLabelValue),
         hint: modifier.semanticHintValue,
-        button: modifier.semanticButtonValue,
+        button: textPressable ? null : modifier.semanticButtonValue,
         headingLevel: modifier.semanticHeadingValue,
         identifier: modifier.semanticRoleValue,
-        excludeSemantics: ownsLabel || modifier.semanticLabelValue != null,
+        excludeSemantics: ownsLabel ||
+            (!textPressable && modifier.semanticLabelValue != null),
         child: result,
       );
       // Merged only when the node does not already own its text. A
