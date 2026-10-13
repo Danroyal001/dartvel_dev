@@ -402,7 +402,7 @@ Widget _aboutPage(BuildContext context) => const DVBox.list(<Widget>[
 
 The annotated function is private. Dartvel generates the public route from it.
 
-### 5. Declare a model
+### 5. Declare a data model
 
 ```dart
 // lib/models/article.dart
@@ -431,6 +431,12 @@ Widget composer() => Article.Form();
 Widget editor(Article article) => article.Form();
 Widget table(List<Article> articles) => Article.Table(articles);
 ```
+
+When adding a field, declare a default such as `final String storyJson = ''`.
+Older records read that default when the stored value is missing or null,
+on SQL and document stores. `dartvel db migrate` also backfills literal SQL
+defaults. A required field without a default fails with the data model,
+field and record key named; backfill those records deliberately.
 
 ### 6. Write a backend function
 
