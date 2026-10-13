@@ -102,6 +102,18 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
               'files.',
           'On SQLite it creates missing tables and adds missing columns. It '
               'never drops a column.',
+          'When adding a data model field, declare a default, for example '
+              "final String storyJson = ''. Older records read that default "
+              'when the field is missing or null; existing values are kept. '
+              'Primary constructors, classic optional constructor parameters '
+              'and field initializers preserve their declared defaults.',
+          'Literal text, number and boolean defaults also become SQL DEFAULT '
+              'values when a column is added. DateTime expressions stay reader '
+              'fallbacks, and encrypted fields never receive plaintext SQL '
+              'defaults. The reader fallback works on document stores too.',
+          'A required field without a default fails on a missing or null '
+              'stored value, naming the data model, field and record key. '
+              'Declare a default or backfill the existing records deliberately.',
           'On Postgres and MySQL it writes .dart_tool/dartvel_migration.sql '
               'for you to apply.',
         ]),

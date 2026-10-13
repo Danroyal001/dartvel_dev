@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+- Adding a data model field with a declared default now reads older missing or null values through that default, preserving existing zero, false and empty values. Primary constructor defaults, classic optional constructor defaults and field initializers are retained; generated SQL migrations backfill literal defaults. Required fields without a default fail with the data model, field and record key in the error. Encrypted fields never receive plaintext SQL defaults.
+
 ## 0.12.0 — 2026-10-12
 
 - Fix: a control with both `.semanticButton()` and `.onTap()` was announced as two nested buttons, the outer one with no name. The tap control now carries the name and the button role alone. The `dartvel build` accessibility audit caught it on the docs pages' "On this page" entries.
