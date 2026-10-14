@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+- Every password field in every Dartvel app now has the same show/hide control, including Studio's sign-in, its first-run setup and its record editor's write-only fields, which had none. It is one toggle button named "Show password" (also its tooltip) with a pressed state: `aria-pressed` on the web, the toggled state elsewhere. **Changed:** it no longer renames itself "Hide password" once pressed, so a test that looked for that label should look for the pressed state instead. In Studio's sign-in, Tab from the password now reaches the eye before Sign in, as it already did in forms.
+- The server-rendered HTML now carries a page's form fields: each captured text field is a labelled `<input>` (or `<textarea>`) with `data-dv-field`, and a password input carries the eye as a real `<button aria-pressed>` that works before Flutter has loaded. Studio's sign-in and setup documents carry their fields too. When Flutter takes over, a field keeps what was typed into the document and whether it was revealed, and the document's input is emptied. With scripting off the document's eye is hidden, since it cannot work there.
+
 ## 0.12.1 — 2026-10-14
 
 - Adding a data model field with a declared default now reads older missing or null values through that default, preserving existing zero, false and empty values. Primary constructor defaults, classic optional constructor defaults and field initializers are retained; generated SQL migrations backfill literal defaults. Required fields without a default fail with the data model, field and record key in the error. Encrypted fields never receive plaintext SQL defaults.

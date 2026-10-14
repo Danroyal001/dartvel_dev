@@ -80,7 +80,8 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                   'moves to the next field and submits from the last one.',
               'A refused save is announced in a live region, written under the '
                   'field it names, and given the focus.',
-              'A password field starts with a Show password control, which can '
+              'A password field starts with a Show password toggle button, '
+                  'in the server-rendered page as well as the app, which can '
                   'be turned off or replaced. See Forms.',
             ]),
           ],
