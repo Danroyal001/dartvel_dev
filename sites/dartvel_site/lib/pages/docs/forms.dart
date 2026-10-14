@@ -152,8 +152,15 @@ Widget _docsFormsPage(BuildContext context) => const DocsArticle(
           'visibilityToggle: .custom(builder) draws yours. The builder is '
               'given whether the field is obscured and the way to change '
               'that, so it cannot get the state wrong.',
-          'The control is named for what it does right now, so a reader is '
-              'not told to hide a password that is already showing.',
+          'The control keeps one name, Show password, which is also its '
+              'tooltip, and says whether it is pressed. A screen reader '
+              'hears "Show password, toggle button, pressed" while the '
+              'password is showing.',
+          'It is there before the app has loaded. The page the server '
+              'sends has the form\'s fields and the same button, and what '
+              'is typed there is kept when the app takes over.',
+          'Every password field in Dartvel has it: forms, the sign-in '
+              'and account pages, and Studio\'s sign-in and setup.',
         ]),
       ],
     ),

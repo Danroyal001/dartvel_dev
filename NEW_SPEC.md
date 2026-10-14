@@ -2064,8 +2064,26 @@ mistype and least able to reach for a mouse, and a field that cannot be read
 back cannot be corrected without losing everything typed into it.
 
 The control is a button, not an icon: Tab reaches it and Enter or Space
-presses it, and its label says what pressing it will do right now — "Show
-password" until the value is showing, "Hide password" after.
+presses it. It is a toggle button in the ARIA sense: one name, "Show
+password", which is also its tooltip, and a pressed state for whether the
+value is showing (`aria-pressed` on the web, the platform's toggled state
+elsewhere). It does not rename itself "Hide password" once pressed: a screen
+reader would then read an instruction where it should read a state.
+
+Every hidden field in every Dartvel app has the same control: a form's
+password and sensitive fields, the prebuilt account pages, and Studio's
+sign-in, first-run setup and record editor.
+
+It works before Flutter has painted. A page's server-rendered document
+carries its fields as labelled inputs, and a password input carries the same
+eye -- `<button type="button" aria-pressed="false" aria-label="Show password"
+title="Show password">` -- which flips the field with a few characters of
+inline script. When the app takes over, each field picks up what was typed
+into the document's input of the same label and whether its eye was pressed,
+so nothing typed early is lost, and the document's input is emptied. With
+scripting off the document's eye is not drawn, since it could not work;
+signing in from the document alone also needs the app, because the auth
+endpoints require the CSRF header its transport sends.
 
 `DVVisibilityToggle` is the option, on the field and as a form-wide default:
 

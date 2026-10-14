@@ -87,6 +87,7 @@ import 'src/studio/page_document.dart';
 import 'src/studio/studio_app_shortcuts.dart' show DVStudioAppShortcuts;
 import 'src/studio/studio_host.dart' show DVPagePreviewScope;
 import 'src/widgets/browser_menu.dart';
+import 'src/widgets/password_reveal.dart';
 import 'src/windowing/window.dart';
 
 export 'package:dartvel_core/dartvel.dart'
@@ -3706,9 +3707,39 @@ class _DVInputField extends StatefulWidget {
   State<_DVInputField> createState() => _DVInputFieldState();
 }
 
-class _DVInputFieldState extends State<_DVInputField> {
+class _DVInputFieldState extends State<_DVInputField>
+    with DVPasswordRevealState<_DVInputField> {
   late final TextEditingController _controller =
       TextEditingController(text: widget.value);
+
+  @override
+  void initState() {
+    super.initState();
+    // A password field the server rendered may already hold what the person
+    // typed before Flutter painted: kept, and handed to the form as an edit,
+    // since that is what it was.
+    final String? label = widget.modifier.inputLabelValue;
+    if (label == null) return;
+    // A readable field holding a record's value keeps it: only a field that
+    // starts empty, or a password field, which always does, is one a person
+    // could have been typing into.
+    if (!widget.modifier.inputObscureText) {
+      if (_controller.text.isNotEmpty) return;
+      dvTakeOverServerField(label, _controller);
+      final String typed = _controller.text;
+      if (typed.isEmpty) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.modifier.inputChanged?.call(typed);
+      });
+      return;
+    }
+    final String? typed = takeOverServerField(label);
+    if (typed == null) return;
+    _controller.text = typed;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.modifier.inputChanged?.call(typed);
+    });
+  }
 
   /// Named for the label the field is drawn with, so a form can put the focus
   /// back on the field a refused save named.
@@ -3717,12 +3748,8 @@ class _DVInputFieldState extends State<_DVInputField> {
     skipTraversal: false,
   );
 
-  /// Whether the value in an obscured field is showing. A field that is not
-  /// obscured has no reason to hold this.
-  bool _revealed = false;
-
   _DVFormScopeState? _scope;
-  bool get _obscure => widget.modifier.inputObscureText && !_revealed;
+  bool get _obscure => widget.modifier.inputObscureText && !revealed;
 
   @override
   void didChangeDependencies() {
@@ -3754,7 +3781,7 @@ class _DVInputFieldState extends State<_DVInputField> {
     }
     // A field that stopped obscuring its value has nothing to reveal, so the
     // eye goes with it rather than sitting there over readable text.
-    if (!widget.modifier.inputObscureText) _revealed = false;
+    if (!widget.modifier.inputObscureText) revealed = false;
   }
 
   @override
@@ -3766,7 +3793,6 @@ class _DVInputFieldState extends State<_DVInputField> {
     super.dispose();
   }
 
-  void _reveal() => setState(() => _revealed = !_revealed);
 
   /// Enter in this field: on to the next one, or the form's own submit.
   ///
@@ -3794,12 +3820,9 @@ class _DVInputFieldState extends State<_DVInputField> {
     final DVVisibilityToggle toggle = modifier.inputVisibilityToggle;
     if (toggle is DVNoneVisibilityToggle) return null;
     if (toggle is DVCustomVisibilityToggle) {
-      return toggle.builder(context, _obscure, _reveal);
+      return toggle.builder(context, _obscure, toggleRevealed);
     }
-    return _DVVisibilityEyeButton(
-      obscured: _obscure,
-      onPressed: _reveal,
-    );
+    return DVPasswordReveal(revealed: revealed, onPressed: toggleRevealed);
   }
 
   @override
@@ -3837,46 +3860,6 @@ class _DVInputFieldState extends State<_DVInputField> {
       onSubmitted: modifier.inputSubmitted == null && scope == null
           ? null
           : _onSubmitted,
-    );
-  }
-}
-
-/// The eye that reveals a password, saying what pressing it will do.
-///
-/// A button, not an icon: an icon inside a field that only a pointer can reach
-/// is the same picture-of-a-control the rest of this work removed, and the
-/// person who most needs to check a password is often the one typing with a
-/// keyboard. Its label changes with what it does, because a control labelled
-/// "show password" that is currently showing one is a control lying.
-class _DVVisibilityEyeButton extends StatelessWidget {
-  const _DVVisibilityEyeButton({
-    required this.obscured,
-    required this.onPressed,
-  });
-
-  final bool obscured;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final String label = obscured ? 'Show password' : 'Hide password';
-    return Semantics(
-      button: true,
-      label: label,
-      excludeSemantics: true,
-      child: IconButton(
-        onPressed: onPressed,
-        icon: Icon(
-          obscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-          size: 20,
-        ),
-        tooltip: label,
-        visualDensity: VisualDensity.compact,
-        // The keyboard's own affordance: the ring Material draws around a
-        // focused button, which this field's own decoration would otherwise
-        // cover with its label.
-        focusColor: Theme.of(context).focusColor,
-      ),
     );
   }
 }
@@ -8347,6 +8330,13 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
   final _password = TextEditingController();
   final _code = TextEditingController();
 
+  @override
+  void initState() {
+    super.initState();
+  // What was typed into the server-rendered form before the app painted.
+    dvTakeOverServerField('Email', _email);
+  }
+
   /// Whether the password was accepted and the account's second factor is
   /// being asked for.
   bool _awaitingCode = false;
@@ -8644,22 +8634,22 @@ class _DVPasswordField extends StatefulWidget {
 }
 
 class _DVPasswordFieldState extends State<_DVPasswordField> {
-  /// Whether what was typed is showing. Off until somebody asks.
-  bool _revealed = false;
-
   @override
-  Widget build(BuildContext context) {
-    final bool obscured = !_revealed;
+  Widget build(BuildContext context) => DVPasswordRevealBuilder(
+        label: widget.label,
+        controller: widget.controller,
+        builder: (BuildContext context, bool obscured, Widget eye) =>
+            _field(obscured, eye),
+      );
+
+  Widget _field(bool obscured, Widget eye) {
     return TextField(
       key: widget.fieldKey,
       controller: widget.controller,
       decoration: InputDecoration(
         labelText: widget.label,
         errorText: widget.errorText,
-        suffixIcon: _DVVisibilityEyeButton(
-          obscured: obscured,
-          onPressed: () => setState(() => _revealed = !_revealed),
-        ),
+        suffixIcon: eye,
       ),
       obscureText: obscured,
       keyboardType: TextInputType.visiblePassword,
@@ -9158,6 +9148,14 @@ class _SignUpPageState extends State<_SignUpPage> {
   final TextEditingController _name = TextEditingController();
   final TextEditingController _email = TextEditingController();
   final TextEditingController _password = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+  // What was typed into the server-rendered form before the app painted.
+    dvTakeOverServerField('Name (optional)', _name);
+    dvTakeOverServerField('Email', _email);
+  }
   bool _busy = false;
   bool _done = false;
   String? _error;
