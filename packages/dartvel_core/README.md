@@ -7,9 +7,10 @@ command.
 Data models and their records, history and retention; the database, cache and
 queue adapters; authentication providers and the authorization registry; mail
 and notifications; privacy erasure and export; outbound webhooks; the offline
-store; logging, metrics and traces; and the HTTP wire types both sides of a
-request share. Nothing here imports Flutter, so a `dartvel build web-server`
-binary, a queue worker and the CLI can all depend on it.
+store; logging, metrics and traces; inbound host-based routing; and the HTTP
+wire types both sides of a request share. Nothing here imports Flutter, so a
+`dartvel build web-server` binary, a queue worker and the CLI can all depend
+on it.
 
 ## Who depends on it directly
 

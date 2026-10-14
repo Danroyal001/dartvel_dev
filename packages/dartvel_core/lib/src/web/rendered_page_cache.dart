@@ -101,7 +101,7 @@ bool dvMayCacheRenderedPage(
 
 /// Every request input is included conservatively. Conditional validators
 /// don't change the document and must not create a separate entry.
-String dvRenderedPageKey(String site, Uri uri, Map<String, String> headers) {
+String dvRenderedPageKey(String site, Uri uri, Map<String, String> headers, {String? host}) {
   final variants = <String, String>{
     for (final e in headers.entries)
       if (!const {
@@ -112,6 +112,7 @@ String dvRenderedPageKey(String site, Uri uri, Map<String, String> headers) {
   };
   final keys = variants.keys.toList()..sort();
   return jsonEncode([
+    if (host != null) 'host:$host',
     site,
     uri.toString(),
     for (final k in keys) [k, variants[k]],
