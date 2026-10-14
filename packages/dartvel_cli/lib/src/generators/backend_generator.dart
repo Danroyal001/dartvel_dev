@@ -443,6 +443,7 @@ class BackendGenerator {
   }) async {
     final backendOut = Directory(p.join(root, '.dart_tool'));
     final libClientDir = Directory(p.join(root, 'lib', 'dartvel_client'));
+    final List<String> declaredModels = dvDeclaredModelNames(root);
     await _validateMiddlewareAnnotations(root);
     // dartvel.webhooks and the declared webhook events, read before anything
     // is written: a block the runtime could not honour (DV-WEBHOOK-009) or an
@@ -1080,7 +1081,7 @@ import 'package:$pkgName/dartvel_client/privacy.g.dart' show configureDartvelBac
 import 'package:$pkgName/dartvel_client/jobs.g.dart' show dartvelClientOnlyJobHandlers, registerDartvelJobs;
 import 'package:$pkgName/dartvel_client/backend_policies.g.dart' show dartvelRegisterBackendPolicies, dartvelOfflineResources;
 ${authenticates ? "import 'package:$pkgName/dartvel_client/platform_api.g.dart' show dartvelPlatformApi;\n" : ''}${backendImports.join('\n')}
-${dvModuleRpcImports(moduleRpcRoutes)}
+${declaredModels.isEmpty ? '' : "import 'package:$pkgName/dartvel_client/models.g.dart';\n"}${dvModuleRpcImports(moduleRpcRoutes)}
 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
 const String _dvOpenApiJson = r\'\'\'
@@ -1513,7 +1514,7 @@ ${backendEntries.map((e) {
           for (var idx = 0; idx < tparams.length; idx++) {
             final pn = tparams[idx];
             final pt = idx < ttypes.length ? ttypes[idx] : '';
-            final expr = RouteUtils.coerce(pn, pt);
+            final expr = RouteUtils.coerce(pn, pt, declaredModels: declaredModels);
             argList.add(tnamed ? ('$pn: $expr') : expr);
           }
           // The injected context, first and positional, ahead of whatever the
@@ -2588,7 +2589,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     // declared nowhere an application file imports -- it is generated -- so
     // the imports above never find one, and a function returning Post
     // compiled against dartvel_core's @Post annotation instead.
-    final List<String> declaredModels = dvDeclaredModelNames(root);
+
     final Set<String> clientModelTypes = <String>{};
     for (final e in backendEntries) {
       final method = e['method']!;
@@ -2810,6 +2811,19 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
             if (tt == 'bool') {
               return "(v) => (v is bool) ? (v as bool) : ((v?.toString().toLowerCase() ?? '') == 'true')";
             }
+            final bare = tt.replaceAll('?', '');
+            if (declaredModels.contains(bare)) {
+              if (tt.endsWith('?')) {
+                return "(v) => v == null ? null : ${bare}Parser.fromJson(Map<String, Object?>.from(v as Map))";
+              }
+              return "(v) => ${bare}Parser.fromJson(Map<String, Object?>.from(v as Map))";
+            }
+            if (tt.startsWith('List<') && tt.endsWith('>')) {
+              final inner = tt.substring(5, tt.length - 1).replaceAll('?', '');
+              if (declaredModels.contains(inner)) {
+                return "(v) => (v as List).map((e) => ${inner}Parser.fromJson(Map<String, Object?>.from(e as Map))).toList() as $t";
+              }
+            }
             return '';
           }
 
@@ -2857,14 +2871,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           );
           if (isGetOrHead) {
             sbClient.writeln('  final reqPayload = body;');
-          } else if (method == 'post') {
-            sbClient.writeln(
-              '  final reqPayload = (body is DartvelFormData) ? body : (body == null ? DartvelFormData.fromMap(fb) : (body is Map<Object?, Object?> ? DartvelFormData.fromMap(Map<String, Object?>.from(body)) : body));',
-            );
           } else {
-            sbClient.writeln(
-              '  final reqPayload = (body is DartvelFormData) ? body : (body ?? fb);',
-            );
+            sbClient.writeln('  final reqPayload = body ?? fb;');
           }
           if (convExprStream.isEmpty) {
             sbClient.writeln(
@@ -2916,6 +2924,19 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
             if (tt.startsWith('Map<String,dynamic') ||
                 tt.startsWith('Map<String,Object')) {
               return 'Map<String, Object?>.from(r.data as Map<Object?, Object?>)';
+            }
+            final bare = tt.replaceAll('?', '');
+            if (declaredModels.contains(bare)) {
+              if (tt.endsWith('?')) {
+                return "r.data == null ? null : ${bare}Parser.fromJson(Map<String, Object?>.from(r.data as Map))";
+              }
+              return "${bare}Parser.fromJson(Map<String, Object?>.from(r.data as Map))";
+            }
+            if (tt.startsWith('List<') && tt.endsWith('>')) {
+              final inner = tt.substring(5, tt.length - 1).replaceAll('?', '');
+              if (declaredModels.contains(inner)) {
+                return "(r.data as List).map((e) => ${inner}Parser.fromJson(Map<String, Object?>.from(e as Map))).toList() as $t";
+              }
             }
             // Fallback: require a mapper
             return '';
@@ -2971,14 +2992,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           );
           if (isGetOrHead) {
             sbClient.writeln('  final reqPayload = body;');
-          } else if (method == 'post') {
-            sbClient.writeln(
-              '  final reqPayload = (body is DartvelFormData) ? body : (body == null ? DartvelFormData.fromMap(fb) : (body is Map<Object?, Object?> ? DartvelFormData.fromMap(Map<String, Object?>.from(body)) : body));',
-            );
           } else {
-            sbClient.writeln(
-              '  final reqPayload = (body is DartvelFormData) ? body : (body ?? fb);',
-            );
+            sbClient.writeln('  final reqPayload = body ?? fb;');
           }
           sbClient.writeln(
             "  final r = await _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);",
@@ -3007,7 +3022,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
               ? coreImport
               : "import 'package:dartvel_core/dartvel.dart'"
                     "${dvHideModelNames(modelTypes)};\n"
-                    "import 'models.g.dart' show ${modelTypes.join(', ')};") +
+                    "import 'models.g.dart' show ${modelTypes.map((m) => '$m, ${m}Parser').join(', ')};") +
           (clientTypeImports.toList()..sort())
               .map((String uri) => "\nimport '$uri';")
               .join(),

@@ -391,3 +391,32 @@ Page and backend middleware belongs on the declaration:
 `@DVBackendFunction(middleware: [DVMiddlewares.rateLimit])`.
 The ordered list runs before the page or function. The old `@DVUseMiddleware`
 annotation remains a deprecated alias; `dartvel doctor --conventions` reports it.
+
+The application entry imports its generated client and starts Dartvel:
+
+```dart
+import 'dartvel_client/dartvel_client.dart';
+
+void main() => DV.run();
+```
+
+Pure Dartvel apps omit `@DVAppRoot`. The generated root uses the generated router
+and Dartvel theme. Launch opens `lib/pages/index.dart`; a root `_guard.dart` can
+redirect it. Optional command-line arguments are `DV.run(args)`.
+
+Declare startup work in a separate file, using a private function:
+
+```dart
+@DVBoot()
+void _configure(DVBoot boot) {
+  DV.Notifications.mail.useProvider(DVMemoryMailProvider());
+}
+```
+
+An existing Flutter host can declare `@DVAppRoot()` on a private function taking
+`BuildContext` and `DVAppParts`; use `parts.router` in its MaterialApp, CupertinoApp
+or WidgetsApp. Boot hooks run before the root, in file path and declaration order.
+
+Run `dart run dartvel_cli:dartvel doctor --conventions` in application CI after
+client generation. It exits nonzero for violations. Keep build warnings visible;
+use `dartvel build web --strict` to refuse them during a build.

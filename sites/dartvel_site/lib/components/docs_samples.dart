@@ -276,11 +276,10 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '}',
   ],
   'backend-middleware': <String>[
-    '\u0040DVUseMiddleware(<DVMiddlewareKey>[',
+    '\u0040DVBackendFunction(middleware: <DVMiddlewareKey>[',
     '  DVMiddlewares.auth,',
     '  DVMiddlewares.rateLimit,',
     '])',
-    '\u0040DVBackendFunction()',
     'Future<List<String>> _listReports() async => <String>[\'2026-08\', \'2026-09\'];',
   ],
   'backend-raw-path': <String>[
@@ -1675,8 +1674,11 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '}, child: pageContent);',
   ],
   'start-configure': <String>[
-    'DV.Auth.configure(DVLocalAuthProvider());',
-    'DV.Notifications.mail.useProvider(DVMemoryMailProvider());',
+    '\u0040DVBoot()',
+    'void _configure(DVBoot boot) {',
+    '  DV.Auth.configure(DVLocalAuthProvider());',
+    '  DV.Notifications.mail.useProvider(DVMemoryMailProvider());',
+    '}',
   ],
   'start-index-page': <String>[
     '\u0040DVPage(title: \'Home\')',

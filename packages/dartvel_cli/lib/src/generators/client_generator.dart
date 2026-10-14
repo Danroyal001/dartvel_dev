@@ -21,6 +21,7 @@ import 'package:dartvel_core/dartvel.dart'
 
 import '../build/runtime_packages.dart';
 import 'assets_generator.dart';
+import '../analysis/dart_source_lexer.dart';
 import 'account_generator.dart';
 import 'config_routes.dart';
 import 'annotation_args.dart';
@@ -620,6 +621,7 @@ class ClientGenerator {
     }
     // Public generated client barrel. Apps import this single file instead of
     // reaching into generated siblings.
+    _generateApplicationEntry(root: root, pkgName: pkgName, title: seoSiteName);
     final clientFile = File(p.join(libClientDir.path, 'dartvel_client.dart'));
     // The generator's version is recorded here and nowhere else, so an
     // upgrade is one line of diff rather than a header change in every file.
@@ -649,7 +651,8 @@ export 'package:dartvel_core/dartvel.dart'
         DVRedisConnect,
         DVRedisConnection,
         DVRedisException${modelNames.map((String n) => ",\n        $n").join()};
-export 'package:dartvel_flutter/dartvel_flutter.dart'$hideModels;
+export 'package:dartvel_flutter/dartvel_flutter.dart' hide DV${hideModels.isEmpty ? '' : ', ' + hideModels.substring(6)};
+export 'application.g.dart';
 export 'account.g.dart';
 export 'assets.g.dart';
 export 'config.g.dart';
@@ -4023,6 +4026,82 @@ void startDartvelKiosk() {
   /// Call sites are unchanged -- `FeatureCard('a', 'b')` reads the same
   /// against a constructor as against a function -- so this is strictly more
   /// capable at the same syntax.
+  static void _generateApplicationEntry({required String root, required String pkgName, required String title}) {
+    final imports = <String>{
+      "import 'dart:async';",
+      "import 'package:flutter/material.dart';",
+      "import 'package:dartvel_flutter/dartvel_flutter.dart' hide DV;",
+      "import 'package:dartvel_flutter/dartvel_flutter.dart' as runtime;",
+      "import 'router.g.dart';",
+      "import 'launch.g.dart';",
+    };
+    final hooks = <String>[];
+    String? appRoot;
+    var declarationIndex = 0;
+    final files = Directory(p.join(root, 'lib')).listSync(recursive: true, followLinks: false)
+        .whereType<File>().where((f) => f.path.endsWith('.dart') && !f.path.contains('${p.separator}dartvel_client${p.separator}'))
+        .toList()..sort((a,b)=>a.path.compareTo(b.path));
+    for (final file in files) {
+      final source = file.readAsStringSync();
+      final rel = p.relative(file.path, from: root).replaceAll('\\', '/');
+      final masked = dvDartSourceView(source).masked;
+      for (final annotation in RegExp(r'@(DVBoot|DVAppRoot)\s*\(').allMatches(masked)) {
+        final kind = annotation.group(1)!;
+        final annotationClose = _matchingParen(source, annotation.end - 1);
+        if (annotationClose < 0) throw StateError('Unclosed @$kind in $rel');
+        final declaration = RegExp(r'^\s*(?:Future<void>|void|Widget)\s+(_[A-Za-z]\w*)\s*\(').firstMatch(source.substring(annotationClose + 1));
+        if (declaration == null) throw StateError('@$kind requires a private function in $rel');
+        final open = annotationClose + 1 + declaration.end - 1;
+        final close = _matchingParen(source, open);
+        final body = dvFunctionBodyAfter(source, close);
+        if (body == null) throw StateError('@$kind requires a function body in $rel');
+        imports.addAll(_importsFor(source, rel, pkgName).where((i) => !i.contains('/dartvel_client.dart') && !i.contains("'dartvel_client/dartvel_client.dart'")));
+        final params = dvSplitArgs(source.substring(open + 1, close));
+        final expression = body.expression;
+        final alias = 'entry${declarationIndex++}';
+        imports.add("import 'package:$pkgName/${rel.substring(4)}' as $alias;");
+        final rawBody = body.isBlock ? body.statements! : (kind == 'DVBoot' ? '$expression;' : 'return $expression;');
+        _refusePrivateReferences(body: rawBody, source: source, rel: rel, pageName: declaration.group(1)!);
+        final rendered = _qualifySourceSymbols(rawBody, alias, _topLevelSourceSymbols(source));
+        if (kind == 'DVBoot') {
+          if (params.length != 1 || !params.first.startsWith('DVBoot ')) throw StateError('@DVBoot takes one DVBoot context in $rel');
+          final name = params.first.split(' ').last;
+          final args = dvAnnotationArgs(source.substring(annotation.start), 'DVBoot')!;
+          final entries = dvSplitArgs(args).where((a)=>a.startsWith('entries:')).toList();
+          final filter = entries.isEmpty ? '' : 'if (!(${entries.first.substring(8)}).contains(DVEntryKind.app)) return;';
+          hooks.add('($name) async { $filter $rendered }');
+        } else {
+          if (appRoot != null) throw StateError('Only one @DVAppRoot is allowed. Duplicate in $rel');
+          if (params.length != 2 || !params[0].startsWith('BuildContext ') || !params[1].startsWith('DVAppParts ')) throw StateError('@DVAppRoot takes BuildContext and DVAppParts in $rel');
+          final context = params[0].split(' ').last;
+          final parts = params[1].split(' ').last;
+          if (!rendered.contains('$parts.router')) throw StateError('DV-RUN-006: @DVAppRoot must use $parts.router ($rel).');
+          appRoot = '(BuildContext $context) { final $parts = DVAppParts(router: router); $rendered }';
+        }
+      }
+    }
+    final out = StringBuffer('// GENERATED – do not edit.\n// ignore_for_file: non_constant_identifier_names, unused_import\n')
+      ..writeln(imports.join('\n'))
+      ..writeln('Widget createDartvelApp({List<String> args = const []}) {')
+      ..writeln('  final router = createDartvelRouter(arguments: args);')
+      ..writeln(appRoot == null ? "  return MaterialApp.router(title: '${esc(title)}', theme: dartvelDefaultTheme(.light), darkTheme: dartvelDefaultTheme(.dark), themeMode: .system, routerConfig: router);" : '  return Builder(builder: $appRoot);')
+      ..writeln('}')
+      ..writeln('abstract final class DV {')
+      ..writeln('  static Future<void> run([List<String> args = const []]) => dvRunApplication(args, root: () => createDartvelApp(args: args), boot: [${hooks.join(',')}], launch: negotiateDartvelLaunch);');
+    // Static members are not inherited in Dart. Forward the single namespace,
+    // keeping configuration and globals in the Flutter runtime.
+    for (final name in <String>['progress','global','lifecycle','Modules','transaction','Platform','Navigation','Location','Bluetooth','NFC','Clipboard','Share','Sensors','Biometrics','DeepLinking','Haptics','Contacts','Auth','Session','Analytics','Privacy','Theme','AI','Billing','Purchases','DB','Database','Cache','Storage','FileStorage','BlobStorage','Queues','Jobs','Workers','Notifications','notifications','Updates','Secrets','Memory','Http','Webhooks','Test','CSRF','Csrf','I18n','Accessibility','ObservabilityAndLogging','Tenants','Crashes','withTenant','baseUrl','apiBasePath','api','\$','registerRuntime']) {
+      out.writeln('  static get $name => runtime.DV.$name;');
+    }
+    out..writeln('  static const log = runtime.DV.log;')
+      ..writeln('  static get currentTenant => runtime.DV.currentTenant;')
+      ..writeln('  static set currentTenant(String value) => runtime.DV.currentTenant = value;')
+      ..writeln('  static get container => runtime.DV.container;')
+      ..writeln('  static set container(value) => runtime.DV.container = value;')
+      ..writeln('}');
+    File(p.join(root, 'lib/dartvel_client/application.g.dart')).writeAsStringSync(out.toString());
+  }
+
   static String _functionalWidgetClass(_FunctionalWidgetEntry entry) {
     final List<_WidgetParameter> parameters =
         _widgetParameters(entry.parameters);

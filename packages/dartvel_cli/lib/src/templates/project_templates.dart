@@ -264,33 +264,15 @@ Future<Map<String, Object?>> _contact(
 }
 ''';
 
-  static const String mainTemplate = '''import 'package:flutter/material.dart';
-import 'dartvel_client/dartvel_client.dart';
+  static const String mainTemplate = '''import 'dartvel_client/dartvel_client.dart';
 
-void main(List<String> arguments) async {
-  // Where this launch renders: nothing to decide unless the build opted into
-  // the terminal, in which case a launch with no display may leave for it.
-  await negotiateDartvelLaunch(arguments);
-  runApp(createDartvelApp(arguments: arguments));
-}
-
-// The arguments are what a file association, an app link or a second
-// launch hands a desktop application; the router opens them.
-Widget createDartvelApp({List<String> arguments = const <String>[]}) {
-  return MaterialApp.router(
-    title: 'Dartvel App',
-    theme: dartvelDefaultTheme(.light),
-    darkTheme: dartvelDefaultTheme(.dark),
-    themeMode: .system,
-    routerConfig: createDartvelRouter(arguments: arguments),
-  );
-}
+void main() => DV.run();
 ''';
 
   static String widgetTestTemplate(String projectName) =>
       '''import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:$projectName/main.dart';
+import 'package:$projectName/dartvel_client/dartvel_client.dart';
 
 void main() {
   testWidgets('Dartvel application starts', (WidgetTester tester) async {
