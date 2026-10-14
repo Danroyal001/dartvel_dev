@@ -569,5 +569,5 @@ unrelated package.
 
 ## Forms and accessibility (framework-level)
 
-- `DVVisibilityToggle.eye` / `.none` / `.custom(builder)` controls the visibility toggle on sensitive fields. `.input(obscureText: true)` gets the eye by default; `.none` turns it off and `.custom(builder)` replaces it with a control of your own.
+- `DVVisibilityToggle.eye` / `.none` / `.custom(builder)` controls the visibility toggle on sensitive fields. `.input(obscureText: true)` gets the eye by default; `.none` turns it off and `.custom(builder)` replaces it with a control of your own. The eye is one button named "Show password" (also its tooltip) with a pressed state (`aria-pressed` on the web), the same on the account pages and in Studio, and present in the server-rendered HTML before Flutter takes over; the app keeps what was typed there.
 - Every `DVForm` is keyboard-accessible with nothing added: Tab walks the fields and controls in draw order, Enter moves to the next field and submits from the last one, and every `.onTap()`/`.onPressed()` control is a focusable button with a visible focus ring and a screen-reader name. A refused save is announced in a live region and puts the focus on the field at fault. `DVFormScope` is the public piece for inputs a form does not draw itself.

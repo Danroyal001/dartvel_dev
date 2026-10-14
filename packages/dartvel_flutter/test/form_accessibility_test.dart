@@ -9,7 +9,10 @@
 // These drive the form the way a person does -- Tab, Enter, Space, a screen
 // reader reading the tree -- rather than asserting on the modifiers that
 // produce it.
+import 'dart:ui' as ui;
+
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_flutter/src/widgets/password_reveal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -323,7 +326,10 @@ void main() {
       expect(_toggle(tester), findsOneWidget);
     });
 
-    testWidgets('says what pressing it will do, and does it',
+    // One name and a pressed state, as an ARIA toggle button has. It used to
+    // rename itself "Hide password" once pressed, which a screen reader reads
+    // as an instruction rather than as the state the field is in.
+    testWidgets('keeps its name, says it is pressed, and reveals the field',
         (tester) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await pumpForm(tester, onSubmit: (Member _) {});
@@ -331,14 +337,16 @@ void main() {
       // and the same search would not find it.
       final int password = _passwordIndex(tester);
 
-      final SemanticsNode show = tester.getSemantics(_toggle(tester));
-      expect(show.label, 'Show password');
+      final SemanticsNode show = tester.getSemantics(find.byType(DVPasswordReveal));
+      expect(show.getSemanticsData().label, 'Show password');
 
       await tester.tap(_toggle(tester));
       await tester.pumpAndSettle();
 
       expect(input(tester, password).obscureText, isFalse);
-      expect(tester.getSemantics(_toggle(tester)).label, 'Hide password');
+      final SemanticsNode shown = tester.getSemantics(find.byType(DVPasswordReveal));
+      expect(shown.getSemanticsData().label, 'Show password');
+      expect(shown.getSemanticsData().flagsCollection.isToggled, ui.Tristate.isTrue);
 
       handle.dispose();
     });
