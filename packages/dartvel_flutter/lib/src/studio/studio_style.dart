@@ -1263,6 +1263,7 @@ abstract final class DVStudioIcons {
   static const IconData pages = Icons.description_outlined;
   static const IconData page = Icons.insert_drive_file_outlined;
   static const IconData home = Icons.home_outlined;
+  static const IconData media = Icons.perm_media_outlined;
   static const IconData layers = Icons.layers_outlined;
   static const IconData insert = Icons.add_box_outlined;
   static const IconData windows = Icons.web_asset_outlined;

@@ -35,6 +35,8 @@ import '../data/change_capture.dart' show DVCapture;
 import '../data/record_history.dart';
 import '../database/adapter.dart';
 import '../database/records.dart';
+import '../storage/adapters.dart'
+    show DVFileStorageAdapter, DVMemoryFileStorageAdapter;
 import '../http/wintercg.dart';
 import '../modules/modules.dart'
     show DVModuleData, DVModuleDataMode, dvModuleRegistry;
@@ -457,12 +459,74 @@ const DVRecordShape dvStudioFunctionsShape = DVRecordShape(
   },
 );
 
+/// A media file uploaded to the application.
+class DVStudioMediaFile {
+  const DVStudioMediaFile({
+    required this.id,
+    required this.name,
+    required this.key,
+    required this.size,
+    required this.mimeType,
+    this.updatedAt,
+    this.url,
+  });
+
+  final String id;
+  final String name;
+  final String key;
+  final int size;
+  final String mimeType;
+  final String? updatedAt;
+  final String? url;
+
+  bool get isImage => mimeType.startsWith('image/');
+  bool get isVideo => mimeType.startsWith('video/');
+  bool get isAudio => mimeType.startsWith('audio/');
+  bool get isDocument => !isImage && !isVideo && !isAudio;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'id': id,
+    'name': name,
+    'key': key,
+    'size': size,
+    'mimeType': mimeType,
+    if (updatedAt != null) 'updatedAt': updatedAt,
+    if (url != null) 'url': url,
+  };
+
+  factory DVStudioMediaFile.fromJson(Map<String, Object?> json) =>
+      DVStudioMediaFile(
+        id: '${json['id'] ?? json['key'] ?? ''}',
+        name: '${json['name'] ?? ''}',
+        key: '${json['key'] ?? json['id'] ?? ''}',
+        size: json['size'] is num ? (json['size']! as num).toInt() : 0,
+        mimeType: '${json['mimeType'] ?? 'application/octet-stream'}',
+        updatedAt: json['updatedAt']?.toString(),
+        url: json['url']?.toString(),
+      );
+}
+
+const String dvStudioMediaTable = 'dartvel_studio_media';
+const DVRecordShape dvStudioMediaShape = DVRecordShape(
+  collection: dvStudioMediaTable,
+  key: 'id',
+  fields: <String, DVFieldType>{
+    'id': DVFieldType.text,
+    'name': DVFieldType.text,
+    'key': DVFieldType.text,
+    'size': DVFieldType.integer,
+    'mime_type': DVFieldType.text,
+    'created_at': DVFieldType.integer,
+  },
+);
+
 /// The Studio API, for requests already decided to be the admin's and
 /// allowed.
 class DVStudioApi {
   DVStudioApi({
     this.models = const <DVStudioModelSpec>[],
     this.database,
+    DVFileStorageAdapter? storage,
     Future<String?> Function(Request request)? caller,
     DVAccountDirectory? accounts,
     List<String> Function()? queues,
@@ -472,7 +536,8 @@ class DVStudioApi {
     String? structureRoot,
     DVGitHubTransport? gitHub,
     String? gitHubToken,
-  })  : _gitHub = gitHub,
+  })  : storage = storage ?? DVMemoryFileStorageAdapter(),
+        _gitHub = gitHub,
         _gitHubToken = gitHubToken ?? Platform.environment[dvGitHubTokenVariable],
         _caller = caller ?? dvStudioSessionUserId,
         _compiledRoutes = compiledRoutes ?? (() => dvStudioGraphRoutes(root)),
@@ -482,6 +547,9 @@ class DVStudioApi {
                 : '$root${Platform.pathSeparator}$dvStudioStructureDirectory'),
         _accounts = accounts,
         _queues = queues ?? (() => const <String>['default']);
+
+  final DVFileStorageAdapter storage;
+  final Map<String, Map<String, Object?>> _memoryMedia = <String, Map<String, Object?>>{};
 
   final DVGitHubTransport? _gitHub;
 
@@ -566,6 +634,8 @@ class DVStudioApi {
             if (segments.length == 1) return await _me(request, method);
           case 'repository':
             return await _repositoryAt(request, method, segments.sublist(1));
+          case 'media':
+            return await _media(request, method, segments.sublist(1));
           case 'overview':
             if (segments.length == 1) {
               if (method != 'GET' && method != 'HEAD') _notAllowed();
@@ -2456,5 +2526,243 @@ class DVStudioApi {
   static String _tenantOf(Object? value) {
     final String named = '${value ?? ''}'.trim();
     return named.isEmpty ? const DVTenants().currentTenant : named;
+  }
+
+  Future<Response> _media(
+    Request request,
+    String method,
+    List<String> segments,
+  ) async {
+    if (segments.isNotEmpty && segments.first == 'file') {
+      if (method != 'GET' && method != 'HEAD') _notAllowed();
+      final Uri uri = request.url;
+      final String? keyParam = uri.queryParameters['key'];
+      final String key = keyParam ?? (segments.length > 1 ? segments.sublist(1).join('/') : '');
+      if (key.isEmpty || !(await storage.exists(key))) {
+        throw _StudioRefusal(404, 'not_found', 'Media file not found.');
+      }
+      final List<int> bytes = await storage.get(key);
+      final String mimeType = _mimeTypeFor(key);
+      return Response(
+        200,
+        headers: Headers(<String, String>{
+          'content-type': mimeType,
+          'cache-control': 'public, max-age=3600',
+        }),
+        body: Stream<List<int>>.value(bytes),
+      );
+    }
+
+    if (method == 'GET' || method == 'HEAD') {
+      final Uri uri = request.url;
+      final String? q = uri.queryParameters['q']?.toLowerCase();
+      final String? type = uri.queryParameters['type'];
+      final int offset = int.tryParse(uri.queryParameters['offset'] ?? '') ?? 0;
+      final int limit = int.tryParse(uri.queryParameters['limit'] ?? '') ?? 50;
+
+      final List<DVStudioMediaFile> allFiles = await _listMediaFiles();
+      Iterable<DVStudioMediaFile> filtered = allFiles;
+      if (q != null && q.isNotEmpty) {
+        filtered = filtered.where((DVStudioMediaFile f) =>
+            f.name.toLowerCase().contains(q) || f.key.toLowerCase().contains(q));
+      }
+      if (type != null && type.isNotEmpty && type != 'all') {
+        filtered = filtered.where((DVStudioMediaFile f) {
+          return switch (type) {
+            'image' => f.isImage,
+            'video' => f.isVideo,
+            'audio' => f.isAudio,
+            'document' => f.isDocument,
+            _ => true,
+          };
+        });
+      }
+      final List<DVStudioMediaFile> list = filtered.toList();
+      final int total = list.length;
+      final List<DVStudioMediaFile> paged = list.skip(offset).take(limit).toList();
+
+      return _reply(<String, Object?>{
+        'files': <Object?>[for (final DVStudioMediaFile f in paged) f.toJson()],
+        'total': total,
+      });
+    }
+
+    if (method == 'POST') {
+      final Map<String, Object?> body = await _body(request);
+      final String? name = body['name']?.toString().trim();
+      final String? base64Data = body['bytes']?.toString();
+      if (name == null || name.isEmpty) {
+        throw _StudioRefusal(400, 'invalid_name', 'File name cannot be empty.');
+      }
+      if (base64Data == null || base64Data.isEmpty) {
+        throw _StudioRefusal(400, 'invalid_bytes', 'File bytes cannot be empty.');
+      }
+      final List<int> bytes = base64Decode(base64Data);
+      final String sanitized = name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      final String key = 'media/${DateTime.now().millisecondsSinceEpoch}_$sanitized';
+      final String mimeType = body['mimeType']?.toString() ?? _mimeTypeFor(name);
+
+      await storage.put(key, bytes, contentType: mimeType);
+
+      final int at = DateTime.now().toUtc().millisecondsSinceEpoch;
+      final Map<String, Object?> record = <String, Object?>{
+        'id': key,
+        'name': name,
+        'key': key,
+        'size': bytes.length,
+        'mime_type': mimeType,
+        'created_at': at,
+      };
+
+      if (database != null) {
+        try {
+          final DVRecordAdapter records = DVRecordAdapter.over(database!);
+          await records.ensure(dvStudioMediaShape);
+          await records.insert(dvStudioMediaTable, record);
+        } on Object {
+          _memoryMedia[key] = record;
+        }
+      } else {
+        _memoryMedia[key] = record;
+      }
+
+      await _note(
+        'media',
+        'uploaded',
+        name,
+        screen: 'media',
+        object: key,
+      );
+
+      final DVStudioMediaFile file = DVStudioMediaFile(
+        id: key,
+        name: name,
+        key: key,
+        size: bytes.length,
+        mimeType: mimeType,
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(at, isUtc: true).toIso8601String(),
+        url: 'api/media/file?key=${Uri.encodeQueryComponent(key)}',
+      );
+
+      return _reply(file.toJson(), status: 201);
+    }
+
+    if (method == 'DELETE') {
+      final Uri uri = request.url;
+      final String? keyParam = uri.queryParameters['key'];
+      final String key = keyParam ?? (segments.isNotEmpty ? segments.join('/') : '');
+      if (key.isEmpty) {
+        throw _StudioRefusal(400, 'missing_key', 'File key to delete is required.');
+      }
+      await storage.delete(key);
+      _memoryMedia.remove(key);
+      if (database != null) {
+        try {
+          final DVRecordAdapter records = DVRecordAdapter.over(database!);
+          await records.ensure(dvStudioMediaShape);
+          await records.delete(
+            dvStudioMediaTable,
+            where: DVFilter.equals('key', key),
+          );
+        } on Object {
+          // Keep going
+        }
+      }
+      await _note(
+        'media',
+        'deleted',
+        key.split('/').last,
+        screen: 'media',
+      );
+      return _reply(<String, Object?>{'ok': true});
+    }
+
+    _notAllowed();
+  }
+
+  Future<List<DVStudioMediaFile>> _listMediaFiles() async {
+    final Map<String, DVStudioMediaFile> byKey = <String, DVStudioMediaFile>{};
+
+    if (database != null) {
+      try {
+        final DVRecordAdapter records = DVRecordAdapter.over(database!);
+        await records.ensure(dvStudioMediaShape);
+        final List<Map<String, Object?>> rows = await records.find(
+          dvStudioMediaTable,
+          orderBy: const <DVSort>[DVSort('created_at', descending: true)],
+        );
+        for (final Map<String, Object?> row in rows) {
+          final String key = '${row['key'] ?? row['id']}';
+          final int at = row['created_at'] is num ? (row['created_at']! as num).toInt() : 0;
+          byKey[key] = DVStudioMediaFile(
+            id: key,
+            name: '${row['name'] ?? key.split('/').last}',
+            key: key,
+            size: row['size'] is num ? (row['size']! as num).toInt() : 0,
+            mimeType: '${row['mime_type'] ?? _mimeTypeFor(key)}',
+            updatedAt: at > 0 ? DateTime.fromMillisecondsSinceEpoch(at, isUtc: true).toIso8601String() : null,
+            url: 'api/media/file?key=${Uri.encodeQueryComponent(key)}',
+          );
+        }
+      } on Object {
+        // Fall back to memory
+      }
+    }
+
+    for (final Map<String, Object?> row in _memoryMedia.values) {
+      final String key = '${row['key'] ?? row['id']}';
+      if (!byKey.containsKey(key)) {
+        final int at = row['created_at'] is num ? (row['created_at']! as num).toInt() : 0;
+        byKey[key] = DVStudioMediaFile(
+          id: key,
+          name: '${row['name'] ?? key.split('/').last}',
+          key: key,
+          size: row['size'] is num ? (row['size']! as num).toInt() : 0,
+          mimeType: '${row['mime_type'] ?? _mimeTypeFor(key)}',
+          updatedAt: at > 0 ? DateTime.fromMillisecondsSinceEpoch(at, isUtc: true).toIso8601String() : null,
+          url: 'api/media/file?key=${Uri.encodeQueryComponent(key)}',
+        );
+      }
+    }
+
+    try {
+      final List<String> storageKeys = await storage.list(prefix: 'media/');
+      for (final String key in storageKeys) {
+        if (!byKey.containsKey(key)) {
+          final String name = key.contains('_') ? key.substring(key.indexOf('_') + 1) : key.split('/').last;
+          byKey[key] = DVStudioMediaFile(
+            id: key,
+            name: name,
+            key: key,
+            size: 0,
+            mimeType: _mimeTypeFor(key),
+            url: 'api/media/file?key=${Uri.encodeQueryComponent(key)}',
+          );
+        }
+      }
+    } on Object {
+      // Storage listing not supported or empty
+    }
+
+    return byKey.values.toList();
+  }
+
+  static String _mimeTypeFor(String filename) {
+    final String lower = filename.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.svg')) return 'image/svg+xml';
+    if (lower.endsWith('.mp4')) return 'video/mp4';
+    if (lower.endsWith('.webm')) return 'video/webm';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.ogg')) return 'audio/ogg';
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.json')) return 'application/json';
+    if (lower.endsWith('.txt')) return 'text/plain';
+    if (lower.endsWith('.csv')) return 'text/csv';
+    return 'application/octet-stream';
   }
 }

@@ -18,7 +18,15 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:dartvel_core/dartvel.dart' as core
-    show DVDatabase, DVStudioApi, DVStudioModelSpec, DVStudioOverview, Headers, Request, Response;
+    show
+        DVDatabase,
+        DVStudioApi,
+        DVStudioMediaFile,
+        DVStudioModelSpec,
+        DVStudioOverview,
+        Headers,
+        Request,
+        Response;
 import 'package:dartvel_core/dartvel.dart'
     show
         DVAccess,
@@ -314,6 +322,54 @@ class DVStudioClient {
 
   Future<core.DVStudioOverview> overview() async =>
       core.DVStudioOverview.fromJson(_map(await _send('GET', 'api/overview')));
+
+  /// Media files matching [q] and [type] (`all`, `image`, `video`, `audio`, `document`).
+  Future<({List<core.DVStudioMediaFile> files, int total})> mediaFiles({
+    String? q,
+    String? type,
+    int offset = 0,
+    int limit = 50,
+  }) async {
+    final Map<String, String> query = <String, String>{
+      if (q != null && q.isNotEmpty) 'q': q,
+      if (type != null && type.isNotEmpty && type != 'all') 'type': type,
+      'offset': '$offset',
+      'limit': '$limit',
+    };
+    final String path =
+        'api/media${query.isEmpty ? '' : '?${Uri(queryParameters: query).query}'}';
+    final Map<String, Object?> body = _map(await _send('GET', path));
+    final List<core.DVStudioMediaFile> files = <core.DVStudioMediaFile>[
+      for (final Map<String, Object?> f in _list(body, 'files'))
+        core.DVStudioMediaFile.fromJson(f),
+    ];
+    final int total =
+        body['total'] is num ? (body['total']! as num).toInt() : files.length;
+    return (files: files, total: total);
+  }
+
+  /// Uploads [bytes] as media file [name] with optional [mimeType].
+  Future<core.DVStudioMediaFile> uploadMedia({
+    required String name,
+    required List<int> bytes,
+    String? mimeType,
+  }) async {
+    final Map<String, Object?> body = _map(await _send(
+      'POST',
+      'api/media',
+      body: <String, Object?>{
+        'name': name,
+        'bytes': base64Encode(bytes),
+        if (mimeType != null) 'mimeType': mimeType,
+      },
+    ));
+    return core.DVStudioMediaFile.fromJson(body);
+  }
+
+  /// Deletes the media file at [key].
+  Future<void> deleteMedia(String key) async {
+    await _send('DELETE', 'api/media?key=${Uri.encodeQueryComponent(key)}');
+  }
 
   /// The signed-in account, `{userId, email}`.
   Future<Map<String, Object?>> me() async => _map(await _send('GET', 'api/me'));
@@ -1011,6 +1067,7 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client, {
           open: open ?? dvOpenUrl,
         ),
       ),
+      dvStudioMediaSection(client),
       dvStudioDataSection(client),
       dvStudioSiteMapSection(client),
       // The builders, not a list: a page is of little use if a button
@@ -1088,6 +1145,20 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client, {
         build: (BuildContext context) => _DVStudioAccessSection(client: client),
       ),
     ];
+
+/// Media: pictures, videos, audio and documents uploaded to the application.
+DVStudioSection dvStudioMediaSection(DVStudioClient client) =>
+    DVStudioSection.opening(
+      id: 'media',
+      label: 'Media',
+      icon: DVStudioIcons.media,
+      build: (BuildContext context, DVStudioSelection selection) =>
+          DVStudioMediaSection(
+        client: client,
+        selectedKey: selection.object,
+        onSelect: (String? key) => selection.select?.call(key ?? ''),
+      ),
+    );
 
 /// Data: every data model, compiled or designed in Studio, its records, and
 /// the designer that makes and changes one.

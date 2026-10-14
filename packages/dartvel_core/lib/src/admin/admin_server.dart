@@ -25,6 +25,7 @@ import '../auth/sessions.dart' show DVSessionCookie;
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
+import '../storage/adapters.dart' show DVFileStorageAdapter;
 import '../web/asset_source.dart';
 import '../web/route_page.dart' show DVRoutePage, dvRenderRoutePage;
 import 'studio_access.dart';
@@ -212,6 +213,7 @@ class DVAdminServer {
     Future<bool> Function(Request request)? authenticated,
     List<DVStudioModelSpec> models = const <DVStudioModelSpec>[],
     DVDatabaseAdapter? database,
+    DVFileStorageAdapter? storage,
     Future<String?> Function(Request request)? caller,
     DVAccountDirectory? accounts,
     List<String>? queues,
@@ -229,6 +231,7 @@ class DVAdminServer {
        api = DVStudioApi(
          models: models,
          database: database,
+         storage: storage,
          caller: caller,
          accounts: accounts,
          queues: queues == null ? () => dvAdminGraphQueues(root) : () => queues,

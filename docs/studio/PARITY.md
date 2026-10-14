@@ -136,7 +136,7 @@ Full accessibility remains **Partial** until those flows are verified too.
 | Scheduled triggers | **Partial** — a publish slot can be scheduled (`studio_review.dart:1468`), and queues and jobs exist, but there is no trigger editor | `studio_review.dart`, `studio_server.dart:932` (Jobs → "Tasks") |
 | Version control and deploy | **Done, and different** — writes to the repository and opens a GitHub pull request, and Deploy publishes into the running binary | `studio_repository_section.dart`, `studio_screen.dart:2499` |
 | Search index | **Partial** — models have `searchableField()`; there is no search-index configuration screen in Studio | `packages/dartvel_core/lib/src/annotations/annotations.dart` |
-| File storage | **Partial** — `DV.FileStorage` exists and image nodes can read through it; Studio has no storage browser | `page_document.dart:908` |
+| File storage | **Done** — `DV.FileStorage` backed Media library with grid/table views, live search, MIME type filtering, upload modal, file preview inspector, clipboard URL copy and delete confirmation | `packages/dartvel_flutter/lib/src/studio/studio_media.dart`, `packages/dartvel_core/lib/src/admin/studio_api.dart` |
 
 ## Against Power Apps
 

@@ -113,6 +113,12 @@ const List<DVStudioScreenSpec> dvStudioScreens = <DVStudioScreenSpec>[
     summary: 'The keys this application answers, set without code.',
   ),
   DVStudioScreenSpec(
+    id: 'media',
+    label: 'Media',
+    summary:
+        'The pictures, videos and documents uploaded to this application.',
+  ),
+  DVStudioScreenSpec(
     id: 'models',
     label: 'Data',
     summary:
@@ -179,6 +185,7 @@ const Map<String, String> dvStudioScreenAliases = <String, String>{
   'data': 'models',
   'sitemap': 'routes',
   'team': 'access',
+  'assets': 'media',
 };
 
 DVStudioScreenSpec? dvStudioScreenFor(String id) {
@@ -601,6 +608,15 @@ DVStudioDocument _screenDocument(
             ),
         ],
       );
+    case 'media':
+      html.writeln(
+        '<p>Upload, search, filter and inspect images, videos, audio and '
+        'documents stored in this application.</p>',
+      );
+      text.add(
+        'Upload, search, filter and inspect images, videos, audio and '
+        'documents stored in this application.',
+      );
     default:
       // A screen holding what the running application decided rather than
       // what the build wrote: the components, the shortcut keys, the cache,
@@ -895,6 +911,15 @@ DVStudioDocument? _objectDocument(
         heading: name,
         html: html.toString(),
         text: <String>[name, 'A module this application mounts.'],
+      );
+    case 'media':
+      html
+        ..writeln('<h1>${_escape.convert(name)}</h1>')
+        ..writeln('<p>A media asset uploaded to this application.</p>');
+      return DVStudioDocument(
+        heading: name,
+        html: html.toString(),
+        text: <String>[name, 'A media asset uploaded to this application.'],
       );
     default:
       return null;
