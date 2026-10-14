@@ -374,9 +374,27 @@ String dvMinifyJs(String js) {
       i = end - 1;
       continue;
     }
+    if (_isIdent(c)) {
+      final int start = i;
+      while (i < js.length && _isIdent(js[i])) {
+        i++;
+      }
+      write(js.substring(start, i));
+      i = i - 1;
+      continue;
+    }
     write(c);
   }
   return out.toString();
+}
+
+bool _isIdent(String c) {
+  final int code = c.codeUnitAt(0);
+  return (code >= 65 && code <= 90) ||
+      (code >= 97 && code <= 122) ||
+      (code >= 48 && code <= 57) ||
+      code == 36 ||
+      code == 95;
 }
 
 /// Whether a `/` written after [previous] opens a regular expression.
