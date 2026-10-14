@@ -11,7 +11,8 @@
 // description, and at least [min-words] words in the crawler block. Then:
 // HEAD / is a 200; a signed-out /__studio/ is sent to /__studio/login, the
 // Studio app's sign-in page, while Studio's data and API answer a stranger as an
-// unknown path does; and the image endpoint resizes one of the site's images.
+// unknown path does; the image endpoint resizes one of the site's images; and
+// the site search finds a page by a word the docs use.
 //
 // Usage: dart tool/ci/server_pages_check.dart <base-url> [min-words]
 import 'dart:convert';
@@ -138,11 +139,28 @@ Future<void> main(List<String> args) async {
     problems.add('/_dartvel/image answered $image ($type)');
   }
 
+  // The search behind the search box, asked as the box asks it. It answered
+  // every query with a 500 for two days on the live site while every check
+  // above passed: the binary read its pages from a directory that is not on
+  // disk when the site is packed into the binary, so the index had nothing.
+  final (int searchStatus, String searchBody, _) =
+      await _get(base.resolve('/api/search?q=signal'));
+  Object? found;
+  try {
+    found = jsonDecode(searchBody);
+  } on FormatException {
+    found = null;
+  }
+  if (searchStatus != 200 || found is! List || found.isEmpty) {
+    problems.add('/api/search?q=signal answered $searchStatus with '
+        '${found is List ? '${found.length} results' : 'no result list'}');
+  }
+
   _client.close(force: true);
   if (problems.isEmpty) {
     stdout.writeln('${paths.length} pages rendered on the server, each with a '
         'title, a description and at least $minimum words; Studio refuses a '
-        'stranger; the image endpoint resizes.');
+        'stranger; the image endpoint resizes; search finds pages.');
     return;
   }
   stderr.writeln('::error::${problems.length} problems: ${problems.join('; ')}');
