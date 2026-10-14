@@ -7,7 +7,10 @@
 library dartvel_cli.analysis.conventions_check;
 
 import 'dart:io';
+
 import 'package:path/path.dart' as p;
+
+import 'dart_source_lexer.dart';
 
 /// One convention violation found in source.
 class DVConventionFinding {
@@ -44,6 +47,8 @@ List<DVConventionFinding> dvFindConventionIssues({
   required String path,
   required String source,
 }) {
+  final original = source;
+  if (path.endsWith('.dart')) source = dvDartSourceView(source).masked;
   final findings = <DVConventionFinding>[];
 
   // Helper: line number for byte offset.
@@ -56,14 +61,16 @@ List<DVConventionFinding> dvFindConventionIssues({
   }
 
   void add(int offset, String code, String rule, String message, String fix) {
-    findings.add(DVConventionFinding(
-      code: code,
-      rule: rule,
-      path: path,
-      line: lineOf(offset),
-      message: message,
-      fix: fix,
-    ));
+    findings.add(
+      DVConventionFinding(
+        code: code,
+        rule: rule,
+        path: path,
+        line: lineOf(offset),
+        message: message,
+        fix: fix,
+      ),
+    );
   }
 
   // ------------------------------------------------------------------
@@ -80,7 +87,52 @@ List<DVConventionFinding> dvFindConventionIssues({
         'DV-CONV-001',
         'mainUsesRunApp',
         'main() uses runApp() instead of DV.run()',
-        'Replace runApp(...) with DV.run(...) (or keep it as the framework convention).',
+        'Use DV.run(); declare a Flutter host root with @DVAppRoot().',
+      );
+    }
+  }
+
+  for (final match in RegExp(
+    r'\bDV\s*\.\s*run\s*\(\s*(?:const\s+)?[A-Z]\w*(?:\.\w+)?\s*\(',
+  ).allMatches(source)) {
+    add(
+      match.start,
+      'DV-CONV-001',
+      'widgetPassedToRun',
+      'DV.run accepts process arguments, never a widget.',
+      'Use DV.run(); put an existing Flutter root in @DVAppRoot().',
+    );
+  }
+  for (final match in RegExp(
+    r'\b(?:StatelessWidget|StatefulWidget|ListenableBuilder|ValueListenableBuilder)\b',
+  ).allMatches(source)) {
+    add(
+      match.start,
+      'DV-CONV-012',
+      'flutterWidgetClassOrBuilder',
+      'Use Dartvel widgets and signals in application code.',
+      'Use @DVFunctionalWidget(), DVClassWidget and context.signal.',
+    );
+  }
+  for (final match in RegExp(r'@DVUseMiddleware\b').allMatches(source)) {
+    add(
+      match.start,
+      'DV-CONV-013',
+      'legacyMiddleware',
+      '@DVUseMiddleware is deprecated.',
+      'Move the keys into @DVPage(middleware: [...]) or @DVBackendFunction(middleware: [...]).',
+    );
+  }
+  if (source.contains('@DVBackendFunction')) {
+    for (final match in RegExp(
+      r'\b(?:toJson|fromJson)\s*\(',
+    ).allMatches(source)) {
+      add(
+        match.start,
+        'DV-CONV-014',
+        'manualBackendSerialization',
+        'Backend functions expose typed arguments and return values.',
+        'Use generated data models; serialization is generated.',
       );
     }
   }
@@ -92,9 +144,7 @@ List<DVConventionFinding> dvFindConventionIssues({
   // then a constructor that restates the field (`X(this.field)`) rather
   // than a primary-constructor shape (`class X({required this.field})`).
   // This is a lexical approximation: it catches the old shape.
-  final RegExp classRe = RegExp(
-    r'class\s+[A-Za-z_][A-Za-z0-9_]*',
-  );
+  final RegExp classRe = RegExp(r'class\s+[A-Za-z_][A-Za-z0-9_]*');
   for (final match in classRe.allMatches(source)) {
     final int classOffset = match.start;
     // Check if it already uses primary constructor by looking for `({` soon after.
@@ -140,7 +190,9 @@ List<DVConventionFinding> dvFindConventionIssues({
     'TextButton',
   ];
   for (final name in flutterWidgets) {
-    final RegExp widgetRe = RegExp(r'(?<![\w.])' + RegExp.escape(name) + r'\s*\(');
+    final RegExp widgetRe = RegExp(
+      r'(?<![\w.])' + RegExp.escape(name) + r'\s*\(',
+    );
     for (final match in widgetRe.allMatches(source)) {
       add(
         match.start,
@@ -173,9 +225,7 @@ List<DVConventionFinding> dvFindConventionIssues({
   // ------------------------------------------------------------------
   // DV-CONV-004: string routes
   // ------------------------------------------------------------------
-  final RegExp stringRouteLiteral = RegExp(
-    r"DVRouteTarget\s*\(",
-  );
+  final RegExp stringRouteLiteral = RegExp(r"DVRouteTarget\s*\(");
   for (final match in stringRouteLiteral.allMatches(source)) {
     add(
       match.start,
@@ -224,7 +274,8 @@ List<DVConventionFinding> dvFindConventionIssues({
   for (final match in annotationRe.allMatches(source)) {
     // Find the class declaration after this annotation.
     final after = source.substring(match.end);
-    final classMatch = RegExp(r'class\s+([A-Za-z_][A-Za-z0-9_]*)').firstMatch(after);
+    final classMatch = RegExp(r'class\s+([A-Za-z_][A-Za-z0-9_]*)')
+        .firstMatch(after);
     if (classMatch != null) {
       final className = classMatch.group(1)!;
       if (!className.startsWith('_')) {
@@ -259,10 +310,8 @@ List<DVConventionFinding> dvFindConventionIssues({
   // ------------------------------------------------------------------
   // DV-CONV-008: imports of generated siblings instead of barrel
   // ------------------------------------------------------------------
-  final RegExp siblingImport = RegExp(
-    r"import\s+.*router\.g\.dart",
-  );
-  for (final match in siblingImport.allMatches(source)) {
+  final RegExp siblingImport = RegExp(r"import\s+.*router\.g\.dart");
+  for (final match in siblingImport.allMatches(original)) {
     add(
       match.start,
       'DV-CONV-008',
@@ -311,7 +360,8 @@ List<DVConventionFinding> dvFindConventionIssues({
       'Use the generated model sync, not DV.Realtime.',
     );
   }
-  if (source.contains('DV.Authorization') || source.contains('DV\.Authorization')) {
+  if (source.contains('DV.Authorization') ||
+      source.contains('DV\.Authorization')) {
     final int off = source.indexOf(RegExp('DV\.Authorization'));
     add(
       off >= 0 ? off : 0,
@@ -329,7 +379,7 @@ List<DVConventionFinding> dvFindConventionIssues({
   // are already shorthand forms; we flag the longer form when it appears
   // in a context where shorthand would work.
   final RegExp longShorthandPatterns = RegExp(
-    r'(?<![\w.])(mainAxisAlignment: MainAxisAlignment\.center|padding: EdgeInsets\.all\(|fontWeight: FontWeight\.w600|case\s+\.offline\s*=>|Duration\.zero)',
+    r'(?<![\w.])(mainAxisAlignment: MainAxisAlignment\.center|padding: EdgeInsets\.all\(|fontWeight: FontWeight\.w600|Duration\.zero)',
   );
   for (final match in longShorthandPatterns.allMatches(source)) {
     add(
@@ -347,23 +397,104 @@ List<DVConventionFinding> dvFindConventionIssues({
 
 /// Scan all `.dart` files under a project's `lib/` (excluding generated).
 List<DVConventionFinding> dvScanProjectForConventions(String root) {
-  final libDir = Directory(p.join(root, 'lib'));
-  if (!libDir.existsSync()) return const <DVConventionFinding>[];
   final findings = <DVConventionFinding>[];
-  final files = libDir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.dart'))
-      .where((f) => !RegExp(r'\.(g|freezed|dv|generated)\.dart$').hasMatch(f.path))
-      .where((f) => !f.path.contains('${p.separator}generated${p.separator}'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
-  for (final file in files) {
-    final relative = p.relative(file.path, from: root);
-    findings.addAll(dvFindConventionIssues(
-      path: relative,
-      source: file.readAsStringSync(),
-    ));
+  void add(
+    String path,
+    String code,
+    String rule,
+    String message,
+    String fix, [
+    int line = 1,
+  ]) {
+    findings.add(
+      DVConventionFinding(
+        code: code,
+        rule: rule,
+        path: path,
+        line: line,
+        message: message,
+        fix: fix,
+      ),
+    );
   }
+
+  final libDir = Directory(p.join(root, 'lib'));
+  if (libDir.existsSync()) {
+    for (final file
+        in libDir
+            .listSync(recursive: true, followLinks: false)
+            .whereType<File>()) {
+      final relative = p.relative(file.path, from: root).replaceAll('\\', '/');
+      if (!relative.endsWith('.dart') ||
+          relative.startsWith('lib/dartvel_client/') ||
+          RegExp(r'\.(g|freezed|dv|generated)\.dart$').hasMatch(relative) ||
+          relative.contains('/generated/'))
+        continue;
+      findings.addAll(
+        dvFindConventionIssues(path: relative, source: file.readAsStringSync()),
+      );
+    }
+    if (File(p.join(root, 'lib/main.dart')).existsSync() &&
+        !File(p.join(root, 'lib/pages/index.dart')).existsSync() &&
+        !File(p.join(root, 'lib/pages/_guard.dart')).existsSync()) {
+      add(
+        'lib/pages',
+        'DV-CONV-015',
+        'missingRootPage',
+        'The root has neither index.dart nor a root _guard.dart.',
+        'Add pages/index.dart or a root guard redirect.',
+      );
+    }
+  }
+  const ignored = {
+    '.git',
+    '.dart_tool',
+    'build',
+    'target',
+    'node_modules',
+    '.next',
+    'dartvel_client',
+  };
+  void walk(Directory dir) {
+    for (final entity in dir.listSync(followLinks: false)) {
+      if (entity is Directory && !ignored.contains(p.basename(entity.path)))
+        walk(entity);
+      if (entity is! File) continue;
+      final relative = p
+          .relative(entity.path, from: root)
+          .replaceAll('\\', '/');
+      final ext = p.extension(relative);
+      if ({'.py', '.sh', '.bash', '.ps1', '.bat', '.cmd'}.contains(ext)) {
+        add(
+          relative,
+          'DV-CONV-016',
+          'nonDartTooling',
+          'Project tooling must be Dart.',
+          'Replace this script with a Dart program.',
+        );
+      }
+      if (ext == '.md' || ext == '.mdc' || ext == '.yml' || ext == '.yaml') {
+        final source = entity.readAsStringSync();
+        for (final match in RegExp(
+          r'~/heavy\.sh|/home/[A-Za-z0-9_.-]+/[^\s`]*',
+        ).allMatches(source)) {
+          add(
+            relative,
+            'DV-CONV-017',
+            'privateHostTooling',
+            'Public documentation contains private host tooling or an absolute home path.',
+            'Document portable project commands.',
+            '\n'.allMatches(source.substring(0, match.start)).length + 1,
+          );
+        }
+      }
+    }
+  }
+
+  walk(Directory(root));
+  findings.sort(
+    (a, b) =>
+        a.path == b.path ? a.line.compareTo(b.line) : a.path.compareTo(b.path),
+  );
   return findings;
 }
