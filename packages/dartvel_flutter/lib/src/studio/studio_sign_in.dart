@@ -13,6 +13,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../dartvel_flutter.dart';
+import '../widgets/password_reveal.dart';
 
 /// Where, inside [mount], a person signing in is sent afterwards.
 ///
@@ -163,6 +164,14 @@ class _DVStudioSignInScreenState extends State<DVStudioSignInScreen> {
   final TextEditingController _password = TextEditingController();
   final TextEditingController _code = TextEditingController();
   bool _askingForCode = false;
+
+  @override
+  void initState() {
+    super.initState();
+  // What was typed into the server-rendered form before the app painted.
+    dvTakeOverServerField('Email', _email);
+  }
+
   bool _busy = false;
   String? _problem;
 
@@ -237,39 +246,54 @@ class _DVStudioSignInScreenState extends State<DVStudioSignInScreen> {
     bool autofocus = false,
     Iterable<String>? autofill,
   }) {
+    // A hidden field gets the eye every password field in Dartvel has.
+    Widget input(bool obscured, Widget? eye) {
+      return TextField(
+        key: ValueKey<String>(key),
+        controller: controller,
+        obscureText: obscured,
+        autofocus: autofocus,
+        autofillHints: autofill,
+        enabled: !_busy,
+        onSubmitted: (_) => _submit(),
+        style: const TextStyle(fontSize: 14, color: DVStudioStyle.ink),
+        decoration: InputDecoration(
+          suffixIcon: eye,
+          labelText: label,
+          isDense: true,
+          filled: true,
+          fillColor: DVStudioStyle.canvas,
+          contentPadding: const .symmetric(horizontal: 12, vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: .circular(DVStudioStyle.radius),
+            borderSide: const BorderSide(color: DVStudioStyle.lineStrong),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: .circular(DVStudioStyle.radius),
+            borderSide: const BorderSide(color: DVStudioStyle.lineStrong),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: .circular(DVStudioStyle.radius),
+            borderSide:
+                const BorderSide(color: DVStudioStyle.accent, width: 1.5),
+          ),
+        ),
+      );
+    }
+
     return DVBox.list(
       <Widget>[
         DVStudioStyle.caption(label, color: DVStudioStyle.ink),
-        TextField(
-          key: ValueKey<String>(key),
-          controller: controller,
-          obscureText: secret,
-          autofocus: autofocus,
-          autofillHints: autofill,
-          enabled: !_busy,
-          onSubmitted: (_) => _submit(),
-          style: const TextStyle(fontSize: 14, color: DVStudioStyle.ink),
-          decoration: InputDecoration(
-            labelText: label,
-            isDense: true,
-            filled: true,
-            fillColor: DVStudioStyle.canvas,
-            contentPadding: const .symmetric(horizontal: 12, vertical: 12),
-            border: OutlineInputBorder(
-              borderRadius: .circular(DVStudioStyle.radius),
-              borderSide: const BorderSide(color: DVStudioStyle.lineStrong),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: .circular(DVStudioStyle.radius),
-              borderSide: const BorderSide(color: DVStudioStyle.lineStrong),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: .circular(DVStudioStyle.radius),
-              borderSide:
-                  const BorderSide(color: DVStudioStyle.accent, width: 1.5),
-            ),
-          ),
-        ),
+        if (secret)
+          DVPasswordRevealBuilder(
+            label: label,
+            controller: controller,
+            eyeColor: DVStudioStyle.faint,
+            builder: (BuildContext context, bool obscured, Widget eye) =>
+                input(obscured, eye),
+          )
+        else
+          input(false, null),
       ],
       spacing: 6,
     );
