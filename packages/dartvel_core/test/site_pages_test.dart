@@ -8,7 +8,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'dart:typed_data';
+
 import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_core/src/process/asset_pack.dart';
+import 'package:dartvel_core/src/web/asset_source.dart';
 import 'package:test/test.dart';
 
 String page(String route, String title, String body) => jsonEncode(
@@ -80,6 +84,35 @@ void main() {
     File('${web.path}/dartvel_routes.json').writeAsStringSync(manifest());
 
     DVSitePages.webRoot = web.path;
+    addTearDown(() => DVSitePages.webRoot = null);
+
+    expect((await DVSitePages.load()).map((DVSitePage p) => p.path),
+        contains('/docs/cache'));
+  });
+
+  // A web-server binary serves its site from the pack inside it, and there is
+  // no directory on disk at the root it names. Reading the manifest from disk
+  // found nothing there, so the live site search fitted its index to no pages
+  // and answered every query with a 500.
+  test('load reads the manifest from a web-server binary\'s pack, with no '
+      'directory on disk', () async {
+    final Directory work = Directory.systemTemp.createTempSync('dv_site_pack');
+    addTearDown(() {
+      DVAssetSources.clear();
+      work.deleteSync(recursive: true);
+    });
+    final Uint8List bytes = dvWriteAssetPack(<DVAssetPackEntry>[
+      DVAssetPackEntry('web/dartvel_routes.json',
+          Uint8List.fromList(utf8.encode(manifest()))),
+    ]);
+    final File binary = File('${work.path}/server')..writeAsBytesSync(bytes);
+    final DVAssetPack pack =
+        DVAssetPack.open(binary.path, offset: 0, length: bytes.length)!;
+    const String root = '/srv/app/nowhere-on-disk/web';
+    expect(Directory(root).existsSync(), isFalse);
+    DVAssetSources.register(root, DVPackedAssets(pack, prefix: 'web/'));
+
+    DVSitePages.webRoot = root;
     addTearDown(() => DVSitePages.webRoot = null);
 
     expect((await DVSitePages.load()).map((DVSitePage p) => p.path),
