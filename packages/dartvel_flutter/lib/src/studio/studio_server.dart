@@ -21,6 +21,9 @@ import 'package:dartvel_core/dartvel.dart' as core
     show
         DVDatabase,
         DVStudioApi,
+        DVStudioForm,
+        DVStudioFormField,
+        DVStudioFormSubmission,
         DVStudioMediaFile,
         DVStudioMenu,
         DVStudioModelSpec,
@@ -41,6 +44,7 @@ import 'package:flutter/foundation.dart' show mapEquals;
 
 import '../../dartvel_flutter.dart';
 import 'studio_first_run.dart';
+import 'studio_forms.dart';
 import 'studio_server_transport_stub.dart'
     if (dart.library.js_interop) 'studio_server_transport_web.dart' as transport;
 import 'studio_sign_in.dart';
@@ -406,6 +410,107 @@ class DVStudioClient {
   /// Deletes the menu with [id].
   Future<void> deleteMenu(String id) async {
     await _send('DELETE', 'api/menus?id=${Uri.encodeQueryComponent(id)}');
+  }
+
+  /// The forms configured in Studio.
+  Future<List<core.DVStudioForm>> forms() async {
+    final Map<String, Object?> body = _map(await _send('GET', 'api/forms'));
+    return <core.DVStudioForm>[
+      for (final Map<String, Object?> m in _list(body, 'forms'))
+        core.DVStudioForm.fromJson(m),
+    ];
+  }
+
+  /// One form by its [id].
+  Future<core.DVStudioForm> form(String id) async {
+    final Map<String, Object?> body =
+        _map(await _send('GET', 'api/forms?id=${Uri.encodeQueryComponent(id)}'));
+    return core.DVStudioForm.fromJson(body);
+  }
+
+  /// Saves or updates [form].
+  Future<core.DVStudioForm> saveForm(core.DVStudioForm form) async {
+    final Map<String, Object?> body = _map(await _send(
+      'POST',
+      'api/forms',
+      body: form.toJson(),
+    ));
+    return core.DVStudioForm.fromJson(body);
+  }
+
+  /// Deletes the form with [id].
+  Future<void> deleteForm(String id) async {
+    await _send('DELETE', 'api/forms?id=${Uri.encodeQueryComponent(id)}');
+  }
+
+  /// Submits visitor or client [data] to form with [formId].
+  Future<({String submissionId, String message})> submitForm(
+    String formId,
+    Map<String, Object?> data,
+  ) async {
+    final Map<String, Object?> body = _map(await _send(
+      'POST',
+      'api/forms/submit',
+      body: <String, Object?>{
+        'formId': formId,
+        'data': data,
+      },
+    ));
+    return (
+      submissionId: '${body['submissionId'] ?? ''}',
+      message: '${body['message'] ?? ''}',
+    );
+  }
+
+  /// Submissions received, optionally filtered by [formId], [status], and [query].
+  Future<({List<core.DVStudioFormSubmission> submissions, int total, int unread})>
+      submissions({
+    String? formId,
+    String? status,
+    String? query,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    final Map<String, String> queryParams = <String, String>{
+      if (formId != null && formId.isNotEmpty) 'formId': formId,
+      if (status != null && status.isNotEmpty) 'status': status,
+      if (query != null && query.isNotEmpty) 'q': query,
+      'limit': '$limit',
+      'offset': '$offset',
+    };
+    final String queryStr = Uri(queryParameters: queryParams).query;
+    final Map<String, Object?> body =
+        _map(await _send('GET', 'api/forms/submissions?$queryStr'));
+    final List<core.DVStudioFormSubmission> list =
+        <core.DVStudioFormSubmission>[
+      for (final Map<String, Object?> s in _list(body, 'submissions'))
+        core.DVStudioFormSubmission.fromJson(s),
+    ];
+    return (
+      submissions: list,
+      total: (body['total'] as num?)?.toInt() ?? list.length,
+      unread: (body['unread'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// Updates the status of submission [id] to [status].
+  Future<core.DVStudioFormSubmission> updateSubmissionStatus(
+    String id,
+    String status,
+  ) async {
+    final Map<String, Object?> body = _map(await _send(
+      'PATCH',
+      'api/forms/submissions',
+      body: <String, Object?>{'id': id, 'status': status},
+    ));
+    return core.DVStudioFormSubmission.fromJson(
+        _map(body['submission'] ?? body));
+  }
+
+  /// Deletes submission with [id].
+  Future<void> deleteSubmission(String id) async {
+    await _send(
+        'DELETE', 'api/forms/submissions?id=${Uri.encodeQueryComponent(id)}');
   }
 
   /// The signed-in account, `{userId, email}`.
@@ -1132,6 +1237,7 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client, {
       ),
       dvStudioMediaSection(client),
       dvStudioMenusSection(client),
+      dvStudioFormsSection(client),
       dvStudioDataSection(client),
       dvStudioSiteMapSection(client),
       // The builders, not a list: a page is of little use if a button
@@ -1234,6 +1340,20 @@ DVStudioSection dvStudioMenusSection(DVStudioClient client) =>
           DVStudioMenusSection(
         client: client,
         selectedMenuId: selection.object,
+        onSelect: (String? id) => selection.select?.call(id ?? ''),
+      ),
+    );
+
+/// Forms & Submissions: visual form builder, embed options, and submissions inbox.
+DVStudioSection dvStudioFormsSection(DVStudioClient client) =>
+    DVStudioSection.opening(
+      id: 'forms',
+      label: 'Forms',
+      icon: DVStudioIcons.forms,
+      build: (BuildContext context, DVStudioSelection selection) =>
+          DVStudioFormsSection(
+        client: client,
+        selectedFormId: selection.object,
         onSelect: (String? id) => selection.select?.call(id ?? ''),
       ),
     );

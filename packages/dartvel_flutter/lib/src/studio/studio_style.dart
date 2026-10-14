@@ -1265,6 +1265,7 @@ abstract final class DVStudioIcons {
   static const IconData home = Icons.home_outlined;
   static const IconData media = Icons.perm_media_outlined;
   static const IconData menus = Icons.menu_open_outlined;
+  static const IconData forms = Icons.dynamic_form_outlined;
   static const IconData layers = Icons.layers_outlined;
   static const IconData insert = Icons.add_box_outlined;
   static const IconData windows = Icons.web_asset_outlined;
@@ -1315,6 +1316,8 @@ abstract final class DVStudioIcons {
     switch (type) {
       case 'component':
         return components;
+      case 'form':
+        return forms;
       case 'text':
         return text;
       case 'image':

@@ -123,6 +123,20 @@ class DVPageNode {
   factory DVPageNode.box({String layout = 'list'}) =>
       DVPageNode(type: 'box', layout: layout);
 
+  factory DVPageNode.form({
+    String? formId,
+    String? submitLabel,
+    String? successMessage,
+  }) =>
+      DVPageNode(
+        type: 'form',
+        properties: <String, Object?>{
+          if (formId != null) 'formId': formId,
+          if (submitLabel != null) 'submitLabel': submitLabel,
+          if (successMessage != null) 'successMessage': successMessage,
+        },
+      );
+
   /// A copy with [name] set — what the property inspector applies.
   DVPageNode withProperty(String name, Object? value) => DVPageNode(
         id: id,

@@ -126,6 +126,13 @@ const List<DVStudioScreenSpec> dvStudioScreens = <DVStudioScreenSpec>[
         'and structured navigation hierarchies.',
   ),
   DVStudioScreenSpec(
+    id: 'forms',
+    label: 'Forms',
+    summary:
+        'The forms in this application, their fields, and the visitor '
+        'submissions received.',
+  ),
+  DVStudioScreenSpec(
     id: 'models',
     label: 'Data',
     summary:
@@ -197,6 +204,8 @@ const Map<String, String> dvStudioScreenAliases = <String, String>{
   'assets': 'media',
   'navigation': 'menus',
   'nav': 'menus',
+  'submissions': 'forms',
+  'inbox': 'forms',
 };
 
 DVStudioScreenSpec? dvStudioScreenFor(String id) {
@@ -637,6 +646,15 @@ DVStudioDocument _screenDocument(
         'Configure site navigation: header menus, footer links and '
         'structured navigation hierarchies.',
       );
+    case 'forms':
+      html.writeln(
+        '<p>Configure forms, manage input fields, and inspect visitor '
+        'submissions received by this application.</p>',
+      );
+      text.add(
+        'Configure forms, manage input fields, and inspect visitor '
+        'submissions received by this application.',
+      );
     case 'access':
       html
         ..writeln(
@@ -964,6 +982,21 @@ DVStudioDocument? _objectDocument(
         text: <String>[
           name,
           'Navigation menu configuration for this application.',
+        ],
+      );
+    case 'forms':
+      final String objectLabel = name == 'submissions'
+          ? 'Form Submissions'
+          : name;
+      html
+        ..writeln('<h1>${_escape.convert(objectLabel)}</h1>')
+        ..writeln('<p>Form definition and visitor submissions for this application.</p>');
+      return DVStudioDocument(
+        heading: objectLabel,
+        html: html.toString(),
+        text: <String>[
+          objectLabel,
+          'Form definition and visitor submissions for this application.',
         ],
       );
     case 'access':

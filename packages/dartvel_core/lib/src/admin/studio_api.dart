@@ -48,6 +48,7 @@ import '../web/asset_source.dart';
 import '../web/rendered_page_cache.dart';
 import 'studio_access.dart';
 import 'studio_document.dart' show DVStudioProjectData;
+import 'studio_forms.dart';
 import 'studio_menus.dart';
 import 'studio_model_schema.dart';
 import 'studio_overview.dart';
@@ -534,6 +535,39 @@ const DVRecordShape dvStudioMenusShape = DVRecordShape(
   },
 );
 
+const String dvStudioFormsTable = 'dartvel_studio_forms';
+const DVRecordShape dvStudioFormsShape = DVRecordShape(
+  collection: dvStudioFormsTable,
+  key: 'id',
+  fields: <String, DVFieldType>{
+    'id': DVFieldType.text,
+    'name': DVFieldType.text,
+    'description': DVFieldType.text,
+    'submit_label': DVFieldType.text,
+    'success_message': DVFieldType.text,
+    'fields_json': DVFieldType.text,
+    'target_email': DVFieldType.text,
+    'target_model': DVFieldType.text,
+    'submissions_count': DVFieldType.integer,
+    'updated_at': DVFieldType.integer,
+  },
+);
+
+const String dvStudioSubmissionsTable = 'dartvel_studio_form_submissions';
+const DVRecordShape dvStudioSubmissionsShape = DVRecordShape(
+  collection: dvStudioSubmissionsTable,
+  key: 'id',
+  fields: <String, DVFieldType>{
+    'id': DVFieldType.text,
+    'form_id': DVFieldType.text,
+    'data_json': DVFieldType.text,
+    'status': DVFieldType.text,
+    'submitted_at': DVFieldType.integer,
+    'ip_address': DVFieldType.text,
+    'user_agent': DVFieldType.text,
+  },
+);
+
 /// The Studio API, for requests already decided to be the admin's and
 /// allowed.
 class DVStudioApi {
@@ -565,6 +599,10 @@ class DVStudioApi {
   final DVFileStorageAdapter storage;
   final Map<String, Map<String, Object?>> _memoryMedia = <String, Map<String, Object?>>{};
   final Map<String, DVStudioMenu> _memoryMenus = <String, DVStudioMenu>{};
+  final Map<String, DVStudioForm> _memoryForms = <String, DVStudioForm>{};
+  final Set<String> _deletedForms = <String>{};
+  final Map<String, DVStudioFormSubmission> _memorySubmissions =
+      <String, DVStudioFormSubmission>{};
 
   final DVGitHubTransport? _gitHub;
 
@@ -619,7 +657,6 @@ class DVStudioApi {
   Future<Response> respond(Request request, String rest) =>
       _guard(() async {
         final String method = request.method.toUpperCase();
-        if (method != 'GET' && method != 'HEAD') _requireCsrf(request);
         final List<String> segments = rest
             .split('/')
             .where((String s) => s.isNotEmpty)
@@ -627,6 +664,11 @@ class DVStudioApi {
             .toList(growable: false);
         if (segments.isEmpty) {
           throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
+        }
+        final bool isPublicSubmit =
+            segments.first == 'forms' && segments.contains('submit');
+        if (method != 'GET' && method != 'HEAD' && !isPublicSubmit) {
+          _requireCsrf(request);
         }
         switch (segments.first) {
           case 'models':
@@ -655,6 +697,8 @@ class DVStudioApi {
             return await _media(request, method, segments.sublist(1));
           case 'menus':
             return await _menus(request, method, segments.sublist(1));
+          case 'forms':
+            return await _forms(request, method, segments.sublist(1));
           case 'overview':
             if (segments.length == 1) {
               if (method != 'GET' && method != 'HEAD') _notAllowed();
@@ -3092,6 +3136,524 @@ class DVStudioApi {
         screen: 'menus',
         object: id,
       );
+      return _reply(<String, Object?>{'ok': true, 'deleted': id});
+    }
+
+    _notAllowed();
+  }
+
+  Future<List<DVStudioForm>> _listForms() async {
+    final Map<String, DVStudioForm> byId = <String, DVStudioForm>{};
+    for (final DVStudioForm f in dvStudioDefaultForms()) {
+      if (!_deletedForms.contains(f.id)) {
+        byId[f.id] = f;
+      }
+    }
+    for (final MapEntry<String, DVStudioForm> entry in _memoryForms.entries) {
+      if (!_deletedForms.contains(entry.key)) {
+        byId[entry.key] = entry.value;
+      }
+    }
+    if (database != null) {
+      try {
+        final DVRecordAdapter records = DVRecordAdapter.over(database!);
+        await records.ensure(dvStudioFormsShape);
+        final List<Map<String, Object?>> rows = await records.find(
+          dvStudioFormsTable,
+          orderBy: const <DVSort>[DVSort('updated_at', descending: true)],
+        );
+        for (final Map<String, Object?> row in rows) {
+          final String id = '${row['id'] ?? ''}';
+          if (id.isEmpty || _deletedForms.contains(id)) continue;
+          final String name = '${row['name'] ?? id}';
+          final String? description = row['description'] as String?;
+          final String submitLabel = '${row['submit_label'] ?? 'Submit'}';
+          final String successMessage =
+              '${row['success_message'] ?? 'Thank you! Your submission has been received.'}';
+          final String fieldsJson = '${row['fields_json'] ?? '[]'}';
+          final String? targetEmail = row['target_email'] as String?;
+          final String? targetModel = row['target_model'] as String?;
+          final int submissionsCount =
+              (row['submissions_count'] as num?)?.toInt() ?? 0;
+          final int updatedAtMs = (row['updated_at'] as num?)?.toInt() ?? 0;
+          List<DVStudioFormField> fields = const <DVStudioFormField>[];
+          try {
+            final Object? decoded = jsonDecode(fieldsJson);
+            if (decoded is List) {
+              fields = <DVStudioFormField>[
+                for (final Object? item in decoded)
+                  if (item is Map)
+                    DVStudioFormField.fromJson(item.cast<String, Object?>()),
+              ];
+            }
+          } catch (_) {}
+          byId[id] = DVStudioForm(
+            id: id,
+            name: name,
+            description: description,
+            submitLabel: submitLabel,
+            successMessage: successMessage,
+            fields: fields,
+            targetEmail: targetEmail,
+            targetModel: targetModel,
+            submissionsCount: submissionsCount,
+            updatedAt: updatedAtMs > 0
+                ? DateTime.fromMillisecondsSinceEpoch(updatedAtMs, isUtc: true)
+                : DateTime.now().toUtc(),
+          );
+        }
+      } catch (_) {}
+    }
+    return byId.values.toList();
+  }
+
+  Future<List<DVStudioFormSubmission>> _listSubmissions({
+    String? formId,
+    String? status,
+    String? query,
+  }) async {
+    final Map<String, DVStudioFormSubmission> byId =
+        <String, DVStudioFormSubmission>{};
+    for (final MapEntry<String, DVStudioFormSubmission> entry
+        in _memorySubmissions.entries) {
+      byId[entry.key] = entry.value;
+    }
+    if (database != null) {
+      try {
+        final DVRecordAdapter records = DVRecordAdapter.over(database!);
+        await records.ensure(dvStudioSubmissionsShape);
+        final List<Map<String, Object?>> rows = await records.find(
+          dvStudioSubmissionsTable,
+          orderBy: const <DVSort>[DVSort('submitted_at', descending: true)],
+        );
+        for (final Map<String, Object?> row in rows) {
+          final String id = '${row['id'] ?? ''}';
+          if (id.isEmpty) continue;
+          final String fId = '${row['form_id'] ?? ''}';
+          final String subStatus = '${row['status'] ?? 'unread'}';
+          final String dataJson = '${row['data_json'] ?? '{}'}';
+          final int submittedAtMs =
+              (row['submitted_at'] as num?)?.toInt() ?? 0;
+          final String? ipAddress = row['ip_address'] as String?;
+          final String? userAgent = row['user_agent'] as String?;
+          Map<String, Object?> data = const <String, Object?>{};
+          try {
+            final Object? decoded = jsonDecode(dataJson);
+            if (decoded is Map) {
+              data = decoded.cast<String, Object?>();
+            }
+          } catch (_) {}
+          byId[id] = DVStudioFormSubmission(
+            id: id,
+            formId: fId,
+            status: subStatus,
+            data: data,
+            submittedAt: submittedAtMs > 0
+                ? DateTime.fromMillisecondsSinceEpoch(submittedAtMs, isUtc: true)
+                : DateTime.now().toUtc(),
+            ipAddress: ipAddress,
+            userAgent: userAgent,
+          );
+        }
+      } catch (_) {}
+    }
+    List<DVStudioFormSubmission> list = byId.values.toList();
+    list.sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+    if (formId != null && formId.isNotEmpty && formId != 'all') {
+      list = list.where((s) => s.formId == formId).toList();
+    }
+    if (status != null && status.isNotEmpty && status != 'all') {
+      list = list.where((s) => s.status == status).toList();
+    }
+    if (query != null && query.isNotEmpty) {
+      final String q = query.toLowerCase();
+      list = list.where((s) {
+        if (s.id.toLowerCase().contains(q) || s.formId.toLowerCase().contains(q)) {
+          return true;
+        }
+        for (final Object? v in s.data.values) {
+          if ('$v'.toLowerCase().contains(q)) return true;
+        }
+        return false;
+      }).toList();
+    }
+    return list;
+  }
+
+  Future<Response> _forms(
+    Request request,
+    String method,
+    List<String> segments,
+  ) async {
+    // 1. Submit action
+    final bool isSubmit = (segments.isNotEmpty && segments.first == 'submit') ||
+        (segments.length >= 2 && segments[1] == 'submit');
+    if (isSubmit) {
+      if (method != 'POST') _notAllowed();
+      final Map<String, Object?> body = await _body(request);
+      final String formId = segments.length >= 2 && segments[1] == 'submit'
+          ? segments.first
+          : ('${body['formId'] ?? body['form'] ?? request.url.queryParameters['formId'] ?? request.url.queryParameters['id'] ?? ''}'
+              .trim());
+      if (formId.isEmpty) {
+        throw _StudioRefusal(
+            400, 'missing_form_id', 'Form id is required for submission.');
+      }
+      final List<DVStudioForm> forms = await _listForms();
+      final DVStudioForm? form =
+          forms.where((DVStudioForm f) => f.id == formId).firstOrNull;
+      if (form == null) {
+        throw _StudioRefusal(
+            404, 'not_found', 'No form found with id "$formId".');
+      }
+
+      final Map<String, Object?> data = body['data'] is Map
+          ? (body['data']! as Map).cast<String, Object?>()
+          : (Map<String, Object?>.from(body)
+            ..remove('formId')
+            ..remove('form')
+            ..remove('id'));
+
+      for (final DVStudioFormField field in form.fields) {
+        final Object? val = data[field.id] ?? data[field.label];
+        if (field.required) {
+          if (val == null || (val is String && val.trim().isEmpty)) {
+            throw _StudioRefusal(
+                400, 'validation_error', 'Field "${field.label}" is required.');
+          }
+        }
+        if (val is String && val.trim().isNotEmpty) {
+          if (field.type == 'email' &&
+              (!val.contains('@') || !val.contains('.'))) {
+            throw _StudioRefusal(400, 'validation_error',
+                'Invalid email address for "${field.label}".');
+          }
+        }
+      }
+
+      final DateTime now = DateTime.now().toUtc();
+      final String submissionId =
+          'sub-${now.millisecondsSinceEpoch}-${math.Random().nextInt(0xffffff).toRadixString(16)}';
+      final String? ip = request.headers
+              .get('x-forwarded-for')
+              ?.split(',')
+              .first
+              .trim() ??
+          request.headers.get('x-real-ip');
+      final String? userAgent = request.headers.get('user-agent');
+      final DVStudioFormSubmission submission = DVStudioFormSubmission(
+        id: submissionId,
+        formId: form.id,
+        data: data,
+        status: 'unread',
+        submittedAt: now,
+        ipAddress: ip,
+        userAgent: userAgent,
+      );
+
+      _memorySubmissions[submissionId] = submission;
+
+      if (database != null) {
+        try {
+          final DVRecordAdapter records = DVRecordAdapter.over(database!);
+          await records.ensure(dvStudioSubmissionsShape);
+          await records.insert(dvStudioSubmissionsTable, <String, Object?>{
+            'id': submissionId,
+            'form_id': form.id,
+            'data_json': jsonEncode(data),
+            'status': 'unread',
+            'submitted_at': now.millisecondsSinceEpoch,
+            if (ip != null) 'ip_address': ip,
+            if (userAgent != null) 'user_agent': userAgent,
+          });
+        } catch (_) {}
+      }
+
+      final DVStudioForm updatedForm = form.copyWith(
+        submissionsCount: form.submissionsCount + 1,
+        updatedAt: now,
+      );
+      _memoryForms[form.id] = updatedForm;
+      if (database != null) {
+        try {
+          final DVRecordAdapter records = DVRecordAdapter.over(database!);
+          await records.ensure(dvStudioFormsShape);
+          await records.update(
+            dvStudioFormsTable,
+            <String, Object?>{
+              'submissions_count': updatedForm.submissionsCount,
+              'updated_at': now.millisecondsSinceEpoch,
+            },
+            where: DVFilter.equals('id', form.id),
+          );
+        } catch (_) {}
+      }
+
+      await _note(
+        'forms',
+        'submitted',
+        'New submission for "${form.name}"',
+        screen: 'forms',
+        object: submissionId,
+      );
+
+      return _reply(<String, Object?>{
+        'ok': true,
+        'submissionId': submissionId,
+        'message': form.successMessage,
+      }, status: 201);
+    }
+
+    // 2. Submissions management
+    final bool isSubmissions =
+        (segments.isNotEmpty && segments.first == 'submissions') ||
+            (segments.length >= 2 && segments[1] == 'submissions');
+    if (isSubmissions) {
+      if (method == 'GET') {
+        final String? formId =
+            segments.length >= 2 && segments[1] == 'submissions'
+                ? segments.first
+                : request.url.queryParameters['formId'];
+        final String? status = request.url.queryParameters['status'];
+        final String? query = request.url.queryParameters['q'];
+        final int limit =
+            int.tryParse(request.url.queryParameters['limit'] ?? '') ?? 50;
+        final int offset =
+            int.tryParse(request.url.queryParameters['offset'] ?? '') ?? 0;
+
+        final List<DVStudioFormSubmission> all = await _listSubmissions(
+          formId: formId,
+          status: status,
+          query: query,
+        );
+        final int unreadCount =
+            all.where((DVStudioFormSubmission s) => s.status == 'unread').length;
+        final List<DVStudioFormSubmission> paged =
+            all.skip(offset).take(limit).toList();
+
+        return _reply(<String, Object?>{
+          'submissions': <Map<String, Object?>>[
+            for (final DVStudioFormSubmission s in paged) s.toJson(),
+          ],
+          'total': all.length,
+          'unread': unreadCount,
+        });
+      }
+
+      if (method == 'PATCH' || method == 'PUT') {
+        final Map<String, Object?> body = await _body(request);
+        final String id = segments.length >= 2 && segments[0] == 'submissions'
+            ? segments[1]
+            : ('${body['id'] ?? ''}'.trim());
+        if (id.isEmpty) {
+          throw _StudioRefusal(
+              400, 'missing_id', 'Submission id is required.');
+        }
+        final String newStatus = '${body['status'] ?? 'read'}'.trim();
+        final List<DVStudioFormSubmission> all = await _listSubmissions();
+        final DVStudioFormSubmission? found =
+            all.where((DVStudioFormSubmission s) => s.id == id).firstOrNull;
+        if (found == null) {
+          throw _StudioRefusal(
+              404, 'not_found', 'No submission found with id "$id".');
+        }
+        final DVStudioFormSubmission updated =
+            found.copyWith(status: newStatus);
+        _memorySubmissions[id] = updated;
+
+        if (database != null) {
+          try {
+            final DVRecordAdapter records = DVRecordAdapter.over(database!);
+            await records.ensure(dvStudioSubmissionsShape);
+            await records.update(
+              dvStudioSubmissionsTable,
+              <String, Object?>{'status': newStatus},
+              where: DVFilter.equals('id', id),
+            );
+          } catch (_) {}
+        }
+
+        return _reply(<String, Object?>{
+          'ok': true,
+          'submission': updated.toJson(),
+        });
+      }
+
+      if (method == 'DELETE') {
+        final String id = segments.length >= 2 && segments[0] == 'submissions'
+            ? segments[1]
+            : (request.url.queryParameters['id'] ?? '').trim();
+        if (id.isEmpty) {
+          throw _StudioRefusal(
+              400, 'missing_id', 'Submission id to delete is required.');
+        }
+        _memorySubmissions.remove(id);
+
+        if (database != null) {
+          try {
+            final DVRecordAdapter records = DVRecordAdapter.over(database!);
+            await records.ensure(dvStudioSubmissionsShape);
+            await records.delete(
+              dvStudioSubmissionsTable,
+              where: DVFilter.equals('id', id),
+            );
+          } catch (_) {}
+        }
+
+        await _note(
+          'forms',
+          'deleted',
+          'Submission deleted: $id',
+          screen: 'forms',
+          object: id,
+        );
+
+        return _reply(<String, Object?>{'ok': true, 'deleted': id});
+      }
+
+      _notAllowed();
+    }
+
+    // 3. Forms CRUD
+    final List<DVStudioForm> forms = await _listForms();
+
+    if (method == 'GET') {
+      final String? id = segments.isNotEmpty
+          ? segments.first
+          : request.url.queryParameters['id'];
+      if (id != null && id.isNotEmpty) {
+        final DVStudioForm? found =
+            forms.where((DVStudioForm f) => f.id == id).firstOrNull;
+        if (found == null) {
+          throw _StudioRefusal(
+              404, 'not_found', 'No form found with id "$id".');
+        }
+        return _reply(found.toJson());
+      }
+      return _reply(<String, Object?>{
+        'forms': <Map<String, Object?>>[
+          for (final DVStudioForm f in forms) f.toJson(),
+        ],
+      });
+    }
+
+    if (method == 'POST' || method == 'PUT') {
+      final Map<String, Object?> body = await _body(request);
+      final String id = '${body['id'] ?? ''}'.trim();
+      final String name = '${body['name'] ?? ''}'.trim();
+      if (id.isEmpty || name.isEmpty) {
+        throw _StudioRefusal(400, 'bad_form', 'Form id and name are required.');
+      }
+      final List<DVStudioFormField> fields = <DVStudioFormField>[
+        for (final Object? item
+            in (body['fields'] as List?) ?? const <Object?>[])
+          if (item is Map)
+            DVStudioFormField.fromJson(item.cast<String, Object?>()),
+      ];
+      final DateTime now = DateTime.now().toUtc();
+      final DVStudioForm? existingForm =
+          forms.where((DVStudioForm f) => f.id == id).firstOrNull;
+      final int submissionsCount = (body['submissionsCount'] as num?)?.toInt() ??
+          existingForm?.submissionsCount ??
+          0;
+      final DVStudioForm form = DVStudioForm(
+        id: id,
+        name: name,
+        description: body['description'] as String?,
+        submitLabel: '${body['submitLabel'] ?? 'Submit'}',
+        successMessage:
+            '${body['successMessage'] ?? 'Thank you! Your submission has been received.'}',
+        fields: fields,
+        targetEmail: body['targetEmail'] as String?,
+        targetModel: body['targetModel'] as String?,
+        submissionsCount: submissionsCount,
+        updatedAt: now,
+      );
+
+      _deletedForms.remove(id);
+      _memoryForms[id] = form;
+
+      if (database != null) {
+        try {
+          final DVRecordAdapter records = DVRecordAdapter.over(database!);
+          await records.ensure(dvStudioFormsShape);
+          final Map<String, Object?> record = <String, Object?>{
+            'id': id,
+            'name': name,
+            if (form.description != null) 'description': form.description,
+            'submit_label': form.submitLabel,
+            'success_message': form.successMessage,
+            'fields_json': jsonEncode(<Map<String, Object?>>[
+              for (final DVStudioFormField f in fields) f.toJson(),
+            ]),
+            if (form.targetEmail != null) 'target_email': form.targetEmail,
+            if (form.targetModel != null) 'target_model': form.targetModel,
+            'submissions_count': form.submissionsCount,
+            'updated_at': now.millisecondsSinceEpoch,
+          };
+          final List<Map<String, Object?>> existingRows = await records.find(
+            dvStudioFormsTable,
+            where: DVFilter.equals('id', id),
+          );
+          if (existingRows.isNotEmpty) {
+            await records.update(
+              dvStudioFormsTable,
+              record,
+              where: DVFilter.equals('id', id),
+            );
+          } else {
+            await records.insert(dvStudioFormsTable, record);
+          }
+        } catch (_) {}
+      }
+
+      await _note(
+        'forms',
+        'updated',
+        'Form updated: $name',
+        screen: 'forms',
+        object: id,
+      );
+
+      return _reply(form.toJson(), status: 200);
+    }
+
+    if (method == 'DELETE') {
+      final String id = segments.isNotEmpty
+          ? segments.first
+          : (request.url.queryParameters['id'] ?? '').trim();
+      if (id.isEmpty) {
+        throw _StudioRefusal(
+            400, 'missing_id', 'Form id to delete is required.');
+      }
+      _deletedForms.add(id);
+      _memoryForms.remove(id);
+      _memorySubmissions.removeWhere((_, DVStudioFormSubmission s) => s.formId == id);
+
+      if (database != null) {
+        try {
+          final DVRecordAdapter records = DVRecordAdapter.over(database!);
+          await records.ensure(dvStudioFormsShape);
+          await records.delete(
+            dvStudioFormsTable,
+            where: DVFilter.equals('id', id),
+          );
+          await records.ensure(dvStudioSubmissionsShape);
+          await records.delete(
+            dvStudioSubmissionsTable,
+            where: DVFilter.equals('form_id', id),
+          );
+        } catch (_) {}
+      }
+
+      await _note(
+        'forms',
+        'deleted',
+        'Form deleted: $id',
+        screen: 'forms',
+        object: id,
+      );
+
       return _reply(<String, Object?>{'ok': true, 'deleted': id});
     }
 
