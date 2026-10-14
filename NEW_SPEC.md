@@ -2672,12 +2672,10 @@ Stability: `Contract` · Status: `Partial`
 Dartvel supports middleware for both pages and backend functions.
 
 ```dart
-@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.tenant, DVMiddlewares.rateLimitCheckout])
-@DVPage()
+@DVPage(middleware: [DVMiddlewares.auth, DVMiddlewares.tenant, DVMiddlewares.rateLimitCheckout])
 Widget _checkoutPage(BuildContext context) => Checkout.Page();
 
-@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.csrf, DVMiddlewares.idempotency])
-@DVBackendFunction()
+@DVBackendFunction(middleware: [DVMiddlewares.auth, DVMiddlewares.csrf, DVMiddlewares.idempotency])
 Future<Order> _createOrder(CreateOrderInput input) async => Order.create(input);
 ```
 

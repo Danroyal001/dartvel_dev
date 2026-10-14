@@ -385,3 +385,9 @@ none:
 
 `NEW_SPEC.md` is a **design specification, not a description of what ships
 today**. Where it and the code disagree, the code wins.
+
+Page and backend middleware belongs on the declaration:
+`@DVPage(middleware: [DVMiddlewares.auth])` and
+`@DVBackendFunction(middleware: [DVMiddlewares.rateLimit])`.
+The ordered list runs before the page or function. The old `@DVUseMiddleware`
+annotation remains a deprecated alias; `dartvel doctor --conventions` reports it.
