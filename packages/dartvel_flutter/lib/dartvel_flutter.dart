@@ -1675,6 +1675,32 @@ class DVModifier {
   DVModifier revealOnScroll({Duration delay = Duration.zero}) =>
       _copyWith(revealValue: true, revealDelay: delay);
 
+  /// Animated mesh-style gradient background from a list of colors.
+  DVModifier meshGradient(List<Color> colors) => _copyWith(
+        gradientValue: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      );
+
+  /// A glow effect applied when the pointer is over the box.
+  DVModifier hoverGlow({Color? color, double sigma = 16}) => hover(
+        DVModifier().shadow(<BoxShadow>[
+          BoxShadow(
+            color: (color ?? const Color(0xFF7BA2FF)).withValues(alpha: 0.35),
+            blurRadius: sigma,
+            spreadRadius: 4,
+          ),
+        ]),
+      );
+
+  /// Staggered reveal: delays reveal animation by [delay].
+  DVModifier stagger({Duration delay = Duration.zero}) => _copyWith(
+        revealValue: true,
+        revealDelay: delay,
+      );
+
   /// This modifier with [other]'s set fields layered over it.
   ///
   /// Every field is nullable and every setter is a copyWith, so "set" means
