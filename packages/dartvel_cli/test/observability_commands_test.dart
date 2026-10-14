@@ -254,6 +254,41 @@ void main() {
     tearDown(() async {
       await server.close(force: true);
     });
+    // A server answers /metrics only to its own host, a private network or
+    // the holder of its metrics token; from anywhere else the command has to
+    // send the token, and a 404 has to say that this may be why.
+    test('sends the metrics token as a bearer token', () async {
+      final List<String?> seen = <String?>[];
+      server = await shelf_io.serve(
+        (shelf.Request request) {
+          seen.add(request.headers['authorization']);
+          return shelf.Response.ok('dartvel_uptime_seconds 1\n');
+        },
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      base = 'http://${server.address.host}:${server.port}';
+
+      await runObservability(
+          <String>['metrics', '--url', base, '--token', 'scrape-token']);
+
+      expect(seen, <String?>['Bearer scrape-token']);
+    });
+
+    test('a 404 says the server may keep its metrics private', () async {
+      server = await shelf_io.serve(
+        (shelf.Request request) => shelf.Response.notFound(''),
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      base = 'http://${server.address.host}:${server.port}';
+
+      final String output =
+          await runObservability(<String>['metrics', '--url', base]);
+
+      expect(output, contains('DARTVEL_METRICS_TOKEN'));
+      exitCode = 0;
+    });
 
     test(
       'prints the real Prometheus text a running server exposes at /metrics',

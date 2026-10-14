@@ -37,6 +37,12 @@ class DVObservability {
   /// by default is that buffer published to anyone who can reach the port.
   static bool diagnosticsEndpoints = false;
 
+  /// The token a scraper outside this host's network sends as
+  /// `Authorization: Bearer <token>` to read `GET /metrics`, from
+  /// `DARTVEL_METRICS_TOKEN`. Null when there is none, and then only the same
+  /// host and private networks are answered.
+  static String? metricsToken;
+
   /// The finished spans this process still remembers.
   static DVRecentSpansExporter _spans = DVRecentSpansExporter();
 
