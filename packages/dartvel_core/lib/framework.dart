@@ -51,3 +51,7 @@ export 'src/web/asset_source.dart';
 
 export 'src/web/rendered_page_cache.dart';
 export 'src/web/page_data.dart' show dvPageResolverIsStatic;
+
+// A form field in a server-rendered document, with the password eye: written
+// by the build's capture and by Studio's own sign-in document.
+export 'src/web/document_fields.dart';

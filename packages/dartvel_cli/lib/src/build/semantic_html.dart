@@ -19,6 +19,8 @@ library dartvel_cli.build.semantic_html;
 
 import 'dart:convert';
 
+import 'package:dartvel_core/framework.dart' show dvDocumentField;
+
 /// One node of a page's semantics tree.
 class DVSemanticNode {
   const DVSemanticNode({
@@ -27,6 +29,7 @@ class DVSemanticNode {
     this.label,
     this.href,
     this.media,
+    this.fieldType,
     this.children = const <DVSemanticNode>[],
   });
 
@@ -46,6 +49,10 @@ class DVSemanticNode {
   /// caption `tracks` (`srclang`, `label`, `src`). Null for every other node.
   final Map<String, Object?>? media;
 
+  /// For a text field, what kind: an `<input>`'s type (`text`, `email`,
+  /// `password`, ...) or `textarea`. Null for every other node.
+  final String? fieldType;
+
   final List<DVSemanticNode> children;
 
   /// Read a node emitted by the prerender step.
@@ -57,6 +64,7 @@ class DVSemanticNode {
         media: json['media'] is Map
             ? (json['media']! as Map).cast<String, Object?>()
             : null,
+        fieldType: json['field'] as String?,
         children: <DVSemanticNode>[
           for (final Object? child
               in (json['children'] as List<Object?>? ?? const <Object?>[]))
@@ -86,14 +94,30 @@ const HtmlEscape _attribute = HtmlEscape(HtmlEscapeMode.attribute);
 /// string looked short.
 String dvSemanticHtml(List<DVSemanticNode> nodes) {
   final buffer = StringBuffer();
-  _write(buffer, nodes, 0);
+  _write(buffer, nodes, 0, _Fields());
   return buffer.toString().trimRight();
 }
 
-void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
+/// Numbers the fields of one document, so each label points at its own input.
+class _Fields {
+  int count = 0;
+}
+
+void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth,
+    _Fields fields) {
   for (final DVSemanticNode node in nodes) {
     final String? label = node.label?.trim();
     final bool hasLabel = label != null && label.isNotEmpty;
+
+    // The eye the running app drew beside a password field. The field below
+    // writes the document's own, which works before Flutter has run; this one
+    // would be a second button with the same name.
+    if (node.role == 'reveal') continue;
+
+    if (node.role == 'textbox' && node.fieldType != null) {
+      if (hasLabel) _writeField(out, node.fieldType!, label, ++fields.count);
+      continue;
+    }
 
     // A link is a link even when it wraps other things: an anchor around an
     // image and a caption is one destination, not three.
@@ -122,17 +146,17 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
     switch (node.role) {
       case 'navigation':
         out.writeln('<nav>');
-        _write(out, node.children, depth + 1);
+        _write(out, node.children, depth + 1, fields);
         out.writeln('</nav>');
         continue;
       case 'main':
         out.writeln('<main>');
-        _write(out, node.children, depth + 1);
+        _write(out, node.children, depth + 1, fields);
         out.writeln('</main>');
         continue;
       case 'contentinfo':
         out.writeln('<footer>');
-        _write(out, node.children, depth + 1);
+        _write(out, node.children, depth + 1, fields);
         out.writeln('</footer>');
         continue;
       case 'list':
@@ -156,7 +180,7 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
         }
         // And whatever it wraps. A role is a description of one node, never a
         // promise that nothing is under it.
-        _write(out, node.children, depth + 1);
+        _write(out, node.children, depth + 1, fields);
         continue;
       case 'code':
         // Preformatted, because in code the line breaks are the content. A
@@ -164,7 +188,7 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
         if (hasLabel) {
           out.writeln('<pre><code>${_text.convert(label)}</code></pre>');
         }
-        _write(out, node.children, depth + 1);
+        _write(out, node.children, depth + 1, fields);
         continue;
       case 'button':
         // A control that wraps the page is still a control, and the page is
@@ -176,14 +200,14 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
           out.writeln('<p><strong role="button"${_nameAttributes(label)}>'
               '${_text.convert(label)}</strong></p>');
         }
-        _write(out, node.children, depth + 1);
+        _write(out, node.children, depth + 1, fields);
         continue;
     }
 
     if (hasLabel) {
       out.writeln('<p>${_text.convert(label)}</p>');
     }
-    _write(out, node.children, depth + 1);
+    _write(out, node.children, depth + 1, fields);
   }
 }
 
@@ -248,6 +272,12 @@ void _writeMedia(StringBuffer out, DVSemanticNode node, String? label) {
       '${_text.convert(name)}</a></$tag>');
   out.writeln(element);
 }
+
+/// A text field, as an input a person can type into before Flutter has run;
+/// see `document_fields.dart` in dartvel_core, which Studio's own documents
+/// share.
+void _writeField(StringBuffer out, String type, String label, int number) =>
+    out.writeln(dvDocumentField(type: type, label: label, id: 'dv-field-$number'));
 
 /// ` title="..." aria-label="..."` for [name].
 String _nameAttributes(String name) {

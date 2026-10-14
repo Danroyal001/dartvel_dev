@@ -5,6 +5,7 @@
 // has one, and then Studio itself -- loaded from the server, because the
 // page it goes to is the server's to decide on the Studio.access grant.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_flutter/src/widgets/password_reveal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -76,6 +77,14 @@ void main() {
         'ops@example.com');
     await tester.enterText(find.byKey(const ValueKey('dv-studio-sign-in-password')),
         'a-long-enough-password-1');
+    // The password's eye first, as in every Dartvel form: a person checking
+    // what they typed reaches it from the field, and sign in is the next stop.
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(
+        FocusManager.instance.primaryFocus?.context
+            ?.findAncestorWidgetOfExactType<DVPasswordReveal>(),
+        isNotNull);
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);

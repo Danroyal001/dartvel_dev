@@ -3,6 +3,7 @@ import 'package:flutter/material.dart'
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
+import '../widgets/password_reveal.dart';
 
 /// Studio's design system: the colours, spacing, type and controls every
 /// Studio screen — and every section attached to one — is built from.
@@ -1014,7 +1015,8 @@ class DVStudioTextInput extends StatefulWidget {
   /// Drawn after the value: a unit such as `px`.
   final String? suffix;
 
-  /// Draws the text as dots, as a password field does.
+  /// Draws the text as dots, as a password field does, with the eye that shows
+  /// it again.
   final bool obscureText;
 
   const DVStudioTextInput({
@@ -1034,7 +1036,8 @@ class DVStudioTextInput extends StatefulWidget {
   State<DVStudioTextInput> createState() => _DVStudioTextInputState();
 }
 
-class _DVStudioTextInputState extends State<DVStudioTextInput> {
+class _DVStudioTextInputState extends State<DVStudioTextInput>
+    with DVPasswordRevealState<DVStudioTextInput> {
   late final TextEditingController _text =
       TextEditingController(text: widget.value);
   final FocusNode _focus = FocusNode();
@@ -1117,7 +1120,7 @@ class _DVStudioTextInputState extends State<DVStudioTextInput> {
                     child: EditableText(
                       controller: _text,
                       focusNode: _focus,
-                      obscureText: widget.obscureText,
+                      obscureText: widget.obscureText && !revealed,
                       style: const TextStyle(
                           fontSize: 13, color: DVStudioStyle.ink, height: 1.2),
                       cursorColor: DVStudioStyle.accent,
@@ -1133,6 +1136,13 @@ class _DVStudioTextInputState extends State<DVStudioTextInput> {
               const SizedBox(width: 6),
               DVStudioStyle.caption(widget.suffix!, color: DVStudioStyle.faint),
             ],
+            if (widget.obscureText)
+              DVPasswordReveal(
+                revealed: revealed,
+                onPressed: toggleRevealed,
+                color: DVStudioStyle.faint,
+                size: 15,
+              ),
           ],
         ),
       ),

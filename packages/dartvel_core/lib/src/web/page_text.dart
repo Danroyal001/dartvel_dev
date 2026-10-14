@@ -13,6 +13,7 @@ library;
 
 import 'dart:convert';
 
+import 'document_fields.dart' show dvRevealNoscriptCss;
 import 'find_in_page.dart';
 
 /// Every string literal in the source.
@@ -160,7 +161,10 @@ const String dvFallbackNoscriptCss =
     '.dv-fallback{position:static;width:auto;height:auto;max-width:44rem;'
     'margin:0 auto;padding:2rem 1.25rem;overflow:visible;clip-path:none;'
     'pointer-events:auto}'
-    '.dv-fallback [data-dv-anchor]{display:block;content-visibility:visible}';
+    '.dv-fallback [data-dv-anchor]{display:block;content-visibility:visible}'
+    // A password's eye flips the field with script; with none it could only
+    // be a button that does nothing.
+    '$dvRevealNoscriptCss';
 
 /// Both style elements the block is written with.
 const String dvFallbackStyle =
