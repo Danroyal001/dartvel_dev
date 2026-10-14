@@ -215,17 +215,41 @@ class DVStudioSection {
       build?.call(context, selection) ?? _build!(context);
 }
 
+/// How a section opens another one: Home's counts and quick actions open
+/// the screen they are about, and a recent change opens the thing that
+/// changed.
+///
+/// The same as choosing it on the rail -- the address follows, and Back
+/// returns -- so a section never needs to know how Studio is mounted.
+class DVStudioNavigation extends InheritedWidget {
+  const DVStudioNavigation({
+    super.key,
+    required this.open,
+    required super.child,
+  });
+
+  /// Opens [section], and [object] inside it when given.
+  final void Function(String section, [String? object]) open;
+
+  /// The navigation of the Studio [context] is in, or null outside one.
+  static DVStudioNavigation? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<DVStudioNavigation>();
+
+  @override
+  bool updateShouldNotify(DVStudioNavigation oldWidget) =>
+      oldWidget.open != open;
+}
+
 class _DVStudioScreenState extends State<DVStudioScreen> {
-  /// The section on screen. The address's while there is one, the first
-  /// section otherwise, and Pages before either: a Studio with no address
-  /// for its selection opens on Pages, as it always did.
-  String _selected = 'pages';
+  /// The section on screen: the address's while there is one, and otherwise
+  /// the first on the rail -- Home where the build has one, which is where
+  /// wp-admin and Webflow open too, and Pages where it does not.
+  String? _selected;
 
   @override
   void initState() {
     super.initState();
-    final String? selected = widget.selected;
-    if (selected != null) _selected = selected;
+    _selected = widget.selected;
   }
 
   @override

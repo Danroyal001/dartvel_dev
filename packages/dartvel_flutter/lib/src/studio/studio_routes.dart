@@ -140,8 +140,8 @@ List<RouteBase> dvStudioRoutes({
       pageBuilder: (BuildContext context, GoRouterState state) => screen(
         context,
         state,
-        // The mount is Pages: `dvStudioTargetFor` names the same screen at
-        // `<mount>` as at `<mount>/pages`, and so does this.
+        // The mount is Home: `dvStudioTargetFor` names the same screen at
+        // `<mount>` as at `<mount>/home`, and so does this.
         id: _studioScreenIds.first,
       ),
     ),

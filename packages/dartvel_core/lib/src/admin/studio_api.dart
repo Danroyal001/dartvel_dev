@@ -42,6 +42,10 @@ import '../schema/generated_schema.dart' show dvTenantColumn;
 import '../tenancy/tenants.dart';
 import 'studio_access.dart';
 import 'studio_model_schema.dart';
+import 'studio_overview.dart';
+import 'studio_document.dart' show DVStudioProjectData;
+import '../observability/observability.dart' show DVObservability;
+import '../observability/health.dart' show DVHealthStatus, DVHealthReport;
 import 'studio_repository.dart';
 import 'studio_source_files.dart';
 import 'studio_site.dart';
@@ -562,6 +566,11 @@ class DVStudioApi {
             if (segments.length == 1) return await _me(request, method);
           case 'repository':
             return await _repositoryAt(request, method, segments.sublist(1));
+          case 'overview':
+            if (segments.length == 1) {
+              if (method != 'GET' && method != 'HEAD') _notAllowed();
+              return _reply((await overview()).toJson());
+            }
         }
         throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
       });
@@ -799,6 +808,7 @@ class DVStudioApi {
           );
         }
         await table.delete(key, base: current);
+        await _noteRecord(spec, key, 'deleted');
         return _reply(<String, Object?>{'deleted': key});
     }
     _notAllowed();
@@ -933,6 +943,8 @@ class DVStudioApi {
     });
     // Its table now, so the first record written through any path finds it.
     await prepare(spec, _table(spec));
+    await _note('model', existing == null ? 'created' : 'saved', spec.id,
+        screen: 'models', object: spec.id);
     return _reply(spec.toJson(), status: existing == null ? 201 : 200);
   }
 
@@ -955,6 +967,7 @@ class DVStudioApi {
     if (removed == 0) {
       throw _StudioRefusal(404, 'not_found', 'No model named $name is stored.');
     }
+    await _note('model', 'deleted', name, screen: 'models');
     return _reply(<String, Object?>{'deleted': name, 'recordsKept': true});
   }
 
@@ -1164,6 +1177,7 @@ class DVStudioApi {
     await _checkRequired(spec, values);
     await _checkUnique(spec, table, '$key', values);
     final DVWriteResult written = await table.write(values);
+    await _noteRecord(spec, '$key', 'created');
     return _reply(_recordJson(spec, written.record), status: 201);
   }
 
@@ -1202,6 +1216,7 @@ class DVStudioApi {
     };
     await _checkUnique(spec, table, key, next);
     final DVWriteResult written = await table.write(next, base: current);
+    await _noteRecord(spec, key, 'saved');
     return _reply(_recordJson(spec, written.record));
   }
 
@@ -1586,6 +1601,7 @@ class DVStudioApi {
           'document': jsonEncode(document),
         });
         dvPurgeRenderedPages();
+        await _notePage(route, document['title'], 'saved');
         return _reply(<String, Object?>{'route': route});
       case 'DELETE':
         final String? route = request.url.queryParameters['route'];
@@ -1601,6 +1617,7 @@ class DVStudioApi {
         await records.delete(dvStudioPagesTable,
             where: DVFilter.equals('route', route));
         dvPurgeRenderedPages();
+        await _notePage(route, null, 'deleted');
         return _reply(<String, Object?>{'deleted': route});
     }
     _notAllowed();
@@ -1646,6 +1663,10 @@ class DVStudioApi {
           'name': name,
           'document': jsonEncode(document),
         });
+        final String side =
+            document['side'] == 'frontend' ? 'frontend' : 'functions';
+        await _note('function', 'saved', name,
+            screen: side, object: side == 'functions' ? name : null);
         return _reply(<String, Object?>{'name': name});
       case 'DELETE':
         final String? name = request.url.queryParameters['name'];
@@ -1655,6 +1676,7 @@ class DVStudioApi {
         }
         await records.delete(dvStudioFunctionsTable,
             where: DVFilter.equals('name', name));
+        await _note('function', 'deleted', name, screen: 'functions');
         return _reply(<String, Object?>{'deleted': name});
     }
     _notAllowed();
@@ -1773,6 +1795,315 @@ class DVStudioApi {
     return _reply(graph is Map
         ? graph.cast<String, Object?>()
         : const <String, Object?>{});
+  }
+
+  // ---- home --------------------------------------------------------------
+
+  /// What Studio's changes are noted in, or null when there is no database
+  /// to note them in.
+  DVStudioActivityLog? get _log {
+    final DVDatabaseAdapter? adapter = database;
+    return adapter == null
+        ? null
+        : DVStudioActivityLog(DVRecordAdapter.over(adapter));
+  }
+
+  /// Notes a page, or a component, saved or deleted at [route].
+  Future<void> _notePage(String route, Object? title, String action) {
+    if (route.startsWith(dvStudioComponentsPrefix)) {
+      final String name = route.substring(dvStudioComponentsPrefix.length);
+      return _note(
+        'component',
+        action,
+        name,
+        screen: 'components',
+        object: name,
+      );
+    }
+    final String named = '${title ?? ''}'.trim();
+    return _note(
+      'page',
+      action,
+      named.isEmpty ? route : named,
+      screen: 'pages',
+      // The root page is the screen with nothing open.
+      object: route == '/' ? null : route.substring(1),
+    );
+  }
+
+  /// Notes a record of [spec] changed. Named by its model and never by a
+  /// value: the label is printed into Home's document.
+  Future<void> _noteRecord(DVStudioModelSpec spec, String key, String action) =>
+      _note(
+        'record',
+        action,
+        'A ${spec.model} record',
+        screen: 'models',
+        object: '${spec.id}/$key',
+      );
+
+  /// Notes a change made through this API, for Home's Recent changes.
+  Future<void> _note(
+    String kind,
+    String action,
+    String label, {
+    required String screen,
+    String? object,
+  }) async => _log?.note(
+    kind: kind,
+    action: action,
+    label: label,
+    screen: screen,
+    object: object,
+  );
+
+  /// Home: the project at a glance, its health and its recent changes.
+  ///
+  /// Each part is read on its own and a part that cannot be read is left out
+  /// or reported as a health check rather than failing the screen: Home is
+  /// where somebody goes when something is wrong, so it is the one screen
+  /// that has to open when something is.
+  Future<DVStudioOverview> overview() async {
+    final DVStudioProjectData graph = root == null
+        ? const DVStudioProjectData()
+        : DVStudioProjectData.fromGraph(root!);
+    final bool hasGraph =
+        root != null && DVAssetSources.at(root!).file('graph.json') != null;
+    final List<DVStudioHealthCheck> health = <DVStudioHealthCheck>[];
+    final Map<String, int> glance = <String, int>{};
+
+    // The database first: everything else Studio keeps is in it.
+    final DVDatabaseAdapter? adapter = database;
+    bool databaseAnswers = false;
+    if (adapter == null) {
+      health.add(
+        const DVStudioHealthCheck(
+          id: 'database',
+          status: DVStudioHealthStatus.critical,
+          title: 'Database',
+          detail:
+              'This server was started without a database, so Studio '
+              'cannot keep pages, records or the team.',
+        ),
+      );
+    } else {
+      try {
+        final DVRecordAdapter records = DVRecordAdapter.over(adapter);
+        await records.ensure(dvStudioPagesShape);
+        await records.count(dvStudioPagesTable);
+        databaseAnswers = true;
+        health.add(
+          const DVStudioHealthCheck(
+            id: 'database',
+            status: DVStudioHealthStatus.good,
+            title: 'Database',
+            detail: 'The database answers.',
+          ),
+        );
+      } on Object catch (error) {
+        health.add(
+          DVStudioHealthCheck(
+            id: 'database',
+            status: DVStudioHealthStatus.critical,
+            title: 'Database',
+            detail: 'The database did not answer: $error',
+          ),
+        );
+      }
+    }
+
+    // Pages, compiled and stored.
+    List<DVStudioSitePage> pages = const <DVStudioSitePage>[];
+    try {
+      pages = await sitePages(compiled: _compiledRoutes());
+    } on Object {
+      // Counted as none; the database check already says why.
+    }
+    glance['pages'] = pages.length;
+
+    // Stored page documents: their titles, and the components among them.
+    final List<String> untitled = <String>[];
+    int components = 0;
+    if (databaseAnswers) {
+      try {
+        final List<Map<String, Object?>> rows = await DVRecordAdapter.over(
+          adapter!,
+        ).find(dvStudioPagesTable, fields: const <String>['route', 'title']);
+        for (final Map<String, Object?> row in rows) {
+          final String route = '${row['route']}';
+          if (dvStudioIsReservedRoute(route)) {
+            components++;
+            continue;
+          }
+          if ('${row['title'] ?? ''}'.trim().isEmpty) untitled.add(route);
+        }
+      } on Object {
+        // Left uncounted.
+      }
+    }
+    glance['components'] = components;
+    untitled.sort();
+    health.add(
+      untitled.isEmpty
+          ? const DVStudioHealthCheck(
+              id: 'page-titles',
+              status: DVStudioHealthStatus.good,
+              title: 'Page titles',
+              detail: 'Every page made in Studio has a title.',
+              screen: 'pages',
+            )
+          : DVStudioHealthCheck(
+              id: 'page-titles',
+              status: DVStudioHealthStatus.recommended,
+              title: 'Page titles',
+              detail:
+                  '${untitled.length == 1 ? 'A page has' : '${untitled.length} pages have'} '
+                  'no title, so a browser tab and a search result show only '
+                  'the address: ${untitled.take(5).join(', ')}'
+                  '${untitled.length > 5 ? ' and ${untitled.length - 5} more' : ''}.',
+              screen: 'pages',
+            ),
+    );
+
+    // Data models and their records.
+    final List<DVStudioModelSpec> specs = await allModels();
+    glance['models'] = specs.length;
+    int recordCount = 0;
+    for (final DVStudioModelSpec spec in specs) {
+      try {
+        final DVRecordTable table = _table(spec);
+        await prepare(spec, table);
+        recordCount += (await table.all()).length;
+      } on Object {
+        // A model whose table cannot be read is counted as empty.
+      }
+    }
+    glance['records'] = recordCount;
+
+    // Functions: written in code, and built in Studio.
+    final Set<String> functions = <String>{...graph.functions};
+    if (databaseAnswers) {
+      try {
+        final DVRecordAdapter records = DVRecordAdapter.over(adapter!);
+        await records.ensure(dvStudioFunctionsShape);
+        for (final Map<String, Object?> row in await records.find(
+          dvStudioFunctionsTable,
+          fields: const <String>['name'],
+        )) {
+          functions.add('${row['name']}');
+        }
+      } on Object {
+        // Counted from the graph alone.
+      }
+    }
+    glance['functions'] = functions.length;
+    glance['tasks'] = graph.jobs.length;
+
+    // The team.
+    if (databaseAnswers) {
+      try {
+        glance['team'] = <String>{
+          for (final DVStudioGrant grant in await DVStudioGrants(
+            adapter!,
+          ).list())
+            grant.userId,
+        }.length;
+      } on Object {
+        // Left out rather than shown as nobody.
+      }
+    }
+
+    health.add(
+      hasGraph
+          ? const DVStudioHealthCheck(
+              id: 'graph',
+              status: DVStudioHealthStatus.good,
+              title: 'Project map',
+              detail:
+                  'The build wrote its map of the project, so Studio lists '
+                  'every compiled page, function and task.',
+            )
+          : const DVStudioHealthCheck(
+              id: 'graph',
+              status: DVStudioHealthStatus.recommended,
+              title: 'Project map',
+              detail:
+                  'The build wrote no map of the project, so Studio lists '
+                  'only what was made in Studio. Build again with '
+                  '"dartvel build web-server".',
+            ),
+    );
+
+    // Failed background tasks.
+    int failed = 0;
+    try {
+      for (final String name in <String>{'default', ..._queues()}) {
+        failed += (await _jobs.deadLetters(name)).length;
+      }
+      health.add(
+        failed == 0
+            ? const DVStudioHealthCheck(
+                id: 'failed-tasks',
+                status: DVStudioHealthStatus.good,
+                title: 'Background tasks',
+                detail: 'No background task has failed for good.',
+                screen: 'queues',
+              )
+            : DVStudioHealthCheck(
+                id: 'failed-tasks',
+                status: DVStudioHealthStatus.recommended,
+                title: 'Background tasks',
+                detail:
+                    '$failed ${failed == 1 ? 'task has' : 'tasks have'} '
+                    'failed every attempt and ${failed == 1 ? 'is' : 'are'} '
+                    'waiting in the queue to be retried or discarded.',
+                screen: 'queues',
+              ),
+      );
+    } on Object {
+      // A broker that cannot list says so on the Queue screen.
+    }
+
+    // The application's own checks, registered with DV.health.
+    try {
+      final DVHealthReport report = await DVObservability.health.reportAsync();
+      final List<String> names = report.checks.keys.toList()..sort();
+      for (final String name in names) {
+        final result = report.checks[name]!;
+        health.add(
+          DVStudioHealthCheck(
+            id: 'check:$name',
+            status: switch (result.status) {
+              DVHealthStatus.up => DVStudioHealthStatus.good,
+              DVHealthStatus.degraded => DVStudioHealthStatus.recommended,
+              DVHealthStatus.down => DVStudioHealthStatus.critical,
+            },
+            title: name,
+            detail:
+                result.detail ??
+                (result.status == DVHealthStatus.up
+                    ? 'Answers.'
+                    : 'Not answering.'),
+          ),
+        );
+      }
+    } on Object {
+      // A check runner that failed outright is not a reason to hide Home.
+    }
+
+    // Worst first, as a person reads a health report, and otherwise in the
+    // order they were checked.
+    final List<DVStudioHealthCheck> ordered = <DVStudioHealthCheck>[
+      for (final DVStudioHealthStatus status
+          in DVStudioHealthStatus.values.reversed)
+        ...health.where((DVStudioHealthCheck check) => check.status == status),
+    ];
+
+    return DVStudioOverview(
+      glance: glance,
+      health: ordered,
+      recent: await _log?.recent() ?? const <DVStudioActivity>[],
+    );
   }
 
   // ---- cache -------------------------------------------------------------
@@ -1896,6 +2227,7 @@ class DVStudioApi {
     }
     final DVStudioGrants grants = DVStudioGrants(_database);
     await grants.grant(userId, tenant: tenant);
+    await _note('team', 'created', 'Studio access given', screen: 'access');
     return _reply(<String, Object?>{
       'userId': userId,
       'email': ?email,
@@ -1943,6 +2275,8 @@ class DVStudioApi {
       }
     }
     await grants.revoke(userId, tenant: tenant);
+    await _note('team', 'deleted', 'Studio access taken away',
+        screen: 'access');
     return _reply(<String, Object?>{'revoked': userId, 'tenant': tenant});
   }
 

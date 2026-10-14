@@ -310,9 +310,15 @@ void main() {
       }
     });
 
-    test('the mount is Pages, and Pages lists the site', () async {
+    test('the mount is Home, and Pages lists the site', () async {
       final DVAdminServer server = project();
-      for (final String path in <String>['/__studio', '/__studio/pages']) {
+      // Studio opens where wp-admin and Webflow open: on the project at a
+      // glance. Pages keeps its own address.
+      for (final String path in <String>['/__studio', '/__studio/home']) {
+        final String html = await _body((await server.respond(_get(path)))!);
+        expect(html, contains('<h1>Home</h1>'), reason: path);
+      }
+      for (final String path in <String>['/__studio/pages']) {
         final String html = await _body((await server.respond(_get(path)))!);
         expect(html, contains('<h1>Pages</h1>'), reason: path);
         // Every route the site answers, by its own URL, from the graph.

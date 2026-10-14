@@ -597,7 +597,7 @@ class DVAdminServer {
       dvStudioDocumentFor(
         target,
         mount: mount.path,
-        data: await _projectData(),
+        data: await _projectData(home: target.screen.id == 'home'),
         models: models,
       );
 
@@ -606,7 +606,7 @@ class DVAdminServer {
   /// A server that started before a build finished would otherwise describe
   /// the project as it was when it started, so the graph is read on each
   /// request rather than kept.
-  Future<DVStudioProjectData> _projectData() async {
+  Future<DVStudioProjectData> _projectData({bool home = false}) async {
     final DVStudioProjectData graph = DVStudioProjectData.fromGraph(root);
     return DVStudioProjectData(
       compiled: graph.compiled,
@@ -616,6 +616,7 @@ class DVAdminServer {
       jobs: graph.jobs,
       queues: graph.queues,
       modules: graph.modules,
+      overview: home ? await api.overview() : null,
     );
   }
 

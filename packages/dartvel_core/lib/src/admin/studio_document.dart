@@ -30,6 +30,7 @@ library;
 import 'dart:convert';
 
 import 'studio_api.dart' show DVStudioFieldSpec, DVStudioModelSpec;
+import 'studio_overview.dart';
 import 'studio_site.dart' show DVStudioPageKind, DVStudioSitePage;
 import '../web/asset_source.dart';
 
@@ -80,9 +81,18 @@ class DVStudioScreenSpec {
 /// them on a project that has none would be printing a dead link. Their URLs
 /// still work on a project that has them, because the client is what knows.
 ///
-/// `pages` is the mount itself: `<mount>` and `<mount>/pages` are the same
-/// screen, so the first address a person is given is not a special case.
+/// `home` is the mount itself: `<mount>` and `<mount>/home` are the same
+/// screen, so the first address a person is given is not a special case. It
+/// is first because it is where wp-admin and Webflow open too: what the
+/// project holds, whether it is healthy and what changed, before the tools.
 const List<DVStudioScreenSpec> dvStudioScreens = <DVStudioScreenSpec>[
+  DVStudioScreenSpec(
+    id: 'home',
+    label: 'Home',
+    summary:
+        'This application at a glance: what it holds, whether it is '
+        'healthy, what changed lately and where to start.',
+  ),
   DVStudioScreenSpec(
     id: 'pages',
     label: 'Pages',
@@ -206,7 +216,7 @@ const DVStudioScreenSpec dvStudioSetupScreen = DVStudioScreenSpec(
 
 /// A path under [mount], resolved: the screen it names and the object in it.
 ///
-/// `<mount>` and `<mount>/pages` are the same screen with no object, so the
+/// `<mount>` and `<mount>/home` are the same screen with no object, so the
 /// first address a person is given is not a special case. An object is every
 /// segment after the screen's own, which is what lets a page be addressed by
 /// the route it answers -- `/__studio/pages/products/:slug` -- without a
@@ -297,7 +307,12 @@ class DVStudioProjectData {
     this.jobs = const <String>[],
     this.queues = const <String>[],
     this.modules = const <String>[],
+    this.overview,
   });
+
+  /// Home's data: counts, health and recent changes. Read only for Home,
+  /// which is the one screen that needs it; null leaves those parts out.
+  final DVStudioOverview? overview;
 
   /// The routes a build compiled, as the graph writes them.
   ///
@@ -489,6 +504,8 @@ DVStudioDocument _screenDocument(
 
   const DVStudioColumn name = DVStudioColumn('Name');
   switch (screen.id) {
+    case 'home':
+      _homeDocument(html, text, mount: mount, overview: data.overview);
     case 'pages':
     case 'routes':
       final String child = screen.id;
@@ -599,6 +616,129 @@ DVStudioDocument _screenDocument(
     html: html.toString(),
     text: text,
   );
+}
+
+/// Home's four parts, written into [html] and [text]: at a glance, site
+/// health, recent changes and quick actions.
+///
+/// Recent changes are named the way [DVStudioActivity.label] names them and
+/// a record links to its model, never to itself: a record's key can be an
+/// address or a name, and the page source is not where one goes.
+void _homeDocument(
+  StringBuffer html,
+  List<String> text, {
+  required String mount,
+  required DVStudioOverview? overview,
+}) {
+  String href(String screen, [String? object]) => object == null
+      ? '$mount/$screen'
+      : '$mount/$screen/${object.split('/').map(Uri.encodeComponent).join('/')}';
+  final DVStudioOverview data = overview ?? const DVStudioOverview();
+
+  html.writeln('<h2>At a glance</h2>');
+  text.add('At a glance');
+  html.writeln('<ul>');
+  for (final String key in dvStudioGlanceOrder) {
+    final int? count = data.glance[key];
+    if (count == null) continue;
+    final ({String words, String screen})? line = dvStudioGlanceLine(key, count);
+    if (line == null) continue;
+    html.writeln(
+      '<li><a href="${_escape.convert(href(line.screen))}">'
+      '${_escape.convert(line.words)}</a></li>',
+    );
+    text.add(line.words);
+  }
+  html.writeln('</ul>');
+
+  html.writeln('<h2>Site health</h2>');
+  text.add('Site health');
+  if (data.health.isEmpty) {
+    html.writeln('<p>Nothing was checked.</p>');
+    text.add('Nothing was checked.');
+  } else {
+    html
+      ..writeln('<table>')
+      ..writeln('<caption>Site health</caption>')
+      ..writeln(
+        '<thead><tr><th scope="col">Check</th><th scope="col">Status</th>'
+        '<th scope="col">What it means</th></tr></thead>',
+      )
+      ..writeln('<tbody>');
+    for (final DVStudioHealthCheck check in data.health) {
+      final String title = check.screen == null
+          ? _escape.convert(check.title)
+          : '<a href="${_escape.convert(href(check.screen!))}">'
+                '${_escape.convert(check.title)}</a>';
+      html.writeln(
+        '<tr><th scope="row">$title</th>'
+        '<td>${_escape.convert(dvStudioHealthWords(check.status))}</td>'
+        '<td>${_escape.convert(check.detail)}</td></tr>',
+      );
+      text
+        ..add(check.title)
+        ..add(dvStudioHealthWords(check.status))
+        ..add(check.detail);
+    }
+    html
+      ..writeln('</tbody>')
+      ..writeln('</table>');
+  }
+
+  html.writeln('<h2>Recent changes</h2>');
+  text.add('Recent changes');
+  if (data.recent.isEmpty) {
+    html.writeln('<p>No changes made in Studio yet.</p>');
+    text.add('No changes made in Studio yet.');
+  } else {
+    html
+      ..writeln('<table>')
+      ..writeln('<caption>Recent changes</caption>')
+      ..writeln(
+        '<thead><tr><th scope="col">What</th><th scope="col">Change</th>'
+        '<th scope="col">When</th></tr></thead>',
+      )
+      ..writeln('<tbody>');
+    for (final DVStudioActivity change in data.recent) {
+      // A record opens its model's screen here; Studio opens the record.
+      final String target = change.kind == 'record'
+          ? href(change.screen, change.object?.split('/').first)
+          : href(change.screen, change.object);
+      final String when = DateTime.fromMillisecondsSinceEpoch(
+        change.at,
+        isUtc: true,
+      ).toIso8601String();
+      html.writeln(
+        '<tr><th scope="row"><a href="${_escape.convert(target)}">'
+        '${_escape.convert(change.label)}</a></th>'
+        '<td>${_escape.convert(change.action)}</td>'
+        '<td><time datetime="$when">${_escape.convert(when)}</time></td></tr>',
+      );
+      text
+        ..add(change.label)
+        ..add(change.action);
+    }
+    html
+      ..writeln('</tbody>')
+      ..writeln('</table>');
+  }
+
+  html
+    ..writeln('<h2>Quick actions</h2>')
+    ..writeln('<ul>');
+  text.add('Quick actions');
+  for (final ({String label, String screen}) action in dvStudioQuickActions) {
+    html.writeln(
+      '<li><a href="${_escape.convert(href(action.screen))}">'
+      '${_escape.convert(action.label)}</a></li>',
+    );
+    text.add(action.label);
+  }
+  // The site itself, which is what all of this is for.
+  html
+    ..writeln('<li><a href="/">View the site</a></li>')
+    ..writeln('</ul>');
+  text.add('View the site');
 }
 
 /// The document for the object [target] names, or null when the project has
