@@ -58,7 +58,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
         ]),
         DocsNote(
           'Prebuilt binaries are Linux only for now',
-          'The release binaries behind Homebrew and npm (v0.11.5) are Linux '
+          'The release binaries behind Homebrew and npm (v$kDartvelVersion) are Linux '
               'only, for x64 and arm64. The macOS and Windows binaries follow '
               'when the release workflow can run again.',
         ),
@@ -286,8 +286,9 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
       title: 'Check what is built before you depend on it',
       children: <Widget>[
         Bullets(<String>[
-          'Dartvel 0.11.5 ships 24 spec sections in full and 79 in part; '
-              'two are planned.',
+          'Dartvel $kDartvelVersion ships $kSpecShipped spec sections in full '
+              'and $kSpecPartial in part; $kSpecDesigned are designed and not '
+              'built yet.',
           'Twenty-five sections are a frozen public contract with unfinished '
               'code behind them. Contract stability and implementation '
               'status are tracked separately.',

@@ -75,6 +75,20 @@ const String kFindInPageProposalUrl =
 const String kReleasesUrl =
     'https://github.com/Danroyal001/dartvel_dev/releases';
 
+/// The current Dartvel release, as every page that states it says it.
+///
+/// Moved by tool/bump_version.dart with every other version, and held to
+/// packages/dartvel_dev/pubspec.yaml by test/docs_version_test.dart. A page
+/// that typed the number into a sentence said 0.11.5 through two releases.
+const String kDartvelVersion = '0.12.1';
+
+/// How many spec sections the current release ships in full, in part, and
+/// only as a design, held to docs/spec-status.json by
+/// test/docs_version_test.dart.
+const int kSpecShipped = 24;
+const int kSpecPartial = 79;
+const int kSpecDesigned = 3;
+
 /// The sizes the site sets type at, and the only ones it may.
 ///
 /// Not a rule imposed from outside: these are the sizes the pages actually
