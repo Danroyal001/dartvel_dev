@@ -98,7 +98,7 @@ Full accessibility remains **Partial** until those flows are verified too.
 | Export to code | **Done** — every node type carries `source`, and a page exports as a `@DVPage` Dart file | `page_document.dart:890` (`source:` on each leaf), `studio_editor.dart` export |
 | Import from Figma | **Missing in free Studio** (Studio Pro) | not in this repository |
 | Dev mode / inspect a live page | **Partial** — the captured structure of a compiled page is opened in the editor (`studio_structure`), which is a tree, not Figma's inspect mode | `packages/dartvel_core/lib/src/admin/studio_site.dart:170` `dvStudioPageContentIn` |
-| Version history and restore | **Done** — numbered versions, compare, restore | `studio_review.dart`, screenshot list in `dartvel capture studio` gallery |
+| Version history and restore | **Partial** — numbered versions, compare and restore exist in the attachable content workflow. Server-served Studio does not construct that workflow, so drafts, scheduling and revisions are unavailable there. | `studio_review.dart`, `studio_content.dart`, `studio_server.dart` |
 
 ## Against Webflow
 
@@ -177,7 +177,7 @@ Full accessibility remains **Partial** until those flows are verified too.
 
 ### A URL for every screen, and what it is read by
 
-Every screen above is at its own address under the mount: `<mount>` is Pages,
+Every screen above is at its own address under the mount: `<mount>` is Home,
 `<mount>/<screen>` is that screen, and `<mount>/<screen>/<object>` opens one
 thing inside it. Nothing in the rail is a state of the page it is on, so a
 Studio screen can be linked, bookmarked and reloaded, and the browser's Back
@@ -200,7 +200,7 @@ said in the document it is served with:
 
 | Address | What it is | Where it comes from |
 | --- | --- | --- |
-| `<mount>` and `<mount>/pages` | Pages, the first screen | `studio_document.dart` `dvStudioScreens` |
+| `<mount>` and `<mount>/home` | Home, the first screen | `studio_document.dart` `dvStudioScreens` |
 | `<mount>/<screen>` | The screen, with its own heading and the rail | `dvStudioScreenFor`, `dvStudioDocumentFor` |
 | `<mount>/<screen>/<object>` | One model, route, function, task, queue or module, named in the document as its `<h1>` | `_objectDocument` |
 | `<mount>/login` | Studio's sign-in, for anybody, carrying no project | `dvStudioSignInScreen`, `_noProjectDocument` |
@@ -294,3 +294,7 @@ with read-only insertion/drag disabled. Failing-first regressions are in
 `studio_layers_keyboard_test.dart` and `studio_palette_keyboard_test.dart`;
 34 editor/panel/component/accessibility tests pass. Production-browser coverage
 is still pending, so the overall accessibility verdict remains Partial.
+
+### Dashboard Home (14 October 2026)
+
+Home shares its overview between the guarded server document and Flutter screen: project counts, site health, recent changes and quick actions. Counts open their screens; activity opens the changed object. Error responses offer a retry. Activity retains only the latest 50 changes, omits record values and is not an actor audit trail. Failing-first widget coverage checks keyboard activation, accessible button names, navigation, empty state and retry. Production-browser and first-frame checks remain pending; this slice is Partial until those checks pass.

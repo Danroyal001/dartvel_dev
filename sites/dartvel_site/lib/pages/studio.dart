@@ -41,6 +41,11 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           'with its code served only to granted sessions.',
         ),
         Body(
+          'Home brings together project counts, site health, recent changes '
+          'and quick actions. Server-side drafts, scheduling and revision '
+          'history remain pending; the parity checklist tracks those gaps.',
+        ),
+        Body(
           'Build pages visually, design data models and edit their records '
           'without writing an admin panel.',
         ),

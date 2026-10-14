@@ -286,6 +286,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
   }
 
   List<DVStudioSection> get _sections => <DVStudioSection>[
+        ..._attached.where((DVStudioSection section) => section.id == 'home'),
         DVStudioSection.opening(
           id: 'pages',
           label: 'Pages',
@@ -360,7 +361,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
               health: widget.statusHealth,
             ),
           ),
-        ..._attached,
+        ..._attached.where((DVStudioSection section) => section.id != 'home'),
       ];
 
   /// The attached sections, a later one with an id already used taking the
@@ -412,9 +413,11 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     final Widget body = Expanded(
       child: KeyedSubtree(
         key: ValueKey<String>('dv-studio-body-${current.id}'),
-        child: Builder(
-          builder: (BuildContext context) =>
-              current.body(context, selection),
+        child: DVStudioNavigation(
+          open: _select,
+          child: Builder(
+            builder: (BuildContext context) => current.body(context, selection),
+          ),
         ),
       ),
     );
@@ -485,7 +488,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
                 width: 72,
                 child: _DVStudioRailItem(
                   section: section,
-                  selected: section.id == _selected,
+                  selected: section.id == (_selected ?? sections.first.id),
                   onTap: () => _select(section.id),
                 ),
               ),
@@ -528,7 +531,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
                   for (final DVStudioSection section in sections)
                     _DVStudioRailItem(
                       section: section,
-                      selected: section.id == _selected,
+                      selected: section.id == (_selected ?? sections.first.id),
                       onTap: () => _select(section.id),
                     ),
                 ],

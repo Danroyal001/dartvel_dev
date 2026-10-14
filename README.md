@@ -500,6 +500,8 @@ assistive technology. Layers support keyboard selection and expansion; palette
 tiles support keyboard insertion without dragging. Broader Studio feature and accessibility coverage remains partial; see
 [the parity checklist](docs/studio/PARITY.md).
 
+Studio opens on Home: project counts, site health, recent changes and quick actions, read from the same overview as its guarded server document. The Flutter dashboard has failing-first navigation and accessibility tests; production-browser verification is pending. See [Studio parity](docs/studio/PARITY.md) for remaining gaps, including server-side drafts and revisions.
+
 The binary also carries Studio at `/__studio` (`dartvel.admin.path` moves
 it): the page builder, a table of each model's records with an edit form, the
 build's routes, functions and jobs, and the list of Studio grants. Studio is

@@ -18,7 +18,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:dartvel_core/dartvel.dart' as core
-    show DVDatabase, DVStudioApi, DVStudioModelSpec, Headers, Request, Response;
+    show DVDatabase, DVStudioApi, DVStudioModelSpec, DVStudioOverview, Headers, Request, Response;
 import 'package:dartvel_core/dartvel.dart'
     show
         DVAccess,
@@ -308,6 +308,9 @@ class DVStudioClient {
   const DVStudioClient(this.transport);
 
   final DVStudioTransport transport;
+
+  Future<core.DVStudioOverview> overview() async =>
+      core.DVStudioOverview.fromJson(_map(await _send('GET', 'api/overview')));
 
   /// The signed-in account, `{userId, email}`.
   Future<Map<String, Object?>> me() async => _map(await _send('GET', 'api/me'));
@@ -742,7 +745,7 @@ class _DVStudioAppState extends State<DVStudioApp> {
                       view: host?.view,
                       look: host?.look,
                     ),
-                    sections: dvStudioServerSections(widget.client),
+                    sections: dvStudioServerSections(widget.client, open: widget.open),
                     account: DVStudioAccount(
                       client: widget.client,
                       mount: _mount,
@@ -933,8 +936,18 @@ class DVStudioRemoteFunctionStore implements DVFunctionStore {
 /// written code: the app's data, its site map, its backend logic, background
 /// tasks and their queue, the modules it mounts, the cache, and the team who
 /// may open Studio.
-List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
-    <DVStudioSection>[
+List<DVStudioSection> dvStudioServerSections(DVStudioClient client, {
+  void Function(String path)? open,
+}) => <DVStudioSection>[
+      DVStudioSection(
+        id: 'home',
+        label: 'Home',
+        icon: DVStudioIcons.home,
+        build: (BuildContext context) => DVStudioHomeSection(
+          client: client,
+          open: open ?? dvOpenUrl,
+        ),
+      ),
       dvStudioDataSection(client),
       dvStudioSiteMapSection(client),
       // The builders, not a list: a page is of little use if a button

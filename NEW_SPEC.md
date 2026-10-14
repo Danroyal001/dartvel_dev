@@ -1865,6 +1865,9 @@ claiming one invoice number (`DV-HISTORY-006`).
 
 ## Studio
 
+Studio opens on Home: project counts, site health, recent changes and quick actions, read from the same overview as its guarded server document. The Flutter dashboard has failing-first navigation and accessibility tests; production-browser verification is pending. See [Studio parity](docs/studio/PARITY.md) for remaining gaps, including server-side drafts and revisions.
+
+
 Studio inherits the application’s effective Material theme. New projects use
 `dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
 Dartvel site, including its bundled Manrope font. Full theme parity is still
