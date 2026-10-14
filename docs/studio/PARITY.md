@@ -118,6 +118,7 @@ Full accessibility remains **Partial** until those flows are verified too.
 | Interactions with forms and submissions | **Done** — Forms & Submissions section (`DVStudioFormsSection`) with form builder, field management (text, email, phone, number, textarea, select, checkbox), field validation rules, submit button and success message configuration, live preview, embed snippets, submissions inbox with read/unread/archived/spam status filters, full-text submission search, detail modal, CSV and JSON export, and public CSRF-exempt submission endpoints (`POST api/forms/submit` and `POST api/forms/:id/submit`) | `packages/dartvel_flutter/lib/src/studio/studio_forms.dart`, `packages/dartvel_core/lib/src/admin/studio_forms.dart`, `packages/dartvel_core/lib/src/admin/studio_api.dart` |
 | Site map and page settings | **Done** — the Site map section lists compiled and stored routes, with page-settings panel (`DVStudioPageSeoPanel` and `dvShowStudioPageSeoDialog`) managing route, title, meta description, OpenGraph social card image and preview, canonical URL, robots indexing rules, and sitemap inclusion. | `studio_server.dart`, `studio_page_seo.dart`, `page_document.dart` |
 | Navigation menus and link hierarchy | **Done** — Menus & Navigation section (`DVStudioMenusSection`) with multi-menu switcher, visual hierarchy tree with depth indentation, item reordering (move up/down, indent/outdent), route/URL link presets, open target selection (`_self`/`_blank`), theme location assignment, and persistence through `DVStudioApi` with activity logging | `packages/dartvel_flutter/lib/src/studio/studio_menus.dart`, `packages/dartvel_core/lib/src/admin/studio_menus.dart`, `packages/dartvel_core/lib/src/admin/studio_api.dart` |
+| Global site settings | **Done** — Settings section (`DVStudioSettingsSection`) with General identity (site title, tagline, site URL, favicon), Localization (timezone selector, date format), SEO & Social defaults (meta title, description, OpenGraph default image, social profile links, live SERP and social card previews), and Maintenance Mode with toggle, custom message, and status alert banner. Persisted via `GET/PUT/PATCH api/settings` with CSRF protection and activity logging | `packages/dartvel_flutter/lib/src/studio/studio_settings.dart`, `packages/dartvel_core/lib/src/admin/studio_settings.dart`, `packages/dartvel_core/lib/src/admin/studio_api.dart` |
 | Multi-page templates, symbol pages | **Partial** — components are page fragments, not whole-page templates | `studio_components.dart` |
 
 ## Against Bubble
@@ -174,6 +175,7 @@ Full accessibility remains **Partial** until those flows are verified too.
 | Queue / Cache | Queue names and cache entries | Partial |
 | GitHub | Diff, pull request or push of the project's `studio/` folder | Not in any of the four; unique to Dartvel |
 | Team | Teammates directory, role assignment, permissions matrix, and invite dialog | Done |
+| Settings | Site identity, localization, default SEO and social cards, maintenance mode | Done |
 | Flags / Operations | Feature flags with rules, service levels, alert rules, incidents, status preview | Not in the four; unique to Dartvel, and real |
 
 ### A URL for every screen, and what it is read by
@@ -236,7 +238,7 @@ Readable aliases are supported for `/__studio/data`, `/__studio/sitemap` and
 `/__studio/data/Product/p-1` opens the record form. Selecting and closing a record
 updates its address; a missing model or record is reported instead of silently
 opening a different one. Tests: `studio_selection_test.dart` and
-`admin_server_test.dart`. Settings do not yet have a dedicated screen hierarchy.
+`admin_server_test.dart`. Settings have a dedicated screen hierarchy at `/__studio/settings` with General, Localization, SEO & Social, and Maintenance tabs.
 
 ### Next parity slices, in order
 

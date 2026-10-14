@@ -29,10 +29,10 @@ library;
 
 import 'dart:convert';
 
+import '../web/asset_source.dart';
 import 'studio_api.dart' show DVStudioFieldSpec, DVStudioModelSpec;
 import 'studio_overview.dart';
 import 'studio_site.dart' show DVStudioPageKind, DVStudioSitePage;
-import '../web/asset_source.dart';
 
 /// One of Studio's screens: the id it is addressed by, the name a person
 /// reads, and what it is for.
@@ -192,6 +192,13 @@ const List<DVStudioScreenSpec> dvStudioScreens = <DVStudioScreenSpec>[
     label: 'Team',
     summary: 'Who may open Studio for this application.',
   ),
+  DVStudioScreenSpec(
+    id: 'settings',
+    label: 'Settings',
+    summary:
+        'Global site identity, default SEO, social links, timezone, and '
+        'maintenance mode.',
+  ),
 ];
 
 /// The screen [id] names, or null when it names none.
@@ -206,6 +213,8 @@ const Map<String, String> dvStudioScreenAliases = <String, String>{
   'nav': 'menus',
   'submissions': 'forms',
   'inbox': 'forms',
+  'general': 'settings',
+  'config': 'settings',
 };
 
 DVStudioScreenSpec? dvStudioScreenFor(String id) {
@@ -668,6 +677,15 @@ DVStudioDocument _screenDocument(
           'and administer this application in Studio.',
         )
         ..add(_decidedAtRuntime);
+    case 'settings':
+      html.writeln(
+        '<p>Configure global application settings: site title, tagline, '
+        'public URL, default SEO, social links, timezone and maintenance mode.</p>',
+      );
+      text.add(
+        'Configure global application settings: site title, tagline, '
+        'public URL, default SEO, social links, timezone and maintenance mode.',
+      );
     default:
       // A screen holding what the running application decided rather than
       // what the build wrote: the components, the shortcut keys, the cache,
@@ -1012,6 +1030,21 @@ DVStudioDocument? _objectDocument(
         text: <String>[
           objectLabel,
           'Team and access management for this application.',
+        ],
+      );
+    case 'settings':
+      final String objectLabel = name == 'seo'
+          ? 'Default SEO'
+          : (name == 'maintenance' ? 'Maintenance Mode' : name);
+      html
+        ..writeln('<h1>${_escape.convert(objectLabel)}</h1>')
+        ..writeln('<p>Global configuration and settings for this application.</p>');
+      return DVStudioDocument(
+        heading: objectLabel,
+        html: html.toString(),
+        text: <String>[
+          objectLabel,
+          'Global configuration and settings for this application.',
         ],
       );
     default:

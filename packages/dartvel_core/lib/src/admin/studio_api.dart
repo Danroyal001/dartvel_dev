@@ -53,6 +53,7 @@ import 'studio_menus.dart';
 import 'studio_model_schema.dart';
 import 'studio_overview.dart';
 import 'studio_repository.dart';
+import 'studio_settings.dart';
 import 'studio_site.dart';
 import 'studio_source_files.dart';
 
@@ -568,6 +569,28 @@ const DVRecordShape dvStudioSubmissionsShape = DVRecordShape(
   },
 );
 
+const String dvStudioSettingsTable = 'dartvel_studio_settings';
+const DVRecordShape dvStudioSettingsShape = DVRecordShape(
+  collection: dvStudioSettingsTable,
+  key: 'id',
+  fields: <String, DVFieldType>{
+    'id': DVFieldType.text,
+    'site_title': DVFieldType.text,
+    'tagline': DVFieldType.text,
+    'site_url': DVFieldType.text,
+    'timezone': DVFieldType.text,
+    'date_format': DVFieldType.text,
+    'favicon': DVFieldType.text,
+    'default_seo_title': DVFieldType.text,
+    'default_seo_description': DVFieldType.text,
+    'default_seo_image': DVFieldType.text,
+    'social_links_json': DVFieldType.text,
+    'maintenance_mode': DVFieldType.integer,
+    'maintenance_message': DVFieldType.text,
+    'updated_at': DVFieldType.integer,
+  },
+);
+
 /// The Studio API, for requests already decided to be the admin's and
 /// allowed.
 class DVStudioApi {
@@ -603,6 +626,7 @@ class DVStudioApi {
   final Set<String> _deletedForms = <String>{};
   final Map<String, DVStudioFormSubmission> _memorySubmissions =
       <String, DVStudioFormSubmission>{};
+  DVStudioSettings _memorySettings = dvStudioDefaultSettings();
 
   final DVGitHubTransport? _gitHub;
 
@@ -699,6 +723,8 @@ class DVStudioApi {
             return await _menus(request, method, segments.sublist(1));
           case 'forms':
             return await _forms(request, method, segments.sublist(1));
+          case 'settings':
+            return await _settings(request, method, segments.sublist(1));
           case 'overview':
             if (segments.length == 1) {
               if (method != 'GET' && method != 'HEAD') _notAllowed();
@@ -3655,6 +3681,142 @@ class DVStudioApi {
       );
 
       return _reply(<String, Object?>{'ok': true, 'deleted': id});
+    }
+
+    _notAllowed();
+  }
+
+  Future<DVStudioSettings> _getSettings() async {
+    if (database != null) {
+      try {
+        final DVRecordAdapter records = DVRecordAdapter.over(database!);
+        await records.ensure(dvStudioSettingsShape);
+        final List<Map<String, Object?>> rows = await records.find(
+          dvStudioSettingsTable,
+          where: DVFilter.equals('id', 'global'),
+        );
+        if (rows.isNotEmpty) {
+          final Map<String, Object?> r = rows.first;
+          Map<String, String> social = <String, String>{};
+          final String? socialJson = r['social_links_json'] as String?;
+          if (socialJson != null && socialJson.isNotEmpty) {
+            try {
+              final Object? decoded = jsonDecode(socialJson);
+              if (decoded is Map) {
+                social = decoded.map((k, v) => MapEntry('$k', '$v'));
+              }
+            } catch (_) {}
+          }
+          final int? updatedMillis = r['updated_at'] as int?;
+          return DVStudioSettings(
+            siteTitle: '${r['site_title'] ?? 'Dartvel Application'}',
+            tagline: '${r['tagline'] ?? ''}',
+            siteUrl: '${r['site_url'] ?? 'http://localhost:8080'}',
+            timezone: '${r['timezone'] ?? 'UTC'}',
+            dateFormat: '${r['date_format'] ?? 'YYYY-MM-DD'}',
+            favicon: r['favicon'] as String?,
+            defaultSeoTitle: r['default_seo_title'] as String?,
+            defaultSeoDescription: r['default_seo_description'] as String?,
+            defaultSeoImage: r['default_seo_image'] as String?,
+            socialLinks: social,
+            maintenanceMode: r['maintenance_mode'] == 1,
+            maintenanceMessage: r['maintenance_message'] as String?,
+            updatedAt: updatedMillis != null
+                ? DateTime.fromMillisecondsSinceEpoch(updatedMillis, isUtc: true)
+                : null,
+          );
+        }
+      } catch (_) {}
+    }
+    return _memorySettings;
+  }
+
+  Future<Response> _settings(
+    Request request,
+    String method,
+    List<String> segments,
+  ) async {
+    if (method == 'GET' || method == 'HEAD') {
+      final DVStudioSettings settings = await _getSettings();
+      return _reply(settings.toJson());
+    }
+
+    if (method == 'POST' || method == 'PUT' || method == 'PATCH') {
+      final Map<String, Object?> body = await _body(request);
+      final String siteTitle = '${body['siteTitle'] ?? ''}'.trim();
+      if (siteTitle.isEmpty) {
+        throw _StudioRefusal(
+          400,
+          'invalid_settings',
+          'Site title cannot be empty.',
+        );
+      }
+      final String siteUrl = '${body['siteUrl'] ?? ''}'.trim();
+      if (siteUrl.isNotEmpty &&
+          !siteUrl.startsWith('http://') &&
+          !siteUrl.startsWith('https://')) {
+        throw _StudioRefusal(
+          400,
+          'invalid_settings',
+          'Site URL must start with http:// or https://.',
+        );
+      }
+
+      final DateTime now = DateTime.now().toUtc();
+      final DVStudioSettings updated = DVStudioSettings.fromJson(body).copyWith(
+        updatedAt: now,
+      );
+      _memorySettings = updated;
+
+      if (database != null) {
+        try {
+          final DVRecordAdapter records = DVRecordAdapter.over(database!);
+          await records.ensure(dvStudioSettingsShape);
+          final Map<String, Object?> record = <String, Object?>{
+            'id': 'global',
+            'site_title': updated.siteTitle,
+            'tagline': updated.tagline,
+            'site_url': updated.siteUrl,
+            'timezone': updated.timezone,
+            'date_format': updated.dateFormat,
+            if (updated.favicon != null) 'favicon': updated.favicon,
+            if (updated.defaultSeoTitle != null)
+              'default_seo_title': updated.defaultSeoTitle,
+            if (updated.defaultSeoDescription != null)
+              'default_seo_description': updated.defaultSeoDescription,
+            if (updated.defaultSeoImage != null)
+              'default_seo_image': updated.defaultSeoImage,
+            'social_links_json': jsonEncode(updated.socialLinks),
+            'maintenance_mode': updated.maintenanceMode ? 1 : 0,
+            if (updated.maintenanceMessage != null)
+              'maintenance_message': updated.maintenanceMessage,
+            'updated_at': now.millisecondsSinceEpoch,
+          };
+          final List<Map<String, Object?>> existing = await records.find(
+            dvStudioSettingsTable,
+            where: DVFilter.equals('id', 'global'),
+          );
+          if (existing.isNotEmpty) {
+            await records.update(
+              dvStudioSettingsTable,
+              record,
+              where: DVFilter.equals('id', 'global'),
+            );
+          } else {
+            await records.insert(dvStudioSettingsTable, record);
+          }
+        } catch (_) {}
+      }
+
+      await _note(
+        'settings',
+        'updated',
+        'Updated global settings: ${updated.siteTitle}',
+        screen: 'settings',
+        object: 'global',
+      );
+
+      return _reply(updated.toJson(), status: 200);
     }
 
     _notAllowed();

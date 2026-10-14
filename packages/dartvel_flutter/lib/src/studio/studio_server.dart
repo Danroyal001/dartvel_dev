@@ -22,12 +22,12 @@ import 'package:dartvel_core/dartvel.dart' as core
         DVDatabase,
         DVStudioApi,
         DVStudioForm,
-        DVStudioFormField,
         DVStudioFormSubmission,
         DVStudioMediaFile,
         DVStudioMenu,
         DVStudioModelSpec,
         DVStudioOverview,
+        DVStudioSettings,
         Headers,
         Request,
         Response;
@@ -38,16 +38,13 @@ import 'package:dartvel_core/dartvel.dart'
         DVStudioFieldSpec,
         DVStudioIndexSpec,
         DVStudioModelOrigin;
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' show mapEquals;
 
 import '../../dartvel_flutter.dart';
-import 'studio_first_run.dart';
-import 'studio_forms.dart';
 import 'studio_server_transport_stub.dart'
     if (dart.library.js_interop) 'studio_server_transport_web.dart' as transport;
-import 'studio_sign_in.dart';
 
 part 'studio_model_designer.dart';
 part 'studio_record_list.dart';
@@ -511,6 +508,22 @@ class DVStudioClient {
   Future<void> deleteSubmission(String id) async {
     await _send(
         'DELETE', 'api/forms/submissions?id=${Uri.encodeQueryComponent(id)}');
+  }
+
+  /// The global settings of the application.
+  Future<core.DVStudioSettings> settings() async {
+    final Map<String, Object?> body = _map(await _send('GET', 'api/settings'));
+    return core.DVStudioSettings.fromJson(body);
+  }
+
+  /// Saves or updates the global [settings].
+  Future<core.DVStudioSettings> saveSettings(core.DVStudioSettings settings) async {
+    final Map<String, Object?> body = _map(await _send(
+      'PUT',
+      'api/settings',
+      body: settings.toJson(),
+    ));
+    return core.DVStudioSettings.fromJson(body);
   }
 
   /// The signed-in account, `{userId, email}`.
@@ -1314,6 +1327,7 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client, {
         icon: Icons.admin_panel_settings_outlined,
         build: (BuildContext context) => DVStudioTeamSection(client: client),
       ),
+      dvStudioSettingsSection(client),
     ];
 
 /// Media: pictures, videos, audio and documents uploaded to the application.
@@ -1356,6 +1370,15 @@ DVStudioSection dvStudioFormsSection(DVStudioClient client) =>
         selectedFormId: selection.object,
         onSelect: (String? id) => selection.select?.call(id ?? ''),
       ),
+    );
+
+/// Global Settings: site identity, SEO defaults, localization, social profiles, and maintenance mode.
+DVStudioSection dvStudioSettingsSection(DVStudioClient client) =>
+    DVStudioSection(
+      id: 'settings',
+      label: 'Settings',
+      icon: DVStudioIcons.settings,
+      build: (BuildContext context) => DVStudioSettingsSection(client: client),
     );
 
 /// Data: every data model, compiled or designed in Studio, its records, and
