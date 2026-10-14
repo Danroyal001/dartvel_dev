@@ -32,6 +32,7 @@ import 'dart:convert';
 import 'studio_api.dart' show DVStudioFieldSpec, DVStudioModelSpec;
 import 'studio_site.dart' show DVStudioPageKind, DVStudioSitePage;
 import '../web/asset_source.dart';
+import '../web/document_fields.dart';
 
 /// One of Studio's screens: the id it is addressed by, the name a person
 /// reads, and what it is for.
@@ -434,6 +435,24 @@ DVStudioDocument _screenDocument(
     ..writeln('<p>${_escape.convert(screen.summary)}</p>');
   final List<String> text = <String>[screen.label, screen.summary];
 
+  // The sign-in and the setup are forms, and their documents carry the
+  // fields, under the labels the Studio app draws them with, so a person can
+  // start typing before the app has painted and the app takes over what was
+  // typed (see document_fields.dart). Signing in still needs the app: the
+  // auth endpoints require the CSRF header its transport sends.
+  final List<(String, String, String)>? fields = _formFields[screen.id];
+  if (fields != null) {
+    for (final (String label, String type, String complete) in fields) {
+      html.writeln(dvDocumentField(
+        type: type,
+        label: label,
+        id: 'dv-studio-${screen.id}-${fields.indexOf((label, type, complete))}',
+        autocomplete: complete,
+      ));
+      text.add(label);
+    }
+  }
+
   // What the server knows is inside this screen, as a table with a header
   // row: the one shape a screen reader reads a set of named values
   // correctly, and the one that prints.
@@ -760,6 +779,22 @@ DVStudioDocument? _objectDocument(
       return null;
   }
 }
+
+/// The fields of the two screens that are forms: label, input type and the
+/// autocomplete token a password manager matches on. The labels are the ones
+/// `studio_sign_in.dart` and `studio_first_run.dart` draw.
+const Map<String, List<(String, String, String)>> _formFields =
+    <String, List<(String, String, String)>>{
+  'login': <(String, String, String)>[
+    ('Email', 'email', 'username'),
+    ('Password', 'password', 'current-password'),
+  ],
+  'setup': <(String, String, String)>[
+    ('The address it printed', 'email', 'username'),
+    ('The password it printed', 'password', 'current-password'),
+    ('A new password of your own', 'password', 'new-password'),
+  ],
+};
 
 /// The rail: every screen, at its own URL, with this one marked.
 ///
