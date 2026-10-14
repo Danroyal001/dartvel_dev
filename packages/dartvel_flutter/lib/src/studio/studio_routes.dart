@@ -119,6 +119,10 @@ List<RouteBase> dvStudioRoutes({
                 mount: mount,
                 screen: dvStudioScreenAliases[id] ?? id,
                 object: object,
+                query: state.uri.queryParameters,
+                onQuery: (Map<String, String> query) => _openStudio(
+                  router: GoRouter.of(context), mount: mount, section: dvStudioScreenAliases[id] ?? id, object: object, query: query,
+                ),
                 location: location?.call(state),
                 open: open,
                 // Navigated to, not pushed: the address bar follows the
@@ -245,6 +249,7 @@ void _openStudio({
   required String mount,
   required String section,
   String? object,
+  Map<String, String> query = const <String, String>{},
 }) {
   // Keep a readable alias when navigating within the screen it names.
   final current = router.state.uri.path.substring(mount.length).split('/');
@@ -253,8 +258,9 @@ void _openStudio({
   final String path = object == null
       ? '$mount/$section'
       : '$mount/$section/${object.replaceFirst(RegExp('^/+'), '')}';
-  if (router.state.uri.path == path) return;
-  router.go(path);
+  final String target = Uri(path: path, queryParameters: query.isEmpty ? null : query).toString();
+  if (router.state.uri.toString() == target) return;
+  router.go(target);
 }
 
 /// A Studio screen through the page shell every other page of the

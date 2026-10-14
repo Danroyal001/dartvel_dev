@@ -45,9 +45,23 @@ class _Server {
 
   Future<DVStudioReply> call(String method, String path, {Object? body}) async {
     calls.add('$method $path');
-    switch ('$method $path') {
+    final String cleanPath =
+        path.contains('?') ? path.substring(0, path.indexOf('?')) : path;
+    switch ('$method $cleanPath') {
       case 'GET api/access':
         return DVStudioReply(200, <String, Object?>{'granted': granted});
+      case 'GET api/overview':
+        return DVStudioReply(200, <String, Object?>{
+          'glance': <String, int>{
+            'pages': routes.length,
+            'models': 1,
+            'records': 1,
+            'functions': functions?.length ?? 0,
+            'team': grants.length,
+          },
+          'health': <Object?>[],
+          'recent': <Object?>[],
+        });
       case 'GET api/me':
         return const DVStudioReply(200, <String, Object?>{
           'userId': 'u-ops',
@@ -79,7 +93,7 @@ class _Server {
           ],
         });
       case 'GET api/site':
-        return DVStudioReply(200, <String, Object?>{
+        return const DVStudioReply(200, <String, Object?>{
           'pages': <Object?>[],
         });
       case 'GET api/pages':
@@ -138,6 +152,7 @@ Future<GoRouter> _at(
 /// The section the screen is showing, read off the body key.
 String? openSection(WidgetTester tester) {
   for (final String id in <String>[
+    'home',
     'pages',
     'components',
     'shortcuts',
@@ -273,11 +288,12 @@ void main() {
     expect(find.byKey(const ValueKey('dv-studio-form-Product-p-1-1')), findsOneWidget);
   });
 
-  testWidgets('the address names the section, and the mount is Pages', (
+  testWidgets('the address names the section, and the mount is Home', (
     WidgetTester tester,
   ) async {
     for (final (String path, String section) in <(String, String)>[
-      ('/__studio', 'pages'),
+      ('/__studio', 'home'),
+      ('/__studio/home', 'home'),
       ('/__studio/pages', 'pages'),
       ('/__studio/models', 'models'),
       ('/__studio/jobs', 'jobs'),
@@ -459,7 +475,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/__studio');
-    expect(openSection(tester), 'pages');
+    expect(openSection(tester), 'home');
   });
 
   testWidgets('a task in the address is the row the address names', (

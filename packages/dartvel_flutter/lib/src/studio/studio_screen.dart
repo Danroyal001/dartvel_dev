@@ -99,6 +99,8 @@ class DVStudioScreen extends StatefulWidget {
   /// What the address names inside [selected]: a page's route, a model's
   /// name, a function's. Only the sections that can open one are told.
   final String? object;
+  final Map<String, String> query;
+  final void Function(Map<String, String> query)? onQuery;
 
   /// Called when the person chooses another section, or another thing inside
   /// one, so that the address can follow them. The sections that can open
@@ -123,6 +125,8 @@ class DVStudioScreen extends StatefulWidget {
     this.account,
     this.selected,
     this.object,
+    this.query = const <String, String>{},
+    this.onQuery,
     this.onSelect,
   });
 
@@ -142,11 +146,13 @@ class DVStudioScreen extends StatefulWidget {
 /// asked. The name is the object's own -- a route, a model, a function --
 /// rather than a path, so a section reads it as the thing it lists.
 class DVStudioSelection {
-  const DVStudioSelection({this.object, this.select});
+  const DVStudioSelection({this.object, this.select, this.query = const <String, String>{}, this.onQuery});
 
   /// What the address names inside the screen, or null when it names only
   /// the screen.
   final String? object;
+  final Map<String, String> query;
+  final void Function(Map<String, String> query)? onQuery;
 
   /// Called with what the person chose, so the address can follow. Null
   /// where nothing follows it: a Studio with no [DVStudioScreen.onSelect],
@@ -403,6 +409,8 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     // reports where the person is, and where they are is what is drawn.
     final DVStudioSelection selection = DVStudioSelection(
       object: widget.object,
+      query: widget.query,
+      onQuery: widget.onQuery,
       select: (String? object) => _select(current.id, object),
     );
     // A Material, not a coloured box: sections are free to use material
@@ -600,8 +608,8 @@ class _DVStudioRailItemState extends State<_DVStudioRailItem> {
               excludeSemantics: true,
               child: Container(
                 width: 64,
-                margin: const .symmetric(vertical: 1),
-                padding: const .symmetric(vertical: 5),
+                margin: const .symmetric(vertical: 0.5),
+                padding: const .symmetric(vertical: 3.5),
                 decoration: BoxDecoration(
                   color: selected
                       ? DVStudioStyle.railSelected

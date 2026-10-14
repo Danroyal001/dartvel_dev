@@ -576,11 +576,14 @@ class _DVStudioControlState extends State<DVStudioControl> {
       return Semantics(
         label: widget.label,
         excludeSemantics: true,
-        child: DVStudioStyle.control(
+        child: DVStudioStyle.tooltip(
           widget.label,
-          enabled: false,
-          primary: widget.primary,
-          icon: widget.icon,
+          DVStudioStyle.control(
+            widget.label,
+            enabled: false,
+            primary: widget.primary,
+            icon: widget.icon,
+          ),
         ),
       );
     }

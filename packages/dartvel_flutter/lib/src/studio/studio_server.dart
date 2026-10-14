@@ -27,6 +27,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVStudioIndexSpec,
         DVStudioModelOrigin;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show mapEquals;
 
 import '../../dartvel_flutter.dart';
 import 'studio_first_run.dart';
@@ -35,6 +37,7 @@ import 'studio_server_transport_stub.dart'
 import 'studio_sign_in.dart';
 
 part 'studio_model_designer.dart';
+part 'studio_record_list.dart';
 
 /// What the backend answered: a status and the decoded JSON body.
 class DVStudioReply {
@@ -449,6 +452,60 @@ class DVStudioClient {
           DVStudioRecordData.fromJson(record),
       ];
 
+  Future<({List<DVStudioRecordData> records, int total, int offset, int limit})>
+      recordPage(String model, [Map<String, String>? query]) async {
+    final String querySuffix = query == null || query.isEmpty
+        ? ''
+        : '?${Uri(queryParameters: query).query}';
+    Map<String, Object?> body;
+    try {
+      body = _map(await _send(
+        'GET',
+        'api/models/${_segment(model)}/records$querySuffix',
+      ));
+    } on DVStudioRemoteError catch (error) {
+      if (error.status == 404 && querySuffix.isNotEmpty) {
+        body = _map(await _send(
+          'GET',
+          'api/models/${_segment(model)}/records',
+        ));
+      } else {
+        rethrow;
+      }
+    }
+    final List<DVStudioRecordData> records = <DVStudioRecordData>[
+      for (final Map<String, Object?> record in _list(body, 'records'))
+        DVStudioRecordData.fromJson(record),
+    ];
+    return (
+      records: records,
+      total: (body['total'] as num?)?.toInt() ?? records.length,
+      offset: (body['offset'] as num?)?.toInt() ?? 0,
+      limit: (body['limit'] as num?)?.toInt() ?? records.length,
+    );
+  }
+
+  Future<DVStudioRecordData> record(String model, String key) async =>
+      DVStudioRecordData.fromJson(_map(await _send(
+        'GET',
+        'api/models/${_segment(model)}/records/${_segment(key)}',
+      )));
+
+  Future<Map<String, Object?>> deleteRecords(
+    String model,
+    Map<String, int> records,
+  ) async =>
+      _map(await _send(
+        'POST',
+        'api/models/${_segment(model)}/records/delete',
+        body: <String, Object?>{
+          'records': <Object?>[
+            for (final MapEntry<String, int> entry in records.entries)
+              <String, Object?>{'key': entry.key, 'version': entry.value},
+          ],
+        },
+      ));
+
   Future<DVStudioRecordData> create(
           String model, Map<String, Object?> values) async =>
       DVStudioRecordData.fromJson(_map(await _send(
@@ -601,6 +658,8 @@ class DVStudioApp extends StatefulWidget {
     this.mount,
     this.screen,
     this.object,
+    this.query = const <String, String>{},
+    this.onQuery,
     this.location,
     this.open,
     this.onSelect,
@@ -625,6 +684,8 @@ class DVStudioApp extends StatefulWidget {
   /// What the address names inside [screen]: a page's route, a model's name,
   /// a function's.
   final String? object;
+  final Map<String, String> query;
+  final void Function(Map<String, String> query)? onQuery;
 
   /// The address the app was opened at; the browser's by default. At
   /// `<mount>/login` the app is Studio's sign-in.
@@ -753,6 +814,8 @@ class _DVStudioAppState extends State<DVStudioApp> {
                     ),
                     selected: widget.screen,
                     object: widget.object,
+                    query: widget.query,
+                    onQuery: widget.onQuery,
                     onSelect: widget.onSelect,
                   ),
                 )
@@ -1037,6 +1100,8 @@ DVStudioSection dvStudioDataSection(DVStudioClient client) =>
           DVStudioModelsSection(
         client: client,
         model: selection.object?.split('/').first,
+        query: selection.query,
+        onQuery: selection.onQuery,
         record: selection.object?.contains('/') == true
             ? selection.object!.substring(selection.object!.indexOf('/') + 1)
             : null,
@@ -1358,6 +1423,8 @@ class DVStudioModelsSection extends StatefulWidget {
     this.model,
     this.onSelect,
     this.record,
+    this.query = const <String, String>{},
+    this.onQuery,
   });
 
   final DVStudioClient client;
@@ -1368,6 +1435,8 @@ class DVStudioModelsSection extends StatefulWidget {
 
   /// The record named by a deep link, opened after its model is loaded.
   final String? record;
+  final Map<String, String> query;
+  final void Function(Map<String, String> query)? onQuery;
 
   /// Called with the model a person chose, so the address can follow.
   final void Function(String model)? onSelect;
@@ -1394,6 +1463,49 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
   /// new one.
   DVStudioRecordData? _editing;
 
+  int _total = 0;
+  int _offset = 0;
+  final Map<String, int> _chosen = <String, int>{};
+  Timer? _searchTimer;
+  Map<String, String>? _params;
+
+  Map<String, String> get _listQuery {
+    final Map<String, String> params = _params ?? widget.query;
+    final Map<String, String> query = <String, String>{};
+    final String q = (_query.isNotEmpty ? _query : params['q'] ?? '').trim();
+    if (q.isNotEmpty) query['q'] = q;
+    final String? filter = params['filter'];
+    if (filter != null && filter.isNotEmpty) query['filter'] = filter;
+    final String? sort = params['sort'];
+    if (sort != null && sort.isNotEmpty) {
+      query['sort'] = sort;
+      query['order'] = params['order'] ?? 'asc';
+    }
+    final int page = int.tryParse(params['page'] ?? '') ?? 1;
+    final int limit = int.tryParse(params['limit'] ?? '') ?? 50;
+    final int offset = math.max(0, (page - 1) * limit);
+    query['limit'] = '$limit';
+    query['offset'] = '$offset';
+    return query;
+  }
+
+  void _changeQuery(Map<String, String> next) {
+    if (widget.onQuery != null) {
+      widget.onQuery!(next);
+    } else {
+      setState(() => _params = next);
+      if (_model != null) unawaited(_open(_model!));
+    }
+  }
+
+  void _updateState(VoidCallback fn) => setState(fn);
+
+  @override
+  void dispose() {
+    _searchTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1406,7 +1518,8 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
     // The address moved to another model. Read again rather than opening
     // from the list already held: a model published since this section was
     // built is not in it, and the address is not the thing to argue with.
-    if (widget.model != oldWidget.model || widget.record != oldWidget.record) {
+    if (widget.model != oldWidget.model || widget.record != oldWidget.record || !mapEquals(widget.query, oldWidget.query)) {
+      _params = null;
       unawaited(_loadModels(select: widget.model));
     }
   }
@@ -1457,16 +1570,24 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
       _editing = null;
       _error = null;
       _designing = false;
-      _query = '';
+      _query = widget.query['q'] ?? '';
+      _chosen.clear();
     });
     if (userChose) setState(() => _phoneDetail = true);
     try {
-      final List<DVStudioRecordData> records =
-          await widget.client.records(model.model);
+      final page = await widget.client.recordPage(model.model, _listQuery);
+      final records = page.records;
+      DVStudioRecordData? linked = records.where((r) => r.key == widget.record).firstOrNull;
+      if (widget.record != null && linked == null) {
+        try { linked = await widget.client.record(model.model, widget.record!); }
+        on DVStudioRemoteError catch (error) { if (error.status != 404) rethrow; }
+      }
       if (mounted && _model == model) {
         setState(() {
           _records = records;
-          _editing = records.where((r) => r.key == widget.record).firstOrNull;
+          _total = page.total;
+          _offset = page.offset;
+          _editing = linked;
           if (widget.model != null) _phoneDetail = true;
         });
       }
@@ -1651,79 +1772,13 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                             title: 'Records could not be read',
                             message: '$_error',
                           ))
-                    : records.isEmpty
+                    : (records.isEmpty && _query.isEmpty && (_params?['filter'] == null || _params!['filter']!.isEmpty) && (widget.query['filter'] == null || widget.query['filter']!.isEmpty) && (widget.query['q'] == null || widget.query['q']!.isEmpty))
                         ? DVStudioStyle.emptyState(
                             icon: Icons.inbox_outlined,
                             title: 'No ${model.model} records yet',
                             message: 'New record adds the first one.',
                           )
-                        : SingleChildScrollView(
-                            padding: const .all(DVStudioStyle.space5),
-                            child: Builder(builder: (BuildContext context) {
-                              // The records any of whose values contain what
-                              // is typed in the search, as the table shows
-                              // them.
-                              final String query = _query.trim().toLowerCase();
-                              final List<DVStudioRecordData> shown =
-                                  <DVStudioRecordData>[
-                                for (final DVStudioRecordData record in records)
-                                  if (query.isEmpty ||
-                                      fields.any((DVStudioField f) =>
-                                          _cellText(f, record.values[f.name])
-                                              .toLowerCase()
-                                              .contains(query)))
-                                    record,
-                              ];
-                              return Column(
-                                crossAxisAlignment: .stretch,
-                                children: <Widget>[
-                                  if (records.length > 1) ...<Widget>[
-                                    DVStudioTextInput(
-                                      key: const ValueKey<String>(
-                                          'dv-studio-records-search'),
-                                      value: _query,
-                                      placeholder:
-                                          'Search ${records.length} records',
-                                      icon: Icons.search,
-                                      onChanged: (String value) =>
-                                          setState(() => _query = value),
-                                    ),
-                                    const SizedBox(height: DVStudioStyle.space3),
-                                  ],
-                                  _DVStudioTable(
-                                    headers: <String>[
-                                      for (final DVStudioField f in fields)
-                                        _fieldLabel(f.name),
-                                    ],
-                                    rows: <List<String>>[
-                                      for (final DVStudioRecordData record
-                                          in shown)
-                                        <String>[
-                                          for (final DVStudioField f in fields)
-                                            _cellText(f, record.values[f.name]),
-                                        ],
-                                    ],
-                                    rowKeys: <Key>[
-                                      for (final DVStudioRecordData record
-                                          in shown)
-                                        ValueKey<String>(
-                                            'dv-studio-record-${record.key}'),
-                                    ],
-                                    selected: editing == null
-                                        ? null
-                                        : shown.indexWhere(
-                                            (DVStudioRecordData r) =>
-                                                r.key == editing.key),
-                                    onTap: (int index) {
-                                      setState(() => _editing = shown[index]);
-                                      widget.onSelect?.call(
-                                          '${model.model}/${shown[index].key}');
-                                    },
-                                  ),
-                                ],
-                              );
-                            }),
-                          ),
+                        : _recordList(model, records, fields),
               ),
               if (editing != null)
                 Container(
