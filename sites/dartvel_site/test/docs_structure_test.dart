@@ -115,7 +115,7 @@ void main() {
     final Set<String> routed = <String>{
       for (final DVRouteInfo route in dartvelRouteManifest)
         if (route.path == '/docs' || route.path.startsWith('/docs/'))
-          if (route.path != '/docs/platform') route.path,
+          route.path,
     };
     expect(<String>{for (final DocsPageInfo p in kDocsPages) p.path}, routed);
     expect(docsWidgets.keys.toSet(), routed);
