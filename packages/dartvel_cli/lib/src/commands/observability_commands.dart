@@ -52,11 +52,14 @@ class _Fetched {
   final String? failure;
 }
 
-Future<_Fetched> _fetch(Uri target) async {
+Future<_Fetched> _fetch(Uri target, {String? bearer}) async {
   final HttpClient client = HttpClient();
   try {
     final HttpClientRequest request =
         await client.getUrl(target).timeout(const Duration(seconds: 3));
+    if (bearer != null && bearer.isNotEmpty) {
+      request.headers.set('authorization', 'Bearer $bearer');
+    }
     final HttpClientResponse response =
         await request.close().timeout(const Duration(seconds: 5));
     final String body = await response
@@ -261,6 +264,13 @@ class MetricsCommand extends Command<void> {
       defaultsTo: 'http://localhost:8080',
       help: 'Base URL of the running Dartvel server to read /metrics from.',
     );
+    argParser.addOption(
+      'token',
+      defaultsTo: Platform.environment['DARTVEL_METRICS_TOKEN'],
+      help: 'The server\'s DARTVEL_METRICS_TOKEN, sent as a bearer token. A '
+          'server answers /metrics without it only to its own host and '
+          'private networks.',
+    );
   }
 
   @override
@@ -268,11 +278,14 @@ class MetricsCommand extends Command<void> {
     final String base = (argResults!['url'] as String).trim();
     final Uri target = Uri.parse(base).resolve('/metrics');
 
-    final _Fetched result = await _fetch(target);
+    final _Fetched result =
+        await _fetch(target, bearer: argResults!['token'] as String?);
     if (result.missing) {
       _emit(
-        '$target answered 404. That is not a Dartvel server, or it is one '
-        'whose application registered its own route at /metrics.',
+        '$target answered 404. A Dartvel server answers /metrics only to its '
+        'own host, a private network, or a caller sending its '
+        'DARTVEL_METRICS_TOKEN (--token); otherwise this is not a Dartvel '
+        'server, or its application registered its own route at /metrics.',
       );
       exitCode = 1;
       return;
