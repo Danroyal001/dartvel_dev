@@ -70,12 +70,26 @@ const String _extract = r"""() => {
         try { media = JSON.parse(declared.slice(bar + 1)); } catch (e) {}
         declared = declared.slice(0, bar);
       }
+      // A text field: Flutter puts a real <input> (or <textarea>) inside the
+      // node, named by its own aria-label. Skipping it, as the walk did, left
+      // every form out of the document -- a sign-in page went out as its
+      // heading and nothing else.
+      const field = tag === 'flt-semantics'
+        ? child.querySelector(':scope > input, :scope > textarea')
+        : null;
       const node = {
-        role: declared || child.getAttribute('role')
+        role: field ? 'textbox'
+              : declared || child.getAttribute('role')
               || (tag === 'a' ? 'link' : null),
+        field: field
+          ? (field.tagName === 'TEXTAREA' ? 'textarea'
+             : (field.getAttribute('type') || 'text'))
+          : null,
         level: heading ? parseInt(heading[1], 10)
                        : (aria ? parseInt(aria, 10) : null),
-        label: labelOf(child),
+        label: field
+          ? (field.getAttribute('aria-label') || labelOf(child))
+          : labelOf(child),
         href: child.getAttribute('href'),
         media: media,
         children: walk(child),
