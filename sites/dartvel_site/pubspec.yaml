@@ -81,6 +81,15 @@ dartvel:
   plugins: []
   ota: false
 
+  # Old and guessed addresses, sent to the page that answers them.
+  # /docs/platform was split into native access and API keys; its page was a
+  # "This page moved" stub that search engines kept as a page.
+  redirects:
+    /docs/platform: /docs/native-access
+    /docs/getting-started: /docs
+    /docs/install: /docs
+    /docs/installation: /docs
+
   # No account pages: no /login, /sign-up or /account. Studio signs its one
   # granted person in at its own /__studio/login.
   auth:

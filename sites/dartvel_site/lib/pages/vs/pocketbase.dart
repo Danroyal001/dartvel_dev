@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../components/site.dart' show kDartvelVersion;
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
@@ -60,7 +61,7 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
                 <String>['Custom logic', 'Go hooks, or JavaScript', '@DVBackendFunction, in Dart, in the same repository'],
                 <String>['The client app', 'Official JavaScript and Dart SDKs, in a project you build separately', 'Generated and typed, and it is the same project'],
                 <String>['Other targets', 'None. It is a backend', 'Android, iOS, desktop, TVs, browser extensions'],
-                <String>['Maturity', 'v0.40, before 1.0. Its docs do not yet recommend it for production critical apps', 'v0.11.5. Built capabilities and planned work are listed per spec section'],
+                <String>['Maturity', 'v0.40, before 1.0. Its docs do not yet recommend it for production critical apps', 'v$kDartvelVersion. Built capabilities and planned work are listed per spec section'],
               ],
             ),
           ],
