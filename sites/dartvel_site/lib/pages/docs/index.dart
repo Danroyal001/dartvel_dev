@@ -196,7 +196,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
       id: 'services',
       title: 'Choose your services at startup',
       children: <Widget>[
-        DocsText('Set up auth and mail in main.dart, before runApp.'),
+        DocsText('Keep main.dart to DV.run(). Set up auth and mail in a private @DVBoot() function. Pure Dartvel apps use the generated root; @DVAppRoot() is optional for an existing Flutter host.'),
         DocsCode('start-configure'),
         DocsText(
           'These are the in-memory versions for development. Each '

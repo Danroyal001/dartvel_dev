@@ -4,7 +4,7 @@
 // covered. Both are selectable pages, and a covered page is not laid out --
 // which the selection area asked the size of anyway.
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
-import 'package:dartvel_example/main.dart';
+import 'package:dartvel_example/boot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

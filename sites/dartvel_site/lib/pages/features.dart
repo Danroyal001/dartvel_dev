@@ -246,7 +246,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Middleware',
-    '@DVUseMiddleware',
+    'middleware: [...]',
     'Present: ten built-in middlewares run in the order you declare. Absent: '
         'page middleware that preloads data or sets SEO context.',
   ),
