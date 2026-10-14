@@ -280,6 +280,47 @@ class DVStudioEditorController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Updates page-level settings and SEO metadata (title, meta description,
+  /// social card image, robots directive, schema type, canonical URL, sitemap inclusion).
+  ///
+  /// Changes are recorded in the undo history and broadcast as a replace edit.
+  void updatePageSeo({
+    String? title,
+    String? description,
+    String? image,
+    String? robots,
+    String? schemaType,
+    String? canonicalUrl,
+    bool? sitemap,
+  }) {
+    if (readOnly) throw StateError('This editor is read-only.');
+    final Map<String, Object?> snapshot = _document.toJson();
+    if (title != null) _document.title = title;
+    if (description != null) {
+      _document.description = description.isEmpty ? null : description;
+    }
+    if (image != null) {
+      _document.image = image.isEmpty ? null : image;
+    }
+    if (robots != null) {
+      _document.robots = robots.isEmpty ? null : robots;
+    }
+    if (schemaType != null) {
+      _document.schemaType = schemaType.isEmpty ? null : schemaType;
+    }
+    if (canonicalUrl != null) {
+      _document.canonicalUrl = canonicalUrl.isEmpty ? null : canonicalUrl;
+    }
+    if (sitemap != null) {
+      _document.sitemap = sitemap;
+    }
+    _undo.add(snapshot);
+    if (_undo.length > historyLimit) _undo.removeAt(0);
+    _redo.clear();
+    _edits.add(DVStudioEdit.replace(_document));
+    notifyListeners();
+  }
+
   /// Undo can restore a document without the selected node in it; leaving the
   /// selection pointing at nothing would show an inspector for a node that
   /// does not exist.
@@ -1886,6 +1927,19 @@ class DVStudioInspector extends StatelessWidget {
             title: 'Nothing selected',
             message: 'Select an element on the canvas or in Layers to edit '
                 'how it looks and behaves.',
+            action: controller.document.route.startsWith('/__component')
+                ? null
+                : Padding(
+                    padding: const .only(top: DVStudioStyle.space3),
+                    child: DVStudioControl(
+                      key: const ValueKey<String>('dv-studio-open-page-seo'),
+                      label: 'Page SEO & Settings',
+                      icon: DVStudioIcons.seo,
+                      enabled: true,
+                      onTap: () =>
+                          dvShowStudioPageSeoDialog(context, controller),
+                    ),
+                  ),
           );
         }
         if (node.type == dvStudioComponentType) {

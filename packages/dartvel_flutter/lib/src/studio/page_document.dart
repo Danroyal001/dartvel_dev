@@ -368,10 +368,16 @@ enum DVDeployPlatform {
       ];
 }
 
-/// A builder-editable page: a route, a title, and a widget tree.
+/// A builder-editable page: a route, a title, SEO metadata, and a widget tree.
 class DVPageDocument {
   final String route;
   String title;
+  String? description;
+  String? image;
+  String? robots;
+  String? schemaType;
+  String? canonicalUrl;
+  bool sitemap;
   DVPageNode root;
 
   /// Where the page was deployed, or null for everywhere.
@@ -380,6 +386,12 @@ class DVPageDocument {
   DVPageDocument({
     required this.route,
     this.title = '',
+    this.description,
+    this.image,
+    this.robots,
+    this.schemaType,
+    this.canonicalUrl,
+    this.sitemap = true,
     DVPageNode? root,
     this.targets,
   }) : root = root ?? DVPageNode.box();
@@ -387,6 +399,12 @@ class DVPageDocument {
   factory DVPageDocument.fromJson(Map<String, Object?> json) => DVPageDocument(
         route: json['route']! as String,
         title: (json['title'] as String?) ?? '',
+        description: json['description'] as String?,
+        image: json['image'] as String?,
+        robots: json['robots'] as String?,
+        schemaType: json['schemaType'] as String?,
+        canonicalUrl: json['canonicalUrl'] as String?,
+        sitemap: json['sitemap'] != false,
         root: DVPageNode.fromJson(
           (json['root']! as Map).cast<String, Object?>(),
         ),
@@ -408,6 +426,12 @@ class DVPageDocument {
   Map<String, Object?> toJson() => <String, Object?>{
         'route': route,
         'title': title,
+        if (description != null) 'description': description,
+        if (image != null) 'image': image,
+        if (robots != null) 'robots': robots,
+        if (schemaType != null) 'schemaType': schemaType,
+        if (canonicalUrl != null) 'canonicalUrl': canonicalUrl,
+        if (!sitemap) 'sitemap': false,
         'root': root.toJson(),
         if (targets != null)
           'targets': <String>[
@@ -416,6 +440,30 @@ class DVPageDocument {
           ],
       };
 
+  DVPageDocument copyWith({
+    String? route,
+    String? title,
+    String? description,
+    String? image,
+    String? robots,
+    String? schemaType,
+    String? canonicalUrl,
+    bool? sitemap,
+    DVPageNode? root,
+    Set<DVDeployTarget>? targets,
+  }) =>
+      DVPageDocument(
+        route: route ?? this.route,
+        title: title ?? this.title,
+        description: description ?? this.description,
+        image: image ?? this.image,
+        robots: robots ?? this.robots,
+        schemaType: schemaType ?? this.schemaType,
+        canonicalUrl: canonicalUrl ?? this.canonicalUrl,
+        sitemap: sitemap ?? this.sitemap,
+        root: root ?? this.root,
+        targets: targets ?? this.targets,
+      );
 }
 
 /// Exporting a page document as source.
@@ -436,8 +484,14 @@ extension DVPageDocumentSource on DVPageDocument {
       ..writeln("import '${'../' * _depth}dartvel_client/dartvel_client.dart';")
       ..writeln()
       ..writeln('// Exported from Dartvel Studio. Ordinary page source: edit')
-      ..writeln('// freely, the builder is no longer involved.')
-      ..writeln("@DVPage(title: '${_escape(title)}')")
+      ..writeln('// freely, the builder is no longer involved.');
+    final List<String> pageArgs = <String>[
+      "title: '${_escape(title)}'",
+      if (description != null && description!.trim().isNotEmpty)
+        "description: '${_escape(description!.trim())}'",
+    ];
+    buffer
+      ..writeln('@DVPage(${pageArgs.join(', ')})')
       ..writeln("@pragma('vm:entry-point')")
       ..writeln('Widget _$name(BuildContext context) =>')
       ..writeln('    ${_nodeSource(root, 2)};');

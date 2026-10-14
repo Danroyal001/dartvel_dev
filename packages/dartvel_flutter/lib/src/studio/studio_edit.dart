@@ -87,8 +87,15 @@ class DVStudioEdit {
       case 'remove':
         editor.remove(id!);
       case 'replace':
-        editor.document.root = DVPageDocument.fromJson(document!).root;
-        editor.document.title = DVPageDocument.fromJson(document!).title;
+        final DVPageDocument incoming = DVPageDocument.fromJson(document!);
+        editor.document.root = incoming.root;
+        editor.document.title = incoming.title;
+        editor.document.description = incoming.description;
+        editor.document.image = incoming.image;
+        editor.document.robots = incoming.robots;
+        editor.document.schemaType = incoming.schemaType;
+        editor.document.canonicalUrl = incoming.canonicalUrl;
+        editor.document.sitemap = incoming.sitemap;
       default:
         throw ArgumentError.value(kind, 'kind', 'Not an edit.');
     }

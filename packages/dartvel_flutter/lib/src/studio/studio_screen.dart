@@ -2743,6 +2743,12 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             controller.canUndo ? controller.undo : null),
         _keyedIcon('dv-studio-redo', DVStudioIcons.redo, 'Redo',
             controller.canRedo ? controller.redo : null),
+        _keyedIcon(
+          'dv-studio-page-seo',
+          DVStudioIcons.seo,
+          'Page SEO and settings',
+          () => dvShowStudioPageSeoDialog(context, controller),
+        ),
         const SizedBox(width: DVStudioStyle.space2),
         Container(width: 1, height: 24, color: DVStudioStyle.line),
         const SizedBox(width: DVStudioStyle.space2),
@@ -2818,6 +2824,12 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             controller.canUndo ? controller.undo : null),
         _keyedIcon('dv-studio-redo', DVStudioIcons.redo, 'Redo',
             controller.canRedo ? controller.redo : null),
+        _keyedIcon(
+          'dv-studio-page-seo',
+          DVStudioIcons.seo,
+          'Page SEO and settings',
+          () => dvShowStudioPageSeoDialog(context, controller),
+        ),
         divider,
         _keyedIcon(
           'dv-studio-view-code',
