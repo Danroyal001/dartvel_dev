@@ -13,6 +13,7 @@ import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'annotation_args.dart';
 import 'model_rules.dart';
+import 'model_field_defaults.dart';
 import 'policy_classes.dart';
 import 'primary_constructors.dart';
 import 'server_models.dart';
@@ -153,6 +154,9 @@ class ModelGenerator {
     for (final file in files) {
       final String text = dvDesugarPrimaryConstructors(await file.readAsString());
       studioEnums.addAll(dvStudioEnumValues(text));
+      for (final declaration in dvModelEnumDeclarations(text)) {
+        sb.writeln(declaration);
+      }
       for (final RegExpMatch m in RegExp(
         r'@DVModel\b[\s\S]*?class\s+_([A-Za-z0-9_]+)\b',
       ).allMatches(dvMaskAnnotationArgs(text, 'DVModel'))) {
@@ -389,22 +393,15 @@ class ModelGenerator {
         const String otherAnnotations =
             r'(?:@[A-Za-z0-9_.]+\s*\([^)]*\)\s*)*';
 
-        // Parse fields
-        // We find all fields of format: final Type name;
-        final fieldRegex = RegExp(
-          r'final\s+(.+?)\s+([A-Za-z0-9_]+)\s*;',
-          dotAll: true,
-        );
-        final fields = <Map<String, String>>[];
-        for (final m in fieldRegex.allMatches(content)) {
-          fields.add({'type': m.group(1)!, 'name': m.group(2)!});
-        }
+        // Primary constructors have been desugared. Keep initializer/formal
+        // defaults as well as the type and name, scoped to this model.
+        final fields = dvModelFields(content, sourceClassName);
         final searchableFields = <Map<String, String>>[];
         // Canonical form is @DVModel.searchableField(); the bare @DVSearchable
         // spelling is still accepted while it remains deprecated.
         final searchableFieldRegex = RegExp(
           r'@(?:DVModel\.searchableField|DVSearchable)\s*\(\s*\)\s*'
-          '${otherAnnotations}final\\s+(.+?)\\s+([A-Za-z0-9_]+)\\s*;',
+          '${otherAnnotations}final\\s+(.+?)\\s+([A-Za-z0-9_]+)\\s*(?:=|;)',
           dotAll: true,
         );
         for (final m in searchableFieldRegex.allMatches(content)) {
@@ -447,7 +444,7 @@ class ModelGenerator {
         final encryptedFieldNames = <String>{};
         final sensitiveFieldRegex = RegExp(
           r'@(?:DVModel\.sensitiveField|DVSensitiveModelField)\s*\(([^)]*)\)\s*'
-          '${otherAnnotations}final\\s+(.+?)\\s+([A-Za-z0-9_]+)\\s*;',
+          '${otherAnnotations}final\\s+(.+?)\\s+([A-Za-z0-9_]+)\\s*(?:=|;)',
           dotAll: true,
         );
         for (final m in sensitiveFieldRegex.allMatches(content)) {
@@ -506,7 +503,7 @@ class ModelGenerator {
         String? singleAnnotatedField(String constructor) {
           final match = RegExp(
             '@DVModel\\.$constructor\\s*\\(\\s*\\)\\s*'
-            '${otherAnnotations}final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*;',
+            '${otherAnnotations}final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*(?:=|;)',
             dotAll: true,
           ).firstMatch(content);
           return match?.group(1);
@@ -526,7 +523,7 @@ class ModelGenerator {
         final hiddenPageFields = <String>{};
         for (final m in RegExp(
           r'@DVModel\.hideFromPage\s*\(\s*\)\s*'
-          '${otherAnnotations}final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*;',
+          '${otherAnnotations}final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*(?:=|;)',
           dotAll: true,
         ).allMatches(content)) {
           hiddenPageFields.add(m.group(1)!);
@@ -535,7 +532,7 @@ class ModelGenerator {
         final pageFieldOrder = <String, int>{};
         for (final m in RegExp(
           r'@DVModel\.pageOrder\s*\(\s*(-?\d+)\s*\)\s*'
-          '${otherAnnotations}final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*;',
+          '${otherAnnotations}final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*(?:=|;)',
           dotAll: true,
         ).allMatches(content)) {
           pageFieldOrder[m.group(2)!] = int.parse(m.group(1)!);
@@ -549,7 +546,7 @@ class ModelGenerator {
         final model3dFields = <String, String>{};
         for (final m in RegExp(
           r'@DVModel\.model3dField\s*\(([^)]*)\)\s*'
-          '${otherAnnotations}final\\s+(.+?)\\s+([A-Za-z0-9_]+)\\s*;',
+          '${otherAnnotations}final\\s+(.+?)\\s+([A-Za-z0-9_]+)\\s*(?:=|;)',
           dotAll: true,
         ).allMatches(content)) {
           final String declared = m.group(2)!.trim();
@@ -1195,6 +1192,11 @@ class ModelGenerator {
                   ? 'model.$name?.toIso8601String()'
                   : 'model.$name.toIso8601String()';
             }
+            if (studioEnums.containsKey(base)) {
+              return f['type']!.endsWith('?')
+                  ? 'model.$name?.name'
+                  : 'model.$name.name';
+            }
             return 'model.$name';
           }
 
@@ -1252,10 +1254,19 @@ class ModelGenerator {
                   : "_dvAsNum(row['$name']).toDouble()";
             } else if (base == 'DateTime') {
               read = nullable
-                  ? "row['$name'] == null ? null : DateTime.parse(row['$name']! as String)"
-                  : "DateTime.parse(row['$name']! as String)";
+                  ? "row['$name'] == null ? null : _dvAsDateTime(row['$name'])"
+                  : "_dvAsDateTime(row['$name'])";
+            } else if (studioEnums.containsKey(base)) {
+              final value = "row['$name'] is $base ? row['$name'] as $base : $base.values.byName(row['$name'].toString())";
+              read = nullable ? "row['$name'] == null ? null : ($value)" : value;
             } else {
               read = "row['$name'] as $type";
+            }
+            final declaredDefault = field['default'];
+            if (declaredDefault != null || !nullable) {
+              final fallback = declaredDefault ??
+                  "throw StateError('Dartvel: $className.$name is missing or null in record \${row['$keyField']}; declare a default or backfill the record.')";
+              read = "row['$name'] == null ? ($fallback) : ($read)";
             }
             sb.writeln('      $name: $read,');
           }
@@ -2102,12 +2113,24 @@ class ModelGenerator {
         // the version is NOT NULL DEFAULT 1 so that no row, created here or
         // migrated from before, holds a version a conditional write can
         // never match.
+        final fieldColumns = <DVRecordColumn>[
+          for (final field in fields)
+            DVRecordColumn(field['name']!, type: 'TEXT', nullable: true,
+              defaultSql: dvModelDefaultSql(field,
+                encrypted: encryptedFieldNames.contains(field['name']))),
+        ];
         final cols = <String>[
-          ...columnNames.map((String c) => '$c TEXT'),
+          if (tenantScoped) '$tenantColumn TEXT',
+          ...fieldColumns.map((c) => c.definition),
           ...dvRecordColumns.map((DVRecordColumn c) => c.definition),
         ].join(', ');
+        // SQL string defaults contain quotes. Escape them for the Dart string
+        // while leaving the tenant/module interpolation in tableRef intact.
+        final dartCols = cols.replaceAll('\\', '\\\\')
+            .replaceAll("'", "\\'").replaceAll(r'$', r'\$')
+            .replaceAll('\n', r'\n').replaceAll('\r', r'\r');
         sb.writeln(
-          "  String get createTableSql => 'CREATE TABLE IF NOT EXISTS $tableRef ($cols)';",
+          "  String get createTableSql => 'CREATE TABLE IF NOT EXISTS $tableRef ($dartCols)';",
         );
         // A module's tableRef is a Dart interpolation resolved at run time,
         // so there is no fixed name to migrate here: the parent's own
@@ -2196,6 +2219,7 @@ class ModelGenerator {
             // What migrate adds a missing column as, where that is not
             // nullable TEXT.
             'columnTypes': <String, Object?>{
+              for (final c in fieldColumns) c.name: c.toJson(),
               for (final DVRecordColumn c in dvRecordColumns)
                 c.name: c.toJson(),
             },

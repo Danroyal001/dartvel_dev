@@ -28,6 +28,8 @@
 /// and anything inside a comment or a string are left exactly as they were.
 library;
 
+import 'model_field_defaults.dart';
+
 /// [source] with every primary constructor rewritten as fields and an
 /// ordinary constructor.
 String dvDesugarPrimaryConstructors(String source) {
@@ -193,10 +195,10 @@ String _declare(String parameter, StringBuffer fields, String leading) {
   String? defaultValue;
   final int equals = _topLevelEquals(rest);
   if (equals >= 0) {
-    defaultValue = rest.substring(equals + 1).trim();
+    defaultValue = dvStripComments(rest.substring(equals + 1));
     rest = rest.substring(0, equals);
   }
-  rest = rest.trimRight();
+  rest = dvStripComments(rest);
   final Match? nameMatch = RegExp(r'([A-Za-z_$][A-Za-z0-9_$]*)$')
       .firstMatch(rest);
   if (nameMatch == null) return parameter;

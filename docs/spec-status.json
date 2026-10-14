@@ -120,6 +120,7 @@
       "status": "Shipped",
       "evidence": [
         "packages/dartvel_cli/test/model_json_round_trip_test.dart",
+        "packages/dartvel_cli/test/model_field_defaults_test.dart",
         "packages/dartvel_core/test/model_annotations_test.dart",
         "packages/dartvel_cli/test/model_annotation_args_test.dart"
       ],
@@ -397,6 +398,7 @@
         "packages/dartvel_core/test/mysql_adapter_test.dart",
         "packages/dartvel_core/test/mysql_tls_test.dart",
         "packages/dartvel_cli/test/db_migrate_applies_test.dart",
+        "packages/dartvel_cli/test/model_field_defaults_test.dart",
         "packages/dartvel_core/test/cache_adapters_test.dart",
         "packages/dartvel_flutter/test/page_document_test.dart",
         "packages/dartvel_core/test/framework_integer_width_test.dart",
