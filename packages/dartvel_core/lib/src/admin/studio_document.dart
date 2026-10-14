@@ -119,6 +119,13 @@ const List<DVStudioScreenSpec> dvStudioScreens = <DVStudioScreenSpec>[
         'The pictures, videos and documents uploaded to this application.',
   ),
   DVStudioScreenSpec(
+    id: 'menus',
+    label: 'Menus',
+    summary:
+        'The site and application navigation: header menus, footer links, '
+        'and structured navigation hierarchies.',
+  ),
+  DVStudioScreenSpec(
     id: 'models',
     label: 'Data',
     summary:
@@ -188,6 +195,8 @@ const Map<String, String> dvStudioScreenAliases = <String, String>{
   'users': 'access',
   'roles': 'access',
   'assets': 'media',
+  'navigation': 'menus',
+  'nav': 'menus',
 };
 
 DVStudioScreenSpec? dvStudioScreenFor(String id) {
@@ -619,6 +628,15 @@ DVStudioDocument _screenDocument(
         'Upload, search, filter and inspect images, videos, audio and '
         'documents stored in this application.',
       );
+    case 'menus':
+      html.writeln(
+        '<p>Configure site navigation: header menus, footer links and '
+        'structured navigation hierarchies.</p>',
+      );
+      text.add(
+        'Configure site navigation: header menus, footer links and '
+        'structured navigation hierarchies.',
+      );
     case 'access':
       html
         ..writeln(
@@ -935,6 +953,18 @@ DVStudioDocument? _objectDocument(
         heading: name,
         html: html.toString(),
         text: <String>[name, 'A media asset uploaded to this application.'],
+      );
+    case 'menus':
+      html
+        ..writeln('<h1>${_escape.convert(name)}</h1>')
+        ..writeln('<p>Navigation menu configuration for this application.</p>');
+      return DVStudioDocument(
+        heading: name,
+        html: html.toString(),
+        text: <String>[
+          name,
+          'Navigation menu configuration for this application.',
+        ],
       );
     case 'access':
       final String objectLabel = name == 'roles'

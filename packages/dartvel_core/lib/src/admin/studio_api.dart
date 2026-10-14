@@ -48,6 +48,7 @@ import '../web/asset_source.dart';
 import '../web/rendered_page_cache.dart';
 import 'studio_access.dart';
 import 'studio_document.dart' show DVStudioProjectData;
+import 'studio_menus.dart';
 import 'studio_model_schema.dart';
 import 'studio_overview.dart';
 import 'studio_repository.dart';
@@ -520,6 +521,19 @@ const DVRecordShape dvStudioMediaShape = DVRecordShape(
   },
 );
 
+const String dvStudioMenusTable = 'dartvel_studio_menus';
+const DVRecordShape dvStudioMenusShape = DVRecordShape(
+  collection: dvStudioMenusTable,
+  key: 'id',
+  fields: <String, DVFieldType>{
+    'id': DVFieldType.text,
+    'name': DVFieldType.text,
+    'location': DVFieldType.text,
+    'items_json': DVFieldType.text,
+    'updated_at': DVFieldType.integer,
+  },
+);
+
 /// The Studio API, for requests already decided to be the admin's and
 /// allowed.
 class DVStudioApi {
@@ -550,6 +564,7 @@ class DVStudioApi {
 
   final DVFileStorageAdapter storage;
   final Map<String, Map<String, Object?>> _memoryMedia = <String, Map<String, Object?>>{};
+  final Map<String, DVStudioMenu> _memoryMenus = <String, DVStudioMenu>{};
 
   final DVGitHubTransport? _gitHub;
 
@@ -638,6 +653,8 @@ class DVStudioApi {
             return await _repositoryAt(request, method, segments.sublist(1));
           case 'media':
             return await _media(request, method, segments.sublist(1));
+          case 'menus':
+            return await _menus(request, method, segments.sublist(1));
           case 'overview':
             if (segments.length == 1) {
               if (method != 'GET' && method != 'HEAD') _notAllowed();
@@ -2909,5 +2926,175 @@ class DVStudioApi {
     if (lower.endsWith('.txt')) return 'text/plain';
     if (lower.endsWith('.csv')) return 'text/csv';
     return 'application/octet-stream';
+  }
+
+  Future<List<DVStudioMenu>> _listMenus() async {
+    final Map<String, DVStudioMenu> byId = <String, DVStudioMenu>{};
+    for (final DVStudioMenu m in dvStudioDefaultMenus()) {
+      byId[m.id] = m;
+    }
+    for (final MapEntry<String, DVStudioMenu> entry in _memoryMenus.entries) {
+      byId[entry.key] = entry.value;
+    }
+    if (database != null) {
+      try {
+        final DVRecordAdapter records = DVRecordAdapter.over(database!);
+        await records.ensure(dvStudioMenusShape);
+        final List<Map<String, Object?>> rows = await records.find(
+          dvStudioMenusTable,
+          orderBy: const <DVSort>[DVSort('updated_at', descending: true)],
+        );
+        for (final Map<String, Object?> row in rows) {
+          final String id = '${row['id'] ?? ''}';
+          if (id.isEmpty) continue;
+          final String name = '${row['name'] ?? id}';
+          final String location = '${row['location'] ?? 'header'}';
+          final String itemsJson = '${row['items_json'] ?? '[]'}';
+          final int updatedAtMs = (row['updated_at'] as num?)?.toInt() ?? 0;
+          List<DVStudioMenuItem> items = const <DVStudioMenuItem>[];
+          try {
+            final Object? decoded = jsonDecode(itemsJson);
+            if (decoded is List) {
+              items = <DVStudioMenuItem>[
+                for (final Object? item in decoded)
+                  if (item is Map)
+                    DVStudioMenuItem.fromJson(item.cast<String, Object?>()),
+              ];
+            }
+          } catch (_) {}
+          byId[id] = DVStudioMenu(
+            id: id,
+            name: name,
+            location: location,
+            items: items,
+            updatedAt: updatedAtMs > 0
+                ? DateTime.fromMillisecondsSinceEpoch(updatedAtMs, isUtc: true)
+                : DateTime.now().toUtc(),
+          );
+        }
+      } catch (_) {}
+    }
+    return byId.values.toList();
+  }
+
+  Future<Response> _menus(
+    Request request,
+    String method,
+    List<String> segments,
+  ) async {
+    final List<DVStudioMenu> menus = await _listMenus();
+
+    if (method == 'GET') {
+      final String? id = segments.isNotEmpty
+          ? segments.first
+          : request.url.queryParameters['id'];
+      if (id != null && id.isNotEmpty) {
+        final DVStudioMenu? found =
+            menus.where((DVStudioMenu m) => m.id == id).firstOrNull;
+        if (found == null) {
+          throw _StudioRefusal(404, 'not_found', 'No menu found with id "$id".');
+        }
+        return _reply(found.toJson());
+      }
+      return _reply(<String, Object?>{
+        'menus': <Object?>[for (final DVStudioMenu m in menus) m.toJson()],
+        'locations': <String>['header', 'footer', 'sidebar', 'mobile'],
+      });
+    }
+
+    if (method == 'POST' || method == 'PUT') {
+      final Map<String, Object?> body = await _body(request);
+      final String id = '${body['id'] ?? ''}'.trim();
+      final String name = '${body['name'] ?? ''}'.trim();
+      if (id.isEmpty || name.isEmpty) {
+        throw _StudioRefusal(400, 'bad_menu', 'Menu id and name are required.');
+      }
+      final String location = '${body['location'] ?? 'header'}';
+      final List<DVStudioMenuItem> items = <DVStudioMenuItem>[
+        for (final Object? item
+            in (body['items'] as List?) ?? const <Object?>[])
+          if (item is Map)
+            DVStudioMenuItem.fromJson(item.cast<String, Object?>()),
+      ];
+      final DateTime now = DateTime.now().toUtc();
+      final DVStudioMenu menu = DVStudioMenu(
+        id: id,
+        name: name,
+        location: location,
+        items: items,
+        updatedAt: now,
+      );
+
+      _memoryMenus[id] = menu;
+
+      if (database != null) {
+        try {
+          final DVRecordAdapter records = DVRecordAdapter.over(database!);
+          await records.ensure(dvStudioMenusShape);
+          final Map<String, Object?> record = <String, Object?>{
+            'id': id,
+            'name': name,
+            'location': location,
+            'items_json': jsonEncode(<Map<String, Object?>>[
+              for (final DVStudioMenuItem item in items) item.toJson(),
+            ]),
+            'updated_at': now.millisecondsSinceEpoch,
+          };
+          final List<Map<String, Object?>> existing = await records.find(
+            dvStudioMenusTable,
+            where: DVFilter.equals('id', id),
+          );
+          if (existing.isNotEmpty) {
+            await records.update(
+              dvStudioMenusTable,
+              record,
+              where: DVFilter.equals('id', id),
+            );
+          } else {
+            await records.insert(dvStudioMenusTable, record);
+          }
+        } catch (_) {}
+      }
+
+      await _note(
+        'menus',
+        'updated',
+        'Menu updated: $name',
+        screen: 'menus',
+        object: id,
+      );
+
+      return _reply(menu.toJson(), status: 200);
+    }
+
+    if (method == 'DELETE') {
+      final String id = segments.isNotEmpty
+          ? segments.first
+          : (request.url.queryParameters['id'] ?? '').trim();
+      if (id.isEmpty) {
+        throw _StudioRefusal(400, 'missing_id', 'Menu id to delete is required.');
+      }
+      _memoryMenus.remove(id);
+      if (database != null) {
+        try {
+          final DVRecordAdapter records = DVRecordAdapter.over(database!);
+          await records.ensure(dvStudioMenusShape);
+          await records.delete(
+            dvStudioMenusTable,
+            where: DVFilter.equals('id', id),
+          );
+        } catch (_) {}
+      }
+      await _note(
+        'menus',
+        'deleted',
+        'Menu deleted: $id',
+        screen: 'menus',
+        object: id,
+      );
+      return _reply(<String, Object?>{'ok': true, 'deleted': id});
+    }
+
+    _notAllowed();
   }
 }

@@ -22,6 +22,7 @@ import 'package:dartvel_core/dartvel.dart' as core
         DVDatabase,
         DVStudioApi,
         DVStudioMediaFile,
+        DVStudioMenu,
         DVStudioModelSpec,
         DVStudioOverview,
         Headers,
@@ -369,6 +370,42 @@ class DVStudioClient {
   /// Deletes the media file at [key].
   Future<void> deleteMedia(String key) async {
     await _send('DELETE', 'api/media?key=${Uri.encodeQueryComponent(key)}');
+  }
+
+  /// The site navigation menus and configured locations.
+  Future<({List<core.DVStudioMenu> menus, List<String> locations})> menus() async {
+    final Map<String, Object?> body = _map(await _send('GET', 'api/menus'));
+    final List<core.DVStudioMenu> list = <core.DVStudioMenu>[
+      for (final Map<String, Object?> m in _list(body, 'menus'))
+        core.DVStudioMenu.fromJson(m),
+    ];
+    final List<String> locations = <String>[
+      for (final Object? loc in (body['locations'] as List?) ?? const <Object?>[])
+        '$loc',
+    ];
+    return (menus: list, locations: locations);
+  }
+
+  /// One menu by its [id].
+  Future<core.DVStudioMenu> menu(String id) async {
+    final Map<String, Object?> body =
+        _map(await _send('GET', 'api/menus?id=${Uri.encodeQueryComponent(id)}'));
+    return core.DVStudioMenu.fromJson(body);
+  }
+
+  /// Saves or updates [menu].
+  Future<core.DVStudioMenu> saveMenu(core.DVStudioMenu menu) async {
+    final Map<String, Object?> body = _map(await _send(
+      'POST',
+      'api/menus',
+      body: menu.toJson(),
+    ));
+    return core.DVStudioMenu.fromJson(body);
+  }
+
+  /// Deletes the menu with [id].
+  Future<void> deleteMenu(String id) async {
+    await _send('DELETE', 'api/menus?id=${Uri.encodeQueryComponent(id)}');
   }
 
   /// The signed-in account, `{userId, email}`.
@@ -1094,6 +1131,7 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client, {
         ),
       ),
       dvStudioMediaSection(client),
+      dvStudioMenusSection(client),
       dvStudioDataSection(client),
       dvStudioSiteMapSection(client),
       // The builders, not a list: a page is of little use if a button
@@ -1183,6 +1221,20 @@ DVStudioSection dvStudioMediaSection(DVStudioClient client) =>
         client: client,
         selectedKey: selection.object,
         onSelect: (String? key) => selection.select?.call(key ?? ''),
+      ),
+    );
+
+/// Menus & Navigation: visual menu hierarchy editor, locations, and link targets.
+DVStudioSection dvStudioMenusSection(DVStudioClient client) =>
+    DVStudioSection.opening(
+      id: 'menus',
+      label: 'Menus',
+      icon: DVStudioIcons.menus,
+      build: (BuildContext context, DVStudioSelection selection) =>
+          DVStudioMenusSection(
+        client: client,
+        selectedMenuId: selection.object,
+        onSelect: (String? id) => selection.select?.call(id ?? ''),
       ),
     );
 

@@ -67,6 +67,7 @@ export 'src/auth/secret_hash.dart';
 export 'src/admin/admin_server.dart';
 export 'src/admin/published_pages.dart';
 export 'src/admin/studio_access.dart';
+export 'src/admin/studio_menus.dart';
 export 'src/admin/model_data_api.dart';
 export 'src/admin/studio_api.dart';
 export 'src/admin/studio_document.dart';
