@@ -1,3 +1,7 @@
+## 0.12.2 — 2026-10-14
+
+- Released alongside dartvel_core 0.12.2; no changes in this package.
+
 ## 0.12.1 — 2026-10-14
 
 - Released alongside dartvel_cli 0.12.1 (model field defaults survive reads and migrations); no changes in this package.

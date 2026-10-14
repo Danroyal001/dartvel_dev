@@ -1,3 +1,7 @@
+## 0.12.2 — 2026-10-14
+
+- Released alongside dartvel_core, dartvel_flutter and dartvel_cli 0.12.2: the password eye everywhere, form fields in server-rendered HTML, private `/metrics`, and site pages read from a web-server binary.
+
 ## 0.12.1 — 2026-10-14
 
 - Released alongside dartvel_cli 0.12.1 (model field defaults survive reads and migrations); no changes in this package.
