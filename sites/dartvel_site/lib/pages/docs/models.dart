@@ -31,6 +31,11 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
                   'with final fields.',
               'The key is the slug field, else id, else the first String '
                   'field.',
+              'When adding a field, declare a default such as '
+                  "final String storyJson = ''. Older records read the "
+                  'default when the stored field is missing or null. A '
+                  'required field without a default fails with the data '
+                  'model, field and record key named.',
               'Where records are stored is the framework\'s job. You read and '
                   'write them through the model, on whichever database '
                   'DATABASE_URL names.',

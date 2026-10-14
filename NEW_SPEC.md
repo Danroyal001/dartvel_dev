@@ -1687,9 +1687,15 @@ it came from: the generator refuses one that does, naming the symbol, rather
 than emitting generated code that does not compile. Public annotated functional
 widget inputs always fail.
 
-The generator reads a model's `final` fields. Primary constructor syntax
-(`class _User(String name, String email);`) is designed for when Dart ships
-it, and is not read today. A model automatically generates:
+The generator reads a data model's `final` fields from primary constructors
+and classic declarations, retaining their declared defaults. Adding
+`final String storyJson = ''` lets records saved before the field existed
+read missing or null story text as `''`. The same rule applies to numeric,
+boolean, DateTime and enum defaults; existing non-null values are preserved.
+A non-nullable field without a default fails with its data model, field and
+record key named, so the application can backfill deliberately. Literal SQL
+defaults also backfill added columns as described in [Database](#database).
+A data model automatically generates:
 * Database schema
 * CRUD
 * Validation
@@ -3286,6 +3292,23 @@ Change Data Capture and Warehouse Sync -- a place writes are copied to, not a
 place the application reads from.
 
 Automatic migrations.
+
+Adding a data model field with a declared default preserves records saved
+before that field existed. The generator keeps defaults from primary
+constructor parameters, classic optional `this.field` parameters, and field
+initializers. When a stored field is missing or null, the generated row reader
+uses its declared default, including String, int, double, bool, DateTime and
+enum fields. Existing non-null values, including zero, false and empty text,
+are kept. This fallback is storage-neutral and does not require SQL DDL.
+
+For literal text, numeric and boolean defaults, the generated SQL schema and
+`ADD COLUMN` migration also carry a `DEFAULT`, so existing SQL rows are
+backfilled by the database. Executable expressions such as DateTime
+construction remain reader fallbacks; generation does not evaluate them.
+Encrypted fields never put a plaintext default into SQL. A non-nullable field
+without a declared default still refuses a missing or null stored value with
+an error naming the data model, field and record key. Declare a default or
+backfill those records deliberately; Dartvel does not invent their data.
 Automatic CRUD.
 Automatic relationships.
 Automatic model sync.
