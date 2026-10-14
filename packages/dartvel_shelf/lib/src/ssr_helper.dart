@@ -233,6 +233,50 @@ Future<Response> _fromManifest(
       description: hostMatch.entry.description ?? site.description,
       image: site.image,
     );
+
+    if (path == '/robots.txt') {
+      final origin = effectiveSiteUrl ?? 'https://${hostMatch.matchedHost}';
+      final body = 'User-agent: *\nAllow: /\nSitemap: $origin/sitemap.xml\n';
+      return Response(
+        200,
+        headers: Headers()
+          ..set('content-type', 'text/plain; charset=utf-8')
+          ..set('cache-control', 'public, max-age=86400'),
+        body: Stream.value(utf8.encode(body)),
+      );
+    }
+    if (path == '/sitemap.xml') {
+      final origin = effectiveSiteUrl ?? 'https://${hostMatch.matchedHost}';
+      final StringBuffer xml = StringBuffer();
+      xml.writeln('<?xml version="1.0" encoding="UTF-8"?>');
+      xml.writeln('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
+      if (hostMatch.entry.isWildcard) {
+        xml.writeln('  <url>');
+        xml.writeln('    <loc>$origin/</loc>');
+        xml.writeln('  </url>');
+      } else if (hostMatch.entry.pattern == 'tools.sigmadev.digital') {
+        xml.writeln('  <url>');
+        xml.writeln('    <loc>$origin/</loc>');
+        xml.writeln('  </url>');
+      } else {
+        for (final r in routeMap.keys) {
+          if (!r.startsWith('/tools')) {
+            final loc = r == '/' ? '$origin/' : '$origin$r';
+            xml.writeln('  <url>');
+            xml.writeln('    <loc>$loc</loc>');
+            xml.writeln('  </url>');
+          }
+        }
+      }
+      xml.writeln('</urlset>');
+      return Response(
+        200,
+        headers: Headers()
+          ..set('content-type', 'application/xml; charset=utf-8')
+          ..set('cache-control', 'public, max-age=86400'),
+        body: Stream.value(utf8.encode(xml.toString())),
+      );
+    }
   }
 
   final DVPageRequest? matched = dvMatchRoute(resolvedPath, routeMap.keys, headers: req.headers.singleValueMap);
@@ -345,7 +389,59 @@ Future<Response> _fromManifest(
   final bool missing = matched == null &&
       routeMap.isNotEmpty &&
       !(await publishedRoutes?.call() ?? const <String>{}).contains(resolvedPath);
-  return _html(dvMinifyHtml(dvWithPreloads(page, preloads)), status: missing ? 404 : 200, streaming: settings.streaming);
+
+  String finalPage = page;
+  if (hostMatch != null && hostMatch.entry.isWildcard && !finalPage.contains('application/ld+json')) {
+    final String toolName = title.split('—').first.split('|').first.trim();
+    final Map<String, Object?> jsonLd = {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'WebApplication',
+          '@id': '$effectiveSiteUrl/#app',
+          'name': toolName,
+          'url': effectiveSiteUrl,
+          'applicationCategory': 'DeveloperApplication',
+          'operatingSystem': 'Any',
+          'offers': {
+            '@type': 'Offer',
+            'price': '0',
+            'priceCurrency': 'USD',
+          },
+          if (effectiveSite.description != null && effectiveSite.description!.isNotEmpty)
+            'description': effectiveSite.description,
+        },
+        {
+          '@type': 'BreadcrumbList',
+          '@id': '$effectiveSiteUrl/#breadcrumbs',
+          'itemListElement': [
+            {
+              '@type': 'ListItem',
+              'position': 1,
+              'name': 'Home',
+              'item': 'https://sigmadev.digital/',
+            },
+            {
+              '@type': 'ListItem',
+              'position': 2,
+              'name': 'Tools',
+              'item': 'https://tools.sigmadev.digital/',
+            },
+            {
+              '@type': 'ListItem',
+              'position': 3,
+              'name': toolName,
+              'item': '$effectiveSiteUrl/',
+            },
+          ],
+        },
+      ],
+    };
+    final String encodedLd = jsonEncode(jsonLd).replaceAll('</', r'<\/');
+    finalPage = finalPage.replaceFirst('</head>', '<!--dv:ld--><script type="application/ld+json">$encodedLd</script><!--/dv:ld-->\n</head>');
+  }
+
+  return _html(dvMinifyHtml(dvWithPreloads(finalPage, preloads)), status: missing ? 404 : 200, streaming: settings.streaming);
 }
 
 /// The page for [path] as three writes, the first before the data: the

@@ -210,6 +210,44 @@ void main() {
       );
       expect(res.status, 404);
     });
+
+    test('serves tool detail page with JSON-LD WebApplication and BreadcrumbList', () async {
+      final res = await request(
+        site: site,
+        host: 'base64-encode.tools.sigmadev.digital',
+        path: '/',
+      );
+      expect(res.status, 200);
+      final html = await readBody(res);
+      expect(html, contains('application/ld+json'));
+      expect(html, contains('"@type":"WebApplication"'));
+      expect(html, contains('"@type":"BreadcrumbList"'));
+      expect(html, contains('https://base64-encode.tools.sigmadev.digital'));
+    });
+
+    test('serves host-specific robots.txt on tool subdomain', () async {
+      final res = await request(
+        site: site,
+        host: 'base64-encode.tools.sigmadev.digital',
+        path: '/robots.txt',
+      );
+      expect(res.status, 200);
+      final body = await readBody(res);
+      expect(body, contains('User-agent: *'));
+      expect(body, contains('Sitemap: https://base64-encode.tools.sigmadev.digital/sitemap.xml'));
+    });
+
+    test('serves host-specific sitemap.xml on tool subdomain', () async {
+      final res = await request(
+        site: site,
+        host: 'base64-encode.tools.sigmadev.digital',
+        path: '/sitemap.xml',
+      );
+      expect(res.status, 200);
+      final xml = await readBody(res);
+      expect(xml, contains('<loc>https://base64-encode.tools.sigmadev.digital/</loc>'));
+      expect(xml, isNot(contains('sigmadev.digital/about')));
+    });
   });
 
   group('security & proxy trust', () {
