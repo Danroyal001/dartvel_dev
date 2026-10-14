@@ -103,6 +103,11 @@ const Set<String> dvWebImplementedBindings = <String>{
   // dialogs.openFile below for why a fabricated path would be worse.
   'media.pick',
 
+  // Drops onto the page: File objects arrive with their bytes in
+  // DVDropEvent.files (a page is never given a path), text as text.
+  'dragDrop.accept',
+  'dragDrop.stop',
+
   // The origin-private file system, through navigator.storage.getDirectory.
   // A real filesystem with real paths, private to the origin, and present in
   // Chrome, Firefox and Safari.
@@ -160,6 +165,8 @@ const Set<String> dvWebUnconditionalBindings = <String>{
   'kiosk.release',
   'deepLinks.initial',
   'media.pick',
+  'dragDrop.accept',
+  'dragDrop.stop',
   'dialogs.message',
   'device.capabilityManifest',
   'device.health',
@@ -325,11 +332,6 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
   'dialogs.chooseDirectory': 'A directory handle is not a directory path, '
       'and the handle is meaningless to every other binding that takes one.',
 
-  'dragDrop.accept': 'A drop on a page carries File objects with names and '
-      'no paths, and DVDropEvent is a list of paths. Text drops would work '
-      'and file drops would arrive empty, which reads as a broken window '
-      'rather than as an unsupported one.',
-  'dragDrop.stop': 'Stops an acceptance this platform never starts.',
 
   'associations.register': 'A PWA declares its file handlers in the manifest '
       'at install time. There is no runtime call, so this could only edit a '
