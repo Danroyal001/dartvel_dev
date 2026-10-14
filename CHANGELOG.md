@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
-## Unreleased
+## 0.12.1 — 2026-10-14
 
 - Adding a data model field with a declared default now reads older missing or null values through that default, preserving existing zero, false and empty values. Primary constructor defaults, classic optional constructor defaults and field initializers are retained; generated SQL migrations backfill literal defaults. Required fields without a default fail with the data model, field and record key in the error. Encrypted fields never receive plaintext SQL defaults.
 
