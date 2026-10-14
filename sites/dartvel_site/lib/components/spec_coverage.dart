@@ -197,10 +197,10 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       DVRoutes.docsworkers, 'Run a task on a worker', anchor: 'run'),
 
   SpecCoverage('Billing', 'Backend', DVRoutes.docsbilling,
-      'Sell a plan through Stripe or Paddle', anchor: 'subscriptions'),
+      'Sell a plan through Stripe, Paddle or Bachs', anchor: 'subscriptions'),
 
   SpecCoverage('Purchases and Entitlements', 'Backend', DVRoutes.docsbilling,
-      'Check app store purchases on your server', anchor: 'purchases'),
+      'Sell in-app purchases, checked on your server', anchor: 'purchases'),
 
   SpecCoverage('Commerce: Tax, Promotions, Disputes and Payouts', 'Backend', DVRoutes.docsbilling,
       'Charge with tax and promotions, and refund cleanly', anchor: 'commerce'),
