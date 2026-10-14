@@ -1,3 +1,8 @@
+## 0.12.2 — 2026-10-14
+
+- One password eye, `DVPasswordReveal`, on every hidden field: forms, the account pages and Studio's sign-in, setup and record editor (which had none). A toggle button named "Show password" with a pressed state (`aria-pressed` on the web); it no longer renames itself "Hide password".
+- Fields take over what was typed into the server-rendered form, and whether the password was revealed, when Flutter starts.
+
 ## 0.12.1 — 2026-10-14
 
 - Released alongside dartvel_cli 0.12.1 (model field defaults survive reads and migrations); no changes in this package.

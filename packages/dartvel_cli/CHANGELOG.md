@@ -1,3 +1,8 @@
+## 0.12.2 — 2026-10-14
+
+- The page capture keeps text fields: each is a labelled input in the server-rendered HTML, a password with the eye.
+- `dartvel metrics --token` sends `DARTVEL_METRICS_TOKEN`.
+
 ## 0.12.1 — 2026-10-14
 
 - Adding a data model field with a declared default now reads older missing or null values through that default; generated SQL migrations backfill literal defaults, and a required field with no default fails with the model, field and record key in the error.

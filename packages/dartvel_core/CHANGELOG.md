@@ -1,3 +1,9 @@
+## 0.12.2 — 2026-10-14
+
+- Fix: `DVSitePages.load()` reads the route manifest from a web-server binary's pack; it saw no pages in every deployed binary.
+- `dvDocumentField`: a labelled input for a server-rendered document, with the password eye (`aria-pressed`, "Show password"). Studio's sign-in and setup documents carry their fields.
+- **Security:** `GET /metrics` answers loopback and private networks, and callers sending `Authorization: Bearer <DARTVEL_METRICS_TOKEN>`; anyone else gets a 404.
+
 ## 0.12.1 — 2026-10-14
 
 - Released alongside dartvel_cli 0.12.1 (model field defaults survive reads and migrations); no changes in this package.
