@@ -35,24 +35,24 @@ import '../data/change_capture.dart' show DVCapture;
 import '../data/record_history.dart';
 import '../database/adapter.dart';
 import '../database/records.dart';
-import '../storage/adapters.dart'
-    show DVFileStorageAdapter, DVMemoryFileStorageAdapter;
 import '../http/wintercg.dart';
 import '../modules/modules.dart'
     show DVModuleData, DVModuleDataMode, dvModuleRegistry;
-import '../schema/generated_schema.dart' show dvTenantColumn;
-import '../tenancy/tenants.dart';
-import 'studio_access.dart';
-import 'studio_model_schema.dart';
-import 'studio_overview.dart';
-import 'studio_document.dart' show DVStudioProjectData;
-import '../observability/observability.dart' show DVObservability;
 import '../observability/health.dart' show DVHealthStatus, DVHealthReport;
-import 'studio_repository.dart';
-import 'studio_source_files.dart';
-import 'studio_site.dart';
+import '../observability/observability.dart' show DVObservability;
+import '../schema/generated_schema.dart' show dvTenantColumn;
+import '../storage/adapters.dart'
+    show DVFileStorageAdapter, DVMemoryFileStorageAdapter;
+import '../tenancy/tenants.dart';
 import '../web/asset_source.dart';
 import '../web/rendered_page_cache.dart';
+import 'studio_access.dart';
+import 'studio_document.dart' show DVStudioProjectData;
+import 'studio_model_schema.dart';
+import 'studio_overview.dart';
+import 'studio_repository.dart';
+import 'studio_site.dart';
+import 'studio_source_files.dart';
 
 /// One field of a model, as Studio edits it.
 ///
@@ -623,7 +623,9 @@ class DVStudioApi {
           case 'functions':
             return await _functions(request, method);
           case 'grants':
-            if (segments.length == 1) return await _grantsAt(request, method);
+          case 'team':
+          case 'access':
+            return await _grantsAt(request, method, segments.sublist(1));
           case 'queues':
             return await _queuesAt(method, segments.sublist(1));
           case 'cache':
@@ -670,8 +672,8 @@ class DVStudioApi {
     } on _StudioRefusal catch (refusal) {
       return _reply(<String, Object?>{
         'error': refusal.code,
+        'code': refusal.code,
         'message': refusal.message,
-
       }, status: refusal.status);
     } on DVConflictError catch (conflict) {
       return _reply(<String, Object?>{
@@ -2379,22 +2381,50 @@ class DVStudioApi {
   DVAccountDirectory? get _directory =>
       _accounts ?? DVAuthEndpoints.accountDirectory;
 
-  Future<Response> _grantsAt(Request request, String method) async {
-    switch (method) {
-      case 'GET':
-        return _grants(request);
-      case 'POST':
-        return _grant(request);
-      case 'DELETE':
-        return _revoke(request);
+  Future<Response> _grantsAt(
+    Request request,
+    String method,
+    List<String> segments,
+  ) async {
+    if (segments.isEmpty) {
+      switch (method) {
+        case 'GET':
+          return _grants(request);
+        case 'POST':
+          return _grant(request);
+        case 'PATCH':
+          return _updateRole(request);
+        case 'DELETE':
+          return _revoke(request);
+      }
+      _notAllowed();
     }
-    _notAllowed();
+    if (segments.first == 'roles') {
+      switch (method) {
+        case 'GET':
+          return _roles(request);
+        case 'POST':
+          return _saveRole(request);
+        case 'DELETE':
+          return _deleteRole(
+              request, segments.length > 1 ? segments[1] : null);
+      }
+      _notAllowed();
+    }
+    if (segments.first == 'role') {
+      if (method == 'POST' || method == 'PATCH' || method == 'PUT') {
+        return _updateRole(request);
+      }
+      _notAllowed();
+    }
+    throw _StudioRefusal(404, 'not_found', 'No such team endpoint.');
   }
 
   Future<Response> _grants(Request request) async {
     final List<DVStudioGrant> grants = await DVStudioGrants(_database).list();
     final String? you = await _caller(request);
     final DVAccountDirectory? directory = _directory;
+    final List<DVStudioRole> roles = await DVStudioGrants(_database).listRoles();
     return _reply(<String, Object?>{
       'grants': <Object?>[
         for (final DVStudioGrant grant in grants)
@@ -2404,9 +2434,121 @@ class DVStudioApi {
               'email': email,
             'tenant': grant.tenant,
             'grantedAt': grant.grantedAt.toIso8601String(),
+            'role': grant.role,
             if (grant.userId == you) 'you': true,
           },
       ],
+      'roles': <Object?>[
+        for (final DVStudioRole role in roles) role.toJson(),
+      ],
+      'entitlements': <String, Object?>{
+        'rolesEnabled': DVStudioEntitlements.current.rolesEnabled,
+        'customRolesEnabled': DVStudioEntitlements.current.customRolesEnabled,
+        'revisionsEnabled': DVStudioEntitlements.current.revisionsEnabled,
+      },
+    });
+  }
+
+  Future<Response> _roles(Request request) async {
+    final List<DVStudioRole> roles = await DVStudioGrants(_database).listRoles();
+    return _reply(<String, Object?>{
+      'roles': <Object?>[for (final DVStudioRole role in roles) role.toJson()],
+      'entitlements': <String, Object?>{
+        'rolesEnabled': DVStudioEntitlements.current.rolesEnabled,
+        'customRolesEnabled': DVStudioEntitlements.current.customRolesEnabled,
+        'revisionsEnabled': DVStudioEntitlements.current.revisionsEnabled,
+      },
+    });
+  }
+
+  Future<Response> _saveRole(Request request) async {
+    if (!DVStudioEntitlements.current.customRolesEnabled) {
+      throw _StudioRefusal(
+        403,
+        'feature_not_entitled',
+        'Custom role editing requires an active Studio entitlement.',
+      );
+    }
+    final Map<String, Object?> body = await _body(request);
+    final String id = '${body['id'] ?? ''}'.trim();
+    final String name = '${body['name'] ?? ''}'.trim();
+    if (id.isEmpty || name.isEmpty) {
+      throw _StudioRefusal(
+          400, 'bad_role', 'id and name are required for a role.');
+    }
+    final DVStudioRole role = DVStudioRole.fromJson(body);
+    await DVStudioGrants(_database).saveRole(role);
+    await _note('team', 'created', 'Studio role saved: ${role.name}',
+        screen: 'access');
+    return _reply(role.toJson(), status: 201);
+  }
+
+  Future<Response> _deleteRole(Request request, String? roleId) async {
+    if (!DVStudioEntitlements.current.customRolesEnabled) {
+      throw _StudioRefusal(
+        403,
+        'feature_not_entitled',
+        'Custom role editing requires an active Studio entitlement.',
+      );
+    }
+    final String id =
+        (roleId ?? request.url.queryParameters['id'] ?? '').trim();
+    if (id.isEmpty) {
+      throw _StudioRefusal(400, 'bad_role', 'role id is required to delete.');
+    }
+    try {
+      final bool deleted = await DVStudioGrants(_database).deleteRole(id);
+      if (!deleted) {
+        throw _StudioRefusal(
+            404, 'not_found', 'No custom role found with id: $id');
+      }
+      await _note(
+          'team', 'deleted', 'Studio role deleted: $id', screen: 'access');
+      return _reply(<String, Object?>{'deleted': id});
+    } on ArgumentError catch (e) {
+      throw _StudioRefusal(400, 'bad_request', e.message.toString());
+    }
+  }
+
+  Future<Response> _updateRole(Request request) async {
+    final Map<String, Object?> body = await _body(request);
+    final String userId = '${body['userId'] ?? ''}'.trim();
+    final String role = '${body['role'] ?? ''}'.trim();
+    if (userId.isEmpty) {
+      throw _StudioRefusal(400, 'bad_user', 'Name the userId to update.');
+    }
+    if (role.isEmpty) {
+      throw _StudioRefusal(400, 'bad_role', 'Specify the new role.');
+    }
+    final String tenant = _tenantOf(body['tenant']);
+    final bool confirmed = body['confirm'] == true;
+    final DVStudioGrants grants = DVStudioGrants(_database);
+    if (!await grants.isGranted(userId, tenant: tenant)) {
+      throw _StudioRefusal(
+          404, 'not_found', '$userId holds no grant on tenant $tenant.');
+    }
+    if (role != 'admin') {
+      final List<DVStudioGrant> all = await grants.list();
+      final int adminCount = all
+          .where((DVStudioGrant g) => g.tenant == tenant && g.role == 'admin')
+          .length;
+      final String? currentRole = await grants.roleOf(userId, tenant: tenant);
+      if (currentRole == 'admin' && adminCount <= 1 && !confirmed) {
+        throw _StudioRefusal(
+          409,
+          'confirm_last_admin',
+          'This is the last Administrator on tenant $tenant. Demoting them will '
+              'leave nobody with administrative permissions in Studio.',
+        );
+      }
+    }
+    await grants.updateRole(userId, role, tenant: tenant);
+    await _note('team', 'updated', 'Studio role for $userId updated to $role',
+        screen: 'access');
+    return _reply(<String, Object?>{
+      'userId': userId,
+      'tenant': tenant,
+      'role': role,
     });
   }
 
@@ -2425,6 +2567,7 @@ class DVStudioApi {
   Future<Response> _grant(Request request) async {
     final Map<String, Object?> body = await _body(request);
     final String account = '${body['account'] ?? ''}'.trim();
+    final String role = '${body['role'] ?? 'admin'}'.trim();
     if (account.isEmpty) {
       throw _StudioRefusal(
           400, 'bad_account', 'Name the account by its address or its id.');
@@ -2469,12 +2612,14 @@ class DVStudioApi {
       userId = account;
     }
     final DVStudioGrants grants = DVStudioGrants(_database);
-    await grants.grant(userId, tenant: tenant);
-    await _note('team', 'created', 'Studio access given', screen: 'access');
+    await grants.grant(userId, tenant: tenant, role: role);
+    await _note('team', 'created', 'Studio access given ($role)',
+        screen: 'access');
     return _reply(<String, Object?>{
       'userId': userId,
       'email': ?email,
       'tenant': tenant,
+      'role': role,
     }, status: 201);
   }
 

@@ -128,7 +128,7 @@ Full accessibility remains **Partial** until those flows are verified too.
 | Privacy rules per field and per action | **Partial** — authorization exists in the framework (`DV.Auth.authorization`, `@DVModel.sensitiveField()`), and every Studio write goes through the API, but there is **no privacy-rule editor in Studio** | `packages/dartvel_core/lib/src/auth/`, no privacy UI in `packages/dartvel_flutter/lib/src/studio/` |
 | Workflows: visual trigger/action steps | **Done, for backend functions** — the function builder is a step list with runs, conditions and variables, saved server-side | `packages/dartvel_flutter/lib/src/studio/functions/functions.dart`, `studio_server.dart:906` `dvStudioServerSections`, `dvFunctionStudioSections` |
 | Page workflows (on page load, button action chains) | **Partial** — a node's action is a navigation; there is no page-load workflow editor or chained action list | `page_document.dart:174`, `:581` |
-| Roles and permissions in the UI | **Partial** — the Team section grants and lists access by address, but there is no role editor with per-action permissions | `studio_server.dart:966` (`access` → "Team") |
+| Roles and permissions in the UI | **Done** — Team & Access section lists teammates with avatars and roles, role filter, live search, role change modal with last-admin safeguards, role assignment in invite modal, built-in and custom roles matrix with permission chips, and a single configurable entitlement gate (`DVStudioEntitlements.current`) | `packages/dartvel_flutter/lib/src/studio/studio_team.dart`, `packages/dartvel_core/lib/src/admin/studio_access.dart` |
 | Responsive and mobile preview | **Partial** — device switcher, and Dartvel pages are responsive Flutter layouts; no mobile preview UI of its own | `studio_screen.dart:469` |
 | API connector (Bubble calls outside services) | **Partial** — there is no visual API connector; Dartvel's backend functions, written in Dart or built as workflows, and the page client is generated | `packages/dartvel_cli/lib/src/generators/backend_generator.dart` |
 | Plugins and marketplace | **Missing** — the Modules section only shows text to paste into `pubspec.yaml` | `studio_modules.dart` |
@@ -172,7 +172,7 @@ Full accessibility remains **Partial** until those flows are verified too.
 | Tasks | Background jobs from the project graph | Done (list only) |
 | Queue / Cache | Queue names and cache entries | Partial |
 | GitHub | Diff, pull request or push of the project's `studio/` folder | Not in any of the four; unique to Dartvel |
-| Team | Grants by address | Partial (no roles editor) |
+| Team | Teammates directory, role assignment, permissions matrix, and invite dialog | Done |
 | Flags / Operations | Feature flags with rules, service levels, alert rules, incidents, status preview | Not in the four; unique to Dartvel, and real |
 
 ### A URL for every screen, and what it is read by

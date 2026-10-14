@@ -185,6 +185,8 @@ const Map<String, String> dvStudioScreenAliases = <String, String>{
   'data': 'models',
   'sitemap': 'routes',
   'team': 'access',
+  'users': 'access',
+  'roles': 'access',
   'assets': 'media',
 };
 
@@ -617,6 +619,19 @@ DVStudioDocument _screenDocument(
         'Upload, search, filter and inspect images, videos, audio and '
         'documents stored in this application.',
       );
+    case 'access':
+      html
+        ..writeln(
+          '<p>Manage teammates, roles and permissions for who may access '
+          'and administer this application in Studio.</p>',
+        )
+        ..writeln('<p>${_escape.convert(_decidedAtRuntime)}</p>');
+      text
+        ..add(
+          'Manage teammates, roles and permissions for who may access '
+          'and administer this application in Studio.',
+        )
+        ..add(_decidedAtRuntime);
     default:
       // A screen holding what the running application decided rather than
       // what the build wrote: the components, the shortcut keys, the cache,
@@ -920,6 +935,21 @@ DVStudioDocument? _objectDocument(
         heading: name,
         html: html.toString(),
         text: <String>[name, 'A media asset uploaded to this application.'],
+      );
+    case 'access':
+      final String objectLabel = name == 'roles'
+          ? 'Roles & Permissions'
+          : (name == 'users' ? 'Teammates' : name);
+      html
+        ..writeln('<h1>${_escape.convert(objectLabel)}</h1>')
+        ..writeln('<p>Team and access management for this application.</p>');
+      return DVStudioDocument(
+        heading: objectLabel,
+        html: html.toString(),
+        text: <String>[
+          objectLabel,
+          'Team and access management for this application.',
+        ],
       );
     default:
       return null;

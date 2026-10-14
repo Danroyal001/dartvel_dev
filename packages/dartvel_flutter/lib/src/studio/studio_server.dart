@@ -621,12 +621,30 @@ class DVStudioClient {
   Future<void> deleteFunction(String name) => _send(
       'DELETE', 'api/functions?name=${Uri.encodeQueryComponent(name)}');
 
+  Future<Map<String, Object?>> team() async =>
+      _map(await _send('GET', 'api/team'));
+
   Future<List<Map<String, Object?>>> grants() async =>
       _list(await _send('GET', 'api/grants'), 'grants');
 
-  /// Lets [account], an address or an account id, open Studio.
-  Future<void> grant(String account) =>
-      _send('POST', 'api/grants', body: <String, Object?>{'account': account});
+  /// Lets [account], an address or an account id, open Studio with [role].
+  Future<void> grant(String account,
+          {String role = 'admin', String? tenant}) =>
+      _send('POST', 'api/grants', body: <String, Object?>{
+        'account': account,
+        'role': role,
+        if (tenant != null) 'tenant': tenant,
+      });
+
+  /// Updates [userId]'s role on [tenant].
+  Future<void> updateRole(String userId, String role,
+          {String? tenant, bool confirm = false}) =>
+      _send('PATCH', 'api/grants', body: <String, Object?>{
+        'userId': userId,
+        'role': role,
+        if (tenant != null) 'tenant': tenant,
+        if (confirm) 'confirm': true,
+      });
 
   /// Takes [userId]'s grant on [tenant] away. The server refuses the
   /// caller's own grant and the last one on a tenant with a 409 unless
@@ -639,6 +657,14 @@ class DVStudioClient {
             '&tenant=${Uri.encodeQueryComponent(tenant)}'
             '${confirm ? '&confirm=true' : ''}',
       );
+
+  /// Every available role in Studio.
+  Future<List<Map<String, Object?>>> roles() async =>
+      _list(await _send('GET', 'api/team/roles'), 'roles');
+
+  /// Saves a custom role.
+  Future<void> saveRole(Map<String, Object?> role) =>
+      _send('POST', 'api/team/roles', body: role);
 
   /// Every queue the build declares, with its pending jobs and dead letters.
   Future<List<Map<String, Object?>>> queues() async =>
@@ -1142,7 +1168,7 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client, {
         id: 'access',
         label: 'Team',
         icon: Icons.admin_panel_settings_outlined,
-        build: (BuildContext context) => _DVStudioAccessSection(client: client),
+        build: (BuildContext context) => DVStudioTeamSection(client: client),
       ),
     ];
 
@@ -3036,247 +3062,6 @@ class _DVStudioCacheSectionState extends State<_DVStudioCacheSection> {
         ),
       ],
     );
-  }
-}
-
-/// Who may open Studio, and how that changes.
-class _DVStudioAccessSection extends StatefulWidget {
-  const _DVStudioAccessSection({required this.client});
-
-  final DVStudioClient client;
-
-  @override
-  State<_DVStudioAccessSection> createState() => _DVStudioAccessSectionState();
-}
-
-class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
-  late Future<List<Map<String, Object?>>> _grants = widget.client.grants();
-  String _account = '';
-  int _field = 0;
-  bool _busy = false;
-  String? _error;
-
-  /// The grant waiting for a yes, with the server's reason for asking.
-  ({String userId, String tenant, String message})? _confirming;
-
-  void _reload() {
-    setState(() {
-      _grants = widget.client.grants();
-    });
-  }
-
-  Future<void> _grant() async {
-    final String account = _account.trim();
-    if (account.isEmpty || _busy) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await widget.client.grant(account);
-      if (!mounted) return;
-      setState(() {
-        _account = '';
-        // A fresh field, so the address granted does not stay typed in it.
-        _field += 1;
-      });
-      _reload();
-    } on DVStudioRemoteError catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _revoke(String userId, String tenant,
-      {bool confirm = false}) async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await widget.client.revoke(userId, tenant: tenant, confirm: confirm);
-      if (!mounted) return;
-      setState(() => _confirming = null);
-      _reload();
-    } on DVStudioRemoteError catch (error) {
-      if (!mounted) return;
-      setState(() {
-        if (error.status == 409 && !confirm) {
-          _confirming =
-              (userId: userId, tenant: tenant, message: error.message);
-        } else {
-          _error = error.message;
-        }
-      });
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ({String userId, String tenant, String message})? confirming =
-        _confirming;
-    return Column(
-      crossAxisAlignment: .stretch,
-      children: <Widget>[
-        DVStudioStyle.panelHeader(
-          title: 'Team',
-          subtitle: 'Who may open Studio',
-        ),
-        Expanded(
-          child: _loading<List<Map<String, Object?>>>(_grants,
-              (List<Map<String, Object?>> grants) {
-            return SingleChildScrollView(
-              padding: const .all(DVStudioStyle.space5),
-              child: Column(
-                crossAxisAlignment: .stretch,
-                children: <Widget>[
-                  DVStudioStyle.overline('Grant access'),
-                  const SizedBox(height: DVStudioStyle.space2),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: KeyedSubtree(
-                          key: const ValueKey<String>(
-                              'dv-studio-grant-account'),
-                          child: DVStudioTextInput(
-                            key: ValueKey<int>(_field),
-                            placeholder: 'Their sign-in address, or account id',
-                            icon: Icons.person_add_alt_1_outlined,
-                            onChanged: (String value) => _account = value,
-                            onSubmitted: (_) => unawaited(_grant()),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: DVStudioStyle.space2),
-                      DVStudioControl(
-                        key: const ValueKey<String>('dv-studio-grant'),
-                        label: 'Grant',
-                        enabled: !_busy,
-                        onTap: _busy ? null : () => unawaited(_grant()),
-                        primary: true,
-                        icon: Icons.add,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: DVStudioStyle.space2),
-                  DVStudioStyle.caption(
-                    'The person signs up to the application first. A grant '
-                    'lets them open Studio; it gives them nothing else.',
-                  ),
-                  if (_error != null) ...<Widget>[
-                    const SizedBox(height: DVStudioStyle.space3),
-                    DVStudioStyle.body(_error!, color: DVStudioStyle.danger),
-                  ],
-                  if (confirming != null) ...<Widget>[
-                    const SizedBox(height: DVStudioStyle.space4),
-                    Container(
-                      padding: const .all(DVStudioStyle.space3),
-                      decoration: BoxDecoration(
-                        color: Color.alphaBlend(
-                          DVStudioStyle.warning.withValues(alpha: 0.1),
-                          DVStudioStyle.surface,
-                        ),
-                        border: Border.all(
-                            color:
-                                DVStudioStyle.warning.withValues(alpha: 0.4)),
-                        borderRadius:
-                            BorderRadius.circular(DVStudioStyle.radiusSmall),
-                      ),
-                      child: Row(
-                        children: <Widget>[
-                          const Icon(Icons.warning_amber_rounded,
-                              size: 18, color: DVStudioStyle.warning),
-                          const SizedBox(width: DVStudioStyle.space2),
-                          Expanded(
-                              child: DVStudioStyle.body(confirming.message)),
-                          const SizedBox(width: DVStudioStyle.space2),
-                          DVStudioControl(
-                            key: const ValueKey<String>(
-                                'dv-studio-revoke-cancel'),
-                            label: 'Keep it',
-                            enabled: true,
-                            onTap: () => setState(() => _confirming = null),
-                          ),
-                          const SizedBox(width: DVStudioStyle.space2),
-                          DVStudioControl(
-                            key: const ValueKey<String>(
-                                'dv-studio-revoke-confirm'),
-                            label: 'Revoke anyway',
-                            enabled: !_busy,
-                            onTap: _busy
-                                ? null
-                                : () => unawaited(_revoke(
-                                    confirming.userId, confirming.tenant,
-                                    confirm: true)),
-                            primary: true,
-                            icon: Icons.remove_circle_outline,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: DVStudioStyle.space5),
-                  if (grants.isEmpty)
-                    DVStudioStyle.body('Nobody holds a grant. This Studio is '
-                        'open because the application answers Studio.access '
-                        'itself, or because this is a development build.')
-                  else
-                    _DVStudioTable(
-                      headers: const <String>[
-                        'Email',
-                        'Account',
-                        'Tenant',
-                        'Granted',
-                      ],
-                      rows: <List<String>>[
-                        for (final Map<String, Object?> grant in grants)
-                          <String>[
-                            _cell(grant['email']),
-                            _cell(grant['userId']),
-                            _cell(grant['tenant']),
-                            _grantedAt(grant['grantedAt']),
-                          ],
-                      ],
-                      // The caller's own grant, highlighted: the one to
-                      // think twice about.
-                      selected: grants.indexWhere(
-                          (Map<String, Object?> g) => g['you'] == true),
-                      trailing: <Widget>[
-                        for (final Map<String, Object?> grant in grants)
-                          DVStudioIconButton(
-                            key: ValueKey<String>(
-                                'dv-studio-revoke-${grant['userId']}'),
-                            icon: Icons.person_remove_outlined,
-                            tooltip: 'Revoke',
-                            onTap: _busy
-                                ? null
-                                : () => unawaited(_revoke(
-                                    '${grant['userId']}',
-                                    '${grant['tenant'] ?? 'default'}')),
-                          ),
-                      ],
-                    ),
-                  const SizedBox(height: DVStudioStyle.space4),
-                  DVStudioStyle.caption(
-                    'On the server, dartvel admin grant <user-id> and '
-                    'dartvel admin revoke <user-id> do the same, pointed at '
-                    'this deployment\'s database with --database.',
-                  ),
-                ],
-              ),
-            );
-          }),
-        ),
-      ],
-    );
-  }
-
-  static String _grantedAt(Object? value) {
-    final DateTime? at = DateTime.tryParse('${value ?? ''}');
-    return at == null ? _cell(value) : _formatMoment(at);
   }
 }
 
