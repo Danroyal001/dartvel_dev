@@ -1,3 +1,7 @@
+## 0.12.1 — 2026-10-14
+
+- Released alongside dartvel_cli 0.12.1 (model field defaults survive reads and migrations); no changes in this package.
+
 ## 0.12.0
 
 - **Breaking (paid runtimes):** the XR runtime (`xr/`: `DVXRRuntime`, `DVSpatialSession`, `DVSpatialCapability`, `DVXRConfig` and the rest), `DVTelegramStarsAdapter` and `DVTelegramConfig` moved to the private `dartvel_runtimes_pro` package and need a paid plan from the next release. `DVStoreAdapter` and `DVStoreInvoiceIssuer` are how a package supplies an invoice-writing store. 0.11.5 and earlier remain MIT.

@@ -1,3 +1,7 @@
+## 0.12.1 — 2026-10-14
+
+- Adding a data model field with a declared default now reads older missing or null values through that default; generated SQL migrations backfill literal defaults, and a required field with no default fails with the model, field and record key in the error.
+
 ## 0.12.0
 
 - **Breaking (paid targets):** the build targets Flutter does not officially support now need a paid Dartvel Cloud plan, and their code has left this repository: `visionos`, `horizon`, `chrome-extension`, `firefox-extension`, `vscode`, `telegram` (`dartvel build telegram` and `dartvel dev telegram`), the terminal targets (`linux-cli`, `macos-cli`, `windows-cli`, `fuchsia-cli`, each also `-tui`) and `fuchsia`. On a free install `dartvel build <target>` exits 69 with what the target is, `dartvel build <target> --cloud` and `dartvel targets add pro` (which adds the private `dartvel_targets_pro` package as a dev dependency); `dartvel doctor --target` answers the same way, and `dartvel build all` builds only free targets. `dartvel engine --os fuchsia` is gone with the Fuchsia target, and a `web` or `web-server` build of a project that declares `dartvel.telegram` no longer loads Telegram's SDK. Free targets are unchanged: Android, Fire OS, iOS, web and web-server, Windows, macOS, Linux, Sony eLinux, tvOS, Tizen and webOS. The runtime APIs that go with them are paid too: see the next entry. Dartvel 0.11.5 and earlier built every one of these targets in the open and remain MIT licensed.
