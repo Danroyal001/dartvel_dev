@@ -1,3 +1,7 @@
+## 0.12.1 — 2026-10-14
+
+- Released alongside dartvel_cli 0.12.1 (model field defaults survive reads and migrations); no changes in this package.
+
 ## 0.12.0
 
 - **Breaking (paid runtimes):** `DVTelegramAuthProvider` and `DVTelegramInitDataValidator` moved to the private `dartvel_runtimes_pro` package (`package:dartvel_runtimes_pro/server.dart`) and need a paid plan from the next release; the generated backend installs the provider the package supplies for `dartvel.telegram`. 0.11.5 and earlier remain MIT.
