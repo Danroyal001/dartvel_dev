@@ -41,4 +41,6 @@ void dvConfigureRuntimeLogging(
     level: DVLogLevel.parse(environment['DARTVEL_LOG_LEVEL'] ?? 'info'),
   );
   DVObservability.diagnosticsEndpoints = dvDiagnosticsEnabled(environment);
+  final String token = (environment['DARTVEL_METRICS_TOKEN'] ?? '').trim();
+  DVObservability.metricsToken = token.isEmpty ? null : token;
 }
