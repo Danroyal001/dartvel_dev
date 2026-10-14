@@ -391,7 +391,7 @@ Future<Response> _fromManifest(
       !(await publishedRoutes?.call() ?? const <String>{}).contains(resolvedPath);
 
   String finalPage = page;
-  if (hostMatch != null && hostMatch.entry.isWildcard && !finalPage.contains('application/ld+json')) {
+  if (hostMatch != null && hostMatch.entry.isWildcard) {
     final String toolName = title.split('—').first.split('|').first.trim();
     final Map<String, Object?> jsonLd = {
       '@context': 'https://schema.org',
@@ -438,7 +438,13 @@ Future<Response> _fromManifest(
       ],
     };
     final String encodedLd = jsonEncode(jsonLd).replaceAll('</', r'<\/');
-    finalPage = finalPage.replaceFirst('</head>', '<!--dv:ld--><script type="application/ld+json">$encodedLd</script><!--/dv:ld-->\n</head>');
+    final String ldScript = '<!--dv:ld--><script type="application/ld+json">$encodedLd</script><!--/dv:ld-->';
+    final RegExp genericLd = RegExp(r'<script[^>]*type=["'']application/ld\+json["''][^>]*>.*?</script>', dotAll: true);
+    if (finalPage.contains(genericLd)) {
+      finalPage = finalPage.replaceFirst(genericLd, ldScript);
+    } else {
+      finalPage = finalPage.replaceFirst('</head>', '$ldScript\n</head>');
+    }
   }
 
   return _html(dvMinifyHtml(dvWithPreloads(finalPage, preloads)), status: missing ? 404 : 200, streaming: settings.streaming);
