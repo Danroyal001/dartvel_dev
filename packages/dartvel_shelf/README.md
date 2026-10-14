@@ -312,12 +312,16 @@ A `Router` answers these itself, unless you register a route for the same path:
 |---|---|
 | `GET /health` | Health report as JSON; `200` while up or degraded, `503` when a check reports down |
 | `GET /healthz`, `GET /healths` | `308` redirect to `/health` |
-| `GET /metrics` | Request counts and durations in Prometheus text format |
+| `GET /metrics` | Request counts and durations in Prometheus text format, to the same host, a private network or `Authorization: Bearer <DARTVEL_METRICS_TOKEN>`; `404` to anyone else |
 | `GET /_dartvel/logs`, `GET /_dartvel/traces` | Recent log records and spans as NDJSON, only when `DARTVEL_DIAGNOSTICS=1`; `404` otherwise |
 
-These are not counted in the metrics or logged. `/metrics` is public by
-default; if the server faces the internet, block it with a middleware or put
-the scrape behind your proxy.
+These are not counted in the metrics or logged. `/metrics` is private by
+default: it answers a caller on loopback or a private network (10/8,
+172.16/12, 192.168/16, fc00::/7) whose request no proxy forwarded, and
+anyone sending `Authorization: Bearer` with the server's
+`DARTVEL_METRICS_TOKEN`. Everyone else gets the same `404` an unknown path
+gets. Behind a reverse proxy on the same host, scrape the server's own port,
+or set the token.
 
 To make `/health` check something, register a check. The API lives in
 `dartvel_core`, which this package depends on; add it to your own pubspec

@@ -28,13 +28,17 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
           title: 'Read metrics and health from any backend',
           children: <Widget>[
             DocsShell(<String>[
-              'curl https://your-host/metrics',
+              'curl -H "Authorization: Bearer \$DARTVEL_METRICS_TOKEN" https://your-host/metrics',
               'curl https://your-host/health',
               'dartvel metrics',
             ]),
             Bullets(<String>[
               'GET /metrics serves Prometheus text, so any Prometheus-compatible '
                   'scraper can read it.',
+              'It is private by default. It answers the same host and private '
+                  'networks, and anyone sending the server\'s '
+                  'DARTVEL_METRICS_TOKEN as a bearer token. Everyone else gets '
+                  'a 404.',
               'GET /health runs real checks with a deadline and answers with '
                   'each result.',
               '`dartvel metrics` fetches the running server\'s /metrics and says '
