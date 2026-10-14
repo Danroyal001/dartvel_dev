@@ -43,6 +43,34 @@ class const Palette._(final bool dark) {
   /// It is also what a code block and a terminal sit on, so the dark thing
   /// in the middle of a light page and the dark band around it are the same
   /// colour instead of two nearly-equal ones.
+  /// A gradient that moves from the accent through a deeper blue.
+  LinearGradient get accentGradient => LinearGradient(
+        colors: dark
+            ? <Color>[const Color(0xFF7BA2FF), const Color(0xFF4A6BFF)]
+            : <Color>[const Color(0xFF2F6BFF), const Color(0xFF7BA2FF)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+
+  /// A mesh-style gradient with multiple stops for hero backgrounds.
+  LinearGradient get meshGradient => LinearGradient(
+        colors: dark
+            ? <Color>[
+                const Color(0xFF2F6BFF),
+                const Color(0xFF7BA2FF),
+                const Color(0xFF4A6BFF),
+                const Color(0xFF1A3D99),
+              ]
+            : <Color>[
+                const Color(0xFF2F6BFF),
+                const Color(0xFF7BA2FF),
+                const Color(0xFF4A6BFF),
+                const Color(0xFF1A3D99),
+              ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+
   static const Color deep = Color(0xFF0B1020);
 
   /// The text colours for [deep], which does not change with the mode.

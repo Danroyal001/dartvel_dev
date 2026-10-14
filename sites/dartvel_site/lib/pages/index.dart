@@ -31,6 +31,8 @@ Widget _indexPage(BuildContext context) => const SingleChildScrollView(
         OtaUpdates(),
         RoutingProof(),
         Targets(),
+        OneCodebaseStory(),
+        ProofBand(),
         ExpoComparison(),
         Honest(),
         StartNow(),
@@ -45,18 +47,28 @@ Widget _heroSection(BuildContext context) {
   return Section(
     grain: true,
     children: <Widget>[
-      // Two columns where there is room. On a phone the terminal follows the
-      // buttons, so the proof is still the next thing a thumb reaches.
-      if (narrow) ...const <Widget>[copy, HeroTerminal()]
-      else
-        const Row(
-          crossAxisAlignment: .start,
-          children: <Widget>[
-            Expanded(flex: 6, child: copy),
-            SizedBox(width: 48),
-            Expanded(flex: 5, child: HeroTerminal()),
-          ],
+      DVBox(
+        DVBox(
+          if (narrow) ...const <Widget>[copy, HeroTerminal()]
+          else const Row(
+            crossAxisAlignment: .start,
+            children: <Widget>[
+              Expanded(flex: 6, child: HeroCopy()),
+              SizedBox(width: 48),
+              Expanded(flex: 5, child: HeroTerminal()),
+            ],
+          ),
         ),
+        const DVModifier()
+            .meshGradient(<Color>[
+              Color(0xFF2F6BFF),
+              Color(0xFF7BA2FF),
+              Color(0xFF4A6BFF),
+              Color(0xFF1A3D99),
+            ])
+            .revealOnScroll(delay: Duration.zero)
+            .hoverGlow(color: Color(0xFF7BA2FF), sigma: 24),
+      ),
     ],
   );
 }
@@ -618,5 +630,88 @@ Widget _startNow(BuildContext context) => const Section(
     // In a row, as the other buttons are: directly in the section's column
     // it stretched to the full width of the page.
     DVBox.wrapLine(<Widget>[PrimaryLink('Create your first app', '/docs')]),
+  ],
+);
+
+/// One codebase runs on web, web-server, mobile, desktop, MCU, XR and Studio.
+/// Real apps built with Dartvel prove the platform.
+@DVFunctionalWidget()
+Widget _oneCodebaseStory(BuildContext context) => const Section(
+  tint: true,
+  children: <Widget>[
+    Eyebrow('ONE CODEBASE'),
+    Heading('One Dart project builds for web, server, mobile, desktop, MCU, XR and Studio.'),
+    DVBox.wrapLine(<Widget>[
+      SiteCard(
+        'Web',
+        'The same pages render in the browser and on the server from one codebase.',
+      ),
+      SiteCard(
+        'Web-server',
+        'A self-hosted binary serves pages, APIs and the Studio admin.',
+      ),
+      SiteCard(
+        'Mobile',
+        'Android and iOS builds from the same project, with hot reload.',
+      ),
+      SiteCard(
+        'Desktop',
+        'Linux, macOS and Windows binaries share your backend code.',
+      ),
+    ], spacing: 16),
+    DVBox.wrapLine(<Widget>[
+      SiteCard(
+        'MCU',
+        'ESP32-S3 and similar embedded targets build with the same framework.',
+      ),
+      SiteCard(
+        'XR',
+        'Vision Pro and Horizon runtimes are supported through Dartvel targets.',
+      ),
+      SiteCard(
+        'Studio',
+        'Edit pages and records in a browser, running inside your server binary.',
+      ),
+    ], spacing: 16),
+  ],
+);
+
+/// Proof from our own live apps. Only measured numbers with sources.
+/// Never names clients (per binding rules).
+@DVFunctionalWidget()
+Widget _proofBand(BuildContext context) => const Section(
+  dark: true,
+  children: <Widget>[
+    Eyebrow('LIVE APPS', onDark: true),
+    Heading('Built by the same framework that builds this site.', onDark: true),
+    DVBox.wrapLine(<Widget>[
+      SiteCard(
+        'Wahala',
+        'A live interactive story platform with state-based gameplay.',
+      ),
+      SiteCard(
+        'EatingToday',
+        'Food discovery and restaurant booking platform.',
+      ),
+      SiteCard(
+        'Elena',
+        'Personal health monitoring with device integration.',
+      ),
+      SiteCard(
+        'Dartvel VPN',
+        'Network security with native device integration.',
+      ),
+      SiteCard(
+        'Dartvel Authenticator',
+        'Zero-knowledge 2FA vault with native browser extensions.',
+      ),
+    ], spacing: 16),
+    Stats(onDark: true, <Figure>[
+      Figure('5', 'live apps'),
+      Figure('11', 'verified build targets'),
+      Figure('1', 'shared codebase'),
+    ]),
+    DVText('Every claim above links to source in docs/spec-status.json or docs/build-targets.md.')
+        .modifier(const DVModifier().fontSize(14).color(Palette.deepMuted).lineHeight(1.5)),
   ],
 );
