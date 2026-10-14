@@ -88,4 +88,34 @@ void main() {
       throwsA(isA<StateError>().having((StateError e) => e.message, 'message', contains('dragDrop.accept'))),
     );
   });
+
+  test('a browser drop: files with their bytes and no paths reach the app', () async {
+    final List<DVDropEvent> got = <DVDropEvent>[];
+    await const DVDragDrop().accept(onDrop: got.add);
+    DVDragDrop.dispatch(DVDropEvent.fromMap(<Object?, Object?>{
+      'files': <Object?>[
+        <Object?, Object?>{'name': 'qr.png', 'mimeType': 'image/png', 'bytes': <int>[137, 80, 78, 71]},
+      ],
+      'x': 5,
+      'y': 6,
+    }));
+    final DVDroppedFile file = got.single.files.single;
+    expect(file.name, 'qr.png');
+    expect(file.mimeType, 'image/png');
+    expect(file.bytes, <int>[137, 80, 78, 71]);
+    expect(got.single.paths, isEmpty);
+    expect(got.single.isEmpty, isFalse);
+  });
+
+  test('drag-over is reported only while the window accepts drops', () async {
+    final List<bool> over = <bool>[];
+    final sub = const DVDragDrop().draggingOver.listen(over.add);
+    DVDragDrop.dispatchDragOver(true);
+    await const DVDragDrop().accept();
+    DVDragDrop.dispatchDragOver(true);
+    DVDragDrop.dispatchDragOver(false);
+    await Future<void>.delayed(Duration.zero);
+    expect(over, <bool>[true, false]);
+    await sub.cancel();
+  });
 }
