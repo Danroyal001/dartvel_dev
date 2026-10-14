@@ -376,7 +376,7 @@ Future<Response> _fromManifest(
   // manifest from before it carried the page.
   final Object? routePage = route?['page'];
   final String page = data == null && routePage is Map
-      ? dvRenderRoutePage(shell, DVRoutePage.fromJson(routePage.cast<String, Object?>()).at(path),
+      ? dvRenderRoutePage(shell, DVRoutePage.fromJson(routePage.cast<String, Object?>()).at(path, siteUrl: effectiveSiteUrl, siteName: siteName, description: effectiveSite.description),
           onUncaptured: (String r) => stderr.writeln('dartvel: $r has no captured page; serving its source text'))
       : data == null
       ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: effectiveSiteUrl, siteName: siteName, description: effectiveSite.description, image: effectiveSite.image)
