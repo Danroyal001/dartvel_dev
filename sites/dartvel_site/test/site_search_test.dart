@@ -112,6 +112,28 @@ void main() {
     expect(await paths('GitHub'), <String>['/docs/auth']);
   });
 
+  // The live site answered every search with a 500 for two days: the binary
+  // read no pages, and fitting the semantic index to no words throws. A site
+  // with nothing to search has no results, said with a 200.
+  test('a site with no pages answers every search with no results', () async {
+    await serve(<String, Map<String, Object?>>{});
+
+    expect(await paths('cache'), isEmpty);
+  });
+
+  test('pages with no words in them answer with no results, not an error',
+      () async {
+    await serve(<String, Map<String, Object?>>{
+      '/empty': <String, Object?>{
+        'title': '…',
+        'text': <String>[],
+        'page': <String, Object?>{'route': '/empty', 'title': '…', 'html': '<p>…</p>'},
+      },
+    });
+
+    expect(await paths('cache'), isEmpty);
+  });
+
   test('nothing, gibberish and a very long query are answered, not thrown',
       () async {
     await serve(site);
