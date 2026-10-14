@@ -169,6 +169,13 @@ void main(List<String> args) {
       'dartvelShelfVersion',
       target['dartvel_shelf']!,
     ),
+    // The version dartvel.dev states as current. It was typed into sentences
+    // and said 0.11.5 through two releases.
+    (
+      'sites/dartvel_site/lib/components/site.dart',
+      'kDartvelVersion',
+      target['dartvel_dev']!,
+    ),
   ]) {
     final File file = File(c.$1);
     if (!file.existsSync()) {
