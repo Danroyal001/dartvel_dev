@@ -44,15 +44,12 @@ class Patch {
 }
 
 /// Platform shell used by [DVPage].
-enum DVPageShellMode {
-  adaptive,
-  material,
-  cupertino,
-  none,
-}
+enum DVPageShellMode { adaptive, material, cupertino, none }
 
 /// Annotation for a Dartvel Page.
 class DVPage {
+  /// Ordered middleware executed before this declaration.
+  final List<DVMiddlewareKey> middleware;
   final String? path;
   final String? title;
 
@@ -104,6 +101,7 @@ class DVPage {
   final DVMfa? mfa;
 
   const DVPage({
+    this.middleware = const <DVMiddlewareKey>[],
     this.path,
     this.title,
     this.description,
@@ -461,24 +459,24 @@ class DVModel {
     this.softDelete = false,
     this.access,
     this.indexes = const <DVIndex>[],
-  })  : encrypted = false,
-        unique = false,
-        min = null,
-        max = null,
-        minLength = null,
-        maxLength = null,
-        pattern = null,
-        retainYears = null,
-        retainBecause = null,
-        onErase = DVErase.delete,
-        showInForms = false,
-        showInAdmin = false,
-        pageRole = null,
-        pageOrderIndex = null,
-        isModel3dField = false,
-        model3dPoster = false,
-        model3dMaxSizeMb = null,
-        model3dMaxTriangles = null;
+  }) : encrypted = false,
+       unique = false,
+       min = null,
+       max = null,
+       minLength = null,
+       maxLength = null,
+       pattern = null,
+       retainYears = null,
+       retainBecause = null,
+       onErase = DVErase.delete,
+       showInForms = false,
+       showInAdmin = false,
+       pageRole = null,
+       pageOrderIndex = null,
+       isModel3dField = false,
+       model3dPoster = false,
+       model3dMaxSizeMb = null,
+       model3dMaxTriangles = null;
 
   /// Marks a model field as sensitive: `@DVModel.sensitiveField()`.
   ///
@@ -508,39 +506,39 @@ class DVModel {
     this.showInForms = false,
     this.showInAdmin = false,
     this.onErase = DVErase.delete,
-  })  : access = null,
-        indexes = const <DVIndex>[],
-        unique = false,
-        min = null,
-        max = null,
-        minLength = null,
-        maxLength = null,
-        pattern = null,
-        searchable = false,
-        subject = null,
-        history = null,
-        capture = false,
-        semantic = false,
-        offline = null,
-        version = true,
-        softDelete = false,
-        retain = null,
-        retainYears = null,
-        retainBecause = null,
-        billable = false,
-        nativePrice = null,
-        pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = true,
-        publicPathsResolver = null,
-        pageRole = null,
-        pageOrderIndex = null,
-        schemaType = null,
-        favicon = null,
-        tenantScoped = false,
-        isModel3dField = false,
-        model3dPoster = false,
-        model3dMaxSizeMb = null,
-        model3dMaxTriangles = null;
+  }) : access = null,
+       indexes = const <DVIndex>[],
+       unique = false,
+       min = null,
+       max = null,
+       minLength = null,
+       maxLength = null,
+       pattern = null,
+       searchable = false,
+       subject = null,
+       history = null,
+       capture = false,
+       semantic = false,
+       offline = null,
+       version = true,
+       softDelete = false,
+       retain = null,
+       retainYears = null,
+       retainBecause = null,
+       billable = false,
+       nativePrice = null,
+       pageDataMode = DVModelPageDataMode.auto,
+       generatePublicPages = true,
+       publicPathsResolver = null,
+       pageRole = null,
+       pageOrderIndex = null,
+       schemaType = null,
+       favicon = null,
+       tenantScoped = false,
+       isModel3dField = false,
+       model3dPoster = false,
+       model3dMaxSizeMb = null,
+       model3dMaxTriangles = null;
 
   /// The rules a field's value has to meet before it is stored:
   /// `@DVModel.validate(minLength: 3, maxLength: 120)`.
@@ -555,122 +553,122 @@ class DVModel {
     this.minLength,
     this.maxLength,
     this.pattern,
-  })  : access = null,
-        indexes = const <DVIndex>[],
-        unique = false,
-        searchable = false,
-        subject = null,
-        history = null,
-        capture = false,
-        semantic = false,
-        offline = null,
-        version = true,
-        softDelete = false,
-        retain = null,
-        retainYears = null,
-        retainBecause = null,
-        onErase = DVErase.delete,
-        billable = false,
-        nativePrice = null,
-        pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = true,
-        publicPathsResolver = null,
-        encrypted = false,
-        showInForms = false,
-        showInAdmin = false,
-        pageRole = null,
-        pageOrderIndex = null,
-        schemaType = null,
-        favicon = null,
-        tenantScoped = false,
-        isModel3dField = false,
-        model3dPoster = false,
-        model3dMaxSizeMb = null,
-        model3dMaxTriangles = null;
+  }) : access = null,
+       indexes = const <DVIndex>[],
+       unique = false,
+       searchable = false,
+       subject = null,
+       history = null,
+       capture = false,
+       semantic = false,
+       offline = null,
+       version = true,
+       softDelete = false,
+       retain = null,
+       retainYears = null,
+       retainBecause = null,
+       onErase = DVErase.delete,
+       billable = false,
+       nativePrice = null,
+       pageDataMode = DVModelPageDataMode.auto,
+       generatePublicPages = true,
+       publicPathsResolver = null,
+       encrypted = false,
+       showInForms = false,
+       showInAdmin = false,
+       pageRole = null,
+       pageOrderIndex = null,
+       schemaType = null,
+       favicon = null,
+       tenantScoped = false,
+       isModel3dField = false,
+       model3dPoster = false,
+       model3dMaxSizeMb = null,
+       model3dMaxTriangles = null;
 
   /// Marks a field no two records may share: `@DVModel.uniqueField()`.
   ///
   /// The database is asked for a unique index on it, and a write that would
   /// repeat a value is refused before it reaches the database.
   const DVModel.uniqueField()
-      : unique = true,
-        access = null,
-        indexes = const <DVIndex>[],
-        min = null,
-        max = null,
-        minLength = null,
-        maxLength = null,
-        pattern = null,
-        searchable = false,
-        subject = null,
-        history = null,
-        capture = false,
-        semantic = false,
-        offline = null,
-        version = true,
-        softDelete = false,
-        retain = null,
-        retainYears = null,
-        retainBecause = null,
-        onErase = DVErase.delete,
-        billable = false,
-        nativePrice = null,
-        pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = true,
-        publicPathsResolver = null,
-        encrypted = false,
-        showInForms = false,
-        showInAdmin = false,
-        pageRole = null,
-        pageOrderIndex = null,
-        schemaType = null,
-        favicon = null,
-        tenantScoped = false,
-        isModel3dField = false,
-        model3dPoster = false,
-        model3dMaxSizeMb = null,
-        model3dMaxTriangles = null;
+    : unique = true,
+      access = null,
+      indexes = const <DVIndex>[],
+      min = null,
+      max = null,
+      minLength = null,
+      maxLength = null,
+      pattern = null,
+      searchable = false,
+      subject = null,
+      history = null,
+      capture = false,
+      semantic = false,
+      offline = null,
+      version = true,
+      softDelete = false,
+      retain = null,
+      retainYears = null,
+      retainBecause = null,
+      onErase = DVErase.delete,
+      billable = false,
+      nativePrice = null,
+      pageDataMode = DVModelPageDataMode.auto,
+      generatePublicPages = true,
+      publicPathsResolver = null,
+      encrypted = false,
+      showInForms = false,
+      showInAdmin = false,
+      pageRole = null,
+      pageOrderIndex = null,
+      schemaType = null,
+      favicon = null,
+      tenantScoped = false,
+      isModel3dField = false,
+      model3dPoster = false,
+      model3dMaxSizeMb = null,
+      model3dMaxTriangles = null;
 
   /// Marks a model field for generated search indexing:
   /// `@DVModel.searchableField()`.
   const DVModel.searchableField()
-      : access = null,
-        indexes = const <DVIndex>[],
-        unique = false,
-        min = null,
-        max = null,
-        minLength = null,
-        maxLength = null,
-        pattern = null,
-        searchable = true,
-        subject = null,
-        history = null,
-        capture = false,
-        semantic = false,
-        offline = null,
-        version = true,
-        softDelete = false,
-        retain = null,
-        retainYears = null,
-        retainBecause = null,
-        onErase = DVErase.delete,
-        billable = false,
-        nativePrice = null,
-        pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = true,
-        publicPathsResolver = null,
-        encrypted = false,
-        showInForms = false,
-        showInAdmin = false,
-        pageRole = null,
-        pageOrderIndex = null,
-        schemaType = null,
-        favicon = null,
-        tenantScoped = false,
-        isModel3dField = false,
-        model3dPoster = false,
-        model3dMaxSizeMb = null,
-        model3dMaxTriangles = null;
+    : access = null,
+      indexes = const <DVIndex>[],
+      unique = false,
+      min = null,
+      max = null,
+      minLength = null,
+      maxLength = null,
+      pattern = null,
+      searchable = true,
+      subject = null,
+      history = null,
+      capture = false,
+      semantic = false,
+      offline = null,
+      version = true,
+      softDelete = false,
+      retain = null,
+      retainYears = null,
+      retainBecause = null,
+      onErase = DVErase.delete,
+      billable = false,
+      nativePrice = null,
+      pageDataMode = DVModelPageDataMode.auto,
+      generatePublicPages = true,
+      publicPathsResolver = null,
+      encrypted = false,
+      showInForms = false,
+      showInAdmin = false,
+      pageRole = null,
+      pageOrderIndex = null,
+      schemaType = null,
+      favicon = null,
+      tenantScoped = false,
+      isModel3dField = false,
+      model3dPoster = false,
+      model3dMaxSizeMb = null,
+      model3dMaxTriangles = null;
 
   /// Marks the field a generated model page uses as its featured image:
   /// `@DVModel.featuredImage()`.
@@ -721,43 +719,43 @@ class DVModel {
     bool poster = true,
     int? maxSizeMb,
     int? maxTriangles,
-  })  : access = null,
-        indexes = const <DVIndex>[],
-        unique = false,
-        min = null,
-        max = null,
-        minLength = null,
-        maxLength = null,
-        pattern = null,
-        isModel3dField = true,
-        subject = null,
-        history = null,
-        capture = false,
-        semantic = false,
-        offline = null,
-        version = true,
-        softDelete = false,
-        retain = null,
-        retainYears = null,
-        retainBecause = null,
-        onErase = DVErase.delete,
-        model3dPoster = poster,
-        model3dMaxSizeMb = maxSizeMb,
-        model3dMaxTriangles = maxTriangles,
-        searchable = false,
-        billable = false,
-        nativePrice = null,
-        pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = true,
-        publicPathsResolver = null,
-        encrypted = false,
-        showInForms = false,
-        showInAdmin = false,
-        pageRole = null,
-        pageOrderIndex = null,
-        schemaType = null,
-        favicon = null,
-        tenantScoped = false;
+  }) : access = null,
+       indexes = const <DVIndex>[],
+       unique = false,
+       min = null,
+       max = null,
+       minLength = null,
+       maxLength = null,
+       pattern = null,
+       isModel3dField = true,
+       subject = null,
+       history = null,
+       capture = false,
+       semantic = false,
+       offline = null,
+       version = true,
+       softDelete = false,
+       retain = null,
+       retainYears = null,
+       retainBecause = null,
+       onErase = DVErase.delete,
+       model3dPoster = poster,
+       model3dMaxSizeMb = maxSizeMb,
+       model3dMaxTriangles = maxTriangles,
+       searchable = false,
+       billable = false,
+       nativePrice = null,
+       pageDataMode = DVModelPageDataMode.auto,
+       generatePublicPages = true,
+       publicPathsResolver = null,
+       encrypted = false,
+       showInForms = false,
+       showInAdmin = false,
+       pageRole = null,
+       pageOrderIndex = null,
+       schemaType = null,
+       favicon = null,
+       tenantScoped = false;
 
   /// Marks the field whose row a law requires to be kept:
   /// `@DVModel.retain(years: 7, because: 'tax law')`.
@@ -767,85 +765,87 @@ class DVModel {
   /// the answer to "why do you still have my invoice" is in the codebase
   /// rather than in somebody's memory.
   const DVModel.retain({required int years, required String because})
-      : access = null,
-        indexes = const <DVIndex>[],
-        unique = false,
-        min = null,
-        max = null,
-        minLength = null,
-        maxLength = null,
-        pattern = null,
-        retainYears = years,
-        retainBecause = because,
-        subject = null,
-        history = null,
-        capture = false,
-        semantic = false,
-        offline = null,
-        version = true,
-        softDelete = false,
-        retain = null,
-        onErase = DVErase.delete,
-        searchable = false,
-        billable = false,
-        nativePrice = null,
-        pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = true,
-        publicPathsResolver = null,
-        encrypted = false,
-        showInForms = false,
-        showInAdmin = false,
-        pageRole = null,
-        pageOrderIndex = null,
-        schemaType = null,
-        favicon = null,
-        tenantScoped = false,
-        isModel3dField = false,
-        model3dPoster = false,
-        model3dMaxSizeMb = null,
-        model3dMaxTriangles = null;
+    : access = null,
+      indexes = const <DVIndex>[],
+      unique = false,
+      min = null,
+      max = null,
+      minLength = null,
+      maxLength = null,
+      pattern = null,
+      retainYears = years,
+      retainBecause = because,
+      subject = null,
+      history = null,
+      capture = false,
+      semantic = false,
+      offline = null,
+      version = true,
+      softDelete = false,
+      retain = null,
+      onErase = DVErase.delete,
+      searchable = false,
+      billable = false,
+      nativePrice = null,
+      pageDataMode = DVModelPageDataMode.auto,
+      generatePublicPages = true,
+      publicPathsResolver = null,
+      encrypted = false,
+      showInForms = false,
+      showInAdmin = false,
+      pageRole = null,
+      pageOrderIndex = null,
+      schemaType = null,
+      favicon = null,
+      tenantScoped = false,
+      isModel3dField = false,
+      model3dPoster = false,
+      model3dMaxSizeMb = null,
+      model3dMaxTriangles = null;
 
   const DVModel._page(this.pageRole, [this.pageOrderIndex])
-      : access = null,
-        indexes = const <DVIndex>[],
-        unique = false,
-        min = null,
-        max = null,
-        minLength = null,
-        maxLength = null,
-        pattern = null,
-        searchable = false,
-        subject = null,
-        history = null,
-        capture = false,
-        semantic = false,
-        offline = null,
-        version = true,
-        softDelete = false,
-        retain = null,
-        retainYears = null,
-        retainBecause = null,
-        onErase = DVErase.delete,
-        billable = false,
-        nativePrice = null,
-        pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = true,
-        publicPathsResolver = null,
-        encrypted = false,
-        showInForms = false,
-        showInAdmin = false,
-        schemaType = null,
-        favicon = null,
-        tenantScoped = false,
-        isModel3dField = false,
-        model3dPoster = false,
-        model3dMaxSizeMb = null,
-        model3dMaxTriangles = null;
+    : access = null,
+      indexes = const <DVIndex>[],
+      unique = false,
+      min = null,
+      max = null,
+      minLength = null,
+      maxLength = null,
+      pattern = null,
+      searchable = false,
+      subject = null,
+      history = null,
+      capture = false,
+      semantic = false,
+      offline = null,
+      version = true,
+      softDelete = false,
+      retain = null,
+      retainYears = null,
+      retainBecause = null,
+      onErase = DVErase.delete,
+      billable = false,
+      nativePrice = null,
+      pageDataMode = DVModelPageDataMode.auto,
+      generatePublicPages = true,
+      publicPathsResolver = null,
+      encrypted = false,
+      showInForms = false,
+      showInAdmin = false,
+      schemaType = null,
+      favicon = null,
+      tenantScoped = false,
+      isModel3dField = false,
+      model3dPoster = false,
+      model3dMaxSizeMb = null,
+      model3dMaxTriangles = null;
 }
 
 /// Marks a model property for generated search indexing.
-@Deprecated('Use @DVModel.searchableField() instead. '
-    'Model-scoped annotations live under the DVModel parent.')
+@Deprecated(
+  'Use @DVModel.searchableField() instead. '
+  'Model-scoped annotations live under the DVModel parent.',
+)
 class DVSearchable {
   const DVSearchable();
 }
@@ -853,8 +853,10 @@ class DVSearchable {
 /// Marks a model field as sensitive.
 ///
 /// See [DVModel.sensitiveField] for the canonical form and full behaviour.
-@Deprecated('Use @DVModel.sensitiveField() instead. '
-    'Model-scoped annotations live under the DVModel parent.')
+@Deprecated(
+  'Use @DVModel.sensitiveField() instead. '
+  'Model-scoped annotations live under the DVModel parent.',
+)
 class DVSensitiveModelField {
   final bool encrypted;
   final bool showInForms;
@@ -869,6 +871,8 @@ class DVSensitiveModelField {
 
 /// Annotation for a Dartvel Backend Function
 class DVBackendFunction {
+  /// Ordered middleware executed before this declaration.
+  final List<DVMiddlewareKey> middleware;
   final String? policy;
 
   /// The second factor the caller's session must have presented, or null for
@@ -899,13 +903,16 @@ class DVBackendFunction {
   final DVAITool? aiTool;
 
   const DVBackendFunction({
+    this.middleware = const <DVMiddlewareKey>[],
     this.policy,
     this.mfa,
     this.rawPath,
     this.rawPathSuffix,
     this.aiTool,
-  }) : assert(rawPath == null || rawPathSuffix == null,
-            'rawPath and rawPathSuffix are mutually exclusive');
+  }) : assert(
+         rawPath == null || rawPathSuffix == null,
+         'rawPath and rawPathSuffix are mutually exclusive',
+       );
 }
 
 /// Annotation for a Backend Cron Job
@@ -962,11 +969,11 @@ class DVJob {
   /// name, which also leaves the [DVJobHandler] typedef — the runtime handler
   /// function type — free to keep meaning what it means.
   const DVJob.handler()
-      : queue = null,
-        priority = 0,
-        maxAttempts = 3,
-        backoffSeconds = 30,
-        isHandler = true;
+    : queue = null,
+      priority = 0,
+      maxAttempts = 3,
+      backoffSeconds = 30,
+      isHandler = true;
 }
 
 /// Annotation for backend function/page middleware.
@@ -986,6 +993,7 @@ class DVMiddlewareKey {
 }
 
 /// Typed annotation for page, layout, model, storage, and backend middleware.
+@Deprecated('Use middleware: on @DVPage or @DVBackendFunction instead.')
 class DVUseMiddleware {
   final List<DVMiddlewareKey> middleware;
 
@@ -1152,8 +1160,8 @@ class DVFormControls {
     this.model, {
     void Function()? onSubmit,
     void Function()? onReset,
-  })  : _onSubmit = onSubmit,
-        _onReset = onReset;
+  }) : _onSubmit = onSubmit,
+       _onReset = onReset;
 
   void submit() {
     _onSubmit?.call();
@@ -1261,12 +1269,12 @@ T? deserializeDVModel<T>(Map<String, Object?> json) {
 typedef DVModelReadCarrier<T> = void Function(T read, T edited);
 
 final Map<Type, void Function(Object? read, Object? edited)>
-    dvModelReadCarriers = {};
+dvModelReadCarriers = {};
 
 /// Registers how an edit of a [T] inherits the read of the [T] it edits.
 void registerDVModelReadCarrier<T>(DVModelReadCarrier<T> carry) {
-  dvModelReadCarriers[T] =
-      (Object? read, Object? edited) => carry(read as T, edited as T);
+  dvModelReadCarriers[T] = (Object? read, Object? edited) =>
+      carry(read as T, edited as T);
 }
 
 /// Makes [edited] carry the version [read] was loaded at, when [T] registered

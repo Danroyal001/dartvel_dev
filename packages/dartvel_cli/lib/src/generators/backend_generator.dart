@@ -1,5 +1,6 @@
 import 'dart:convert' show jsonDecode, jsonEncode, utf8;
 import 'dart:io';
+
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:dartvel_core/dartvel.dart'
     show
@@ -18,18 +19,23 @@ import 'package:dartvel_core/dartvel.dart'
         dvMiddlewareKeysWrapping,
         dvPageMiddlewareRefusal,
         dvPurchasesDeclared;
-import '../build/android_billing_bridge.dart' as android_billing
+
+import '../build/android_billing_bridge.dart'
+    as android_billing
     show dvPurchasesPlayConfig;
+
 // dartvel.capture, read with the parser the generated server reads it with.
 import 'package:dartvel_core/framework.dart'
     show DVCaptureConfig, DVCaptureConfigError;
 import 'package:file/local.dart';
+
 import 'model_names.dart';
 import 'client_type_imports.dart';
 import 'function_body.dart';
 import 'raw_path.dart';
 import 'job_generator.dart';
 import 'symbol_qualifier.dart';
+
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
@@ -45,6 +51,7 @@ import '../utils/logger.dart';
 import 'asyncapi_generator.dart';
 import 'openapi_generator.dart';
 import 'page_policy.dart';
+import 'annotation_args.dart';
 import 'platform_api_generator.dart';
 import 'policy_classes.dart';
 import 'route_utils.dart';
@@ -56,8 +63,10 @@ bool _takesOnlyTheRequest(String parameters) {
       .trim()
       .replaceAll(RegExp(r',\s*$'), '');
   if (list.isEmpty || list.contains(RegExp(r'[{\[,]'))) return false;
-  final List<String> tokens =
-      list.split(RegExp(r'\s+')).where((String t) => t.isNotEmpty).toList();
+  final List<String> tokens = list
+      .split(RegExp(r'\s+'))
+      .where((String t) => t.isNotEmpty)
+      .toList();
   if (tokens.length == 1) return true;
   final String type = tokens.sublist(0, tokens.length - 1).join(' ');
   final String bare = type.replaceAll('?', '').split('.').last;
@@ -100,7 +109,8 @@ class BackendGenerator {
   /// records to its own backend (`dartvel.logging.ship.enabled`). Like the
   /// crash endpoint: the body limit enforced where the body is read, an API
   /// key refused, nothing of a batch logged on a failure.
-  static String _dvClientLogsRouteSource(DVLogConfig logging) => '''
+  static String _dvClientLogsRouteSource(DVLogConfig logging) =>
+      '''
   // Log records from this application's devices: dartvel.logging.ship.
   router.post(cfg.apiBasePath + core.DVLogIngest.path, (dv.Request req) => _dvStaged(req, () async {
     if (core.DVApiPrincipal.current != null) {
@@ -226,7 +236,8 @@ class BackendGenerator {
   /// fixed 503. Each report is counted against the client's source as
   /// `DVClientAddress` resolves it, as well as against the install id the
   /// report names, because the install id is the client's to choose.
-  static String _dvCrashRouteSource(DVCrashConfig crashes) => '''
+  static String _dvCrashRouteSource(DVCrashConfig crashes) =>
+      '''
   // Crash reports from this application's clients: dartvel.crashes.sink is
   // dartvel.
   // On the request's tenant and behind the authentication stage: a key for
@@ -422,6 +433,7 @@ class BackendGenerator {
     required String root,
     required String backendDir,
     required String pkgName,
+
     /// Accepted and not written anywhere. A build id in generated files
     /// rewrote every file on every build.
     String? buildId,
@@ -440,7 +452,8 @@ class BackendGenerator {
     // policy (DV-MODULE-021), before anything is written.
     final List<DVModuleRpcRoute> moduleRpcRoutes = dvModuleRpcRoutes(root);
     final List<String> webhookEvents = discoverWebhookEvents(
-        dvMergedLibSources(root, pkgName, backendDir));
+      dvMergedLibSources(root, pkgName, backendDir),
+    );
     backendOut.createSync(recursive: true);
     libClientDir.createSync(recursive: true);
     // One library per lowered function, numbered by position: a function
@@ -474,7 +487,7 @@ class BackendGenerator {
       'patch',
       'delete',
       'head',
-      'options'
+      'options',
     };
 
     final backendImports = <String>[];
@@ -497,7 +510,9 @@ class BackendGenerator {
         method = 'post';
       }
       final importPath = rel.replaceFirst(
-          RegExp(r'^lib/'), 'package:${fnFiles[i].packageName}/');
+        RegExp(r'^lib/'),
+        'package:${fnFiles[i].packageName}/',
+      );
       final urlPath = RouteUtils.routeFromRel(pathRel, fnFiles[i].backendDir);
       // Detect typed function name from file (based on sanitized base name)
       final src = await File(abs).readAsString();
@@ -508,12 +523,15 @@ class BackendGenerator {
       final String privateBodySource = privateExpression == null
           ? ''
           : (privateExpression.body.isBlock
-              ? privateExpression.body.statements!
-              : privateExpression.body.expression!);
+                ? privateExpression.body.statements!
+                : privateExpression.body.expression!);
       final qualifiedPrivateExpression = privateExpression == null
           ? ''
           : _qualifySourceSymbols(
-              privateBodySource, _dvSourcePrefix, sourceSymbols);
+              privateBodySource,
+              _dvSourcePrefix,
+              sourceSymbols,
+            );
       if (privateExpression == null) {
         backendImports.add("import '$importPath' as f$i;");
       }
@@ -524,23 +542,27 @@ class BackendGenerator {
       // was not found, the file fell through to the handler shape, and the
       // generated router called f0.handler on a file that has no handler.
       final regHandler = RegExp(
-          r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?handler\s*\(([^)]*)\)\s*'
-          r'(?:async\*?|sync\*)?\s*(?:=>|\{)',
-          multiLine: true);
+        r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?handler\s*\(([^)]*)\)\s*'
+        r'(?:async\*?|sync\*)?\s*(?:=>|\{)',
+        multiLine: true,
+      );
       // Only a handler that takes the request is one: the router calls it
       // with the request. `handler()` and `handler({name, email})` were
       // taken for raw handlers too, and the routes called `f0.handler(req)`,
       // which does not compile. Those fall through to the typed search below
       // and are called with their arguments.
       final RegExpMatch? handlerMatch = regHandler.firstMatch(src);
-      final hasHandler = handlerMatch != null &&
+      final hasHandler =
+          handlerMatch != null &&
           _takesOnlyTheRequest(handlerMatch.group(1) ?? '');
       final baseWhole = p.basenameWithoutExtension(rel); // e.g., hello.get
       final baseNameOnly = baseWhole.contains('.')
           ? baseWhole.substring(0, baseWhole.lastIndexOf('.'))
           : baseWhole; // hello or [id] or last_read_date_[date]
-      final funcCandidate =
-          baseNameOnly.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '');
+      final funcCandidate = baseNameOnly.replaceAll(
+        RegExp(r'[^A-Za-z0-9_]'),
+        '',
+      );
       String typedName = '';
       String typedParams = '';
       String typedTypes = '';
@@ -578,8 +600,11 @@ class BackendGenerator {
         typedName = privateExpression.publicName;
         rtype = privateExpression.returnType;
         invocation = 'bf$i.dvBackendFn$i';
-        RouteUtils.extractParams(privateExpression.parameters, collect,
-            onNamed: (v) => tnamed = v);
+        RouteUtils.extractParams(
+          privateExpression.parameters,
+          collect,
+          onNamed: (v) => tnamed = v,
+        );
         final String modifier = privateExpression.body.modifier == null
             ? ''
             : ' ${privateExpression.body.modifier}';
@@ -595,32 +620,36 @@ class BackendGenerator {
             ? '${privateExpression.returnType} dvBackendFn$i(${privateExpression.parameters})$modifier {\n$qualifiedPrivateExpression\n}'
             : '${privateExpression.returnType} dvBackendFn$i(${privateExpression.parameters})$modifier => $qualifiedPrivateExpression;';
         File(p.join(backendOut.path, 'dartvel_backend_fn$i.g.dart'))
-            .writeAsStringSync(_loweredFunctionLibrary(
-          source: src,
-          sourcePath: abs,
-          relative: rel,
-          packageName: fnFiles[i].packageName,
-          sourceImport: importPath,
-          qualified: qualifiedPrivateExpression != privateBodySource,
-          function: function,
-          outDir: backendOut.path,
-        ));
+            .writeAsStringSync(
+              _loweredFunctionLibrary(
+                source: src,
+                sourcePath: abs,
+                relative: rel,
+                packageName: fnFiles[i].packageName,
+                sourceImport: importPath,
+                qualified: qualifiedPrivateExpression != privateBodySource,
+                function: function,
+                outDir: backendOut.path,
+              ),
+            );
         backendImports.add("import 'dartvel_backend_fn$i.g.dart' as bf$i;");
       } else {
         // 1) Try to find a function whose name matches the sanitized filename
         final regCandidate = RegExp(
-            r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?' +
-                RegExp.escape(funcCandidate) +
-                r'\s*\(([^)]*)\)\s*(?:async\*?|sync\*)?\s*(?:=>|\{)',
-            multiLine: true);
+          r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?' +
+              RegExp.escape(funcCandidate) +
+              r'\s*\(([^)]*)\)\s*(?:async\*?|sync\*)?\s*(?:=>|\{)',
+          multiLine: true,
+        );
         final RegExpMatch? mm = regCandidate.firstMatch(src);
         // Try also to capture return type for typed API generation
         try {
           final regCandidateTyped = RegExp(
-              r'^\s*([A-Za-z_][\w<>, ?]*)\s+' +
-                  RegExp.escape(funcCandidate) +
-                  r'\s*\(([^)]*)\)',
-              multiLine: true);
+            r'^\s*([A-Za-z_][\w<>, ?]*)\s+' +
+                RegExp.escape(funcCandidate) +
+                r'\s*\(([^)]*)\)',
+            multiLine: true,
+          );
           final mt = regCandidateTyped.firstMatch(src);
           if (mt != null) {
             rtype = (mt.group(1) ?? '').trim();
@@ -629,17 +658,21 @@ class BackendGenerator {
 
         if (mm != null) {
           typedName = funcCandidate;
-          RouteUtils.extractParams(mm.group(1) ?? '', collect,
-            onNamed: (v) => tnamed = v);
+          RouteUtils.extractParams(
+            mm.group(1) ?? '',
+            collect,
+            onNamed: (v) => tnamed = v,
+          );
         } else if (hasHandler) {
           // Defer to `handler(...)` style; leave untyped so router uses fN.handler
           typedName = '';
         } else {
           // 2) Fallback: detect the first top-level function declaration in the file (skip keywords)
           final regAnyFn = RegExp(
-              r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?([A-Za-z_]\w*)\s*\(([^)]*)\)\s*'
-              r'(?:async\*?|sync\*)?\s*(?:=>|\{)',
-              multiLine: true);
+            r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?([A-Za-z_]\w*)\s*\(([^)]*)\)\s*'
+            r'(?:async\*?|sync\*)?\s*(?:=>|\{)',
+            multiLine: true,
+          );
           const reserved = {
             'if',
             'for',
@@ -652,22 +685,26 @@ class BackendGenerator {
             'catch',
             'on',
             'do',
-            'else'
+            'else',
           };
           for (final m2 in regAnyFn.allMatches(src)) {
             final name = (m2.group(1) ?? '').trim();
             if (name.isEmpty || reserved.contains(name)) continue;
             typedName = name;
-            RouteUtils.extractParams(m2.group(2) ?? '', collect,
-            onNamed: (v) => tnamed = v);
+            RouteUtils.extractParams(
+              m2.group(2) ?? '',
+              collect,
+              onNamed: (v) => tnamed = v,
+            );
             break;
           }
           // Fallback return type, if not captured yet
           if (rtype.isEmpty) {
             final regAnyTyped = RegExp(
-                r'^\s*([A-Za-z_][\w<>, ?]*)?\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*'
-                r'(?:async\*?|sync\*)?\s*(?:=>|\{)',
-                multiLine: true);
+              r'^\s*([A-Za-z_][\w<>, ?]*)?\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*'
+              r'(?:async\*?|sync\*)?\s*(?:=>|\{)',
+              multiLine: true,
+            );
             final m = regAnyTyped.firstMatch(src);
             if (m != null) rtype = (m.group(1) ?? 'dynamic').trim();
           }
@@ -720,7 +757,8 @@ class BackendGenerator {
         'policyAction': dvBackendPolicyIsAction(src) ? '1' : '0',
         // The second factor the function declares, as the expression the
         // gate evaluates. An mfa: this cannot read stops the build.
-        'mfa': dvMfaFromSource(src, annotation: 'DVBackendFunction', rel: rel) ??
+        'mfa':
+            dvMfaFromSource(src, annotation: 'DVBackendFunction', rel: rel) ??
             '',
         // Where it was declared, for a refusal that has to name the file.
         'rel': rel,
@@ -772,20 +810,20 @@ class BackendGenerator {
     final List<String> routeActions = <String>{
       for (final Map<String, String> e in backendEntries)
         if (e['policyAction'] == '1') e['policy']!,
-    }.toList()
-      ..sort();
-    File(p.join(libClientDir.path, 'backend_policies.g.dart')).writeAsStringSync(
-      _registrationsSource(
-        library: 'dartvel_client_backend_policies',
-        function: 'dartvelRegisterBackendPolicies',
-        registration: 'registerDeclared',
-        withResources: true,
-        policies: <_DVFoundPolicy>[
-          for (final _DVFoundPolicy found in policies)
-            if (found.clientOnlyBecause == null) found,
-        ],
-      ),
-    );
+    }.toList()..sort();
+    File(p.join(libClientDir.path, 'backend_policies.g.dart'))
+        .writeAsStringSync(
+          _registrationsSource(
+            library: 'dartvel_client_backend_policies',
+            function: 'dartvelRegisterBackendPolicies',
+            registration: 'registerDeclared',
+            withResources: true,
+            policies: <_DVFoundPolicy>[
+              for (final _DVFoundPolicy found in policies)
+                if (found.clientOnlyBecause == null) found,
+            ],
+          ),
+        );
     for (final _DVFoundPolicy found in policies) {
       if (found.clientOnlyBecause == null) continue;
       stderr.writeln(
@@ -837,7 +875,9 @@ class BackendGenerator {
     // The models' tables, as the model generator wrote them down, for the
     // server to make on SQLite before it serves. Carried in the generated
     // source because a compiled server has no project beside it to read.
-    final File schemaFile = File(p.join(root, '.dart_tool', 'dartvel_schema.g.json'));
+    final File schemaFile = File(
+      p.join(root, '.dart_tool', 'dartvel_schema.g.json'),
+    );
     Object? schemaTables = const <Object?>[];
     if (schemaFile.existsSync()) {
       final Object? decoded = jsonDecode(schemaFile.readAsStringSync());
@@ -850,12 +890,14 @@ class BackendGenerator {
     // declarations DV.Webhooks.emit refuses to send without, in the envelope
     // and with the signature dartvel.webhooks selects. Written into the
     // client and served at /asyncapi.json, as OpenAPI is.
-    final String asyncApiJson = encodeAsyncApiDocument(buildAsyncApiDocument(
-      title: pkgName,
-      version: pubspecVersion,
-      events: webhookEvents,
-      config: webhooks,
-    ));
+    final String asyncApiJson = encodeAsyncApiDocument(
+      buildAsyncApiDocument(
+        title: pkgName,
+        version: pubspecVersion,
+        events: webhookEvents,
+        config: webhooks,
+      ),
+    );
     File(p.join(libClientDir.path, 'asyncapi.g.dart')).writeAsStringSync('''
 // GENERATED – do not edit.
 library dartvel_client_asyncapi;
@@ -890,8 +932,9 @@ $openApiJson\'\'\';
     // dartvel.seo.favicon: what a model page wears when neither the model
     // nor its module named one. Null emits null, which leaves the shell's.
     final String? seoFavicon = _dvSeoFavicon(root);
-    final String applicationFavicon =
-        seoFavicon == null ? 'null' : "'${esc(seoFavicon)}'";
+    final String applicationFavicon = seoFavicon == null
+        ? 'null'
+        : "'${esc(seoFavicon)}'";
     final DVServerOptions server = dvServerOptions(root);
     // dartvel.api.graphql: the budgets, introspection policy and
     // persisted-query mode /graphql answers under, installed in
@@ -948,11 +991,19 @@ $openApiJson\'\'\';
     final DVRuntimePackage? telegramProvider = !telegram
         ? null
         : dvRuntimePackages(root)
-            .where((DVRuntimePackage package) =>
-                package.serverImport != null && package.authProviders.containsKey('telegram'))
-            .firstOrNull;
+              .where(
+                (DVRuntimePackage package) =>
+                    package.serverImport != null &&
+                    package.authProviders.containsKey('telegram'),
+              )
+              .firstOrNull;
     if (telegram && telegramProvider == null) {
-      throw FormatException(dvRuntimeRefusal('telegram', because: 'pubspec.yaml sets dartvel.telegram'));
+      throw FormatException(
+        dvRuntimeRefusal(
+          'telegram',
+          because: 'pubspec.yaml sets dartvel.telegram',
+        ),
+      );
     }
     final bool authenticates = platformApi != null;
     final bool studioOff = _dvStudioDeclaredOff(root);
@@ -977,23 +1028,31 @@ $openApiJson\'\'\';
     final String cspAssignment = csp == null
         ? ''
         : "\n  core.DVMiddlewareSettings.contentSecurityPolicy = "
-            "'${esc(csp)}';";
+              "'${esc(csp)}';";
 
     // Every mounted module's models, for Studio beside the application's:
     // embedded and backend-only modules, whose data this backend serves, and
     // only once the module's own client is generated.
     final List<(String, String)> studioModules = <(String, String)>[
-      for (final (int i, DVModuleMount mount)
-          in dvDiscoverModuleMounts(root).indexed)
+      for (final (int i, DVModuleMount mount) in dvDiscoverModuleMounts(
+        root,
+      ).indexed)
         if (mount.mounted &&
             (mount.deployment == DVModuleDeployment.embedded ||
                 mount.deployment == DVModuleDeployment.backendOnly) &&
-            File(p.join(root, mount.sourcePath, 'lib', 'dartvel_client',
-                    'model_pages.g.dart'))
-                .existsSync())
+            File(
+              p.join(
+                root,
+                mount.sourcePath,
+                'lib',
+                'dartvel_client',
+                'model_pages.g.dart',
+              ),
+            ).existsSync())
           (mount.packageName, 'dvStudioModule$i'),
     ];
-    final backendRoutes = '''
+    final backendRoutes =
+        '''
 // GENERATED – do not edit.
 // ignore_for_file: unused_element
 import 'dart:async';
@@ -1302,252 +1361,209 @@ dv.Router buildBackendRouter() {
 ${graphqlOptions?.installSource ?? ''}  final router = dv.Router();
 ${_dvAuthRouteSource()}  bool _hasHealth = false;
 ${backendEntries.map((e) {
-      final path = esc(e['path'] ?? '');
-      // The address the route is registered at: a rawPath as written, outside
-      // the API base path, or the generated path with any suffix.
-      final String rawPath = e['rawPath'] ?? '';
-      // Raw HTTP exposure, for callers that are not this application's
-      // pages: no session cookie is read and no CSRF token is asked for.
-      final bool rawExposure =
-          rawPath.isNotEmpty || (e['rawPathSuffix'] ?? '').isNotEmpty;
-      final String routeTarget = rawPath.isNotEmpty
-          ? "'${esc(rawPath)}'"
-          : "cfg.apiBasePath + '$path${esc(e['rawPathSuffix'] ?? '')}'";
-      final method = e['method']!;
-      final i = e['i']!;
-      final typed = e['typed'] ?? '';
-      final invocation = e['invocation'] ?? 'f$i.$typed';
+          final path = esc(e['path'] ?? '');
+          // The address the route is registered at: a rawPath as written, outside
+          // the API base path, or the generated path with any suffix.
+          final String rawPath = e['rawPath'] ?? '';
+          // Raw HTTP exposure, for callers that are not this application's
+          // pages: no session cookie is read and no CSRF token is asked for.
+          final bool rawExposure = rawPath.isNotEmpty || (e['rawPathSuffix'] ?? '').isNotEmpty;
+          final String routeTarget = rawPath.isNotEmpty ? "'${esc(rawPath)}'" : "cfg.apiBasePath + '$path${esc(e['rawPathSuffix'] ?? '')}'";
+          final method = e['method']!;
+          final i = e['i']!;
+          final typed = e['typed'] ?? '';
+          final invocation = e['invocation'] ?? 'f$i.$typed';
 
-      // The declared middleware, wrapped around the handler rather than
-      // emitted inside it: a refusal has to answer before the function runs,
-      // and the headers securityHeaders resolves have to reach a response
-      // that exists, which they never did while the chain put them in a map
-      // nothing downstream read.
-      final List<String> middlewareKeys = (e['middleware'] ?? '')
-          .split(' ')
-          .where((String key) => key.isNotEmpty)
-          .toList(growable: false);
-      // Tracing wraps everything, including the chain. A request refused by
-      // a rate limit is still a request, and a trace that only covers the
-      // ones that got through is a latency graph with the slow half missing.
-      //
-      // The helper existed, was tested, and was wired to nothing -- the key
-      // named it and the generator had never heard of either.
-      final bool traces = middlewareKeys.contains('tracing');
-      final List<String> chainKeys = middlewareKeys
-          .where((String key) => key != 'tracing')
-          .toList(growable: false);
+          // The declared middleware, wrapped around the handler rather than
+          // emitted inside it: a refusal has to answer before the function runs,
+          // and the headers securityHeaders resolves have to reach a response
+          // that exists, which they never did while the chain put them in a map
+          // nothing downstream read.
+          final List<String> middlewareKeys = (e['middleware'] ?? '').split(' ').where((String key) => key.isNotEmpty).toList(growable: false);
+          // Tracing wraps everything, including the chain. A request refused by
+          // a rate limit is still a request, and a trace that only covers the
+          // ones that got through is a latency graph with the slow half missing.
+          //
+          // The helper existed, was tested, and was wired to nothing -- the key
+          // named it and the generator had never heard of either.
+          final bool traces = middlewareKeys.contains('tracing');
+          final List<String> chainKeys = middlewareKeys.where((String key) => key != 'tracing').toList(growable: false);
 
-      // Built rather than written out for each combination: a miscounted
-      // bracket here is a generated file that does not parse, and the error
-      // names a line nobody wrote.
-      //
-      // The innermost closure is always the handler body. Each wrapper adds
-      // one `)` to the close, and the router call adds the last one. The
-      // traced closure takes the request again under the same name, so the
-      // body reads `req` whether it is traced or not.
-      final StringBuffer open = StringBuffer('(dv.Request req) => ');
-      int wrappers = 0;
-      // The tenant this request named, current for everything below --
-      // the chain, the policy gate and the handler.
-      //
-      // On every route, not only the ones that listed
-      // DVMiddlewares.tenant, because a tenant-scoped model does not care
-      // what the route declared. And outermost, because the chain is async
-      // too: the locale middleware asks this tenant for its default
-      // language.
-      //
-      // What this replaced was a write to a process-wide field. A server
-      // has more than one request in flight and Dart hands the isolate over
-      // at every await, so the next request to arrive decided what this
-      // handler read from there -- and the query still returned rows, of
-      // somebody else's tenant.
-      //
-      // Each layer is a call taking the next as a closure, outermost first,
-      // and the last closure is the handler body. The authentication stage
-      // sits inside tracing, so a refused credential is still a traced
-      // request, and outside the declared chain, so a route's middleware
-      // runs knowing who is calling.
-      final List<(String, String)> layers = <(String, String)>[
-        ('core.dvWithRequestTenant(req, ', '()'),
-        // The request's Sec-GPC header, read once here rather than wherever
-        // somebody remembers to ask. It is an opt-out of sale and sharing
-        // that a business has to honour without asking again, and a route
-        // that never opens the scope answers normally, collects normally,
-        // and shows no symptom at all.
-        ('core.dvWithRequestPrivacy(req, ', '()'),
-        if (traces)
-          ('core.dvTraced(dvapi.DV.ObservabilityAndLogging.tracer, req, ',
-              '(dv.Request req)'),
-        // On every route, with or without dartvel.platformApi: the
-        // application's own sessions authenticate here too.
-        (rawExposure
-            ? '_dvAuthenticated(req, cookies: false, '
-            : '_dvAuthenticated(req, ',
-            '()'),
-        if (chainKeys.isNotEmpty)
-          (
-            '_dvGuarded(req, const <String>['
-                "${chainKeys.map((String k) => "'$k'").join(', ')}"
-                '], ',
-            '()'
-          ),
-      ];
-      for (int layer = 0; layer < layers.length; layer++) {
-        final (String call, String parameters) = layers[layer];
-        open
-          ..write(call)
-          ..write(parameters)
-          ..write(layer == layers.length - 1 ? ' async {' : ' => ');
-        wrappers++;
-      }
+          // Built rather than written out for each combination: a miscounted
+          // bracket here is a generated file that does not parse, and the error
+          // names a line nobody wrote.
+          //
+          // The innermost closure is always the handler body. Each wrapper adds
+          // one `)` to the close, and the router call adds the last one. The
+          // traced closure takes the request again under the same name, so the
+          // body reads `req` whether it is traced or not.
+          final StringBuffer open = StringBuffer('(dv.Request req) => ');
+          int wrappers = 0;
+          // The tenant this request named, current for everything below --
+          // the chain, the policy gate and the handler.
+          //
+          // On every route, not only the ones that listed
+          // DVMiddlewares.tenant, because a tenant-scoped model does not care
+          // what the route declared. And outermost, because the chain is async
+          // too: the locale middleware asks this tenant for its default
+          // language.
+          //
+          // What this replaced was a write to a process-wide field. A server
+          // has more than one request in flight and Dart hands the isolate over
+          // at every await, so the next request to arrive decided what this
+          // handler read from there -- and the query still returned rows, of
+          // somebody else's tenant.
+          //
+          // Each layer is a call taking the next as a closure, outermost first,
+          // and the last closure is the handler body. The authentication stage
+          // sits inside tracing, so a refused credential is still a traced
+          // request, and outside the declared chain, so a route's middleware
+          // runs knowing who is calling.
+          final List<(String, String)> layers = <(String, String)>[
+            ('core.dvWithRequestTenant(req, ', '()'),
+            // The request's Sec-GPC header, read once here rather than wherever
+            // somebody remembers to ask. It is an opt-out of sale and sharing
+            // that a business has to honour without asking again, and a route
+            // that never opens the scope answers normally, collects normally,
+            // and shows no symptom at all.
+            ('core.dvWithRequestPrivacy(req, ', '()'),
+            if (traces) ('core.dvTraced(dvapi.DV.ObservabilityAndLogging.tracer, req, ', '(dv.Request req)'),
+            // On every route, with or without dartvel.platformApi: the
+            // application's own sessions authenticate here too.
+            (rawExposure ? '_dvAuthenticated(req, cookies: false, ' : '_dvAuthenticated(req, ', '()'),
+            if (chainKeys.isNotEmpty) ('_dvGuarded(req, const <String>['
+                  "${chainKeys.map((String k) => "'$k'").join(', ')}"
+                  '], ', '()'),
+          ];
+          for (int layer = 0; layer < layers.length; layer++) {
+            final (String call, String parameters) = layers[layer];
+            open
+              ..write(call)
+              ..write(parameters)
+              ..write(layer == layers.length - 1 ? ' async {' : ' => ');
+            wrappers++;
+          }
 
-      // Always at least the tenant scope, so there is no unwrapped form of
-      // a route left to fall back to.
-      final String handlerOpen = open.toString();
-      final String handlerClose = '  }${')' * wrappers});';
+          // Always at least the tenant scope, so there is no unwrapped form of
+          // a route left to fall back to.
+          final String handlerOpen = open.toString();
+          final String handlerClose = '  }${')' * wrappers});';
 
-      // The declared body limits, read once where the router is built and
-      // handed to the native server as well as to the check in the handler.
-      //
-      // The native server reads the body before any Dart runs, so a limit
-      // only the handler knows is checked after the whole body is already in
-      // memory. Registered on the route, the server refuses past it without
-      // buffering, and an upload route reads past the server's limit without
-      // every route doing so. Read once rather than per request, so the two
-      // cannot disagree: a DVBodyLimits changed after the backend starts
-      // would otherwise be checked in Dart and not by the server.
-      final bool limitsBody = middlewareKeys.contains('bodyLimit');
-      final bool limitsUpload = middlewareKeys.contains('uploadLimit');
-      final String limitDeclarations = <String>[
-        if (limitsBody) '  final int _dvBodyLimit$i = core.DVBodyLimits.body;\n',
-        if (limitsUpload)
-          '  final int _dvUploadLimit$i = core.DVBodyLimits.upload;\n',
-      ].join();
-      // Both declared is the larger for the server; the check below still
-      // holds a body that is not multipart to the smaller.
-      final String routeLimit = limitsBody && limitsUpload
-          ? '_dvUploadLimit$i > _dvBodyLimit$i ? _dvUploadLimit$i : _dvBodyLimit$i'
-          : limitsUpload
+          // The declared body limits, read once where the router is built and
+          // handed to the native server as well as to the check in the handler.
+          //
+          // The native server reads the body before any Dart runs, so a limit
+          // only the handler knows is checked after the whole body is already in
+          // memory. Registered on the route, the server refuses past it without
+          // buffering, and an upload route reads past the server's limit without
+          // every route doing so. Read once rather than per request, so the two
+          // cannot disagree: a DVBodyLimits changed after the backend starts
+          // would otherwise be checked in Dart and not by the server.
+          final bool limitsBody = middlewareKeys.contains('bodyLimit');
+          final bool limitsUpload = middlewareKeys.contains('uploadLimit');
+          final String limitDeclarations = <String>[if (limitsBody) '  final int _dvBodyLimit$i = core.DVBodyLimits.body;\n', if (limitsUpload) '  final int _dvUploadLimit$i = core.DVBodyLimits.upload;\n'].join();
+          // Both declared is the larger for the server; the check below still
+          // holds a body that is not multipart to the smaller.
+          final String routeLimit = limitsBody && limitsUpload
+              ? '_dvUploadLimit$i > _dvBodyLimit$i ? _dvUploadLimit$i : _dvBodyLimit$i'
+              : limitsUpload
               ? '_dvUploadLimit$i'
               : limitsBody
-                  ? '_dvBodyLimit$i'
-                  : '';
-      final String routeClose = routeLimit.isEmpty
-          ? handlerClose
-          : '  }${')' * wrappers}, maxBodyBytes: $routeLimit);';
+              ? '_dvBodyLimit$i'
+              : '';
+          final String routeClose = routeLimit.isEmpty ? handlerClose : '  }${')' * wrappers}, maxBodyBytes: $routeLimit);';
 
-      final String policy = e['policy'] ?? '';
-      // The declared second factor, asked before the policy: whether the
-      // session proves enough is an authentication question, and a policy is
-      // asked about a caller once that is settled.
-      final String mfa = e['mfa'] ?? '';
-      final String mfaGate = mfa.isEmpty
-          ? ''
-          : '\n    {'
-              '\n      final _dvStepUp = core.DVAuthEndpoints.requireMfa($mfa);'
-              '\n      if (_dvStepUp != null) return _dvStepUp;'
-              '\n    }';
-      // A route that declares no policy action is one no scope can cover, so
-      // a request authenticated with an API key or OAuth token is refused
-      // there rather than run with a caller nothing checked.
-      final String policyGate = policy.isEmpty
-          ? (authenticates
-              ? '\n    if (core.DVApiPrincipal.current != null) '
-                  "return _dvPolicyForbidden('no declared policy action');"
-              : '')
-          // A Resource.action is asked of the registry the @DVPolicy classes
-          // were registered in; a reference names no action, so only the
-          // application's decide can answer it.
-          : e['policyAction'] == '1'
+          final String policy = e['policy'] ?? '';
+          // The declared second factor, asked before the policy: whether the
+          // session proves enough is an authentication question, and a policy is
+          // asked about a caller once that is settled.
+          final String mfa = e['mfa'] ?? '';
+          final String mfaGate = mfa.isEmpty ? '' : '\n    {'
+                    '\n      final _dvStepUp = core.DVAuthEndpoints.requireMfa($mfa);'
+                    '\n      if (_dvStepUp != null) return _dvStepUp;'
+                    '\n    }';
+          // A route that declares no policy action is one no scope can cover, so
+          // a request authenticated with an API key or OAuth token is refused
+          // there rather than run with a caller nothing checked.
+          final String policyGate = policy.isEmpty
+              ? (authenticates ? '\n    if (core.DVApiPrincipal.current != null) '
+                          "return _dvPolicyForbidden('no declared policy action');" : '')
+              // A Resource.action is asked of the registry the @DVPolicy classes
+              // were registered in; a reference names no action, so only the
+              // application's decide can answer it.
+              : e['policyAction'] == '1'
               // 401 when nobody authenticated and the policy needs a caller,
               // 403 for every other refusal.
               ? "\n    switch (await core.DVBackendPolicy.checkAction('$policy', req.url.path)) {"
-                  '\n      case core.DVPolicyDecision.allowed:'
-                  '\n        break;'
-                  '\n      case core.DVPolicyDecision.unauthenticated:'
-                  '\n        return _dvUnauthenticated();'
-                  '\n      case core.DVPolicyDecision.forbidden:'
-                  "\n        return _dvPolicyForbidden('$policy');"
-                  '\n    }'
+                    '\n      case core.DVPolicyDecision.allowed:'
+                    '\n        break;'
+                    '\n      case core.DVPolicyDecision.unauthenticated:'
+                    '\n        return _dvUnauthenticated();'
+                    '\n      case core.DVPolicyDecision.forbidden:'
+                    "\n        return _dvPolicyForbidden('$policy');"
+                    '\n    }'
               : "\n    if (!await _dvAllowed('$policy', req)) "
-                  "return _dvPolicyForbidden('$policy');";
+                    "return _dvPolicyForbidden('$policy');";
 
-      final tparams =
-          (e['tparams'] ?? '').split(',').where((s) => s.isNotEmpty).toList();
-      final ttypes = (e['ttypes'] ?? '').split(',');
-      final tnamed = e['tnamed'] == '1';
+          final tparams = (e['tparams'] ?? '').split(',').where((s) => s.isNotEmpty).toList();
+          final ttypes = (e['ttypes'] ?? '').split(',');
+          final tnamed = e['tnamed'] == '1';
 
-      final argList = <String>[];
-      for (var idx = 0; idx < tparams.length; idx++) {
-        final pn = tparams[idx];
-        final pt = idx < ttypes.length ? ttypes[idx] : '';
-        final expr = RouteUtils.coerce(pn, pt);
-        argList.add(tnamed ? ('$pn: $expr') : expr);
-      }
-      // The injected context, first and positional, ahead of whatever the
-      // client supplied.
-      final bool injectsContext = e['ctx'] == '1';
-      final callArgs =
-          (injectsContext ? <String>['_dvCtx', ...argList] : argList)
-              .join(', ');
-      // Built per request, because the lifecycle it carries is this
-      // request's. Only where a function asked: a context nothing reads is a
-      // cost on every request for the functions that did not.
-      final String contextPrelude = injectsContext
-          ? '\n    final _dvLifecycle = '
-              'core.DVMutableLifecycleSignal<core.DVRequestLifecycle>('
-              'core.DVRequestLifecycle.received);'
-              '\n    final _dvCtx = core.DVContext(requestLifecycle: '
-              '_dvLifecycle);'
-              '\n    _dvLifecycle.set(core.DVRequestLifecycle.executing);'
-              '\n    var _dvCommitted = false;'
-          : '';
-      // After the function returns and before the response is encoded. Not
-      // completed: the body may be a stream this handler no longer owns, and
-      // reporting a request complete while it is still sending would be a
-      // state that lies rather than one that is missing.
-      final String contextDone = injectsContext
-          ? '\n      _dvLifecycle.set('
-              'core.DVRequestLifecycle.preparingResponse);'
-              // The hooks the function registered on its context. The context
-              // is per request and not a DV.transaction, so without this
-              // afterCommit and compensate filled lists nothing read. Marked
-              // committed first: after-commit work that throws cannot undo a
-              // function that already succeeded.
-              '\n      _dvCommitted = true;'
-              '\n      await core.dvCommitContext(_dvCtx);'
-          : '';
-      final String contextFailed = injectsContext
-          ? '      _dvLifecycle.set(core.DVRequestLifecycle.failed);'
-              '\n      if (!_dvCommitted) {'
-              '\n        for (final _dvFailure in await core.dvCompensateContext(_dvCtx)) {'
-              "\n          stderr.writeln('[dartvel backend] compensation failed: \$_dvFailure');"
-              '\n        }'
-              '\n      }'
-          : '';
+          final argList = <String>[];
+          for (var idx = 0; idx < tparams.length; idx++) {
+            final pn = tparams[idx];
+            final pt = idx < ttypes.length ? ttypes[idx] : '';
+            final expr = RouteUtils.coerce(pn, pt);
+            argList.add(tnamed ? ('$pn: $expr') : expr);
+          }
+          // The injected context, first and positional, ahead of whatever the
+          // client supplied.
+          final bool injectsContext = e['ctx'] == '1';
+          final callArgs = (injectsContext ? <String>['_dvCtx', ...argList] : argList).join(', ');
+          // Built per request, because the lifecycle it carries is this
+          // request's. Only where a function asked: a context nothing reads is a
+          // cost on every request for the functions that did not.
+          final String contextPrelude = injectsContext ? '\n    final _dvLifecycle = '
+                    'core.DVMutableLifecycleSignal<core.DVRequestLifecycle>('
+                    'core.DVRequestLifecycle.received);'
+                    '\n    final _dvCtx = core.DVContext(requestLifecycle: '
+                    '_dvLifecycle);'
+                    '\n    _dvLifecycle.set(core.DVRequestLifecycle.executing);'
+                    '\n    var _dvCommitted = false;' : '';
+          // After the function returns and before the response is encoded. Not
+          // completed: the body may be a stream this handler no longer owns, and
+          // reporting a request complete while it is still sending would be a
+          // state that lies rather than one that is missing.
+          final String contextDone = injectsContext ? '\n      _dvLifecycle.set('
+                    'core.DVRequestLifecycle.preparingResponse);'
+                    // The hooks the function registered on its context. The context
+                    // is per request and not a DV.transaction, so without this
+                    // afterCommit and compensate filled lists nothing read. Marked
+                    // committed first: after-commit work that throws cannot undo a
+                    // function that already succeeded.
+                    '\n      _dvCommitted = true;'
+                    '\n      await core.dvCommitContext(_dvCtx);' : '';
+          final String contextFailed = injectsContext ? '      _dvLifecycle.set(core.DVRequestLifecycle.failed);'
+                    '\n      if (!_dvCommitted) {'
+                    '\n        for (final _dvFailure in await core.dvCompensateContext(_dvCtx)) {'
+                    "\n          stderr.writeln('[dartvel backend] compensation failed: \$_dvFailure');"
+                    '\n        }'
+                    '\n      }' : '';
 
-      final bool takesOnlyRequest = tparams.length == 1 &&
-          !tnamed &&
-          (ttypes[0].trim() == 'Request' ||
-              ttypes[0].trim() == 'RequestType' ||
-              ttypes[0].trim() == 'dv.Request' ||
-              ttypes[0].trim() == 'core.Request');
-      final bool isRawHandler = typed.isEmpty || takesOnlyRequest;
+          final bool takesOnlyRequest = tparams.length == 1 && !tnamed && (ttypes[0].trim() == 'Request' || ttypes[0].trim() == 'RequestType' || ttypes[0].trim() == 'dv.Request' || ttypes[0].trim() == 'core.Request');
+          final bool isRawHandler = typed.isEmpty || takesOnlyRequest;
 
-      if (isRawHandler) {
-        // A raw handler owns the request, so there is no body prelude and no
-        // argument to decode. It still has to be guarded: a policy declared
-        // on one of these was read, recorded and never emitted, so
-        // @DVBackendFunction(policy: ...) on a raw handler was a route
-        // anybody could call.
-        // No shortcut for the plainest raw handler any more. It used to be
-        // registered bare, which meant the one kind of route that reads the
-        // request itself ran with no tenant scope around it.
-        final String rawCall = typed.isEmpty
-            ? 'await f$i.handler(req)'
-            : 'await $invocation($callArgs)';
-        return '''$limitDeclarations  router.$method($routeTarget, $handlerOpen$mfaGate$policyGate$contextPrelude
+          if (isRawHandler) {
+            // A raw handler owns the request, so there is no body prelude and no
+            // argument to decode. It still has to be guarded: a policy declared
+            // on one of these was read, recorded and never emitted, so
+            // @DVBackendFunction(policy: ...) on a raw handler was a route
+            // anybody could call.
+            // No shortcut for the plainest raw handler any more. It used to be
+            // registered bare, which meant the one kind of route that reads the
+            // request itself ran with no tenant scope around it.
+            final String rawCall = typed.isEmpty ? 'await f$i.handler(req)' : 'await $invocation($callArgs)';
+            return '''$limitDeclarations  router.$method($routeTarget, $handlerOpen$mfaGate$policyGate$contextPrelude
     try {
       final result = $rawCall;$contextDone
       if (result is dv.Response) return result;
@@ -1560,27 +1576,26 @@ $contextFailed
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
     }
 $routeClose''';
-      }
-      // The declared body limit, enforced where the body is read.
-      //
-      // bodyLimit and uploadLimit cannot be middleware in the ordinary
-      // sense: the chain runs around the handler, and by the time it has
-      // anything to say the body is already in memory. A limit that arrives
-      // after the read is not a limit. So the check is emitted here, and
-      // only for a route that asked -- one on every route would refuse the
-      // upload endpoint nobody limited.
-      // Declaring both means each shape gets its own number, which is the
-      // point of there being two: a JSON body of several megabytes is a
-      // mistake, and an upload of several megabytes is the feature. The
-      // numbers are the ones registered with the server above.
-      final String limitExpr = limitsBody && limitsUpload
-          ? "ct.contains('multipart/form-data') "
-              '? _dvUploadLimit$i : _dvBodyLimit$i'
-          : limitsUpload
+          }
+          // The declared body limit, enforced where the body is read.
+          //
+          // bodyLimit and uploadLimit cannot be middleware in the ordinary
+          // sense: the chain runs around the handler, and by the time it has
+          // anything to say the body is already in memory. A limit that arrives
+          // after the read is not a limit. So the check is emitted here, and
+          // only for a route that asked -- one on every route would refuse the
+          // upload endpoint nobody limited.
+          // Declaring both means each shape gets its own number, which is the
+          // point of there being two: a JSON body of several megabytes is a
+          // mistake, and an upload of several megabytes is the feature. The
+          // numbers are the ones registered with the server above.
+          final String limitExpr = limitsBody && limitsUpload
+              ? "ct.contains('multipart/form-data') "
+                    '? _dvUploadLimit$i : _dvBodyLimit$i'
+              : limitsUpload
               ? '_dvUploadLimit$i'
               : '_dvBodyLimit$i';
-      final String readBody = limitsBody || limitsUpload
-          ? '''        final _dvLimit = $limitExpr;
+          final String readBody = limitsBody || limitsUpload ? '''        final _dvLimit = $limitExpr;
         if (core.dvDeclaredTooLarge(
             contentLength: req.headers.get('content-length'),
             limit: _dvLimit)) {
@@ -1591,13 +1606,12 @@ $routeClose''';
         if (ct.contains('multipart/form-data')) {
           body = await _parseMultipart(Stream<List<int>>.value(_dvBody), ct);
         } else {
-          final raw = conv.utf8.decode(_dvBody, allowMalformed: true);'''
-          : '''        if (ct.contains('multipart/form-data')) {
+          final raw = conv.utf8.decode(_dvBody, allowMalformed: true);''' : '''        if (ct.contains('multipart/form-data')) {
           body = await _parseMultipart(req.body.stream, ct);
         } else {
           final raw = await req.body.text();''';
 
-      final requestPrelude = '''    Object? body;
+          final requestPrelude = '''    Object? body;
     try {
       if (req.method != 'GET' && req.method != 'HEAD') {
         final ct = req.headers.get('content-type') ?? '';
@@ -1613,13 +1627,13 @@ $readBody
       }
     } catch (e) { /* ignore body read errors */ }${rawExposure ? '' : "\n    if (${authenticates ? 'core.DVApiPrincipal.current == null && ' : ''}!_dvValidateCsrf(req, body)) return _dvCsrfForbidden();"}''';
 
-      // The policy gate, after the body is read so CSRF still runs first and
-      // before the function is called. Emitted per route rather than wrapped
-      // around the router, because a policy belongs to one function and a
-      // middleware that guessed which would be the same silence again.
-      if (path == '/health' && method.toLowerCase() == 'get') {
-        return "  _hasHealth = true;\n"
-            '''$limitDeclarations  router.$method($routeTarget, $handlerOpen
+          // The policy gate, after the body is read so CSRF still runs first and
+          // before the function is called. Emitted per route rather than wrapped
+          // around the router, because a policy belongs to one function and a
+          // middleware that guessed which would be the same silence again.
+          if (path == '/health' && method.toLowerCase() == 'get') {
+            return "  _hasHealth = true;\n"
+                '''$limitDeclarations  router.$method($routeTarget, $handlerOpen
 $requestPrelude$mfaGate$policyGate$contextPrelude
     try {
       Object? result = await $invocation($callArgs);$contextDone
@@ -1651,8 +1665,8 @@ $contextFailed
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
     }
 $routeClose''';
-      }
-      return '''$limitDeclarations  router.$method($routeTarget, $handlerOpen
+          }
+          return '''$limitDeclarations  router.$method($routeTarget, $handlerOpen
 $requestPrelude$mfaGate$policyGate$contextPrelude
     try {
       Object? result = await $invocation($callArgs);$contextDone
@@ -1684,7 +1698,7 @@ $contextFailed
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
     }
 $routeClose''';
-    }).join('\n')}
+        }).join('\n')}
   if (!_hasHealth) {
     // Public, because a load balancer asks it with no credential. A credential
     // that is presented is still judged, so a bad one is refused here as it is
@@ -2370,8 +2384,10 @@ Future<void> main(List<String> arguments) async {
     // wall-clock stamp, which changed on every build whether or not the
     // backend had; a hash of the routes the server runs changes exactly when
     // they do.
-    final String backendHash =
-        sha256.convert(utf8.encode(backendRoutes)).toString().substring(0, 16);
+    final String backendHash = sha256
+        .convert(utf8.encode(backendRoutes))
+        .toString()
+        .substring(0, 16);
     File(p.join(backendOut.path, 'dartvel_backend.g.dart'))
         .writeAsStringSync('''
 // GENERATED – do not edit.
@@ -2421,15 +2437,18 @@ class DartvelClient {
 }
 ''');
     sbClient.writeln(
-        "final String _dvCsrfToken = (() { try { return const DVCSRF().token(); } catch (_) { final random = math.Random.secure(); const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; return String.fromCharCodes(List<int>.generate(32, (_) => alphabet.codeUnitAt(random.nextInt(alphabet.length)))); } })();");
+      "final String _dvCsrfToken = (() { try { return const DVCSRF().token(); } catch (_) { final random = math.Random.secure(); const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; return String.fromCharCodes(List<int>.generate(32, (_) => alphabet.codeUnitAt(random.nextInt(alphabet.length)))); } })();",
+    );
     sbClient.writeln(
-        'bool _dvRequiresCsrf(String method) => const DVCSRF().requiresValidation(method);');
+      'bool _dvRequiresCsrf(String method) => const DVCSRF().requiresValidation(method);',
+    );
     sbClient.writeln(
-        'Map<String, String> _dvHeadersWithCsrf(String method, Map<String, String> headers) { if (!_dvRequiresCsrf(method)) return headers; return {...headers, DVCSRF.headerName: headers[DVCSRF.headerName] ?? _dvCsrfToken}; }');
+      'Map<String, String> _dvHeadersWithCsrf(String method, Map<String, String> headers) { if (!_dvRequiresCsrf(method)) return headers; return {...headers, DVCSRF.headerName: headers[DVCSRF.headerName] ?? _dvCsrfToken}; }',
+    );
     sbClient.writeln(
-        'Object? _dvPayloadWithCsrf(String method, Object? payload) { if (!_dvRequiresCsrf(method)) return payload; if (payload is DartvelFormData) { payload.fields.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return payload; } if (payload is Map<Object?, Object?>) { final copy = Map<String, Object?>.from(payload); copy.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return copy; } return payload; }');
-    sbClient.writeln(
-        '''
+      'Object? _dvPayloadWithCsrf(String method, Object? payload) { if (!_dvRequiresCsrf(method)) return payload; if (payload is DartvelFormData) { payload.fields.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return payload; } if (payload is Map<Object?, Object?>) { final copy = Map<String, Object?>.from(payload); copy.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return copy; } return payload; }',
+    );
+    sbClient.writeln('''
 /// Encodes a payload for the wire, and reports the content type it used.
 ///
 /// The shape decides the encoding: multipart for a form, urlencoded when the
@@ -2600,37 +2619,44 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           '${hasParams ? ('${names.map((n) => '$n: $n').join(', ')}, ') : ''}query: query, body: body, headers: headers';
 
       sbClient.writeln('Future<DVHttpResponse> $fname($sig) async {');
-      sbClient
-          .writeln("  String routePath = '${esc(clientPath)}';");
+      sbClient.writeln("  String routePath = '${esc(clientPath)}';");
       sbClient.writeln('  final Map<String, Object?> pp = $paramMap;');
       sbClient.writeln(
-          "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
+        "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });",
+      );
       sbClient.writeln('  final base = $runtimeUrl(routePath);');
       if (method == 'get' || method == 'head') {
         sbClient.writeln('  final q = <String, String>{};');
         sbClient.writeln(
-            '  if (query != null) { query.forEach((k, v) { q[k] = v?.toString() ?? ""; }); }');
+          '  if (query != null) { query.forEach((k, v) { q[k] = v?.toString() ?? ""; }); }',
+        );
         sbClient.writeln('  final uri = base.replace(queryParameters: q);');
         sbClient.writeln(
-            "  return _dvRequest('$method', uri, data: body, headers: headers);");
+          "  return _dvRequest('$method', uri, data: body, headers: headers);",
+        );
       } else {
         sbClient.writeln('  final fb = <String, Object?>{};');
         sbClient.writeln(
-            '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }');
+          '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }',
+        );
         sbClient.writeln('  final uri = base;');
         sbClient.writeln(
-            '  final reqHeaders = <String,String>{...(headers ?? const {})};');
+          '  final reqHeaders = <String,String>{...(headers ?? const {})};',
+        );
         if (method == 'post') {
           // Enforce multipart form-data for all generated POST endpoints
           sbClient.writeln(
-              '  final reqPayload = (body is DartvelFormData) ? body : (body == null ? DartvelFormData.fromMap(fb) : (body is Map<Object?, Object?> ? DartvelFormData.fromMap(Map<String, Object?>.from(body)) : body));');
+            '  final reqPayload = (body is DartvelFormData) ? body : (body == null ? DartvelFormData.fromMap(fb) : (body is Map<Object?, Object?> ? DartvelFormData.fromMap(Map<String, Object?>.from(body)) : body));',
+          );
         } else {
           // Other non-GET methods: honor provided payload, fall back to simple map
           sbClient.writeln(
-              '  final reqPayload = (body is DartvelFormData) ? body : (body ?? fb);');
+            '  final reqPayload = (body is DartvelFormData) ? body : (body ?? fb);',
+          );
         }
         sbClient.writeln(
-            "  return _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);");
+          "  return _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);",
+        );
       }
       sbClient.writeln('}');
       sbClient.writeln('');
@@ -2644,15 +2670,18 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
       // Typed variant using a mapper
       sbClient.writeln(
-          'Future<T> ${fname}As<T>(T Function(Object?) fromJson, $sig) async {');
+        'Future<T> ${fname}As<T>(T Function(Object?) fromJson, $sig) async {',
+      );
       sbClient.writeln('  final r = await $fname($argsNamed);');
       sbClient.writeln('  return fromJson(r.data);');
       sbClient.writeln('}');
       sbClient.writeln('');
 
       // API-style typed wrapper returning backend return type, using typed function params
-      final tparams =
-          (e['tparams'] ?? '').split(',').where((s) => s.isNotEmpty).toList();
+      final tparams = (e['tparams'] ?? '')
+          .split(',')
+          .where((s) => s.isNotEmpty)
+          .toList();
       final ttypes = (e['ttypes'] ?? '').split(',');
       final rtype = (e['rtype'] ?? '').trim();
       final clientReturnType = _clientReturnType(rtype);
@@ -2672,7 +2701,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         }
         if (tparams.isNotEmpty) bufSig.write(', ');
         bufSig.write(
-            'Map<String, Object?>? query, Object? body, Map<String, String>? headers }');
+          'Map<String, Object?>? query, Object? body, Map<String, String>? headers }',
+        );
         final sigApi = bufSig.toString();
 
         // Determine which typed params are dynamic path segments.
@@ -2682,8 +2712,9 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
             .where((p) => colonNames.contains(p))
             .map((p) => "'$p': $p")
             .join(', ');
-        final ppExpr =
-            (ppPairs.isEmpty) ? 'const <String, Object?>{}' : '{ $ppPairs }';
+        final ppExpr = (ppPairs.isEmpty)
+            ? 'const <String, Object?>{}'
+            : '{ $ppPairs }';
         // build form body map merging provided query + typed params not in path (for non-GET)
         final qpLines = <String>[];
         for (var j = 0; j < tparams.length; j++) {
@@ -2692,7 +2723,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           final pType = (j < ttypes.length ? ttypes[j] : '').trim();
           if (pType.startsWith('List<String')) {
             qpLines.add(
-                "qq['$pName'] = ($pName).map((e)=>e.toString()).join(',');");
+              "qq['$pName'] = ($pName).map((e)=>e.toString()).join(',');",
+            );
           } else {
             qpLines.add("qq['$pName'] = ($pName).toString();");
           }
@@ -2707,8 +2739,9 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
             for (var i2 = 0; i2 < tparams.length; i2++)
               if (i2 < ttypes.length) ttypes[i2],
           ]) {
-            for (final RegExpMatch m
-                in RegExp(r'[A-Za-z_$][\w$]*').allMatches(type)) {
+            for (final RegExpMatch m in RegExp(
+              r'[A-Za-z_$][\w$]*',
+            ).allMatches(type)) {
               if (declaredModels.contains(m.group(0))) {
                 clientModelTypes.add(m.group(0)!);
               }
@@ -2716,29 +2749,33 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           }
         }
         if (abs.isNotEmpty && rel.isNotEmpty) {
-          clientTypeImports.addAll(dvClientTypeImports(
-            source: e['src'] ?? '',
-            sourcePath: abs,
-            projectRoot: abs.substring(0, abs.length - rel.length),
-            packageName: e['pkg'] ?? pkgName,
-            types: <String>[
-              clientReturnType,
-              for (var i2 = 0; i2 < tparams.length; i2++)
-                if (i2 < ttypes.length) ttypes[i2],
-            ],
-          ));
+          clientTypeImports.addAll(
+            dvClientTypeImports(
+              source: e['src'] ?? '',
+              sourcePath: abs,
+              projectRoot: abs.substring(0, abs.length - rel.length),
+              packageName: e['pkg'] ?? pkgName,
+              types: <String>[
+                clientReturnType,
+                for (var i2 = 0; i2 < tparams.length; i2++)
+                  if (i2 < ttypes.length) ttypes[i2],
+              ],
+            ),
+          );
         }
 
         final hasDvBackendFn =
             (e['src'] ?? '').contains('@DVBackendFunction') ||
-                (e['src'] ?? '').contains('@dvBackendFunction');
+            (e['src'] ?? '').contains('@dvBackendFunction');
         final fnameApi = (hasDvBackendFn && e['typed']!.isNotEmpty)
             ? e['typed']!
             : '${fname}Api';
         final String? clash = routeFunctionNames[fnameApi];
         if (clash != null) {
           final String bare = fnameApi.replaceFirst(
-              RegExp(r'^(get|post|put|patch|delete|head|options)'), '');
+            RegExp(r'^(get|post|put|patch|delete|head|options)'),
+            '',
+          );
           final String suggestion = bare.isEmpty
               ? '${fnameApi}Value'
               : '${bare[0].toLowerCase()}${bare.substring(1)}';
@@ -2779,22 +2816,25 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           final convExprStream = convStream(innerType);
           if (convExprStream.isEmpty) {
             final sigApiMapper = sigApi.replaceFirst(
-                ' }', ', required $innerType Function(Object?) fromJson }');
+              ' }',
+              ', required $innerType Function(Object?) fromJson }',
+            );
             sbClient.writeln('Stream<$innerType> $fnameApi($sigApiMapper) {');
           } else {
             sbClient.writeln('Stream<$innerType> $fnameApi($sigApi) {');
           }
 
-          sbClient.writeln(
-              "  String routePath = '${esc(clientPath)}';");
+          sbClient.writeln("  String routePath = '${esc(clientPath)}';");
           sbClient.writeln('  final Map<String, Object?> pp = $ppExpr;');
           sbClient.writeln(
-              "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
+            "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });",
+          );
           sbClient.writeln('  final base = $runtimeUrl(routePath);');
           final qp = StringBuffer();
           qp.writeln('  final qq = <String, String>{};');
           qp.writeln(
-              "  if (query != null) { query.forEach((k, v) { qq[k] = v?.toString() ?? ''; }); }");
+            "  if (query != null) { query.forEach((k, v) { qq[k] = v?.toString() ?? ''; }); }",
+          );
           if (qpAdd.isNotEmpty) qp.writeln('  $qpAdd');
           sbClient.writeln(qp.toString());
           sbClient.writeln('  final fb = <String, Object?>{};');
@@ -2805,28 +2845,35 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
             }
           }
           sbClient.writeln(
-              '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }');
+            '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }',
+          );
           final isGetOrHead =
               method.toUpperCase() == 'GET' || method.toUpperCase() == 'HEAD';
           sbClient.writeln(
-              "  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};");
+            "  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};",
+          );
           sbClient.writeln(
-              '  final reqHeaders = headers ?? const <String, String>{};');
+            '  final reqHeaders = headers ?? const <String, String>{};',
+          );
           if (isGetOrHead) {
             sbClient.writeln('  final reqPayload = body;');
           } else if (method == 'post') {
             sbClient.writeln(
-                '  final reqPayload = (body is DartvelFormData) ? body : (body == null ? DartvelFormData.fromMap(fb) : (body is Map<Object?, Object?> ? DartvelFormData.fromMap(Map<String, Object?>.from(body)) : body));');
+              '  final reqPayload = (body is DartvelFormData) ? body : (body == null ? DartvelFormData.fromMap(fb) : (body is Map<Object?, Object?> ? DartvelFormData.fromMap(Map<String, Object?>.from(body)) : body));',
+            );
           } else {
             sbClient.writeln(
-                '  final reqPayload = (body is DartvelFormData) ? body : (body ?? fb);');
+              '  final reqPayload = (body is DartvelFormData) ? body : (body ?? fb);',
+            );
           }
           if (convExprStream.isEmpty) {
             sbClient.writeln(
-                "  return _dvStream<$innerType>(uri, fromJson, method: '$method', data: reqPayload, headers: reqHeaders);");
+              "  return _dvStream<$innerType>(uri, fromJson, method: '$method', data: reqPayload, headers: reqHeaders);",
+            );
           } else {
             sbClient.writeln(
-                "  return _dvStream<$innerType>(uri, $convExprStream, method: '$method', data: reqPayload, headers: reqHeaders);");
+              "  return _dvStream<$innerType>(uri, $convExprStream, method: '$method', data: reqPayload, headers: reqHeaders);",
+            );
           }
           sbClient.writeln('}');
           sbClient.writeln('');
@@ -2878,25 +2925,30 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           final convExpr = conv(clientReturnType);
           if (convExpr.isEmpty) {
             // Custom type – require a mapper
-            final sigApiMapper = sigApi.replaceFirst(' }',
-                ', required $clientReturnType Function(Object?) fromJson }');
+            final sigApiMapper = sigApi.replaceFirst(
+              ' }',
+              ', required $clientReturnType Function(Object?) fromJson }',
+            );
             sbClient.writeln(
-                'Future<$clientReturnType> $fnameApi($sigApiMapper) async {');
+              'Future<$clientReturnType> $fnameApi($sigApiMapper) async {',
+            );
           } else {
             sbClient.writeln(
-                'Future<$clientReturnType> $fnameApi($sigApi) async {');
+              'Future<$clientReturnType> $fnameApi($sigApi) async {',
+            );
           }
-          sbClient.writeln(
-              "  String routePath = '${esc(clientPath)}';");
+          sbClient.writeln("  String routePath = '${esc(clientPath)}';");
           sbClient.writeln('  final Map<String, Object?> pp = $ppExpr;');
           sbClient.writeln(
-              "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
+            "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });",
+          );
           sbClient.writeln('  final base = $runtimeUrl(routePath);');
           // Build both query and form bodies; choose at runtime per method
           final qp = StringBuffer();
           qp.writeln('  final qq = <String, String>{};');
           qp.writeln(
-              "  if (query != null) { query.forEach((k, v) { qq[k] = v?.toString() ?? ''; }); }");
+            "  if (query != null) { query.forEach((k, v) { qq[k] = v?.toString() ?? ''; }); }",
+          );
           if (qpAdd.isNotEmpty) qp.writeln('  $qpAdd');
           sbClient.writeln(qp.toString());
           sbClient.writeln('  final fb = <String, Object?>{};');
@@ -2907,24 +2959,30 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
             }
           }
           sbClient.writeln(
-              '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }');
+            '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }',
+          );
           final isGetOrHead =
               method.toUpperCase() == 'GET' || method.toUpperCase() == 'HEAD';
           sbClient.writeln(
-              "  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};");
+            "  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};",
+          );
           sbClient.writeln(
-              '  final reqHeaders = headers ?? const <String, String>{};');
+            '  final reqHeaders = headers ?? const <String, String>{};',
+          );
           if (isGetOrHead) {
             sbClient.writeln('  final reqPayload = body;');
           } else if (method == 'post') {
             sbClient.writeln(
-                '  final reqPayload = (body is DartvelFormData) ? body : (body == null ? DartvelFormData.fromMap(fb) : (body is Map<Object?, Object?> ? DartvelFormData.fromMap(Map<String, Object?>.from(body)) : body));');
+              '  final reqPayload = (body is DartvelFormData) ? body : (body == null ? DartvelFormData.fromMap(fb) : (body is Map<Object?, Object?> ? DartvelFormData.fromMap(Map<String, Object?>.from(body)) : body));',
+            );
           } else {
             sbClient.writeln(
-                '  final reqPayload = (body is DartvelFormData) ? body : (body ?? fb);');
+              '  final reqPayload = (body is DartvelFormData) ? body : (body ?? fb);',
+            );
           }
           sbClient.writeln(
-              "  final r = await _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);");
+            "  final r = await _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);",
+          );
           if (convExpr.isEmpty) {
             sbClient.writeln('  return fromJson(r.data);');
           } else {
@@ -2944,36 +3002,46 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     // the framework import and taken from the models.
     final List<String> modelTypes = clientModelTypes.toList()..sort();
     String clientBody = sbClient.toString().replaceFirst(
-        coreImport,
-        (modelTypes.isEmpty
-                ? coreImport
-                : "import 'package:dartvel_core/dartvel.dart'"
+      coreImport,
+      (modelTypes.isEmpty
+              ? coreImport
+              : "import 'package:dartvel_core/dartvel.dart'"
                     "${dvHideModelNames(modelTypes)};\n"
                     "import 'models.g.dart' show ${modelTypes.join(', ')};") +
-            (clientTypeImports.toList()..sort())
-                .map((String uri) => "\nimport '$uri';")
-                .join());
+          (clientTypeImports.toList()..sort())
+              .map((String uri) => "\nimport '$uri';")
+              .join(),
+    );
     if (modelTypes.isNotEmpty) {
       clientBody = clientBody.replaceFirst(
-          '// ignore_for_file: unused_element',
-          '// ignore_for_file: unused_element, $dvUndefinedHiddenName');
+        '// ignore_for_file: unused_element',
+        '// ignore_for_file: unused_element, $dvUndefinedHiddenName',
+      );
     }
-    const runtimeSymbols = <String>['DartvelRuntime', 'dartvelBaseUrl',
-        'dartvelApiBase', 'DartvelConfigRuntime'];
-    final needsRuntime =
-        runtimeSymbols.any((String symbol) => clientBody.contains(symbol));
+    const runtimeSymbols = <String>[
+      'DartvelRuntime',
+      'dartvelBaseUrl',
+      'dartvelApiBase',
+      'DartvelConfigRuntime',
+    ];
+    final needsRuntime = runtimeSymbols.any(
+      (String symbol) => clientBody.contains(symbol),
+    );
     final clientSource = needsRuntime
-        ? clientBody.replaceFirst("import 'dart:convert';",
-            "import 'dart:convert';\nimport 'dartvel_runtime.dart';")
+        ? clientBody.replaceFirst(
+            "import 'dart:convert';",
+            "import 'dart:convert';\nimport 'dartvel_runtime.dart';",
+          )
         : clientBody;
     File(p.join(libClientDir.path, 'functions.g.dart'))
         .writeAsStringSync(clientSource);
-    File(p.join(libClientDir.path, 'schedules.g.dart'))
-        .writeAsStringSync(await _generateSchedules(
-      root: root,
-      pkgName: pkgName,
-      backendDir: backendDir,
-    ));
+    File(p.join(libClientDir.path, 'schedules.g.dart')).writeAsStringSync(
+      await _generateSchedules(
+        root: root,
+        pkgName: pkgName,
+        backendDir: backendDir,
+      ),
+    );
     File(p.join(libClientDir.path, 'policies.g.dart')).writeAsStringSync(
       _registrationsSource(
         library: 'dartvel_client_policies',
@@ -2989,17 +3057,20 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     // imports the one above, and a client schedule declared on a page would
     // pull Flutter into a server with no dart:ui.
     File(p.join(libClientDir.path, 'client_schedules.g.dart'))
-        .writeAsStringSync(await _generateClientSchedules(
-      root: root,
-      pkgName: pkgName,
-      backendDir: backendDir,
-    ));
-    File(p.join(libClientDir.path, 'ai_tools.g.dart'))
-        .writeAsStringSync(await _generateAITools(
-      root: root,
-      pkgName: pkgName,
-      backendDir: backendDir,
-    ));
+        .writeAsStringSync(
+          await _generateClientSchedules(
+            root: root,
+            pkgName: pkgName,
+            backendDir: backendDir,
+          ),
+        );
+    File(p.join(libClientDir.path, 'ai_tools.g.dart')).writeAsStringSync(
+      await _generateAITools(
+        root: root,
+        pkgName: pkgName,
+        backendDir: backendDir,
+      ),
+    );
 
     // Update .gitignore to exclude generated files (idempotent)
     final gitignore = File(p.join(root, '.gitignore'));
@@ -3010,8 +3081,9 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       '/.dart_tool/dartvel_backend_routes.g.dart',
     };
     try {
-      final lines =
-          gitignore.existsSync() ? gitignore.readAsLinesSync() : <String>[];
+      final lines = gitignore.existsSync()
+          ? gitignore.readAsLinesSync()
+          : <String>[];
       final set = {...lines};
       var changed = false;
       for (final l in desired) {
@@ -3023,7 +3095,9 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       if (changed) gitignore.writeAsStringSync('${lines.join('\n')}\n');
     } catch (_) {}
 
-    log('dartvel: generated lib/dartvel_client/* and .dart_tool/dartvel_backend*.g.dart');
+    log(
+      'dartvel: generated lib/dartvel_client/* and .dart_tool/dartvel_backend*.g.dart',
+    );
   }
 
   /// The client half, in its own file.
@@ -3060,7 +3134,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       // a starter that starts nothing, so dart:async and the core barrel are
       // there for the file's shape rather than for its body.
       ..writeln(
-          '// ignore_for_file: unused_element, unused_import, directives_ordering')
+        '// ignore_for_file: unused_element, unused_import, directives_ordering',
+      )
       ..writeln('library dartvel_client_client_schedules;')
       ..writeln()
       ..writeln("import 'dart:async';")
@@ -3072,8 +3147,10 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       // in dartvel_flutter, and importing it is exactly why the client
       // schedules are a file of their own rather than lines in the one the
       // generated server reads.
-      sb.writeln("import 'package:dartvel_flutter/dartvel_flutter.dart' "
-          "show DV, DVAppLifecycle, DVShowingPages;");
+      sb.writeln(
+        "import 'package:dartvel_flutter/dartvel_flutter.dart' "
+        "show DV, DVAppLifecycle, DVShowingPages;",
+      );
     }
     for (final MapEntry<String, String> import in aliasByImport.entries) {
       sb.writeln("import '${esc(import.key)}' as ${import.value};");
@@ -3087,18 +3164,24 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln('/// entry is a startup failure and not a job that quietly')
       ..writeln('/// never runs.');
     if (clientCron.isEmpty) {
-      sb.writeln('const Map<String, Future<void> Function()> '
-          'dartvelClientCronHandlers = '
-          '<String, Future<void> Function()>{};');
+      sb.writeln(
+        'const Map<String, Future<void> Function()> '
+        'dartvelClientCronHandlers = '
+        '<String, Future<void> Function()>{};',
+      );
     } else {
-      sb.writeln('final Map<String, Future<void> Function()> '
-          'dartvelClientCronHandlers = '
-          '<String, Future<void> Function()>{');
+      sb.writeln(
+        'final Map<String, Future<void> Function()> '
+        'dartvelClientCronHandlers = '
+        '<String, Future<void> Function()>{',
+      );
       for (final _CronEntry entry in clientCron) {
         final String alias = aliasByImport[entry.importUri]!;
-        sb.writeln("  '${esc(entry.name)}': () async { "
-            '${entry.returnsPlainVoid ? '' : 'await '}'
-            '$alias.${entry.name}(); },');
+        sb.writeln(
+          "  '${esc(entry.name)}': () async { "
+          '${entry.returnsPlainVoid ? '' : 'await '}'
+          '$alias.${entry.name}(); },',
+        );
       }
       sb.writeln('};');
     }
@@ -3148,7 +3231,9 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln('  Timer? timer;')
       ..writeln('  StreamSubscription<DVAppLifecycle>? lifecycle;')
       ..writeln('  void tickEvery() {')
-      ..writeln('    timer ??= Timer.periodic(every, (Timer _) => scheduler.tick());')
+      ..writeln(
+        '    timer ??= Timer.periodic(every, (Timer _) => scheduler.tick());',
+      )
       ..writeln('  }')
       ..writeln('  void pause() {')
       ..writeln('    timer?.cancel();')
@@ -3159,11 +3244,15 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       // and a widget test that built the router ended with the timer still
       // running.
       ..writeln('  // Runs while a page is on screen. Registering again -- a')
-      ..writeln('  // second router -- replaces this rather than adding a second')
+      ..writeln(
+        '  // second router -- replaces this rather than adding a second',
+      )
       ..writeln('  // timer, so no schedule runs twice.')
       ..writeln("  DVShowingPages.run('dartvel.clientSchedules', start: () {")
       ..writeln('    tickEvery();')
-      ..writeln('    lifecycle ??= DV.lifecycle.app.listen((DVAppLifecycle state) {')
+      ..writeln(
+        '    lifecycle ??= DV.lifecycle.app.listen((DVAppLifecycle state) {',
+      )
       ..writeln('      switch (state) {')
       ..writeln('        case DVAppLifecycle.ready:')
       ..writeln('        case DVAppLifecycle.resuming:')
@@ -3196,16 +3285,22 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
   /// disagree with this one. [file] is relative to [root], including for a
   /// schedule a mounted module contributes.
   static Future<
-      List<({String name, String cron, bool client, String file, bool? catchUp})>>
-      cronSchedules({required String root, required String pkgName}) async {
+    List<({String name, String cron, bool client, String file, bool? catchUp})>
+  >
+  cronSchedules({required String root, required String pkgName}) async {
     final String backendDir = dvProjectBackendDir(root);
     final Map<String, String> projectRoots = <String, String>{
       for (final project in _mergedProjects(root, pkgName, backendDir))
         project.packageName: project.root,
     };
-    final entries =
-        await _cronEntries(root: root, pkgName: pkgName, backendDir: backendDir);
-    return <({String name, String cron, bool client, String file, bool? catchUp})>[
+    final entries = await _cronEntries(
+      root: root,
+      pkgName: pkgName,
+      backendDir: backendDir,
+    );
+    return <
+      ({String name, String cron, bool client, String file, bool? catchUp})
+    >[
       for (final _CronEntry entry in entries)
         (
           name: entry.name,
@@ -3234,10 +3329,13 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     final entries = <_CronEntry>[];
     for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir)) {
       final source = await file.readAsString();
-      final relativePath =
-          p.relative(file.path, from: project.root).replaceAll('\\', '/');
+      final relativePath = p
+          .relative(file.path, from: project.root)
+          .replaceAll('\\', '/');
       final importUri = relativePath.replaceFirst(
-          RegExp(r'^lib/'), 'package:${project.packageName}/');
+        RegExp(r'^lib/'),
+        'package:${project.packageName}/',
+      );
       _collectCronEntries(
         source: source,
         relativePath: relativePath,
@@ -3277,12 +3375,17 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir)) {
       final String source = await file.readAsString();
       if (!source.contains('@DVPolicy(')) continue;
-      final String relativePath =
-          p.relative(file.path, from: project.root).replaceAll('\\', '/');
+      final String relativePath = p
+          .relative(file.path, from: project.root)
+          .replaceAll('\\', '/');
       final String importUri = relativePath.replaceFirst(
-          RegExp(r'^lib/'), 'package:${project.packageName}/');
-      final List<DVPolicyClass> classes =
-          dvPolicyClassesIn(source, relativePath);
+        RegExp(r'^lib/'),
+        'package:${project.packageName}/',
+      );
+      final List<DVPolicyClass> classes = dvPolicyClassesIn(
+        source,
+        relativePath,
+      );
       if (classes.isEmpty) continue;
       final String? reached = JobGenerator.flutterReachedFrom(
         file.path,
@@ -3290,13 +3393,15 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         pkgName: project.packageName,
       );
       for (final DVPolicyClass policy in classes) {
-        found.add(_DVFoundPolicy(
-          importUri: importUri,
-          resourceShape: dvResourceShapeIn(source, policy.resource),
-          shownPath: p.relative(file.path, from: root).replaceAll('\\', '/'),
-          policy: policy,
-          clientOnlyBecause: reached,
-        ));
+        found.add(
+          _DVFoundPolicy(
+            importUri: importUri,
+            resourceShape: dvResourceShapeIn(source, policy.resource),
+            shownPath: p.relative(file.path, from: root).replaceAll('\\', '/'),
+            policy: policy,
+            clientOnlyBecause: reached,
+          ),
+        );
       }
     }
     return found;
@@ -3318,7 +3423,9 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     for (final _DVFoundPolicy found in policies) {
       for (final DVPolicyMethod method in found.policy.methods) {
         (found.clientOnlyBecause == null ? server : clientOnly).putIfAbsent(
-            '${found.policy.resource}.${method.action}', () => found);
+          '${found.policy.resource}.${method.action}',
+          () => found,
+        );
       }
     }
     for (final Map<String, String> entry in entries) {
@@ -3376,7 +3483,9 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
     final StringBuffer sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
-      ..writeln('// ignore_for_file: unused_import, unused_element, directives_ordering')
+      ..writeln(
+        '// ignore_for_file: unused_import, unused_element, directives_ordering',
+      )
       ..writeln('library $library;')
       ..writeln()
       ..writeln("import 'package:dartvel_core/dartvel.dart';");
@@ -3410,11 +3519,14 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         continue;
       }
       sb.writeln(
-          '  final $alias.${policy.className} $variable = '
-          '$alias.${policy.className}();');
+        '  final $alias.${policy.className} $variable = '
+        '$alias.${policy.className}();',
+      );
       for (final DVPolicyMethod method in policy.methods) {
-        sb.writeln("  const DVAuthAuthorization()"
-            ".$registration('${esc(method.action)}', $variable.${method.action});");
+        sb.writeln(
+          "  const DVAuthAuthorization()"
+          ".$registration('${esc(method.action)}', $variable.${method.action});",
+        );
       }
     }
     sb.writeln('}');
@@ -3440,10 +3552,12 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       final DVResourceShape? shape = found.resourceShape;
       if (shape == null) continue;
       final String alias = aliasByImport[found.importUri]!;
-      final String arguments = shape.parameters.map((DVResourceParameter p) {
-        final String read = _dvResourceRead(p);
-        return p.named ? '${p.name}: $read' : read;
-      }).join(', ');
+      final String arguments = shape.parameters
+          .map((DVResourceParameter p) {
+            final String read = _dvResourceRead(p);
+            return p.named ? '${p.name}: $read' : read;
+          })
+          .join(', ');
       builders.putIfAbsent(
         found.policy.resource,
         () => '$alias.${found.policy.resource}($arguments)',
@@ -3464,11 +3578,21 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     sb
       ..writeln('};')
       ..writeln()
-      ..writeln(r"String _dvString(Object? v) => v is String ? v : v == null ? throw ArgumentError.notNull('value') : '$v';")
-      ..writeln(r"int _dvInt(Object? v) => v is int ? v : v is num ? v.toInt() : int.parse('$v');")
-      ..writeln(r"double _dvDouble(Object? v) => v is num ? v.toDouble() : double.parse('$v');")
-      ..writeln("bool _dvBool(Object? v) => v == true || v == 1 || v == '1' || v == 'true';")
-      ..writeln(r"DateTime _dvDateTime(Object? v) => v is DateTime ? v : DateTime.parse('$v');");
+      ..writeln(
+        r"String _dvString(Object? v) => v is String ? v : v == null ? throw ArgumentError.notNull('value') : '$v';",
+      )
+      ..writeln(
+        r"int _dvInt(Object? v) => v is int ? v : v is num ? v.toInt() : int.parse('$v');",
+      )
+      ..writeln(
+        r"double _dvDouble(Object? v) => v is num ? v.toDouble() : double.parse('$v');",
+      )
+      ..writeln(
+        "bool _dvBool(Object? v) => v == true || v == 1 || v == '1' || v == 'true';",
+      )
+      ..writeln(
+        r"DateTime _dvDateTime(Object? v) => v is DateTime ? v : DateTime.parse('$v');",
+      );
   }
 
   static String _dvResourceRead(DVResourceParameter parameter) {
@@ -3484,8 +3608,9 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       'DateTime' => '_dvDateTime',
       _ => null,
     };
-    final String read =
-        convert == null ? '$value as ${parameter.type}' : '$convert($value)';
+    final String read = convert == null
+        ? '$value as ${parameter.type}'
+        : '$convert($value)';
     if (convert == null || !nullable) return read;
     return '$value == null ? null : $read';
   }
@@ -3498,10 +3623,13 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     final entries = <_CronEntry>[];
     for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir)) {
       final source = await file.readAsString();
-      final relativePath =
-          p.relative(file.path, from: project.root).replaceAll('\\', '/');
+      final relativePath = p
+          .relative(file.path, from: project.root)
+          .replaceAll('\\', '/');
       final importUri = relativePath.replaceFirst(
-          RegExp(r'^lib/'), 'package:${project.packageName}/');
+        RegExp(r'^lib/'),
+        'package:${project.packageName}/',
+      );
       _collectCronEntries(
         source: source,
         relativePath: relativePath,
@@ -3568,15 +3696,19 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln('];')
       ..writeln()
       ..writeln(
-          'final List<DVCronEntry> dartvelBackendCronEntries = List<DVCronEntry>.unmodifiable(')
+        'final List<DVCronEntry> dartvelBackendCronEntries = List<DVCronEntry>.unmodifiable(',
+      )
       ..writeln(
-          '  dartvelCronEntries.where((entry) => entry.target == DVCronTarget.backend),')
+        '  dartvelCronEntries.where((entry) => entry.target == DVCronTarget.backend),',
+      )
       ..writeln(');')
       ..writeln()
       ..writeln(
-          'final List<DVCronEntry> dartvelClientCronEntries = List<DVCronEntry>.unmodifiable(')
+        'final List<DVCronEntry> dartvelClientCronEntries = List<DVCronEntry>.unmodifiable(',
+      )
       ..writeln(
-          '  dartvelCronEntries.where((entry) => entry.target == DVCronTarget.client),')
+        '  dartvelCronEntries.where((entry) => entry.target == DVCronTarget.client),',
+      )
       ..writeln(');');
 
     sb
@@ -3588,18 +3720,24 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln('/// is a startup failure and not a job that quietly never')
       ..writeln('/// runs.');
     if (backendCron.isEmpty) {
-      sb.writeln('const Map<String, Future<void> Function()> '
-          'dartvelBackendCronHandlers = '
-          '<String, Future<void> Function()>{};');
+      sb.writeln(
+        'const Map<String, Future<void> Function()> '
+        'dartvelBackendCronHandlers = '
+        '<String, Future<void> Function()>{};',
+      );
     } else {
-      sb.writeln('final Map<String, Future<void> Function()> '
-          'dartvelBackendCronHandlers = '
-          '<String, Future<void> Function()>{');
+      sb.writeln(
+        'final Map<String, Future<void> Function()> '
+        'dartvelBackendCronHandlers = '
+        '<String, Future<void> Function()>{',
+      );
       for (final _CronEntry entry in backendCron) {
         final String alias = cronAliasByImport[entry.importUri]!;
-        sb.writeln("  '${esc(entry.name)}': () async { "
-            '${entry.returnsPlainVoid ? '' : 'await '}'
-            '$alias.${entry.name}(); },');
+        sb.writeln(
+          "  '${esc(entry.name)}': () async { "
+          '${entry.returnsPlainVoid ? '' : 'await '}'
+          '$alias.${entry.name}(); },',
+        );
       }
       sb.writeln('};');
     }
@@ -3642,13 +3780,17 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln('  if (dartvelBackendCronEntries.isEmpty) return null;')
       // A schedule that throws is recorded as the cron process's crash, not
       // only appended to a list nothing in a served process reads.
-      ..writeln('  final DVScheduler scheduler = DVScheduler(clock: clock, lease: lease, onFailure: DVServerCrashes.recordScheduled)')
+      ..writeln(
+        '  final DVScheduler scheduler = DVScheduler(clock: clock, lease: lease, onFailure: DVServerCrashes.recordScheduled)',
+      )
       ..writeln('    ..registerAll(')
       ..writeln('      dartvelBackendCronEntries,')
       ..writeln('      handlers: dartvelBackendCronHandlers,')
       ..writeln('      catchUp: catchUp,')
       ..writeln('    );')
-      ..writeln('  return Timer.periodic(every, (Timer _) => scheduler.tick());')
+      ..writeln(
+        '  return Timer.periodic(every, (Timer _) => scheduler.tick());',
+      )
       ..writeln('}');
     return sb.toString();
   }
@@ -3662,10 +3804,13 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     final entriesByName = <String, _AIToolEntry>{};
     for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir)) {
       final source = await file.readAsString();
-      final relativePath =
-          p.relative(file.path, from: project.root).replaceAll('\\', '/');
+      final relativePath = p
+          .relative(file.path, from: project.root)
+          .replaceAll('\\', '/');
       final importUri = relativePath.replaceFirst(
-          RegExp(r'^lib/'), 'package:${project.packageName}/');
+        RegExp(r'^lib/'),
+        'package:${project.packageName}/',
+      );
       _collectAIToolEntries(
         source: source,
         relativePath: relativePath,
@@ -3760,9 +3905,9 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       if (!registrable(entry)) {
         final String why = entry.declaredName.startsWith('_')
             ? 'it is declared as ${entry.declaredName}, which is private to '
-                'its own file'
+                  'its own file'
             : 'it is declared in ${entry.relativePath}, outside the backend '
-                'this registration runs in';
+                  'this registration runs in';
         sb.writeln(
           "  // '${esc(entry.name)}' is listed and not registered: $why.",
         );
@@ -3775,17 +3920,14 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           // its siblings is two lints in every application that declares a
           // tool, and generated code has to pass the analyzer its users run.
           : 'const <String, DVJsonValue>{\n'
-              "        'type': DVJsonString('object'),\n"
-              "        'properties': DVJsonMap(<String, DVJsonValue>{\n"
-              '${[
-                  for (var i = 0; i < entry.parameterNames.length; i++)
-                    "          '${esc(entry.parameterNames[i])}': "
-                        'DVJsonMap(<String, DVJsonValue>{'
-                        "'type': DVJsonString('"
-                        "${_dvJsonSchemaType(entry.parameterTypes[i])}')}),"
-                ].join('\n')}\n'
-              '        }),\n'
-              '      }';
+                "        'type': DVJsonString('object'),\n"
+                "        'properties': DVJsonMap(<String, DVJsonValue>{\n"
+                '${[for (var i = 0; i < entry.parameterNames.length; i++) "          '${esc(entry.parameterNames[i])}': "
+                      'DVJsonMap(<String, DVJsonValue>{'
+                      "'type': DVJsonString('"
+                      "${_dvJsonSchemaType(entry.parameterTypes[i])}')}),"].join('\n')}\n'
+                '        }),\n'
+                '      }';
       final List<String> args = <String>[
         for (var i = 0; i < entry.parameterNames.length; i++)
           '${entry.named ? '${entry.parameterNames[i]}: ' : ''}'
@@ -3801,13 +3943,17 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         // Awaited only when there is a Future to await. `await f()` on a
         // plain void is an error, not a no-op.
         sb
-          ..writeln('    ${entry.returnsPlainVoid ? '' : 'await '}'
-              '$alias.${entry.name}(${args.join(', ')});')
+          ..writeln(
+            '    ${entry.returnsPlainVoid ? '' : 'await '}'
+            '$alias.${entry.name}(${args.join(', ')});',
+          )
           ..writeln('    return const DVJsonNull();');
       } else {
         sb
-          ..writeln('    final result = await $alias.${entry.name}('
-              '${args.join(', ')});')
+          ..writeln(
+            '    final result = await $alias.${entry.name}('
+            '${args.join(', ')});',
+          )
           ..writeln('    return DVJsonCodec.fromJson(result);');
       }
       sb
@@ -3825,13 +3971,17 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         ..writeln('/// A tool that quietly received 0 for a number it could')
         ..writeln('/// not read would run and be wrong, which is the failure')
         ..writeln('/// a schema exists to prevent.')
-        ..writeln('Object? _dvToolArg('
-            'Map<String, Object?> args, String name, String type) {')
+        ..writeln(
+          'Object? _dvToolArg('
+          'Map<String, Object?> args, String name, String type) {',
+        )
         ..writeln('  final value = args[name];')
         ..writeln("  if (value == null && !type.endsWith('?')) {")
         ..writeln('    throw ArgumentError.value(')
-        ..writeln('        name, name, '
-            "'is required by this tool and was not supplied');")
+        ..writeln(
+          '        name, name, '
+          "'is required by this tool and was not supplied');",
+        )
         ..writeln('  }')
         ..writeln('  if (value == null) return null;')
         ..writeln("  final base = type.replaceAll('?', '');")
@@ -3892,24 +4042,31 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     final StringBuffer out = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
       ..writeln('//')
-      ..writeln("// The backend function in $relative, with that file's imports.")
-      ..writeln('// ignore_for_file: unused_import, directives_ordering, '
-          'duplicate_import, unnecessary_import')
+      ..writeln(
+        "// The backend function in $relative, with that file's imports.",
+      )
+      ..writeln(
+        '// ignore_for_file: unused_import, directives_ordering, '
+        'duplicate_import, unnecessary_import',
+      )
       ..writeln();
     for (final RegExpMatch match in _importDirective.allMatches(source)) {
       final String uri = match.group(2)!;
-      if (JobGenerator.flutterReachedThrough(uri,
-              from: sourcePath, root: projectRoot, pkgName: packageName) !=
+      if (JobGenerator.flutterReachedThrough(
+            uri,
+            from: sourcePath,
+            root: projectRoot,
+            pkgName: packageName,
+          ) !=
           null) {
         continue;
       }
       String target = uri;
       if (!uri.startsWith('dart:') && !uri.startsWith('package:')) {
-        final String resolved =
-            p.normalize(p.join(p.dirname(sourcePath), uri));
+        final String resolved = p.normalize(p.join(p.dirname(sourcePath), uri));
         target = p.isWithin(lib, resolved)
             ? 'package:$packageName/'
-                '${p.relative(resolved, from: lib).replaceAll(r'\', '/')}'
+                  '${p.relative(resolved, from: lib).replaceAll(r'\', '/')}'
             : p.relative(resolved, from: outDir).replaceAll(r'\', '/');
       }
       out.writeln("import '$target'${match.group(3)};");
@@ -3929,7 +4086,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     String returnType,
     String parameters,
     DVFunctionBody body,
-  })? _privateBackendExpression(String source, String rel) {
+  })?
+  _privateBackendExpression(String source, String rel) {
     // Scanned over indices rather than lines. The old extractor matched a
     // single line, so a block body was refused and a multi-line expression
     // body was refused with it.
@@ -3959,8 +4117,9 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       int at = source.indexOf('\n', argsEnd);
       if (at == -1) return null;
       while (at < source.length) {
-        final int lineEnd =
-            source.indexOf('\n', at + 1) == -1 ? source.length : source.indexOf('\n', at + 1);
+        final int lineEnd = source.indexOf('\n', at + 1) == -1
+            ? source.length
+            : source.indexOf('\n', at + 1);
         final String line = source.substring(at, lineEnd).trim();
         if (line.isEmpty || line.startsWith('@')) {
           at = lineEnd;
@@ -3970,7 +4129,10 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       }
       if (at >= source.length) return null;
 
-      final Match? match = declaration.matchAsPrefix(source, _firstNonSpace(source, at));
+      final Match? match = declaration.matchAsPrefix(
+        source,
+        _firstNonSpace(source, at),
+      );
       if (match == null) {
         cursor = annotation + 1;
         continue;
@@ -4049,8 +4211,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     String expression,
     String alias,
     Set<String> symbols,
-  ) =>
-      dvQualifySourceSymbols(expression, alias, symbols);
+  ) => dvQualifySourceSymbols(expression, alias, symbols);
 
   static Future<void> _validateMiddlewareAnnotations(String root) async {
     // The whitelist used to be the whole story: nineteen names, checked for
@@ -4068,18 +4229,17 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ...dvMiddlewareKeysUnbuiltReason.keys,
     };
     final fs = const LocalFileSystem();
-    for (final entity in Glob('lib/**.dart')
-        .listFileSystemSync(fs, root: root, followLinks: false)) {
+    for (final entity in Glob(
+      'lib/**.dart',
+    ).listFileSystemSync(fs, root: root, followLinks: false)) {
       if (entity is! File) continue;
       final path = entity.path.replaceAll('\\', '/');
       if (path.contains('/lib/dartvel_client/')) continue;
       final source = await File(entity.path).readAsString();
-      final relativePath =
-          p.relative(entity.path, from: root).replaceAll('\\', '/');
-      final annotations = RegExp(
-        r'@DVUseMiddleware\s*\(\s*(?:const\s+)?(?:<\s*DVMiddlewareKey\s*>\s*)?\[(.*?)\]\s*\)',
-        dotAll: true,
-      ).allMatches(source);
+      final relativePath = p
+          .relative(entity.path, from: root)
+          .replaceAll('\\', '/');
+      final annotations = dvMiddlewareDeclarations(source);
       // A layout is a `_layout.dart` by convention, and layout-scoped
       // middleware is in the specification and implemented nowhere -- the
       // layout generator has never read this annotation. Accepting the key
@@ -4099,17 +4259,17 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         // included, and measured a page's keys against the ones written for
         // the HTTP chain. Nine of them were accepted on a page and ran
         // nothing.
-        final bool isPage = dvMiddlewareDeclaresPage(
-          source,
-          annotation.start,
-          annotation.end,
-        );
-        final body = annotation.group(1) ?? '';
+        final bool isPage = annotation.isPage;
+        final body = annotation.body;
         final constants = RegExp(r'DVMiddlewares\.([A-Za-z_][A-Za-z0-9_]*)')
             .allMatches(body)
             .map((match) => match.group(1)!)
             .toList();
-        if (constants.isEmpty && body.trim().isNotEmpty) {
+        if (dvSplitArgs(body).any(
+          (entry) =>
+              !RegExp(r'^DVMiddlewares\.[A-Za-z_][A-Za-z0-9_]*$')
+                  .hasMatch(entry.trim()),
+        )) {
           throw StateError(
             'dartvel: unsupported middleware annotation in $relativePath. '
             'Use typed DVMiddlewares constants.',
@@ -4185,20 +4345,24 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       dotAll: true,
     );
     for (final match in pattern.allMatches(source)) {
-      entries.add(_CronEntry(
-        name: match.group(4)!,
-        returnsPlainVoid:
-            _dvReturnsPlainVoid(match.group(0) ?? '', match.group(4)!),
-        cron: match.group(2)!,
-        catchUp: _cronCatchUp(
-          match.group(3),
-          annotationName: annotationName,
+      entries.add(
+        _CronEntry(
+          name: match.group(4)!,
+          returnsPlainVoid: _dvReturnsPlainVoid(
+            match.group(0) ?? '',
+            match.group(4)!,
+          ),
+          cron: match.group(2)!,
+          catchUp: _cronCatchUp(
+            match.group(3),
+            annotationName: annotationName,
+            relativePath: relativePath,
+          ),
+          target: target,
+          importUri: importUri,
           relativePath: relativePath,
         ),
-        target: target,
-        importUri: importUri,
-        relativePath: relativePath,
-      ));
+      );
     }
   }
 
@@ -4219,8 +4383,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
   }) {
     if (args == null) return null;
     if (!RegExp(r'\bcatchUp\s*:').hasMatch(args)) return null;
-    final RegExpMatch? literal =
-        RegExp(r'\bcatchUp\s*:\s*(true|false)\b').firstMatch(args);
+    final RegExpMatch? literal = RegExp(r'\bcatchUp\s*:\s*(true|false)\b')
+        .firstMatch(args);
     if (literal == null) {
       throw StateError(
         'The @$annotationName in $relativePath writes catchUp as something '
@@ -4293,9 +4457,11 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       r'(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
       r'([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)',
     );
-    for (int annotationAt = source.indexOf('@DVBackendFunction');
-        annotationAt >= 0;
-        annotationAt = source.indexOf('@DVBackendFunction', annotationAt + 1)) {
+    for (
+      int annotationAt = source.indexOf('@DVBackendFunction');
+      annotationAt >= 0;
+      annotationAt = source.indexOf('@DVBackendFunction', annotationAt + 1)
+    ) {
       final int afterName = annotationAt + '@DVBackendFunction'.length;
       if (afterName < source.length &&
           RegExp(r'[A-Za-z0-9_]').hasMatch(source[afterName])) {
@@ -4304,16 +4470,21 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       int cursor = _dvSkipAnnotationArguments(source, afterName);
       // Any further annotations between this one and the declaration.
       while (true) {
-        final Match? next = RegExp(r'\s*@[A-Za-z_][A-Za-z0-9_.]*').matchAsPrefix(source, cursor);
+        final Match? next = RegExp(r'\s*@[A-Za-z_][A-Za-z0-9_.]*')
+            .matchAsPrefix(source, cursor);
         if (next == null) break;
         cursor = _dvSkipAnnotationArguments(source, next.end);
       }
-      final Match? match = signature.matchAsPrefix(source, _dvSkipSpace(source, cursor));
+      final Match? match = signature.matchAsPrefix(
+        source,
+        _dvSkipSpace(source, cursor),
+      );
       if (match == null) continue;
       // The declaration runs from the end of whatever came before it, so an
       // annotation written above @DVBackendFunction (such as @DVAIHidden) is
       // part of it.
-      final int previousEnd = source.lastIndexOf(RegExp(r'[;}]'), annotationAt) + 1;
+      final int previousEnd =
+          source.lastIndexOf(RegExp(r'[;}]'), annotationAt) + 1;
       final String declaration = source.substring(previousEnd, match.end);
       final name = match.group(1)!;
       final publicName = name.startsWith('_') ? name.substring(1) : name;
@@ -4326,12 +4497,14 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         final descriptionMatch = RegExp(
           r'''description\s*:\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")''',
         ).firstMatch(declaration.substring(aiToolStart));
-        description = descriptionMatch?.group(1) ?? descriptionMatch?.group(2) ?? '';
+        description =
+            descriptionMatch?.group(1) ?? descriptionMatch?.group(2) ?? '';
       }
       if (!hasExplicitAITool && !exposeBackendFunctions) {
         continue;
       }
-      final finalDescription = description.isNotEmpty ? description
+      final finalDescription = description.isNotEmpty
+          ? description
           : (exposeBackendFunctions ? 'Backend function $name' : '');
       if (declaration.contains('@DVAIHidden') ||
           entriesByName.containsKey(publicName)) {
@@ -4543,19 +4716,24 @@ List<_DVBackendFunctionFile> _functionFilesIn({
   required String packageName,
   required String? owner,
 }) {
-  final Directory functions = Directory(p.join(projectRoot, backendDir, 'functions'));
+  final Directory functions = Directory(
+    p.join(projectRoot, backendDir, 'functions'),
+  );
   if (!functions.existsSync()) return const <_DVBackendFunctionFile>[];
-  final List<File> files = functions
-      .listSync(recursive: true, followLinks: false)
-      .whereType<File>()
-      .where((File file) => file.path.endsWith('.dart'))
-      .toList()
-    ..sort((File a, File b) => a.path.compareTo(b.path));
+  final List<File> files =
+      functions
+          .listSync(recursive: true, followLinks: false)
+          .whereType<File>()
+          .where((File file) => file.path.endsWith('.dart'))
+          .toList()
+        ..sort((File a, File b) => a.path.compareTo(b.path));
   return <_DVBackendFunctionFile>[
     for (final File file in files)
       _DVBackendFunctionFile(
         file: file,
-        relative: p.relative(file.path, from: projectRoot).replaceAll(r'\', '/'),
+        relative: p
+            .relative(file.path, from: projectRoot)
+            .replaceAll(r'\', '/'),
         packageName: packageName,
         backendDir: backendDir,
         owner: owner,
@@ -4583,12 +4761,14 @@ List<_DVBackendFunctionFile> _moduleFunctionFiles(String root) {
       continue;
     }
     final String projectRoot = p.join(root, mount.sourcePath);
-    files.addAll(_functionFilesIn(
-      projectRoot: projectRoot,
-      backendDir: dvProjectBackendDir(projectRoot),
-      packageName: mount.packageName,
-      owner: mount.id,
-    ));
+    files.addAll(
+      _functionFilesIn(
+        projectRoot: projectRoot,
+        backendDir: dvProjectBackendDir(projectRoot),
+        packageName: mount.packageName,
+        owner: mount.id,
+      ),
+    );
   }
   return files;
 }
@@ -4606,7 +4786,9 @@ void _refuseShadowedRoutes(List<_DVBackendFunctionFile> files) {
   for (final _DVBackendFunctionFile file in files) {
     final String base = p.basenameWithoutExtension(file.relative);
     final int dot = base.lastIndexOf('.');
-    final String method = dot == -1 ? 'post' : base.substring(dot + 1).toLowerCase();
+    final String method = dot == -1
+        ? 'post'
+        : base.substring(dot + 1).toLowerCase();
     final String path = RouteUtils.routeFromRel(file.relative, file.backendDir);
     final String key = '$method $path';
     final _DVBackendFunctionFile? first = claimed[key];
@@ -4697,8 +4879,13 @@ List<_DVMergedProject> _mergedProjects(
       continue;
     }
     final String projectRoot = p.join(root, mount.sourcePath);
-    projects.add(_DVMergedProject(
-        projectRoot, mount.packageName, dvProjectBackendDir(projectRoot)));
+    projects.add(
+      _DVMergedProject(
+        projectRoot,
+        mount.packageName,
+        dvProjectBackendDir(projectRoot),
+      ),
+    );
   }
   return projects;
 }
@@ -4708,11 +4895,10 @@ List<(_DVMergedProject, File)> _mergedLibFiles(
   String root,
   String pkgName,
   String backendDir,
-) =>
-    <(_DVMergedProject, File)>[
-      for (final project in _mergedProjects(root, pkgName, backendDir))
-        for (final file in _libFilesOf(project.root)) (project, file),
-    ];
+) => <(_DVMergedProject, File)>[
+  for (final project in _mergedProjects(root, pkgName, backendDir))
+    for (final file in _libFilesOf(project.root)) (project, file),
+];
 
 /// Every mergeable project's lib files as (project-relative path, source).
 ///
@@ -4722,21 +4908,21 @@ List<(String, String)> dvMergedLibSources(
   String root,
   String pkgName,
   String backendDir,
-) =>
-    <(String, String)>[
-      for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir))
-        (
-          p.relative(file.path, from: project.root).replaceAll('\\', '/'),
-          file.readAsStringSync(),
-        ),
-    ];
+) => <(String, String)>[
+  for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir))
+    (
+      p.relative(file.path, from: project.root).replaceAll('\\', '/'),
+      file.readAsStringSync(),
+    ),
+];
 
 /// Every Dart file under a project's `lib`, minus its own generated client.
 List<File> _libFilesOf(String projectRoot) {
   const LocalFileSystem fs = LocalFileSystem();
   final List<File> files = <File>[];
-  for (final entity in Glob('lib/**.dart')
-      .listFileSystemSync(fs, root: projectRoot, followLinks: false)) {
+  for (final entity in Glob(
+    'lib/**.dart',
+  ).listFileSystemSync(fs, root: projectRoot, followLinks: false)) {
     if (entity is! File) continue;
     if (entity.path.replaceAll(r'\', '/').contains('/lib/dartvel_client/')) {
       continue;
@@ -4753,20 +4939,20 @@ List<File> _libFilesOf(String projectRoot) {
 /// tool, and a generated handler that assigned its result would be a server
 /// that does not build.
 bool _dvReturnsNothing(String declaration, String name) => RegExp(
-      r'(?:^|[^A-Za-z0-9_])(?:void|Future<void>|FutureOr<void>)\s+'
-      '${RegExp.escape(name)}'
-      r'\s*\(',
-    ).hasMatch(declaration);
+  r'(?:^|[^A-Za-z0-9_])(?:void|Future<void>|FutureOr<void>)\s+'
+  '${RegExp.escape(name)}'
+  r'\s*\(',
+).hasMatch(declaration);
 
 /// Whether [declaration] declares [name] as returning a plain `void`.
 ///
 /// `Future<void> f(` puts a `>` between the word and the name, so this
 /// matches only the bare one -- which is the case `await` cannot be used on.
 bool _dvReturnsPlainVoid(String declaration, String name) => RegExp(
-      r'(?:^|[^A-Za-z0-9_])void\s+'
-      '${RegExp.escape(name)}'
-      r'\s*\(',
-    ).hasMatch(declaration);
+  r'(?:^|[^A-Za-z0-9_])void\s+'
+  '${RegExp.escape(name)}'
+  r'\s*\(',
+).hasMatch(declaration);
 
 /// Refuses a schedule on a private function.
 ///
@@ -4853,7 +5039,8 @@ DVWebhooksConfig _dvWebhooksConfig(String root, String pkgName) {
 /// The generated `_dartvelConfigureWebhooks`, which every role calls before
 /// application code runs. The configuration is carried as the map the build
 /// read and read again by the same reader at startup.
-String _dvWebhooksConfiguration(DVWebhooksConfig config) => '''
+String _dvWebhooksConfiguration(DVWebhooksConfig config) =>
+    '''
 /// `dartvel.webhooks` from pubspec.yaml: the envelope and signature webhook
 /// deliveries are sent in.
 void _dartvelConfigureWebhooks() {
@@ -4993,7 +5180,6 @@ DVServerOptions dvServerOptions(String root) {
   if (parsed is! YamlMap) return const DVServerOptions();
   return DVServerOptions.parse(parsed['dartvel']);
 }
-
 
 /// `dartvel.seo.favicon` from pubspec.yaml, or null.
 ///
