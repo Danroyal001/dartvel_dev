@@ -9,6 +9,24 @@ import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
 
+/// The status of autosaving in the Studio page editor.
+enum DVStudioAutosaveStatus {
+  /// No changes pending or unsaved.
+  idle,
+
+  /// Document has local unsaved modifications.
+  dirty,
+
+  /// An autosave or manual save is currently in flight.
+  saving,
+
+  /// Changes have been successfully saved to storage or server.
+  saved,
+
+  /// Last save attempt failed.
+  error,
+}
+
 /// Editing state for one page document: what is selected, what changed, and
 /// how to undo it.
 ///
@@ -36,10 +54,47 @@ class DVStudioEditorController extends ChangeNotifier {
   /// the controller and whatever attaches to it decides who may edit.
   bool readOnly;
 
+  /// Whether changes are automatically persisted to [publisher] or page store.
+  bool autosave;
+
+  /// Debounce interval before an automatic save is dispatched following mutations.
+  Duration autosaveInterval;
+
+  DVStudioAutosaveStatus _autosaveStatus = DVStudioAutosaveStatus.idle;
+  DVStudioAutosaveStatus get autosaveStatus => _autosaveStatus;
+
+  Timer? _autosaveTimer;
+  DateTime? _lastSaved;
+  DateTime? get lastSaved => _lastSaved;
+
+  bool _isDirty = false;
+  bool get isDirty => _isDirty;
+
+  bool _previewMode = false;
+
+  /// Whether interactive preview mode is active, bypassing selection chrome and
+  /// making all interactive controls, forms, and actions directly usable on canvas.
+  bool get previewMode => _previewMode;
+  set previewMode(bool value) {
+    if (_previewMode == value) return;
+    _previewMode = value;
+    if (_previewMode) {
+      _selectedId = null;
+    }
+    notifyListeners();
+  }
+
+  /// Toggles between canvas design/edit mode and interactive preview mode.
+  void togglePreview() {
+    previewMode = !previewMode;
+  }
+
   DVStudioEditorController(
     DVPageDocument document, {
     this.historyLimit = 100,
     this.readOnly = false,
+    this.autosave = true,
+    this.autosaveInterval = const Duration(seconds: 2),
   }) : _document = document;
 
   DVPageDocument get document => _document;
@@ -96,7 +151,24 @@ class DVStudioEditorController extends ChangeNotifier {
     _undo.add(snapshot);
     if (_undo.length > historyLimit) _undo.removeAt(0);
     _redo.clear();
+    _markDirty();
     notifyListeners();
+  }
+
+  void _markDirty() {
+    _isDirty = true;
+    _autosaveStatus = DVStudioAutosaveStatus.dirty;
+    if (autosave && !readOnly) {
+      _scheduleAutosave();
+    }
+  }
+
+  void _scheduleAutosave() {
+    _autosaveTimer?.cancel();
+    _autosaveTimer = Timer(autosaveInterval, () {
+      if (!_isDirty || readOnly) return;
+      unawaited(save());
+    });
   }
 
   /// Inserts [node] under [parent]. This is a drop from the palette.
@@ -268,6 +340,7 @@ class DVStudioEditorController extends ChangeNotifier {
     _document = DVPageDocument.fromJson(_undo.removeLast());
     _edits.add(DVStudioEdit.replace(_document));
     _dropDanglingSelection();
+    _markDirty();
     notifyListeners();
   }
 
@@ -277,6 +350,7 @@ class DVStudioEditorController extends ChangeNotifier {
     _document = DVPageDocument.fromJson(_redo.removeLast());
     _edits.add(DVStudioEdit.replace(_document));
     _dropDanglingSelection();
+    _markDirty();
     notifyListeners();
   }
 
@@ -317,6 +391,7 @@ class DVStudioEditorController extends ChangeNotifier {
     _undo.add(snapshot);
     if (_undo.length > historyLimit) _undo.removeAt(0);
     _redo.clear();
+    _markDirty();
     _edits.add(DVStudioEdit.replace(_document));
     notifyListeners();
   }
@@ -339,14 +414,31 @@ class DVStudioEditorController extends ChangeNotifier {
 
   /// Persists the document, which publishes it -- or hands it to
   /// [publisher], which decides.
-  Future<void> save() {
-    final Future<void> Function(DVPageDocument document)? publish = publisher;
-    if (publish != null) return publish(_document);
-    return const DVPageStore().save(_document);
+  Future<void> save() async {
+    _autosaveTimer?.cancel();
+    _autosaveStatus = DVStudioAutosaveStatus.saving;
+    notifyListeners();
+    try {
+      final Future<void> Function(DVPageDocument document)? publish = publisher;
+      if (publish != null) {
+        await publish(_document);
+      } else {
+        await const DVPageStore().save(_document);
+      }
+      _isDirty = false;
+      _lastSaved = DateTime.now();
+      _autosaveStatus = DVStudioAutosaveStatus.saved;
+      notifyListeners();
+    } catch (_) {
+      _autosaveStatus = DVStudioAutosaveStatus.error;
+      notifyListeners();
+      rethrow;
+    }
   }
 
   @override
   void dispose() {
+    _autosaveTimer?.cancel();
     unawaited(_edits.close());
     super.dispose();
   }
@@ -1285,8 +1377,21 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
             const SingleActivator(LogicalKeyboardKey.delete): _removeSelected,
             const SingleActivator(LogicalKeyboardKey.backspace):
                 _removeSelected,
-            const SingleActivator(LogicalKeyboardKey.escape): () =>
-                widget.controller.select(null),
+            const SingleActivator(LogicalKeyboardKey.escape): () {
+              if (widget.controller.previewMode) {
+                widget.controller.previewMode = false;
+              } else {
+                widget.controller.select(null);
+              }
+            },
+            const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
+                unawaited(widget.controller.save()),
+            const SingleActivator(LogicalKeyboardKey.keyS, meta: true): () =>
+                unawaited(widget.controller.save()),
+            const SingleActivator(LogicalKeyboardKey.keyP,
+                control: true, shift: true): widget.controller.togglePreview,
+            const SingleActivator(LogicalKeyboardKey.keyP,
+                meta: true, shift: true): widget.controller.togglePreview,
             const SingleActivator(LogicalKeyboardKey.keyZ, control: true):
                 widget.controller.undo,
             const SingleActivator(LogicalKeyboardKey.keyZ, meta: true):
@@ -1380,6 +1485,10 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
         constraints: BoxConstraints(minHeight: _minHeight),
         child: rendered,
       );
+    }
+
+    if (controller.previewMode) {
+      return rendered;
     }
 
     Widget build(bool dropping) {
@@ -1481,7 +1590,7 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
       return dvStudioStyled(
         node,
         dvStudioLayoutBox(node, children),
-        withAction: false,
+        withAction: widget.controller.previewMode,
       );
     });
   }

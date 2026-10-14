@@ -11,7 +11,16 @@ import 'package:dartvel_core/dartvel.dart'
         DVIncidents,
         dvStudioIsReservedRoute;
 import 'package:flutter/material.dart'
-    show Icon, IconData, Icons, InkWell, Material, showGeneralDialog;
+    show
+        CircularProgressIndicator,
+        Icon,
+        IconData,
+        Icons,
+        InkWell,
+        Material,
+        ScaffoldMessenger,
+        SnackBar,
+        showGeneralDialog;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -1295,6 +1304,16 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       _lastPublished = DateTime.now();
       if (mounted) setState(() => _changedInCode = null);
       await _loadRoutes();
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(
+                'Page ${controller.document.route} deployed successfully'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: DVStudioStyle.accent,
+          ),
+        );
+      }
     } on DVStudioChangedInCode catch (conflict) {
       // Code changed the page's file since Studio last saved it: nothing
       // is written over it, and the choice is shown.
@@ -2008,6 +2027,23 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         DVStudioCommand(
             id: 'redo', title: 'Redo', group: 'Edit', shortcut: 'Ctrl+Shift+Z',
             run: controller.redo),
+      DVStudioCommand(
+        id: 'preview',
+        title: controller.previewMode ? 'Exit preview' : 'Preview page',
+        group: 'Page',
+        shortcut: 'Ctrl+Shift+P',
+        keywords: const <String>['interactive', 'test', 'live'],
+        run: () => setState(controller.togglePreview),
+      ),
+      if (editable)
+        DVStudioCommand(
+          id: 'save',
+          title: 'Save page',
+          group: 'Page',
+          shortcut: 'Ctrl+S',
+          keywords: const <String>['save', 'deploy', 'publish'],
+          run: () => unawaited(controller.save()),
+        ),
       if (editable && selected != null && selected != document.root.id) ...<DVStudioCommand>[
         DVStudioCommand(
             id: 'make-component', title: 'Make a component from this element',
@@ -2067,7 +2103,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         // On a page being edited it stays, empty until something is
         // selected, so selecting does not push the page down under the
         // pointer.
-        if (!_showingCode && !controller.readOnly)
+        if (!_showingCode && !controller.readOnly && !controller.previewMode)
           DVStudioFormulaBar(
             controller: controller,
             vocabulary: DVFormulaVocabulary(routes: <String>[
@@ -2077,6 +2113,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           ),
         ?_changedInCodeBanner(controller),
         if (review != null) ..._banners(review),
+        if (controller.previewMode) _previewBanner(controller),
         Expanded(
           child: _showingCode
               ? _code(controller)
@@ -2161,6 +2198,9 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         },
       ),
     );
+    if (controller.previewMode) {
+      return page;
+    }
     final Widget style = review != null && _reviewOpen
         ? StudioReviewPanel(
             session: review,
@@ -2749,6 +2789,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           'Page SEO and settings',
           () => dvShowStudioPageSeoDialog(context, controller),
         ),
+        _keyedIcon(
+          'dv-studio-preview',
+          controller.previewMode ? Icons.edit_outlined : DVStudioIcons.preview,
+          controller.previewMode ? 'Exit preview' : 'Preview',
+          () => setState(controller.togglePreview),
+        ),
+        _autosaveIndicator(controller),
         const SizedBox(width: DVStudioStyle.space2),
         Container(width: 1, height: 24, color: DVStudioStyle.line),
         const SizedBox(width: DVStudioStyle.space2),
@@ -2830,6 +2877,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           'Page SEO and settings',
           () => dvShowStudioPageSeoDialog(context, controller),
         ),
+        _keyedIcon(
+          'dv-studio-preview',
+          controller.previewMode ? Icons.edit_outlined : DVStudioIcons.preview,
+          controller.previewMode ? 'Exit preview' : 'Preview',
+          () => setState(controller.togglePreview),
+        ),
+        _autosaveIndicator(controller),
         divider,
         _keyedIcon(
           'dv-studio-view-code',
@@ -2921,6 +2975,127 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
               .lineHeight(1.55),
         ),
       ),
+    );
+  }
+
+  Widget _previewBanner(DVStudioEditorController controller) {
+    return Container(
+      key: const ValueKey<String>('dv-studio-preview-banner'),
+      height: 38,
+      color: DVStudioStyle.accent.withValues(alpha: 0.12),
+      padding: const .symmetric(horizontal: DVStudioStyle.space4),
+      child: Row(
+        children: <Widget>[
+          const Icon(Icons.visibility_outlined,
+              size: 16, color: DVStudioStyle.accent),
+          const SizedBox(width: DVStudioStyle.space2),
+          const DVText(
+                  'Preview mode — canvas is interactive. Outlines and inspector are hidden.')
+              .modifier(
+            const DVModifier()
+                .fontSize(12)
+                .color(DVStudioStyle.ink)
+                .fontWeight(.w600),
+          ),
+          const Spacer(),
+          DVStudioControl(
+            key: const ValueKey<String>('dv-studio-exit-preview'),
+            label: 'Exit preview',
+            enabled: true,
+            onTap: () => setState(() => controller.previewMode = false),
+            icon: Icons.close,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _autosaveIndicator(DVStudioEditorController controller) {
+    return KeyedSubtree(
+      key: const ValueKey<String>('dv-studio-autosave-indicator'),
+      child: switch (controller.autosaveStatus) {
+        DVStudioAutosaveStatus.saving => DVStudioStyle.tooltip(
+            'Saving changes…',
+            Padding(
+              padding: const .symmetric(horizontal: DVStudioStyle.space2),
+              child: Row(
+                mainAxisSize: .min,
+                children: <Widget>[
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(DVStudioStyle.accent),
+                    ),
+                  ),
+                  const SizedBox(width: DVStudioStyle.space1),
+                  DVStudioStyle.caption('Saving…'),
+                ],
+              ),
+            ),
+          ),
+        DVStudioAutosaveStatus.saved => DVStudioStyle.tooltip(
+            'All changes saved automatically',
+            Padding(
+              padding: const .symmetric(horizontal: DVStudioStyle.space2),
+              child: Row(
+                mainAxisSize: .min,
+                children: <Widget>[
+                  const Icon(Icons.cloud_done_outlined,
+                      size: 14, color: DVStudioStyle.muted),
+                  const SizedBox(width: DVStudioStyle.space1),
+                  DVStudioStyle.caption('Saved'),
+                ],
+              ),
+            ),
+          ),
+        DVStudioAutosaveStatus.dirty => DVStudioStyle.tooltip(
+            'Unsaved changes (saving shortly… or Ctrl+S)',
+            Padding(
+              padding: const .symmetric(horizontal: DVStudioStyle.space2),
+              child: Row(
+                mainAxisSize: .min,
+                children: <Widget>[
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: DVStudioStyle.warning,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: DVStudioStyle.space1),
+                  DVStudioStyle.caption('Unsaved'),
+                ],
+              ),
+            ),
+          ),
+        DVStudioAutosaveStatus.error => DVStudioStyle.tooltip(
+            'Autosave failed. Tap to retry or press Ctrl+S.',
+            GestureDetector(
+              onTap: () => unawaited(controller.save()),
+              child: Padding(
+                padding: const .symmetric(horizontal: DVStudioStyle.space2),
+                child: Row(
+                  mainAxisSize: .min,
+                  children: <Widget>[
+                    const Icon(Icons.cloud_off_outlined,
+                        size: 14, color: DVStudioStyle.danger),
+                    const SizedBox(width: DVStudioStyle.space1),
+                    const DVText('Save error').modifier(
+                      const DVModifier()
+                          .fontSize(11)
+                          .color(DVStudioStyle.danger),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        DVStudioAutosaveStatus.idle => const SizedBox.shrink(),
+      },
     );
   }
 }

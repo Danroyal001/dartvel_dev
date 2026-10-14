@@ -137,6 +137,14 @@ class DVPageNode {
         },
       );
 
+  factory DVPageNode.button({String label = 'Button'}) => DVPageNode(
+        type: 'button',
+        properties: <String, Object?>{
+          'text': label,
+          ...dvStudioButtonDefaults,
+        },
+      );
+
   /// A copy with [name] set — what the property inspector applies.
   DVPageNode withProperty(String name, Object? value) => DVPageNode(
         id: id,
