@@ -235,7 +235,7 @@ Future<Response> _fromManifest(
     );
 
     if (path == '/robots.txt') {
-      final origin = effectiveSiteUrl ?? 'https://${hostMatch.matchedHost}';
+      final origin = hostMatch.siteUrl ?? 'https://${hostMatch.matchedHost}';
       final body = 'User-agent: *\nAllow: /\nSitemap: $origin/sitemap.xml\n';
       return Response(
         200,
@@ -246,7 +246,7 @@ Future<Response> _fromManifest(
       );
     }
     if (path == '/sitemap.xml') {
-      final origin = effectiveSiteUrl ?? 'https://${hostMatch.matchedHost}';
+      final origin = hostMatch.siteUrl ?? 'https://${hostMatch.matchedHost}';
       final StringBuffer xml = StringBuffer();
       xml.writeln('<?xml version="1.0" encoding="UTF-8"?>');
       xml.writeln('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
