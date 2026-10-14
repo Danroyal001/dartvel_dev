@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import '../observability/observability.dart';
+import 'client_address.dart';
+import 'peer_address.dart';
 import 'wintercg.dart';
 
 typedef Handler = Future<Response> Function(Request);
@@ -187,6 +189,7 @@ class Router {
       return Response.json(report.toJson(), status: report.httpStatus);
     }
     if (req.method == 'GET' && req.url.path == '/metrics') {
+      if (!_mayReadMetrics(req)) return _notFound();
       return Response.text(
         DVObservability.render(),
         headers: Headers()
@@ -259,4 +262,57 @@ class _Route {
   final int? maxBodyBytes;
   _Route(this.method, this.source, this.handler, this.maxBodyBytes)
       : pattern = URLPattern(source);
+}
+
+/// The networks a scraper on the same host or network calls from: loopback,
+/// the private IPv4 ranges and IPv6 unique-local addresses.
+final List<DVCidr> _privateNetworks = <DVCidr>[
+  for (final String range in const <String>[
+    '127.0.0.0/8',
+    '10.0.0.0/8',
+    '172.16.0.0/12',
+    '192.168.0.0/16',
+    '::1/128',
+    'fc00::/7',
+  ])
+    DVCidr.parse(range),
+];
+
+/// Whether [req] may read `GET /metrics`.
+///
+/// Request counts, route timings and uptime are an operator's, not the
+/// internet's: dartvel.dev served them to anyone. The token opens it from
+/// anywhere. Otherwise the caller must be on this host or a private network
+/// *and* not be a request a proxy forwarded: behind a proxy on the same host
+/// every request arrives from loopback, and one carrying a forwarding header
+/// came from somewhere else, whether or not the proxy is trusted. A request
+/// with no peer address at all is the process calling itself.
+bool _mayReadMetrics(Request req) {
+  final String? token = DVObservability.metricsToken;
+  if (token != null && token.isNotEmpty) {
+    final String given = req.headers.get('authorization') ?? '';
+    if (_sameText(given, 'Bearer $token')) return true;
+  }
+  for (final String forwarding in const <String>[
+    'forwarded',
+    'x-forwarded-for',
+    'x-real-ip',
+  ]) {
+    if (req.headers.get(forwarding) != null) return false;
+  }
+  final DVPeerAddress? peer = DVClientAddress.peerOf(req);
+  if (peer == null) return true;
+  final DVIpAddress? caller = DVClientAddress.current.resolve(req);
+  if (caller == null) return false;
+  return _privateNetworks.any((DVCidr network) => network.contains(caller));
+}
+
+/// Compares in time that does not depend on where the texts differ.
+bool _sameText(String a, String b) {
+  if (a.length != b.length) return false;
+  int difference = 0;
+  for (int i = 0; i < a.length; i++) {
+    difference |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
+  }
+  return difference == 0;
 }
