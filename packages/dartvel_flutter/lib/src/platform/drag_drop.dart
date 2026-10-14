@@ -9,6 +9,7 @@
 library;
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import '../../dartvel_flutter.dart' show DVNativeBridge;
 
@@ -21,12 +22,43 @@ enum DVDropType {
   text,
 }
 
+/// A file dropped where the platform hands over its contents rather than a
+/// path: a browser, whose drops are File objects with no path at all.
+class DVDroppedFile {
+  const DVDroppedFile({required this.name, required this.bytes, this.mimeType = ''});
+
+  factory DVDroppedFile.fromMap(Map<Object?, Object?> map) {
+    final Object? bytes = map['bytes'];
+    return DVDroppedFile(
+      name: '${map['name'] ?? ''}',
+      mimeType: '${map['mimeType'] ?? ''}',
+      bytes: bytes is Uint8List
+          ? bytes
+          : Uint8List.fromList(<int>[for (final Object? b in (bytes as List?) ?? const <Object?>[]) (b as num).toInt()]),
+    );
+  }
+
+  /// The file's name, without a directory.
+  final String name;
+
+  /// What the platform says it is, such as `image/png`. Empty when unknown.
+  final String mimeType;
+  final Uint8List bytes;
+
+  @override
+  String toString() => 'DVDroppedFile($name, $mimeType, ${bytes.length} bytes)';
+}
+
 /// One drop onto the window.
 class DVDropEvent {
-  const DVDropEvent({this.paths = const <String>[], this.text, this.x = 0, this.y = 0});
+  const DVDropEvent({this.paths = const <String>[], this.files = const <DVDroppedFile>[], this.text, this.x = 0, this.y = 0});
 
   /// The files dropped, in the order the desktop sent them.
   final List<String> paths;
+
+  /// Files dropped with their contents, where the platform gives contents
+  /// and no paths (the web). Desktops fill [paths] instead.
+  final List<DVDroppedFile> files;
 
   /// The text dropped, when text was dropped rather than files.
   final String? text;
@@ -37,11 +69,15 @@ class DVDropEvent {
 
   /// Whether anything was actually dropped. A drop with neither files nor
   /// text is the desktop offering nothing.
-  bool get isEmpty => paths.isEmpty && (text == null || text!.isEmpty);
+  bool get isEmpty => paths.isEmpty && files.isEmpty && (text == null || text!.isEmpty);
 
   factory DVDropEvent.fromMap(Map<Object?, Object?> map) => DVDropEvent(
         paths: <String>[
           for (final Object? p in (map['paths'] as List?) ?? const <Object?>[]) '$p',
+        ],
+        files: <DVDroppedFile>[
+          for (final Object? f in (map['files'] as List?) ?? const <Object?>[])
+            if (f is Map) DVDroppedFile.fromMap(f),
         ],
         text: map['text'] as String?,
         x: map['x'] is num ? (map['x']! as num).toDouble() : 0,
@@ -49,7 +85,7 @@ class DVDropEvent {
       );
 
   @override
-  String toString() => 'DVDropEvent(paths: $paths, text: $text, at: $x,$y)';
+  String toString() => 'DVDropEvent(paths: $paths, files: $files, text: $text, at: $x,$y)';
 }
 
 class DVDragDrop {
@@ -60,8 +96,20 @@ class DVDragDrop {
   static final StreamController<DVDropEvent> _dropped =
       StreamController<DVDropEvent>.broadcast();
 
+  static final StreamController<bool> _over = StreamController<bool>.broadcast();
+
   /// Every drop the window took.
   Stream<DVDropEvent> get dropped => _dropped.stream;
+
+  /// True while something is being dragged over the window (so a page can
+  /// show where to drop), false when it leaves or is dropped. Reported where
+  /// the platform tells (the web).
+  Stream<bool> get draggingOver => _over.stream;
+
+  /// For platform bindings: a drag entered (true) or left (false) the window.
+  static void dispatchDragOver(bool over) {
+    if (_accepting) _over.add(over);
+  }
 
   /// For platform bindings: the desktop dropped something. A drop after the
   /// window stopped accepting reaches nobody -- the desktop can deliver one
