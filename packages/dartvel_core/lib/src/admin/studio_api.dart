@@ -771,16 +771,12 @@ class DVStudioApi {
     final DVRecordTable table = _table(spec);
     await prepare(spec, table);
     if (rest.isEmpty) {
-      if (method == 'GET') {
-        final List<DVRecord> records = await table.all();
-        return _reply(<String, Object?>{
-          'records': <Object?>[
-            for (final DVRecord record in records) _recordJson(spec, record),
-          ],
-        });
-      }
+      if (method == 'GET') return _list(request, spec, table);
       if (method == 'POST') return _create(spec, table, await _body(request));
       _notAllowed();
+    }
+    if (rest.length == 1 && rest.first == 'delete' && method == 'POST') {
+      return _deleteMany(spec, table, await _body(request));
     }
     final String key = rest.first;
     switch (method) {
@@ -812,6 +808,183 @@ class DVStudioApi {
         return _reply(<String, Object?>{'deleted': key});
     }
     _notAllowed();
+  }
+
+
+  /// The most records one page of a list carries.
+  static const int maxRecordsPerPage = 500;
+
+  /// A page of [spec]'s records, as a person works through a list of them:
+  /// `q` searched for in every field that may be seen, `filter=field:value`
+  /// (repeatable, all of them apply), `sort` and `order`, then `offset` and
+  /// `limit`. The reply carries `total`, the count before paging.
+  ///
+  /// With none of them asked, every record, as Studio has always answered.
+  ///
+  /// Searched, filtered and sorted here, over the records the table reads,
+  /// rather than handed to the engine: the record layer has no operator for
+  /// "contains" or an ordering by a field's type that every engine shares,
+  /// and a list in Studio is read by one person at a time. A sensitive field
+  /// is never matched, sorted or filtered by, so a list cannot be used to
+  /// guess what one holds a letter at a time.
+  Future<Response> _list(
+    Request request,
+    DVStudioModelSpec spec,
+    DVRecordTable table,
+  ) async {
+    final Map<String, List<String>> query = request.url.queryParametersAll;
+    String? one(String name) => query[name]?.firstOrNull;
+    final Map<String, DVStudioFieldSpec> visible = <String, DVStudioFieldSpec>{
+      for (final DVStudioFieldSpec field in spec.fields)
+        if (!field.sensitive) field.name: field,
+    };
+    DVStudioFieldSpec field(String name, String asked) {
+      final DVStudioFieldSpec? found = visible[name];
+      if (found != null) return found;
+      throw _StudioRefusal(
+        400,
+        'bad_list',
+        spec.fields.any((DVStudioFieldSpec f) => f.name == name)
+            ? 'The field $name is kept private, so the list cannot be '
+                  '$asked by it.'
+            : '${spec.model} has no field named $name to be $asked by.',
+      );
+    }
+
+    final String? sortName = one('sort');
+    final DVStudioFieldSpec? sortField =
+        sortName == null || sortName.isEmpty ? null : field(sortName, 'sorted');
+    final String order = one('order') ?? 'asc';
+    if (order != 'asc' && order != 'desc') {
+      throw _StudioRefusal(
+        400,
+        'bad_list',
+        'A list is sorted asc (A to Z) or desc (Z to A), not $order.',
+      );
+    }
+    final List<({DVStudioFieldSpec field, String value})> filters =
+        <({DVStudioFieldSpec field, String value})>[];
+    for (final String raw in query['filter'] ?? const <String>[]) {
+      final int colon = raw.indexOf(':');
+      if (colon <= 0) {
+        throw _StudioRefusal(
+          400,
+          'bad_list',
+          'A filter is a field and a value, as field:value. "$raw" is not.',
+        );
+      }
+      filters.add((
+        field: field(raw.substring(0, colon), 'filtered'),
+        value: raw.substring(colon + 1),
+      ));
+    }
+    final int offset = math.max(0, int.tryParse(one('offset') ?? '') ?? 0);
+    final int? askedLimit = int.tryParse(one('limit') ?? '');
+    final int? limit = askedLimit == null
+        ? null
+        : askedLimit.clamp(1, maxRecordsPerPage);
+    final String search = (one('q') ?? '').trim().toLowerCase();
+
+    // A value as a person reads it, for searching and for a filter.
+    String text(DVStudioFieldSpec field, Object? value) {
+      final Object? out = _out(field, value);
+      if (out == null) return '';
+      return out is String ? out : jsonEncode(out);
+    }
+
+    final List<DVRecord> matching = <DVRecord>[
+      for (final DVRecord record in await table.all())
+        if ((search.isEmpty ||
+                visible.values.any(
+                  (DVStudioFieldSpec f) => text(
+                    f,
+                    record.values[f.name],
+                  ).toLowerCase().contains(search),
+                ) ||
+                '${record.key}'.toLowerCase().contains(search)) &&
+            filters.every(
+              (({DVStudioFieldSpec field, String value}) filter) =>
+                  text(filter.field, record.values[filter.field.name]) ==
+                  filter.value,
+            ))
+          record,
+    ];
+    if (sortField != null) {
+      int compare(DVRecord a, DVRecord b) {
+        final Object? left = _out(sortField, a.values[sortField.name]);
+        final Object? right = _out(sortField, b.values[sortField.name]);
+        // Empty last whichever way the list runs.
+        if (left == null || right == null) {
+          return left == right ? 0 : (left == null ? 1 : -1);
+        }
+        final int by = left is num && right is num
+            ? left.compareTo(right)
+            : left is bool && right is bool
+            ? (left == right ? 0 : (left ? 1 : -1))
+            : text(sortField, left).toLowerCase().compareTo(
+                text(sortField, right).toLowerCase(),
+              );
+        return order == 'desc' ? -by : by;
+      }
+
+      matching.sort(compare);
+    }
+    final Iterable<DVRecord> page = matching.skip(offset);
+    return _reply(<String, Object?>{
+      'records': <Object?>[
+        for (final DVRecord record in limit == null ? page : page.take(limit))
+          _recordJson(spec, record),
+      ],
+      'total': matching.length,
+      'offset': offset,
+      'limit': limit ?? matching.length,
+    });
+  }
+
+  /// Deletes several records of [spec], each checked as one delete is: the
+  /// version a person read it at, on a versioned model. One that is gone or
+  /// has changed is reported for itself, and the rest are deleted all the
+  /// same, so a stale row among fifty does not keep forty-nine.
+  Future<Response> _deleteMany(
+    DVStudioModelSpec spec,
+    DVRecordTable table,
+    Map<String, Object?> body,
+  ) async {
+    final Object? asked = body['records'];
+    if (asked is! List || asked.isEmpty) {
+      throw _StudioRefusal(
+        400,
+        'bad_body',
+        'Name the records to delete, as records: [{key, version}].',
+      );
+    }
+    final List<String> deleted = <String>[];
+    final Map<String, String> failed = <String, String>{};
+    for (final Object? entry in asked) {
+      if (entry is! Map || entry['key'] == null) continue;
+      final String key = '${entry['key']}';
+      final int? version = entry['version'] is int
+          ? entry['version']! as int
+          : int.tryParse('${entry['version']}');
+      final DVRecord? current = await table.read(key);
+      if (current == null) {
+        failed[key] = 'No ${spec.model} with ${spec.key} $key.';
+        continue;
+      }
+      if (spec.versioned && version != current.version) {
+        failed[key] =
+            'It changed after the list was read. Reload and try again.';
+        continue;
+      }
+      try {
+        await table.delete(key, base: current);
+        deleted.add(key);
+      } on DVConflictError {
+        failed[key] =
+            'It changed after the list was read. Reload and try again.';
+      }
+    }
+    return _reply(<String, Object?>{'deleted': deleted, 'failed': failed});
   }
 
   /// The tables, columns and indexes [spec] has been made sure of, per
