@@ -27,6 +27,10 @@ const double kSiteSearchMinScore = 0.3;
 
 Future<void>? _ready;
 
+/// Whether the site has anything to search: false for a server with no
+/// pages, or pages with no words, which answers every search with nothing.
+bool _searchable = false;
+
 /// Indexes the site, once per process, on the first search.
 Future<void> _prepare() async {
   final List<DVSitePage> pages = await DVSitePages.load();
@@ -63,6 +67,13 @@ Future<void> _prepare() async {
     }
     await section.save(onConflict: DVConflict.lastWriteWins);
   }
+
+  // Nothing to search is no results, not an error: fitting the index to no
+  // words throws, and the search used to pass that on as a 500 to every
+  // reader of a site whose pages it could not read.
+  _searchable = sections.any(
+      (SitePage s) => RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(siteSearchDocument(s)));
+  if (!_searchable) return;
 
   SitePage.useSearchProvider(DVInMemorySearchProvider<SitePage, SitePageFacets>(
     records: sections,
@@ -123,6 +134,7 @@ Future<List<SiteSearchResult>> siteSearch(
     _ready = null;
     rethrow;
   }
+  if (!_searchable) return const <SiteSearchResult>[];
 
   final DVSemanticPage<SitePage> page = await SitePage.semanticSearch(
     asked,
