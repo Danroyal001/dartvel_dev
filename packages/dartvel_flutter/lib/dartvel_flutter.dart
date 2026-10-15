@@ -476,6 +476,9 @@ export 'package:dartvel_core/dartvel.dart'
         DVStudioPageKind,
         DVStudioSitePage,
         dvStudioSitePages,
+        // Deprecated in favour of the middleware: field of @DVBackendFunction
+        // and @DVPage, and still exported so existing pages keep building.
+        // ignore: deprecated_member_use
         DVUseMiddleware,
         DVCache,
         DVCacheAdapter,
