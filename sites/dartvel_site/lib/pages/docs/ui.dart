@@ -92,15 +92,15 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
                   'paddingOnly, margin, width, height, maxWidth, minWidth, '
                   'maxHeight, minHeight, align, centered'],
               <String>['Surface', 'backgroundColor, gradient, backgroundImage, '
-                  'border, rounded, radius, shadow, card, clipContent'],
+                  'border, rounded, radius, shadow, card, clipContent, meshGradient'],
               <String>['Effects', 'opacity, blur, backdropBlur, rotate'],
               <String>['Text', 'color, fontSize, fontWeight, fontFamily, '
                   'letterSpacing, lineHeight, maxLines, overflow, decoration'],
-              <String>['Interaction', 'onTap, onPressed, hover, onHoverChanged, '
-                  'input, minimumTapTarget'],
+              <String>['Interaction', 'onTap, onPressed, hover, hoverGlow, '
+                  'onHoverChanged, input, minimumTapTarget'],
               <String>['Accessibility', 'semanticLabel, semanticHint, '
                   'semanticButton, semanticRole, semanticHeading'],
-              <String>['Motion', 'animate, revealOnScroll'],
+              <String>['Motion', 'animate, revealOnScroll, revealChildren'],
               <String>['Combining', 'merge'],
             ]),
           ],
@@ -116,6 +116,22 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
               'animate(duration) eases between the two, and respects the '
                   'reduced motion setting.',
               'semanticButton() tells assistive technology the text is a button.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'motion',
+          title: 'Give a page some motion that respects the reader',
+          children: <Widget>[
+            DocsText('Three modifiers make a page feel alive, and each one '
+                'holds still when the reader has asked for reduced motion.'),
+            Bullets(<String>[
+              'meshGradient(colors) drifts one soft blob per colour behind the '
+                  'box. Reduced motion paints it once and runs no ticker.',
+              'hoverGlow() lights the box under the pointer and follows it, '
+                  'repainting without a rebuild. It keeps any hover(...) style.',
+              'revealChildren(step:) on a list, row or wrap fades its children '
+                  'in one after another as they scroll into view.',
             ]),
           ],
         ),
