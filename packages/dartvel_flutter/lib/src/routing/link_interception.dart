@@ -10,6 +10,8 @@ library dartvel_flutter.routing.link_interception;
 import 'package:dartvel_core/dartvel.dart' show dvKioskAllowsExternalUrl;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
+import 'client_hosts.dart' show dvInstalledHosts;
+
 /// What the browser reported about a link activation.
 class DVLinkActivation {
   const DVLinkActivation({
@@ -125,7 +127,11 @@ bool dvLinkLeavesTheSite(DVLinkActivation activation) {
 
   final Uri? here = Uri.tryParse(activation.currentUrl);
   if (here == null) return false;
-  return here.resolveUri(destination).origin != here.origin;
+  final Uri resolved = here.resolveUri(destination);
+  if (resolved.origin == here.origin) return false;
+  // Another host of this application (dartvel.hosts) is not somewhere else:
+  // the reader follows the link in this tab, as between two pages.
+  return dvInstalledHosts.isEmpty || dvInstalledHosts.match(resolved.host) == null;
 }
 
 /// Whether the running kiosk policy refuses this activation, so the browser

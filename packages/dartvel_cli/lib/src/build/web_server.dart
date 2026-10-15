@@ -18,6 +18,17 @@ import 'dart:io';
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
 
 import 'package:dartvel_core/dartvel.dart' show DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant;
+// dartvel.hosts, decided by the same core functions the deployed server uses.
+import 'package:dartvel_core/dartvel.dart'
+    show
+        DVClientAddress,
+        DVHostSiteFile,
+        DVHostedRequest,
+        DVHosts,
+        DVHostsParse,
+        dvEffectiveHost,
+        dvHostSiteFileFor,
+        dvHostedRequest;
 // Shell-first streaming and each route's preloads, through the same core
 // functions the deployed server uses.
 import 'package:dartvel_core/dartvel.dart'
@@ -103,9 +114,13 @@ String dvWebServerManifest({
   Map<String, DVConfiguredRedirectDeclaration> redirects = const <String, DVConfiguredRedirectDeclaration>{},
   DVImageVariants? images,
   Map<String, DVRoutePage> pages = const <String, DVRoutePage>{},
+  DVHosts hosts = DVHosts.none,
 }) =>
     const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'siteUrl': siteUrl,
+      // dartvel.hosts: which host shows which part of the route tree. Absent
+      // when none are declared, and the server then serves as it always did.
+      if (hosts.isNotEmpty) 'hosts': hosts.toJson(),
       // Where the server sends somebody signed out who asked for a guarded
       // route: the sign-in page the client's gate sends them to.
       if (signIn != null) 'signIn': signIn,
@@ -163,8 +178,11 @@ String dvServeRoute({
   String? description,
   String? image,
   String? siteName,
+  // The route [path] shows, when it is not [path] itself: a host of
+  // dartvel.hosts renders a route at its own path on its own origin.
+  String? route,
 }) {
-  final DVPageRequest? matched = dvMatchRoute(path, routes.keys);
+  final DVPageRequest? matched = dvMatchRoute(route ?? path, routes.keys);
   final String title = (matched == null ? null : routes[matched.pattern]) ?? siteName ?? path;
   return dvRenderRoute(
     shell: shell,
@@ -278,6 +296,9 @@ Handler dvWebServerHandler({
       if ((e.value as Map?)?['guarded'] == true) e.key,
   };
   final siteUrl = manifest['siteUrl'] as String?;
+  // dartvel.hosts, as the build carried it. Empty without hosts, and then
+  // every request is served exactly as before.
+  final DVHosts hosts = DVHosts.fromJson(manifest['hosts']);
   final DVSiteSeo site = DVSiteSeo.parse(manifest['site']);
   final DVWebServerSettings declared = DVWebServerSettings.parse(manifest['server']);
   final DVPageDataMode mode = pageDataMode ?? declared.pageDataMode;
@@ -388,6 +409,30 @@ Handler dvWebServerHandler({
           body: '', headers: dvAdminHiddenHeaders);
     }
 
+    // With dartvel.hosts, robots.txt and the sitemap answer per host, ahead
+    // of the files the build wrote, as on the deployed server.
+    if (hosts.isNotEmpty) {
+      String? built(String name) {
+        final File file = File(p.join(webRoot, name));
+        return file.existsSync() ? file.readAsStringSync() : null;
+      }
+
+      final DVHostSiteFile? hostFile = dvHostSiteFileFor(
+        hosts,
+        host: _shelfRequestHost(request),
+        path: path,
+        patterns: routeMap.keys,
+        robots: built('robots.txt'),
+        sitemap: built('sitemap.xml'),
+      );
+      if (hostFile != null) {
+        return Response(hostFile.status, body: hostFile.body, headers: <String, String>{
+          'content-type': hostFile.contentType,
+          'cache-control': hostFile.status == 200 ? 'public, no-cache' : 'no-store',
+        });
+      }
+    }
+
     // A file on disk wins, so main.dart.js and the assets are served as
     // themselves. index.html does not: it is the shell, and serving it raw
     // would hand back a page with no route metadata at all.
@@ -407,7 +452,25 @@ Handler dvWebServerHandler({
       return Response.notFound('No index.html in $webRoot.');
     }
 
-    final String cleanPath = path == '/' ? '/' : path.replaceAll(RegExp(r'/+$'), '');
+    // dartvel.hosts: the route this host's path means, a 301 when another
+    // host owns it, and the page rendered at its own path on its owner's
+    // origin -- dvHostedRequest, which the deployed server calls too.
+    final DVHostedRequest? hosted = hosts.isEmpty
+        ? null
+        : dvHostedRequest(
+            hosts,
+            host: _shelfRequestHost(request),
+            rawPath: path,
+            query: request.url.query,
+            isRoute: (String route) => dvMatchRoute(route, routeMap.keys) != null,
+          );
+    final String? hostedRedirect = hosted?.redirect;
+    if (hostedRedirect != null) {
+      return Response(301, headers: <String, String>{'location': hostedRedirect});
+    }
+    final String cleanPath = hosted?.path ?? (path == '/' ? '/' : path.replaceAll(RegExp(r'/+$'), ''));
+    final String pagePath = hosted?.pagePath ?? cleanPath;
+    final String? pageSiteUrl = hosted?.siteUrl ?? siteUrl;
 
     // Federated first, ahead of resolving anything: the page belongs to the
     // module and the parent has no data for it, so asking a resolver would
@@ -440,9 +503,12 @@ Handler dvWebServerHandler({
     // the build carried in the manifest, then the shell's own title. Not
     // optional decoration -- rendering replaces the shell's head block
     // wholesale, so a value missing here is a value deleted from the page.
-    final String? siteDescription = description ?? site.description;
+    // A host's own name and description stand in for dartvel.seo's there.
+    final String? siteDescription =
+        description ?? hosted?.description ?? site.description;
     final String? siteImage = image ?? site.image;
-    final String? name = siteName ?? site.name ?? shellTitle;
+    final String? name =
+        siteName ?? hosted?.siteName ?? site.name ?? shellTitle;
 
     final DVPageRequest? matched =
         dvMatchRoute(cleanPath, routeMap.keys, headers: request.headers);
@@ -460,14 +526,14 @@ Handler dvWebServerHandler({
         !guarded.contains(matched.pattern)) {
       final Stream<String>? chunks = dvShellFirstChunks(
         shell: shell,
-        path: cleanPath,
+        path: pagePath,
         // dvServeRoute's rule, so the title is the one this server writes
         // without streaming.
         title: titles[matched.pattern] ?? name ?? cleanPath,
         text: text[matched.pattern] ?? const <String>[],
         refusedTitle: name ?? cleanPath,
         resolving: resolve(matched),
-        siteUrl: siteUrl,
+        siteUrl: pageSiteUrl,
         siteName: name,
         description: siteDescription,
         image: siteImage,
@@ -492,16 +558,16 @@ Handler dvWebServerHandler({
       if (signIn is String && signIn.isNotEmpty && signIn != cleanPath) {
         final String from =
             '$cleanPath${request.url.hasQuery ? '?${request.url.query}' : ''}';
-        return Response.found(core.dvSignInLocation(signIn, from),
+        return Response.found(_signInLocation(hosted, signIn, from),
             headers: const <String, String>{'cache-control': 'no-store'});
       }
       return Response(401,
           body: dvServeRoute(
             shell: shell,
-            path: cleanPath,
+            path: pagePath,
             routes: const <String, String>{},
             text: const <String, List<String>>{},
-            siteUrl: siteUrl,
+            siteUrl: pageSiteUrl,
             siteName: name,
           ),
           headers: htmlHeaders);
@@ -514,10 +580,10 @@ Handler dvWebServerHandler({
     if (data != null && data.visibility != DVPageVisibility.public) {
       final String bare = dvServeRoute(
         shell: shell,
-        path: cleanPath,
+        path: pagePath,
         routes: const <String, String>{},
         text: const <String, List<String>>{},
-        siteUrl: siteUrl,
+        siteUrl: pageSiteUrl,
         siteName: name,
       );
       return Response(data.visibility == DVPageVisibility.hidden ? 404 : 401, body: bare, headers: htmlHeaders);
@@ -525,23 +591,24 @@ Handler dvWebServerHandler({
 
     final DVRoutePage? routePage = matched == null ? null : pages[matched.pattern];
     final String page = data == null && routePage != null
-        ? dvRenderRoutePage(shell, routePage.at(cleanPath))
+        ? dvRenderRoutePage(shell, routePage.at(pagePath, siteUrl: hosted?.siteUrl))
         : data == null
         ? dvServeRoute(
             shell: shell,
-            path: cleanPath,
+            path: pagePath,
             routes: titles,
             text: text,
-            siteUrl: siteUrl,
+            route: cleanPath,
+            siteUrl: pageSiteUrl,
             description: siteDescription,
             image: siteImage,
             siteName: name,
           )
         : dvRenderPage(
             shell: shell,
-            path: cleanPath,
+            path: pagePath,
             data: data,
-            siteUrl: siteUrl,
+            siteUrl: pageSiteUrl,
             siteName: name,
             description: siteDescription,
             image: siteImage,
@@ -581,7 +648,17 @@ Handler dvWebServerHandler({
       );
   final documents = DVRenderedPageCache();
   Future<Response> answer(Request request) async {
-    final path = '/${request.url.path}'.replaceAll(RegExp(r'/+$'), '');
+    // With dartvel.hosts, the route the host maps the path to, and the
+    // document kept per effective host.
+    final String? effectiveHost =
+        hosts.isEmpty ? null : _shelfRequestHost(request);
+    final path = hosts.isEmpty
+        ? '/${request.url.path}'.replaceAll(RegExp(r'/+$'), '')
+        : dvHostedRequest(hosts,
+                host: effectiveHost,
+                rawPath: '/${request.url.path}',
+                isRoute: (_) => false)
+            .path;
     final matched = dvMatchRoute(path.isEmpty ? '/' : path, routeMap.keys);
     final route = matched == null ? null : routeMap[matched.pattern];
     if ((request.url.path.isNotEmpty &&
@@ -597,7 +674,9 @@ Handler dvWebServerHandler({
       return render(request);
     }
     final key = dvRenderedPageKey(
-      webRoot,
+      hosts.isEmpty
+          ? webRoot
+          : '$webRoot|host=${hosts.matchOrPrimary(effectiveHost).origin}',
       request.requestedUri,
       request.headers,
     );
@@ -734,4 +813,61 @@ Map<String, DVConfiguredRedirectDeclaration> dvParseRedirects(Object? section, L
     out[from] = DVConfiguredRedirectDeclaration(to, status: status);
   }
   return out;
+}
+
+/// `dartvel.hosts` from the `dartvel:` section of pubspec.yaml, the primary
+/// host's siteUrl defaulting to `dartvel.seo.siteUrl`. Every problem is
+/// reported; a build with any refuses to continue.
+DVHostsParse dvHostsConfig(Map<Object?, Object?> dartvel) {
+  final Object? seo = dartvel['seo'];
+  final Object? siteUrl = seo is Map ? seo['siteUrl'] : null;
+  return DVHosts.parse(dartvel['hosts'],
+      defaultSiteUrl: siteUrl is String ? siteUrl : null);
+}
+
+/// What `dartvel build web` says when `dartvel.hosts` is declared, or null.
+/// A static host serves one set of files on every hostname, so the mounts,
+/// redirects and per-host sitemaps are the web-server build's to do.
+String? dvStaticHostsWarning(Map<Object?, Object?> dartvel) =>
+    dartvel['hosts'] == null
+        ? null
+        : 'dartvel.hosts is served only by `dartvel build web-server`. This '
+            'static build serves every page on every host, with canonical '
+            'URLs and a sitemap on dartvel.seo.siteUrl.';
+
+/// The description a page's head falls back to on the host that owns
+/// [route]: a page's own [declared] description always, then that host's
+/// `description`, then the site-wide [site] one.
+String? dvHostPageDescription(DVHosts hosts, String route,
+        {String? declared, String? site}) =>
+    declared ?? hosts.ownerOfPattern(route)?.description ?? site;
+
+/// The site name on the host that owns [route]: that host's `name`, or the
+/// site-wide [siteName].
+String dvHostPageSiteName(DVHosts hosts, String route, String siteName) =>
+    hosts.ownerOfPattern(route)?.name ?? siteName;
+
+/// The host a shelf request was made for: `X-Forwarded-Host` when the
+/// connection's peer is a proxy `dartvel.server.trustedProxies` trusts,
+/// `Host` otherwise -- the trust decided by the client-address resolver, as
+/// on the deployed server.
+String? _shelfRequestHost(Request request) {
+  final Object? info = request.context['shelf.io.connection_info'];
+  final String? peer =
+      info is HttpConnectionInfo ? info.remoteAddress.address : null;
+  return dvEffectiveHost(
+    host: request.headers['host'],
+    forwardedHost: request.headers['x-forwarded-host'],
+    peerIsTrustedProxy: DVClientAddress.current.peerIsTrusted(
+        <String, Object?>{'peerAddress': peer}),
+  );
+}
+
+/// The sign-in page for a signed-out request, at its public URL when the
+/// site has hosts: it may be on another host from the one asked.
+String _signInLocation(DVHostedRequest? hosted, String signIn, String from) {
+  final String location = core.dvSignInLocation(signIn, from);
+  if (hosted == null) return location;
+  final Uri uri = Uri.parse(location);
+  return hosted.publicUrl(uri.path, query: uri.query);
 }

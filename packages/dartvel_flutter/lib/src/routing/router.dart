@@ -18,6 +18,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../dartvel_flutter.dart'
     show DVPageStore, DVStudioPageRoute, DartvelRouteState, DvDefaultLoading;
+import 'client_hosts.dart'
+    show dvHostsMapLocations, dvLocationFromPlatform, dvLocationToPlatform;
 
 class DVRouter extends GoRouter {
   DVRouter({
@@ -74,9 +76,27 @@ class DVRouter extends GoRouter {
   final bool _requestFocus;
 
   GoRouterDelegate? _delegate;
+  GoRouteInformationParser? _parser;
 
   @override
   GoRouterDelegate get routerDelegate => _delegate!;
+
+  @override
+  GoRouteInformationParser get routeInformationParser => _parser!;
+
+  /// GoRouter's constructor assigns its parser here. Kept as it is, unless
+  /// dartvel.hosts mounts this page's host somewhere in the route tree: then
+  /// the same parser, with the platform's locations mapped into the mount on
+  /// the way in and out of it on the way back to the address bar.
+  @override
+  set routeInformationParser(GoRouteInformationParser value) {
+    _parser = dvHostsMapLocations
+        ? _DVHostParser(
+            configuration: value.configuration,
+            onParserException: value.onParserException,
+          )
+        : value;
+  }
 
   /// GoRouter's constructor assigns its delegate here; the one kept is the
   /// same delegate with the pending view in its empty state. Built from the
@@ -95,6 +115,39 @@ class DVRouter extends GoRouter {
       builderWithNav: (BuildContext context, Widget child) =>
           InheritedGoRouter(goRouter: this, child: child),
       pending: pending ?? (BuildContext context) => const DVRoutePending(),
+    );
+  }
+}
+
+/// go_router's parser, reading and writing locations as the current host of
+/// dartvel.hosts shows them: `/settings` on foo.apps.example.com is the route
+/// `/apps/foo/settings`, and that route is shown in the address bar as
+/// `/settings`.
+class _DVHostParser extends GoRouteInformationParser {
+  _DVHostParser({required super.configuration, required super.onParserException});
+
+  @override
+  Future<RouteMatchList> parseRouteInformationWithDependencies(
+    RouteInformation routeInformation,
+    BuildContext context,
+  ) =>
+      super.parseRouteInformationWithDependencies(
+        RouteInformation(
+          uri: routeInformation.uri.replace(
+              path: dvLocationFromPlatform(
+                  routeInformation.uri.path.isEmpty ? '/' : routeInformation.uri.path)),
+          state: routeInformation.state,
+        ),
+        context,
+      );
+
+  @override
+  RouteInformation? restoreRouteInformation(RouteMatchList configuration) {
+    final RouteInformation? restored = super.restoreRouteInformation(configuration);
+    if (restored == null) return null;
+    return RouteInformation(
+      uri: restored.uri.replace(path: dvLocationToPlatform(restored.uri.path)),
+      state: restored.state,
     );
   }
 }

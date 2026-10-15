@@ -325,6 +325,7 @@ export 'src/updates/update_info.dart';
 export 'src/web/deep_links.dart';
 export 'src/web/error_routes.dart';
 export 'src/web/find_in_page.dart';
+export 'src/web/host_routing.dart';
 export 'src/web/page_data.dart' hide dvPageResolverIsStatic;
 export 'src/web/page_text.dart';
 export 'src/web/minify.dart';
