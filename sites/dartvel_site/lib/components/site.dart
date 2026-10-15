@@ -301,8 +301,8 @@ Widget _footerLink(BuildContext context, String label, DVRouteTarget to) =>
 /// Grain is a 96-point tile of monochrome noise, repeated, at an opacity
 /// low enough that you notice it only when it is taken away.
 ///
-/// [mesh] drifts those colours behind the band (DVModifier.meshGradient),
-/// held still for a reader who asked for less motion. The hero has it and
+/// [mesh] paints those colours behind the band (DVModifier.meshGradient),
+/// drifting under the pointer and still otherwise. The hero has it and
 /// nothing else does: one moving thing on a page is life, several is noise.
 ///
 /// [reveal] fades each child in as the band is scrolled to, one after

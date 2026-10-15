@@ -126,8 +126,9 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
             DocsText('Three modifiers make a page feel alive, and each one '
                 'holds still when the reader has asked for reduced motion.'),
             Bullets(<String>[
-              'meshGradient(colors) drifts one soft blob per colour behind the '
-                  'box. Reduced motion paints it once and runs no ticker.',
+              'meshGradient(colors) paints one soft blob per colour behind the '
+                  'box, drifting while the pointer is over it. Reduced motion '
+                  'holds it still.',
               'hoverGlow() lights the box under the pointer and follows it, '
                   'repainting without a rebuild. It keeps any hover(...) style.',
               'revealChildren(step:) on a list, row or wrap fades its children '

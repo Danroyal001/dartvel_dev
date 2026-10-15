@@ -42,9 +42,10 @@ Widget _indexPage(BuildContext context) => const SingleChildScrollView(
 
 /// The first screen: what Dartvel is, and a piece of it running.
 ///
-/// The colour drifting behind it is the framework's meshGradient, held still
-/// for a reader who has asked for less motion. The band does not fade in:
-/// the first screen is the one thing a visitor should never wait for.
+/// The colour behind it is the framework's meshGradient: it drifts under the
+/// pointer, is still otherwise, and is always still for reduced motion. The
+/// band does not fade in: the first screen is the one thing a visitor
+/// should never wait for.
 @DVFunctionalWidget()
 Widget _heroSection(BuildContext context) => Section(
       mesh: Palette.of(context).heroMesh,
