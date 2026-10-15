@@ -20,12 +20,14 @@ import 'package:dartvel_core/dartvel.dart';
 ///     does,
 ///   * the `DVContext` first parameter is injected rather than decoded from
 ///     the request, and is dropped from the generated client's signature.
-@DVBackendFunction(policy: DVPolicies.exportData)
-@DVUseMiddleware(<DVMiddlewareKey>[
-  DVMiddlewares.tracing,
-  DVMiddlewares.securityHeaders,
-  DVMiddlewares.locale,
-])
+@DVBackendFunction(
+  policy: DVPolicies.exportData,
+  middleware: <DVMiddlewareKey>[
+    DVMiddlewares.tracing,
+    DVMiddlewares.securityHeaders,
+    DVMiddlewares.locale,
+  ],
+)
 Future<Map<String, Object?>> quote(DVContext context, String symbol) async {
   return <String, Object?>{
     'symbol': symbol,

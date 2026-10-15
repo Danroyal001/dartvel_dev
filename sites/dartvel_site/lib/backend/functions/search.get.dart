@@ -8,8 +8,7 @@ import '../site_search.dart';
 /// connection's address, or the address the trusted proxy in front of the
 /// server says it forwarded, never a header a client wrote. A caller over
 /// the limit is answered 429 with Retry-After.
-@DVUseMiddleware(<DVMiddlewareKey>[DVMiddlewares.rateLimit])
-@DVBackendFunction()
+@DVBackendFunction(middleware: <DVMiddlewareKey>[DVMiddlewares.rateLimit])
 Future<List<Map<String, Object?>>> _search(String q) async => <Map<String, Object?>>[
       for (final SiteSearchResult result in await siteSearch(q)) result.toJson(),
     ];

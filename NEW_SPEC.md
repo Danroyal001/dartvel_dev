@@ -2672,14 +2672,18 @@ Stability: `Contract` · Status: `Partial`
 Dartvel supports middleware for both pages and backend functions.
 
 ```dart
-@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.tenant, DVMiddlewares.rateLimitCheckout])
-@DVPage()
+@DVPage(middleware: [DVMiddlewares.auth, DVMiddlewares.tenant, DVMiddlewares.rateLimitCheckout])
 Widget _checkoutPage(BuildContext context) => Checkout.Page();
 
-@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.csrf, DVMiddlewares.idempotency])
-@DVBackendFunction()
+@DVBackendFunction(middleware: [DVMiddlewares.auth, DVMiddlewares.csrf, DVMiddlewares.idempotency])
 Future<Order> _createOrder(CreateOrderInput input) async => Order.create(input);
 ```
+
+Middleware is declared on the annotation that declares the page or function,
+as its `middleware:` argument. The separate `@DVUseMiddleware([...])`
+annotation is deprecated: it still builds, and on a declaration carrying both,
+the `middleware:` keys run first, then the keys only `@DVUseMiddleware` names;
+two keys listed in opposite orders fail the build.
 
 Middleware can be global, route/page scoped, layout scoped,
 backend-function scoped, model scoped, or storage scoped. Middleware order is

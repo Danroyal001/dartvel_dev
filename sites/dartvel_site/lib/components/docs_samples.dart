@@ -276,11 +276,12 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '}',
   ],
   'backend-middleware': <String>[
-    '\u0040DVUseMiddleware(<DVMiddlewareKey>[',
-    '  DVMiddlewares.auth,',
-    '  DVMiddlewares.rateLimit,',
-    '])',
-    '\u0040DVBackendFunction()',
+    '\u0040DVBackendFunction(',
+    '  middleware: <DVMiddlewareKey>[',
+    '    DVMiddlewares.auth,',
+    '    DVMiddlewares.rateLimit,',
+    '  ],',
+    ')',
     'Future<List<String>> _listReports() async => <String>[\'2026-08\', \'2026-09\'];',
   ],
   'backend-raw-path': <String>[

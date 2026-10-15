@@ -183,6 +183,11 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsCode('backend-middleware'),
             Bullets(<String>[
+              'List middleware in the `middleware:` argument of the annotation. '
+                  '@DVPage takes the same argument and runs auth and '
+                  'maintenance; any other key on a page stops the build and '
+                  'says where it belongs. The separate @DVUseMiddleware '
+                  'annotation is deprecated and still builds.',
               'Middleware runs in the order you list it. The keys that run are '
                   'auth, tenant, rateLimit, requestLogging, securityHeaders, '
                   'locale, idempotency, featureFlags, maintenance and csp.',
