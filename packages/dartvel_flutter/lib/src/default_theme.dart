@@ -61,3 +61,27 @@ ThemeData dartvelDefaultTheme(
     ),
   );
 }
+
+/// [theme] with every page's scrollbar always on screen.
+///
+/// The always-visible defaults used to live only in [dartvelDefaultTheme], so
+/// an application that brought its own theme got Flutter's: a thumb that
+/// shows while scrolling and fades away. Visibility and dragging are forced;
+/// the application's own thickness, radius and colours are kept, and
+/// Dartvel's quiet ones fill whatever it did not set.
+ThemeData dvWithPageScrollbars(ThemeData theme) {
+  final ScrollbarThemeData own = theme.scrollbarTheme;
+  final ScrollbarThemeData fallback = dartvelDefaultTheme(theme.brightness, fontPackage: null).scrollbarTheme;
+  return theme.copyWith(
+    scrollbarTheme: own.copyWith(
+      thumbVisibility: WidgetStateProperty.all(true),
+      trackVisibility: WidgetStateProperty.all(true),
+      interactive: true,
+      thickness: own.thickness ?? fallback.thickness,
+      radius: own.radius ?? fallback.radius,
+      thumbColor: own.thumbColor ?? fallback.thumbColor,
+      trackColor: own.trackColor ?? fallback.trackColor,
+      trackBorderColor: own.trackBorderColor ?? fallback.trackBorderColor,
+    ),
+  );
+}
