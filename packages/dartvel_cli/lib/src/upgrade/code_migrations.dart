@@ -73,6 +73,13 @@ class DVCodeMigrationRule {
 /// Every rule `dartvel migrate-code` applies, in the order they are listed.
 const List<DVCodeMigrationRule> dvCodeMigrationRules = <DVCodeMigrationRule>[
   DVCodeMigrationRule(
+    id: 'generate-pages',
+    match: DVCodeMigrationMatch.identifier,
+    from: 'generatePublicPages',
+    to: 'generatePages',
+    evidence: r'final bool generatePages;',
+  ),
+  DVCodeMigrationRule(
     id: 'style-modifier-type',
     match: DVCodeMigrationMatch.identifier,
     from: 'DVStyleModifier',

@@ -9,7 +9,7 @@ import 'package:dartvel_core/dartvel.dart';
 /// the half that searches by meaning.
 ///
 /// No public page per record: a section is reached on the page it is part of.
-@DVModel(searchable: true, semantic: true, generatePublicPages: false)
+@DVModel(searchable: true, semantic: true, generatePages: false)
 class const _SitePage({
   /// The page's path and the section's position on it: `/docs/cache#2`.
   required final String id,

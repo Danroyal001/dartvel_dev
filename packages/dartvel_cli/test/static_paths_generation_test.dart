@@ -76,7 +76,7 @@ Future<List<String>> productPaths() async => <String>['a'];
       }
     });
 
-    test('a resolver alone is enough, without generatePublicPages', () async {
+    test('a resolver alone is enough, without generatePages', () async {
       // Naming a resolver is itself the statement that this route should be
       // generated; requiring a second flag would be ceremony.
       final root = await _project({
@@ -110,7 +110,7 @@ Future<List<String>> productPaths() async => <String>['a'];
         'models/product.dart': """
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(generatePublicPages: true, publicPathsResolver: productPaths)
+@DVModel(generatePages: true, publicPathsResolver: productPaths)
 @pragma('vm:entry-point')
 class _Product {
   final String slug;
@@ -235,7 +235,7 @@ class _Product {
         'models/product.dart': '''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(generatePublicPages: true)
+@DVModel(generatePages: true)
 class _Product {
   final String slug;
   final String title;
@@ -268,7 +268,7 @@ class _Product {
         'models/product.dart': '''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(generatePublicPages: true)
+@DVModel(generatePages: true)
 class Product {
   final String slug;
   const Product({required this.slug});
@@ -425,7 +425,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 @DVModel(
   pageDataMode: DVModelPageDataMode.staleWhileRevalidate,
-  generatePublicPages: true,
+  generatePages: true,
 )
 @pragma('vm:entry-point')
 class _Product {
@@ -452,7 +452,7 @@ class _Product {
             'DVModelPageDataMode.staleWhileRevalidate;',
           ),
         );
-        expect(content, contains('generatePublicPages = true;'));
+        expect(content, contains('generatePages = true;'));
         expect(content, contains('// ignore: constant_identifier_names'));
         expect(
           content,
@@ -526,7 +526,7 @@ class _Note {
         ).readAsStringSync();
 
         expect(content, contains('pageDataMode = DVModelPageDataMode.auto;'));
-        expect(content, contains('generatePublicPages = true;'));
+        expect(content, contains('generatePages = true;'));
       } finally {
         root.deleteSync(recursive: true);
       }
@@ -548,7 +548,7 @@ class _Note {
           .writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(generatePublicPages: true, favicon: '/icons/product.png')
+@DVModel(generatePages: true, favicon: '/icons/product.png')
 class _Product {
   final String slug;
   final String name;
@@ -580,7 +580,7 @@ class _Product {
           .writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(generatePublicPages: true)
+@DVModel(generatePages: true)
 class _Product {
   final String slug;
   final String name;

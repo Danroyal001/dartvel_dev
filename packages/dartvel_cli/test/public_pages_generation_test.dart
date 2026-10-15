@@ -32,7 +32,7 @@ class const _Article({
 const String _customer = '''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(generatePublicPages: true, subject: DVSubject.self, retain: DVRetention.indefinite)
+@DVModel(generatePages: true, subject: DVSubject.self, retain: DVRetention.indefinite)
 class const _Customer({
   required final String id,
   required final String name,
@@ -56,7 +56,7 @@ class const _Reading({required final int id, required final double value});
 const String _memo = '''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(generatePublicPages: false)
+@DVModel(generatePages: false)
 class const _Memo({required final String id, required final String text});
 ''';
 
@@ -128,15 +128,15 @@ void main() {
         }));
 
     test('a model that said nothing has a page at its own route', () {
-      expect(classOf('Article'), contains('generatePublicPages = true;'));
+      expect(classOf('Article'), contains('generatePages = true;'));
       expect(classOf('Article'), contains("publicPageRoute = '/articles/:slug'"));
       expect(specOf('Article'), contains("route: '/articles/:slug'"));
     });
 
     test('a model that opted out, a session and a keyless model have none', () {
-      expect(classOf('Memo'), contains('generatePublicPages = false;'));
-      expect(classOf('UserSession'), contains('generatePublicPages = false;'));
-      expect(classOf('Reading'), contains('generatePublicPages = false;'));
+      expect(classOf('Memo'), contains('generatePages = false;'));
+      expect(classOf('UserSession'), contains('generatePages = false;'));
+      expect(classOf('Reading'), contains('generatePages = false;'));
       expect(specOf('Memo'), isEmpty);
       expect(specOf('UserSession'), isEmpty);
       expect(specOf('Reading'), isEmpty);
@@ -204,7 +204,7 @@ void main() {
   test('a default page yields to the application\'s own page at its route', () async {
     await generate(<String, String>{'models/article.dart': _article},
         takenRoutes: <String>{'/articles/:id'});
-    expect(classOf('Article'), contains('generatePublicPages = false;'));
+    expect(classOf('Article'), contains('generatePages = false;'));
     expect(specOf('Article'), isEmpty);
   });
 

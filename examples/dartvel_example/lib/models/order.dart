@@ -10,7 +10,7 @@ import 'package:dartvel_core/dartvel.dart';
 /// kept for seven years because that is what the accounts need. It has no
 /// public page: an order is somebody's purchase, not something to publish.
 @DVModel(
-  generatePublicPages: false,
+  generatePages: false,
   subject: DVSubject.field('email'),
   retain: DVRetention.days(2555, from: 'placedAt', then: DVRetention.anonymize),
 )

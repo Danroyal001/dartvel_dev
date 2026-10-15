@@ -58,17 +58,17 @@ void main() {
   });
 
   test('a model generates public pages unless it opts out', () {
-    expect(const DVModel().generatePublicPages, isTrue);
-    expect(const DVModel(generatePublicPages: false).generatePublicPages,
+    expect(const DVModel().generatePages, isTrue);
+    expect(const DVModel(generatePages: false).generatePages,
         isFalse);
     // A field annotation mirrors the model's default rather than stating a
     // second, contradicting one.
-    expect(const DVModel.sensitiveField().generatePublicPages, isTrue);
-    expect(const DVModel.searchableField().generatePublicPages, isTrue);
-    expect(const DVModel.pageTitle().generatePublicPages, isTrue);
-    expect(const DVModel.model3dField().generatePublicPages, isTrue);
+    expect(const DVModel.sensitiveField().generatePages, isTrue);
+    expect(const DVModel.searchableField().generatePages, isTrue);
+    expect(const DVModel.pageTitle().generatePages, isTrue);
+    expect(const DVModel.model3dField().generatePages, isTrue);
     expect(const DVModel.retain(years: 7, because: 'tax law')
-        .generatePublicPages, isTrue);
+        .generatePages, isTrue);
   });
 
   test('seeing a sensitive field is a policy action of its own', () {
