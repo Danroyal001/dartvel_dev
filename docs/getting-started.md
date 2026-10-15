@@ -397,7 +397,7 @@ The application entry imports its generated client and starts Dartvel:
 ```dart
 import 'dartvel_client/dartvel_client.dart';
 
-void main() => DV.run();
+void main(List<String> args) => DV.run(args);
 ```
 
 Pure Dartvel apps omit `@DVAppRoot`. The generated root uses the generated router
