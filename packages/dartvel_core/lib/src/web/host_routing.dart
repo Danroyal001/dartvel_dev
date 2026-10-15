@@ -462,6 +462,47 @@ DVHostedRequest dvHostedRequest(
   );
 }
 
+/// A per-host `/robots.txt` or `/sitemap.xml`: its status, type and body.
+typedef DVHostSiteFile = ({int status, String contentType, String body});
+
+/// `/robots.txt` or `/sitemap.xml` on [host], or null when [path] is
+/// neither or the build wrote no such file.
+///
+/// [robots] and [sitemap] are what the build wrote, or null. The sitemap
+/// lists every page's public URL; each host is answered with the entries on
+/// its own origin and a robots.txt naming its own sitemap. A host that
+/// serves none of the route [patterns] -- a wildcard label nothing is
+/// published under -- is answered 404 for both. Decided from [hosts], which
+/// the caller parsed from the manifest, never from the files' text.
+DVHostSiteFile? dvHostSiteFileFor(
+  DVHosts hosts, {
+  required String? host,
+  required String path,
+  required Iterable<String> patterns,
+  required String? robots,
+  required String? sitemap,
+}) {
+  if (hosts.isEmpty) return null;
+  if (path != '/robots.txt' && path != '/sitemap.xml') return null;
+  if ((path == '/robots.txt' ? robots : sitemap) == null) return null;
+  final DVHostMatch match = hosts.matchOrPrimary(host);
+  if (!match.servesAnyOf(patterns)) {
+    return (status: 404, contentType: 'text/plain; charset=utf-8', body: 'Not found');
+  }
+  if (path == '/robots.txt') {
+    return (
+      status: 200,
+      contentType: 'text/plain; charset=utf-8',
+      body: dvRobotsTxt(siteUrl: match.origin, sitemap: sitemap != null),
+    );
+  }
+  return (
+    status: 200,
+    contentType: 'application/xml; charset=utf-8',
+    body: dvSitemapForOrigin(sitemap!, match.origin),
+  );
+}
+
 /// [raw] as a host name: lowercase, with no port and no trailing dot, the
 /// brackets taken off an IPv6 literal. Null for an empty or non-ASCII host
 /// (internationalised names arrive as punycode; anything else is refused

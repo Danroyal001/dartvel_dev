@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostMatch, DVHostedRequest, DVHosts, dvEffectiveHost, dvHostedRequest, dvRobotsTxt, dvSitemapForOrigin;
+    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
@@ -546,22 +546,21 @@ Future<Response?> dvHostSiteFile(Request req, String spaRoot) async {
   if (manifest is! Map) return null;
   final DVHosts hosts = DVHosts.fromJson(manifest['hosts']);
   if (hosts.isEmpty) return null;
-  final DVHostMatch host = hosts.matchOrPrimary(_requestHost(req));
   final Object? routes = manifest['routes'];
-  final Iterable<String> patterns = routes is Map ? routes.keys.map((Object? k) => '$k') : const <String>[];
-  if (!host.servesAnyOf(patterns)) {
-    return Response.text('Not found', status: 404, headers: Headers()..set('cache-control', 'no-store'));
-  }
-  final String? sitemap = dvSiteText(spaRoot, 'sitemap.xml');
-  final Headers headers = Headers()..set('cache-control', 'public, no-cache');
-  if (path == '/robots.txt') {
-    // The build writes robots.txt only with a siteUrl; without one there is
-    // nothing to answer here either.
-    if (dvSiteText(spaRoot, 'robots.txt') == null) return null;
-    headers.set('content-type', 'text/plain; charset=utf-8');
-    return Response.text(dvRobotsTxt(siteUrl: host.origin, sitemap: sitemap != null), headers: headers);
-  }
-  if (sitemap == null) return null;
-  headers.set('content-type', 'application/xml; charset=utf-8');
-  return Response.text(dvSitemapForOrigin(sitemap, host.origin), headers: headers);
+  final DVHostSiteFile? file = dvHostSiteFileFor(
+    hosts,
+    host: _requestHost(req),
+    path: path,
+    patterns: routes is Map ? routes.keys.map((Object? k) => '$k') : const <String>[],
+    robots: dvSiteText(spaRoot, 'robots.txt'),
+    sitemap: dvSiteText(spaRoot, 'sitemap.xml'),
+  );
+  if (file == null) return null;
+  return Response.text(
+    file.body,
+    status: file.status,
+    headers: Headers()
+      ..set('content-type', file.contentType)
+      ..set('cache-control', file.status == 200 ? 'public, no-cache' : 'no-store'),
+  );
 }
