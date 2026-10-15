@@ -50,6 +50,89 @@ answers its own target. A query string is carried over unless the target has one
 path, points at itself or names another status is reported by the build and left out. `dartvel dev
 --release` answers them the same way.
 
+## Hosts
+
+`dartvel.hosts` lets one binary answer several hostnames, each showing a part of the application's one
+route tree:
+
+```yaml
+dartvel:
+  seo:
+    siteUrl: https://example.com
+  hosts:
+    example.com:                     # no mount (or mount: /): the primary host
+      siteUrl: https://example.com   # optional here; defaults to dartvel.seo.siteUrl
+    docs.example.com:
+      mount: /docs                   # docs.example.com/x  <->  route /docs/x
+      siteUrl: https://docs.example.com
+      name: Example Docs             # optional: the site name on this host
+      description: Reference for Example.  # optional: see below
+    '*.apps.example.com':            # one leftmost-label wildcard
+      mount: /apps/{label}           # foo.apps.example.com/x  <->  route /apps/foo/x
+      siteUrl: https://{label}.apps.example.com
+```
+
+The build refuses the configuration, naming each problem, when there is not exactly one primary host, a
+wildcard is anything but `*.` followed by a hostname, `{label}` appears in an entry that is not a
+wildcard (or is not a whole path segment of the mount, once), a mount does not start with `/`, two hosts
+share a mount, a hostname is not ASCII (write an internationalised name in its `xn--` form), or a
+`siteUrl` is not an `http(s)` origin with no path. A label is a lowercase DNS label: letters, digits and
+inner hyphens, at most 63 characters. Without `dartvel.hosts` nothing below happens and every response is
+what it was.
+
+How a request is answered:
+
+1. **Which host.** The `Host` header, lowercased, without its port or a trailing dot (`[::1]:8080` is
+   `::1`). `X-Forwarded-Host` is used instead only when the connection's peer is a proxy the application
+   already trusts through `dartvel.server.trustedProxies` (and `DARTVEL_TRUSTED_PROXIES`), the same list
+   the client address and rate limits use; of several comma-separated values the last, the one that proxy
+   wrote, is read. A header from anybody else is ignored. An exact hostname wins over a wildcard. A host
+   that matches no entry -- a health check, a bare IP, a name you did not declare -- is served as the
+   primary host, and canonical URLs never echo the request's `Host`.
+2. **Which route.** The path is mapped through the host's mount: on `docs.example.com`, `/` is the route
+   `/docs` and `/x` is `/docs/x`. `dartvel.redirects` is answered first, on the path as requested.
+3. **Old locations.** Every route belongs to the host whose mount is the longest one containing it
+   (`/apps/<label>` and below for a valid label; anything else is the primary's). When the route asked for
+   belongs to another host the answer is a `301` to its public URL, query kept: `example.com/docs/x` goes
+   to `https://docs.example.com/x` and `example.com/apps/foo` to `https://foo.apps.example.com`. A path
+   that is no route is not redirected; it is a `404` where it was asked.
+4. **The page** is rendered as before, at its path on its own host: the canonical link and `og:url` are
+   its public URL. A host's root is written as its origin with no trailing slash
+   (`https://docs.example.com`), as every canonical and sitemap URL Dartvel writes is. A host's `name` is
+   the site name there; its `description` is used only where `dartvel.seo.description` would have been,
+   for a page that declares no description of its own. A page's own title and description always win.
+5. **Kept pages.** The rendered-page cache keys each document by the effective host's origin as well as
+   by the request, so two hosts, or one `Host` header reached directly and through a trusted proxy, never
+   share a document.
+6. **Guarded pages.** A signed-out reader is sent to the sign-in page's public URL
+   (`https://example.com/sign-in?from=%2Fdocs%2Fprivate` from `docs.example.com/private`); `from` is the route.
+7. **robots.txt and sitemap.xml.** The build writes one sitemap listing every page at its public URL. Each
+   host is answered with the entries on its own origin and a robots.txt whose `Sitemap:` line is its own.
+   A host with no route under its mount -- a wildcard label nothing is published for -- answers `404` to
+   both. Which host serves what is read from the hosts in the manifest, not from the files.
+
+The site's files (scripts, images, the app's assets) are served on every host at the same paths.
+
+On the client, the generated router installs the same table (`const DVHosts dartvelHosts`, with
+`dvUseHosts(dartvelHosts)` in its set-up) and routes by `Uri.base.host`. On a mounted host a location the
+browser reports outside the mount is mapped into it, so `foo.apps.example.com/` hydrates and reloads into
+the `/apps/foo` page, and the address bar shows a route under the mount without it. `DVNavLink`'s address
+is `dvPublicLocation(route)`: the path without the mount on its own host, or an absolute URL on the host
+that owns the route, which is followed in the same tab rather than routed. The client writes the same
+canonical URL as the server. On the primary host the router and the address bar are unchanged; only links
+to another host's routes differ. Off the web no host served the app, and the table is not used.
+
+`dartvel dev --release` serves hosts through the same core functions (`dvHostedRequest`,
+`dvHostSiteFileFor`). It does not install `dartvel.server.trustedProxies`, so it always reads `Host`; set the
+`Host` header (or an `/etc/hosts` entry) to try a host locally. `dartvel build web` (static files) cannot
+see the host a request was made for: it warns, and serves every page on every host with canonical URLs on
+`dartvel.seo.siteUrl`.
+
+Limits: a path on a mounted host that itself begins with the mount (`docs.example.com/docs/x`) is the route
+`/docs/docs/x` on the server, while the client, which cannot tell it from an in-app location, leaves it as
+`/docs/x`. Code that calls `DV.Navigation` or `GoRouter.go` with a route of another host routes there in the
+app on the current host; use `DVNavLink`, or `dvPublicLocation`, to leave for the host that owns it.
+
 ## Assets
 
 Each file is kept the smallest way the build finds it

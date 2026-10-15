@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `dartvel.hosts` on the web: `dvUseHosts` installs the table for `Uri.base.host`. On a mounted host `DVRouter` maps the browser's location into the mount (so `foo.apps.example.com/` is the `/apps/foo` page on first load and reload) and shows routes under the mount without it. `DVNavLink`'s href is `dvPublicLocation`: the path without the mount on its own host, or an absolute URL on the host that owns the route, followed in the same tab. Client-side SEO writes the server's canonical. Nothing changes without hosts, on the primary host's routing, or off the web.
 - Drag and drop on the web: `DV.Platform.dragDrop.accept()` now works in a browser. Dropped files arrive in the new `DVDropEvent.files` (`DVDroppedFile`: name, MIME type and bytes), since a page is never given a path; dropped text arrives as `text`. `DV.Platform.dragDrop.draggingOver` reports a drag entering and leaving the window, so a page can show where to drop.
 - `DV.Platform.media.readCapture(file)`: the bytes of a photo or recording from `DVBox.camera`, `DVCameraController.takePhoto` or `recordAudio`/`recordVideo`, on every target. In a browser a capture's path is a key into the page's capture store that no file API opens, so before this a web app could show a photo it could not read.
 
