@@ -121,6 +121,13 @@ void main() {
       expect(dvLocationToPlatform('/x'), '/x');
     });
 
+    test('off the web, where no host served the app, the table is not used', () {
+      dvUseHosts(hosts());
+      expect(dvCurrentHost, isNull);
+      expect(dvPublicLocation('/docs/x'), '/docs/x');
+      expect(dvLocationFromPlatform('/'), '/');
+    });
+
     test('an unknown host is the primary', () {
       dvUseHosts(hosts(), host: 'localhost');
       expect(dvCurrentHost!.entry.pattern, 'example.com');
