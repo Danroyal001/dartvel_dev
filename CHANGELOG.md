@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.13.1 — 2026-10-15
+
+- Fix: 0.13.0's host routing replaced every page's own meta description with the site-wide one, in every app. Host routing is reimplemented (below) and pages keep their descriptions.
+- One web-server binary can serve several hostnames: `dartvel.hosts` maps each host onto a part of the route tree (`docs.example.com` is `/docs`, `*.apps.example.com` is `/apps/{label}`), with canonical URLs and a sitemap and robots.txt per host, `301`s from a route's old location to its host, and a Flutter web client that routes by the host after hydration. Without `dartvel.hosts` nothing changes. See docs/web-server-binary.md.
+
 ## 0.13.0 — 2026-10-15
 
 **Breaking (alpha):** application entry is now one line in every app, `void main(List<String> args) => DV.run(args);`. Startup work goes in a private `@DVBoot()` function; an existing Flutter root goes in `@DVAppRoot()`. `DV.run` negotiates the launch (terminal, single instance) before the app runs.

@@ -1,3 +1,8 @@
+## 0.13.1 — 2026-10-15
+
+- Fix: 0.13.0's host routing replaced every page's own meta description with the site-wide one, in every app. Host routing is reimplemented (below) and pages keep their descriptions.
+- `dartvel.hosts`: each host shows its mount of the route tree; a route asked for on a host that does not own it is a `301` to its public URL; canonical and `og:url` are the public URL; unknown hosts are served as the primary. `X-Forwarded-Host` is read only from a peer `dartvel.server.trustedProxies` trusts. Rendered pages are kept per effective host, the sign-in redirect goes to the sign-in page's public URL, and `robots.txt` and `sitemap.xml` are answered per host.
+
 ## 0.13.0 — 2026-10-15
 
 - Host-aware server rendering, robots.txt and sitemap.xml per host.

@@ -19,6 +19,7 @@ import '../build/minify.dart';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVDevClientManifest,
+        DVHosts,
         DVModuleEnvironment,
         DVHomeWidgetSpec,
         DVBuildLifecycle,
@@ -1395,6 +1396,11 @@ class BuildCommand extends Command<void> {
             return DVBuildTargetResult.failed;
           }
         } else {
+          // dartvel.hosts needs a server to read the Host header; a static
+          // host serves one set of files on every name.
+          final String? hostsWarning =
+              dvStaticHostsWarning(_dartvelSection(root));
+          if (hostsWarning != null) Logger.log('⚠️  $hostsWarning');
           await _writeStaticPages(root);
           // The documentation site, when pubspec asks for a public one: files
           // at its mount like every other page of a static site.
@@ -3689,7 +3695,8 @@ class BuildCommand extends Command<void> {
 
   /// Each route's page, as both targets render it: `dartvel build web` at
   /// build time and the web-server binary on request, from its manifest.
-  Map<String, DVRoutePage> _routePages(String root, List<String> routes) {
+  Map<String, DVRoutePage> _routePages(String root, List<String> routes,
+      {DVHosts hosts = DVHosts.none}) {
     final web = Directory(p.join(root, 'build', 'web'));
     final dartvel = _dartvelSection(root);
     final seo = dartvel['seo'];
@@ -3726,6 +3733,9 @@ class BuildCommand extends Command<void> {
     final Map<String, String> modelSchemaTypes =
         dvModelPageSchemaTypes(modelPages);
 
+    // [hosts] (dartvel.hosts, web-server builds only): a page owned by another
+    // host takes that host's name, and its description where it declared
+    // none of its own.
     final Map<String, DVRoutePage> pages = <String, DVRoutePage>{};
     for (final String route in routes) {
       final bool home = route == '/';
@@ -3743,11 +3753,13 @@ class BuildCommand extends Command<void> {
                 '${_routeLabel(route)} — $baseTitle',
         description: home
             ? rootHead.description
-            : declaredDescriptions[route] ?? dvSeoDescription(settings),
+            : dvHostPageDescription(hosts, route,
+                declared: declaredDescriptions[route],
+                site: dvSeoDescription(settings)),
         content: meta?.content,
         siteUrl: siteUrl,
         image: settings['image'] as String?,
-        siteName: siteName,
+        siteName: dvHostPageSiteName(hosts, route, siteName),
         alternates: alternates,
         defaultAlternate: defaultAlternate,
         favicon: dvBuildFavicon(
@@ -4162,6 +4174,10 @@ class BuildCommand extends Command<void> {
     final settings = _dartvelSection(root)['seo'];
     final seo = settings is Map ? settings : const <Object?, Object?>{};
     final siteUrl = seo['siteUrl'] as String?;
+    // dartvel.hosts, already refused by generation when it has problems:
+    // carried into the manifest for the server, and each sitemap URL is the
+    // page's public one.
+    final DVHosts hosts = dvHostsConfig(_dartvelSection(root)).hosts;
 
     // The shell the server renders every page from is the one the static
     // build renders from: cleaned of the template's developer comments and
@@ -4208,7 +4224,7 @@ class BuildCommand extends Command<void> {
         titles: dvRouteTitles(_routerSource(root)),
         text: _routeText(root),
         siteUrl: siteUrl,
-        pages: _routePages(root, routes),
+        pages: _routePages(root, routes, hosts: hosts),
         // dartvel.seo, carried so the server can put it back. _writeSeoHead
         // wrote these into the shell a moment ago and rendering a route
         // replaces that whole block -- so a server without them served every
@@ -4224,7 +4240,7 @@ class BuildCommand extends Command<void> {
         server: DVWebServerSettings.parse(
           (_dartvelSection(root)['web'] is Map ? (_dartvelSection(root)['web']! as Map)['server'] : null),
         ),
-        hosts: _configuredHosts(root),
+        hosts: hosts,
       ),
     );
 
@@ -4257,6 +4273,9 @@ class BuildCommand extends Command<void> {
           entries: dvSitemapEntries(_routerSource(root)),
           defaults: sitemapConfig.defaults,
           exclude: sitemapConfig.exclude,
+          // dartvel.hosts: each page at its public URL, on the host that
+          // owns it. The server answers each host with its own entries.
+          publicUrl: hosts.isEmpty ? null : hosts.publicUrl,
         ));
       }
       File(p.join(web.path, 'robots.txt')).writeAsStringSync(
@@ -4426,18 +4445,6 @@ class BuildCommand extends Command<void> {
       Logger.log('⚠️  $problem');
     }
     return redirects;
-  }
-
-  /// `dartvel.hosts`, with every problem in it reported and left out.
-  DVHostRoutingConfig? _configuredHosts(String root) {
-    final List<String> problems = <String>[];
-    final section = _dartvelSection(root)['hosts'];
-    if (section == null) return null;
-    final config = DVHostRoutingConfig.parse(section, problems: problems);
-    for (final String problem in problems) {
-      Logger.log('⚠️  $problem');
-    }
-    return config.isEmpty ? null : config;
   }
 
   Map<Object?, Object?> _dartvelSection(String root) {
