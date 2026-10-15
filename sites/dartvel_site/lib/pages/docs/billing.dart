@@ -85,7 +85,7 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
               '(PLAY_SERVICE_ACCOUNT_JSON), the package name and the Pub/Sub '
               'push audience under dartvel.purchases.play, and a push is '
               'believed only with Google\'s signed token for that audience.',
-          'dartvel build android --format aab also writes the Play Data '
+          '`dartvel build android --format aab` also writes the Play Data '
               'safety answers (data-safety.csv and a worksheet) beside the '
               'bundle. It fills in only what Dartvel itself sends and lists '
               'the rest as questions for you.',
