@@ -768,6 +768,9 @@ class _DVStudioPaletteState extends State<DVStudioPalette> {
                                   widget.controller!.readOnly
                               ? null
                               : () => _insert(items[i + c].$1),
+                          // Without a controller the palette is drag-only,
+                          // as its documentation says; read-only is neither.
+                          draggable: !(widget.controller?.readOnly ?? false),
                         )
                       : const SizedBox.shrink(),
                 ),
@@ -786,10 +789,14 @@ class _DVStudioPaletteTile extends StatefulWidget {
   final DVPageNode sample;
   final VoidCallback? onInsert;
 
+  /// Whether the item can be dragged onto the canvas.
+  final bool draggable;
+
   const _DVStudioPaletteTile({
     required this.item,
     required this.sample,
     required this.onInsert,
+    this.draggable = true,
   });
 
   @override
@@ -860,7 +867,7 @@ class _DVStudioPaletteTileState extends State<_DVStudioPaletteTile> {
           excludeSemantics: true,
           child: Draggable<DVStudioPaletteItem>(
             data: widget.item,
-            maxSimultaneousDrags: widget.onInsert == null ? 0 : 1,
+            maxSimultaneousDrags: widget.draggable ? 1 : 0,
             feedback: _dvStudioDragChip(icon, widget.item.label),
             childWhenDragging: Opacity(opacity: 0.5, child: face),
             child: face,

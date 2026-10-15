@@ -295,7 +295,8 @@ class _FakeServer {
   }
 }
 
-Widget _host(DVStudioClient client) => DVStudioApp(client: client);
+Widget _host(DVStudioClient client, {String? screen}) =>
+    DVStudioApp(client: client, screen: screen);
 
 void main() {
   late _FakeServer server;
@@ -420,7 +421,9 @@ void main() {
       tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
       addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
 
-      await tester.pumpWidget(_host(client));
+      // The page builder, where the canvas and its help are: the mount
+      // opens on Home now, as wp-admin opens on its Dashboard.
+      await tester.pumpWidget(_host(client, screen: 'pages'));
       await tester.pumpAndSettle();
 
       // The nearest filled box behind a piece of text: what the text sits on.
@@ -486,14 +489,16 @@ void main() {
           .tap(find.byKey(const ValueKey<String>('dv-studio-section-models')));
       await tester.pumpAndSettle();
 
-      expect(find.text('JOINED AT'), findsOneWidget);
-      expect(find.text('LAST SEEN'), findsOneWidget);
-      expect(find.text('JOINEDAT'), findsNothing);
+      // The column headings are sort buttons, in sentence case.
+      expect(find.text('Joined at'), findsOneWidget);
+      expect(find.text('Last seen'), findsOneWidget);
+      expect(find.textContaining('joinedAt'), findsNothing);
 
       await tester
           .tap(find.byKey(const ValueKey<String>('dv-studio-record-ada')));
       await tester.pumpAndSettle();
-      expect(find.text('JOINED AT'), findsNWidgets(2));
+      // And the record's form labels the field the same way.
+      expect(find.text('JOINED AT'), findsOneWidget);
     });
 
     testWidgets('a record opens in a form, and saving sends what changed',
@@ -655,11 +660,14 @@ void main() {
       await tester.pumpWidget(_host(client));
       await tester.pumpAndSettle();
 
+      // The rail scrolls once there are more screens than fit.
+      await tester.ensureVisible(
+          find.byKey(const ValueKey<String>('dv-studio-section-access')));
       await tester
           .tap(find.byKey(const ValueKey<String>('dv-studio-section-access')));
       await tester.pumpAndSettle();
 
-      expect(find.text('owner-1'), findsOneWidget);
+      expect(find.textContaining('owner-1'), findsWidgets);
       expect(find.text('owner@example.com'), findsOneWidget);
     });
 
@@ -797,45 +805,52 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(_host(client));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(
+          find.byKey(const ValueKey<String>('dv-studio-section-access')));
       await tester
           .tap(find.byKey(const ValueKey<String>('dv-studio-section-access')));
+      await tester.pumpAndSettle();
+    }
+
+    /// Grants [account] the way a person does: Invite, the address, Grant.
+    Future<void> invite(WidgetTester tester, String account) async {
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-invite-teammate')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('dv-studio-grant-account')),
+          matching: find.byType(EditableText),
+        ),
+        account,
+      );
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-grant-submit')));
       await tester.pumpAndSettle();
     }
 
     testWidgets('an account is granted from Studio by its address',
         (WidgetTester tester) async {
       await openAccess(tester);
-
-      await tester.enterText(
-        find.descendant(
-          of: find.byKey(const ValueKey<String>('dv-studio-grant-account')),
-          matching: find.byType(EditableText),
-        ),
-        'sam@example.com',
-      );
-      await tester.tap(find.byKey(const ValueKey<String>('dv-studio-grant')));
-      await tester.pumpAndSettle();
+      await invite(tester, 'sam@example.com');
 
       final _Call post =
           server.calls.lastWhere((_Call c) => c.method == 'POST');
       expect(post.path, 'api/grants');
-      expect(post.body, <String, Object?>{'account': 'sam@example.com'});
+      // No tenant: the server grants on the one the request is for. A role
+      // is chosen, and is the least one unless somebody chose more; a server
+      // from before roles offers only Administrator.
+      expect(post.body, <String, Object?>{
+        'account': 'sam@example.com',
+        'role': 'admin',
+      });
       // The list is read again, so the new grant is on it.
       expect(find.text('sam@example.com'), findsOneWidget);
     });
 
     testWidgets('a refused grant says why', (WidgetTester tester) async {
       await openAccess(tester);
-
-      await tester.enterText(
-        find.descendant(
-          of: find.byKey(const ValueKey<String>('dv-studio-grant-account')),
-          matching: find.byType(EditableText),
-        ),
-        'nobody@example.com',
-      );
-      await tester.tap(find.byKey(const ValueKey<String>('dv-studio-grant')));
-      await tester.pumpAndSettle();
+      await invite(tester, 'nobody@example.com');
 
       expect(find.textContaining('Nobody has signed up'), findsOneWidget);
     });
@@ -883,7 +898,7 @@ void main() {
           return const DVStudioReply(404, <String, Object?>{});
         },
       );
-      await tester.pumpWidget(_host(errorClient));
+      await tester.pumpWidget(_host(errorClient, screen: 'pages'));
       await tester.pumpAndSettle();
       expect(find.textContaining('<!DOCTYPE'), findsNothing);
       expect(find.textContaining('<html'), findsNothing);

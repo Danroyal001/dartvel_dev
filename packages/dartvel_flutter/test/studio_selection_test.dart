@@ -311,6 +311,10 @@ void main() {
     final _Server server = _Server(granted: true);
     final GoRouter router = await _at(tester, server, '/__studio');
 
+    // The rail scrolls once there are more screens than fit.
+    await tester.ensureVisible(
+      find.byKey(const ValueKey<String>('dv-studio-section-access')),
+    );
     await tester.tap(
       find.byKey(const ValueKey<String>('dv-studio-section-access')),
     );
@@ -652,6 +656,10 @@ void main() {
     );
     final GoRouter router = await _at(tester, server, '/__studio/data');
 
+    // The rail scrolls once there are more screens than fit.
+    await tester.ensureVisible(
+      find.byKey(const ValueKey<String>('dv-studio-section-access')),
+    );
     await tester.tap(
       find.byKey(const ValueKey<String>('dv-studio-section-access')),
     );

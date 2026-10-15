@@ -2266,15 +2266,29 @@ class DVPageStore {
   Future<void> _initialize() => DV.Database.records.ensure(_shape);
 
   /// Upserts by route and publishes the change to watchers.
+  /// Writes [document] as the page at its route.
+  ///
+  /// An update of the row that is there, and an insert only when there is
+  /// none: a delete and an insert, two saves of one page at once -- a
+  /// shortcut and a button, say -- interleaved into two inserts of one route
+  /// and the second failed on the route's uniqueness. If two inserts still
+  /// race, the one that loses writes over the one that won.
   Future<void> save(DVPageDocument document) async {
     await _initialize();
     final DVRecordAdapter records = DV.Database.records;
-    await records.delete(table, where: DVFilter.equals('route', document.route));
-    await records.insert(table, <String, Object?>{
+    final DVFilter here = DVFilter.equals('route', document.route);
+    final Map<String, Object?> row = <String, Object?>{
       'route': document.route,
       'title': document.title,
       'document': jsonEncode(document.toJson()),
-    });
+    };
+    if (await records.update(table, row, where: here) == 0) {
+      try {
+        await records.insert(table, row);
+      } on Object {
+        if (await records.update(table, row, where: here) == 0) rethrow;
+      }
+    }
     _cache[document.route] = document;
     dvPurgeRenderedPages();
     _changes.add(document.route);

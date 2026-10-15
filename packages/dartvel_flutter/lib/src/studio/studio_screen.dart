@@ -18,8 +18,6 @@ import 'package:flutter/material.dart'
         Icons,
         InkWell,
         Material,
-        ScaffoldMessenger,
-        SnackBar,
         showGeneralDialog;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -802,6 +800,9 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   bool _showingCode = false;
   String _newRoute = '';
   DateTime? _lastPublished;
+
+  /// What the last Deploy did, until the page is changed again.
+  String? _publishedNote;
   _DVStudioLeftPanel _left = _DVStudioLeftPanel.insert;
   _DVStudioDevice _device = _DVStudioDevice.desktop;
 
@@ -1304,15 +1305,11 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       _lastPublished = DateTime.now();
       if (mounted) setState(() => _changedInCode = null);
       await _loadRoutes();
+      // Said in the toolbar, where the person pressed Deploy: Studio is
+      // not inside a Scaffold, so a SnackBar was shown to nobody.
       if (mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text(
-                'Page ${controller.document.route} deployed successfully'),
-            duration: const Duration(seconds: 2),
-            backgroundColor: DVStudioStyle.accent,
-          ),
-        );
+        setState(() => _publishedNote =
+            'Page ${controller.document.route} deployed successfully');
       }
     } on DVStudioChangedInCode catch (conflict) {
       // Code changed the page's file since Studio last saved it: nothing
@@ -2796,6 +2793,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           () => setState(controller.togglePreview),
         ),
         _autosaveIndicator(controller),
+        _publishedIndicator(controller),
         const SizedBox(width: DVStudioStyle.space2),
         Container(width: 1, height: 24, color: DVStudioStyle.line),
         const SizedBox(width: DVStudioStyle.space2),
@@ -2884,6 +2882,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           () => setState(controller.togglePreview),
         ),
         _autosaveIndicator(controller),
+        _publishedIndicator(controller),
         divider,
         _keyedIcon(
           'dv-studio-view-code',
@@ -2989,15 +2988,21 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           const Icon(Icons.visibility_outlined,
               size: 16, color: DVStudioStyle.accent),
           const SizedBox(width: DVStudioStyle.space2),
-          const DVText(
-                  'Preview mode — canvas is interactive. Outlines and inspector are hidden.')
-              .modifier(
-            const DVModifier()
-                .fontSize(12)
-                .color(DVStudioStyle.ink)
-                .fontWeight(.w600),
+          Expanded(
+            child: Semantics(
+              liveRegion: true,
+              child: const DVText(
+                      'Preview mode — canvas is interactive. Outlines and inspector are hidden.')
+                  .modifier(
+                const DVModifier()
+                    .fontSize(12)
+                    .color(DVStudioStyle.ink)
+                    .fontWeight(.w600)
+                    .maxLines(1)
+                    .overflow(.ellipsis),
+              ),
+            ),
           ),
-          const Spacer(),
           DVStudioControl(
             key: const ValueKey<String>('dv-studio-exit-preview'),
             label: 'Exit preview',
@@ -3006,6 +3011,23 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             icon: Icons.close,
           ),
         ],
+      ),
+    );
+  }
+
+  /// "Deployed", announced to a screen reader as it appears, and gone once
+  /// the page has changed since.
+  Widget _publishedIndicator(DVStudioEditorController controller) {
+    final String? note = _publishedNote;
+    if (note == null || controller.isDirty) return const SizedBox.shrink();
+    return Semantics(
+      key: const ValueKey<String>('dv-studio-published-note'),
+      liveRegion: true,
+      child: Padding(
+        padding: const .symmetric(horizontal: DVStudioStyle.space2),
+        child: DVText(note).modifier(
+          const DVModifier().fontSize(12).color(DVStudioStyle.success),
+        ),
       ),
     );
   }

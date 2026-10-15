@@ -30,18 +30,22 @@ class _DVStudioTeamSectionState extends State<DVStudioTeamSection> {
       _confirming;
 
   Future<Map<String, Object?>> _load() async {
-    final Map<String, Object?> teamData = await widget.client.team();
-    if (teamData.isNotEmpty) return teamData;
-
-    // Fallback if server returned empty map
-    final List<Map<String, Object?>> grants = await widget.client.grants();
-    final List<Map<String, Object?>> roles = await widget.client.roles();
+    try {
+      final Map<String, Object?> teamData = await widget.client.team();
+      if (teamData.isNotEmpty) return teamData;
+    } on DVStudioRemoteError catch (error) {
+      if (error.status != 404) rethrow;
+    }
+    // A server from before roles answers only who holds a grant: everybody
+    // on it is an administrator, and there is no role to choose or make.
     return <String, Object?>{
-      'grants': grants,
-      'roles': roles,
+      'grants': await widget.client.grants(),
+      'roles': const <Map<String, Object?>>[
+        <String, Object?>{'id': 'admin', 'name': 'Administrator', 'isBuiltIn': true},
+      ],
       'entitlements': const <String, Object?>{
-        'rolesEnabled': true,
-        'customRolesEnabled': true,
+        'rolesEnabled': false,
+        'customRolesEnabled': false,
       },
     };
   }
@@ -54,10 +58,10 @@ class _DVStudioTeamSectionState extends State<DVStudioTeamSection> {
 
   Future<void> _openInviteDialog(List<Map<String, Object?>> availableRoles) async {
     String account = '';
-    String selectedRole = availableRoles.isNotEmpty
-        ? '${availableRoles.first['id'] ?? 'admin'}'
-        : 'admin';
-    const String tenant = 'default';
+    // The least a teammate can be given, until somebody chooses more.
+    String selectedRole = availableRoles.any((Map<String, Object?> r) => r['id'] == 'viewer')
+        ? 'viewer'
+        : (availableRoles.isNotEmpty ? '${availableRoles.first['id']}' : 'viewer');
     String? dialogError;
     bool dialogBusy = false;
 
@@ -90,6 +94,8 @@ class _DVStudioTeamSectionState extends State<DVStudioTeamSection> {
                     ),
                     const SizedBox(height: DVStudioStyle.space3),
                     DVStudioTextInput(
+                      key: const ValueKey<String>('dv-studio-grant-account'),
+                      semanticLabel: 'Email address or account ID',
                       placeholder: 'teammate@example.com or user_123',
                       icon: Icons.person_add_alt_1_outlined,
                       onChanged: (String v) => account = v,
@@ -162,7 +168,7 @@ class _DVStudioTeamSectionState extends State<DVStudioTeamSection> {
                           });
                           try {
                             await widget.client.grant(cleanAccount,
-                                role: selectedRole, tenant: tenant);
+                                role: selectedRole);
                             if (dialogContext.mounted) {
                               Navigator.of(dialogContext).pop();
                             }
