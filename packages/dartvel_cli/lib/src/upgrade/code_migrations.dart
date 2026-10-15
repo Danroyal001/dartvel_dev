@@ -93,7 +93,7 @@ const List<DVCodeMigrationRule> dvCodeMigrationRules = <DVCodeMigrationRule>[
     from: 'Storage',
     to: 'FileStorage',
     evidence:
-        r"@Deprecated\('Use DV\.FileStorage\.[^)]*\)\s*static DVStorage get Storage",
+        r"@Deprecated\(\s*'Use DV\.FileStorage\.[^)]*\)\s*static DVStorage get Storage",
   ),
   DVCodeMigrationRule(
     id: 'searchable-annotation',
@@ -101,7 +101,7 @@ const List<DVCodeMigrationRule> dvCodeMigrationRules = <DVCodeMigrationRule>[
     from: 'DVSearchable',
     to: 'DVModel.searchableField',
     evidence:
-        r"@Deprecated\('Use @DVModel\.searchableField\(\) instead\.[^)]*\)\s*class DVSearchable",
+        r"@Deprecated\(\s*'Use @DVModel\.searchableField\(\) instead\.[^)]*\)\s*class DVSearchable",
   ),
   DVCodeMigrationRule(
     id: 'sensitive-annotation',
@@ -109,7 +109,7 @@ const List<DVCodeMigrationRule> dvCodeMigrationRules = <DVCodeMigrationRule>[
     from: 'DVSensitiveModelField',
     to: 'DVModel.sensitiveField',
     evidence:
-        r"@Deprecated\('Use @DVModel\.sensitiveField\(\) instead\.[^)]*\)\s*class DVSensitiveModelField",
+        r"@Deprecated\(\s*'Use @DVModel\.sensitiveField\(\) instead\.[^)]*\)\s*class DVSensitiveModelField",
   ),
   DVCodeMigrationRule(
     id: 'debug-auth-provider',
@@ -117,7 +117,7 @@ const List<DVCodeMigrationRule> dvCodeMigrationRules = <DVCodeMigrationRule>[
     from: 'DebugAuthProvider',
     to: 'LocalAuthProvider',
     evidence:
-        r"@Deprecated\('Use LocalAuthProvider instead\.'\)\s*typedef DebugAuthProvider = LocalAuthProvider;",
+        r"@Deprecated\(\s*'Use LocalAuthProvider instead\.'\)\s*typedef DebugAuthProvider = LocalAuthProvider;",
   ),
   DVCodeMigrationRule(
     id: 'debug-analytics-provider',
@@ -125,7 +125,7 @@ const List<DVCodeMigrationRule> dvCodeMigrationRules = <DVCodeMigrationRule>[
     from: 'DebugAnalyticsProvider',
     to: 'LocalAnalyticsProvider',
     evidence:
-        r"@Deprecated\('Use LocalAnalyticsProvider instead\.'\)\s*typedef DebugAnalyticsProvider = LocalAnalyticsProvider;",
+        r"@Deprecated\(\s*'Use LocalAnalyticsProvider instead\.'\)\s*typedef DebugAnalyticsProvider = LocalAnalyticsProvider;",
   ),
   DVCodeMigrationRule(
     id: 'debug-push-provider',
@@ -133,7 +133,7 @@ const List<DVCodeMigrationRule> dvCodeMigrationRules = <DVCodeMigrationRule>[
     from: 'DebugPushNotificationProvider',
     to: 'LocalPushNotificationProvider',
     evidence:
-        r"@Deprecated\('Use LocalPushNotificationProvider instead\.'\)\s*typedef DebugPushNotificationProvider = LocalPushNotificationProvider;",
+        r"@Deprecated\(\s*'Use LocalPushNotificationProvider instead\.'\)\s*typedef DebugPushNotificationProvider = LocalPushNotificationProvider;",
   ),
 ];
 
