@@ -46,3 +46,43 @@ and fixed (older page-list shape).
 
 `dvStudioPermissionFor` names the permission each request needs and the
 server checks it against the caller's role. Core Studio tests 335 passed.
+
+## Media, database-only stores, SEO, records, addresses, forms, settings
+
+- Media: closed type list (no SVG/HTML), 25 MB cap, `media/` scope, `nosniff`
+  and `sandbox`; files on disk beside the database, served at
+  `/_dartvel/media/<name>`; uploads through the browser's file chooser.
+- Menus, forms, submissions, settings: the database is the only store; a
+  refused write is a 500, no database a 503; no project seeds.
+- The 41 failing Flutter Studio tests fixed on the merits (code and tests),
+  each change explained in the test.
+- Per-page SEO served in the head, JSON-LD and sitemap (binary and `dartvel dev`).
+- Record history and revert for models with `history:`; record list filter,
+  debounce, bulk-delete reporting.
+- Team and Settings tabs and the form inbox have their own addresses.
+- Forms answered by visitors at `/_dartvel/forms/<id>`, bounded and rate
+  limited per process; drawn on published pages.
+- Settings applied: maintenance mode (503) and default description, image and
+  site title; default SEO title, favicon, timezone, date format, social links
+  still unread.
+- `docs/studio/PARITY.md` now measures Studio against the WordPress admin and
+  the Webflow dashboard, and stale rows are corrected.
+
+## Verification (2026-10-15)
+
+Compared against the seed commit `c65cc32` in a separate worktree, same machine:
+
+- `dartvel_flutter` full suite: 2837 passed, 30 skipped, 1 failed
+  (`web_bindings_test.dart`), which fails identically at the seed.
+- `dartvel_core` full suite under `flutter test`: 51 failures, the same 51 at
+  the seed (shell, subprocess, native library, dart2js and lock tests that need
+  what this container does not have).
+- `dartvel_shelf`: 12 failures, the same 12 at the seed (socket and streaming).
+- `dartvel_cli`: server_binary_build, server_compile, process_roles_backend and
+  server_options pass; the web-server binary test cannot complete here, as at
+  the seed: its build's
+  headless semantics capture reads 0 of 5 routes.
+
+Not done: a browser check of Studio on a web-server build; the convention pass
+over the example apps (`main.dart` with only `DV.run()`, real icons); the repo
+version (0.12.1) is behind pub.dev (0.12.2).
