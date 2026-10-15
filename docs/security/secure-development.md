@@ -189,6 +189,17 @@ closes. Each is tracked in [compliance-plan.md](compliance-plan.md):
   the caller. A designer's pattern that repeats a repetition is refused, and
   no pattern is run against more than 10,000 characters
   (`packages/dartvel_core/lib/src/admin/studio_model_schema.dart`).
+- **A Studio form's answers are limited per process.** `/_dartvel/forms/<id>`
+  is public by design and takes at most ten answers a minute from one
+  source, counted in memory in the process that answers
+  (`packages/dartvel_core/lib/src/admin/published_pages.dart`), so a
+  deployment of several instances gives a source that many budgets, and a
+  restart a fresh one. Answers are bounded in size and kept only as the
+  form declares them (`studio_form_inbox.dart`); the honeypot stops simple
+  bots, not a person.
+- **Studio's page versions and record history are SQL tables.** On a document
+  database Studio keeps no drafts or revisions and says so; it publishes on
+  Publish and never on its own (`studio_api.dart`, `_keepsVersions`).
 - **No threat model document.** The rules above are the distilled version; the
   reasoning behind them is spread across commit messages.
 
