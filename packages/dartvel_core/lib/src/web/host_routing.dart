@@ -402,6 +402,66 @@ final class const DVHostMatch(final DVHostEntry entry, {final String? label}) {
       label == null ? text : text.replaceAll('{label}', label!);
 }
 
+/// A request on one of the [hosts], decided: the route it means, the host
+/// that owns that route, and where to send it when that is another host.
+///
+/// The web-server binary and `dartvel dev --release` both serve a request
+/// through this, so the two answer alike.
+final class const DVHostedRequest({
+  required final DVHosts hosts,
+  required final DVHostMatch requested,
+  required final DVHostMatch owner,
+  required final String path,
+  final String? redirect,
+}) {
+  /// The path the page is rendered at: its path on its owner's host.
+  String get pagePath => owner.hostPath(path) ?? path;
+
+  /// The site the page is rendered on: its owner's origin, so its canonical
+  /// link and og:url are its public URL.
+  String get siteUrl => owner.origin;
+
+  /// The owner's own site name and description, when it declares them. They
+  /// stand in for `dartvel.seo`'s, never for a page's own.
+  String? get siteName => owner.entry.name;
+  String? get description => owner.entry.description;
+
+  /// [internalPath] as a public URL, on whichever host owns it.
+  String publicUrl(String internalPath, {String? query}) =>
+      hosts.publicUrl(internalPath, query: query);
+}
+
+/// [rawPath], asked for on [host], against [hosts].
+///
+/// The host is matched (an unknown one is the primary), the path mapped
+/// through its mount and trimmed of trailing slashes as an unhosted request
+/// is. When [isRoute] says that path is a route and another host owns it,
+/// [DVHostedRequest.redirect] is that route's public URL, [query] kept. A
+/// path no route serves is never redirected: it is not found where it was
+/// asked.
+DVHostedRequest dvHostedRequest(
+  DVHosts hosts, {
+  required String? host,
+  required String rawPath,
+  String? query,
+  required bool Function(String internalPath) isRoute,
+}) {
+  final DVHostMatch requested = hosts.matchOrPrimary(host);
+  final String mapped = requested.internalPath(rawPath);
+  final String path = mapped == '/'
+      ? '/'
+      : mapped.replaceAll(RegExp(r'/+$'), '');
+  final DVHostMatch owner = hosts.owner(path);
+  final bool elsewhere = owner.origin != requested.origin && isRoute(path);
+  return DVHostedRequest(
+    hosts: hosts,
+    requested: requested,
+    owner: owner,
+    path: path,
+    redirect: elsewhere ? hosts.publicUrl(path, query: query) : null,
+  );
+}
+
 /// [raw] as a host name: lowercase, with no port and no trailing dot, the
 /// brackets taken off an IPv6 literal. Null for an empty or non-ASCII host
 /// (internationalised names arrive as punycode; anything else is refused

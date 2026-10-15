@@ -380,4 +380,64 @@ void main() {
       expect(hosts.match('example.com')!.servesAnyOf(const <String>[]), isTrue);
     });
   });
+
+  group('dvHostedRequest', () {
+    bool isRoute(String p) => const <String>{
+      '/',
+      '/docs',
+      '/docs/x',
+      '/apps/foo',
+      '/pricing',
+    }.contains(p);
+
+    test('maps the path, and sends a route of another host there', () {
+      final DVHostedRequest r = dvHostedRequest(
+        example(),
+        host: 'example.com',
+        rawPath: '/docs/x',
+        query: 'a=1',
+        isRoute: isRoute,
+      );
+      expect(r.path, '/docs/x');
+      expect(r.redirect, 'https://docs.example.com/x?a=1');
+    });
+
+    test('a route on its own host renders at its own path and origin', () {
+      final DVHostedRequest r = dvHostedRequest(
+        example(),
+        host: 'docs.example.com',
+        rawPath: '/x/',
+        isRoute: isRoute,
+      );
+      expect(r.path, '/docs/x');
+      expect(r.redirect, isNull);
+      expect(r.pagePath, '/x');
+      expect(r.siteUrl, 'https://docs.example.com');
+      expect(r.siteName, 'Example Docs');
+      expect(r.description, 'Reference for Example.');
+    });
+
+    test('a path no route serves is not redirected', () {
+      final DVHostedRequest r = dvHostedRequest(
+        example(),
+        host: 'example.com',
+        rawPath: '/docs/nope',
+        isRoute: isRoute,
+      );
+      expect(r.redirect, isNull);
+      expect(r.path, '/docs/nope');
+    });
+
+    test('an unknown host is the primary', () {
+      final DVHostedRequest r = dvHostedRequest(
+        example(),
+        host: '203.0.113.9:80',
+        rawPath: '/pricing',
+        isRoute: isRoute,
+      );
+      expect(r.requested.entry.pattern, 'example.com');
+      expect(r.redirect, isNull);
+      expect(r.siteUrl, 'https://example.com');
+    });
+  });
 }
