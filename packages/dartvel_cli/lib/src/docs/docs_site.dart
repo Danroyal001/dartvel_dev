@@ -346,7 +346,7 @@ class _Builder {
           policy: file == null ? null : dvPagePolicyFromSource(file),
           middleware: file == null
               ? const <String>[]
-              : dvMiddlewareKeysFromSource(file),
+              : dvMiddlewareKeysFromSource(file, annotation: 'DVPage'),
           unmapped: mapping == null,
         ),
       );
@@ -925,7 +925,10 @@ class _Builder {
           DVDocsList(true, <DVDocsListItem>[
             for (final (String id, List<DVDocsSpan> spans) in _stages(
               method: f.method,
-              middleware: dvMiddlewareKeysFromSource(file),
+              middleware: dvMiddlewareKeysFromSource(
+                file,
+                annotation: 'DVBackendFunction',
+              ),
               policy: policy,
               typed: declaration?.typed ?? false,
               context:

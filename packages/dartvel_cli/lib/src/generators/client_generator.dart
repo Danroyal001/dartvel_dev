@@ -3556,13 +3556,14 @@ void startDartvelKiosk() {
   /// carrying the annotation for guarding it was open to everybody.
   static String? _pagePolicy(String source) => dvPagePolicyFromSource(source);
 
-  /// The middleware keys `@DVUseMiddleware([...])` declares on this page.
+  /// The middleware keys this page declares: `@DVPage(middleware: [...])`,
+  /// merged with a deprecated `@DVUseMiddleware([...])`.
   ///
   /// The same parser the backend generator uses on the same annotation, for
   /// the reason the policy parser is shared: one annotation read by two
   /// parsers is two answers waiting to disagree.
   static List<String> _pageMiddleware(String source) =>
-      dvMiddlewareKeysFromSource(source);
+      dvMiddlewareKeysFromSource(source, annotation: 'DVPage');
 
   /// The `DVPageSitemap(...)` a page declares, as written, or null.
   ///

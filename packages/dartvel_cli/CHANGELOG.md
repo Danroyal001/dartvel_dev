@@ -1,3 +1,7 @@
+## Unreleased
+
+- Middleware declared as `@DVBackendFunction(middleware: [...])` or `@DVPage(middleware: [...])` is read wherever `@DVUseMiddleware` was: the generated backend chain, the page router and its sitemap exclusion, and the docs site, with the same validation and the same refusals (a page still runs only `auth` and `maintenance`). A `middleware:` value that is not a list literal of `DVMiddlewares` constants fails the build. `@DVUseMiddleware` still builds; on one declaration with both, the field's keys run first, then the keys only `@DVUseMiddleware` names, and two keys listed in opposite orders fail the build.
+
 ## 0.12.2 — 2026-10-14
 
 - The page capture keeps text fields: each is a labelled input in the server-rendered HTML, a password with the eye.

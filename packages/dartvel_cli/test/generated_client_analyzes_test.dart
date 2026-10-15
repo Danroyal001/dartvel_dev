@@ -221,8 +221,11 @@ import 'package:flutter/widgets.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 
-@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.maintenance])
-@DVPage(title: 'Account', mfa: DVMfa.recent(Duration(minutes: 15)))
+@DVPage(
+  title: 'Account',
+  mfa: DVMfa.recent(Duration(minutes: 15)),
+  middleware: [DVMiddlewares.auth, DVMiddlewares.maintenance],
+)
 @pragma('vm:entry-point')
 Widget _accountPage(BuildContext context) => const DVText('Account');
 ''';

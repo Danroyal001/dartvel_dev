@@ -44,6 +44,7 @@ import '../utils/helpers.dart';
 import '../utils/logger.dart';
 import 'asyncapi_generator.dart';
 import 'openapi_generator.dart';
+import 'annotation_args.dart';
 import 'page_policy.dart';
 import 'platform_api_generator.dart';
 import 'policy_classes.dart';
@@ -729,11 +730,15 @@ class BackendGenerator {
         // them.
         'abs': abs,
         'pkg': fnFiles[i].packageName,
-        // The middleware the function declares, in declaration order. Read
-        // here for the same reason: @DVUseMiddleware had one reader in the
-        // repository and it was a spelling check, so nineteen keys were
-        // accepted and dropped.
-        'middleware': dvMiddlewareKeysFromSource(src).join(' '),
+        // The middleware the function declares -- @DVBackendFunction(
+        // middleware:) and the deprecated @DVUseMiddleware, merged -- in
+        // declaration order. Read here for the same reason: @DVUseMiddleware
+        // had one reader in the repository and it was a spelling check, so
+        // nineteen keys were accepted and dropped.
+        'middleware': dvMiddlewareKeysFromSource(
+          src,
+          annotation: 'DVBackendFunction',
+        ).join(' '),
         // Whether to build a DVContext and pass it first.
         'ctx': injectsContext ? '1' : '0',
       });
@@ -4076,16 +4081,31 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       final source = await File(entity.path).readAsString();
       final relativePath =
           p.relative(entity.path, from: root).replaceAll('\\', '/');
-      final annotations = RegExp(
-        r'@DVUseMiddleware\s*\(\s*(?:const\s+)?(?:<\s*DVMiddlewareKey\s*>\s*)?\[(.*?)\]\s*\)',
-        dotAll: true,
-      ).allMatches(source);
+      // Every declaration of middleware in this file: the deprecated
+      // @DVUseMiddleware, and the middleware: argument of @DVBackendFunction
+      // and @DVPage. Both forms go through the checks below unchanged, so a
+      // key refused in one is refused in the other with the same words.
+      final List<({int start, int end, String body, bool? page})> declared =
+          <({int start, int end, String body, bool? page})>[];
+      final List<RegExpMatch> legacy =
+          dvUseMiddlewarePattern.allMatches(source).toList();
+      for (final RegExpMatch match in legacy) {
+        // null: decided below from the declaration around it.
+        declared.add(
+          (
+            start: match.start,
+            end: match.end,
+            body: match.group(1) ?? '',
+            page: null,
+          ),
+        );
+      }
       // A layout is a `_layout.dart` by convention, and layout-scoped
       // middleware is in the specification and implemented nowhere -- the
       // layout generator has never read this annotation. Accepting the key
       // is the worst answer available: every page under that folder looks
       // guarded and none of them is.
-      if (annotations.isNotEmpty && p.basename(path) == '_layout.dart') {
+      if (legacy.isNotEmpty && p.basename(path) == '_layout.dart') {
         throw StateError(
           'dartvel: @DVUseMiddleware in $relativePath is layout middleware, '
           'which nothing runs. The layout is wrapped around the pages under '
@@ -4093,22 +4113,67 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           '@DVPage in that folder until a layout scope exists.',
         );
       }
-      for (final annotation in annotations) {
+      for (final String name in dvMiddlewareFieldAnnotations) {
+        for (final field in dvAnnotationOccurrences(source, name)) {
+          final String? value = dvMiddlewareFieldValue(field.args);
+          if (value == null) continue;
+          final String? body = dvMiddlewareListBody(value);
+          if (body == null) {
+            // The build reads source and cannot see what a constant declared
+            // elsewhere holds. Generating the route without it would serve
+            // it unguarded while the declaration says otherwise.
+            throw StateError(
+              'dartvel: @$name(middleware: $value) in $relativePath is not a '
+              'list the build can read. Write the keys out as a list of '
+              'DVMiddlewares constants: middleware: [DVMiddlewares.auth].',
+            );
+          }
+          declared.add(
+            (
+              start: field.start,
+              end: field.end,
+              body: body,
+              page: name == 'DVPage',
+            ),
+          );
+          // Both forms on one declaration run as one list, the field's keys
+          // first (dvMergeMiddlewareKeys). Two keys they order differently
+          // have no merge that is not a guess, and the order is what runs.
+          final (:int back, :int forward) =
+              dvDeclarationWindow(source, field.start, field.end);
+          for (final RegExpMatch other in legacy) {
+            if (other.start < back || other.end > forward) continue;
+            final (String, String)? conflict = dvMiddlewareOrderConflict(
+              dvMiddlewareKeysIn(body),
+              dvMiddlewareKeysIn(other.group(1) ?? ''),
+            );
+            if (conflict != null) {
+              throw StateError(
+                'dartvel: $relativePath declares DVMiddlewares.${conflict.$1} '
+                'and DVMiddlewares.${conflict.$2} in one order in '
+                '@$name(middleware: ...) and in the other in '
+                '@DVUseMiddleware, and middleware runs in the order it is '
+                'declared. List them once, in middleware: -- '
+                '@DVUseMiddleware is deprecated.',
+              );
+            }
+          }
+        }
+      }
+      for (final annotation in declared) {
         // Which scope this declaration is in. The sets differ, and until now
         // there was one set: this loop walks every file under lib/, pages
         // included, and measured a page's keys against the ones written for
         // the HTTP chain. Nine of them were accepted on a page and ran
         // nothing.
-        final bool isPage = dvMiddlewareDeclaresPage(
-          source,
-          annotation.start,
-          annotation.end,
-        );
-        final body = annotation.group(1) ?? '';
-        final constants = RegExp(r'DVMiddlewares\.([A-Za-z_][A-Za-z0-9_]*)')
-            .allMatches(body)
-            .map((match) => match.group(1)!)
-            .toList();
+        final bool isPage = annotation.page ??
+            dvMiddlewareDeclaresPage(
+              source,
+              annotation.start,
+              annotation.end,
+            );
+        final body = annotation.body;
+        final constants = dvMiddlewareKeysIn(body);
         if (constants.isEmpty && body.trim().isNotEmpty) {
           throw StateError(
             'dartvel: unsupported middleware annotation in $relativePath. '

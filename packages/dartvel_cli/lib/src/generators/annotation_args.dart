@@ -33,6 +33,31 @@ String? dvAnnotationArgs(String source, String name) {
   return source.substring(open + 1, close);
 }
 
+/// Every `@[name](...)` in [source], in order: where the `@` is, where the
+/// closing `)` ends, and the argument text between the parentheses.
+///
+/// [dvAnnotationArgs] answers for the first one, which is right for a source
+/// holding one declaration. A validator walking a whole file needs each, or
+/// the second page in a file is never checked.
+Iterable<({int start, int end, String args})> dvAnnotationOccurrences(
+  String source,
+  String name,
+) sync* {
+  int at = 0;
+  while (true) {
+    final int open = _annotationOpenParen(source, name, from: at);
+    if (open < 0) return;
+    final int close = _matchingParen(source, open);
+    if (close < 0) return;
+    yield (
+      start: source.lastIndexOf('@$name', open),
+      end: close + 1,
+      args: source.substring(open + 1, close),
+    );
+    at = close + 1;
+  }
+}
+
 /// [source] with the arguments of every `@[name](...)` blanked to spaces.
 ///
 /// For the regular expressions that only want to step over the annotation to

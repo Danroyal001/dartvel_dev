@@ -75,4 +75,26 @@ Future<String> _charge(DVContext context, String basketId) async => basketId;
     expect(f.annotated, isTrue);
     expect(f.source, 'lib/backend/functions/checkout.post.dart:3');
   });
+
+  test('a backend function declaring middleware: on its annotation is the '
+      'annotated function', () async {
+    // The graph reads no middleware keys; it steps over the annotation to
+    // find the function, and a formatter puts a list argument on lines of
+    // its own.
+    final DartvelProjectGraph graph = await _graphFor(<String, String>{
+      'lib/backend/functions/checkout.post.dart': '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction(
+  policy: DVPolicies.checkout,
+  middleware: [DVMiddlewares.tracing, DVMiddlewares.rateLimit],
+)
+Future<String> _charge(DVContext context, String basketId) async => basketId;
+''',
+    });
+    final DVGraphFunction f = graph.functions.single;
+    expect(f.name, 'charge');
+    expect(f.annotated, isTrue);
+    expect(f.source, 'lib/backend/functions/checkout.post.dart:3');
+  });
 }

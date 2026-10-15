@@ -629,6 +629,37 @@ void main() {
         ]);
       },
     );
+
+    test(
+      'middleware declared on @DVBackendFunction is listed the same way',
+      () async {
+        final DVDocsPage functions = (await _siteFor(<String, String>{
+          ..._project,
+          'lib/backend/functions/checkout.post.dart': '''
+import 'package:dartvel_core/dartvel.dart';
+
+/// Charges the basket and returns the order id.
+@DVBackendFunction(
+  policy: DVPolicies.checkout,
+  middleware: [DVMiddlewares.tracing, DVMiddlewares.rateLimit],
+)
+Future<String> _checkout(DVContext context, String basketId) async =>
+    basketId;
+''',
+        }))
+            .document
+            .page('functions')!;
+
+        expect(
+          _section(functions, 'function-checkout')
+              .whereType<DVDocsList>()
+              .single
+              .items
+              .map((DVDocsListItem i) => i.id),
+          containsAllInOrder(<String>['tracing', 'middleware:rateLimit']),
+        );
+      },
+    );
   });
 
   group('routes', () {

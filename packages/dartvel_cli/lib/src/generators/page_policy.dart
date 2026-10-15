@@ -284,28 +284,6 @@ String? dvMfaFromSource(
   );
 }
 
-/// The middleware keys a `@DVUseMiddleware` source declares, in order.
-///
-/// Order matters and is the declared one: a maintenance check that runs
-/// after a rate limiter would count requests the application is not serving,
-/// and an auth check that runs after a logger writes the path of a request
-/// nobody was allowed to make.
-///
-/// [source] is the declaration's own source, so a file holding several
-/// backend functions gives each its own list rather than the first one's.
-/// Whether the declaration carrying the annotation spanning [start]-[end] is
-/// a page.
-///
-/// The scope is the declaration, not the file and not the folder. A file can
-/// hold a page and a backend function, and one answer per file would refuse
-/// whichever came second; a page can live outside the pages directory, and
-/// deciding by folder would let the same annotation mean two things
-/// depending on where somebody put it.
-///
-/// The window is the declaration's own annotation stack and signature:
-/// backwards to the end of whatever came before, forwards to the start of
-/// the body. `@DVPage` may sit either side of `@DVUseMiddleware`, so both
-/// directions are read.
 /// Whether a backend function's policy is a quoted `Resource.action`, such as
 /// `'Order.view'`, which the registry answers -- as opposed to a reference
 /// such as `DVPolicies.refund`, which names no action and only the
@@ -321,7 +299,28 @@ bool dvBackendPolicyIsAction(String source) {
       .hasMatch(quoted.group(2)!);
 }
 
-bool dvMiddlewareDeclaresPage(String source, int start, int end) {
+/// The annotations whose `middleware:` argument declares middleware, as
+/// `@DVBackendFunction(middleware: [...])` and `@DVPage(middleware: [...])`.
+const List<String> dvMiddlewareFieldAnnotations = <String>[
+  'DVBackendFunction',
+  'DVPage',
+];
+
+/// The deprecated `@DVUseMiddleware([...])`, with the list's contents in
+/// group 1. A type argument and `const` are allowed before the list.
+final RegExp dvUseMiddlewarePattern = RegExp(
+  r'@DVUseMiddleware\s*\(\s*(?:const\s+)?(?:<\s*DVMiddlewareKey\s*>\s*)?\[(.*?)\]\s*\)',
+  dotAll: true,
+);
+
+/// The source window of the declaration carrying an annotation that spans
+/// [start]-[end]: its own annotation stack and signature, backwards to the
+/// end of whatever came before and forwards to the start of the body.
+({int back, int forward}) dvDeclarationWindow(
+  String source,
+  int start,
+  int end,
+) {
   int back = 0;
   for (final String boundary in <String>['}', ';', '\n\n']) {
     final int at = source.lastIndexOf(boundary, start);
@@ -332,6 +331,22 @@ bool dvMiddlewareDeclaresPage(String source, int start, int end) {
     final int at = source.indexOf(boundary, end);
     if (at != -1 && at < forward) forward = at;
   }
+  return (back: back, forward: forward);
+}
+
+/// Whether the declaration carrying the annotation spanning [start]-[end] is
+/// a page.
+///
+/// The scope is the declaration, not the file and not the folder. A file can
+/// hold a page and a backend function, and one answer per file would refuse
+/// whichever came second; a page can live outside the pages directory, and
+/// deciding by folder would let the same annotation mean two things
+/// depending on where somebody put it.
+///
+/// The window is [dvDeclarationWindow]. `@DVPage` may sit either side of
+/// `@DVUseMiddleware`, so both directions are read.
+bool dvMiddlewareDeclaresPage(String source, int start, int end) {
+  final (:int back, :int forward) = dvDeclarationWindow(source, start, end);
   if (back >= forward) return false;
   // `\b` rather than a bare prefix, so `@DVPageSomethingElse` is not read as
   // a page. The two are word characters either side of the boundary, so the
@@ -339,14 +354,103 @@ bool dvMiddlewareDeclaresPage(String source, int start, int end) {
   return RegExp(r'@DVPage\b').hasMatch(source.substring(back, forward));
 }
 
-List<String> dvMiddlewareKeysFromSource(String source) {
-  final RegExpMatch? annotation = RegExp(
-    r'@DVUseMiddleware\s*\(\s*(?:const\s+)?(?:<\s*DVMiddlewareKey\s*>\s*)?\[(.*?)\]\s*\)',
-    dotAll: true,
-  ).firstMatch(source);
-  if (annotation == null) return const <String>[];
-  return RegExp(r'DVMiddlewares\.([A-Za-z_][A-Za-z0-9_]*)')
-      .allMatches(annotation.group(1) ?? '')
-      .map((RegExpMatch m) => m.group(1)!)
-      .toList(growable: false);
+/// The value written after `middleware:` in an annotation's [args], as
+/// written, or null when the annotation has no such argument.
+String? dvMiddlewareFieldValue(String args) {
+  for (final String arg in dvSplitArgs(args)) {
+    final RegExpMatch? name = RegExp(r'^middleware\s*:').firstMatch(arg);
+    if (name == null) continue;
+    return arg.substring(name.end).trim();
+  }
+  return null;
+}
+
+/// The contents of [value] when it is a list literal the build can read --
+/// `[...]`, `const [...]`, `<DVMiddlewareKey>[...]` -- or null.
+///
+/// Null is not "no middleware". A constant declared elsewhere is legal Dart
+/// and invisible to a build that reads source, so the caller has to refuse
+/// it: dropping it would serve the route unguarded while its author
+/// believes it is guarded.
+String? dvMiddlewareListBody(String value) => RegExp(
+      r'^(?:const\s+)?(?:<\s*DVMiddlewareKey\s*>\s*)?\[(.*)\]$',
+      dotAll: true,
+    ).firstMatch(value.trim())?.group(1);
+
+/// The `DVMiddlewares.<key>` names in a list's contents, in order.
+List<String> dvMiddlewareKeysIn(String body) =>
+    RegExp(r'DVMiddlewares\.([A-Za-z_][A-Za-z0-9_]*)')
+        .allMatches(body)
+        .map((RegExpMatch m) => m.group(1)!)
+        .toList(growable: false);
+
+/// The keys declared on one declaration by its annotation's `middleware:`
+/// field and by the deprecated `@DVUseMiddleware`, as one list.
+///
+/// The field's keys come first, in their order, then the keys only the
+/// deprecated annotation names, in theirs. Where the annotations are written
+/// relative to each other does not matter. Each list alone comes out exactly
+/// as written, so a declaration using one form runs what it ran before.
+///
+/// Two keys both lists name in opposite orders cannot be merged without
+/// guessing which order was meant; [dvMiddlewareOrderConflict] finds them
+/// and the build refuses.
+List<String> dvMergeMiddlewareKeys(List<String> field, List<String> legacy) =>
+    <String>[
+      ...field,
+      for (final String key in legacy)
+        if (!field.contains(key)) key,
+    ];
+
+/// Two keys [field] and [legacy] both name in opposite orders, or null.
+(String, String)? dvMiddlewareOrderConflict(
+  List<String> field,
+  List<String> legacy,
+) {
+  final List<String> shared = <String>[
+    for (final String key in field)
+      if (legacy.contains(key)) key,
+  ];
+  for (int i = 0; i < shared.length; i++) {
+    for (int j = i + 1; j < shared.length; j++) {
+      if (legacy.indexOf(shared[i]) > legacy.indexOf(shared[j])) {
+        return (shared[i], shared[j]);
+      }
+    }
+  }
+  return null;
+}
+
+/// The middleware keys a declaration's source declares, in order.
+///
+/// Order matters and is the declared one: a maintenance check that runs
+/// after a rate limiter would count requests the application is not serving,
+/// and an auth check that runs after a logger writes the path of a request
+/// nobody was allowed to make.
+///
+/// Read from the `middleware:` argument of [annotation] -- `DVBackendFunction`
+/// or `DVPage`; when null, whichever of the two the source carries -- and
+/// from a deprecated `@DVUseMiddleware`, merged by [dvMergeMiddlewareKeys].
+/// A list the build cannot read contributes nothing here; the backend
+/// generator's validation refuses it before any route is generated.
+///
+/// [source] is the declaration's own source, so a file holding several
+/// backend functions gives each its own list rather than the first one's.
+List<String> dvMiddlewareKeysFromSource(String source, {String? annotation}) {
+  final RegExpMatch? legacy = dvUseMiddlewarePattern.firstMatch(source);
+  final List<String> legacyKeys = legacy == null
+      ? const <String>[]
+      : dvMiddlewareKeysIn(legacy.group(1) ?? '');
+  List<String> fieldKeys = const <String>[];
+  for (final String name in annotation == null
+      ? dvMiddlewareFieldAnnotations
+      : <String>[annotation]) {
+    final String? args = dvAnnotationArgs(source, name);
+    if (args == null) continue;
+    final String? value = dvMiddlewareFieldValue(args);
+    final String? body = value == null ? null : dvMiddlewareListBody(value);
+    if (body != null) fieldKeys = dvMiddlewareKeysIn(body);
+    break;
+  }
+  return dvMergeMiddlewareKeys(fieldKeys, legacyKeys);
 }
