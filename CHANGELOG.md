@@ -7,7 +7,7 @@ changes are called out explicitly below.
 
 ## Unreleased
 
-- `DVModifier.meshGradient(colors, period:)` is a mesh now: one soft blob per colour, each drifting on its own orbit behind the box's content, padding included. It was a static linear gradient under that name. Reduced motion paints it once and runs no ticker; fewer than two colours is an `ArgumentError`.
+- `DVModifier.meshGradient(colors, period:)` is a mesh now: one soft blob per colour, each drifting on its own orbit behind the box's content, padding included. It was a static linear gradient under that name. It drifts while the pointer is over it and holds still otherwise, so no motion starts by itself (WCAG 2.2.2) and an idle page does no work; it steps about twelve times a second and never off screen. Reduced motion paints it once and runs no timer. Fewer than two colours is an `ArgumentError`.
 - `DVModifier.hoverGlow(color:, radius:)` is a light that follows the pointer behind the content, repainting without rebuilding the box. It no longer replaces the box's own `hover(...)` state (it was a `hover(shadow)`), and under reduced motion it sits at the centre.
 - `DVModifier.revealChildren(step:)` reveals a collection box's children one after another on scroll; an `Expanded` or `Flexible` child keeps its place. **Removed:** `DVModifier.stagger`, which was `revealOnScroll(delay:)` under a second name and never released.
 

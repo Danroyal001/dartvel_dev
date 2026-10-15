@@ -1728,9 +1728,12 @@ class DVModifier {
   /// whole box, padding included, adds nothing to the semantics tree and
   /// takes no taps.
   ///
-  /// [period] is one full drift. Under reduced motion the mesh is painted
-  /// once, where it would start, and asks for no further frames: the reader
-  /// still gets the colour, and nothing moves.
+  /// [period] is one full drift. The mesh drifts while the pointer is over
+  /// the box and holds still where it got to otherwise: motion that starts
+  /// by itself and runs on must be pausable (WCAG 2.2.2), and on the web each
+  /// step redraws the whole frame. It takes about twelve steps a second and
+  /// none while scrolled out of view. Under reduced motion it is painted once,
+  /// where it would start, with no timer: the reader still gets the colour.
   ///
   /// Two colours at least: one is a background colour, and
   /// [backgroundColor] already says that.
@@ -2646,10 +2649,14 @@ class DVBox<T> extends StatelessWidget {
     // is read from the modifier being shown, so a hover state may change it;
     // the glow from the box's own, because a hover state is merged without
     // behaviour and the glow is behaviour.
-    List<Widget> underlays(DVModifier m, ValueListenable<Offset?>? pointer) =>
+    List<Widget> underlays(
+      DVModifier m,
+      ValueListenable<Offset?>? pointer, {
+      bool hovered = false,
+    }) =>
         <Widget>[
           if (m.meshColors case final List<Color> colors)
-            _DVMesh(colors: colors, period: m.meshPeriod),
+            _DVMesh(colors: colors, period: m.meshPeriod, drifting: hovered),
           if ((pointer, mod?.glowColor)
               case (final ValueListenable<Offset?> at, final Color color))
             _DVGlowLayer(
@@ -2664,6 +2671,7 @@ class DVBox<T> extends StatelessWidget {
     final bool glows = mod?.glowColor != null;
     if (mod?.hoverValue != null ||
         mod?.onHoverChangedCallback != null ||
+        mod?.meshColors != null ||
         glows) {
       // A MouseRegion only where one was asked for. Every box on a page
       // listening for the pointer is a cost nobody asked for, and it makes
@@ -2677,7 +2685,7 @@ class DVBox<T> extends StatelessWidget {
               ? mod.merge(mod.hoverValue!)
               : mod;
           return _decorate(context, shown, content,
-              underlays: underlays(shown, pointer));
+              underlays: underlays(shown, pointer, hovered: hovered));
         },
       );
     } else {
@@ -3452,20 +3460,38 @@ class _DVHoverRegionState extends State<_DVHoverRegion> {
 /// A drifting mesh of soft colour behind a box's content. See
 /// [DVModifier.meshGradient].
 ///
-/// Framework-internal: a ticker is per-element state with no other home.
+/// Framework-internal: the drift timer is per-element state with no other home.
 class _DVMesh extends StatefulWidget {
-  const _DVMesh({required this.colors, required this.period});
+  const _DVMesh({
+    required this.colors,
+    required this.period,
+    required this.drifting,
+  });
 
   final List<Color> colors;
   final Duration period;
+
+  /// Whether the pointer is over the box, which is when the mesh moves.
+  final bool drifting;
 
   @override
   State<_DVMesh> createState() => _DVMeshState();
 }
 
-class _DVMeshState extends State<_DVMesh> with SingleTickerProviderStateMixin {
-  late final AnimationController _drift =
-      AnimationController(vsync: this, duration: widget.period);
+class _DVMeshState extends State<_DVMesh> {
+  /// How often the mesh takes a step. The blobs move a few points a second,
+  /// so a dozen steps reads as smooth -- and repainting on every vsync kept
+  /// the main thread busy for as long as the page was open: Lighthouse
+  /// measured 140 seconds of blocking time on a page that measured 6 with
+  /// the mesh held still.
+  static const Duration _step = Duration(milliseconds: 83);
+
+  /// How far through one drift the mesh is, from 0 to 1.
+  final ValueNotifier<double> _drift = ValueNotifier<double>(0);
+  Timer? _timer;
+
+  /// Time spent drifting, which only advances while the mesh can be seen.
+  Duration _elapsed = Duration.zero;
 
   @override
   void didChangeDependencies() {
@@ -3476,34 +3502,57 @@ class _DVMeshState extends State<_DVMesh> with SingleTickerProviderStateMixin {
   @override
   void didUpdateWidget(_DVMesh old) {
     super.didUpdateWidget(old);
-    if (old.period != widget.period) {
-      _drift.duration = widget.period;
-      _follow();
+    if (old.drifting != widget.drifting) _follow();
+  }
+
+  /// Drifts while the pointer is over the box and holds still where it got
+  /// to otherwise. Motion that starts by itself and runs on has to be
+  /// pausable (WCAG 2.2.2), and costs a full-frame redraw on the web for as
+  /// long as the page is open; motion the reader's own pointer starts is
+  /// neither. A reader who asked for less movement gets the starting picture
+  /// and no timer at all.
+  void _follow() {
+    final bool reduced = context.screen.reducedMotion;
+    if (reduced) {
+      _elapsed = Duration.zero;
+      _drift.value = 0;
+    }
+    if (reduced || !widget.drifting) {
+      _timer?.cancel();
+      _timer = null;
+    } else {
+      _timer ??= Timer.periodic(_step, (_) => _tick());
     }
   }
 
-  /// Runs, or holds still at the start when the reader asked for less
-  /// movement. Held at the start rather than wherever it had got to, so a
-  /// reduced-motion reader always sees the same picture.
-  void _follow() {
-    if (context.screen.reducedMotion) {
-      _drift
-        ..stop()
-        ..value = 0;
-    } else if (!_drift.isAnimating) {
-      _drift.repeat();
-    }
+  void _tick() {
+    if (!mounted || !_onScreen()) return;
+    _elapsed += _step;
+    final int period = widget.period.inMicroseconds;
+    if (period <= 0) return;
+    _drift.value = (_elapsed.inMicroseconds % period) / period;
+  }
+
+  /// Whether any of the mesh is inside the window. A mesh nobody can see is
+  /// battery spent on nothing, and a long page scrolls its hero away.
+  bool _onScreen() {
+    final RenderObject? box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize || !box.attached) return false;
+    final Rect rect = box.localToGlobal(Offset.zero) & box.size;
+    final Size window = MediaQuery.sizeOf(context);
+    return rect.overlaps(Offset.zero & window);
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _drift.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Positioned.fill(
-        // Its own layer, so a frame of drift repaints the mesh and not the
+        // Its own layer, so a step of drift repaints the mesh and not the
         // text over it.
         child: RepaintBoundary(
           child: ExcludeSemantics(
@@ -3521,7 +3570,7 @@ class _DVMeshPainter extends CustomPainter {
   _DVMeshPainter(this.colors, this.drift) : super(repaint: drift);
 
   final List<Color> colors;
-  final Animation<double> drift;
+  final ValueListenable<double> drift;
 
   @override
   void paint(Canvas canvas, Size size) {

@@ -89,29 +89,69 @@ void main() {
       expect(find.text('Go'), findsOneWidget);
     });
 
-    testWidgets('the blobs drift while it is on screen',
+    testWidgets('it holds still until the pointer is over it',
         (WidgetTester tester) async {
+      // Motion that starts by itself and runs past five seconds has to be
+      // pausable (WCAG 2.2.2), and a mesh drifting forever kept the main
+      // thread busy for as long as the page was open: Lighthouse measured 140
+      // seconds of blocking time on a page that measured 6 with it still.
       await show(tester, hero());
       final List<Offset> before = circlesOf(tester);
       await tester.pump(const Duration(seconds: 2));
-      final List<Offset> after = circlesOf(tester);
-
-      expect(after, isNot(equals(before)),
-          reason: 'a mesh that never moves is a gradient');
-      expect(tester.binding.hasScheduledFrame, isTrue);
-    });
-
-    testWidgets('reduced motion holds it still and asks for no frames',
-        (WidgetTester tester) async {
-      await showReduced(tester, hero());
-      final List<Offset> before = circlesOf(tester);
-      await tester.pump(const Duration(seconds: 2));
-
       expect(circlesOf(tester), equals(before));
       expect(before, hasLength(mesh.length),
           reason: 'still means a still picture, not no picture');
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    });
+
+    testWidgets('it drifts while the pointer is over it, and stops after',
+        (WidgetTester tester) async {
+      await show(tester, hero());
+      final TestGesture pointer = await mouse(tester);
+      final List<Offset> resting = circlesOf(tester);
+
+      await pointer.moveTo(tester.getCenter(find.byType(DVBox).first));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+      final List<Offset> drifted = circlesOf(tester);
+      expect(drifted, isNot(equals(resting)),
+          reason: 'a mesh that never moves is a gradient');
+
+      await pointer.moveTo(const Offset(790, 590));
+      await tester.pump();
+      final List<Offset> left = circlesOf(tester);
+      await tester.pump(const Duration(seconds: 2));
+      expect(circlesOf(tester), equals(left),
+          reason: 'it stops where it was when the pointer leaves');
+    });
+
+    testWidgets('it drifts a few times a second, not on every frame',
+        (WidgetTester tester) async {
+      // Flutter's web renderer redraws the whole frame for each step, so a
+      // step is not cheap. The blobs move a few points a second, and a dozen
+      // steps reads as smooth.
+      await show(tester, hero());
+      final TestGesture pointer = await mouse(tester);
+      await pointer.moveTo(tester.getCenter(find.byType(DVBox).first));
+      final Set<String> pictures = <String>{};
+      for (int i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        pictures.add(circlesOf(tester).toString());
+      }
+      expect(pictures.length, inInclusiveRange(6, 14));
+    });
+
+    testWidgets('reduced motion holds it still under the pointer too',
+        (WidgetTester tester) async {
+      await showReduced(tester, hero());
+      final TestGesture pointer = await mouse(tester);
+      await pointer.moveTo(tester.getCenter(find.byType(DVBox).first));
+      await tester.pump();
+      final List<Offset> before = circlesOf(tester);
+      await tester.pump(const Duration(seconds: 2));
+      expect(circlesOf(tester), equals(before));
       expect(tester.binding.hasScheduledFrame, isFalse,
-          reason: 'a held mesh must not keep a ticker running');
+          reason: 'a held mesh must not keep a timer running');
     });
 
     testWidgets('the content on it is still tapped and still read',
