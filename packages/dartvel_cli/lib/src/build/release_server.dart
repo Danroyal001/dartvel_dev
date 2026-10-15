@@ -12,6 +12,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVAdminMount,
         DVAdminServer,
         DVDatabaseAdapter,
+        DVLocalFileStorageAdapter,
         DVModelDataApi,
         DVPublishedPages,
         DVStudioDevGrant;
@@ -67,6 +68,10 @@ Future<void> dvServeRelease({
         Platform.environment,
       );
       final DVStudioDevGrant grant = DVStudioDevGrant.generate();
+      // Studio's media library, on the project's disk beside its other
+      // ignored state, so an upload survives a restart of `dartvel dev`.
+      final DVLocalFileStorageAdapter media =
+          DVLocalFileStorageAdapter(root: p.join(root, '.dartvel', 'media'));
       if (admin.enabled) {
         Logger.log(
           '   Studio at ${admin.path}, for the browser that opens '
@@ -103,9 +108,11 @@ Future<void> dvServeRelease({
                   devGrant: grant,
                   models: dvDevStudioModels(root),
                   database: database,
+                  storage: media,
                 ))
               : null,
-          publishedPages: DVPublishedPages(database: () => database),
+          publishedPages:
+              DVPublishedPages(database: () => database, media: media),
           modelData: DVModelDataApi(database: () => database),
         ),
         host,

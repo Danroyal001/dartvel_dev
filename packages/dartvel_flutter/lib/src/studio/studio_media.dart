@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart' as core show DVStudioMediaFile;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'studio_file_picker.dart';
 import 'studio_server.dart';
 import 'studio_style.dart';
 
@@ -12,6 +12,9 @@ class const DVStudioMediaSection({
   required final DVStudioClient client,
   final String? selectedKey,
   final ValueChanged<String?>? onSelect,
+
+  /// How files are asked for; the platform's chooser by default.
+  final DVStudioPickFiles? pickFiles,
 }) extends StatefulWidget {
   @override
   State<DVStudioMediaSection> createState() => _DVStudioMediaSectionState();
@@ -26,6 +29,10 @@ class _DVStudioMediaSectionState extends State<DVStudioMediaSection> {
   String _type = 'all';
   _DVStudioMediaViewMode _viewMode = _DVStudioMediaViewMode.grid;
   String? _selectedKey;
+  bool _uploading = false;
+
+  /// Why the last upload, or part of it, was refused.
+  String? _uploadProblem;
 
   @override
   void initState() {
@@ -74,6 +81,30 @@ class _DVStudioMediaSectionState extends State<DVStudioMediaSection> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
+  /// The address visitors are served [file] at, in full, which is what a
+  /// link in a page or an email needs; Studio's own address for one outside
+  /// the library.
+  static String _publicAddress(core.DVStudioMediaFile file) {
+    final String? path = file.publicUrl;
+    return path == null ? (file.url ?? file.key) : '${Uri.base.resolve(path)}';
+  }
+
+  /// A picture shows itself, from the address visitors get it at; anything
+  /// else, or a picture that cannot be loaded, shows what kind of file it is.
+  Widget _preview(core.DVStudioMediaFile file, double size, Color color) {
+    final Widget icon = Center(child: Icon(_iconFor(file), size: size, color: color));
+    final String? path = file.publicUrl;
+    if (!file.isImage || path == null) return icon;
+    return Image.network(
+      '${Uri.base.resolve(path)}',
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      semanticLabel: file.name,
+      errorBuilder: (BuildContext context, Object error, StackTrace? stack) => icon,
+    );
+  }
+
   IconData _iconFor(core.DVStudioMediaFile file) {
     if (file.isImage) return Icons.image_outlined;
     if (file.isVideo) return Icons.movie_outlined;
@@ -81,94 +112,37 @@ class _DVStudioMediaSectionState extends State<DVStudioMediaSection> {
     return Icons.description_outlined;
   }
 
-  Future<void> _openUploadDialog() async {
-    final TextEditingController nameController = TextEditingController();
-    final TextEditingController contentController = TextEditingController();
-    String mimeType = 'image/png';
-
-    final bool? uploaded = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) => StatefulBuilder(
-        builder: (BuildContext context, StateSetter setDialogState) => AlertDialog(
-          title: const Text('Upload media file'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: .min,
-              crossAxisAlignment: .stretch,
-              children: <Widget>[
-                TextField(
-                  key: const ValueKey<String>('dv-studio-media-upload-name'),
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'File name',
-                    hintText: 'e.g. banner.png or document.pdf',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: mimeType,
-                  decoration: const InputDecoration(labelText: 'Type'),
-                  items: const <DropdownMenuItem<String>>[
-                    DropdownMenuItem<String>(value: 'image/png', child: Text('Image (PNG)')),
-                    DropdownMenuItem<String>(value: 'image/jpeg', child: Text('Image (JPEG)')),
-                    DropdownMenuItem<String>(value: 'video/mp4', child: Text('Video (MP4)')),
-                    DropdownMenuItem<String>(value: 'audio/mpeg', child: Text('Audio (MP3)')),
-                    DropdownMenuItem<String>(value: 'application/pdf', child: Text('Document (PDF)')),
-                    DropdownMenuItem<String>(value: 'text/plain', child: Text('Text file')),
-                  ],
-                  onChanged: (String? val) {
-                    if (val != null) setDialogState(() => mimeType = val);
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: const ValueKey<String>('dv-studio-media-upload-content'),
-                  controller: contentController,
-                  decoration: const InputDecoration(
-                    labelText: 'Content / Text / Base64',
-                    hintText: 'Enter file text or base64 data',
-                  ),
-                  maxLines: 3,
-                ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              key: const ValueKey<String>('dv-studio-media-upload-submit'),
-              onPressed: () async {
-                final String name = nameController.text.trim();
-                final String text = contentController.text;
-                if (name.isEmpty) return;
-                List<int> bytes;
-                try {
-                  bytes = base64Decode(text);
-                } on Object {
-                  bytes = utf8.encode(text.isEmpty ? 'Sample content' : text);
-                }
-                await widget.client.uploadMedia(
-                  name: name,
-                  bytes: bytes,
-                  mimeType: mimeType,
-                );
-                if (dialogContext.mounted) {
-                  Navigator.of(dialogContext).pop(true);
-                }
-              },
-              child: const Text('Upload'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (uploaded == true) {
-      _reload();
+  /// Asks for files and uploads each. A file the library refuses -- a type it
+  /// does not take, one too large -- is named with the server's reason, and
+  /// the others still go up.
+  Future<void> _upload() async {
+    if (_uploading) return;
+    final List<DVStudioPickedFile> picked;
+    try {
+      picked = await (widget.pickFiles ?? dvStudioPickFiles)();
+    } on Object catch (error) {
+      if (mounted) setState(() => _uploadProblem = '$error');
+      return;
     }
+    if (picked.isEmpty || !mounted) return;
+    setState(() {
+      _uploading = true;
+      _uploadProblem = null;
+    });
+    final List<String> refused = <String>[];
+    for (final DVStudioPickedFile file in picked) {
+      try {
+        await widget.client.uploadMedia(name: file.name, bytes: file.bytes);
+      } on Object catch (error) {
+        refused.add('${file.name}: $error');
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _uploading = false;
+      _uploadProblem = refused.isEmpty ? null : refused.join('\n');
+    });
+    _reload();
   }
 
   Future<void> _deleteFile(core.DVStudioMediaFile file) async {
@@ -235,13 +209,27 @@ class _DVStudioMediaSectionState extends State<DVStudioMediaSection> {
                     key: const ValueKey<String>('dv-studio-media-upload-button'),
                     icon: const Icon(Icons.cloud_upload_outlined, size: 18),
                     label: const Text('Upload media'),
-                    onPressed: _openUploadDialog,
+                    onPressed: _uploading ? null : _upload,
                   ),
                 ),
               ],
             ),
           ),
           const Divider(height: 1),
+          if (_uploadProblem != null)
+            Semantics(
+              liveRegion: true,
+              child: Container(
+                key: const ValueKey<String>('dv-studio-media-upload-problem'),
+                width: double.infinity,
+                color: colors.errorContainer,
+                padding: const .symmetric(horizontal: 24, vertical: 12),
+                child: Text(
+                  'Not uploaded: $_uploadProblem',
+                  style: TextStyle(color: colors.onErrorContainer),
+                ),
+              ),
+            ),
 
           // Filters and controls bar
           Padding(
@@ -376,7 +364,7 @@ class _DVStudioMediaSectionState extends State<DVStudioMediaSection> {
                         ElevatedButton.icon(
                           icon: const Icon(Icons.add, size: 18),
                           label: const Text('Upload your first file'),
-                          onPressed: _openUploadDialog,
+                          onPressed: _uploading ? null : _upload,
                         ),
                       ],
                     ),
@@ -465,9 +453,8 @@ class _DVStudioMediaSectionState extends State<DVStudioMediaSection> {
                                   color: colors.surfaceContainerHighest.withValues(alpha: 0.4),
                                   borderRadius: const .vertical(top: Radius.circular(7)),
                                 ),
-                                child: Center(
-                                  child: Icon(_iconFor(file), size: 40, color: colors.primary),
-                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: _preview(file, 40, colors.primary),
                               ),
                             ),
                             Padding(
@@ -543,7 +530,7 @@ class _DVStudioMediaSectionState extends State<DVStudioMediaSection> {
                           icon: const Icon(Icons.link, size: 18),
                           tooltip: 'Copy URL',
                           onPressed: () async {
-                            await Clipboard.setData(ClipboardData(text: file.url ?? file.key));
+                            await Clipboard.setData(ClipboardData(text: _publicAddress(file)));
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('URL copied to clipboard')),
@@ -601,7 +588,7 @@ class _DVStudioMediaSectionState extends State<DVStudioMediaSection> {
               border: Border.all(color: colors.outlineVariant),
             ),
             child: Center(
-              child: Icon(_iconFor(file), size: 64, color: colors.primary),
+              child: _preview(file, 64, colors.primary),
             ),
           ),
           const SizedBox(height: 16),
@@ -617,7 +604,7 @@ class _DVStudioMediaSectionState extends State<DVStudioMediaSection> {
           // URL field and copy button
           TextField(
             readOnly: true,
-            controller: TextEditingController(text: file.url ?? file.key),
+            controller: TextEditingController(text: _publicAddress(file)),
             decoration: InputDecoration(
               labelText: 'File URL',
               border: const OutlineInputBorder(),
@@ -627,7 +614,7 @@ class _DVStudioMediaSectionState extends State<DVStudioMediaSection> {
                 icon: const Icon(Icons.copy, size: 18),
                 tooltip: 'Copy URL',
                 onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: file.url ?? file.key));
+                  await Clipboard.setData(ClipboardData(text: _publicAddress(file)));
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('URL copied to clipboard')),

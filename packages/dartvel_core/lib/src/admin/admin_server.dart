@@ -225,6 +225,7 @@ class DVAdminServer {
     this.title = 'Studio',
     Map<String, Uint8List> studioParts = const <String, Uint8List>{},
     DateTime Function()? clock,
+    int? maxMediaBytes,
   }) : _authenticated = authenticated ?? devGrant?.check ?? dvAdminAuthorized,
        _database = database,
        this.models = models,
@@ -240,6 +241,7 @@ class DVAdminServer {
          sourceRoot: sourceRoot,
          structureRoot: structureRoot,
          clock: clock,
+         maxMediaBytes: maxMediaBytes,
        );
 
   final DVAdminMount mount;

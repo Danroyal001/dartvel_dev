@@ -18,6 +18,8 @@ import 'dart:convert';
 import '../database/adapter.dart';
 import '../database/records.dart';
 import '../http/wintercg.dart';
+import '../storage/adapters.dart' show DVFileStorageAdapter;
+import 'studio_media_files.dart';
 import 'studio_api.dart' show dvStudioPagesTable;
 import 'studio_site.dart' show dvStudioIsReservedRoute;
 
@@ -26,10 +28,46 @@ const String dvPublishedPagesPath = '/_dartvel/pages';
 
 /// Answers [dvPublishedPagesPath] from the application's database.
 class DVPublishedPages {
-  DVPublishedPages({required DVDatabaseAdapter? Function() database})
-      : _database = database;
+  DVPublishedPages({
+    required DVDatabaseAdapter? Function() database,
+    this.media,
+  }) : _database = database;
 
   final DVDatabaseAdapter? Function() _database;
+
+  /// Where Studio's media library keeps its files, which visitors are served
+  /// at `/_dartvel/media/<name>` as a site's uploads are. Null serves none.
+  final DVFileStorageAdapter? media;
+
+  /// A file of the media library, for anybody: a site's pictures are what it
+  /// shows everybody. Only files inside the library, of a type it takes.
+  Future<Response?> _media(Request request) async {
+    final DVFileStorageAdapter? storage = media;
+    final String path = request.url.path;
+    if (storage == null || !path.startsWith(dvStudioPublicMediaPath)) {
+      return null;
+    }
+    final String method = request.method.toUpperCase();
+    if (method != 'GET' && method != 'HEAD') return null;
+    final String name;
+    try {
+      name = Uri.decodeComponent(path.substring(dvStudioPublicMediaPath.length));
+    } on ArgumentError {
+      return Response(404);
+    }
+    final String key = '$dvStudioMediaPrefix$name';
+    final String? type = dvStudioMediaTypeFor(name);
+    if (type == null || !dvStudioIsMediaKey(key) || !await storage.exists(key)) {
+      return Response(404);
+    }
+    return Response(
+      200,
+      headers: Headers(dvStudioMediaHeaders(type, public: true)),
+      body: method == 'HEAD'
+          ? const Stream<List<int>>.empty()
+          : Stream<List<int>>.value(await storage.get(key)),
+    );
+  }
 
   /// The routes a document is published for.
   ///
@@ -55,6 +93,7 @@ class DVPublishedPages {
 
   /// The documents, or null for a request that is not for them.
   Future<Response?> respond(Request request) async {
+    if (await _media(request) case final Response file) return file;
     if (request.url.path != dvPublishedPagesPath) return null;
     final String method = request.method.toUpperCase();
     if (method != 'GET' && method != 'HEAD') return null;

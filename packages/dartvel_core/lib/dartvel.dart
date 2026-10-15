@@ -72,6 +72,7 @@ export 'src/admin/studio_forms.dart';
 export 'src/admin/studio_settings.dart';
 export 'src/admin/model_data_api.dart';
 export 'src/admin/studio_api.dart';
+export 'src/admin/studio_media_files.dart';
 export 'src/admin/studio_document.dart';
 export 'src/admin/studio_overview.dart';
 export 'src/admin/studio_model_schema.dart';

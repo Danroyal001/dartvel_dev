@@ -350,6 +350,10 @@ Future<void> main(List<String> arguments) async {
       // to it, when shorebird.yaml says this server is one.
       updatesRoot: Platform.environment['DARTVEL_UPDATES_DIR'] ??
           '$data${separator}updates',
+      // Studio's media library: uploads kept beside the database, so they
+      // outlive the process.
+      mediaRoot: Platform.environment['DARTVEL_MEDIA_DIR'] ??
+          '$data${separator}media',
       defaultDatabase: core.DVDatabaseConnection(
         engine: core.DVDatabaseEngine.sqlite,
         database: database,

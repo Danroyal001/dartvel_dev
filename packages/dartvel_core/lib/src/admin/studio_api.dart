@@ -50,6 +50,7 @@ import '../web/rendered_page_cache.dart';
 import 'studio_access.dart';
 import 'studio_document.dart' show DVStudioProjectData;
 import 'studio_forms.dart';
+import 'studio_media_files.dart';
 import 'studio_menus.dart';
 import 'studio_model_schema.dart';
 import 'studio_overview.dart';
@@ -505,6 +506,11 @@ class DVStudioMediaFile {
   bool get isAudio => mimeType.startsWith('audio/');
   bool get isDocument => !isImage && !isVideo && !isAudio;
 
+  /// Where visitors are served the file, or null for a key outside the
+  /// library.
+  String? get publicUrl =>
+      dvStudioIsMediaKey(key) ? dvStudioMediaPublicUrl(key) : null;
+
   Map<String, Object?> toJson() => <String, Object?>{
     'id': id,
     'name': name,
@@ -513,6 +519,7 @@ class DVStudioMediaFile {
     'mimeType': mimeType,
     if (updatedAt != null) 'updatedAt': updatedAt,
     if (url != null) 'url': url,
+    if (publicUrl != null) 'publicUrl': publicUrl,
   };
 
   factory DVStudioMediaFile.fromJson(Map<String, Object?> json) =>
@@ -626,7 +633,9 @@ class DVStudioApi {
     DVGitHubTransport? gitHub,
     String? gitHubToken,
     DateTime Function()? clock,
-  })  : storage = storage ?? DVMemoryFileStorageAdapter(),
+    int? maxMediaBytes,
+  })  : maxMediaBytes = maxMediaBytes ?? dvStudioDefaultMaxMediaBytes,
+        storage = storage ?? DVMemoryFileStorageAdapter(),
         _gitHub = gitHub,
         _gitHubToken = gitHubToken ?? Platform.environment[dvGitHubTokenVariable],
         _caller = caller ?? dvStudioSessionUserId,
@@ -640,6 +649,9 @@ class DVStudioApi {
         _queues = queues ?? (() => const <String>['default']);
 
   final DVFileStorageAdapter storage;
+
+  /// The largest file the media library takes.
+  final int maxMediaBytes;
   final Map<String, Map<String, Object?>> _memoryMedia = <String, Map<String, Object?>>{};
   final Map<String, DVStudioMenu> _memoryMenus = <String, DVStudioMenu>{};
   final Map<String, DVStudioForm> _memoryForms = <String, DVStudioForm>{};
@@ -3240,17 +3252,16 @@ class DVStudioApi {
       final Uri uri = request.url;
       final String? keyParam = uri.queryParameters['key'];
       final String key = keyParam ?? (segments.length > 1 ? segments.sublist(1).join('/') : '');
-      if (key.isEmpty || !(await storage.exists(key))) {
+      final String? type = dvStudioMediaTypeFor(key);
+      if (!dvStudioIsMediaKey(key) ||
+          type == null ||
+          !(await storage.exists(key))) {
         throw _StudioRefusal(404, 'not_found', 'Media file not found.');
       }
       final List<int> bytes = await storage.get(key);
-      final String mimeType = _mimeTypeFor(key);
       return Response(
         200,
-        headers: Headers(<String, String>{
-          'content-type': mimeType,
-          'cache-control': 'public, max-age=3600',
-        }),
+        headers: Headers(dvStudioMediaHeaders(type, public: false)),
         body: Stream<List<int>>.value(bytes),
       );
     }
@@ -3299,10 +3310,31 @@ class DVStudioApi {
       if (base64Data == null || base64Data.isEmpty) {
         throw _StudioRefusal(400, 'invalid_bytes', 'File bytes cannot be empty.');
       }
-      final List<int> bytes = base64Decode(base64Data);
+      // The type is the server's to name, from the extension; what the
+      // uploader says it is would let an HTML page in as a picture.
+      final String? mimeType = dvStudioMediaTypeFor(name);
+      if (mimeType == null) {
+        throw _StudioRefusal(
+          415,
+          'unsupported_type',
+          'The media library does not take this kind of file. SVG, HTML and '
+              'scripts run in a browser, so they are not served from here.',
+        );
+      }
+      // Base64 is four characters for three bytes: refused before decoding
+      // anything larger than the limit allows.
+      if (base64Data.length > (maxMediaBytes ~/ 3 + 1) * 4) {
+        throw _tooLarge();
+      }
+      final List<int> bytes;
+      try {
+        bytes = base64Decode(base64Data);
+      } on FormatException {
+        throw _StudioRefusal(400, 'invalid_bytes', 'The file is not base64.');
+      }
+      if (bytes.length > maxMediaBytes) throw _tooLarge();
       final String sanitized = name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
-      final String key = 'media/${DateTime.now().millisecondsSinceEpoch}_$sanitized';
-      final String mimeType = body['mimeType']?.toString() ?? _mimeTypeFor(name);
+      final String key = '$dvStudioMediaPrefix${DateTime.now().millisecondsSinceEpoch}_$sanitized';
 
       await storage.put(key, bytes, contentType: mimeType);
 
@@ -3355,6 +3387,9 @@ class DVStudioApi {
       final String key = keyParam ?? (segments.isNotEmpty ? segments.join('/') : '');
       if (key.isEmpty) {
         throw _StudioRefusal(400, 'missing_key', 'File key to delete is required.');
+      }
+      if (!dvStudioIsMediaKey(key)) {
+        throw _StudioRefusal(404, 'not_found', 'Media file not found.');
       }
       await storage.delete(key);
       _memoryMedia.remove(key);
@@ -3448,6 +3483,13 @@ class DVStudioApi {
 
     return byKey.values.toList();
   }
+
+  _StudioRefusal _tooLarge() => _StudioRefusal(
+        413,
+        'too_large',
+        'The file is larger than the media library takes '
+            '(${maxMediaBytes ~/ (1024 * 1024)} MB).',
+      );
 
   static String _mimeTypeFor(String filename) {
     final String lower = filename.toLowerCase();

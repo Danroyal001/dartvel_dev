@@ -871,6 +871,7 @@ export 'src/studio/studio_modules.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/studio/studio_home.dart';
 export 'src/studio/studio_media.dart';
+export 'src/studio/studio_file_picker.dart';
 export 'src/studio/studio_team.dart';
 export 'src/studio/studio_menus.dart';
 export 'src/studio/studio_forms.dart';

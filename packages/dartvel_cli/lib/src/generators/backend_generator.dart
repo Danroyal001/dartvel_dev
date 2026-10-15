@@ -1901,7 +1901,7 @@ const String? dartvelPatchSourcePrefix = $patchSourceLiteral;
 /// With [docs] and [docsRoot], the documentation site in [docsRoot] is served
 /// at its mount: to anybody with `access: public`, and otherwise exactly as
 /// Studio is, behind [admin]'s sign-in and the Studio grant.
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, Map<String, Uint8List> studioParts = const <String, Uint8List>{}, core.DVDocsMount? docs, String? docsRoot, core.DVStudioDevGrant? studioDevGrant, String? studioSourceRoot, String? studioStructureRoot}) async {
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, Map<String, Uint8List> studioParts = const <String, Uint8List>{}, core.DVDocsMount? docs, String? docsRoot, core.DVStudioDevGrant? studioDevGrant, String? studioSourceRoot, String? studioStructureRoot, String? mediaRoot}) async {
   // Branch deployments, before anything else runs. In a process deployed
   // as a preview this captures mail and notifications, puts every queue
   // under the preview's namespace and points DV.Database at the preview's
@@ -2096,9 +2096,11 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   final Future<dv.Response> Function(dv.Request) handler = application;
   const core.DVPublishedPages? publishedPages = null;''' : '''  // Studio is behind dartvelStudio, which a release build without it sets
   // false: AOT then compiles none of what follows into the binary.
+  // Studio's media library on disk, which visitors are served from too.
+  final core.DVFileStorageAdapter? studioMedia = mediaRoot == null ? null : core.DVLocalFileStorageAdapter(root: mediaRoot);
   final core.DVAdminServer? adminServer = !dartvelStudio || admin == null || adminRoot == null
       ? null
-      : core.DVAdminServer(mount: admin, root: adminRoot, models: ${studioModules.isEmpty ? 'dartvelStudioModels' : '<core.DVStudioModelSpec>[...dartvelStudioModels, ${studioModules.map(((String, String) m) => '...${m.$2}.dartvelStudioModels').join(', ')}]'}, database: dartvelDatabase, devGrant: studioDevGrant, sourceRoot: studioSourceRoot, structureRoot: studioStructureRoot, webRoot: spaRoot, title: '${esc('Studio · $pkgName')}', studioParts: studioParts);
+      : core.DVAdminServer(mount: admin, root: adminRoot, models: ${studioModules.isEmpty ? 'dartvelStudioModels' : '<core.DVStudioModelSpec>[...dartvelStudioModels, ${studioModules.map(((String, String) m) => '...${m.$2}.dartvelStudioModels').join(', ')}]'}, database: dartvelDatabase, devGrant: studioDevGrant, sourceRoot: studioSourceRoot, structureRoot: studioStructureRoot, webRoot: spaRoot, title: '${esc('Studio · $pkgName')}', studioParts: studioParts, storage: studioMedia);
   // Pages scheduled before this process started are published at their time.
   adminServer?.api.resumeSchedules().ignore();
   final Future<dv.Response> Function(dv.Request) withAdmin = adminServer == null
@@ -2107,7 +2109,7 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   // The page documents Studio published, which the web app reads to let a
   // stored page take over its route without a rebuild. Public: a published
   // page is what the site shows anybody.
-  final core.DVPublishedPages? publishedPages = !dartvelStudio ? null : core.DVPublishedPages(database: () => const core.DVDatabase().configuredAdapter ?? dartvelDatabase);
+  final core.DVPublishedPages? publishedPages = !dartvelStudio ? null : core.DVPublishedPages(database: () => const core.DVDatabase().configuredAdapter ?? dartvelDatabase, media: studioMedia);
   // The data API of the models designed in Studio: their records, read and
   // written through the same checks Studio's own writes go through, for the
   // callers each model's access allows.
@@ -2217,12 +2219,12 @@ void _dartvelInstallServerCrashes(core.DVProcessRole role) {
 ///
 /// Throws core.DVProcessConfigurationError, before anything starts, for a
 /// role, port or queue it cannot honour. Returns when [until] completes.
-Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, Map<String, Uint8List> studioParts = const <String, Uint8List>{}, core.DVDocsMount? docs, String? docsRoot}) async {
+Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, Map<String, Uint8List> studioParts = const <String, Uint8List>{}, core.DVDocsMount? docs, String? docsRoot, String? mediaRoot}) async {
   final core.DVProcessConfiguration process = core.DVProcessConfiguration.resolve(environment: Platform.environment, arguments: arguments, generatedPort: cfg.backendPort);
   final Future<void> stopped = until ?? Completer<void>().future;
   switch (process.role) {
     case core.DVProcessRole.web:
-      final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick, spaRoot: webRoot, defaultDatabase: defaultDatabase, updatesRoot: updatesRoot, admin: admin, adminRoot: adminRoot, studioParts: studioParts, docs: docs, docsRoot: docsRoot);
+      final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick, spaRoot: webRoot, defaultDatabase: defaultDatabase, updatesRoot: updatesRoot, admin: admin, adminRoot: adminRoot, studioParts: studioParts, docs: docs, docsRoot: docsRoot, mediaRoot: mediaRoot);
       stdout.writeln('dartvel backend listening on http://\${handle.host}:\${handle.port}\${cfg.apiBasePath}');
       await stopped;
       _dartvelScheduleTimer?.cancel();

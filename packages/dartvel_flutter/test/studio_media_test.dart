@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:dartvel_core/dartvel.dart' as core show DVStudioMediaFile;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final List<core.DVStudioMediaFile> _sampleFiles = <core.DVStudioMediaFile>[
@@ -36,6 +39,7 @@ final List<core.DVStudioMediaFile> _sampleFiles = <core.DVStudioMediaFile>[
 DVStudioTransport _mediaTransport({
   List<core.DVStudioMediaFile>? initialFiles,
   List<String>? calls,
+  List<Map<String, Object?>>? uploads,
 }) {
   final List<core.DVStudioMediaFile> files = <core.DVStudioMediaFile>[
     ...initialFiles ?? _sampleFiles,
@@ -73,6 +77,13 @@ DVStudioTransport _mediaTransport({
 
     if (method == 'POST' && uri.path == 'api/media') {
       final Map<String, Object?> map = body is Map ? body.cast<String, Object?>() : <String, Object?>{};
+      uploads?.add(map);
+      if ('${map['name']}'.endsWith('.svg')) {
+        return const DVStudioReply(415, <String, Object?>{
+          'error': 'unsupported_type',
+          'message': 'The media library does not take this kind of file.',
+        });
+      }
       final String name = '${map['name'] ?? 'upload.png'}';
       final String mimeType = '${map['mimeType'] ?? 'image/png'}';
       final core.DVStudioMediaFile uploaded = core.DVStudioMediaFile(
@@ -103,6 +114,7 @@ Future<void> _pumpMediaSection(
   DVStudioTransport? transport,
   String? selectedKey,
   ValueChanged<String?>? onSelect,
+  DVStudioPickFiles? pickFiles,
 }) async {
   tester.view.physicalSize = const Size(1440, 900);
   tester.view.devicePixelRatio = 1;
@@ -115,6 +127,7 @@ Future<void> _pumpMediaSection(
           client: DVStudioClient(transport ?? _mediaTransport()),
           selectedKey: selectedKey,
           onSelect: onSelect,
+          pickFiles: pickFiles,
         ),
       ),
     ),
@@ -217,31 +230,75 @@ void main() {
     expect(find.text('Size'), findsOneWidget);
   });
 
-  testWidgets('uploading a file through upload dialog refreshes the list', (
+  // Uploading is choosing files, as in every media library: the bytes of
+  // the file picked reach the server unchanged. It used to be a text box
+  // whose contents were uploaded as the file.
+  testWidgets('uploading sends the bytes of the files picked', (
     WidgetTester tester,
   ) async {
-    await _pumpMediaSection(tester);
+    final List<Map<String, Object?>> uploads = <Map<String, Object?>>[];
+    await _pumpMediaSection(
+      tester,
+      transport: _mediaTransport(uploads: uploads),
+      pickFiles: () async => <DVStudioPickedFile>[
+        (name: 'new-icon.png', bytes: <int>[0x89, 0x50, 0x4E, 0x47]),
+        (name: 'notes.txt', bytes: utf8.encode('hello')),
+      ],
+    );
 
     await tester.tap(find.byKey(const ValueKey<String>('dv-studio-media-upload-button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Upload media file'), findsOneWidget);
-
-    await tester.enterText(
-      find.byKey(const ValueKey<String>('dv-studio-media-upload-name')),
-      'new-icon.png',
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey<String>('dv-studio-media-upload-content')),
-      'some image bytes',
-    );
-
-    await tester.tap(find.byKey(const ValueKey<String>('dv-studio-media-upload-submit')));
-    await tester.pumpAndSettle();
-
-    // Dialog closed and new file appears
-    expect(find.text('Upload media file'), findsNothing);
+    expect(<Object?>[for (final Map<String, Object?> u in uploads) u['name']],
+        <String>['new-icon.png', 'notes.txt']);
+    expect(base64Decode('${uploads.first['bytes']}'), <int>[0x89, 0x50, 0x4E, 0x47]);
     expect(find.text('new-icon.png'), findsOneWidget);
+    expect(find.text('notes.txt'), findsOneWidget);
+  });
+
+  testWidgets('a file the library refuses says why', (WidgetTester tester) async {
+    await _pumpMediaSection(
+      tester,
+      pickFiles: () async => <DVStudioPickedFile>[
+        (name: 'logo.svg', bytes: utf8.encode('<svg/>')),
+      ],
+    );
+    await tester.tap(find.byKey(const ValueKey<String>('dv-studio-media-upload-button')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('does not take this kind of file'), findsOneWidget);
+  });
+
+  testWidgets('picking nothing uploads nothing', (WidgetTester tester) async {
+    final List<Map<String, Object?>> uploads = <Map<String, Object?>>[];
+    await _pumpMediaSection(
+      tester,
+      transport: _mediaTransport(uploads: uploads),
+      pickFiles: () async => const <DVStudioPickedFile>[],
+    );
+    await tester.tap(find.byKey(const ValueKey<String>('dv-studio-media-upload-button')));
+    await tester.pumpAndSettle();
+    expect(uploads, isEmpty);
+  });
+
+  testWidgets('Copy URL copies the address visitors are served the file at', (
+    WidgetTester tester,
+  ) async {
+    final List<String> copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (MethodCall call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add('${(call.arguments as Map)['text']}');
+        }
+        return null;
+      },
+    );
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    await _pumpMediaSection(tester, selectedKey: 'media/logo.png');
+    await tester.tap(find.byKey(const ValueKey<String>('dv-studio-media-copy-url')));
+    await tester.pumpAndSettle();
+    expect(copied, <String>['${Uri.base.resolve('/_dartvel/media/logo.png')}']);
   });
 
   testWidgets('deleting a file through inspector prompts confirmation and deletes', (
