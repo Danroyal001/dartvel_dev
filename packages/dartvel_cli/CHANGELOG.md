@@ -311,7 +311,7 @@
   the web, worker and cron roles install it at startup.
 
 - **Breaking: every data model under `lib/models/` gets public pages unless it
-  says `generatePublicPages: false`.** Models that stand for accounts,
+  says `generatePages: false`.** Models that stand for accounts,
   sessions, credentials or audit records, rows that are their own privacy
   subject, tenant-scoped models, models with a protected or no `String` key and
   models whose route an application page already serves are skipped with a note
@@ -465,7 +465,7 @@
 
 - **Model pages resolve against the project's database at build time, or
   say plainly why not.** The resolver configured no `DV.Database`, so every
-  `generatePublicPages` model logged `Bad state: DV.Database has no configured
+  `generatePages` model logged `Bad state: DV.Database has no configured
   adapter`, once per build step. It now uses `DATABASE_URL` or the SQLite file
   `dartvel.database` names; with neither it logs one line naming the models
   and how to give them a database, and a build resolves the pages once.
@@ -1809,7 +1809,7 @@ public helper. Block bodies are lowered into the generated widget now.
 ### Static generation
 
 `dartvel build web` writes a page per route and expands parameterised routes
-through the application's own resolvers. `@DVModel(generatePublicPages: true)`
+through the application's own resolvers. `@DVModel(generatePages: true)`
 now generates the route as well as the paths -- it previously produced a list
 of addresses that all resolved to the application's own not-found page.
 

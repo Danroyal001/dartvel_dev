@@ -3523,7 +3523,7 @@ class BuildCommand extends Command<void> {
     final List<String> resolved = await dvResolveStaticPaths(root);
     if (resolved.isEmpty) {
       Logger.log('   $templates parameterised route(s) resolved to no pages. '
-          'A model page needs generatePublicPages or a publicPathsResolver.');
+          'A model page needs generatePages or a publicPathsResolver.');
       return concrete;
     }
 
@@ -3536,13 +3536,13 @@ class BuildCommand extends Command<void> {
         dvServedStaticPaths(resolved, declared: declared);
     final int stranded = resolved.length - served.length;
     if (stranded > 0) {
-      // generatePublicPages generates its own route, so what lands here is
+      // generatePages generates its own route, so what lands here is
       // a publicPathsResolver naming paths for a page the application has
       // not written. Saying which is the difference between a warning
       // someone can act on and one they cannot.
       Logger.log('   $stranded page(s) were not written: no route serves '
           'them. A publicPathsResolver names the paths for a page you write; '
-          'if you meant Dartvel to write it, use generatePublicPages: true.');
+          'if you meant Dartvel to write it, use generatePages: true.');
     }
     if (served.isEmpty) return concrete;
 

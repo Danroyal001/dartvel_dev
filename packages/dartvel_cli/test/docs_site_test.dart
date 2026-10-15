@@ -55,7 +55,7 @@ Widget _storeHomePage(BuildContext context) => const SizedBox();
 import 'package:dartvel_core/dartvel.dart';
 
 /// A person who can sign in.
-@DVModel(generatePublicPages: true)
+@DVModel(generatePages: true)
 class _User {
   final String id;
 
@@ -88,7 +88,7 @@ const Map<String, Object?> seedUser = <String, Object?>{
 import 'package:dartvel_core/dartvel.dart';
 
 /// A paid basket.
-@DVModel(generatePublicPages: false)
+@DVModel(generatePages: false)
 class _Order {
   final String id;
 

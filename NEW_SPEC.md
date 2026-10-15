@@ -14625,7 +14625,7 @@ class _Article(final String slug, ...);
 @DVModel()                            // /blog-posts/42
 class _BlogPost(final String id, ...);
 
-@DVModel(generatePublicPages: false)  // no page
+@DVModel(generatePages: false)  // no page
 class _Invoice(...);
 ```
 
@@ -14671,7 +14671,7 @@ protected fields are never in them for anyone. A server that has not loaded a
 client, which the server cannot import -- refuses rather than reading the model
 as having none.
 
-**Models that get no page unless they ask** with `generatePublicPages: true`:
+**Models that get no page unless they ask** with `generatePages: true`:
 
 - accounts and their access, sessions, credentials and audit records, read
   from the model's name (`User`, `Account`, `Role`, `Permission`, `Session`,
@@ -14691,7 +14691,7 @@ as having none.
 - a model whose route an application page or the routes file already serves,
   which keeps its route.
 
-Each of these that did not say `generatePublicPages: false` is named in the
+Each of these that did not say `generatePages: false` is named in the
 build log with what to write. A page that was asked for and cannot be made --
 no key, or a protected one -- stops the build instead. The framework's own
 accounts, sessions, tokens, audit log and consent records are `dv_*` tables,
@@ -15238,7 +15238,7 @@ true image, so neither is a placeholder nobody checks.
 
 Static routes are always generated. Parameterized routes require a known list of
 values, and a data model supplies its own: every model has a page per record
-unless it says `generatePublicPages: false`, so
+unless it says `generatePages: false`, so
 
 ```dart
 @DVModel()

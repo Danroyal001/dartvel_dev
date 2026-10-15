@@ -29,7 +29,7 @@ dependencies:
   File(p.join(root.path, 'lib', 'models', 'note.dart')).writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(searchable: true, semantic: true, generatePublicPages: false)
+@DVModel(searchable: true, semantic: true, generatePages: false)
 class const _Note({
   required final String id,
   @DVModel.searchableField() required final String title,

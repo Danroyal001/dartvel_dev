@@ -1319,7 +1319,7 @@ ${_moduleBackendSource(dv)}    // A web-server build is served by the binary tha
     }
 
     // A route per model that asked Dartvel to generate its pages. Without
-    // these, generatePublicPages produced a list of paths and nothing that
+    // these, generatePages produced a list of paths and nothing that
     // served them, so every generated page rendered the application's own
     // not-found screen.
     final modelRoutesSrc = publicPageModels
