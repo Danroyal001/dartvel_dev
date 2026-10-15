@@ -7,6 +7,8 @@ import 'dart:convert';
 
 import 'package:dartvel_core/dartvel.dart' show DVImageVariants;
 
+import 'client_hosts.dart' show dvPublicLocation;
+
 /// The manifest `dartvel build web` writes next to index.html.
 const String dvPrefetchManifestPath = 'dartvel_prefetch.json';
 
@@ -16,8 +18,10 @@ const String dvPrefetchManifestPath = 'dartvel_prefetch.json';
 ///
 /// The address a new tab or a reload asks for, which is the one a prefetch
 /// has to match to be of any use: the browser keys what it fetched by URL.
+/// On a host with a mount (`dartvel.hosts`) that is the address the host
+/// serves the route at: `/docs/x` is `x` on docs.example.com.
 String dvPrefetchHref(String path) {
-  final String route = _routeKey(path);
+  final String route = _routeKey(dvPublicLocation(path));
   return route == '/' ? './' : route.substring(1);
 }
 
@@ -66,8 +70,7 @@ String _forThisScreen(
   double devicePixelRatio,
 ) {
   if (variants == null || !variants.isActive) return recorded;
-  if (image['variant']
-      case {'src': final String src, 'width': final num width}
+  if (image['variant'] case {'src': final String src, 'width': final num width}
       when src.isNotEmpty) {
     return variants.variantUrl(src, width * devicePixelRatio) ?? src;
   }
