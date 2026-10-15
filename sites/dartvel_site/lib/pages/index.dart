@@ -588,7 +588,7 @@ Widget _runningOnDartvel(BuildContext context) => const Section(
       SiteCard(
         'Search',
         'Ctrl+K asks a backend function in the same binary, which ranks '
-            'every page of these docs.',
+            'every page of this site.',
         built: true,
         href: DVRoutes.docssearch,
       ),

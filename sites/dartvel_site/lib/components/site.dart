@@ -501,7 +501,7 @@ Widget _siteCard(
         ),
   );
   if (to == null) return card;
-  return DVNavLink(to: to, child: card);
+  return DVNavLink(to: to, padding: .zero, child: card);
 }
 
 @DVFunctionalWidget()

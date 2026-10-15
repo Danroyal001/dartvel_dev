@@ -13,10 +13,10 @@ import 'site.dart';
 
 /// What the demo prints, line for line out of [_heroDemo].
 const List<String> kHeroDemoSource = <String>[
-  '// Operating on a signal gives you a signal.',
-  'final DVSignal<int> quantity = context.signal(1);',
-  'final DVReadableSignal<num> total = quantity * 12;',
-  'final DVReadableSignal<bool> free = total > 50;',
+  '// Math on a signal gives a signal.',
+  'final quantity = context.signal(1);',
+  'final total = quantity * 12;',
+  'final free = total > 50;',
   '',
   r"DVText('\$${total.value}')",
   "if (free.value) const DVText('Free delivery')",
@@ -25,9 +25,9 @@ const List<String> kHeroDemoSource = <String>[
 @DVFunctionalWidget()
 Widget _heroDemo(BuildContext context) {
   final Palette palette = Palette.of(context);
-  final DVSignal<int> quantity = context.signal(1);
-  final DVReadableSignal<num> total = quantity * 12;
-  final DVReadableSignal<bool> free = total > 50;
+  final quantity = context.signal(1);
+  final total = quantity * 12;
+  final free = total > 50;
 
   return DVBox(
     DVBox.list(<Widget>[
@@ -42,7 +42,7 @@ Widget _heroDemo(BuildContext context) {
                 .rounded(999)
                 .backgroundColor(const Color(0xFF22C55E)),
           ),
-          DVText('RUNNING ON THIS PAGE').modifier(const DVModifier()
+          const DVText('RUNNING ON THIS PAGE').modifier(const DVModifier()
               .fontSize(12)
               .fontWeight(.w700)
               .letterSpacing(1.2)
@@ -58,7 +58,7 @@ Widget _heroDemo(BuildContext context) {
                 .color(palette.ink)),
             StepButton('+', 'Add one', () => quantity.update((int n) => n + 1)),
           ], spacing: 12, align: .start),
-          DVText('× \$12  =').modifier(
+          const DVText('× \$12  =').modifier(
               const DVModifier().fontSize(17).color(palette.muted)),
           DVText('\$${total.value}').modifier(const DVModifier()
               .fontSize(30)
@@ -72,7 +72,7 @@ Widget _heroDemo(BuildContext context) {
                 .backgroundColor(const Color(0x5522C55E))
                 .rounded(999)),
         ], spacing: 14, crossAlign: .center),
-        DVText('Press + past four: the total and the badge follow, and '
+        const DVText('Press + past four: the total and the badge follow, and '
                 'nothing else on this page was written to make them.')
             .modifier(const DVModifier()
                 .fontSize(13)
@@ -120,7 +120,7 @@ Widget _stepButton(
         .border(Border.all(color: palette.rule))
         .rounded(10)
         .animate(const Duration(milliseconds: 140))
-        .hover(DVModifier().border(Border.all(color: palette.accent)))
+        .hover(const DVModifier().border(Border.all(color: palette.accent)))
         .tooltip(name)
         .semanticLabel(name)
         .minimumTapTarget()
