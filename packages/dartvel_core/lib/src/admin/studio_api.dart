@@ -714,6 +714,15 @@ class DVStudioApi {
         if (method != 'GET' && method != 'HEAD' && !isPublicSubmit) {
           _requireCsrf(request);
         }
+        final String? permission =
+            isPublicSubmit ? null : dvStudioPermissionFor(method, segments);
+        if (permission != null && !await _callerMay(request, permission)) {
+          throw _StudioRefusal(
+            403,
+            'role',
+            'Your Studio role does not allow this ($permission).',
+          );
+        }
         switch (segments.first) {
           case 'models':
             return await _models(request, method, segments.sublist(1));
@@ -2057,9 +2066,40 @@ class DVStudioApi {
             _unservePage(v.documentId),
       );
 
-  /// Whether [user] may take a content [action] on a page. The caller already
-  /// passed the Studio grant to reach the API.
-  Future<bool> _mayChangePages(Object? user, String action) async => true;
+  /// Whether [user] may take a content [action] on a page: writing a draft
+  /// and sending it for review is `pages:write`, and everything that changes
+  /// what visitors are served is `pages:publish`.
+  Future<bool> _mayChangePages(Object? user, String action) => _userMay(
+        user is String ? user : null,
+        action == DVContentAction.edit ? 'pages:write' : 'pages:publish',
+      );
+
+  /// Whether the caller of [request] holds [permission].
+  Future<bool> _callerMay(Request request, String permission) async =>
+      _userMay(await _caller(request), permission);
+
+  /// Whether [userId] holds [permission] through their Studio role.
+  ///
+  /// Only a caller with a Studio grant has a role. One admitted some other
+  /// way -- the application's own `Studio.access` policy, a development
+  /// server's grant, a mount that asks for no sign-in -- was admitted whole,
+  /// and keeps everything, as before roles existed.
+  Future<bool> _userMay(String? userId, String permission) async {
+    final DVDatabaseAdapter? adapter = database;
+    if (adapter == null || userId == null || userId.isEmpty) return true;
+    if (!DVStudioEntitlements.current.rolesEnabled) return true;
+    final DVStudioGrants grants = DVStudioGrants(adapter);
+    final String? roleId = await grants.roleOf(
+      userId,
+      tenant: const DVTenants().currentTenant,
+    );
+    if (roleId == null) return true;
+    for (final DVStudioRole role in await grants.listRoles()) {
+      if (role.id == roleId) return role.permissions.contains(permission);
+    }
+    // A role that was deleted grants nothing.
+    return false;
+  }
 
   Timer? _scheduleSweep;
 
@@ -3016,6 +3056,7 @@ class DVStudioApi {
     final String tenant = _tenantOf(body['tenant']);
     final bool confirmed = body['confirm'] == true;
     final DVStudioGrants grants = DVStudioGrants(_database);
+    await _requireRole(grants, role);
     if (!await grants.isGranted(userId, tenant: tenant)) {
       throw _StudioRefusal(
           404, 'not_found', '$userId holds no grant on tenant $tenant.');
@@ -3105,6 +3146,7 @@ class DVStudioApi {
       userId = account;
     }
     final DVStudioGrants grants = DVStudioGrants(_database);
+    await _requireRole(grants, role);
     await grants.grant(userId, tenant: tenant, role: role);
     await _note('team', 'created', 'Studio access given ($role)',
         screen: 'access');
@@ -3146,6 +3188,19 @@ class DVStudioApi {
               'admin grant.',
         );
       }
+      if (await grants.roleOf(userId, tenant: tenant) == 'admin' &&
+          (await grants.list())
+                  .where((DVStudioGrant g) =>
+                      g.tenant == tenant && g.role == 'admin')
+                  .length <=
+              1) {
+        throw _StudioRefusal(
+          409,
+          'confirm_last_admin',
+          'This is the last Administrator on tenant $tenant. Once it is '
+              'revoked nobody there can manage who may open Studio.',
+        );
+      }
       if (userId == await _caller(request)) {
         throw _StudioRefusal(
           409,
@@ -3159,6 +3214,15 @@ class DVStudioApi {
     await _note('team', 'deleted', 'Studio access taken away',
         screen: 'access');
     return _reply(<String, Object?>{'revoked': userId, 'tenant': tenant});
+  }
+
+  /// Refuses a grant or a role change naming a role that does not exist,
+  /// which would otherwise be stored and grant nothing.
+  Future<void> _requireRole(DVStudioGrants grants, String role) async {
+    for (final DVStudioRole known in await grants.listRoles()) {
+      if (known.id == role) return;
+    }
+    throw _StudioRefusal(400, 'bad_role', 'There is no role called "$role".');
   }
 
   static String _tenantOf(Object? value) {

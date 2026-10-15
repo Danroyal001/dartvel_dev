@@ -7,6 +7,7 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- **Security: Studio roles are enforced.** A role was stored and shown but never checked, so any holder of a Studio grant could grant themselves Administrator. The server now checks the caller's role on every write and on reading the team and settings, refuses roles that do not exist, and asks before revoking the last Administrator.
 - **Fixed: Studio's autosave no longer publishes.** In a web-server binary the editor's two-second autosave went to the same endpoint as Publish, so every edit was served to visitors moments later. Autosave now writes a draft beside the published page; only Publish, or a schedule arriving, changes what visitors get. On a document database, which keeps no page versions, autosave stays off.
 - Studio in a web-server binary keeps page versions on the server: drafts, a revision for every publish, restore, review, and publishing at a time, which the server runs itself and picks up again after a restart. `DVContentVersion` and `DVContentTransition` travel as JSON (`toJson`/`fromJson`), and a workflow without required approval can schedule a draft.
 

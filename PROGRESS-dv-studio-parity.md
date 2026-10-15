@@ -33,3 +33,16 @@ Defects found that the earlier log reported as done:
 
 Removed agent working notes that named private host paths, a credentials file
 and a client project from the repository.
+
+## Page drafts, revisions, schedules
+
+Autosave writes drafts through `draftSaver`; the server keeps versions in the
+content workflow (SQL databases; a document database publishes directly and
+says so). Core Studio tests 328 passed; Flutter Studio tests 588 passed,
+18 failed -- all 18 were in the original 41 apart from two this change caused
+and fixed (older page-list shape).
+
+## Roles enforced
+
+`dvStudioPermissionFor` names the permission each request needs and the
+server checks it against the caller's role. Core Studio tests 335 passed.

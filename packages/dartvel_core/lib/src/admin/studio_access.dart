@@ -31,6 +31,43 @@ typedef DVStudioGrant = ({
   String role,
 });
 
+/// The permission a Studio API request needs, or null for one any holder of
+/// the Studio grant may make.
+///
+/// [segments] is the path below the API. Reads are open to every role but
+/// for the team, whose addresses are personal, and the settings. Every write
+/// needs the permission of what it changes; writing a page draft is
+/// `pages:write`, and anything that changes what visitors are served is
+/// `pages:publish`.
+String? dvStudioPermissionFor(String method, List<String> segments) {
+  if (segments.isEmpty) return null;
+  final String area = segments.first;
+  final bool reads = method == 'GET' || method == 'HEAD';
+  if (reads) {
+    return switch (area) {
+      'grants' || 'team' || 'access' => 'team:read',
+      'settings' => 'settings:read',
+      _ => null,
+    };
+  }
+  return switch (area) {
+    'pages' => segments.length > 1 &&
+            const <String>{'draft', 'submit'}.contains(segments[1])
+        ? 'pages:write'
+        : 'pages:publish',
+    'models' => segments.length > 2 && segments[2] == 'records'
+        ? 'records:write'
+        : 'models:write',
+    'functions' => 'functions:write',
+    'grants' || 'team' || 'access' => 'team:write',
+    'media' => 'media:write',
+    'menus' => 'menus:write',
+    'forms' => 'forms:write',
+    'settings' || 'queues' || 'cache' || 'repository' => 'settings:write',
+    _ => 'settings:write',
+  };
+}
+
 /// Single configurable entitlement gate for Studio Pro features
 /// (e.g. role-based access control, custom roles, and revision history).
 class DVStudioEntitlements {
@@ -77,14 +114,18 @@ class DVStudioRole {
     permissions: <String>{
       'pages:read',
       'pages:write',
+      'pages:publish',
       'media:read',
       'media:write',
       'models:read',
       'models:write',
+      'records:write',
       'routes:read',
       'routes:write',
       'functions:read',
       'functions:write',
+      'menus:write',
+      'forms:write',
       'team:read',
       'team:write',
       'settings:read',
@@ -100,13 +141,17 @@ class DVStudioRole {
     permissions: <String>{
       'pages:read',
       'pages:write',
+      'pages:publish',
       'media:read',
       'media:write',
       'models:read',
       'models:write',
+      'records:write',
       'routes:read',
       'routes:write',
       'functions:read',
+      'menus:write',
+      'forms:write',
       'team:read',
     },
   );
@@ -115,7 +160,8 @@ class DVStudioRole {
     id: 'author',
     name: 'Author',
     description:
-        'Can upload media and create or edit own pages and content drafts.',
+        'Can upload media and write page drafts and send them for review; '
+        'publishing is an editor\'s.',
     permissions: <String>{
       'pages:read',
       'pages:write',
