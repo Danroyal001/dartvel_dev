@@ -89,6 +89,15 @@ void main() {
     expect(output, contains('createDartvelRouter(arguments: args)'));
     expect(output, contains('run([List<String> args'));
     expect(output, isNot(contains('run(Widget')));
+    // It imported a launch.g.dart nothing writes, so the one-line main of
+    // every pure application failed to compile.
+    for (final m in RegExp(r"import '([\w.]+\.dart)'").allMatches(output)) {
+      expect(
+        File(p.join(root.path, 'lib/dartvel_client', m.group(1)!)).existsSync(),
+        isTrue,
+        reason: '${m.group(1)} is imported and was not generated',
+      );
+    }
     expect(
       File(p.join(root.path, 'lib/dartvel_client/dartvel_client.dart'))
           .readAsStringSync(),
@@ -123,6 +132,50 @@ Widget _root(BuildContext context, DVAppParts parts) => MaterialApp.router(route
       expect(output, contains('routerConfig: parts.router'));
     },
   );
+  // The barrel hides the runtime's DV and exports the generated one, so every
+  // public static the runtime has must be on the generated class too, with
+  // its type. A forwarder written `static get Auth => runtime.DV.Auth` is
+  // dynamic: `DV.Auth.signIn(...)` still compiles with any arguments, and
+  // `DV.global<Clock>()` stops being checked at all -- a typo is a runtime
+  // NoSuchMethodError in a release build instead of a compile error.
+  test('the generated DV forwards every runtime member, typed', () async {
+    final root = await _project();
+    addTearDown(() => root.deleteSync(recursive: true));
+    _page(root, 'index.dart', '@DVPage() Widget _index() => DVText("Home");');
+    await _routerFor(root);
+    final output = File(
+      p.join(root.path, 'lib/dartvel_client/application.g.dart'),
+    ).readAsStringSync();
+    final facade = output.substring(output.indexOf('abstract final class DV'));
+
+    final runtime = File('../dartvel_flutter/lib/dartvel_flutter.dart')
+        .readAsStringSync();
+    final start = runtime.indexOf('\nclass DV {');
+    final body = runtime.substring(start, runtime.indexOf('\n}\n', start));
+    final names = <String>{
+      for (final m in RegExp(
+        r'^  static (?:const |final )?(?:[\w<>?, ]+?\s+)?(?:get |set )?([A-Za-z$][\w$]*)\s*(?:[<(=;]|=>)',
+        multiLine: true,
+      ).allMatches(body))
+        if (!m.group(1)!.startsWith('_')) m.group(1)!,
+    // container is Riverpod's, the framework's own: not application surface.
+    }..removeAll(<String>{'run', 'Function', 'container'});
+    expect(names, containsAll(<String>['Auth', 'global', 'transaction', r'$', 'log']));
+
+    for (final name in names) {
+      expect(
+        RegExp('[^\\w\$]${RegExp.escape(name)}(?![\\w\$])').hasMatch(facade),
+        isTrue,
+        reason: 'DV.$name is not forwarded',
+      );
+    }
+    // Nothing forwarded untyped.
+    expect(facade, isNot(contains('static get ')));
+    expect(facade, contains('static T global<T>('));
+    expect(facade, contains('static Future<T> transaction<T>('));
+    expect(facade, contains('static DVAuth get Auth'));
+    expect(facade, contains("@Deprecated("));
+  });
   test('a host root that drops the router is refused', () async {
     final root = await _project();
     addTearDown(() => root.deleteSync(recursive: true));
