@@ -176,6 +176,34 @@ Widget _root(BuildContext context, DVAppParts parts) => MaterialApp.router(route
     expect(facade, contains('static DVAuth get Auth'));
     expect(facade, contains("@Deprecated("));
   });
+  // A functional widget's body is copied with its file's imports, the barrel
+  // among them, whose DV is now the generated one. The generator's own import
+  // of the runtime brought a second DV, and every widget that used DV stopped
+  // compiling: 'DV' is imported from both.
+  test('inlined source resolves DV through its own imports only', () async {
+    final root = await _project();
+    addTearDown(() => root.deleteSync(recursive: true));
+    _page(root, 'index.dart', '@DVPage() Widget _index() => DVText("Home");');
+    Directory(p.join(root.path, 'lib/components')).createSync();
+    File(p.join(root.path, 'lib/components/copy.dart')).writeAsStringSync('''
+import '../dartvel_client/dartvel_client.dart';
+@DVFunctionalWidget()
+Widget _copyButton(BuildContext context) =>
+    DVText('Copy').modifier(DVModifier().onTap(() => DV.Clipboard.copy('x')));
+''');
+    await _routerFor(root);
+    final widgets = File(p.join(root.path, 'lib/dartvel_client/widgets.g.dart'))
+        .readAsStringSync();
+    final runtimeImports = RegExp(
+      r"^import 'package:dartvel_flutter/dartvel_flutter\.dart'([^;]*);",
+      multiLine: true,
+    ).allMatches(widgets).map((m) => m.group(1)!).toList();
+    expect(runtimeImports, isNotEmpty);
+    for (final clause in runtimeImports) {
+      expect(clause, matches(RegExp(r'hide .*\bDV\b')), reason: clause);
+    }
+    expect(widgets, contains("dartvel_client/dartvel_client.dart'"));
+  });
   test('a host root that drops the router is refused', () async {
     final root = await _project();
     addTearDown(() => root.deleteSync(recursive: true));
