@@ -4,7 +4,7 @@ Branch: `feat/media-player-camera` (do NOT push to main/master, do NOT merge).
 
 ## Status (start from brief)
 - Read ~/AGENTS.md (binding rules), repo AGENTS.md/CLAUDE.md, gss-context.md (latest: 2026-10-09 owner messages; BAIMOS admins done, Dartvel PRs pending review, agent quotas exhausted).
-- Read brief: `/home/sigmadev/briefs/h2/dv-media.md` → finish media playback/capture docs + tests, docs-samples copy fix, docs/spec-status honest, commit + PR.
+- Read the task brief → finish media playback/capture docs + tests, docs-samples copy fix, docs/spec-status honest, commit + PR.
 - Last agent died from usage (codex/agy/opencode free model limits reached) at 2026-10-10 02:03; no `PROGRESS-dv-media.md` existed yet.
 
 ## Done

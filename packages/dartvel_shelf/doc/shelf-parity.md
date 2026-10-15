@@ -114,10 +114,10 @@ these behaviors through real HTTP clients.
 Native directory listing/default-document customization remains available via
 the Shelf adapter's upstream static handler rather than new native options.
 
-## Benchmarks (AOT, fresh processes, 3 trials via heavy.sh)
+## Benchmarks (AOT, fresh processes, 3 trials)
 
-Compiled with `dart compile exe benchmark/compare.dart` and run inside a
-`~/heavy.sh` slot only once the one-minute load average was under 4, from the
+Compiled with `dart compile exe benchmark/compare.dart` and run on the
+machine only once the one-minute load average was under 4, from the
 package directory. Each engine and scenario ran in its own fresh process. The
 table is the mean of two full runs (six trials per cell), measured on
 2026-09-30 on the 8-vCPU VPS; before and after runs alternated. "Before" is

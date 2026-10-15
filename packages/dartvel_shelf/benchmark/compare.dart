@@ -1,4 +1,4 @@
-// Run: ~/heavy.sh dart run benchmark/compare.dart
+// Run: dart run benchmark/compare.dart (on an otherwise idle machine)
 // Each engine/scenario runs in a fresh process. RSS includes the Dart client,
 // VM/JIT and (for Dartvel) the native runtime, not just the server.
 //

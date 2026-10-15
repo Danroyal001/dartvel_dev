@@ -65,7 +65,7 @@ or *release*.
 |---|---|---|---|---|---|
 | 23 | No-JS page is bare and navigation-first | every page with scripting off | About 60 nav links before the h1, no skip link; "Search the site" and "Copy code" are inert `<strong role=button>` | Main content first (or a skip link); leave out controls that need script | framework |
 | 24 | SEO details | site | No `<lastmod>`, every priority 0.5; one shared `og:image`; `www.dartvel.dev` answers 200 instead of 301; `/favicon.ico` and `/llms.txt` 404 | lastmod from the build, per-page social cards, www 301, favicon and llms.txt routes | framework (sitemap/llms) + hosting |
-| 25 | Studio login file names a missing page | `~/.config/dartvel-site-studio.txt` | Says sign in at `/login` (404) | Point at `/__studio/login` | ops |
+| 25 | Studio login file names a missing page | the operator's note of the Studio login, on the server | Says sign in at `/login` (404) | Point at `/__studio/login` | ops |
 
 ## Missing basics against vercel.com, flutter.dev and laravel.com
 
