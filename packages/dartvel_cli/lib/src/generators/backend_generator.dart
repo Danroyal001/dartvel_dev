@@ -51,6 +51,7 @@ import '../utils/logger.dart';
 import 'asyncapi_generator.dart';
 import 'openapi_generator.dart';
 import 'page_policy.dart';
+import '../analysis/dart_source_lexer.dart';
 import 'annotation_args.dart';
 import 'platform_api_generator.dart';
 import 'policy_classes.dart';
@@ -2346,8 +2347,16 @@ Future<core.DVProcessHealth?> _dartvelServeHealth(core.DVProcessConfiguration pr
   return health;
 }
 ''';
+    // models.g.dart imports Flutter, which a pure-Dart server cannot resolve.
+    // Import it only when a backend function actually names a data model.
+    final String modelsImport = "import 'package:$pkgName/dartvel_client/models.g.dart';\n";
+    final String routesBody = backendRoutes.replaceFirst(modelsImport, '');
+    // Masked: a model's name inside a string (the schema JSON, a capture
+    // declaration) is data, not a reference to the type.
+    final String routesCode = dvDartSourceView(routesBody).masked;
+    final bool namesAModel = declaredModels.any((String model) => RegExp('\\b${RegExp.escape(model)}\\b').hasMatch(routesCode));
     File(p.join(backendOut.path, 'dartvel_backend_routes.g.dart'))
-        .writeAsStringSync(backendRoutes);
+        .writeAsStringSync(namesAModel ? backendRoutes : routesBody);
 
     // The binary a deployment runs. Every unit dartvel infra renders and the
     // image dartvel deploy writes start this one program and tell it its role
