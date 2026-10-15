@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.13.2 — 2026-10-15
+
+**Breaking (alpha):** `@DVModel(generatePublicPages: ...)` is now `generatePages`. A generated model page was never necessarily public: the model's `view` policy decides who may open it, so a model's pages can be private and auth-guarded. `dartvel migrate-code` rewrites old code.
+
+- Every page's scrollbar stays on screen and draggable whatever theme the app brings. Before, only apps on Dartvel's default theme got it; an app's own scrollbar colours are kept.
+
 ## 0.13.1 — 2026-10-15
 
 - Fix: 0.13.0's host routing replaced every page's own meta description with the site-wide one, in every app. Host routing is reimplemented (below) and pages keep their descriptions.

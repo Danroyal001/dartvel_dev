@@ -1,3 +1,7 @@
+## 0.13.2 — 2026-10-15
+
+- Version bump to match Dartvel 0.13.2.
+
 ## 0.13.1 — 2026-10-15
 
 - Version bump to match Dartvel 0.13.1.
