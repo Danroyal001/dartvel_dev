@@ -304,23 +304,31 @@ Future<ServerHandle> serve(
       );
       if (variant != null) return variant;
 
+      // 0b. With dartvel.hosts, robots.txt and the sitemap are per host:
+      // each names and lists its own host's pages. Null without hosts, and
+      // the built files are served below as they always were.
+      if (req.method == 'GET' || req.method == 'HEAD') {
+        final Response? hostFile = await dvHostSiteFile(req, spaRoot);
+        if (hostFile != null) {
+          return req.method == 'GET'
+              ? hostFile
+              : Response(hostFile.status,
+                  headers: hostFile.headers,
+                  body: const Stream<List<int>>.empty());
+        }
+      }
+
       // 1. A file of the site: from the pack a web-server binary carries, in
       // the encoding it is kept in when the client takes it, or from the
       // directory during development and preview.
-      final bool isHostRouting =
-          dvSiteText(spaRoot, 'dartvel_routes.json')?.contains('"hosts"') ??
-              false;
-      if (!isHostRouting ||
-          (req.url.path != 'robots.txt' && req.url.path != 'sitemap.xml')) {
-        final Response? file = await dvAssetResponse(
-          req,
-          DVAssetSources.at(spaRoot),
-          policy: _assetPolicyFor(spaRoot),
-          cache: DVAssetCache.current,
-          transportCompresses: compression,
-        );
-        if (file != null) return file;
-      }
+      final Response? file = await dvAssetResponse(
+        req,
+        DVAssetSources.at(spaRoot),
+        policy: _assetPolicyFor(spaRoot),
+        cache: DVAssetCache.current,
+        transportCompresses: compression,
+      );
+      if (file != null) return file;
 
       // 2. Fall back to normal handler or SPA index
       final resp = await handler(req);

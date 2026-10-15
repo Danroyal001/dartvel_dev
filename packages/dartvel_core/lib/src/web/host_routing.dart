@@ -1,343 +1,613 @@
-/// Inbound Host-based routing for multi-domain Dartvel applications.
+/// Inbound host routing: one application, several hostnames, each mapped onto
+/// a part of the one route tree.
 ///
-/// One web-server binary serves multiple host patterns (e.g. `sigmadev.digital`,
-/// `tools.sigmadev.digital`, and `*.tools.sigmadev.digital`), mapping each host
-/// to its respective route mount while preserving the browser's address bar.
+/// Declared under `dartvel.hosts` in pubspec.yaml:
+///
+/// ```yaml
+/// dartvel:
+///   hosts:
+///     example.com:                 # no mount: the primary host
+///       siteUrl: https://example.com
+///     docs.example.com:
+///       mount: /docs               # docs.example.com/x <-> /docs/x
+///       siteUrl: https://docs.example.com
+///     '*.apps.example.com':
+///       mount: /apps/{label}
+///       siteUrl: https://{label}.apps.example.com
+/// ```
+///
+/// Pure Dart with no `dart:io`, because the server, the CLI's preview server
+/// and the Flutter web client all answer the same two questions with it:
+/// which part of the route tree does this host show, and on which host does
+/// this route live.
 library;
 
-/// Whether [host] is a valid DNS hostname under RFC 1123.
-bool dvIsValidDomain(String host) {
-  if (host.isEmpty || host.length > 253) return false;
-  final List<String> labels = host.split('.');
-  if (labels.isEmpty) return false;
-  for (final String label in labels) {
-    if (label.isEmpty || label.length > 63) return false;
-    if (label.startsWith('-') || label.endsWith('-')) return false;
-    for (int i = 0; i < label.length; i++) {
-      final int code = label.codeUnitAt(i);
-      final bool isAlpha = (code >= 97 && code <= 122) || (code >= 65 && code <= 90);
-      final bool isDigit = code >= 48 && code <= 57;
-      final bool isHyphen = code == 45;
-      if (!isAlpha && !isDigit && !isHyphen) return false;
-    }
-  }
-  return true;
-}
-
-/// Normalises [rawHost] by stripping ports, trailing dots, whitespace, and
-/// converting to lowercase ASCII. Returns null if invalid or missing.
-String? dvNormalizeHost(String? rawHost) {
-  if (rawHost == null) return null;
-  var host = rawHost.trim();
-  if (host.isEmpty) return null;
-  if (host.endsWith('.')) {
-    host = host.substring(0, host.length - 1);
-  }
-  if (host.contains(':')) {
-    final parts = host.split(':');
-    if (parts.length != 2) return null;
-    final port = int.tryParse(parts[1]);
-    if (port == null || port < 1 || port > 65535) return null;
-    host = parts[0];
-  }
-  host = host.toLowerCase();
-  if (!dvIsValidDomain(host)) return null;
-  return host;
-}
-
-/// Extracts the validated host from request [headers], respecting
-/// `x-forwarded-host` only when [remoteAddress] is in [trustedProxies]
-/// (or [trustLoopback] is true for loopback addresses).
-String? dvExtractHost(
-  Map<String, String> headers, {
-  Set<String> trustedProxies = const <String>{},
-  bool trustLoopback = false,
-  String? remoteAddress,
+/// One `dartvel.hosts` entry.
+///
+/// [pattern] is a hostname (`docs.example.com`) or a single leftmost-label
+/// wildcard (`*.apps.example.com`). [mount] is where in the route tree the
+/// host's `/` is, `/` for the primary host; in a wildcard entry `{label}`
+/// stands for the label the host matched, as a whole path segment. [siteUrl]
+/// is the host's public origin and may use `{label}` the same way.
+final class const DVHostEntry({
+  required final String pattern,
+  required final String siteUrl,
+  final String mount = '/',
+  final String? name,
+  final String? description,
 }) {
-  bool isTrusted = false;
-  if (remoteAddress != null) {
-    final cleanRemote = remoteAddress.split(':').first;
-    if (trustedProxies.contains(cleanRemote)) {
-      isTrusted = true;
-    } else if (trustLoopback &&
-        (cleanRemote == '127.0.0.1' || cleanRemote == '::1' || cleanRemote == 'localhost')) {
-      isTrusted = true;
-    }
-  }
-
-  if (isTrusted) {
-    final xForwarded = headers['x-forwarded-host'];
-    if (xForwarded != null && xForwarded.isNotEmpty) {
-      final first = xForwarded.split(',').first.trim();
-      final norm = dvNormalizeHost(first);
-      if (norm != null) return norm;
-    }
-  }
-
-  final hostHeader = headers['host'];
-  return dvNormalizeHost(hostHeader);
-}
-
-/// A declared host pattern in `dartvel.hosts`.
-final class DVHostEntry {
-  const DVHostEntry({
-    required this.pattern,
-    this.siteUrl,
-    this.mount,
-    this.routes,
-    this.legacyRedirects = const <String, String>{},
-    this.name,
-    this.description,
-  });
-
-  /// The declared pattern (e.g. `'sigmadev.digital'`, `'tools.sigmadev.digital'`,
-  /// or `'*.tools.sigmadev.digital'`).
-  final String pattern;
-
-  /// The public origin for this host (e.g. `'https://tools.sigmadev.digital'` or
-  /// `'https://{slug}.tools.sigmadev.digital'`).
-  final String? siteUrl;
-
-  /// Route mount prefix on this host. E.g. `'/tools'` maps `'/'` on this host
-  /// to internal route `'/tools'`.
-  final String? mount;
-
-  /// Optional set of route patterns allowed on this host.
-  final Set<String>? routes;
-
-  /// Legacy redirects declared on this host.
-  final Map<String, String> legacyRedirects;
-
-  /// Site name override for SEO on this host.
-  final String? name;
-
-  /// Site description override for SEO on this host.
-  final String? description;
-
+  /// Whether [pattern] is `*.<suffix>`.
   bool get isWildcard => pattern.startsWith('*.');
 
-  /// The wildcard suffix (e.g. `'.tools.sigmadev.digital'`).
-  String get wildcardSuffix => isWildcard ? pattern.substring(1) : '';
+  /// The primary host is the one whose mount is the root.
+  bool get isPrimary => mount == '/';
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'pattern': pattern,
-        if (siteUrl != null) 'siteUrl': siteUrl,
-        if (mount != null) 'mount': mount,
-        if (routes != null) 'routes': routes!.toList(),
-        if (legacyRedirects.isNotEmpty) 'legacyRedirects': legacyRedirects,
-        if (name != null) 'name': name,
-        if (description != null) 'description': description,
-      };
+    'pattern': pattern,
+    'siteUrl': siteUrl,
+    'mount': mount,
+    if (name != null) 'name': name,
+    if (description != null) 'description': description,
+  };
 
-  factory DVHostEntry.fromJson(Map<String, Object?> json) => DVHostEntry(
-        pattern: json['pattern']! as String,
-        siteUrl: json['siteUrl'] as String?,
-        mount: json['mount'] as String?,
-        routes: json['routes'] is List
-            ? (json['routes']! as List).map((e) => '$e').toSet()
-            : null,
-        legacyRedirects: json['legacyRedirects'] is Map
-            ? (json['legacyRedirects']! as Map).map((k, v) => MapEntry('$k', '$v'))
-            : const <String, String>{},
-        name: json['name'] as String?,
-        description: json['description'] as String?,
-      );
+  static DVHostEntry fromJson(Map<Object?, Object?> json) => DVHostEntry(
+    pattern: '${json['pattern']}',
+    siteUrl: '${json['siteUrl']}',
+    mount: json['mount'] is String ? json['mount']! as String : '/',
+    name: json['name'] as String?,
+    description: json['description'] as String?,
+  );
 }
 
-/// Project host routing configuration.
-final class DVHostRoutingConfig {
-  const DVHostRoutingConfig({
-    this.trustedProxies = const <String>{},
-    this.trustLoopback = false,
-    this.entries = const <DVHostEntry>[],
-  });
+/// The entries of `dartvel.hosts`, and the problems found reading them.
+typedef DVHostsParse = ({DVHosts hosts, List<String> problems});
 
-  final Set<String> trustedProxies;
-  final bool trustLoopback;
-  final List<DVHostEntry> entries;
+/// Every host an application answers on.
+///
+/// Empty means `dartvel.hosts` was not declared, and then nothing anywhere
+/// behaves differently: every function here is only consulted when
+/// [isEmpty] is false.
+final class const DVHosts(final List<DVHostEntry> entries) {
+  static const DVHosts none = DVHosts(<DVHostEntry>[]);
 
   bool get isEmpty => entries.isEmpty;
   bool get isNotEmpty => entries.isNotEmpty;
 
-  Map<String, Object?> toJson() => <String, Object?>{
-        if (trustedProxies.isNotEmpty) 'trustedProxies': trustedProxies.toList(),
-        if (trustLoopback) 'trustLoopback': true,
-        'entries': entries.map((e) => e.toJson()).toList(),
-      };
+  /// The entry with no mount. [parse] refuses a configuration without
+  /// exactly one, so a [DVHosts] that is not empty always has it.
+  DVHostEntry get primary => entries.firstWhere(
+    (DVHostEntry e) => e.isPrimary,
+    orElse: () => throw StateError('dartvel.hosts has no primary host.'),
+  );
 
-  factory DVHostRoutingConfig.fromJson(Map<String, Object?> json) => DVHostRoutingConfig(
-        trustedProxies: json['trustedProxies'] is List
-            ? (json['trustedProxies']! as List).map((e) => '$e').toSet()
-            : const <String>{},
-        trustLoopback: json['trustLoopback'] == true,
-        entries: json['entries'] is List
-            ? (json['entries']! as List)
-                .whereType<Map>()
-                .map((e) => DVHostEntry.fromJson(e.cast<String, Object?>()))
-                .toList()
-            : const <DVHostEntry>[],
-      );
+  /// The primary host as a match.
+  DVHostMatch get primaryMatch => DVHostMatch(primary);
 
-  static DVHostRoutingConfig parse(Object? section, {List<String>? problems}) {
-    if (section == null) return const DVHostRoutingConfig();
-    if (section is! Map) {
-      problems?.add('dartvel.hosts must be a map of host declarations.');
-      return const DVHostRoutingConfig();
+  /// Reads `dartvel.hosts`. [defaultSiteUrl] is `dartvel.seo.siteUrl`, which
+  /// the primary host's siteUrl defaults to.
+  ///
+  /// Nothing is guessed: every problem is reported, and a configuration with
+  /// any is one the build refuses.
+  static DVHostsParse parse(Object? yaml, {String? defaultSiteUrl}) {
+    final List<String> problems = <String>[];
+    if (yaml == null) return (hosts: none, problems: problems);
+    if (yaml is! Map) {
+      problems.add('dartvel.hosts must be a map of hostname: settings.');
+      return (hosts: none, problems: problems);
     }
-    final Set<String> trusted = <String>{};
-    bool loopback = false;
-    final Object? proxies = section['trustedProxies'];
-    if (proxies is List) {
-      for (final Object? p in proxies) {
-        if (p is String) trusted.add(p);
-      }
-    } else if (proxies == true || proxies == 'loopback') {
-      loopback = true;
-    }
-
     final List<DVHostEntry> entries = <DVHostEntry>[];
-    final Object? rawEntries = section['entries'] ?? section;
-    if (rawEntries is Map) {
-      for (final MapEntry<Object?, Object?> e in rawEntries.entries) {
-        final String key = '${e.key}'.trim();
-        if (key == 'trustedProxies' || key == 'trustLoopback' || key == 'entries') {
+    for (final MapEntry<Object?, Object?> e in yaml.entries) {
+      final String pattern = '${e.key}'.trim().toLowerCase();
+      final Object? raw = e.value;
+      if (raw != null && raw is! Map) {
+        problems.add(
+          'dartvel.hosts."$pattern" must be a map (mount, siteUrl, name, description).',
+        );
+        continue;
+      }
+      final Map<Object?, Object?> settings = raw is Map
+          ? raw
+          : const <Object?, Object?>{};
+      String where(String key) => 'dartvel.hosts."$pattern".$key';
+
+      final bool wildcard = pattern.startsWith('*.');
+      if (!_ascii(pattern)) {
+        problems.add(
+          'dartvel.hosts: "$pattern" is not ASCII. Write an internationalised name in its punycode (xn--) form.',
+        );
+        continue;
+      }
+      final String name = wildcard ? pattern.substring(2) : pattern;
+      final List<String> labels = name.split('.');
+      if (name.isEmpty || !labels.every(_isLabel)) {
+        problems.add(
+          wildcard
+              ? 'dartvel.hosts: "$pattern" is not a valid wildcard. Only a single leftmost label may be a wildcard: *.apps.example.com.'
+              : 'dartvel.hosts: "$pattern" is not a valid hostname.',
+        );
+        continue;
+      }
+      if (wildcard && labels.length < 2) {
+        problems.add(
+          'dartvel.hosts: "$pattern" is too broad; a wildcard needs at least two labels after "*.".',
+        );
+        continue;
+      }
+
+      final Object? mountRaw = settings['mount'];
+      final String mount = mountRaw == null ? '/' : '$mountRaw'.trim();
+      if (!mount.startsWith('/')) {
+        problems.add('${where('mount')} must start with /, not "$mount".');
+        continue;
+      }
+      final String normalisedMount = mount.length > 1
+          ? mount.replaceAll(RegExp(r'/+$'), '')
+          : mount;
+      final bool mountHasLabel = normalisedMount.contains('{label}');
+      final Object? siteUrlRaw = settings['siteUrl'];
+      String? siteUrl = siteUrlRaw == null ? null : '$siteUrlRaw'.trim();
+      final bool siteUrlHasLabel = siteUrl?.contains('{label}') ?? false;
+      if (!wildcard && (mountHasLabel || siteUrlHasLabel)) {
+        problems.add(
+          'dartvel.hosts."$pattern" uses {label}, which only a wildcard (*.) entry has.',
+        );
+        continue;
+      }
+      if (mountHasLabel) {
+        final List<String> segments = normalisedMount
+            .split('/')
+            .skip(1)
+            .toList();
+        final bool whole = segments.every(
+          (String s) => !s.contains('{label}') || s == '{label}',
+        );
+        if (!whole ||
+            segments.where((String s) => s == '{label}').length != 1) {
+          problems.add(
+            '${where('mount')}: {label} must appear once, as a whole path segment (/apps/{label}).',
+          );
           continue;
         }
-        final Object? val = e.value;
-        final Map<String, Object?> map =
-            val is Map ? val.cast<String, Object?>() : <String, Object?>{};
-
-        final String pattern = key.toLowerCase();
-        if (pattern.startsWith('*.')) {
-          final String rest = pattern.substring(2);
-          if (rest.contains('*') || !dvIsValidDomain(rest)) {
-            problems?.add('dartvel.hosts: "$key" is an invalid wildcard host pattern.');
-            continue;
-          }
-        } else if (!dvIsValidDomain(pattern)) {
-          problems?.add('dartvel.hosts: "$key" is not a valid hostname.');
-          continue;
-        }
-
-        entries.add(DVHostEntry(
+      }
+      if (normalisedMount != '/' &&
+          normalisedMount
+              .split('/')
+              .skip(1)
+              .any((String s) => s.isEmpty || (s.startsWith(':')))) {
+        problems.add(
+          '${where('mount')} "$normalisedMount" has an empty or parameter segment.',
+        );
+        continue;
+      }
+      if (normalisedMount == '/' && wildcard) {
+        problems.add(
+          'dartvel.hosts."$pattern": a wildcard host needs a mount containing {label}; the primary host cannot be a wildcard.',
+        );
+        continue;
+      }
+      if (wildcard && !mountHasLabel) {
+        problems.add(
+          '${where('mount')} must contain {label} for a wildcard host, or every label would show the same pages.',
+        );
+        continue;
+      }
+      if (normalisedMount == '/') siteUrl ??= defaultSiteUrl;
+      if (siteUrl == null || siteUrl.isEmpty) {
+        problems.add(
+          '${where('siteUrl')} is missing. It is the host\'s public origin, such as https://$name.',
+        );
+        continue;
+      }
+      final String? origin = _origin(siteUrl.replaceAll('{label}', 'label'));
+      if (origin == null) {
+        problems.add(
+          '${where('siteUrl')} must be an http(s) origin with no path, query or fragment, not "$siteUrl".',
+        );
+        continue;
+      }
+      entries.add(
+        DVHostEntry(
           pattern: pattern,
-          siteUrl: map['siteUrl'] as String?,
-          mount: map['mount'] as String?,
-          routes: map['routes'] is List
-              ? (map['routes']! as List).map((r) => '$r').toSet()
-              : null,
-          legacyRedirects: map['legacyRedirects'] is Map
-              ? (map['legacyRedirects']! as Map).map((k, v) => MapEntry('$k', '$v'))
-              : const <String, String>{},
-          name: map['name'] as String?,
-          description: map['description'] as String?,
-        ));
+          siteUrl: siteUrl.replaceAll(RegExp(r'/+$'), ''),
+          mount: normalisedMount,
+          name: settings['name'] == null ? null : '${settings['name']}',
+          description: settings['description'] == null
+              ? null
+              : '${settings['description']}',
+        ),
+      );
+    }
+    final List<DVHostEntry> primaries = entries
+        .where((DVHostEntry e) => e.isPrimary)
+        .toList();
+    if (entries.isNotEmpty && primaries.isEmpty && problems.isEmpty) {
+      problems.add(
+        'dartvel.hosts has no primary host. Exactly one entry must have no mount (or mount: /).',
+      );
+    }
+    if (primaries.length > 1) {
+      problems.add(
+        'dartvel.hosts has ${primaries.length} primary hosts (${primaries.map((DVHostEntry e) => e.pattern).join(', ')}). Exactly one entry may have no mount.',
+      );
+    }
+    final Set<String> mounts = <String>{};
+    for (final DVHostEntry e in entries) {
+      if (!e.isPrimary && !mounts.add(e.mount)) {
+        problems.add('dartvel.hosts: two hosts share the mount ${e.mount}.');
       }
     }
-    return DVHostRoutingConfig(
-      trustedProxies: trusted,
-      trustLoopback: loopback,
-      entries: entries,
+    return (
+      hosts: problems.isEmpty
+          ? DVHosts(List<DVHostEntry>.unmodifiable(entries))
+          : none,
+      problems: problems,
     );
   }
-}
 
-/// A matched host and extracted wildcard captures.
-final class DVHostMatch {
-  const DVHostMatch({
-    required this.entry,
-    required this.matchedHost,
-    this.captures = const <String, String>{},
-  });
+  /// The list the manifest carries.
+  List<Object?> toJson() => <Object?>[
+    for (final DVHostEntry e in entries) e.toJson(),
+  ];
 
-  final DVHostEntry entry;
-  final String matchedHost;
-  final Map<String, String> captures;
-
-  String? get siteUrl {
-    final base = entry.siteUrl;
-    if (base == null) return null;
-    var result = base;
-    for (final e in captures.entries) {
-      result = result.replaceAll('{${e.key}}', e.value);
-    }
-    return result;
+  /// What [toJson] wrote; empty for anything else.
+  static DVHosts fromJson(Object? json) {
+    if (json is! List) return none;
+    return DVHosts(
+      List<DVHostEntry>.unmodifiable(<DVHostEntry>[
+        for (final Object? e in json)
+          if (e is Map) DVHostEntry.fromJson(e),
+      ]),
+    );
   }
-}
 
-/// Matches [normalizedHost] against [config].
-/// Returns null if the host is not recognised or if wildcard has extra labels.
-DVHostMatch? dvMatchHost(String normalizedHost, DVHostRoutingConfig config) {
-  // 1. Exact match first
-  for (final entry in config.entries) {
-    if (!entry.isWildcard && entry.pattern == normalizedHost) {
-      return DVHostMatch(entry: entry, matchedHost: normalizedHost);
+  /// The entry for [host], exact names before wildcards, or null for a host
+  /// nothing declares. [host] is normalised first (case, port, trailing dot).
+  DVHostMatch? match(String host) {
+    final String? name = dvNormaliseHost(host);
+    if (name == null) return null;
+    for (final DVHostEntry e in entries) {
+      if (!e.isWildcard && e.pattern == name) return DVHostMatch(e);
     }
+    for (final DVHostEntry e in entries) {
+      if (!e.isWildcard) continue;
+      final String suffix = e.pattern.substring(1);
+      if (!name.endsWith(suffix)) continue;
+      final String label = name.substring(0, name.length - suffix.length);
+      if (_isLabel(label)) return DVHostMatch(e, label: label);
+    }
+    return null;
   }
-  // 2. Single-label wildcard match
-  for (final entry in config.entries) {
-    if (entry.isWildcard) {
-      final suffix = entry.wildcardSuffix;
-      if (normalizedHost.endsWith(suffix) && normalizedHost.length > suffix.length) {
-        final prefix = normalizedHost.substring(0, normalizedHost.length - suffix.length);
-        // Single-label wildcard: must NOT contain any dot!
-        if (!prefix.contains('.') && prefix.isNotEmpty) {
-          return DVHostMatch(
-            entry: entry,
-            matchedHost: normalizedHost,
-            captures: <String, String>{'slug': prefix},
-          );
+
+  /// [match], or the primary host: an unknown host -- a health check, a
+  /// bare IP -- is served as the primary.
+  DVHostMatch matchOrPrimary(String? host) =>
+      (host == null ? null : match(host)) ?? primaryMatch;
+
+  /// The host that owns [internalPath]: the entry with the longest mount
+  /// containing it, the primary host when none does.
+  DVHostMatch owner(String internalPath) {
+    final List<String> path = _segments(internalPath);
+    DVHostMatch? best;
+    int bestLength = -1;
+    bool bestLiteral = false;
+    for (final DVHostEntry e in entries) {
+      if (e.isPrimary) continue;
+      final List<String> mount = _segments(e.mount);
+      if (mount.length > path.length) continue;
+      String? label;
+      bool fits = true;
+      for (int i = 0; i < mount.length; i++) {
+        if (mount[i] == '{label}') {
+          if (!_isLabel(path[i])) {
+            fits = false;
+            break;
+          }
+          label = path[i];
+        } else if (mount[i] != path[i]) {
+          fits = false;
+          break;
         }
       }
+      if (!fits) continue;
+      final bool literal = label == null;
+      if (mount.length > bestLength ||
+          (mount.length == bestLength && literal && !bestLiteral)) {
+        best = DVHostMatch(e, label: label);
+        bestLength = mount.length;
+        bestLiteral = literal;
+      }
     }
+    return best ?? primaryMatch;
   }
-  return null;
+
+  /// The entry that owns a route [pattern] such as `/apps/:id`, a parameter
+  /// segment standing for any label. Null when there are no hosts.
+  DVHostEntry? ownerOfPattern(String pattern) {
+    if (isEmpty) return null;
+    final String probe = _segments(pattern)
+        .map((String s) => s.startsWith(':') ? 'x' : s)
+        .join('/');
+    return owner('/$probe').entry;
+  }
+
+  /// [internalPath] as an absolute URL on the host that owns it, with
+  /// [query] when there is one. The root of a host is written as its origin
+  /// with no trailing slash, as every canonical and sitemap URL Dartvel
+  /// writes is; with a query it is `origin/?query`.
+  String publicUrl(String internalPath, {String? query}) {
+    final DVHostMatch m = owner(internalPath);
+    final String path = m.hostPath(internalPath) ?? internalPath;
+    final String trimmed = path.replaceAll(RegExp(r'/+$'), '');
+    final String q = query == null || query.isEmpty ? '' : '?$query';
+    if (trimmed.isEmpty) return q.isEmpty ? m.origin : '${m.origin}/$q';
+    return '${m.origin}$trimmed$q';
+  }
 }
 
-/// Resolves the internal route path from [requestPath] given [match].
-String dvResolveHostPath(DVHostMatch match, String requestPath) {
-  final clean =
-      requestPath.isEmpty ? '/' : (requestPath.startsWith('/') ? requestPath : '/$requestPath');
-  final mount = match.entry.mount;
-  if (mount == null) return clean;
+/// A host matched to its entry, with the label a wildcard matched.
+final class const DVHostMatch(final DVHostEntry entry, {final String? label}) {
+  /// The host's public origin, label substituted.
+  String get origin =>
+      _origin(_substitute(entry.siteUrl)) ?? _substitute(entry.siteUrl);
 
-  var effectiveMount = mount;
-  for (final e in match.captures.entries) {
-    effectiveMount = effectiveMount.replaceAll('{${e.key}}', e.value);
+  /// The host's mount, label substituted: `/` for the primary host.
+  String get mount => _substitute(entry.mount);
+
+  /// The route a path on this host shows: `/` is the mount, `/x` is
+  /// mount + `/x`.
+  String internalPath(String hostPath) {
+    final String path = hostPath.isEmpty
+        ? '/'
+        : (hostPath.startsWith('/') ? hostPath : '/$hostPath');
+    final String m = mount;
+    if (m == '/') return path;
+    return path == '/' ? m : '$m$path';
   }
-  if (clean == '/') return effectiveMount;
-  final baseMount = effectiveMount.replaceAll(RegExp(r'/+$'), '');
-  return '$baseMount$clean';
+
+  /// The path on this host that shows [internalPath], or null when it is
+  /// outside this host's mount.
+  String? hostPath(String internalPath) {
+    final String m = mount;
+    if (m == '/') return internalPath.isEmpty ? '/' : internalPath;
+    if (internalPath == m || internalPath == '$m/') return '/';
+    if (internalPath.startsWith('$m/')) return internalPath.substring(m.length);
+    return null;
+  }
+
+  /// Whether [internalPath] is this host's mount or below it.
+  bool covers(String internalPath) => hostPath(internalPath) != null;
+
+  /// Whether any of the route [patterns] lies under this host's mount. The
+  /// primary host always serves. A wildcard label nothing is published for
+  /// serves nothing, so its robots.txt and sitemap are not found.
+  bool servesAnyOf(Iterable<String> patterns) {
+    if (entry.isPrimary) return true;
+    final List<String> m = _segments(mount);
+    for (final String pattern in patterns) {
+      final List<String> p = _segments(pattern);
+      if (p.length < m.length) continue;
+      bool fits = true;
+      for (int i = 0; i < m.length; i++) {
+        if (p[i] != m[i] && !p[i].startsWith(':')) {
+          fits = false;
+          break;
+        }
+      }
+      if (fits) return true;
+    }
+    return false;
+  }
+
+  String _substitute(String text) =>
+      label == null ? text : text.replaceAll('{label}', label!);
 }
 
-/// Evaluates legacy path redirects on [match] for [rawPath].
-/// Only registered slugs in [registeredToolSlugs] will redirect; unregistered paths return null.
-String? dvHostLegacyRedirect(
-  DVHostMatch match,
-  String rawPath, {
-  required Set<String> registeredToolSlugs,
-  String toolsIndexOrigin = 'https://tools.sigmadev.digital',
-  String toolSubdomainPattern = 'https://{slug}.tools.sigmadev.digital',
+/// A request on one of the [hosts], decided: the route it means, the host
+/// that owns that route, and where to send it when that is another host.
+///
+/// The web-server binary and `dartvel dev --release` both serve a request
+/// through this, so the two answer alike.
+final class const DVHostedRequest({
+  required final DVHosts hosts,
+  required final DVHostMatch requested,
+  required final DVHostMatch owner,
+  required final String path,
+  final String? redirect,
 }) {
-  final pathOnly = rawPath.split('?').first;
-  final clean = pathOnly == '/' ? '/' : pathOnly.replaceAll(RegExp(r'/+$'), '');
+  /// The path the page is rendered at: its path on its owner's host.
+  String get pagePath => owner.hostPath(path) ?? path;
 
-  // Exact tools index path
-  if (clean == '/tools') {
-    final query = rawPath.contains('?') ? '?${rawPath.split('?').last}' : '';
-    return '$toolsIndexOrigin/$query';
+  /// The site the page is rendered on: its owner's origin, so its canonical
+  /// link and og:url are its public URL.
+  String get siteUrl => owner.origin;
+
+  /// The owner's own site name and description, when it declares them. They
+  /// stand in for `dartvel.seo`'s, never for a page's own.
+  String? get siteName => owner.entry.name;
+  String? get description => owner.entry.description;
+
+  /// [internalPath] as a public URL, on whichever host owns it.
+  String publicUrl(String internalPath, {String? query}) =>
+      hosts.publicUrl(internalPath, query: query);
+}
+
+/// [rawPath], asked for on [host], against [hosts].
+///
+/// The host is matched (an unknown one is the primary), the path mapped
+/// through its mount and trimmed of trailing slashes as an unhosted request
+/// is. When [isRoute] says that path is a route and another host owns it,
+/// [DVHostedRequest.redirect] is that route's public URL, [query] kept. A
+/// path no route serves is never redirected: it is not found where it was
+/// asked.
+DVHostedRequest dvHostedRequest(
+  DVHosts hosts, {
+  required String? host,
+  required String rawPath,
+  String? query,
+  required bool Function(String internalPath) isRoute,
+}) {
+  final DVHostMatch requested = hosts.matchOrPrimary(host);
+  final String mapped = requested.internalPath(rawPath);
+  final String path = mapped == '/'
+      ? '/'
+      : mapped.replaceAll(RegExp(r'/+$'), '');
+  final DVHostMatch owner = hosts.owner(path);
+  final bool elsewhere = owner.origin != requested.origin && isRoute(path);
+  return DVHostedRequest(
+    hosts: hosts,
+    requested: requested,
+    owner: owner,
+    path: path,
+    redirect: elsewhere ? hosts.publicUrl(path, query: query) : null,
+  );
+}
+
+/// A per-host `/robots.txt` or `/sitemap.xml`: its status, type and body.
+typedef DVHostSiteFile = ({int status, String contentType, String body});
+
+/// `/robots.txt` or `/sitemap.xml` on [host], or null when [path] is
+/// neither or the build wrote no such file.
+///
+/// [robots] and [sitemap] are what the build wrote, or null. The sitemap
+/// lists every page's public URL; each host is answered with the entries on
+/// its own origin and a robots.txt naming its own sitemap. A host that
+/// serves none of the route [patterns] -- a wildcard label nothing is
+/// published under -- is answered 404 for both. Decided from [hosts], which
+/// the caller parsed from the manifest, never from the files' text.
+DVHostSiteFile? dvHostSiteFileFor(
+  DVHosts hosts, {
+  required String? host,
+  required String path,
+  required Iterable<String> patterns,
+  required String? robots,
+  required String? sitemap,
+}) {
+  if (hosts.isEmpty) return null;
+  if (path != '/robots.txt' && path != '/sitemap.xml') return null;
+  if ((path == '/robots.txt' ? robots : sitemap) == null) return null;
+  final DVHostMatch match = hosts.matchOrPrimary(host);
+  if (!match.servesAnyOf(patterns)) {
+    return (status: 404, contentType: 'text/plain; charset=utf-8', body: 'Not found');
   }
+  if (path == '/robots.txt') {
+    return (
+      status: 200,
+      contentType: 'text/plain; charset=utf-8',
+      body: dvRobotsTxt(siteUrl: match.origin, sitemap: sitemap != null),
+    );
+  }
+  return (
+    status: 200,
+    contentType: 'application/xml; charset=utf-8',
+    body: dvSitemapForOrigin(sitemap!, match.origin),
+  );
+}
 
-  // /tools/<slug>
-  final matchSlug = RegExp(r'^/tools/([^/]+)$').firstMatch(clean);
-  if (matchSlug != null) {
-    final slug = matchSlug.group(1)!;
-    if (registeredToolSlugs.contains(slug)) {
-      final origin = toolSubdomainPattern.replaceAll('{slug}', slug);
-      final query = rawPath.contains('?') ? '?${rawPath.split('?').last}' : '';
-      return '$origin/$query';
+/// [raw] as a host name: lowercase, with no port and no trailing dot, the
+/// brackets taken off an IPv6 literal. Null for an empty or non-ASCII host
+/// (internationalised names arrive as punycode; anything else is refused
+/// rather than mapped).
+String? dvNormaliseHost(String? raw) {
+  if (raw == null) return null;
+  String host = raw.trim().toLowerCase();
+  if (host.isEmpty || !_ascii(host)) return null;
+  if (host.startsWith('[')) {
+    final int close = host.indexOf(']');
+    if (close < 0) return null;
+    host = host.substring(1, close);
+  } else {
+    final int colon = host.indexOf(':');
+    // One colon is host:port. More than one unbracketed is a bare IPv6
+    // address, which has no port to strip.
+    if (colon >= 0 && host.indexOf(':', colon + 1) < 0) {
+      host = host.substring(0, colon);
     }
   }
+  while (host.endsWith('.')) {
+    host = host.substring(0, host.length - 1);
+  }
+  return host.isEmpty ? null : host;
+}
 
-  return null;
+/// The host a request was made for: `X-Forwarded-Host` when the peer is a
+/// proxy the application trusts (`dartvel.server.trustedProxies`, decided by
+/// `DVClientAddress`), the `Host` header otherwise. Of several forwarded
+/// entries the last is used: it is the one the trusted peer wrote, and
+/// anything to its left came from further away. Normalised by
+/// [dvNormaliseHost].
+String? dvEffectiveHost({
+  required String? host,
+  String? forwardedHost,
+  required bool peerIsTrustedProxy,
+}) {
+  if (peerIsTrustedProxy &&
+      forwardedHost != null &&
+      forwardedHost.trim().isNotEmpty) {
+    final String last = forwardedHost.split(',').last;
+    final String? forwarded = dvNormaliseHost(last);
+    if (forwarded != null) return forwarded;
+  }
+  return dvNormaliseHost(host);
+}
+
+/// A robots.txt allowing everything and naming [siteUrl]'s sitemap when
+/// [sitemap]. What the build writes, and what the server answers per host.
+String dvRobotsTxt({required String siteUrl, bool sitemap = true}) {
+  final String base = siteUrl.replaceAll(RegExp(r'/+$'), '');
+  const String head =
+      'User-agent: *\n'
+      'Allow: /\n';
+  if (!sitemap) return head;
+  return '$head'
+      '\n'
+      'Sitemap: $base/sitemap.xml\n';
+}
+
+/// [sitemap] with only the `<url>` entries whose location is on [origin].
+/// The build writes one sitemap of every page's public URL; each host is
+/// answered with its own part of it.
+String dvSitemapForOrigin(String sitemap, String origin) =>
+    sitemap.replaceAllMapped(
+      RegExp(r'[ \t]*<url>.*?</url>[ \t]*\r?\n?', dotAll: true),
+      (Match m) {
+        final String? loc = RegExp(
+          r'<loc>(.*?)</loc>',
+          dotAll: true,
+        ).firstMatch(m[0]!)?.group(1);
+        if (loc == null) return '';
+        final String url = loc.trim().replaceAll('&amp;', '&');
+        return _origin(url, allowPath: true) == origin ? m[0]! : '';
+      },
+    );
+
+/// Whether [sitemap] lists any `<url>`.
+bool dvSitemapHasUrls(String sitemap) => sitemap.contains('<url>');
+
+bool _ascii(String s) => s.codeUnits.every((int u) => u < 0x80);
+
+final RegExp _labelPattern = RegExp(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$');
+
+/// A lowercase DNS label.
+bool _isLabel(String s) => _labelPattern.hasMatch(s);
+
+List<String> _segments(String path) =>
+    path.split('/').where((String s) => s.isNotEmpty).toList();
+
+/// `scheme://host[:port]` of an http(s) [url], or null. With [allowPath]
+/// false the URL must be an origin alone (a trailing `/` allowed).
+String? _origin(String url, {bool allowPath = false}) {
+  final Uri? uri = Uri.tryParse(url);
+  if (uri == null ||
+      (uri.scheme != 'http' && uri.scheme != 'https') ||
+      uri.host.isEmpty) {
+    return null;
+  }
+  if (!allowPath &&
+      ((uri.path.isNotEmpty && uri.path != '/') ||
+          uri.hasQuery ||
+          uri.hasFragment ||
+          uri.userInfo.isNotEmpty)) {
+    return null;
+  }
+  return uri.origin;
 }

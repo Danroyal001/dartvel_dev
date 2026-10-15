@@ -1,3 +1,7 @@
+## 0.13.1 — 2026-10-15
+
+- `dartvel.hosts`: `DVHosts`, `DVHostEntry` and `DVHostMatch` parse and validate the hosts, match a request's host (exact before a single leftmost-label wildcard) and give each route's public URL (`publicUrl`, longest mount wins). `dvHostedRequest`, `dvHostSiteFileFor` and `dvEffectiveHost` are the decisions the web-server binary and `dartvel dev --release` share; `DVRoutePage.at` takes the origin a page renders on.
+
 ## 0.13.0 — 2026-10-15
 
 - `DV.run(args)` entry and boot sequence; middleware annotation fields.
