@@ -63,7 +63,15 @@ void _upsertMeta(String name, String content, {String attr = 'name'}) {
   el.content = content;
 }
 
-void applySeo(SeoProps p) {
+void applySeo(SeoProps props) {
+  // With dartvel.hosts, the canonical the server wrote: the public URL of
+  // the route this host's path means, unless the page names its own. Without
+  // hosts [dvHostCanonicalUrl] is null and the page's props are used as given.
+  final String? hostCanonical =
+      props.canonicalUrl == null ? dvHostCanonicalUrl(_currentPath()) : null;
+  final SeoProps p = hostCanonical == null
+      ? props
+      : props.merge(SeoProps(canonicalUrl: hostCanonical));
   final doc = web.document;
   // First, and before any early return below: a page the reader has left
   // must not be the page their printer is given.
