@@ -4224,7 +4224,6 @@ class BuildCommand extends Command<void> {
         server: DVWebServerSettings.parse(
           (_dartvelSection(root)['web'] is Map ? (_dartvelSection(root)['web']! as Map)['server'] : null),
         ),
-        hosts: _configuredHosts(root),
       ),
     );
 
@@ -4426,18 +4425,6 @@ class BuildCommand extends Command<void> {
       Logger.log('⚠️  $problem');
     }
     return redirects;
-  }
-
-  /// `dartvel.hosts`, with every problem in it reported and left out.
-  DVHostRoutingConfig? _configuredHosts(String root) {
-    final List<String> problems = <String>[];
-    final section = _dartvelSection(root)['hosts'];
-    if (section == null) return null;
-    final config = DVHostRoutingConfig.parse(section, problems: problems);
-    for (final String problem in problems) {
-      Logger.log('⚠️  $problem');
-    }
-    return config.isEmpty ? null : config;
   }
 
   Map<Object?, Object?> _dartvelSection(String root) {

@@ -307,20 +307,14 @@ Future<ServerHandle> serve(
       // 1. A file of the site: from the pack a web-server binary carries, in
       // the encoding it is kept in when the client takes it, or from the
       // directory during development and preview.
-      final bool isHostRouting =
-          dvSiteText(spaRoot, 'dartvel_routes.json')?.contains('"hosts"') ??
-              false;
-      if (!isHostRouting ||
-          (req.url.path != 'robots.txt' && req.url.path != 'sitemap.xml')) {
-        final Response? file = await dvAssetResponse(
-          req,
-          DVAssetSources.at(spaRoot),
-          policy: _assetPolicyFor(spaRoot),
-          cache: DVAssetCache.current,
-          transportCompresses: compression,
-        );
-        if (file != null) return file;
-      }
+      final Response? file = await dvAssetResponse(
+        req,
+        DVAssetSources.at(spaRoot),
+        policy: _assetPolicyFor(spaRoot),
+        cache: DVAssetCache.current,
+        transportCompresses: compression,
+      );
+      if (file != null) return file;
 
       // 2. Fall back to normal handler or SPA index
       final resp = await handler(req);
