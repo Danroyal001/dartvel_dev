@@ -154,7 +154,7 @@ dependency_overrides:
   test('GET /api/health answers with the scaffold function', () async {
     final result = await call('GET', '/api/health');
     expect(result.status, 200, reason: '${result.body}\n$output');
-    expect(jsonDecode(result.body), containsPair('status', 'ok'));
+    expect(result.body, 'ok');
   });
 
   test('POST /api/contact takes the form fields', () async {
@@ -164,6 +164,6 @@ dependency_overrides:
       'message': 'Hello',
     });
     expect(result.status, 200, reason: '${result.body}\n$output');
-    expect(jsonDecode(result.body), containsPair('success', true));
+    expect(result.body, 'Thank you for contacting us, Ada!');
   });
 }

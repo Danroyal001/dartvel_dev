@@ -59,13 +59,15 @@ final class DVLog {
           {String? tag,
           Map<String, Object?> context = const <String, Object?>{},
           Object? error,
-          StackTrace? stackTrace}) =>
+          StackTrace? stackTrace,
+          String? code}) =>
       call(message,
           level: DVLogLevel.warn,
           tag: tag,
           context: context,
           error: error,
-          stackTrace: stackTrace);
+          stackTrace: stackTrace,
+          code: code);
 
   void error(String message,
           {String? tag,

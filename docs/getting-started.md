@@ -21,7 +21,8 @@ what that means before building anything you have to keep.
 - **Rust and `cbindgen`** if you want the native backend runtime. Without them
   the native asset build skips with a message and the rest still works.
 - Platform toolchains only for the platforms you build. `dartvel doctor`
-  reports what is missing before you need it.
+  reports what is missing before you need it. `dartvel doctor --conventions`
+  checks DV-CONV-0xx rules; `dartvel build --strict` treats warnings as errors.
 
 ---
 
@@ -384,3 +385,38 @@ none:
 
 `NEW_SPEC.md` is a **design specification, not a description of what ships
 today**. Where it and the code disagree, the code wins.
+
+Page and backend middleware belongs on the declaration:
+`@DVPage(middleware: [DVMiddlewares.auth])` and
+`@DVBackendFunction(middleware: [DVMiddlewares.rateLimit])`.
+The ordered list runs before the page or function. The old `@DVUseMiddleware`
+annotation remains a deprecated alias; `dartvel doctor --conventions` reports it.
+
+The application entry imports its generated client and starts Dartvel:
+
+```dart
+import 'dartvel_client/dartvel_client.dart';
+
+void main(List<String> args) => DV.run(args);
+```
+
+Pure Dartvel apps omit `@DVAppRoot`. The generated root uses the generated router
+and Dartvel theme. Launch opens `lib/pages/index.dart`; a root `_guard.dart` can
+redirect it. Optional command-line arguments are `DV.run(args)`.
+
+Declare startup work in a separate file, using a private function:
+
+```dart
+@DVBoot()
+void _configure(DVBoot boot) {
+  DV.Notifications.mail.useProvider(DVMemoryMailProvider());
+}
+```
+
+An existing Flutter host can declare `@DVAppRoot()` on a private function taking
+`BuildContext` and `DVAppParts`; use `parts.router` in its MaterialApp, CupertinoApp
+or WidgetsApp. Boot hooks run before the root, in file path and declaration order.
+
+Run `dart run dartvel_cli:dartvel doctor --conventions` in application CI after
+client generation. It exits nonzero for violations. Keep build warnings visible;
+use `dartvel build web --strict` to refuse them during a build.

@@ -88,10 +88,11 @@ void main() {
     expect(dual, contains('dvTerminalRunnerPathFor('));
   });
 
-  test("the project template's main negotiates before it runs the app", () {
-    expect(ProjectTemplates.mainTemplate, contains('await negotiateDartvelLaunch(arguments);'));
-    final int negotiate = ProjectTemplates.mainTemplate.indexOf('negotiateDartvelLaunch');
-    final int run = ProjectTemplates.mainTemplate.indexOf('runApp(');
-    expect(negotiate, lessThan(run));
+  test("the project template's main hands its arguments to DV.run, which negotiates before it runs the app", () {
+    expect(ProjectTemplates.mainTemplate, contains('void main(List<String> args) => DV.run(args);'));
+    final String run = File('../dartvel_flutter/lib/src/run/application.dart').readAsStringSync();
+    final int negotiate = run.indexOf('await launch(args)');
+    expect(negotiate, greaterThan(0));
+    expect(negotiate, lessThan(run.indexOf('runApp(')));
   });
 }

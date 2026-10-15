@@ -20,8 +20,7 @@ import 'package:dartvel_core/dartvel.dart';
 ///     does,
 ///   * the `DVContext` first parameter is injected rather than decoded from
 ///     the request, and is dropped from the generated client's signature.
-@DVBackendFunction(policy: DVPolicies.exportData)
-@DVUseMiddleware(<DVMiddlewareKey>[
+@DVBackendFunction(policy: DVPolicies.exportData, middleware: <DVMiddlewareKey>[
   DVMiddlewares.tracing,
   DVMiddlewares.securityHeaders,
   DVMiddlewares.locale,

@@ -12,6 +12,23 @@ void main() {
         isNot(contains('Map<String, dynamic>')));
   });
 
+  // A new project is where a developer learns what a backend function looks
+  // like. One that builds a Map by hand and encodes JSON itself teaches the
+  // thing Dartvel exists to remove: the types are the contract, and the wire
+  // format is the framework's.
+  test('scaffold backend functions take and return types, not JSON', () {
+    for (final String template in <String>[
+      ProjectTemplates.healthFunctionTemplate,
+      ProjectTemplates.contactFormTemplate,
+    ]) {
+      expect(template, isNot(contains('Map<')));
+      expect(template, isNot(contains('jsonEncode')));
+      expect(template, isNot(contains('toJson')));
+      // Data is written through data models, never a file of records.
+      expect(template, isNot(contains('writeAsString')));
+    }
+  });
+
   // `dartvel create` used to hand every new project a build_runner dev
   // dependency, from when dartvel_generator's builders wrote part of the
   // client. That path is retired: `dartvel routes` writes all of it, and

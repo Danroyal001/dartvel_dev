@@ -4,7 +4,7 @@
 // router mounts: pages, config routes and tabs, under a prefix. The host
 // keeps its routes, and DV.Navigation lands Dartvel's targets under /app.
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
-import 'package:dartvel_example/main.dart';
+import 'package:dartvel_example/boot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

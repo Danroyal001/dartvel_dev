@@ -196,8 +196,14 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
       id: 'services',
       title: 'Choose your services at startup',
       children: <Widget>[
-        DocsText('Set up auth and mail in main.dart, before runApp.'),
+        DocsText('Keep `main.dart` to one line, `void main(List<String> args) => DV.run(args)`. Set up auth and mail in a private @DVBoot() function. Pure Dartvel apps use the generated root; @DVAppRoot() is optional for an existing Flutter host.'),
         DocsCode('start-configure'),
+        DocsStatus(
+          'Application Entry',
+          missing: <String>[
+            'DV.run boots the Flutter app today. The backend and headless entries, the native single-instance check, boot budgets and the `dartvel migrate-code` rewrite of `runApp` are not built yet.',
+          ],
+        ),
         DocsText(
           'These are the in-memory versions for development. Each '
           'topic page shows the production adapters.',

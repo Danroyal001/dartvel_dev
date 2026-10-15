@@ -10,7 +10,7 @@
 // showing the yellow-and-black stripe. Nothing in the widget suite pumped it
 // narrow enough to find out, because the test binding's default surface is
 // 800x600 -- wider than any phone in portrait.
-import 'package:dartvel_example/main.dart';
+import 'package:dartvel_example/boot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
