@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel.hosts` in pubspec.yaml: validated by generation (a problem fails the build), carried into the web-server manifest, and installed in the client as a const `dartvelHosts` table with `dvUseHosts`, only when declared. The web-server sitemap lists each page at its public URL, pages take their host's `name`, and its `description` where they declare none. `dartvel dev --release` serves hosts as the binary does; `dartvel build web` warns that hosts need the web-server build.
+
 ## 0.12.2 — 2026-10-14
 
 - The page capture keeps text fields: each is a labelled input in the server-rendered HTML, a password with the eye.
