@@ -203,7 +203,7 @@ jobs:
   # on the server with its title, description and crawler text, HEAD / a
   # 200, a signed-out /__studio sent to /__studio/login, and the
   # image endpoint resizing. The deploy itself runs on the server with
-  # tool/deploy_site_server.sh, which runs the same check.
+  # tool/deploy_site_server.dart, which runs the same check.
   web-server:
     name: build the web-server binary, and check what it serves
     runs-on: ubuntu-latest

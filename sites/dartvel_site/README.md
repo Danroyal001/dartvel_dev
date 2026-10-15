@@ -42,9 +42,9 @@ dartvel admin revoke <user-id> --database /srv/dartvel.dev/data/data.db
 From a checkout on the server:
 
 ```bash
-tool/deploy_site_server.sh               # build, install, swap, restart, check
-tool/deploy_site_server.sh --skip-build  # deploy the build/server already built
-tool/deploy_site_server.sh --rollback    # back to the previous release
+dart tool/deploy_site_server.dart               # build, install, swap, restart, check
+dart tool/deploy_site_server.dart --skip-build  # deploy the build/server already built
+dart tool/deploy_site_server.dart --rollback    # back to the previous release
 ```
 
 The script signals the unit's main process and systemd starts it again on the
