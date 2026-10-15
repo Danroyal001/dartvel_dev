@@ -270,6 +270,16 @@ unverified.
 
 A web-server build of this branch and the browser probe (`docs/studio/evidence/2026-10-02/`, 2 October 2026) pass every check with no page errors: the guarded-mode server documents, keyboard sign-in with Enter, URLs and deep links, back and forward, Ctrl+F, Tab, screen-reader buttons, and drag-select-and-copy. Theme parity is in this build (`18891f15`).
 
+The same probe was run again on 15 October 2026 against a web-server build of
+`examples/dartvel_example` with Studio enabled (`docs/studio/evidence/2026-10-15/`):
+24 of 25 checks pass. `no_page_errors` fails, but only on font files from
+`fonts.gstatic.com`, which the machine it ran on could not reach; CanvasKit
+was served from the Flutter SDK's own copy for the same reason. That run found
+one real error, a `RangeError` on every local sign-up in a browser, fixed in
+`DVLocalAuthProvider`. The probe does not yet exercise the screens this branch
+added or changed -- media upload, forms, menus, settings, page versions,
+record history -- so those are covered by widget and server tests only.
+
 Readable aliases are supported for `/__studio/data`, `/__studio/sitemap` and
 `/__studio/team`; existing `/models`, `/routes` and `/access` links remain valid.
 `/__studio/data/Product/p-1` opens the record form. Selecting and closing a record
