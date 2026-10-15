@@ -652,13 +652,6 @@ class DVStudioApi {
 
   /// The largest file the media library takes.
   final int maxMediaBytes;
-  final Map<String, Map<String, Object?>> _memoryMedia = <String, Map<String, Object?>>{};
-  final Map<String, DVStudioMenu> _memoryMenus = <String, DVStudioMenu>{};
-  final Map<String, DVStudioForm> _memoryForms = <String, DVStudioForm>{};
-  final Set<String> _deletedForms = <String>{};
-  final Map<String, DVStudioFormSubmission> _memorySubmissions =
-      <String, DVStudioFormSubmission>{};
-  DVStudioSettings _memorySettings = dvStudioDefaultSettings();
 
   final DVGitHubTransport? _gitHub;
 
@@ -811,6 +804,20 @@ class DVStudioApi {
             'make the edit again.',
         'version': conflict.actualVersion,
       }, status: 409);
+    } on Object catch (error, stack) {
+      // Any other failure -- a database that refused a read or a write, or a
+      // fault here -- is an error the caller sees, never a 200. The type only:
+      // an adapter's message can quote the values it was given.
+      DVObservability.logger.error(
+        'Studio request failed (${error.runtimeType}).',
+        tag: 'studio',
+        stackTrace: stack,
+      );
+      return _reply(<String, Object?>{
+        'error': 'server_error',
+        'code': 'server_error',
+        'message': 'Studio could not do this. The server\'s log says why.',
+      }, status: 500);
     }
   }
 
@@ -3348,16 +3355,14 @@ class DVStudioApi {
         'created_at': at,
       };
 
-      if (database != null) {
-        try {
-          final DVRecordAdapter records = DVRecordAdapter.over(database!);
-          await records.ensure(dvStudioMediaShape);
-          await records.insert(dvStudioMediaTable, record);
-        } on Object {
-          _memoryMedia[key] = record;
-        }
-      } else {
-        _memoryMedia[key] = record;
+      // The file itself is in storage, which lists it with or without a
+      // database; the record only adds its name and size. A database that
+      // refuses the record is an error, not a file shown from memory.
+      final DVDatabaseAdapter? db = database;
+      if (db != null) {
+        final DVRecordAdapter records = DVRecordAdapter.over(db);
+        await records.ensure(dvStudioMediaShape);
+        await records.insert(dvStudioMediaTable, record);
       }
 
       await _note(
@@ -3392,18 +3397,14 @@ class DVStudioApi {
         throw _StudioRefusal(404, 'not_found', 'Media file not found.');
       }
       await storage.delete(key);
-      _memoryMedia.remove(key);
-      if (database != null) {
-        try {
-          final DVRecordAdapter records = DVRecordAdapter.over(database!);
-          await records.ensure(dvStudioMediaShape);
-          await records.delete(
-            dvStudioMediaTable,
-            where: DVFilter.equals('key', key),
-          );
-        } on Object {
-          // Keep going
-        }
+      final DVDatabaseAdapter? db = database;
+      if (db != null) {
+        final DVRecordAdapter records = DVRecordAdapter.over(db);
+        await records.ensure(dvStudioMediaShape);
+        await records.delete(
+          dvStudioMediaTable,
+          where: DVFilter.equals('key', key),
+        );
       }
       await _note(
         'media',
@@ -3420,35 +3421,16 @@ class DVStudioApi {
   Future<List<DVStudioMediaFile>> _listMediaFiles() async {
     final Map<String, DVStudioMediaFile> byKey = <String, DVStudioMediaFile>{};
 
-    if (database != null) {
-      try {
-        final DVRecordAdapter records = DVRecordAdapter.over(database!);
-        await records.ensure(dvStudioMediaShape);
-        final List<Map<String, Object?>> rows = await records.find(
-          dvStudioMediaTable,
-          orderBy: const <DVSort>[DVSort('created_at', descending: true)],
-        );
-        for (final Map<String, Object?> row in rows) {
-          final String key = '${row['key'] ?? row['id']}';
-          final int at = row['created_at'] is num ? (row['created_at']! as num).toInt() : 0;
-          byKey[key] = DVStudioMediaFile(
-            id: key,
-            name: '${row['name'] ?? key.split('/').last}',
-            key: key,
-            size: row['size'] is num ? (row['size']! as num).toInt() : 0,
-            mimeType: '${row['mime_type'] ?? _mimeTypeFor(key)}',
-            updatedAt: at > 0 ? DateTime.fromMillisecondsSinceEpoch(at, isUtc: true).toIso8601String() : null,
-            url: 'api/media/file?key=${Uri.encodeQueryComponent(key)}',
-          );
-        }
-      } on Object {
-        // Fall back to memory
-      }
-    }
-
-    for (final Map<String, Object?> row in _memoryMedia.values) {
-      final String key = '${row['key'] ?? row['id']}';
-      if (!byKey.containsKey(key)) {
+    final DVDatabaseAdapter? db = database;
+    if (db != null) {
+      final DVRecordAdapter records = DVRecordAdapter.over(db);
+      await records.ensure(dvStudioMediaShape);
+      final List<Map<String, Object?>> rows = await records.find(
+        dvStudioMediaTable,
+        orderBy: const <DVSort>[DVSort('created_at', descending: true)],
+      );
+      for (final Map<String, Object?> row in rows) {
+        final String key = '${row['key'] ?? row['id']}';
         final int at = row['created_at'] is num ? (row['created_at']! as num).toInt() : 0;
         byKey[key] = DVStudioMediaFile(
           id: key,
@@ -3510,53 +3492,90 @@ class DVStudioApi {
     return 'application/octet-stream';
   }
 
+
+  // ---- menus, forms, submissions, settings -------------------------------
+  //
+  // The database is the only store. With none, a read answers what an empty
+  // project has (no menus, no forms, neutral settings) and a write answers
+  // 503; a database that refuses a read or a write is an error the caller
+  // sees, through [_guard], never a 200 with the change kept in this
+  // process's memory until the next restart.
+
+  /// The records of [shape] for a read, or null when there is no database.
+  Future<DVRecordAdapter?> _readable(DVRecordShape shape) async {
+    final DVDatabaseAdapter? db = database;
+    if (db == null) return null;
+    final DVRecordAdapter records = DVRecordAdapter.over(db);
+    await records.ensure(shape);
+    return records;
+  }
+
+  /// The records of [shape] for a write: 503 with no database.
+  Future<DVRecordAdapter> _writable(DVRecordShape shape) async {
+    final DVRecordAdapter records = DVRecordAdapter.over(_database);
+    await records.ensure(shape);
+    return records;
+  }
+
+  /// Writes [record] under [id] in [collection], inserting or replacing it.
+  static Future<void> _put(
+    DVRecordAdapter records,
+    String collection,
+    String id,
+    Map<String, Object?> record,
+  ) async {
+    final List<Map<String, Object?>> existing = await records.find(
+      collection,
+      where: DVFilter.equals('id', id),
+    );
+    if (existing.isNotEmpty) {
+      await records.update(collection, record, where: DVFilter.equals('id', id));
+    } else {
+      await records.insert(collection, record);
+    }
+  }
+
+  /// [stored] decoded as JSON, or null when it is not JSON: one malformed
+  /// field does not hide the rest of the record.
+  static Object? _decoded(Object? stored) {
+    if (stored is! String || stored.isEmpty) return null;
+    try {
+      return jsonDecode(stored);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static DateTime _at(Object? millis) {
+    final int ms = (millis as num?)?.toInt() ?? 0;
+    return ms > 0
+        ? DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true)
+        : DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+  }
+
   Future<List<DVStudioMenu>> _listMenus() async {
-    final Map<String, DVStudioMenu> byId = <String, DVStudioMenu>{};
-    for (final DVStudioMenu m in dvStudioDefaultMenus()) {
-      byId[m.id] = m;
-    }
-    for (final MapEntry<String, DVStudioMenu> entry in _memoryMenus.entries) {
-      byId[entry.key] = entry.value;
-    }
-    if (database != null) {
-      try {
-        final DVRecordAdapter records = DVRecordAdapter.over(database!);
-        await records.ensure(dvStudioMenusShape);
-        final List<Map<String, Object?>> rows = await records.find(
-          dvStudioMenusTable,
-          orderBy: const <DVSort>[DVSort('updated_at', descending: true)],
-        );
-        for (final Map<String, Object?> row in rows) {
-          final String id = '${row['id'] ?? ''}';
-          if (id.isEmpty) continue;
-          final String name = '${row['name'] ?? id}';
-          final String location = '${row['location'] ?? 'header'}';
-          final String itemsJson = '${row['items_json'] ?? '[]'}';
-          final int updatedAtMs = (row['updated_at'] as num?)?.toInt() ?? 0;
-          List<DVStudioMenuItem> items = const <DVStudioMenuItem>[];
-          try {
-            final Object? decoded = jsonDecode(itemsJson);
-            if (decoded is List) {
-              items = <DVStudioMenuItem>[
-                for (final Object? item in decoded)
+    final DVRecordAdapter? records = await _readable(dvStudioMenusShape);
+    if (records == null) return const <DVStudioMenu>[];
+    final List<Map<String, Object?>> rows = await records.find(
+      dvStudioMenusTable,
+      orderBy: const <DVSort>[DVSort('updated_at', descending: true)],
+    );
+    return <DVStudioMenu>[
+      for (final Map<String, Object?> row in rows)
+        if ('${row['id'] ?? ''}'.isNotEmpty)
+          DVStudioMenu(
+            id: '${row['id']}',
+            name: '${row['name'] ?? row['id']}',
+            location: '${row['location'] ?? 'header'}',
+            items: <DVStudioMenuItem>[
+              if (_decoded(row['items_json']) case final List<Object?> items)
+                for (final Object? item in items)
                   if (item is Map)
                     DVStudioMenuItem.fromJson(item.cast<String, Object?>()),
-              ];
-            }
-          } catch (_) {}
-          byId[id] = DVStudioMenu(
-            id: id,
-            name: name,
-            location: location,
-            items: items,
-            updatedAt: updatedAtMs > 0
-                ? DateTime.fromMillisecondsSinceEpoch(updatedAtMs, isUtc: true)
-                : DateTime.now().toUtc(),
-          );
-        }
-      } catch (_) {}
-    }
-    return byId.values.toList();
+            ],
+            updatedAt: _at(row['updated_at']),
+          ),
+    ];
   }
 
   Future<Response> _menus(
@@ -3564,9 +3583,8 @@ class DVStudioApi {
     String method,
     List<String> segments,
   ) async {
-    final List<DVStudioMenu> menus = await _listMenus();
-
     if (method == 'GET') {
+      final List<DVStudioMenu> menus = await _listMenus();
       final String? id = segments.isNotEmpty
           ? segments.first
           : request.url.queryParameters['id'];
@@ -3606,37 +3624,16 @@ class DVStudioApi {
         items: items,
         updatedAt: now,
       );
-
-      _memoryMenus[id] = menu;
-
-      if (database != null) {
-        try {
-          final DVRecordAdapter records = DVRecordAdapter.over(database!);
-          await records.ensure(dvStudioMenusShape);
-          final Map<String, Object?> record = <String, Object?>{
-            'id': id,
-            'name': name,
-            'location': location,
-            'items_json': jsonEncode(<Map<String, Object?>>[
-              for (final DVStudioMenuItem item in items) item.toJson(),
-            ]),
-            'updated_at': now.millisecondsSinceEpoch,
-          };
-          final List<Map<String, Object?>> existing = await records.find(
-            dvStudioMenusTable,
-            where: DVFilter.equals('id', id),
-          );
-          if (existing.isNotEmpty) {
-            await records.update(
-              dvStudioMenusTable,
-              record,
-              where: DVFilter.equals('id', id),
-            );
-          } else {
-            await records.insert(dvStudioMenusTable, record);
-          }
-        } catch (_) {}
-      }
+      final DVRecordAdapter records = await _writable(dvStudioMenusShape);
+      await _put(records, dvStudioMenusTable, id, <String, Object?>{
+        'id': id,
+        'name': name,
+        'location': location,
+        'items_json': jsonEncode(<Map<String, Object?>>[
+          for (final DVStudioMenuItem item in items) item.toJson(),
+        ]),
+        'updated_at': now.millisecondsSinceEpoch,
+      });
 
       await _note(
         'menus',
@@ -3656,17 +3653,11 @@ class DVStudioApi {
       if (id.isEmpty) {
         throw _StudioRefusal(400, 'missing_id', 'Menu id to delete is required.');
       }
-      _memoryMenus.remove(id);
-      if (database != null) {
-        try {
-          final DVRecordAdapter records = DVRecordAdapter.over(database!);
-          await records.ensure(dvStudioMenusShape);
-          await records.delete(
-            dvStudioMenusTable,
-            where: DVFilter.equals('id', id),
-          );
-        } catch (_) {}
-      }
+      final DVRecordAdapter records = await _writable(dvStudioMenusShape);
+      await records.delete(
+        dvStudioMenusTable,
+        where: DVFilter.equals('id', id),
+      );
       await _note(
         'menus',
         'deleted',
@@ -3680,69 +3671,38 @@ class DVStudioApi {
     _notAllowed();
   }
 
+  static const String _defaultSuccessMessage =
+      'Thank you! Your submission has been received.';
+
   Future<List<DVStudioForm>> _listForms() async {
-    final Map<String, DVStudioForm> byId = <String, DVStudioForm>{};
-    for (final DVStudioForm f in dvStudioDefaultForms()) {
-      if (!_deletedForms.contains(f.id)) {
-        byId[f.id] = f;
-      }
-    }
-    for (final MapEntry<String, DVStudioForm> entry in _memoryForms.entries) {
-      if (!_deletedForms.contains(entry.key)) {
-        byId[entry.key] = entry.value;
-      }
-    }
-    if (database != null) {
-      try {
-        final DVRecordAdapter records = DVRecordAdapter.over(database!);
-        await records.ensure(dvStudioFormsShape);
-        final List<Map<String, Object?>> rows = await records.find(
-          dvStudioFormsTable,
-          orderBy: const <DVSort>[DVSort('updated_at', descending: true)],
-        );
-        for (final Map<String, Object?> row in rows) {
-          final String id = '${row['id'] ?? ''}';
-          if (id.isEmpty || _deletedForms.contains(id)) continue;
-          final String name = '${row['name'] ?? id}';
-          final String? description = row['description'] as String?;
-          final String submitLabel = '${row['submit_label'] ?? 'Submit'}';
-          final String successMessage =
-              '${row['success_message'] ?? 'Thank you! Your submission has been received.'}';
-          final String fieldsJson = '${row['fields_json'] ?? '[]'}';
-          final String? targetEmail = row['target_email'] as String?;
-          final String? targetModel = row['target_model'] as String?;
-          final int submissionsCount =
-              (row['submissions_count'] as num?)?.toInt() ?? 0;
-          final int updatedAtMs = (row['updated_at'] as num?)?.toInt() ?? 0;
-          List<DVStudioFormField> fields = const <DVStudioFormField>[];
-          try {
-            final Object? decoded = jsonDecode(fieldsJson);
-            if (decoded is List) {
-              fields = <DVStudioFormField>[
-                for (final Object? item in decoded)
+    final DVRecordAdapter? records = await _readable(dvStudioFormsShape);
+    if (records == null) return const <DVStudioForm>[];
+    final List<Map<String, Object?>> rows = await records.find(
+      dvStudioFormsTable,
+      orderBy: const <DVSort>[DVSort('updated_at', descending: true)],
+    );
+    return <DVStudioForm>[
+      for (final Map<String, Object?> row in rows)
+        if ('${row['id'] ?? ''}'.isNotEmpty)
+          DVStudioForm(
+            id: '${row['id']}',
+            name: '${row['name'] ?? row['id']}',
+            description: row['description'] as String?,
+            submitLabel: '${row['submit_label'] ?? 'Submit'}',
+            successMessage:
+                '${row['success_message'] ?? _defaultSuccessMessage}',
+            fields: <DVStudioFormField>[
+              if (_decoded(row['fields_json']) case final List<Object?> fields)
+                for (final Object? item in fields)
                   if (item is Map)
                     DVStudioFormField.fromJson(item.cast<String, Object?>()),
-              ];
-            }
-          } catch (_) {}
-          byId[id] = DVStudioForm(
-            id: id,
-            name: name,
-            description: description,
-            submitLabel: submitLabel,
-            successMessage: successMessage,
-            fields: fields,
-            targetEmail: targetEmail,
-            targetModel: targetModel,
-            submissionsCount: submissionsCount,
-            updatedAt: updatedAtMs > 0
-                ? DateTime.fromMillisecondsSinceEpoch(updatedAtMs, isUtc: true)
-                : DateTime.now().toUtc(),
-          );
-        }
-      } catch (_) {}
-    }
-    return byId.values.toList();
+            ],
+            targetEmail: row['target_email'] as String?,
+            targetModel: row['target_model'] as String?,
+            submissionsCount: (row['submissions_count'] as num?)?.toInt() ?? 0,
+            updatedAt: _at(row['updated_at']),
+          ),
+    ];
   }
 
   Future<List<DVStudioFormSubmission>> _listSubmissions({
@@ -3750,53 +3710,29 @@ class DVStudioApi {
     String? status,
     String? query,
   }) async {
-    final Map<String, DVStudioFormSubmission> byId =
-        <String, DVStudioFormSubmission>{};
-    for (final MapEntry<String, DVStudioFormSubmission> entry
-        in _memorySubmissions.entries) {
-      byId[entry.key] = entry.value;
-    }
-    if (database != null) {
-      try {
-        final DVRecordAdapter records = DVRecordAdapter.over(database!);
-        await records.ensure(dvStudioSubmissionsShape);
-        final List<Map<String, Object?>> rows = await records.find(
-          dvStudioSubmissionsTable,
-          orderBy: const <DVSort>[DVSort('submitted_at', descending: true)],
-        );
-        for (final Map<String, Object?> row in rows) {
-          final String id = '${row['id'] ?? ''}';
-          if (id.isEmpty) continue;
-          final String fId = '${row['form_id'] ?? ''}';
-          final String subStatus = '${row['status'] ?? 'unread'}';
-          final String dataJson = '${row['data_json'] ?? '{}'}';
-          final int submittedAtMs =
-              (row['submitted_at'] as num?)?.toInt() ?? 0;
-          final String? ipAddress = row['ip_address'] as String?;
-          final String? userAgent = row['user_agent'] as String?;
-          Map<String, Object?> data = const <String, Object?>{};
-          try {
-            final Object? decoded = jsonDecode(dataJson);
-            if (decoded is Map) {
-              data = decoded.cast<String, Object?>();
-            }
-          } catch (_) {}
-          byId[id] = DVStudioFormSubmission(
-            id: id,
-            formId: fId,
-            status: subStatus,
-            data: data,
-            submittedAt: submittedAtMs > 0
-                ? DateTime.fromMillisecondsSinceEpoch(submittedAtMs, isUtc: true)
-                : DateTime.now().toUtc(),
-            ipAddress: ipAddress,
-            userAgent: userAgent,
-          );
-        }
-      } catch (_) {}
-    }
-    List<DVStudioFormSubmission> list = byId.values.toList();
-    list.sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+    final DVRecordAdapter? records =
+        await _readable(dvStudioSubmissionsShape);
+    if (records == null) return const <DVStudioFormSubmission>[];
+    final List<Map<String, Object?>> rows = await records.find(
+      dvStudioSubmissionsTable,
+      orderBy: const <DVSort>[DVSort('submitted_at', descending: true)],
+    );
+    List<DVStudioFormSubmission> list = <DVStudioFormSubmission>[
+      for (final Map<String, Object?> row in rows)
+        if ('${row['id'] ?? ''}'.isNotEmpty)
+          DVStudioFormSubmission(
+            id: '${row['id']}',
+            formId: '${row['form_id'] ?? ''}',
+            status: '${row['status'] ?? 'unread'}',
+            data: switch (_decoded(row['data_json'])) {
+              final Map<Object?, Object?> data => data.cast<String, Object?>(),
+              _ => const <String, Object?>{},
+            },
+            submittedAt: _at(row['submitted_at']),
+            ipAddress: row['ip_address'] as String?,
+            userAgent: row['user_agent'] as String?,
+          ),
+    ]..sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
     if (formId != null && formId.isNotEmpty && formId != 'all') {
       list = list.where((s) => s.formId == formId).toList();
     }
@@ -3828,6 +3764,9 @@ class DVStudioApi {
         (segments.length >= 2 && segments[1] == 'submit');
     if (isSubmit) {
       if (method != 'POST') _notAllowed();
+      // A submission nobody can keep is not accepted: 503, before anything
+      // else is read.
+      final DVDatabaseAdapter _ = _database;
       final Map<String, Object?> body = await _body(request);
       final String formId = segments.length >= 2 && segments[1] == 'submit'
           ? segments.first
@@ -3879,53 +3818,28 @@ class DVStudioApi {
               .trim() ??
           request.headers.get('x-real-ip');
       final String? userAgent = request.headers.get('user-agent');
-      final DVStudioFormSubmission submission = DVStudioFormSubmission(
-        id: submissionId,
-        formId: form.id,
-        data: data,
-        status: 'unread',
-        submittedAt: now,
-        ipAddress: ip,
-        userAgent: userAgent,
+
+      final DVRecordAdapter submissions =
+          await _writable(dvStudioSubmissionsShape);
+      await submissions.insert(dvStudioSubmissionsTable, <String, Object?>{
+        'id': submissionId,
+        'form_id': form.id,
+        'data_json': jsonEncode(data),
+        'status': 'unread',
+        'submitted_at': now.millisecondsSinceEpoch,
+        if (ip != null) 'ip_address': ip,
+        if (userAgent != null) 'user_agent': userAgent,
+      });
+
+      final DVRecordAdapter formRecords = await _writable(dvStudioFormsShape);
+      await formRecords.update(
+        dvStudioFormsTable,
+        <String, Object?>{
+          'submissions_count': form.submissionsCount + 1,
+          'updated_at': now.millisecondsSinceEpoch,
+        },
+        where: DVFilter.equals('id', form.id),
       );
-
-      _memorySubmissions[submissionId] = submission;
-
-      if (database != null) {
-        try {
-          final DVRecordAdapter records = DVRecordAdapter.over(database!);
-          await records.ensure(dvStudioSubmissionsShape);
-          await records.insert(dvStudioSubmissionsTable, <String, Object?>{
-            'id': submissionId,
-            'form_id': form.id,
-            'data_json': jsonEncode(data),
-            'status': 'unread',
-            'submitted_at': now.millisecondsSinceEpoch,
-            if (ip != null) 'ip_address': ip,
-            if (userAgent != null) 'user_agent': userAgent,
-          });
-        } catch (_) {}
-      }
-
-      final DVStudioForm updatedForm = form.copyWith(
-        submissionsCount: form.submissionsCount + 1,
-        updatedAt: now,
-      );
-      _memoryForms[form.id] = updatedForm;
-      if (database != null) {
-        try {
-          final DVRecordAdapter records = DVRecordAdapter.over(database!);
-          await records.ensure(dvStudioFormsShape);
-          await records.update(
-            dvStudioFormsTable,
-            <String, Object?>{
-              'submissions_count': updatedForm.submissionsCount,
-              'updated_at': now.millisecondsSinceEpoch,
-            },
-            where: DVFilter.equals('id', form.id),
-          );
-        } catch (_) {}
-      }
 
       await _note(
         'forms',
@@ -3988,6 +3902,8 @@ class DVStudioApi {
               400, 'missing_id', 'Submission id is required.');
         }
         final String newStatus = '${body['status'] ?? 'read'}'.trim();
+        final DVRecordAdapter records =
+            await _writable(dvStudioSubmissionsShape);
         final List<DVStudioFormSubmission> all = await _listSubmissions();
         final DVStudioFormSubmission? found =
             all.where((DVStudioFormSubmission s) => s.id == id).firstOrNull;
@@ -3995,21 +3911,13 @@ class DVStudioApi {
           throw _StudioRefusal(
               404, 'not_found', 'No submission found with id "$id".');
         }
+        await records.update(
+          dvStudioSubmissionsTable,
+          <String, Object?>{'status': newStatus},
+          where: DVFilter.equals('id', id),
+        );
         final DVStudioFormSubmission updated =
             found.copyWith(status: newStatus);
-        _memorySubmissions[id] = updated;
-
-        if (database != null) {
-          try {
-            final DVRecordAdapter records = DVRecordAdapter.over(database!);
-            await records.ensure(dvStudioSubmissionsShape);
-            await records.update(
-              dvStudioSubmissionsTable,
-              <String, Object?>{'status': newStatus},
-              where: DVFilter.equals('id', id),
-            );
-          } catch (_) {}
-        }
 
         return _reply(<String, Object?>{
           'ok': true,
@@ -4025,18 +3933,12 @@ class DVStudioApi {
           throw _StudioRefusal(
               400, 'missing_id', 'Submission id to delete is required.');
         }
-        _memorySubmissions.remove(id);
-
-        if (database != null) {
-          try {
-            final DVRecordAdapter records = DVRecordAdapter.over(database!);
-            await records.ensure(dvStudioSubmissionsShape);
-            await records.delete(
-              dvStudioSubmissionsTable,
-              where: DVFilter.equals('id', id),
-            );
-          } catch (_) {}
-        }
+        final DVRecordAdapter records =
+            await _writable(dvStudioSubmissionsShape);
+        await records.delete(
+          dvStudioSubmissionsTable,
+          where: DVFilter.equals('id', id),
+        );
 
         await _note(
           'forms',
@@ -4053,9 +3955,8 @@ class DVStudioApi {
     }
 
     // 3. Forms CRUD
-    final List<DVStudioForm> forms = await _listForms();
-
     if (method == 'GET') {
+      final List<DVStudioForm> forms = await _listForms();
       final String? id = segments.isNotEmpty
           ? segments.first
           : request.url.queryParameters['id'];
@@ -4088,9 +3989,11 @@ class DVStudioApi {
           if (item is Map)
             DVStudioFormField.fromJson(item.cast<String, Object?>()),
       ];
+      final DVRecordAdapter records = await _writable(dvStudioFormsShape);
       final DateTime now = DateTime.now().toUtc();
-      final DVStudioForm? existingForm =
-          forms.where((DVStudioForm f) => f.id == id).firstOrNull;
+      final DVStudioForm? existingForm = (await _listForms())
+          .where((DVStudioForm f) => f.id == id)
+          .firstOrNull;
       final int submissionsCount = (body['submissionsCount'] as num?)?.toInt() ??
           existingForm?.submissionsCount ??
           0;
@@ -4099,8 +4002,7 @@ class DVStudioApi {
         name: name,
         description: body['description'] as String?,
         submitLabel: '${body['submitLabel'] ?? 'Submit'}',
-        successMessage:
-            '${body['successMessage'] ?? 'Thank you! Your submission has been received.'}',
+        successMessage: '${body['successMessage'] ?? _defaultSuccessMessage}',
         fields: fields,
         targetEmail: body['targetEmail'] as String?,
         targetModel: body['targetModel'] as String?,
@@ -4108,42 +4010,20 @@ class DVStudioApi {
         updatedAt: now,
       );
 
-      _deletedForms.remove(id);
-      _memoryForms[id] = form;
-
-      if (database != null) {
-        try {
-          final DVRecordAdapter records = DVRecordAdapter.over(database!);
-          await records.ensure(dvStudioFormsShape);
-          final Map<String, Object?> record = <String, Object?>{
-            'id': id,
-            'name': name,
-            if (form.description != null) 'description': form.description,
-            'submit_label': form.submitLabel,
-            'success_message': form.successMessage,
-            'fields_json': jsonEncode(<Map<String, Object?>>[
-              for (final DVStudioFormField f in fields) f.toJson(),
-            ]),
-            if (form.targetEmail != null) 'target_email': form.targetEmail,
-            if (form.targetModel != null) 'target_model': form.targetModel,
-            'submissions_count': form.submissionsCount,
-            'updated_at': now.millisecondsSinceEpoch,
-          };
-          final List<Map<String, Object?>> existingRows = await records.find(
-            dvStudioFormsTable,
-            where: DVFilter.equals('id', id),
-          );
-          if (existingRows.isNotEmpty) {
-            await records.update(
-              dvStudioFormsTable,
-              record,
-              where: DVFilter.equals('id', id),
-            );
-          } else {
-            await records.insert(dvStudioFormsTable, record);
-          }
-        } catch (_) {}
-      }
+      await _put(records, dvStudioFormsTable, id, <String, Object?>{
+        'id': id,
+        'name': name,
+        if (form.description != null) 'description': form.description,
+        'submit_label': form.submitLabel,
+        'success_message': form.successMessage,
+        'fields_json': jsonEncode(<Map<String, Object?>>[
+          for (final DVStudioFormField f in fields) f.toJson(),
+        ]),
+        if (form.targetEmail != null) 'target_email': form.targetEmail,
+        if (form.targetModel != null) 'target_model': form.targetModel,
+        'submissions_count': form.submissionsCount,
+        'updated_at': now.millisecondsSinceEpoch,
+      });
 
       await _note(
         'forms',
@@ -4164,25 +4044,14 @@ class DVStudioApi {
         throw _StudioRefusal(
             400, 'missing_id', 'Form id to delete is required.');
       }
-      _deletedForms.add(id);
-      _memoryForms.remove(id);
-      _memorySubmissions.removeWhere((_, DVStudioFormSubmission s) => s.formId == id);
-
-      if (database != null) {
-        try {
-          final DVRecordAdapter records = DVRecordAdapter.over(database!);
-          await records.ensure(dvStudioFormsShape);
-          await records.delete(
-            dvStudioFormsTable,
-            where: DVFilter.equals('id', id),
-          );
-          await records.ensure(dvStudioSubmissionsShape);
-          await records.delete(
-            dvStudioSubmissionsTable,
-            where: DVFilter.equals('form_id', id),
-          );
-        } catch (_) {}
-      }
+      final DVRecordAdapter forms = await _writable(dvStudioFormsShape);
+      await forms.delete(dvStudioFormsTable, where: DVFilter.equals('id', id));
+      final DVRecordAdapter submissions =
+          await _writable(dvStudioSubmissionsShape);
+      await submissions.delete(
+        dvStudioSubmissionsTable,
+        where: DVFilter.equals('form_id', id),
+      );
 
       await _note(
         'forms',
@@ -4199,48 +4068,39 @@ class DVStudioApi {
   }
 
   Future<DVStudioSettings> _getSettings() async {
-    if (database != null) {
-      try {
-        final DVRecordAdapter records = DVRecordAdapter.over(database!);
-        await records.ensure(dvStudioSettingsShape);
-        final List<Map<String, Object?>> rows = await records.find(
-          dvStudioSettingsTable,
-          where: DVFilter.equals('id', 'global'),
-        );
-        if (rows.isNotEmpty) {
-          final Map<String, Object?> r = rows.first;
-          Map<String, String> social = <String, String>{};
-          final String? socialJson = r['social_links_json'] as String?;
-          if (socialJson != null && socialJson.isNotEmpty) {
-            try {
-              final Object? decoded = jsonDecode(socialJson);
-              if (decoded is Map) {
-                social = decoded.map((k, v) => MapEntry('$k', '$v'));
-              }
-            } catch (_) {}
-          }
-          final int? updatedMillis = r['updated_at'] as int?;
-          return DVStudioSettings(
-            siteTitle: '${r['site_title'] ?? 'Dartvel Application'}',
-            tagline: '${r['tagline'] ?? ''}',
-            siteUrl: '${r['site_url'] ?? 'http://localhost:8080'}',
-            timezone: '${r['timezone'] ?? 'UTC'}',
-            dateFormat: '${r['date_format'] ?? 'YYYY-MM-DD'}',
-            favicon: r['favicon'] as String?,
-            defaultSeoTitle: r['default_seo_title'] as String?,
-            defaultSeoDescription: r['default_seo_description'] as String?,
-            defaultSeoImage: r['default_seo_image'] as String?,
-            socialLinks: social,
-            maintenanceMode: r['maintenance_mode'] == 1,
-            maintenanceMessage: r['maintenance_message'] as String?,
-            updatedAt: updatedMillis != null
-                ? DateTime.fromMillisecondsSinceEpoch(updatedMillis, isUtc: true)
-                : null,
-          );
-        }
-      } catch (_) {}
-    }
-    return _memorySettings;
+    final DVRecordAdapter? records = await _readable(dvStudioSettingsShape);
+    if (records == null) return dvStudioDefaultSettings();
+    final List<Map<String, Object?>> rows = await records.find(
+      dvStudioSettingsTable,
+      where: DVFilter.equals('id', 'global'),
+    );
+    if (rows.isEmpty) return dvStudioDefaultSettings();
+    final Map<String, Object?> r = rows.first;
+    const DVStudioSettings neutral = DVStudioSettings();
+    final int? updatedMillis = (r['updated_at'] as num?)?.toInt();
+    return DVStudioSettings(
+      siteTitle: '${r['site_title'] ?? neutral.siteTitle}',
+      tagline: '${r['tagline'] ?? neutral.tagline}',
+      siteUrl: '${r['site_url'] ?? neutral.siteUrl}',
+      timezone: '${r['timezone'] ?? neutral.timezone}',
+      dateFormat: '${r['date_format'] ?? neutral.dateFormat}',
+      favicon: r['favicon'] as String?,
+      defaultSeoTitle: r['default_seo_title'] as String?,
+      defaultSeoDescription: r['default_seo_description'] as String?,
+      defaultSeoImage: r['default_seo_image'] as String?,
+      socialLinks: switch (_decoded(r['social_links_json'])) {
+        final Map<Object?, Object?> links => <String, String>{
+            for (final MapEntry<Object?, Object?> e in links.entries)
+              '${e.key}': '${e.value}',
+          },
+        _ => const <String, String>{},
+      },
+      maintenanceMode: r['maintenance_mode'] == 1 || r['maintenance_mode'] == true,
+      maintenanceMessage: r['maintenance_message'] as String?,
+      updatedAt: updatedMillis != null
+          ? DateTime.fromMillisecondsSinceEpoch(updatedMillis, isUtc: true)
+          : null,
+    );
   }
 
   Future<Response> _settings(
@@ -4274,51 +4134,31 @@ class DVStudioApi {
         );
       }
 
+      final DVRecordAdapter records = await _writable(dvStudioSettingsShape);
       final DateTime now = DateTime.now().toUtc();
       final DVStudioSettings updated = DVStudioSettings.fromJson(body).copyWith(
         updatedAt: now,
       );
-      _memorySettings = updated;
-
-      if (database != null) {
-        try {
-          final DVRecordAdapter records = DVRecordAdapter.over(database!);
-          await records.ensure(dvStudioSettingsShape);
-          final Map<String, Object?> record = <String, Object?>{
-            'id': 'global',
-            'site_title': updated.siteTitle,
-            'tagline': updated.tagline,
-            'site_url': updated.siteUrl,
-            'timezone': updated.timezone,
-            'date_format': updated.dateFormat,
-            if (updated.favicon != null) 'favicon': updated.favicon,
-            if (updated.defaultSeoTitle != null)
-              'default_seo_title': updated.defaultSeoTitle,
-            if (updated.defaultSeoDescription != null)
-              'default_seo_description': updated.defaultSeoDescription,
-            if (updated.defaultSeoImage != null)
-              'default_seo_image': updated.defaultSeoImage,
-            'social_links_json': jsonEncode(updated.socialLinks),
-            'maintenance_mode': updated.maintenanceMode ? 1 : 0,
-            if (updated.maintenanceMessage != null)
-              'maintenance_message': updated.maintenanceMessage,
-            'updated_at': now.millisecondsSinceEpoch,
-          };
-          final List<Map<String, Object?>> existing = await records.find(
-            dvStudioSettingsTable,
-            where: DVFilter.equals('id', 'global'),
-          );
-          if (existing.isNotEmpty) {
-            await records.update(
-              dvStudioSettingsTable,
-              record,
-              where: DVFilter.equals('id', 'global'),
-            );
-          } else {
-            await records.insert(dvStudioSettingsTable, record);
-          }
-        } catch (_) {}
-      }
+      await _put(records, dvStudioSettingsTable, 'global', <String, Object?>{
+        'id': 'global',
+        'site_title': updated.siteTitle,
+        'tagline': updated.tagline,
+        'site_url': updated.siteUrl,
+        'timezone': updated.timezone,
+        'date_format': updated.dateFormat,
+        if (updated.favicon != null) 'favicon': updated.favicon,
+        if (updated.defaultSeoTitle != null)
+          'default_seo_title': updated.defaultSeoTitle,
+        if (updated.defaultSeoDescription != null)
+          'default_seo_description': updated.defaultSeoDescription,
+        if (updated.defaultSeoImage != null)
+          'default_seo_image': updated.defaultSeoImage,
+        'social_links_json': jsonEncode(updated.socialLinks),
+        'maintenance_mode': updated.maintenanceMode ? 1 : 0,
+        if (updated.maintenanceMessage != null)
+          'maintenance_message': updated.maintenanceMessage,
+        'updated_at': now.millisecondsSinceEpoch,
+      });
 
       await _note(
         'settings',

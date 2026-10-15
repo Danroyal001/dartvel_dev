@@ -58,22 +58,6 @@ void main() {
       expect(restored.children.first.url, '/docs');
     });
 
-    test('default menus provide primary and footer navigation', () {
-      final List<DVStudioMenu> defaults = dvStudioDefaultMenus();
-      expect(defaults.length, greaterThanOrEqualTo(2));
-      final DVStudioMenu primary =
-          defaults.firstWhere((DVStudioMenu m) => m.id == 'primary-menu');
-      expect(primary.name, 'Primary Navigation');
-      expect(primary.location, 'header');
-      expect(primary.items, isNotEmpty);
-      expect(primary.items.first.label, 'Home');
-      expect(primary.items.first.url, '/');
-
-      final DVStudioMenu footer =
-          defaults.firstWhere((DVStudioMenu m) => m.id == 'footer-menu');
-      expect(footer.name, 'Footer Links');
-      expect(footer.location, 'footer');
-    });
   });
 
   group('DVStudioApi menus endpoints', () {
@@ -85,18 +69,28 @@ void main() {
       api = DVStudioApi(database: database);
     });
 
-    test('GET api/menus returns default menus and location list', () async {
+    // This used to assert that a new project lists two seeded menus (Home,
+    // About, Contact; Privacy, Terms) -- links to pages the project may not
+    // have. A new project has none; the locations are still listed.
+    test('GET api/menus lists no menus for a new project, and the locations',
+        () async {
       final Response response =
           await api.respond(_request('GET', 'api/menus'), 'menus');
       expect(response.status, 200);
       final Map<String, Object?> body = await _json(response);
-      expect(body['menus'], isA<List>());
-      expect(body['locations'], isA<List>());
-      final List<Object?> menus = body['menus']! as List;
-      expect(menus.length, greaterThanOrEqualTo(2));
+      expect(body['menus'], isEmpty);
+      expect(body['locations'], isNotEmpty);
     });
 
     test('GET api/menus with id returns single menu', () async {
+      await api.respond(
+        _request('PUT', 'api/menus', body: <String, Object?>{
+          'id': 'primary-menu',
+          'name': 'Primary Navigation',
+          'items': const <Object?>[],
+        }),
+        'menus',
+      );
       final Response response = await api.respond(
         _request('GET', 'api/menus?id=primary-menu'),
         'menus',

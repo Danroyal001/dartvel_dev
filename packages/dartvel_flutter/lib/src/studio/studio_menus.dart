@@ -3,7 +3,7 @@
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart'
-    show DVStudioMenu, DVStudioMenuItem;
+    show DVStudioMenu, DVStudioMenuItem, DVStudioSitePage, dvStudioRouteParams;
 import 'package:flutter/material.dart';
 
 import 'studio_server.dart';
@@ -35,6 +35,44 @@ class _DVStudioMenusSectionState extends State<DVStudioMenusSection> {
   bool _saving = false;
   String? _error;
   String? _statusMessage;
+
+  /// The routes a link can point at: this project's own pages, compiled and
+  /// published from Studio, never a list of pages some other site has.
+  late final Future<_ProjectRoutes> _routes = _loadRoutes();
+
+  Future<_ProjectRoutes> _loadRoutes() async {
+    final Map<String, String> byPath = <String, String>{};
+    bool failed = false;
+    try {
+      for (final DVStudioSitePage page in await widget.client.site()) {
+        // A pattern such as /articles/:slug is not one page to link to.
+        if (page.isDynamic) continue;
+        final String title = page.title?.trim() ?? '';
+        byPath[page.path] = title.isNotEmpty ? title : page.path;
+      }
+    } on Object {
+      failed = true;
+    }
+    try {
+      for (final DVStudioPageEntry entry in await widget.client.pageEntries()) {
+        if (!entry.published || dvStudioRouteParams(entry.route).isNotEmpty) {
+          continue;
+        }
+        final String title = entry.document.title.trim();
+        byPath[entry.route] =
+            title.isNotEmpty ? title : (byPath[entry.route] ?? entry.route);
+      }
+    } on Object {
+      failed = true;
+    }
+    final List<String> paths = byPath.keys.toList()..sort();
+    return (
+      routes: <({String name, String path})>[
+        for (final String path in paths) (name: byPath[path]!, path: path),
+      ],
+      failed: failed,
+    );
+  }
 
   Future<({List<DVStudioMenu> menus, List<String> locations})> _load() async {
     final ({List<DVStudioMenu> menus, List<String> locations}) res =
@@ -172,7 +210,11 @@ class _DVStudioMenusSectionState extends State<DVStudioMenusSection> {
   Future<void> _openNewMenuDialog(List<String> locations) async {
     String name = '';
     String id = '';
-    String location = locations.isNotEmpty ? locations.first : 'header';
+    // The server names the locations; a server that names none still lets a
+    // menu be made, kept under 'custom'.
+    final List<String> options =
+        locations.isNotEmpty ? locations : const <String>['custom'];
+    String location = options.first;
     String? dialogError;
 
     await showDialog<void>(
@@ -257,7 +299,7 @@ class _DVStudioMenusSectionState extends State<DVStudioMenusSection> {
                           isExpanded: true,
                           dropdownColor: DVStudioStyle.surface,
                           items: <DropdownMenuItem<String>>[
-                            for (final String loc in locations)
+                            for (final String loc in options)
                               DropdownMenuItem<String>(
                                 value: loc,
                                 child: Text(_capitalize(loc),
@@ -265,12 +307,6 @@ class _DVStudioMenusSectionState extends State<DVStudioMenusSection> {
                                         fontSize: 13,
                                         color: DVStudioStyle.ink)),
                               ),
-                            const DropdownMenuItem<String>(
-                              value: 'custom',
-                              child: Text('Custom',
-                                  style: TextStyle(
-                                      fontSize: 13, color: DVStudioStyle.ink)),
-                            ),
                           ],
                           onChanged: (String? val) {
                             if (val != null) {
@@ -385,7 +421,7 @@ class _DVStudioMenusSectionState extends State<DVStudioMenusSection> {
                             color: DVStudioStyle.ink)),
                     const SizedBox(height: DVStudioStyle.space1),
                     DVStudioTextInput(
-                      placeholder: 'e.g. Products, About, Docs',
+                      placeholder: 'The text the link shows',
                       value: label,
                       onChanged: (String v) => label = v,
                     ),
@@ -403,44 +439,65 @@ class _DVStudioMenusSectionState extends State<DVStudioMenusSection> {
                       onChanged: (String v) => url = v,
                     ),
                     const SizedBox(height: DVStudioStyle.space2),
-                    // Quick presets
-                    Wrap(
-                      spacing: DVStudioStyle.space1,
-                      runSpacing: DVStudioStyle.space1,
-                      children: <Widget>[
-                        for (final ({String name, String path}) preset in const [
-                          (name: 'Home', path: '/'),
-                          (name: 'About', path: '/about'),
-                          (name: 'Docs', path: '/docs'),
-                          (name: 'Blog', path: '/blog'),
-                          (name: 'Contact', path: '/contact'),
-                        ])
-                          InkWell(
-                            borderRadius:
-                                BorderRadius.circular(DVStudioStyle.radius),
-                            onTap: () {
-                              setDialogState(() {
-                                url = preset.path;
-                                if (label.isEmpty) label = preset.name;
-                              });
-                            },
-                            child: Container(
-                              padding: const .symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: DVStudioStyle.canvas,
-                                borderRadius:
-                                    BorderRadius.circular(DVStudioStyle.radius),
-                                border: Border.all(color: DVStudioStyle.line),
+                    // The project's own pages, to link without typing.
+                    FutureBuilder<_ProjectRoutes>(
+                      future: _routes,
+                      builder: (
+                        BuildContext context,
+                        AsyncSnapshot<_ProjectRoutes> snapshot,
+                      ) {
+                        final _ProjectRoutes? routes = snapshot.data;
+                        if (routes == null) return const SizedBox.shrink();
+                        if (routes.routes.isEmpty) {
+                          return Text(
+                            routes.failed
+                                ? "This project's pages could not be listed. "
+                                    'Type the route instead.'
+                                : 'This project has no pages to link to yet. '
+                                    'Type a route or a URL.',
+                            style: const TextStyle(
+                                fontSize: 11, color: DVStudioStyle.muted),
+                          );
+                        }
+                        return Wrap(
+                          spacing: DVStudioStyle.space1,
+                          runSpacing: DVStudioStyle.space1,
+                          children: <Widget>[
+                            for (final ({String name, String path}) page
+                                in routes.routes)
+                              Tooltip(
+                                message: page.path,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(
+                                      DVStudioStyle.radius),
+                                  onTap: () {
+                                    setDialogState(() {
+                                      url = page.path;
+                                      if (label.isEmpty) label = page.name;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const .symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: DVStudioStyle.canvas,
+                                      borderRadius: BorderRadius.circular(
+                                          DVStudioStyle.radius),
+                                      border:
+                                          Border.all(color: DVStudioStyle.line),
+                                    ),
+                                    child: Text(
+                                      page.name,
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: DVStudioStyle.muted),
+                                    ),
+                                  ),
+                                ),
                               ),
-                              child: Text(
-                                preset.name,
-                                style: const TextStyle(
-                                    fontSize: 11, color: DVStudioStyle.muted),
-                              ),
-                            ),
-                          ),
-                      ],
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: DVStudioStyle.space3),
                     const Text('Open Target',
@@ -809,8 +866,9 @@ class _DVStudioMenusSectionState extends State<DVStudioMenusSection> {
         }
 
         final List<DVStudioMenu> menus = snapshot.data?.menus ?? <DVStudioMenu>[];
+        // The places a menu can be shown are the server's to name.
         final List<String> locations =
-            snapshot.data?.locations ?? const <String>['header', 'footer'];
+            snapshot.data?.locations ?? const <String>[];
 
         return Container(
           color: DVStudioStyle.canvas,
@@ -1071,13 +1129,18 @@ class _DVStudioMenusSectionState extends State<DVStudioMenusSection> {
                                 ),
                                 child: DropdownButtonHideUnderline(
                                   child: DropdownButton<String>(
-                                    value: locations.contains(menu.location)
-                                        ? menu.location
-                                        : 'custom',
+                                    value: menu.location,
                                     isExpanded: true,
                                     dropdownColor: DVStudioStyle.surface,
                                     items: <DropdownMenuItem<String>>[
-                                      for (final String loc in locations)
+                                      // The server's locations, and the
+                                      // menu's own when the server no longer
+                                      // names it, so it is shown, not lost.
+                                      for (final String loc in <String>[
+                                        ...locations,
+                                        if (!locations.contains(menu.location))
+                                          menu.location,
+                                      ])
                                         DropdownMenuItem<String>(
                                           value: loc,
                                           child: Text(_capitalize(loc),
@@ -1085,13 +1148,6 @@ class _DVStudioMenusSectionState extends State<DVStudioMenusSection> {
                                                   fontSize: 13,
                                                   color: DVStudioStyle.ink)),
                                         ),
-                                      const DropdownMenuItem<String>(
-                                        value: 'custom',
-                                        child: Text('Custom',
-                                            style: TextStyle(
-                                                fontSize: 13,
-                                                color: DVStudioStyle.ink)),
-                                      ),
                                     ],
                                     onChanged: (String? val) {
                                       if (val != null) {
@@ -1371,3 +1427,6 @@ class _FlatNode {
   final int index;
   final int count;
 }
+
+/// The routes a menu link can point at, and whether listing them failed.
+typedef _ProjectRoutes = ({List<({String name, String path})> routes, bool failed});

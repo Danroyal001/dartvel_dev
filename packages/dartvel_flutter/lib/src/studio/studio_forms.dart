@@ -6,7 +6,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dartvel_core/dartvel.dart'
-    show DVStudioForm, DVStudioFormField, DVStudioFormSubmission, dvStudioDefaultForms;
+    show DVStudioForm, DVStudioFormField, DVStudioFormSubmission;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -75,30 +75,20 @@ class _DVStudioFormsSectionState extends State<DVStudioFormsSection> {
     super.dispose();
   }
 
+  /// The project's forms. A failure to load them is shown as one, never
+  /// covered with sample forms the project did not make.
   Future<List<DVStudioForm>> _loadForms() async {
-    try {
-      final List<DVStudioForm> list = await widget.client.forms();
-      _forms = list;
-      if (_selectedFormId == null ||
-          !list.any((DVStudioForm f) => f.id == _selectedFormId)) {
-        if (list.isNotEmpty) {
-          _selectedFormId = list.first.id;
-          _workingForm = list.first;
-        }
-      } else {
-        _workingForm = list.firstWhere((DVStudioForm f) => f.id == _selectedFormId);
-      }
-      _dirty = false;
-      return list;
-    } catch (_) {
-      final List<DVStudioForm> defaults = dvStudioDefaultForms();
-      _forms = defaults;
-      if (defaults.isNotEmpty) {
-        _selectedFormId = defaults.first.id;
-        _workingForm = defaults.first;
-      }
-      return defaults;
+    final List<DVStudioForm> list = await widget.client.forms();
+    _forms = list;
+    if (_selectedFormId == null ||
+        !list.any((DVStudioForm f) => f.id == _selectedFormId)) {
+      _selectedFormId = list.firstOrNull?.id;
+      _workingForm = list.firstOrNull;
+    } else {
+      _workingForm = list.firstWhere((DVStudioForm f) => f.id == _selectedFormId);
     }
+    _dirty = false;
+    return list;
   }
 
   Future<({List<DVStudioFormSubmission> submissions, int total, int unread})>
@@ -1160,28 +1150,63 @@ class _DVStudioFormsSectionState extends State<DVStudioFormsSection> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const .all(24),
+              child: Column(
+                mainAxisSize: .min,
+                children: <Widget>[
+                  const Icon(Icons.error_outline,
+                      size: 40, color: Colors.redAccent),
+                  const SizedBox(height: 12),
+                  const Text('The forms could not be loaded',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: .w600,
+                          color: DVStudioStyle.ink)),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${snapshot.error}',
+                    textAlign: .center,
+                    style: const TextStyle(
+                        fontSize: 13, color: DVStudioStyle.muted),
+                  ),
+                  const SizedBox(height: 16),
+                  DVStudioControl(
+                    label: 'Try again',
+                    enabled: true,
+                    icon: Icons.refresh,
+                    onTap: () => _reloadForms(),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         final List<DVStudioForm> forms = snapshot.data ?? _forms;
         if (forms.isEmpty) {
           return Center(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: .min,
               children: <Widget>[
                 const Icon(Icons.dynamic_form_outlined,
                     size: 48, color: DVStudioStyle.faint),
                 const SizedBox(height: 12),
-                const Text('No forms designed yet',
+                const Text('No forms yet',
                     style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: .w600,
                         color: DVStudioStyle.ink)),
                 const SizedBox(height: 6),
                 const Text(
-                  'Create your first form to start receiving visitor submissions.',
+                  'Make a form to start receiving submissions.',
                   style: TextStyle(fontSize: 13, color: DVStudioStyle.muted),
                 ),
                 const SizedBox(height: 16),
                 DVStudioControl(
-                  label: 'Create Contact Form',
+                  label: 'New form',
                   enabled: true,
                   primary: true,
                   icon: DVStudioIcons.add,
@@ -2058,38 +2083,23 @@ class _DVStudioFormWidgetState extends State<DVStudioFormWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final DVStudioForm activeForm = widget.form ??
-        DVStudioForm(
-          id: widget.formId,
-          name: 'Contact Form',
-          submitLabel: widget.submitLabel ?? 'Submit',
-          successMessage: widget.successMessage ??
-              'Thank you! Your submission has been received.',
-          fields: const <DVStudioFormField>[
-            DVStudioFormField(
-              id: 'name',
-              label: 'Full Name',
-              type: 'text',
-              placeholder: 'Jane Doe',
-              required: true,
-            ),
-            DVStudioFormField(
-              id: 'email',
-              label: 'Email Address',
-              type: 'email',
-              placeholder: 'jane@example.com',
-              required: true,
-            ),
-            DVStudioFormField(
-              id: 'message',
-              label: 'Message',
-              type: 'textarea',
-              placeholder: 'Write your message…',
-              required: true,
-            ),
-          ],
-          updatedAt: DateTime.now().toUtc(),
-        );
+    // Only the project's own form is rendered. Without one this used to draw
+    // a built-in contact form, which would take submissions for a form the
+    // project never made.
+    final DVStudioForm? activeForm = widget.form;
+    if (activeForm == null) {
+      return Container(
+        padding: const .all(16),
+        decoration: BoxDecoration(
+          borderRadius: .circular(DVStudioStyle.radiusSmall),
+          border: Border.all(color: DVStudioStyle.line),
+        ),
+        child: Text(
+          'The form "${widget.formId}" is not loaded.',
+          style: const TextStyle(fontSize: 13, color: DVStudioStyle.muted),
+        ),
+      );
+    }
 
     if (_submitted) {
       return Container(

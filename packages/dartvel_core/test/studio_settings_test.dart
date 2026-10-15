@@ -71,17 +71,35 @@ void main() {
       expect(parsed.updatedAt, DateTime.utc(2026, 10, 14, 12, 0, 0));
     });
 
-    test('default settings helper produces complete defaults', () {
+    // This used to require a title, a tagline, SEO copy and social links in
+    // the defaults -- the framework's own ("My Dartvel App", Dartvel's GitHub
+    // and X). A new project's settings carry nothing of anybody else's.
+    test('default settings are neutral', () {
       final DVStudioSettings defaults = dvStudioDefaultSettings();
-      expect(defaults.siteTitle, isNotEmpty);
-      expect(defaults.tagline, isNotEmpty);
-      expect(defaults.siteUrl, 'http://localhost:8080');
+      expect(defaults.siteTitle, isEmpty);
+      expect(defaults.tagline, isEmpty);
+      expect(defaults.siteUrl, isEmpty);
       expect(defaults.timezone, 'UTC');
       expect(defaults.dateFormat, 'YYYY-MM-DD');
-      expect(defaults.defaultSeoTitle, isNotNull);
-      expect(defaults.defaultSeoDescription, isNotNull);
-      expect(defaults.socialLinks, isNotEmpty);
+      expect(defaults.defaultSeoTitle, isNull);
+      expect(defaults.defaultSeoDescription, isNull);
+      expect(defaults.socialLinks, isEmpty);
       expect(defaults.maintenanceMode, isFalse);
+      expect(defaults.maintenanceMessage, isNot(contains('Dartvel')));
+    });
+
+    test('settings that differ only in their social links are not equal', () {
+      const DVStudioSettings plain = DVStudioSettings(siteTitle: 'Harbour');
+      final DVStudioSettings linked = plain.copyWith(
+        socialLinks: const <String, String>{'Mastodon': 'https://example.social/@harbour'},
+      );
+      expect(linked, isNot(plain));
+      expect(
+        linked,
+        plain.copyWith(
+          socialLinks: const <String, String>{'Mastodon': 'https://example.social/@harbour'},
+        ),
+      );
     });
 
     test('copyWith updates specified fields', () {
@@ -116,7 +134,8 @@ void main() {
       expect(response.status, 200);
       final Map<String, Object?> body = await _json(response);
 
-      expect(body['siteTitle'], 'My Dartvel App');
+      // Was 'My Dartvel App': the framework's name on every project.
+      expect(body['siteTitle'], '');
       expect(body['timezone'], 'UTC');
       expect(body['maintenanceMode'], isFalse);
     });
@@ -135,7 +154,7 @@ void main() {
       expect(response.status, 403);
     });
 
-    test('PUT api/settings updates settings and persists in memory', () async {
+    test('PUT api/settings updates settings and persists them in the database', () async {
       final Response response = await api.respond(
         _request(
           'PUT',

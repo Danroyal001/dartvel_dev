@@ -18,9 +18,9 @@ class DVStudioSettings {
   final DateTime? updatedAt;
 
   const DVStudioSettings({
-    this.siteTitle = 'Dartvel Application',
-    this.tagline = 'Full-stack Flutter & Dart platform',
-    this.siteUrl = 'http://localhost:8080',
+    this.siteTitle = '',
+    this.tagline = '',
+    this.siteUrl = '',
     this.timezone = 'UTC',
     this.dateFormat = 'YYYY-MM-DD',
     this.favicon,
@@ -53,11 +53,11 @@ class DVStudioSettings {
     return DVStudioSettings(
       siteTitle: (json['siteTitle'] as String?)?.trim().isNotEmpty == true
           ? (json['siteTitle'] as String).trim()
-          : 'Dartvel Application',
+          : '',
       tagline: (json['tagline'] as String?)?.trim() ?? '',
       siteUrl: (json['siteUrl'] as String?)?.trim().isNotEmpty == true
           ? (json['siteUrl'] as String).trim()
-          : 'http://localhost:8080',
+          : '',
       timezone: (json['timezone'] as String?)?.trim().isNotEmpty == true
           ? (json['timezone'] as String).trim()
           : 'UTC',
@@ -143,7 +143,19 @@ class DVStudioSettings {
           defaultSeoDescription == other.defaultSeoDescription &&
           defaultSeoImage == other.defaultSeoImage &&
           maintenanceMode == other.maintenanceMode &&
-          maintenanceMessage == other.maintenanceMessage;
+          maintenanceMessage == other.maintenanceMessage &&
+          _sameLinks(socialLinks, other.socialLinks);
+
+  /// Whether [a] and [b] hold the same links. Without this, settings that
+  /// differ only in their social links compared equal, so an edit to them
+  /// alone was never seen as a change to save.
+  static bool _sameLinks(Map<String, String> a, Map<String, String> b) {
+    if (a.length != b.length) return false;
+    for (final MapEntry<String, String> link in a.entries) {
+      if (b[link.key] != link.value) return false;
+    }
+    return true;
+  }
 
   @override
   int get hashCode => Object.hash(
@@ -161,21 +173,10 @@ class DVStudioSettings {
       );
 }
 
-/// Provides standard default settings for a newly created application.
+/// The settings of a project nobody has configured yet: nothing of anybody
+/// else's. No title, tagline, address or SEO copy, no social links, UTC, and a
+/// maintenance message that names no product.
 DVStudioSettings dvStudioDefaultSettings() => const DVStudioSettings(
-      siteTitle: 'My Dartvel App',
-      tagline: 'Built with Flutter and Dartvel',
-      siteUrl: 'http://localhost:8080',
-      timezone: 'UTC',
-      dateFormat: 'YYYY-MM-DD',
-      defaultSeoTitle: 'My Dartvel App — Fast Full-Stack Web and Mobile',
-      defaultSeoDescription:
-          'A modern, batteries-included application powered by Dartvel.',
-      socialLinks: <String, String>{
-        'github': 'https://github.com/Danroyal001/dartvel',
-        'twitter': 'https://x.com/dartvelfw',
-      },
-      maintenanceMode: false,
       maintenanceMessage:
-          'We are currently undergoing scheduled maintenance. Please check back shortly.',
+          'This site is undergoing scheduled maintenance. Please check back shortly.',
     );

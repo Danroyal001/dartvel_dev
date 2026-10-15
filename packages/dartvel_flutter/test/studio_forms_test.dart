@@ -367,8 +367,24 @@ void main() {
         home: Scaffold(
           body: Padding(
             padding: const EdgeInsets.all(24),
+            // The form is passed in. This test used to pass none and lean on
+            // a contact form the widget drew by itself, which was the defect:
+            // the widget renders the project's form or none.
             child: DVStudioFormWidget(
               formId: 'contact',
+              form: DVStudioForm(
+                id: 'contact',
+                name: 'Enquiry',
+                updatedAt: DateTime.utc(2026),
+                fields: const <DVStudioFormField>[
+                  DVStudioFormField(
+                      id: 'name', label: 'Full Name', type: 'text', required: true),
+                  DVStudioFormField(
+                      id: 'email', label: 'Email Address', type: 'email', required: true),
+                  DVStudioFormField(
+                      id: 'message', label: 'Message', type: 'textarea', required: true),
+                ],
+              ),
               onSubmit: (Map<String, Object?> data) async {
                 submittedData = data;
               },
@@ -406,5 +422,61 @@ void main() {
     expect(submittedData!['email'], 'grace@navy.mil');
     expect(find.text('Thank you! Your submission has been received.'), findsOneWidget);
     expect(find.text('Submit another response'), findsOneWidget);
+  });
+
+  testWidgets('DVStudioFormWidget with no form draws no form of its own', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: DVStudioFormWidget(formId: 'enquiry')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('Submit'), findsNothing);
+    expect(find.textContaining('enquiry'), findsOneWidget);
+  });
+
+  testWidgets('a failed load is shown as an error with Try again, not as '
+      'sample forms', (WidgetTester tester) async {
+    int calls = 0;
+    final _FakeFormsTransport transport = _FakeFormsTransport();
+    Future<DVStudioReply> failingOnce(String method, String path,
+        {Object? body}) async {
+      if (Uri.parse(path).path == 'api/forms' && method == 'GET' && calls++ == 0) {
+        return const DVStudioReply(500, <String, Object?>{
+          'error': 'server_error',
+          'message': 'Studio could not do this. The server\'s log says why.',
+        });
+      }
+      return transport.call(method, path, body: body);
+    }
+
+    await pumpFormsSection(tester, client: DVStudioClient(failingOnce));
+
+    expect(find.text('The forms could not be loaded'), findsOneWidget);
+    expect(find.text('Contact Form'), findsNothing);
+    expect(find.text('Newsletter Signup'), findsNothing);
+
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('The forms could not be loaded'), findsNothing);
+    expect(find.text('Contact Form'), findsWidgets);
+  });
+
+  testWidgets('a project with no forms is invited to make one', (
+    WidgetTester tester,
+  ) async {
+    final _FakeFormsTransport transport = _FakeFormsTransport()
+      ..forms = <DVStudioForm>[];
+
+    await pumpFormsSection(tester, client: DVStudioClient(transport.call));
+
+    expect(find.text('No forms yet'), findsOneWidget);
+    expect(find.text('New form'), findsOneWidget);
+    expect(find.text('Contact Form'), findsNothing);
   });
 }

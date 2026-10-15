@@ -185,6 +185,55 @@ void main() {
         findsWidgets);
   });
 
+  // Social links used to be fixed GitHub / X / LinkedIn / Discord / YouTube
+  // fields: the networks one kind of project uses. They are the project's
+  // own list now, a label and an address each.
+  testWidgets('social links are an editable list of label and address', (
+    WidgetTester tester,
+  ) async {
+    final _FakeSettingsTransport transport = _FakeSettingsTransport();
+    await pumpSettingsSection(tester, client: DVStudioClient(transport.call));
+
+    await tester.tap(find.text('SEO & Social'));
+    await tester.pumpAndSettle();
+
+    // The stored links, under their own labels; no fixed network fields.
+    expect(find.text('github'), findsOneWidget);
+    expect(find.text('twitter'), findsOneWidget);
+    expect(find.text('LinkedIn Page'), findsNothing);
+    expect(find.text('Discord Community Server'), findsNothing);
+
+    // Remove one: an icon-only control, named by its tooltip.
+    await tester.ensureVisible(find.byTooltip('Remove twitter'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Remove twitter'));
+    await tester.pumpAndSettle();
+    expect(find.text('twitter'), findsNothing);
+
+    // Add one of the project's own.
+    await tester.ensureVisible(find.text('Add social link'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add social link'));
+    await tester.pumpAndSettle();
+    final Finder label = find.byKey(const ValueKey<String>('dv-studio-social-label-2'));
+    final Finder url = find.byKey(const ValueKey<String>('dv-studio-social-url-2'));
+    await tester.enterText(
+        find.descendant(of: label, matching: find.byType(EditableText)), 'Mastodon');
+    await tester.enterText(
+        find.descendant(of: url, matching: find.byType(EditableText)),
+        'https://example.social/@harbour');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Save Settings'));
+    await tester.pumpAndSettle();
+
+    expect(transport.lastSavedSettings, isNotNull);
+    expect(transport.lastSavedSettings!.socialLinks, <String, String>{
+      'github': 'https://github.com/my-org/my-app',
+      'Mastodon': 'https://example.social/@harbour',
+    });
+  });
+
   testWidgets('maintenance mode toggle activates banner and updates settings', (
     WidgetTester tester,
   ) async {

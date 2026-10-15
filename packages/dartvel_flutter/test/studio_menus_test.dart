@@ -53,7 +53,7 @@ class _FakeMenusTransport {
   }
 
   late List<DVStudioMenu> menus;
-  final List<String> locations = <String>['header', 'footer', 'sidebar', 'mobile'];
+  final List<String> locations = <String>['header', 'footer', 'announcement-bar'];
   DVStudioMenu? lastSaved;
   String? lastDeletedId;
 
@@ -96,6 +96,38 @@ class _FakeMenusTransport {
           return const DVStudioReply(200, <String, Object?>{'ok': true});
         }
       }
+    }
+
+    // The project's own pages: what "Add link" offers, instead of a fixed
+    // Home/About/Docs/Blog/Contact list some other site would have.
+    if (uri.path == 'api/site' && method == 'GET') {
+      return const DVStudioReply(200, <String, Object?>{
+        'pages': <Object?>[
+          <String, Object?>{'path': '/', 'kind': 'code', 'title': 'Welcome'},
+          <String, Object?>{'path': '/contact-us', 'kind': 'code'},
+          <String, Object?>{'path': '/articles/:slug', 'kind': 'code'},
+        ],
+      });
+    }
+    if (uri.path == 'api/pages' && method == 'GET') {
+      return DVStudioReply(200, <String, Object?>{
+        'pages': <Object?>[
+          <String, Object?>{
+            'route': '/harbour-tours',
+            'published': true,
+            'document':
+                DVPageDocument(route: '/harbour-tours', title: 'Harbour tours')
+                    .toJson(),
+          },
+          <String, Object?>{
+            'route': '/draft-only',
+            'published': false,
+            'document':
+                DVPageDocument(route: '/draft-only', title: 'Unpublished')
+                    .toJson(),
+          },
+        ],
+      });
     }
     return const DVStudioReply(404, <String, Object?>{'error': 'not_found'});
   }
@@ -180,31 +212,69 @@ void main() {
 
     expect(find.text('Add Navigation Link'), findsOneWidget);
 
-    // Enter label and URL
+    // Enter label, then pick one of the project's own pages as the route.
+    // (This used to tap a hard-coded "Contact" preset linking /contact, a
+    // page the project may not have.)
     await tester.enterText(
-        find.widgetWithText(DVStudioTextInput, '').first, 'Contact');
+        find.widgetWithText(DVStudioTextInput, '').first, 'Tours');
     await tester.pumpAndSettle();
 
-    // Tap quick preset Contact
-    await tester.tap(find.text('Contact').last);
+    await tester.tap(find.text('Harbour tours'));
     await tester.pumpAndSettle();
 
     // Click "Add to menu"
     await tester.tap(find.text('Add to menu'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Contact'), findsOneWidget);
+    expect(find.text('Tours'), findsOneWidget);
 
     // Save menu should now be enabled and tappable
     await tester.tap(find.text('Save menu'));
     await tester.pumpAndSettle();
 
     expect(transport.lastSaved, isNotNull);
-    expect(
-        transport.lastSaved!.items
-            .any((DVStudioMenuItem i) => i.label == 'Contact'),
-        isTrue);
+    final DVStudioMenuItem added = transport.lastSaved!.items
+        .firstWhere((DVStudioMenuItem i) => i.label == 'Tours');
+    expect(added.url, '/harbour-tours');
     expect(find.textContaining('saved successfully'), findsOneWidget);
+  });
+
+  testWidgets('"Add link" offers the project\'s own pages and nobody else\'s', (
+    WidgetTester tester,
+  ) async {
+    final _FakeMenusTransport transport = _FakeMenusTransport();
+    await pumpMenus(tester, client: DVStudioClient(transport.call));
+
+    await tester.tap(find.text('Add link'));
+    await tester.pumpAndSettle();
+
+    // Compiled routes, named by title or path, and published Studio pages.
+    expect(find.text('Welcome'), findsOneWidget);
+    expect(find.text('/contact-us'), findsOneWidget);
+    expect(find.text('Harbour tours'), findsOneWidget);
+    // Not a route pattern, not an unpublished draft.
+    expect(find.text('/articles/:slug'), findsNothing);
+    expect(find.text('Unpublished'), findsNothing);
+    // And none of the old fixed presets.
+    for (final String preset in <String>['About', 'Docs', 'Blog', 'Contact']) {
+      expect(find.text(preset), findsNothing, reason: preset);
+    }
+  });
+
+  testWidgets('a new menu\'s locations are the ones the server names', (
+    WidgetTester tester,
+  ) async {
+    final _FakeMenusTransport transport = _FakeMenusTransport();
+    await pumpMenus(tester, client: DVStudioClient(transport.call));
+
+    await tester.tap(find.text('New menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Header').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Announcement-bar'), findsWidgets);
+    expect(find.text('Sidebar'), findsNothing);
+    expect(find.text('Custom'), findsNothing);
   });
 
   testWidgets('item reordering and deletion update menu structure', (

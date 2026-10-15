@@ -30,6 +30,27 @@ class _DVStudioSettingsSectionState extends State<DVStudioSettingsSection> {
   int _selectedTab = 0;
   int _revision = 0;
 
+  /// The social links being edited, in order: the project's own labels and
+  /// addresses, stored as the settings' `socialLinks` map (label to URL). A
+  /// row whose label is still empty is kept here until it has one.
+  List<_SocialRow> _socialRows = <_SocialRow>[];
+  int _nextSocialRow = 0;
+
+  void _syncSocialRows(DVStudioSettings settings) {
+    _socialRows = <_SocialRow>[
+      for (final MapEntry<String, String> link in settings.socialLinks.entries)
+        _SocialRow(_nextSocialRow++, link.key, link.value),
+    ];
+  }
+
+  void _writeSocialRows() {
+    final Map<String, String> links = <String, String>{
+      for (final _SocialRow row in _socialRows)
+        if (row.label.trim().isNotEmpty) row.label.trim(): row.url.trim(),
+    };
+    _updateWorking((s) => s.copyWith(socialLinks: links));
+  }
+
   static const List<String> _tabs = <String>[
     'General Identity',
     'Localization',
@@ -78,6 +99,7 @@ class _DVStudioSettingsSectionState extends State<DVStudioSettingsSection> {
         setState(() {
           _savedSettings = s;
           _workingSettings = s;
+          _syncSocialRows(s);
           _loading = false;
         });
       }
@@ -117,6 +139,7 @@ class _DVStudioSettingsSectionState extends State<DVStudioSettingsSection> {
         setState(() {
           _savedSettings = saved;
           _workingSettings = saved;
+          _syncSocialRows(saved);
           _saving = false;
           _notice = 'Settings saved successfully.';
         });
@@ -142,6 +165,7 @@ class _DVStudioSettingsSectionState extends State<DVStudioSettingsSection> {
     FocusScope.of(context).unfocus();
     setState(() {
       _workingSettings = _savedSettings;
+      _syncSocialRows(_savedSettings!);
       _revision++;
       _error = null;
       _notice = null;
@@ -651,7 +675,7 @@ class _DVStudioSettingsSectionState extends State<DVStudioSettingsSection> {
             DVStudioTextInput(
               value: settings.defaultSeoDescription ?? '',
               placeholder:
-                  'e.g. Build, test, and ship modern full-stack web and mobile applications with Dartvel.',
+                  'e.g. What this site offers, in a sentence or two.',
               onChanged: (String v) =>
                   _updateWorking((s) => s.copyWith(defaultSeoDescription: v)),
             ),
@@ -795,46 +819,32 @@ class _DVStudioSettingsSectionState extends State<DVStudioSettingsSection> {
         _buildCard(
           title: 'Social Profiles',
           subtitle:
-              'Public social handles and links associated with this application.',
+              'The places this site is found elsewhere: each one a label and '
+              'its address.',
           children: <Widget>[
-            _buildSocialInput(
-              icon: Icons.code,
-              networkKey: 'github',
-              label: 'GitHub Repository / Organization',
-              placeholder: 'https://github.com/my-org/my-project',
-              settings: settings,
-            ),
-            const SizedBox(height: DVStudioStyle.space3),
-            _buildSocialInput(
-              icon: Icons.alternate_email,
-              networkKey: 'twitter',
-              label: 'X (Twitter) Profile',
-              placeholder: 'https://x.com/myprofile',
-              settings: settings,
-            ),
-            const SizedBox(height: DVStudioStyle.space3),
-            _buildSocialInput(
-              icon: Icons.business,
-              networkKey: 'linkedin',
-              label: 'LinkedIn Page',
-              placeholder: 'https://linkedin.com/company/my-company',
-              settings: settings,
-            ),
-            const SizedBox(height: DVStudioStyle.space3),
-            _buildSocialInput(
-              icon: Icons.chat_bubble_outline,
-              networkKey: 'discord',
-              label: 'Discord Community Server',
-              placeholder: 'https://discord.gg/invite-code',
-              settings: settings,
-            ),
-            const SizedBox(height: DVStudioStyle.space3),
-            _buildSocialInput(
-              icon: Icons.smart_display_outlined,
-              networkKey: 'youtube',
-              label: 'YouTube Channel',
-              placeholder: 'https://youtube.com/@mychannel',
-              settings: settings,
+            if (_socialRows.isEmpty)
+              const Text(
+                'No social links yet.',
+                style: TextStyle(fontSize: 12, color: DVStudioStyle.muted),
+              ),
+            for (final _SocialRow row in _socialRows) ...<Widget>[
+              _buildSocialRow(row),
+              const SizedBox(height: DVStudioStyle.space2),
+            ],
+            const SizedBox(height: DVStudioStyle.space1),
+            Align(
+              alignment: .centerLeft,
+              child: DVStudioControl(
+                label: 'Add social link',
+                enabled: true,
+                icon: DVStudioIcons.add,
+                onTap: () => setState(() {
+                  _socialRows = <_SocialRow>[
+                    ..._socialRows,
+                    _SocialRow(_nextSocialRow++, '', ''),
+                  ];
+                }),
+              ),
             ),
           ],
         ),
@@ -842,46 +852,68 @@ class _DVStudioSettingsSectionState extends State<DVStudioSettingsSection> {
     );
   }
 
-  Widget _buildSocialInput({
-    required IconData icon,
-    required String networkKey,
-    required String label,
-    required String placeholder,
-    required DVStudioSettings settings,
-  }) {
-    final String currentVal = settings.socialLinks[networkKey] ?? '';
+  Widget _buildSocialRow(_SocialRow row) {
+    final String name = row.label.trim().isEmpty ? 'this link' : row.label.trim();
+    final bool duplicate = row.label.trim().isNotEmpty &&
+        _socialRows
+                .where((_SocialRow r) => r.label.trim() == row.label.trim())
+                .length >
+            1;
     return Column(
-      crossAxisAlignment: .start,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Row(
           children: <Widget>[
-            Icon(icon, size: 14, color: DVStudioStyle.muted),
-            const SizedBox(width: DVStudioStyle.space1),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: DVStudioStyle.ink,
+            Expanded(
+              flex: 2,
+              child: DVStudioTextInput(
+                key: ValueKey<String>('dv-studio-social-label-${row.id}'),
+                value: row.label,
+                placeholder: 'Label, e.g. Instagram',
+                semanticLabel: 'Social link label',
+                onChanged: (String v) {
+                  row.label = v;
+                  _writeSocialRows();
+                },
               ),
+            ),
+            const SizedBox(width: DVStudioStyle.space2),
+            Expanded(
+              flex: 3,
+              child: DVStudioTextInput(
+                key: ValueKey<String>('dv-studio-social-url-${row.id}'),
+                value: row.url,
+                placeholder: 'https://…',
+                icon: DVStudioIcons.link,
+                semanticLabel: 'Address of $name',
+                onChanged: (String v) {
+                  row.url = v;
+                  _writeSocialRows();
+                },
+              ),
+            ),
+            const SizedBox(width: DVStudioStyle.space1),
+            DVStudioIconButton(
+              icon: DVStudioIcons.delete,
+              tooltip: 'Remove $name',
+              onTap: () {
+                _socialRows = <_SocialRow>[
+                  for (final _SocialRow r in _socialRows)
+                    if (r.id != row.id) r,
+                ];
+                _writeSocialRows();
+              },
             ),
           ],
         ),
-        const SizedBox(height: DVStudioStyle.space1),
-        DVStudioTextInput(
-          value: currentVal,
-          placeholder: placeholder,
-          onChanged: (String v) {
-            final Map<String, String> updatedSocial =
-                Map<String, String>.from(settings.socialLinks);
-            if (v.trim().isEmpty) {
-              updatedSocial.remove(networkKey);
-            } else {
-              updatedSocial[networkKey] = v.trim();
-            }
-            _updateWorking((s) => s.copyWith(socialLinks: updatedSocial));
-          },
-        ),
+        if (duplicate)
+          const Padding(
+            padding: .only(top: 4),
+            child: Text(
+              'Another link has this label; only one of them is kept.',
+              style: TextStyle(fontSize: 11, color: DVStudioStyle.danger),
+            ),
+          ),
       ],
     );
   }
@@ -976,4 +1008,14 @@ class _DVStudioSettingsSectionState extends State<DVStudioSettingsSection> {
       ],
     );
   }
+}
+
+/// One social link being edited: a label of the project's choosing and its
+/// address.
+class _SocialRow {
+  _SocialRow(this.id, this.label, this.url);
+
+  final int id;
+  String label;
+  String url;
 }

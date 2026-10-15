@@ -30,6 +30,35 @@ Future<String> _text(Response response) async =>
 Future<Map<String, Object?>> _json(Response response) async =>
     (jsonDecode(await _text(response)) as Map).cast<String, Object?>();
 
+/// The forms a project made for itself, through the API. These tests used to
+/// lean on a "Contact Form" and a "Newsletter Signup" every project was
+/// seeded with; that seeding was the defect (a project starts with none of
+/// anybody else's forms), so each test now makes the forms it uses.
+Future<void> _makeForms(DVStudioApi api) async {
+  for (final Map<String, Object?> form in <Map<String, Object?>>[
+    <String, Object?>{
+      'id': 'contact',
+      'name': 'Contact Form',
+      'fields': <Map<String, Object?>>[
+        <String, Object?>{'id': 'name', 'label': 'Your Name', 'type': 'text', 'required': true},
+        <String, Object?>{'id': 'email', 'label': 'Email Address', 'type': 'email', 'required': true},
+        <String, Object?>{'id': 'message', 'label': 'Message', 'type': 'textarea', 'required': true},
+      ],
+    },
+    <String, Object?>{
+      'id': 'newsletter',
+      'name': 'Newsletter Signup',
+      'fields': <Map<String, Object?>>[
+        <String, Object?>{'id': 'email', 'label': 'Email Address', 'type': 'email', 'required': true},
+      ],
+    },
+  ]) {
+    final Response response =
+        await api.respond(_request('POST', 'api/forms', body: form), 'forms');
+    expect(response.status, 200);
+  }
+}
+
 void main() {
   group('DVStudioFormField, DVStudioForm & DVStudioFormSubmission models', () {
     test('serializes and deserializes form and field cleanly', () {
@@ -107,20 +136,6 @@ void main() {
       expect(restored.ipAddress, '192.168.1.1');
     });
 
-    test('default forms provide contact and newsletter forms', () {
-      final List<DVStudioForm> defaults = dvStudioDefaultForms();
-      expect(defaults.length, greaterThanOrEqualTo(2));
-      final DVStudioForm contact =
-          defaults.firstWhere((DVStudioForm f) => f.id == 'contact');
-      expect(contact.name, 'Contact Form');
-      expect(contact.fields, isNotEmpty);
-      expect(contact.fields.any((DVStudioFormField f) => f.id == 'email'), isTrue);
-
-      final DVStudioForm newsletter =
-          defaults.firstWhere((DVStudioForm f) => f.id == 'newsletter');
-      expect(newsletter.name, 'Newsletter Signup');
-      expect(newsletter.fields.first.id, 'email');
-    });
   });
 
   group('DVStudioApi forms CRUD endpoints', () {
@@ -132,17 +147,23 @@ void main() {
       api = DVStudioApi(database: database);
     });
 
-    test('GET api/forms returns default forms', () async {
+    // This used to assert that a new project lists two seeded forms. A new
+    // project has none; it lists the forms it made, from the database.
+    test('GET api/forms lists no form until the project makes one', () async {
+      final Response empty =
+          await api.respond(_request('GET', 'api/forms'), 'forms');
+      expect(empty.status, 200);
+      expect((await _json(empty))['forms'], isEmpty);
+
+      await _makeForms(api);
       final Response response =
           await api.respond(_request('GET', 'api/forms'), 'forms');
-      expect(response.status, 200);
-      final Map<String, Object?> body = await _json(response);
-      expect(body['forms'], isA<List>());
-      final List<Object?> forms = body['forms']! as List;
-      expect(forms.length, greaterThanOrEqualTo(2));
+      final List<Object?> forms = (await _json(response))['forms']! as List;
+      expect(forms, hasLength(2));
     });
 
     test('GET api/forms with id returns single form', () async {
+      await _makeForms(api);
       final Response response = await api.respond(
         _request('GET', 'api/forms?id=contact'),
         'forms',
@@ -155,6 +176,7 @@ void main() {
     });
 
     test('GET api/forms with path id returns single form', () async {
+      await _makeForms(api);
       final Response response = await api.respond(
         _request('GET', 'api/forms/contact'),
         'forms/contact',
@@ -204,6 +226,7 @@ void main() {
     });
 
     test('DELETE api/forms deletes form and cascades submissions', () async {
+      await _makeForms(api);
       final Response deleteResponse = await api.respond(
         _request('DELETE', 'api/forms/contact'),
         'forms/contact',
@@ -225,9 +248,10 @@ void main() {
     late MemoryDVDatabaseAdapter database;
     late DVStudioApi api;
 
-    setUp(() {
+    setUp(() async {
       database = MemoryDVDatabaseAdapter();
       api = DVStudioApi(database: database);
+      await _makeForms(api);
     });
 
     test('POST api/forms/submit without CSRF token successfully accepts submission', () async {
@@ -260,6 +284,22 @@ void main() {
       );
       final Map<String, Object?> formBody = await _json(formResponse);
       expect(formBody['submissionsCount'], 1);
+    });
+
+    test('a submission with no database to keep it is refused, not accepted',
+        () async {
+      final Response response = await DVStudioApi().respond(
+        _request(
+          'POST',
+          'api/forms/contact/submit',
+          csrf: false,
+          body: <String, Object?>{
+            'data': <String, Object?>{'email': 'user@example.com'},
+          },
+        ),
+        'forms/contact/submit',
+      );
+      expect(response.status, 503);
     });
 
     test('POST api/forms/:id/submit validates required fields', () async {
