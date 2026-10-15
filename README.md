@@ -146,6 +146,7 @@ explains one.
 dartvel create my_app              # alias: new
 dartvel init                       # add Dartvel to an existing Flutter project
 dartvel doctor
+`dartvel doctor --conventions`        # check DV-CONV-0xx convention rules
 dartvel doctor --target tizen      # check one target's toolchain
 
 # Develop: generation, hot reload, backend, native runtime, device pairing
@@ -1416,3 +1417,10 @@ applying that project plan remains manual. For a pub installation, use
 `dart pub global activate dartvel_cli`. See [CLI upgrade](docs/cli-upgrade.md).
 
 Prebuilt authentication pages and generated data-model forms share keyboard, pending-save and theme behavior. See [auth and form UX](docs/auth-forms-ux.md) for branding options, the custom panel slot, and current server-rendering limitations.
+
+Application entry is `void main(List<String> args) => DV.run(args);`, importing the generated client.
+Pure Dartvel apps use the generated themed root and `pages/index.dart`. Startup
+functions use `@DVBoot()`; `@DVAppRoot()` is optional for an existing Flutter host.
+Backend function callers pass typed arguments and receive generated data models;
+serialization belongs to generation. Page and backend middleware is the
+annotation's `middleware: [...]` field.

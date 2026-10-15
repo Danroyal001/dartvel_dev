@@ -135,38 +135,24 @@ PUBLIC_GREETING=Hello from Dartvel!
 # API_KEY=your-secret-key
 ''';
 
+  /// `/`: the root route is `lib/pages/index.dart`.
   static const String indexPageTemplate =
-      '''import 'package:flutter/material.dart';
+      '''import 'package:flutter/widgets.dart';
 import '../dartvel_client/dartvel_client.dart';
 
-@DVPage(
-  title: 'Dartvel',
-  showAppBar: true,
-  centerTitle: true,
-)
-@pragma('vm:entry-point')
-Widget _indexPage(BuildContext context) => buildIndexPage(context);
-
-Widget buildIndexPage(BuildContext context) {
-  final loadedAt = DateTime.now().toIso8601String();
-
-  return DVBox.list([
+@DVPage(title: 'Dartvel', showAppBar: true, centerTitle: true)
+Widget _indexPage(BuildContext context) => DVBox.list([
       const DVText('Welcome to Dartvel'),
       const DVText('DARTVEL').modifier(
-        DVModifier().fontSize(28).fontWeight(.w800),
+        const DVModifier().fontSize(28).fontWeight(.w800),
       ),
       const DVText('Your Dartvel app is ready!').modifier(
-        DVModifier().color(Color(0xFF111827)).padding(8),
+        const DVModifier().padding(8),
       ),
-      DVText('Loaded at: \$loadedAt'),
-      DVBox.wrapLine([
-        const DVText('Docs').modifier(DVModifier().padding(12).rounded(8)),
-        const DVText('GitHub').modifier(DVModifier().padding(12).rounded(8)),
-      ], spacing: 12),
+      DVText('Loaded at: \${DateTime.now().toIso8601String()}'),
     ]).modifier(
       const DVModifier().padding(24).align(.center),
     );
-}
 ''';
 
   /// The page shown while a page's data loads.
@@ -221,76 +207,39 @@ Widget ${_inputName(className)}(BuildContext context) => DVBox.list(<Widget>[
 import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction()
-Map<String, Object?> _health() => <String, Object?>{
-      'status': 'ok',
-      'timestamp': DateTime.now().toIso8601String(),
-    };
+String _health() => 'ok';
 ''';
 
+  // Typed in and typed out: the client calls `contact(name: ..., email: ...,
+  // message: ...)` and gets a String back. The wire format is the framework's.
   static const String contactFormTemplate =
       '''// POST /api/contact (filename without method = POST by default)
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction()
-Future<Map<String, Object?>> _contact(
+Future<String> _contact(
     {required String name, required String email, required String message}) async {
-  // Validate inputs
   if (name.isEmpty || email.isEmpty || message.isEmpty) {
-    throw Exception('All fields are required');
+    throw ArgumentError('All fields are required');
   }
-
   if (!email.contains('@')) {
-    throw Exception('Invalid email address');
+    throw ArgumentError.value(email, 'email', 'Invalid email address');
   }
-
-  final submission = {
-    'name': name,
-    'email': email,
-    'message': message,
-    'receivedAt': DateTime.now().toIso8601String(),
-  };
-  final inbox = File('storage/contact_submissions.jsonl');
-  inbox.parent.createSync(recursive: true);
-  inbox.writeAsStringSync('\${jsonEncode(submission)}\\n',
-      mode: FileMode.append, flush: true);
-
-  return {
-    'success': true,
-    'message': 'Thank you for contacting us!',
-  };
+  // To keep what people send, declare a data model in lib/models and save
+  // it here; to be told, send it with DV.Notifications.mail.
+  return 'Thank you for contacting us, \$name!';
 }
 ''';
 
-  static const String mainTemplate = '''import 'package:flutter/material.dart';
-import 'dartvel_client/dartvel_client.dart';
+  static const String mainTemplate = '''import 'dartvel_client/dartvel_client.dart';
 
-void main(List<String> arguments) async {
-  // Where this launch renders: nothing to decide unless the build opted into
-  // the terminal, in which case a launch with no display may leave for it.
-  await negotiateDartvelLaunch(arguments);
-  runApp(createDartvelApp(arguments: arguments));
-}
-
-// The arguments are what a file association, an app link or a second
-// launch hands a desktop application; the router opens them.
-Widget createDartvelApp({List<String> arguments = const <String>[]}) {
-  return MaterialApp.router(
-    title: 'Dartvel App',
-    theme: dartvelDefaultTheme(.light),
-    darkTheme: dartvelDefaultTheme(.dark),
-    themeMode: .system,
-    routerConfig: createDartvelRouter(arguments: arguments),
-  );
-}
+void main(List<String> args) => DV.run(args);
 ''';
 
   static String widgetTestTemplate(String projectName) =>
       '''import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:$projectName/main.dart';
+import 'package:$projectName/dartvel_client/dartvel_client.dart';
 
 void main() {
   testWidgets('Dartvel application starts', (WidgetTester tester) async {

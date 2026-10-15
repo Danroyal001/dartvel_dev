@@ -6,6 +6,7 @@ import 'package:dartvel_core/dartvel.dart' show DVKioskTarget;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../analysis/conventions_check.dart';
 import '../analysis/tooltip_lint.dart';
 import '../build/deep_link_files.dart';
 import '../build/build_target.dart';
@@ -58,6 +59,12 @@ class DoctorCommand extends Command<void> {
           'Verify every module pin (digest, signing key, publisher, '
           'version) and compare what each module uses against what this '
           'application grants.',
+    );
+    argParser.addFlag(
+      'conventions',
+      negatable: false,
+      help:
+          'Check application source against Dartvel conventions (DV-CONV-0xx rules).',
     );
     argParser.addMultiOption(
       'target',
@@ -152,6 +159,24 @@ class DoctorCommand extends Command<void> {
       Logger.log(
         '    Run this command in a project directory for additional checks',
       );
+    }
+
+    if (argResults?['conventions'] == true) {
+      Logger.log('\n--------------------------------------------------');
+      Logger.log('Conventions Check');
+      Logger.log('--------------------------------------------------\n');
+      final cwd = root ?? Directory.current.path;
+      final findings = dvScanProjectForConventions(cwd);
+      if (findings.isEmpty) {
+        Logger.log('[+] All convention checks passed.');
+      } else {
+        Logger.log('[!] ${findings.length} convention finding(s):');
+        for (final f in findings) {
+          Logger.log('    $f');
+        }
+        exitCode = 1;
+      }
+      return;
     }
 
     Logger.log('');

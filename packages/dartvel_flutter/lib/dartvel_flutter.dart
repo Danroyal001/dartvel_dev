@@ -288,6 +288,10 @@ export 'package:dartvel_core/dartvel.dart'
         SqliteDVDatabaseAdapter,
         // Lifecycle
         DVAppLifecycle,
+        DVEntry,
+        DVEntryKind,
+        DVBoot,
+        DVAppRoot,
         DVPageLifecycle,
         DVModuleLifecycle,
         DVRequestLifecycle,
@@ -801,6 +805,7 @@ export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
 export 'src/kiosk/session_clear.dart';
 export 'src/lifecycle/app_lifecycle_bridge.dart';
+export 'src/run/application.dart' show DVAppParts, dvRunApplication, dvResetApplicationEntryForTest;
 export 'src/logging/logging.dart';
 // The renderer behind DVBox.image is not a second image widget, so it is
 // not exported; what the site build needs from it is.
@@ -9990,10 +9995,9 @@ class DVObservabilityAndLogging {
 }
 
 class DV {
-  /// Boots the Dartvel application [app], serving as the framework's canonical
-  /// entry point instead of calling Flutter's `runApp` directly.
-  static void run(Widget app) {
-    runApp(app);
+  /// Generated application entry. Import the generated client barrel.
+  static Future<void> run([List<String> args = const []]) async {
+    throw StateError('DV.run requires the generated dartvel_client barrel. Run dartvel routes and import dartvel_client/dartvel_client.dart.');
   }
 
   static final _globals = <_DVGlobalKey, Object>{};

@@ -32,9 +32,13 @@
     {
       "section": "Application Entry",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": [],
-      "absent": "Approved 12 October 2026; nothing of the new design is built. Planned: DV.run(args) replacing DV.run(Widget) (breaking, alpha), DVEntry, the boot sequence driving DV.lifecycle.app, @DVBoot, @DVAppRoot with DVAppParts, generated entry points (home widget, background, push, worker, embedded), the backend DV facade in dartvel_core, the single-instance check in the generated native runner, the boot-failure page, DV-RUN-001..008, dartvel migrate-code's runApp rewrite. Microcontrollers: firmware is Rust with LVGL and board bindings; the first release of the paid mcu target (private package) emitted C and is being moved to Rust."
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/application_entry_generation_test.dart",
+        "packages/dartvel_flutter/test/application_entry_test.dart",
+        "packages/dartvel_core/lib/src/run/entry.dart"
+      ],
+      "absent": "Flutter app entry is generated: DV.run accepts optional command-line arguments, a default themed root, private boot hooks in stable order, and an optional host root using DVAppParts.router. The current future completes after boot, not shutdown. Still absent: backend and headless entry wiring, native single-instance check, full DVAppParts builder/locale/delegate configuration, boot budgets and the remaining DV-RUN diagnostics, migration rewrite, generated shutdown/drain, all proposal phases outside the Flutter app entry."
     },
     {
       "section": "Configuration",

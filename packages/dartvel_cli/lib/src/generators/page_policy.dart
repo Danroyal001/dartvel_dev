@@ -27,7 +27,9 @@ import 'annotation_args.dart';
 /// The value is emitted into generated source. Anything else either fails to
 /// compile -- which at least fails loudly -- or compiles into something
 /// nobody wrote, which does not.
-final RegExp _reference = RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$');
+final RegExp _reference = RegExp(
+  r'^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$',
+);
 
 /// The redirect body for a page that declares [policy], or empty.
 ///
@@ -90,13 +92,18 @@ String dvPageMfaGuard(String? mfa) {
   if (mfa == 'DVMfa.required') {
     call = 'DVPageMfa.required(context, state)';
   } else {
-    final RegExpMatch? recent =
-        RegExp(r'^DVMfa\.recent\(Duration\(milliseconds: (\d+)\)\)$')
-            .firstMatch(mfa);
+    final RegExpMatch? recent = RegExp(
+      r'^DVMfa\.recent\(Duration\(milliseconds: (\d+)\)\)$',
+    ).firstMatch(mfa);
     if (recent == null) {
-      throw ArgumentError.value(mfa, 'mfa', 'is not what dvMfaFromSource reads');
+      throw ArgumentError.value(
+        mfa,
+        'mfa',
+        'is not what dvMfaFromSource reads',
+      );
     }
-    call = 'DVPageMfa.recent(context, state, '
+    call =
+        'DVPageMfa.recent(context, state, '
         'const Duration(milliseconds: ${recent.group(1)}))';
   }
   return '''
@@ -140,8 +147,10 @@ String dvPageGuardChain({
     ..writeln('      redirect: (context, state) async {');
   if (middlewareGuard.isNotEmpty) out.writeln(middlewareGuard);
   for (final String guard in directoryGuards) {
-    out.writeln('        { final r = await $guard.guard(context, state); '
-        'if (r != null) return r; }');
+    out.writeln(
+      '        { final r = await $guard.guard(context, state); '
+      'if (r != null) return r; }',
+    );
   }
   // The second factor before the policy, as the backend orders them: how
   // much the session proves is settled before what the caller may do.
@@ -191,8 +200,8 @@ String? dvPagePolicyFromSource(String source) {
 String? dvBackendPolicyFromSource(String source) {
   final String? args = dvAnnotationArgs(source, 'DVBackendFunction');
   if (args == null) return null;
-  final RegExpMatch? quoted =
-      RegExp(r'''policy\s*:\s*(['"])(.*?)\1''').firstMatch(args);
+  final RegExpMatch? quoted = RegExp(r'''policy\s*:\s*(['"])(.*?)\1''')
+      .firstMatch(args);
   if (quoted != null) {
     final String literal = quoted.group(2)!;
     if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*(?:[.:][A-Za-z_][A-Za-z0-9_]*)*$')
@@ -236,8 +245,10 @@ String? dvMfaFromSource(
   if (args == null) return null;
   String? value;
   for (final String argument in dvSplitArgs(args)) {
-    final RegExpMatch? named =
-        RegExp(r'^\s*mfa\s*:\s*(.*?)\s*$', dotAll: true).firstMatch(argument);
+    final RegExpMatch? named = RegExp(
+      r'^\s*mfa\s*:\s*(.*?)\s*$',
+      dotAll: true,
+    ).firstMatch(argument);
     if (named != null) value = named.group(1);
   }
   if (value == null) return null;
@@ -263,8 +274,8 @@ String? dvMfaFromSource(
     bool readable = true;
     for (final String part in recent.group(1)!.split(',')) {
       if (part.trim().isEmpty) continue;
-      final RegExpMatch? field =
-          RegExp(r'^\s*([a-z]+)\s*:\s*(\d+)\s*$').firstMatch(part);
+      final RegExpMatch? field = RegExp(r'^\s*([a-z]+)\s*:\s*(\d+)\s*$')
+          .firstMatch(part);
       final int? scale = field == null ? null : unit[field.group(1)];
       if (field == null || scale == null) {
         readable = false;
@@ -314,8 +325,8 @@ String? dvMfaFromSource(
 bool dvBackendPolicyIsAction(String source) {
   final String? args = dvAnnotationArgs(source, 'DVBackendFunction');
   if (args == null) return false;
-  final RegExpMatch? quoted =
-      RegExp(r'''policy\s*:\s*(['"])(.*?)\1''').firstMatch(args);
+  final RegExpMatch? quoted = RegExp(r'''policy\s*:\s*(['"])(.*?)\1''')
+      .firstMatch(args);
   if (quoted == null) return false;
   return RegExp(r'^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$')
       .hasMatch(quoted.group(2)!);
@@ -339,14 +350,56 @@ bool dvMiddlewareDeclaresPage(String source, int start, int end) {
   return RegExp(r'@DVPage\b').hasMatch(source.substring(back, forward));
 }
 
-List<String> dvMiddlewareKeysFromSource(String source) {
-  final RegExpMatch? annotation = RegExp(
+/// Annotation-scoped middleware lists, including the deprecated alias.
+List<({int start, int end, String body, bool isPage})> dvMiddlewareDeclarations(
+  String source,
+) {
+  final result = <({int start, int end, String body, bool isPage})>[];
+  for (final match in RegExp(
+    r'@(?:DVPage|DVBackendFunction)\b',
+  ).allMatches(source)) {
+    final name = match.group(0)!.substring(1);
+    final args = dvAnnotationArgs(source.substring(match.start), name);
+    if (args == null) continue;
+    for (final arg in dvSplitArgs(args)) {
+      final field = RegExp(r'^middleware\s*:\s*').firstMatch(arg);
+      if (field == null) continue;
+      final value = arg.substring(field.end).trim();
+      final list = RegExp(
+        r'^(?:const\s+)?(?:<\s*DVMiddlewareKey\s*>\s*)?\[([\s\S]*)\]$',
+      ).firstMatch(value);
+      if (list == null)
+        throw StateError(
+          'dartvel: middleware: requires a literal list of DVMiddlewares constants.',
+        );
+      result.add((
+        start: match.start,
+        end: match.end,
+        body: list.group(1)!,
+        isPage: name == 'DVPage',
+      ));
+    }
+  }
+  for (final match in RegExp(
     r'@DVUseMiddleware\s*\(\s*(?:const\s+)?(?:<\s*DVMiddlewareKey\s*>\s*)?\[(.*?)\]\s*\)',
     dotAll: true,
-  ).firstMatch(source);
-  if (annotation == null) return const <String>[];
+  ).allMatches(source)) {
+    result.add((
+      start: match.start,
+      end: match.end,
+      body: match.group(1)!,
+      isPage: dvMiddlewareDeclaresPage(source, match.start, match.end),
+    ));
+  }
+  result.sort((a, b) => a.start.compareTo(b.start));
+  return result;
+}
+
+List<String> dvMiddlewareKeysFromSource(String source) {
+  final declarations = dvMiddlewareDeclarations(source);
+  if (declarations.isEmpty) return const <String>[];
   return RegExp(r'DVMiddlewares\.([A-Za-z_][A-Za-z0-9_]*)')
-      .allMatches(annotation.group(1) ?? '')
-      .map((RegExpMatch m) => m.group(1)!)
+      .allMatches(declarations.first.body)
+      .map((m) => m.group(1)!)
       .toList(growable: false);
 }

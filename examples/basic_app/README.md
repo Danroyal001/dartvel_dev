@@ -4,7 +4,7 @@ A simple example demonstrating the core features of the Dartvel framework.
 
 ## Features Demonstrated
 
-- **File-based Routing**: Page in `lib/pages/index.page.dart` auto-routes to `/`
+- **File-based Routing**: Page in `lib/pages/index.dart` auto-routes to `/`
 - **Data Loading**: Using `DartvelPage.loadData()` for async data fetching
 - **Generated Client**: `dartvel routes` writes the whole client -- the barrel, the router, each page's body, widgets, models and function clients
 - **Web Build**: Production builds with `dartvel build web`
@@ -55,7 +55,7 @@ dartvel dev --release
 ```
 lib/
 ├── pages/
-│   ├── index.page.dart       # Main page (routes to /)
+│   ├── index.dart       # Main page (routes to /)
 │   ├── index.loading.dart    # Loading state for index
 │   └── index.error.dart      # Error state for index
 ├── backend/

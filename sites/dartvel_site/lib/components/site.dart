@@ -86,8 +86,8 @@ const String kDartvelVersion = '0.12.2';
 /// only as a design, held to docs/spec-status.json by
 /// test/docs_version_test.dart.
 const int kSpecShipped = 24;
-const int kSpecPartial = 79;
-const int kSpecDesigned = 3;
+const int kSpecPartial = 80;
+const int kSpecDesigned = 2;
 
 /// The sizes the site sets type at, and the only ones it may.
 ///

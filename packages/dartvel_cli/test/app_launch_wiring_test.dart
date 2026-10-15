@@ -119,8 +119,9 @@ void main() {
   });
 
   test("the project template's main passes its arguments on", () {
-    expect(ProjectTemplates.mainTemplate, contains('void main(List<String> arguments)'));
-    expect(ProjectTemplates.mainTemplate, contains('createDartvelApp(arguments: arguments)'));
-    expect(ProjectTemplates.mainTemplate, contains('createDartvelRouter(arguments: arguments)'));
+    expect(ProjectTemplates.mainTemplate, contains('void main(List<String> args)'));
+    // The template is DV.run alone; the generated entry hands the arguments
+    // to the router and the app.
+    expect(ProjectTemplates.mainTemplate, contains('DV.run(args)'));
   });
 }

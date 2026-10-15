@@ -112,7 +112,9 @@ No signal folders.
 
 # Application Entry
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
+
+The generated Flutter application entry, boot hooks and optional Flutter host root are built. Server/headless entries and the complete shutdown sequence remain designed.
 
 Every Dartvel process starts in one function:
 
@@ -278,7 +280,7 @@ void _registerClock(DVBoot boot) => DV.global<Clock>(SystemClock());
 Dartvel builds the root itself: a `MaterialApp.router` over the generated
 router, with the theme from *Theme* tokens (`dartvelDefaultTheme` until tokens
 are declared), the locale from `DV.I18n`, and the title from `dartvel.pwa.name`.
-An application that wants its own declares it once:
+Pure Dartvel apps omit `@DVAppRoot`. The annotation is optional and exists for an existing Flutter application bundling its MaterialApp, CupertinoApp or WidgetsApp. Such a host declares it once:
 
 ```dart
 @DVAppRoot()
@@ -2672,12 +2674,10 @@ Stability: `Contract` · Status: `Partial`
 Dartvel supports middleware for both pages and backend functions.
 
 ```dart
-@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.tenant, DVMiddlewares.rateLimitCheckout])
-@DVPage()
+@DVPage(middleware: [DVMiddlewares.auth, DVMiddlewares.maintenance])
 Widget _checkoutPage(BuildContext context) => Checkout.Page();
 
-@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.csrf, DVMiddlewares.idempotency])
-@DVBackendFunction()
+@DVBackendFunction(middleware: [DVMiddlewares.auth, DVMiddlewares.csrf, DVMiddlewares.rateLimit])
 Future<Order> _createOrder(CreateOrderInput input) async => Order.create(input);
 ```
 

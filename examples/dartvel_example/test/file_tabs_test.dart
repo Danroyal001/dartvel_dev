@@ -5,7 +5,7 @@
 // own stack and its state, and back -- the iOS edge swipe and the Android
 // button -- pops inside the tab on screen before anything else.
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
-import 'package:dartvel_example/main.dart';
+import 'package:dartvel_example/boot.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

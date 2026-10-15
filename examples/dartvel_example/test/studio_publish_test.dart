@@ -7,7 +7,7 @@
 // generated router repeatedly in one isolate is unreliable, so the wiring is
 // integration-tested once here and the logic is unit-tested there.
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
-import 'package:dartvel_example/main.dart';
+import 'package:dartvel_example/boot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

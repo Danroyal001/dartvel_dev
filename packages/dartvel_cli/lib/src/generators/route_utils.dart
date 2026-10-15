@@ -151,7 +151,8 @@ class RouteUtils {
     return names.map((n) => 'required String $n').join(', ');
   }
 
-  static String coerce(String name, String type) {
+  static String coerce(String name, String type,
+      {Iterable<String> declaredModels = const <String>[]}) {
     final src =
         "(req.params['$name'] ?? req.url.queryParameters['$name'] ?? ((body is Map) ? (body['$name']) : null))";
     final t = type.replaceAll('?', '').trim();
@@ -169,6 +170,19 @@ class RouteUtils {
     }
     if (t.startsWith('List<String>')) {
       return '((){ final v = $src; if (v is List) return v.map((e)=>e.toString()).toList(); final s = (v)?.toString() ?? ""; if (s.isEmpty) return <String>[]; return s.contains("/") ? s.split("/") : s.split(","); }())';
+    }
+    if (declaredModels.contains(t)) {
+      final isNullable = type.contains('?');
+      if (isNullable) {
+        return '((){ final m = ((body is Map) ? (body["$name"] is Map ? Map<String, Object?>.from(body["$name"] as Map) : Map<String, Object?>.from(body)) : null); return m == null ? null : ${t}Parser.fromJson(m); }())';
+      }
+      return '((){ final m = ((body is Map) ? (body["$name"] is Map ? Map<String, Object?>.from(body["$name"] as Map) : Map<String, Object?>.from(body)) : null); return ${t}Parser.fromJson(m ?? const <String, Object?>{}); }())';
+    }
+    if (t.startsWith('List<') && t.endsWith('>')) {
+      final inner = t.substring(5, t.length - 1).replaceAll('?', '').trim();
+      if (declaredModels.contains(inner)) {
+        return '((body is Map && body["$name"] is List) ? (body["$name"] as List) : (body is List ? body : const [])).map((e) => ${inner}Parser.fromJson(Map<String, Object?>.from(e as Map))).toList()';
+      }
     }
     if (t.endsWith('Request') || t.endsWith('RequestType')) return 'req';
     return src; // fallback

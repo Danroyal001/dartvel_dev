@@ -42,6 +42,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'One package with every import'),
   SpecCoverage('Dev Client', 'Getting started', DVRoutes.docsdevclient,
       'Pair it with `dartvel dev`', anchor: 'pair'),
+  SpecCoverage('Application Entry', 'Getting started', DVRoutes.docs,
+      'Choose your services at startup', anchor: 'services'),
 
   SpecCoverage('The Golden Path', 'Getting started', DVRoutes.docs,
       'Go from idea to production with one CLI', anchor: 'golden-path'),

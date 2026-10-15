@@ -21,6 +21,7 @@ import 'package:dartvel_core/dartvel.dart'
 
 import '../build/runtime_packages.dart';
 import 'assets_generator.dart';
+import '../analysis/dart_source_lexer.dart';
 import 'account_generator.dart';
 import 'config_routes.dart';
 import 'annotation_args.dart';
@@ -620,6 +621,7 @@ class ClientGenerator {
     }
     // Public generated client barrel. Apps import this single file instead of
     // reaching into generated siblings.
+    _generateApplicationEntry(root: root, pkgName: pkgName, title: seoSiteName);
     final clientFile = File(p.join(libClientDir.path, 'dartvel_client.dart'));
     // The generator's version is recorded here and nowhere else, so an
     // upgrade is one line of diff rather than a header change in every file.
@@ -649,7 +651,8 @@ export 'package:dartvel_core/dartvel.dart'
         DVRedisConnect,
         DVRedisConnection,
         DVRedisException${modelNames.map((String n) => ",\n        $n").join()};
-export 'package:dartvel_flutter/dartvel_flutter.dart'$hideModels;
+export 'package:dartvel_flutter/dartvel_flutter.dart' hide DV${hideModels.isEmpty ? '' : ', ' + hideModels.substring(6)};
+export 'application.g.dart';
 export 'account.g.dart';
 export 'assets.g.dart';
 export 'config.g.dart';
@@ -3975,7 +3978,9 @@ void startDartvelKiosk() {
     final imports = <String>{
       "import 'dart:async';",
       "import 'package:flutter/material.dart'$hideModels;",
-      "import 'package:dartvel_flutter/dartvel_flutter.dart'$hideModels;",
+      // DV hidden: the copied source imports bring it, the barrel's or core's,
+      // exactly as the source file resolved it. Both at once is ambiguous.
+      "import 'package:dartvel_flutter/dartvel_flutter.dart'${_hideWith(hideModels, 'DV')};",
       ...sourceImports,
     };
     final importAliases = <String, String>{};
@@ -4011,6 +4016,150 @@ void startDartvelKiosk() {
     outputFile.writeAsStringSync(buffer.toString());
   }
 
+
+  /// Writes `application.g.dart`: the application root and the `DV` the
+  /// barrel exports, whose `run` boots the process.
+  ///
+  /// `@DVBoot` functions run in path order, then declaration order. An
+  /// `@DVAppRoot` replaces the default `MaterialApp.router` for an existing
+  /// Flutter application that keeps its own root; a pure Dartvel application
+  /// declares none.
+  static void _generateApplicationEntry({required String root, required String pkgName, required String title}) {
+    final imports = <String>{
+      "import 'dart:async';",
+      "import 'package:flutter/material.dart';",
+      "import 'package:dartvel_flutter/dartvel_flutter.dart' hide DV;",
+      "import 'package:dartvel_flutter/dartvel_flutter.dart' as runtime;",
+      "import 'router.g.dart';",
+      "import 'dartvel_runtime.dart' show negotiateDartvelLaunch;",
+      "import 'package:dartvel_core/dartvel.dart' as core;",
+    };
+    final hooks = <String>[];
+    String? appRoot;
+    var declarationIndex = 0;
+    final files = Directory(p.join(root, 'lib')).listSync(recursive: true, followLinks: false)
+        .whereType<File>().where((f) => f.path.endsWith('.dart') && !f.path.contains('${p.separator}dartvel_client${p.separator}'))
+        .toList()..sort((a,b)=>a.path.compareTo(b.path));
+    for (final file in files) {
+      final source = file.readAsStringSync();
+      final rel = p.relative(file.path, from: root).replaceAll('\\', '/');
+      final masked = dvDartSourceView(source).masked;
+      for (final annotation in RegExp(r'@(DVBoot|DVAppRoot)\s*\(').allMatches(masked)) {
+        final kind = annotation.group(1)!;
+        final annotationClose = _matchingParen(source, annotation.end - 1);
+        if (annotationClose < 0) throw StateError('Unclosed @$kind in $rel');
+        final declaration = RegExp(r'^\s*(?:Future<void>|void|Widget)\s+(_[A-Za-z]\w*)\s*\(').firstMatch(source.substring(annotationClose + 1));
+        if (declaration == null) throw StateError('@$kind requires a private function in $rel');
+        final open = annotationClose + 1 + declaration.end - 1;
+        final close = _matchingParen(source, open);
+        final body = dvFunctionBodyAfter(source, close);
+        if (body == null) throw StateError('@$kind requires a function body in $rel');
+        imports.addAll(_importsFor(source, rel, pkgName).where((i) => !i.contains('/dartvel_client.dart') && !i.contains("'dartvel_client/dartvel_client.dart'")));
+        final params = dvSplitArgs(source.substring(open + 1, close));
+        final expression = body.expression;
+        final alias = 'entry${declarationIndex++}';
+        imports.add("import 'package:$pkgName/${rel.substring(4)}' as $alias;");
+        final rawBody = body.isBlock ? body.statements! : (kind == 'DVBoot' ? '$expression;' : 'return $expression;');
+        _refusePrivateReferences(body: rawBody, source: source, rel: rel, pageName: declaration.group(1)!);
+        final rendered = _qualifySourceSymbols(rawBody, alias, _topLevelSourceSymbols(source));
+        if (kind == 'DVBoot') {
+          if (params.length != 1 || !params.first.startsWith('DVBoot ')) throw StateError('@DVBoot takes one DVBoot context in $rel');
+          final name = params.first.split(' ').last;
+          final args = dvAnnotationArgs(source.substring(annotation.start), 'DVBoot')!;
+          final entries = dvSplitArgs(args).where((a)=>a.startsWith('entries:')).toList();
+          final filter = entries.isEmpty ? '' : 'if (!(${entries.first.substring(8)}).contains(DVEntryKind.app)) return;';
+          hooks.add('($name) async { $filter $rendered }');
+        } else {
+          if (appRoot != null) throw StateError('Only one @DVAppRoot is allowed. Duplicate in $rel');
+          if (params.length != 2 || !params[0].startsWith('BuildContext ') || !params[1].startsWith('DVAppParts ')) throw StateError('@DVAppRoot takes BuildContext and DVAppParts in $rel');
+          final context = params[0].split(' ').last;
+          final parts = params[1].split(' ').last;
+          if (!rendered.contains('$parts.router')) throw StateError('DV-RUN-006: @DVAppRoot must use $parts.router ($rel).');
+          appRoot = '(BuildContext $context) { final $parts = DVAppParts(router: router); $rendered }';
+        }
+      }
+    }
+    final out = StringBuffer('// GENERATED – do not edit.\n// ignore_for_file: non_constant_identifier_names, unused_import\n')
+      ..writeln(imports.join('\n'))
+      ..writeln('Widget createDartvelApp({List<String> args = const []}) {')
+      ..writeln('  final router = createDartvelRouter(arguments: args);')
+      ..writeln(appRoot == null ? "  return MaterialApp.router(title: '${esc(title)}', theme: dartvelDefaultTheme(.light), darkTheme: dartvelDefaultTheme(.dark), themeMode: .system, routerConfig: router);" : '  return Builder(builder: $appRoot);')
+      ..writeln('}')
+      ..writeln('abstract final class DV {')
+      ..writeln('  static Future<void> run([List<String> args = const []]) => dvRunApplication(args, root: () => createDartvelApp(args: args), boot: [${hooks.join(',')}], launch: negotiateDartvelLaunch);');
+    // Static members are not inherited in Dart, so the runtime's namespace is
+    // forwarded member by member -- each with its declared type, or
+    // `DV.Auth.signIn(...)` would be a dynamic call that compiles with any
+    // arguments. A test reads the runtime's class and fails on a member
+    // missing here.
+    out
+      ..write(_dvFacadeForwarders)
+      ..writeln('}');
+    File(p.join(root, 'lib/dartvel_client/application.g.dart')).writeAsStringSync(out.toString());
+  }
+
+  /// The runtime `DV`'s public statics, forwarded with their types.
+  static const String _dvFacadeForwarders = r'''
+  static DVTopProgress get progress => runtime.DV.progress;
+  static T global<T>([T? instance, String namespace = '']) => runtime.DV.global<T>(instance, namespace);
+  static DVLifecycleRegistry get lifecycle => runtime.DV.lifecycle;
+  static DVModuleRegistry get Modules => runtime.DV.Modules;
+  static Future<T> transaction<T>(FutureOr<T> Function(DVContext context) body, {bool isolated = false}) => runtime.DV.transaction<T>(body, isolated: isolated);
+  static DVPlatform get Platform => runtime.DV.Platform;
+  static DVNavigation get Navigation => runtime.DV.Navigation;
+  static DVLocation get Location => runtime.DV.Location;
+  static DVBluetooth get Bluetooth => runtime.DV.Bluetooth;
+  static DVNfc get NFC => runtime.DV.NFC;
+  static DVClipboard get Clipboard => runtime.DV.Clipboard;
+  static DVShare get Share => runtime.DV.Share;
+  static DVSensors get Sensors => runtime.DV.Sensors;
+  static DVBiometrics get Biometrics => runtime.DV.Biometrics;
+  static DVDeepLinks get DeepLinking => runtime.DV.DeepLinking;
+  static DVHaptics get Haptics => runtime.DV.Haptics;
+  static DVContacts get Contacts => runtime.DV.Contacts;
+  static DVAuth get Auth => runtime.DV.Auth;
+  static DVSessionSignal get Session => runtime.DV.Session;
+  static core.DVAnalyticsRuntime get Analytics => runtime.DV.Analytics;
+  static core.DVPrivacy get Privacy => runtime.DV.Privacy;
+  static DVTheme get Theme => runtime.DV.Theme;
+  static DVAI get AI => runtime.DV.AI;
+  static DVBilling get Billing => runtime.DV.Billing;
+  static DVPurchases get Purchases => runtime.DV.Purchases;
+  static DVDatabase get DB => runtime.DV.DB;
+  static DVDatabase get Database => runtime.DV.Database;
+  static DVCache get Cache => runtime.DV.Cache;
+  @Deprecated('Use DV.FileStorage. DV.Storage is removed in the next minor.')
+  static DVStorage get Storage => runtime.DV.FileStorage;
+  static DVStorage get FileStorage => runtime.DV.FileStorage;
+  static DVStorage get BlobStorage => runtime.DV.BlobStorage;
+  static DVQueues get Queues => runtime.DV.Queues;
+  static DVQueues get Jobs => runtime.DV.Jobs;
+  static DVWorkers get Workers => runtime.DV.Workers;
+  static DVNotificationsService get Notifications => runtime.DV.Notifications;
+  static DVNotificationsService get notifications => runtime.DV.notifications;
+  static DVUpdates get Updates => runtime.DV.Updates;
+  static DVSecrets get Secrets => runtime.DV.Secrets;
+  static DVMemory get Memory => runtime.DV.Memory;
+  static core.DVHttp get Http => runtime.DV.Http;
+  static core.DVWebhooks get Webhooks => runtime.DV.Webhooks;
+  static DVTestHarness get Test => runtime.DV.Test;
+  static core.DVCSRF get CSRF => runtime.DV.CSRF;
+  static core.DVCSRF get Csrf => runtime.DV.Csrf;
+  static DVI18n get I18n => runtime.DV.I18n;
+  static DVAccessibility get Accessibility => runtime.DV.Accessibility;
+  static DVObservabilityAndLogging get ObservabilityAndLogging => runtime.DV.ObservabilityAndLogging;
+  static DVTenants get Tenants => runtime.DV.Tenants;
+  static DVCrashes get Crashes => runtime.DV.Crashes;
+  static String get currentTenant => runtime.DV.currentTenant;
+  static set currentTenant(String tenant) => runtime.DV.currentTenant = tenant;
+  static R withTenant<R>(String tenant, R Function() callback) => runtime.DV.withTenant<R>(tenant, callback);
+  static void registerRuntime({required String Function() baseUrl, required String Function() apiBasePath, required Uri Function(String path) api}) => runtime.DV.registerRuntime(baseUrl: baseUrl, apiBasePath: apiBasePath, api: api);
+  static String get baseUrl => runtime.DV.baseUrl;
+  static String get apiBasePath => runtime.DV.apiBasePath;
+  static Uri api(String path) => runtime.DV.api(path);
+  static Future<DVShellResult> $(String command, {Map<String, String> environment = const <String, String>{}, String? workingDirectory}) => runtime.DV.$(command, environment: environment, workingDirectory: workingDirectory);
+  static const DVLog log = runtime.DV.log;
+''';
 
   /// Renders one `@DVFunctionalWidget` as a widget class.
   ///
@@ -4464,7 +4613,7 @@ void startDartvelKiosk() {
       // The models' names hidden: the body names the application's Post,
       // and these two are the generator's imports, not the page's.
       "import 'package:flutter/material.dart'$hideModels;",
-      "import 'package:dartvel_flutter/dartvel_flutter.dart'$hideModels;",
+      "import 'package:dartvel_flutter/dartvel_flutter.dart'${_hideWith(hideModels, 'DV')};",
       // _importsFor leaves dart: libraries to its caller, which for the
       // router meant only dart:async. The body was written against the
       // page's own, so it gets those.
@@ -4514,6 +4663,10 @@ $code
       if (uri.startsWith('dart:')) continue;
       if (suffix.contains('deferred')) continue;
 
+      // Every caller already imports dartvel_flutter with DV hidden; a bare
+      // copy of the source's import would name the same URI twice.
+      if (uri == 'package:dartvel_flutter/dartvel_flutter.dart' && suffix.isEmpty) continue;
+
       if (uri.startsWith('package:')) {
         out.add("import '$uri'${suffix.isEmpty ? '' : ' $suffix'};");
         continue;
@@ -4530,6 +4683,10 @@ $code
     }
     return out;
   }
+
+  /// [hide] (a ` hide A, B` clause or empty) with [name] added.
+  static String _hideWith(String hide, String name) =>
+      hide.isEmpty ? ' hide $name' : '$hide, $name';
 
   static String _generatedWidgetName(String functionName) {
     final stripped =
