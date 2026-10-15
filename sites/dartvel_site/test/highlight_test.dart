@@ -78,7 +78,7 @@ void copyButtonTests() {
             child: Padding(
               padding: .symmetric(horizontal: 22),
               child: CodeBlock(<String>[
-                '@DVModel(generatePublicPages: true) and a line long enough '
+                '@DVModel(generatePages: true) and a line long enough '
                     'to reach the right edge of any block on any screen',
                 'class _Post {}',
               ]),

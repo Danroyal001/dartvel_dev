@@ -1,7 +1,7 @@
 /// Which data models get a generated public page, keyed by what, and which
 /// of their fields a page may never show.
 ///
-/// Every model has a page per record unless it says `generatePublicPages:
+/// Every model has a page per record unless it says `generatePages:
 /// false`. The model generator, the static-path manifest and the router each
 /// need the same answer, and three copies of it are three chances to
 /// generate a route for a model whose class has no page to serve.
@@ -30,7 +30,7 @@ class DVPublicPages {
   /// Whether the model gets a page per record.
   final bool generates;
 
-  /// Whether the model wrote `generatePublicPages: true` rather than taking
+  /// Whether the model wrote `generatePages: true` rather than taking
   /// the default. A page that was asked for and cannot be made stops the
   /// build; a default that cannot be made is skipped with [skipped].
   final bool explicit;
@@ -45,7 +45,7 @@ class DVPublicPages {
   final String? publishedField;
 
   /// Why a model that did not opt out gets no page, for the build log. Null
-  /// when it gets one, or said `generatePublicPages: false`.
+  /// when it gets one, or said `generatePages: false`.
   final String? skipped;
 
   /// Fields a page never shows except to a viewer the model's
@@ -72,7 +72,7 @@ class DVPublicPages {
   /// default page whose route one of them already has yields to it, because
   /// the page somebody wrote is the one they meant.
   ///
-  /// Throws [StateError] where `generatePublicPages: true` asked for a page
+  /// Throws [StateError] where `generatePages: true` asked for a page
   /// that cannot be made, or the value is not a literal the generator can
   /// read.
   static DVPublicPages of({
@@ -89,10 +89,10 @@ class DVPublicPages {
           m.group(1)!: part.substring(m.end).trim(),
     };
 
-    final String? declared = named['generatePublicPages'];
+    final String? declared = named['generatePages'];
     if (declared != null && declared != 'true' && declared != 'false') {
       throw StateError(
-        'Dartvel: _$className: generatePublicPages: $declared is not true or '
+        'Dartvel: _$className: generatePages: $declared is not true or '
         'false. Write the literal, which the generator reads.',
       );
     }
@@ -135,14 +135,14 @@ class DVPublicPages {
 
     if (!explicit) {
       final String optIn =
-          'Add generatePublicPages: true to give it one, or '
-          'generatePublicPages: false to say so and silence this.';
+          'Add generatePages: true to give it one, or '
+          'generatePages: false to say so and silence this.';
       if (named['tenantScoped'] == 'true') {
         return none(
           skipped:
               '$className has no public pages: its rows belong to a '
               'tenant, and a public page is rendered with no request to take '
-              'a tenant from. Say generatePublicPages: false to silence this.',
+              'a tenant from. Say generatePages: false to silence this.',
         );
       }
       final String? account = _accountWord(className);
@@ -166,7 +166,7 @@ class DVPublicPages {
     if (keyField == null) {
       if (explicit) {
         throw StateError(
-          '@DVModel(generatePublicPages: true) on _$className requires a '
+          '@DVModel(generatePages: true) on _$className requires a '
           'String slug, id, or other String field so Dartvel can generate a '
           'parameterized public page route.',
         );
@@ -175,7 +175,7 @@ class DVPublicPages {
         skipped:
             '$className has no public pages: it has no String field for '
             'a page\'s route to carry. Add a String slug or id to give it '
-            'one, or say generatePublicPages: false to silence this.',
+            'one, or say generatePages: false to silence this.',
       );
     }
 
@@ -185,7 +185,7 @@ class DVPublicPages {
           : '$keyField names the privacy subject';
       if (explicit) {
         throw StateError(
-          '@DVModel(generatePublicPages: true) on _$className would key its '
+          '@DVModel(generatePages: true) on _$className would key its '
           'pages by $keyField, and $why. A key is in every URL, the sitemap '
           'and the static build. Give the model a String slug or id.',
         );
@@ -194,7 +194,7 @@ class DVPublicPages {
         skipped:
             '$className has no public pages: its key, $why, and a key '
             'is in every URL. Add a String slug or id to give it pages, or '
-            'say generatePublicPages: false to silence this.',
+            'say generatePages: false to silence this.',
       );
     }
 
@@ -209,8 +209,8 @@ class DVPublicPages {
               '$className has no public pages: each record is about a '
               'person (subject: $subject) and has no published or '
               'isPublished flag to say which records they meant to publish. '
-              'Add generatePublicPages: true to give it one, or '
-              'generatePublicPages: false to say so and silence this.',
+              'Add generatePages: true to give it one, or '
+              'generatePages: false to say so and silence this.',
         );
       }
     }
@@ -224,7 +224,7 @@ class DVPublicPages {
           skipped:
               '$className has no generated pages: $route is served by '
               'the application\'s own page at $taken. Say '
-              'generatePublicPages: false to silence this.',
+              'generatePages: false to silence this.',
         );
       }
     }

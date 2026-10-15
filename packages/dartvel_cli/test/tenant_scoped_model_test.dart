@@ -150,7 +150,7 @@ void main() {
         _generate('''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(tenantScoped: true, generatePublicPages: true)
+@DVModel(tenantScoped: true, generatePages: true)
 class _Order {
   final String id;
   final String total;
@@ -164,7 +164,7 @@ class _Order {
             'message',
             allOf(
               contains('tenantScoped'),
-              contains('generatePublicPages'),
+              contains('generatePages'),
               contains('Order'),
             ),
           ),

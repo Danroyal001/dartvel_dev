@@ -28,7 +28,7 @@ import 'package:dartvel_core/dartvel.dart';
   softDelete: true,
   offline: DVConflict.lastWriteWins,
   history: DVHistory(keep: Duration(days: 365)),
-  generatePublicPages: true,
+  generatePages: true,
 )
 class _Article {
   final String slug;

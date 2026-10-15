@@ -5,7 +5,7 @@ import 'package:dartvel_core/dartvel.dart';
 // DV-PRIVACY-002 asks for rather than a retention nobody decided. A user is
 // an account, so it has no public page.
 @DVModel(
-  generatePublicPages: false,
+  generatePages: false,
   subject: DVSubject.self,
   retain: DVRetention.indefinite,
 )

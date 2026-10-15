@@ -690,11 +690,11 @@ class ModelGenerator {
         );
         sb.writeln();
         sb.writeln(
-          '  /// Whether @DVModel(generatePublicPages:) requested public',
+          '  /// Whether @DVModel(generatePages:) requested public',
         );
         sb.writeln('  /// pages and static paths for this model.');
         sb.writeln(
-          '  static const bool generatePublicPages = $generatesPublicPages;',
+          '  static const bool generatePages = $generatesPublicPages;',
         );
         sb.writeln();
         sb.writeln(
@@ -1126,7 +1126,7 @@ class ModelGenerator {
           // never sees it.
           throw StateError(
             'Model $className sets both tenantScoped: true and '
-            'generatePublicPages: true. A public page is rendered with no '
+            'generatePages: true. A public page is rendered with no '
             'request, so there is no current tenant to scope it by, and the '
             'row would be served at a public URL to anybody. Choose one.',
           );
@@ -3537,7 +3537,7 @@ class ModelGenerator {
     if (stringFields.contains('id')) return 'id';
     if (stringFields.isNotEmpty) return stringFields.first;
     throw StateError(
-      '@DVModel(generatePublicPages: true) requires a String slug, id, or '
+      '@DVModel(generatePages: true) requires a String slug, id, or '
       'other String field so Dartvel can generate a parameterized public '
       'page route.',
     );

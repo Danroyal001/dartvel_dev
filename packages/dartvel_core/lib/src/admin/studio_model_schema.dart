@@ -372,7 +372,7 @@ String dvStudioModelDartSource(DVStudioModelSpec spec) {
   }
   final List<String> arguments = <String>[
     // A designed model has no page of its own until one is designed for it.
-    'generatePublicPages: false',
+    'generatePages: false',
     if (!spec.versioned) 'version: false',
     if (spec.softDelete) 'softDelete: true',
     if (spec.access case final DVModelAccess access)

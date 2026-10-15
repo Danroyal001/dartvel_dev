@@ -148,7 +148,7 @@ const String _member = '''
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel(
-  generatePublicPages: true,
+  generatePages: true,
   subject: DVSubject.self,
   retain: DVRetention.indefinite,
 )

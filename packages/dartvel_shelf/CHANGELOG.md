@@ -390,7 +390,7 @@ public helper. Block bodies are lowered into the generated widget now.
 ### Static generation
 
 `dartvel build web` writes a page per route and expands parameterised routes
-through the application's own resolvers. `@DVModel(generatePublicPages: true)`
+through the application's own resolvers. `@DVModel(generatePages: true)`
 now generates the route as well as the paths -- it previously produced a list
 of addresses that all resolved to the application's own not-found page.
 

@@ -470,11 +470,11 @@ changelogs list every change; the ones below need action.
   empty tray slot. Rewrite `icon: 'assets/tray.png'` as `icon: DVAsset.tray`.
 
 - **Every data model gets public pages unless it opts out.**
-  `@DVModel(generatePublicPages:)` now defaults to `true`: each record is served
+  `@DVModel(generatePages:)` now defaults to `true`: each record is served
   at `/<plural-kebab-model>/:<slug|id|first String field>` (`Article` at
   `/articles/hello-world`, `BlogPost` at `/blog-posts/42`), rendered statically
   by `dartvel build web` and listed in the sitemap. **Migration:** add
-  `generatePublicPages: false` to every `@DVModel` whose records must not have a
+  `generatePages: false` to every `@DVModel` whose records must not have a
   page; the build log names each model that got one by default. What a page
   shows is decided by the model:
   - A `@DVModel.sensitiveField()`, and the field naming the privacy `subject:`,
@@ -488,7 +488,7 @@ changelogs list every change; the ones below need action.
     name), rows that are their own privacy subject, tenant-scoped models,
     models with a protected or no `String` key, and models whose route an
     application page already serves get no page unless they say
-    `generatePublicPages: true`. An explicit `true` that cannot be honoured
+    `generatePages: true`. An explicit `true` that cannot be honoured
     stops the build.
 
 - **`DV.Cache` is four calls: `get`, `set`, `has` and `delete`.** Everything
@@ -1308,7 +1308,7 @@ Packages at 0.2.0: `dartvel`, `dartvel_core`, `dartvel_flutter`, `dartvel_cli`.
 ### Known gaps
 
 - `Model.Page` data-mode rendering (`.async` / `.signal` / `.fromId`) and
-  `@DVModel(generatePublicPages: true)` are **not** implemented. The
+  `@DVModel(generatePages: true)` are **not** implemented. The
   `DVModelPageDataMode` enum and both annotation parameters are accepted and
   surfaced as generated metadata, but no generator acts on them.
 - `sony-elinux` cannot build a Dartvel app: the embedder's newest Flutter ships

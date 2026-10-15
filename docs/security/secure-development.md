@@ -171,7 +171,7 @@ closes. Each is tracked in [compliance-plan.md](compliance-plan.md):
   the server, is invisible to the server's page data and to static
   generation: both treat that model as having no view policy and publish its
   non-protected fields. Protected fields stay out regardless. Declare the
-  policy as a class, or say `generatePublicPages: false`.
+  policy as a class, or say `generatePages: false`.
 - **A CloudEvents binary-mode delivery signs the body and not the `ce-`
   headers.** With `dartvel.webhooks.mode: binary` the event's attributes
   travel as headers, and neither Dartvel's signature nor Standard Webhooks

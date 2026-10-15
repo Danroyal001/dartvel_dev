@@ -1,7 +1,7 @@
 // Resolving model pages at build time needs the database the models live in.
 //
 // The resolver ran the application's providers with no DV.Database configured
-// at all, so every generatePublicPages model failed the same way on every
+// at all, so every generatePages model failed the same way on every
 // build -- "UserPublicStaticPaths: Bad state: DV.Database has no configured
 // adapter" -- whether or not the project had a database, and the web-server
 // build printed it twice because two steps each resolved the paths again.
