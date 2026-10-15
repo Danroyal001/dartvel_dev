@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dartvel_site/main.dart';
+import 'package:dartvel_site/components/app_root.dart';
 
 void main() {
   testWidgets('Dartvel application starts', (WidgetTester tester) async {

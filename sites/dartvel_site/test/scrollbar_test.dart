@@ -8,7 +8,7 @@
 // Two things are needed and one alone is not enough. The theme makes the thumb
 // persistent where a scrollbar exists; the scroll behaviour is what makes one
 // exist for every input rather than only for a mouse.
-import 'package:dartvel_site/main.dart';
+import 'package:dartvel_site/components/app_root.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
