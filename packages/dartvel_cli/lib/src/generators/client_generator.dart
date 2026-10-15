@@ -4663,6 +4663,10 @@ $code
       if (uri.startsWith('dart:')) continue;
       if (suffix.contains('deferred')) continue;
 
+      // Every caller already imports dartvel_flutter with DV hidden; a bare
+      // copy of the source's import would name the same URI twice.
+      if (uri == 'package:dartvel_flutter/dartvel_flutter.dart' && suffix.isEmpty) continue;
+
       if (uri.startsWith('package:')) {
         out.add("import '$uri'${suffix.isEmpty ? '' : ' $suffix'};");
         continue;
