@@ -2126,7 +2126,7 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   final Future<dv.Response> Function(dv.Request) siteHandler = docsServer == null
       ? handler
       : (dv.Request request) async => await docsServer.respond(request) ?? await handler(request);
-  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
+  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, publishedPage: publishedPages?.seo, publishedSitemap: publishedPages?.sitemapRoutes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
     // A patch is larger than a request body usually is.
     if (patchPrefix != null) dv.DVRouteBodyLimit('POST', '\$patchPrefix/_dartvel/publish', $dvPatchPublishMaxBytes),
     ...router.bodyLimits,

@@ -717,9 +717,10 @@ String dvApplyPageExtras(String html, DVPageData data) {
   out = dvApplyFavicon(out, data.favicon);
   final Map<String, Object?>? ld = data.structuredData;
   if (ld != null) {
-    // `</` cannot appear inside the script: a value of `</script>` would
-    // end it, so the slash is escaped the way JSON allows.
-    final String json = jsonEncode(ld).replaceAll('</', r'<\/');
+    // No `<` at all inside the script, written as the escape JSON allows: a
+    // value of `</script>` would end it, and one with `<!--` and `<script`
+    // puts the parser where the real closing tag no longer ends it.
+    final String json = jsonEncode(ld).replaceAll('<', r'\u003c');
     out = out.replaceFirst('</head>', '<!--dv:ld--><script type="application/ld+json">$json</script><!--/dv:ld-->\n</head>');
   }
   return out;

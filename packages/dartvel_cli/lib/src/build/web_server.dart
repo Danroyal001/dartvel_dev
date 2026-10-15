@@ -17,7 +17,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
 
-import 'package:dartvel_core/dartvel.dart' show DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant;
+import 'package:dartvel_core/dartvel.dart' show DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant, DVPublishedPageSeo, dvRenderPublishedPage, dvSitemapWithRoutes, dvStudioPublicMediaPath;
 // Shell-first streaming and each route's preloads, through the same core
 // functions the deployed server uses.
 import 'package:dartvel_core/dartvel.dart'
@@ -347,7 +347,29 @@ Handler dvWebServerHandler({
     // to the static handler or the shell would answer a request for the
     // admin with the application's own page, which tells whoever asked that
     // the path means something here.
-    if (publishedPages != null && path == core.dvPublishedPagesPath) {
+    // The sitemap the build wrote, with the pages published since.
+    if (publishedPages != null &&
+        path == '/sitemap.xml' &&
+        (request.method == 'GET' || request.method == 'HEAD')) {
+      final File built = File(p.join(webRoot, 'sitemap.xml'));
+      final String xml = dvSitemapWithRoutes(
+        built.existsSync() ? built.readAsStringSync() : null,
+        await publishedPages.sitemapRoutes(),
+        siteUrl: siteUrl ?? '${request.requestedUri.scheme}://${request.requestedUri.authority}',
+      );
+      return Response.ok(
+        request.method == 'HEAD' ? null : xml,
+        headers: <String, String>{
+          'content-type': 'application/xml; charset=utf-8',
+          'cache-control': 'no-cache',
+        },
+      );
+    }
+
+    // Studio's published pages, and its media library's files.
+    if (publishedPages != null &&
+        (path == core.dvPublishedPagesPath ||
+            path.startsWith(dvStudioPublicMediaPath))) {
       final core.Response? pages =
           await publishedPages.respond(await _coreRequest(request));
       if (pages != null) return _shelfResponse(pages);
@@ -524,7 +546,21 @@ Handler dvWebServerHandler({
     }
 
     final DVRoutePage? routePage = matched == null ? null : pages[matched.pattern];
-    final String page = data == null && routePage != null
+    // A page published from Studio, with what it says about itself.
+    final DVPublishedPageSeo? studioPage = matched == null && data == null
+        ? await publishedPages?.seo(cleanPath)
+        : null;
+    final String page = studioPage != null
+        ? dvRenderPublishedPage(
+            shell: shell,
+            path: cleanPath,
+            seo: studioPage,
+            siteUrl: siteUrl,
+            siteName: name,
+            siteDescription: siteDescription,
+            siteImage: siteImage,
+          )
+        : data == null && routePage != null
         ? dvRenderRoutePage(shell, routePage.at(cleanPath))
         : data == null
         ? dvServeRoute(
@@ -557,6 +593,7 @@ Handler dvWebServerHandler({
     // manifest does not list, so the published ones are asked first, and a
     // manifest with no routes at all says nothing about what is missing.
     if (matched == null &&
+        studioPage == null &&
         routeMap.isNotEmpty &&
         !(await publishedPages?.routes() ?? const <String>{})
             .contains(cleanPath)) {

@@ -7,6 +7,7 @@ import 'package:dartvel_core/dv.dart';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVCacheAdapter,
+        DVPublishedPageSeo,
         DVLogLevel,
         DVPageDataResolver,
         DVPreviewMembership,
@@ -162,6 +163,10 @@ Future<ServerHandle> serve(
   // The routes Studio has published, which no manifest lists: without them a
   // published page would be answered with a 404.
   Future<Set<String>> Function()? publishedRoutes,
+  // What each published page says about itself, for its head, and the ones
+  // the sitemap lists.
+  Future<DVPublishedPageSeo?> Function(String path)? publishedPage,
+  Future<List<String>> Function()? publishedSitemap,
   DVPageDataResolver? pageData, // The route's data on request, for the page pipeline
   DVCacheAdapter? pageStore, // Where the kept pages live, when they are shared
   bool compression = true, // Enable/disable compression
@@ -304,6 +309,17 @@ Future<ServerHandle> serve(
       );
       if (variant != null) return variant;
 
+      // The sitemap, with the pages published since the build: before the
+      // file it is built from, which knows only what was compiled.
+      if (publishedSitemap != null) {
+        final Response? sitemap = await dvPublishedSitemapResponse(
+          req,
+          spaRoot,
+          routes: publishedSitemap,
+        );
+        if (sitemap != null) return sitemap;
+      }
+
       // 1. A file of the site: from the pack a web-server binary carries, in
       // the encoding it is kept in when the client takes it, or from the
       // directory during development and preview.
@@ -319,14 +335,14 @@ Future<ServerHandle> serve(
       // 2. Fall back to normal handler or SPA index
       final resp = await handler(req);
       if (resp.status == 404 && req.method == 'GET') {
-        return handleSsrFallback(req, spaRoot, pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes);
+        return handleSsrFallback(req, spaRoot, pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes, publishedPage: publishedPage);
       }
       // HEAD is GET without the body. Answering it 404 told an uptime
       // monitor, a link checker and a crawler that asks HEAD first that a
       // page served to every browser was not there.
       if (resp.status == 404 && req.method == 'HEAD') {
         final page = await handleSsrFallback(req, spaRoot,
-            pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes);
+            pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes, publishedPage: publishedPage);
         return Response(page.status,
             headers: page.headers, body: const Stream<List<int>>.empty());
       }

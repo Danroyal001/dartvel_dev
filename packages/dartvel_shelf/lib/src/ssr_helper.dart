@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect;
+    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVPublishedPageSeo, dvRenderPublishedPage, dvSitemapWithRoutes;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
@@ -34,6 +34,7 @@ Future<Response> handleSsrFallback(
   DVPageDataCache? cache,
   DVCacheAdapter? pageStore,
   Future<Set<String>> Function()? publishedRoutes,
+  Future<DVPublishedPageSeo?> Function(String path)? publishedPage,
 }) =>
     dvWithRequestTenant(
       req,
@@ -44,6 +45,7 @@ Future<Response> handleSsrFallback(
         cache: cache,
         pageStore: pageStore,
         publishedRoutes: publishedRoutes,
+        publishedPage: publishedPage,
       ),
     );
 
@@ -54,6 +56,7 @@ Future<Response> _handleSsrFallback(
   DVPageDataCache? cache,
   DVCacheAdapter? pageStore,
   Future<Set<String>> Function()? publishedRoutes,
+  Future<DVPublishedPageSeo?> Function(String path)? publishedPage,
 }) async {
   // Read through the source registered for the root: the pack inside a
   // web-server binary, the directory everywhere else.
@@ -68,7 +71,7 @@ Future<Response> _handleSsrFallback(
   // assembled from it on request, with the route's data from the resolver
   // the backend was started with, by the declared mode.
   if (dvSiteHash(spaRoot, 'dartvel_routes.json') != null) {
-    return _fromManifest(req, html, spaRoot: spaRoot, pageData: pageData, cache: cache, pageStore: pageStore, publishedRoutes: publishedRoutes);
+    return _fromManifest(req, html, spaRoot: spaRoot, pageData: pageData, cache: cache, pageStore: pageStore, publishedRoutes: publishedRoutes, publishedPage: publishedPage);
   }
 
   // Check for prerendered metadata
@@ -153,6 +156,7 @@ Future<Response> _fromManifest(
   required DVPageDataCache? cache,
   required DVCacheAdapter? pageStore,
   required Future<Set<String>> Function()? publishedRoutes,
+  Future<DVPublishedPageSeo?> Function(String path)? publishedPage,
 }) async {
   Map<String, Object?> manifest;
   try {
@@ -273,7 +277,14 @@ Future<Response> _fromManifest(
   // what the build wrote into the manifest. The older fields are for a
   // manifest from before it carried the page.
   final Object? routePage = route?['page'];
-  final String page = data == null && routePage is Map
+  // A page published from Studio is no route of the manifest: what it says
+  // about itself -- title, description, indexing, canonical, structured
+  // data and its words -- is in its document, not the build.
+  final DVPublishedPageSeo? studioPage =
+      matched == null && data == null ? await publishedPage?.call(path) : null;
+  final String page = studioPage != null
+      ? dvRenderPublishedPage(shell: shell, path: path, seo: studioPage, siteUrl: siteUrl, siteName: siteName, siteDescription: site.description, siteImage: site.image)
+      : data == null && routePage is Map
       ? dvRenderRoutePage(shell, DVRoutePage.fromJson(routePage.cast<String, Object?>()).at(path),
           onUncaptured: (String r) => stderr.writeln('dartvel: $r has no captured page; serving its source text'))
       : data == null
@@ -285,6 +296,7 @@ Future<Response> _fromManifest(
   // published ones are asked first; a manifest listing no routes says
   // nothing about what is missing.
   final bool missing = matched == null &&
+      studioPage == null &&
       routeMap.isNotEmpty &&
       !(await publishedRoutes?.call() ?? const <String>{}).contains(path);
   return _html(dvMinifyHtml(dvWithPreloads(page, preloads)), status: missing ? 404 : 200, streaming: settings.streaming);
@@ -367,6 +379,7 @@ Future<Response> _cachedSsrFallback(
   DVPageDataCache? cache,
   DVCacheAdapter? pageStore,
   Future<Set<String>> Function()? publishedRoutes,
+  Future<DVPublishedPageSeo?> Function(String path)? publishedPage,
 }) async {
   Future<Response> render() => _handleSsrFallback(
     req,
@@ -375,6 +388,7 @@ Future<Response> _cachedSsrFallback(
     cache: cache,
     pageStore: pageStore,
     publishedRoutes: publishedRoutes,
+        publishedPage: publishedPage,
   );
   Object? manifest;
   try {
@@ -449,5 +463,46 @@ Future<Response> _cachedSsrFallback(
     body: notModified
         ? const Stream<List<int>>.empty()
         : Stream<List<int>>.value(kept.bytes),
+  );
+}
+
+/// `/sitemap.xml` as the build wrote it, with a `<url>` for every page
+/// published from Studio that asks to be listed -- [routes] -- or null for
+/// any other request. The build's sitemap knows only the routes it compiled;
+/// a page published after it would otherwise never be found by a crawler.
+Future<Response?> dvPublishedSitemapResponse(
+  Request req,
+  String spaRoot, {
+  required Future<List<String>> Function() routes,
+}) async {
+  if (req.url.path != '/sitemap.xml' && req.url.path != 'sitemap.xml') {
+    return null;
+  }
+  if (req.method != 'GET' && req.method != 'HEAD') return null;
+  String? siteUrl;
+  try {
+    final Object? manifest = dvSiteJson(spaRoot, 'dartvel_routes.json');
+    if (manifest is Map && manifest['siteUrl'] is String) {
+      siteUrl = manifest['siteUrl']! as String;
+    }
+  } on FormatException {
+    siteUrl = null;
+  }
+  // No declared address: the one the request came to.
+  siteUrl ??= '${req.url.scheme}://${req.url.authority}';
+  final String xml = dvSitemapWithRoutes(
+    dvSiteText(spaRoot, 'sitemap.xml'),
+    await routes(),
+    siteUrl: siteUrl,
+  );
+  return Response(
+    200,
+    headers: Headers()
+      ..set('content-type', 'application/xml; charset=utf-8')
+      // Published pages change without a deploy: a crawler asks again.
+      ..set('cache-control', 'no-cache'),
+    body: req.method == 'HEAD'
+        ? const Stream<List<int>>.empty()
+        : Stream<List<int>>.value(utf8.encode(xml)),
   );
 }

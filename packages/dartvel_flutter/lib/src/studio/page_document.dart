@@ -2417,7 +2417,27 @@ class _DVStudioPageRouteState extends State<DVStudioPageRoute> {
         scrolls: document.root.properties['scroll'] == true,
         child: DVPageDocumentRenderer(document),
       );
-      return widget.frame?.call(body) ?? body;
+      // What the page says about itself, to the browser it is drawn in, as
+      // the server says it to a crawler.
+      return DartvelSeo(
+        props: SeoProps(
+          title: document.title.isEmpty ? null : document.title,
+          description: document.description,
+          canonicalUrl: document.canonicalUrl,
+          imageUrl: document.image,
+          extraMeta: <String, String>{'robots': ?document.robots},
+          structuredData: document.schemaType == null
+              ? null
+              : <String, Object?>{
+                  '@context': 'https://schema.org',
+                  '@type': document.schemaType,
+                  'name': document.title,
+                  'description': ?document.description,
+                },
+        ),
+        defaults: SeoProps.empty,
+        child: widget.frame?.call(body) ?? body,
+      );
     }
     final fallback = widget.fallback;
     if (fallback != null) return fallback;

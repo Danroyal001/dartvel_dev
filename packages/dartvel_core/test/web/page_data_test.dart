@@ -4,6 +4,8 @@
 // modes live in, and the page data a model row becomes. The preview server
 // and the generated backend's server both render through these; a test
 // here is a test of both.
+import 'dart:convert';
+
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
@@ -32,7 +34,7 @@ void main() {
           image: '/img/1.png',
           favicon: '/icons/p.png',
           text: <String>['Product 1', 'In stock'],
-          structuredData: <String, Object?>{'@type': 'Product', 'name': '</script>'},
+          structuredData: <String, Object?>{'@type': 'Product', 'name': '</script>', 'note': '<!--<script>'},
         ),
         siteUrl: 'https://example.com',
       );
@@ -44,7 +46,18 @@ void main() {
       expect(html, contains('href="/icons/p.png"'));
       expect(html, isNot(contains('favicon.png')));
       expect(html, contains('<script type="application/ld+json">'));
-      expect(html, contains(r'<\/script>'), reason: 'a closing tag inside the JSON cannot end the script');
+      // The values come back as they were, and nothing in them is markup:
+      // not a closing tag that would end the script, and not the `<!--` that
+      // puts the HTML parser in a state where the real closing tag is lost.
+      final String block = RegExp(
+        r'<script type="application/ld\+json">(.*?)</script>',
+        dotAll: true,
+      ).firstMatch(html)!.group(1)!;
+      expect(block, isNot(contains('<')), reason: 'markup inside the JSON');
+      final Map<String, Object?> data =
+          (jsonDecode(block) as Map).cast<String, Object?>();
+      expect(data['name'], '</script>');
+      expect(data['note'], '<!--<script>');
       expect(html, contains('<div id="app">'));
     });
 
