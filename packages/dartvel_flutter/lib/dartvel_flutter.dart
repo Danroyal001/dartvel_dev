@@ -1,6 +1,7 @@
 library dartvel_flutter;
 
 export 'src/default_theme.dart';
+import 'src/default_theme.dart' show dvWithPageScrollbars;
 export 'src/accessibility/tooltips.dart'
     show DVIconButton, DVTooltipTarget, dvDeriveLabel;
 export 'src/platform/platform_host.dart';
@@ -10849,7 +10850,10 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
   }
 
   @override
-  Widget build(BuildContext context) => DVHostFrame(child: Builder(builder: _buildPage));
+  Widget build(BuildContext context) => Theme(
+        data: dvWithPageScrollbars(Theme.of(context)),
+        child: DVHostFrame(child: Builder(builder: _buildPage)),
+      );
 
   Widget _buildPage(BuildContext context) {
     // The module this page belongs to may have replaced its chrome or taken
