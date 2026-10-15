@@ -36,7 +36,7 @@ extension _StudioRecordList on _DVStudioModelsSectionState {
         )),
       );
     final String? filter = params['filter'];
-    final String? filterName = filter?.split(':').first;
+    final String? filterName = filter?.split(':').first ?? _filterField;
     final DVStudioField? filterField = fields.where((f) => f.name == filterName).firstOrNull;
     final String? filterValue = filter == null ? null : filter.substring(filter.indexOf(':') + 1);
     final int page = int.tryParse(params['page'] ?? '') ?? 1;
@@ -56,7 +56,12 @@ extension _StudioRecordList on _DVStudioModelsSectionState {
         Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: .center, children: <Widget>[
           dropdown('dv-studio-records-filter-field', 'Filter field', filterName,
             <String, String>{for (final f in fields) f.name: _fieldLabel(f.name)},
-            (String? name) { if (name != null) change('filter', '$name:'); }),
+            (String? name) {
+              if (name == null) return;
+              // Chosen, not applied: the value comes next.
+              _updateState(() => _filterField = name);
+              if (filter != null) change('filter', null);
+            }),
           if (filterField != null)
             if ((filterField.options != null && filterField.options!.isNotEmpty) || filterField.baseType == 'bool')
               dropdown('dv-studio-records-filter-value', 'Filter value',
@@ -64,16 +69,32 @@ extension _StudioRecordList on _DVStudioModelsSectionState {
                 <String, String>{
                   for (final option in filterField.baseType == 'bool'
                     ? <String>['true', 'false'] : (filterField.options ?? const <String>[])) option: option,
-                }, (String? value) => change('filter', '$filterName:$value'))
+                }, (String? value) => change('filter', value == null ? null : '$filterName:$value'))
             else
               SizedBox(width: 220, child: DVStudioTextInput(
                 key: const ValueKey<String>('dv-studio-records-filter-value'),
                 value: filterValue ?? '', placeholder: 'Filter value',
-                onChanged: (String value) => change('filter', '$filterName:$value'),
+                // Asked once typing stops, as the search is.
+                onChanged: (String value) {
+                  _filterTimer?.cancel();
+                  _filterTimer = Timer(const Duration(milliseconds: 300),
+                      () => change('filter', value.isEmpty ? null : '$filterName:$value'));
+                },
               )),
-          if (filter != null)
-            button('dv-studio-records-filter-clear', 'Clear filter', () => change('filter', null)),
+          if (filter != null || _filterField != null)
+            button('dv-studio-records-filter-clear', 'Clear filter', () {
+              _updateState(() => _filterField = null);
+              change('filter', null);
+            }),
         ]),
+        if (_bulkProblem case final String problem) ...<Widget>[
+          const SizedBox(height: 12),
+          Semantics(
+            liveRegion: true,
+            child: DVText(problem).modifier(
+                const DVModifier().fontSize(13).color(DVStudioStyle.danger)),
+          ),
+        ],
         if (_chosen.isNotEmpty) ...<Widget>[
           const SizedBox(height: 12),
           button('dv-studio-records-bulk-delete',
@@ -90,14 +111,8 @@ extension _StudioRecordList on _DVStudioModelsSectionState {
         ]),
         const SizedBox(height: 12),
         Builder(builder: (BuildContext context) {
-          final String query = _query.trim().toLowerCase();
-          final List<DVStudioRecordData> shown = <DVStudioRecordData>[
-            for (final DVStudioRecordData record in records)
-              if (query.isEmpty ||
-                  fields.any((DVStudioField f) =>
-                      _cellText(f, record.values[f.name]).toLowerCase().contains(query)))
-                record,
-          ];
+          // The server searched, filtered and paged; this is its answer.
+          final List<DVStudioRecordData> shown = records;
           return SingleChildScrollView(scrollDirection: .horizontal, child: SizedBox(
             width: math.max(550, fields.length * 160 + 64).toDouble(),
             child: Column(children: <Widget>[
@@ -136,7 +151,7 @@ extension _StudioRecordList on _DVStudioModelsSectionState {
                     ),
                     for (final f in fields)
                       Expanded(
-                        child: InkWell(
+                        child: DVStudioStyle.tooltip('Open ${r.key}', InkWell(
                           onTap: () {
                             _updateState(() => _editing = r);
                             widget.onSelect?.call('${model.model}/${r.key}');
@@ -149,7 +164,7 @@ extension _StudioRecordList on _DVStudioModelsSectionState {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
+                        )),
                       ),
                   ],
                 ),
@@ -178,9 +193,11 @@ extension _StudioRecordList on _DVStudioModelsSectionState {
       final result = await widget.client.deleteRecords(model.model, chosen);
       if (!mounted) return;
       final failed = result['failed'] as Map?;
-      if (failed != null && failed.isNotEmpty) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text('${failed.length} records could not be deleted. Refresh and try again.')));
-      }
+      // Said on the list, which is not inside a Scaffold a SnackBar needs.
+      _updateState(() => _bulkProblem = failed == null || failed.isEmpty
+          ? null
+          : '${failed.keys.join(', ')} could not be deleted: '
+              '${failed.length == 1 ? 'it' : 'they'} changed after the list was read.');
       await _open(model);
     } on Object catch (error) {
       if (mounted) _updateState(() => _error = error);

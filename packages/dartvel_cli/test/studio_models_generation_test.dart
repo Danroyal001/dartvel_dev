@@ -53,6 +53,17 @@ class _Note {
   const _Note({required this.order, required this.done});
 }
 ''');
+  File(p.join(root.path, 'lib', 'models', 'article.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(history: DVHistory(keep: Duration(days: 30)))
+@pragma('vm:entry-point')
+class _Article {
+  final String slug;
+  final String title;
+  const _Article({required this.slug, required this.title});
+}
+''');
   return root;
 }
 
@@ -313,5 +324,26 @@ class _Memo {
             .length,
         2,
         reason: 'startBackend and dartvelMain both take Studio\'s code');
+  });
+  test('a model that keeps a history tells Studio, so Studio keeps it too',
+      () async {
+    // Studio wrote through a table built without the model's history, and
+    // its edits were missing from the log the model declared.
+    await ModelGenerator.generate(root: root.path, pkgName: 'shop', buildId: 'b');
+    final String pages = File(
+            p.join(root.path, 'lib', 'dartvel_client', 'model_pages.g.dart'))
+        .readAsStringSync();
+    expect(spec(pages, 'Article'),
+        contains('history: DVHistory(keep: Duration(days: 30))'));
+    expect(spec(pages, 'Note'), isNot(contains('history:')));
+
+    final List<Object?> manifest = (jsonDecode(File(
+            p.join(root.path, '.dart_tool', 'dartvel_studio_models.json'))
+        .readAsStringSync()) as Map)['models']! as List<Object?>;
+    final DVStudioModelSpec article = <DVStudioModelSpec>[
+      for (final Object? m in manifest)
+        DVStudioModelSpec.fromManifest((m! as Map).cast<String, Object?>()),
+    ].firstWhere((DVStudioModelSpec m) => m.model == 'Article');
+    expect(article.history?.keep, const Duration(days: 30));
   });
 }

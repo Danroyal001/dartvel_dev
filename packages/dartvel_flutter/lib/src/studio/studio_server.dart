@@ -212,6 +212,7 @@ class DVStudioModel {
     this.module,
     this.origin = DVStudioModelOrigin.code,
     this.softDelete = false,
+    this.history = false,
     this.indexes = const <DVStudioIndexSpec>[],
     this.access,
   });
@@ -222,6 +223,7 @@ class DVStudioModel {
         key: '${json['key']}',
         versioned: json['versioned'] != false,
         softDelete: json['softDelete'] == true,
+        history: json['history'] == true,
         origin: json['origin'] == DVStudioModelOrigin.studio.name
             ? DVStudioModelOrigin.studio
             : DVStudioModelOrigin.code,
@@ -243,6 +245,10 @@ class DVStudioModel {
 
   /// Whether deleting a record marks it rather than removing it.
   final bool softDelete;
+
+  /// Whether the model keeps a history of its records' changes, which
+  /// Studio lists and restores from.
+  final bool history;
 
   /// The indexes the model asks its database for.
   final List<DVStudioIndexSpec> indexes;
@@ -296,6 +302,46 @@ class DVStudioModel {
 }
 
 /// One stored record, at the version it was read.
+/// One change to a record, from its model's history: the version it made,
+/// when, who, and what each field went from and to. A sensitive field says
+/// only that it changed.
+class DVStudioRecordChange {
+  const DVStudioRecordChange({
+    required this.version,
+    required this.at,
+    this.actor,
+    this.deleted = false,
+    this.restored = false,
+    this.changes = const <String, ({Object? from, Object? to, bool redacted})>{},
+  });
+
+  factory DVStudioRecordChange.fromJson(Map<String, Object?> json) =>
+      DVStudioRecordChange(
+        version: (json['version'] as num?)?.toInt() ?? 0,
+        at: DateTime.tryParse('${json['at']}') ?? DateTime.utc(1970),
+        actor: json['actor'] as String?,
+        deleted: json['deleted'] == true,
+        restored: json['restored'] == true,
+        changes: <String, ({Object? from, Object? to, bool redacted})>{
+          for (final MapEntry<Object?, Object?> change
+              in ((json['changes'] as Map?) ?? const <Object?, Object?>{}).entries)
+            if (change.value is Map)
+              '${change.key}': (
+                from: (change.value! as Map)['from'],
+                to: (change.value! as Map)['to'],
+                redacted: (change.value! as Map)['redacted'] == true,
+              ),
+        },
+      );
+
+  final int version;
+  final DateTime at;
+  final String? actor;
+  final bool deleted;
+  final bool restored;
+  final Map<String, ({Object? from, Object? to, bool redacted})> changes;
+}
+
 class DVStudioRecordData {
   const DVStudioRecordData({
     required this.key,
@@ -732,6 +778,38 @@ class DVStudioClient {
         'PUT',
         'api/models/${_segment(model)}/records/${_segment(read.key)}',
         body: <String, Object?>{'version': read.version, 'values': values},
+      )));
+
+  /// Every change to the record at [key], oldest first, and whether its
+  /// model keeps them at all.
+  Future<({bool kept, List<DVStudioRecordChange> changes})> recordHistory(
+    String model,
+    String key,
+  ) async {
+    final Map<String, Object?> body = _map(await _send(
+      'GET',
+      'api/models/${_segment(model)}/records/${_segment(key)}/history',
+    ));
+    return (
+      kept: body['kept'] == true,
+      changes: <DVStudioRecordChange>[
+        for (final Map<String, Object?> change in _list(body, 'history'))
+          DVStudioRecordChange.fromJson(change),
+      ],
+    );
+  }
+
+  /// Puts [read] back as it was at version [to], as a change of its own;
+  /// refused when the record moved since it was read.
+  Future<DVStudioRecordData> revert(
+    String model,
+    DVStudioRecordData read, {
+    required int to,
+  }) async =>
+      DVStudioRecordData.fromJson(_map(await _send(
+        'POST',
+        'api/models/${_segment(model)}/records/${_segment(read.key)}/revert',
+        body: <String, Object?>{'to': to, 'version': read.version},
       )));
 
   Future<void> delete(String model, DVStudioRecordData read) => _send(
@@ -2029,6 +2107,14 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
   int _offset = 0;
   final Map<String, int> _chosen = <String, int>{};
   Timer? _searchTimer;
+
+  /// The field chosen to filter by before it has a value: a filter with no
+  /// value would ask for the records where the field is empty.
+  String? _filterField;
+  Timer? _filterTimer;
+
+  /// The records the last bulk delete could not delete, and why.
+  String? _bulkProblem;
   Map<String, String>? _params;
 
   Map<String, String> get _listQuery {
@@ -2065,6 +2151,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
   @override
   void dispose() {
     _searchTimer?.cancel();
+    _filterTimer?.cancel();
     super.dispose();
   }
 
@@ -2583,7 +2670,14 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                             field.editable &&
                             field.baseType != 'bool' &&
                             !(!_isNew && field.name == widget.model.key)) ...<Widget>[
-                          GestureDetector(
+                          DVStudioStyle.tooltip(
+                            'Empty ${_fieldLabel(field.name)}',
+                            Semantics(
+                            button: true,
+                            checked: _empty.contains(field.name),
+                            label: 'Empty ${_fieldLabel(field.name)}',
+                            excludeSemantics: true,
+                            child: GestureDetector(
                             key: ValueKey<String>(
                                 'dv-studio-field-${field.name}-empty'),
                             onTap: () => setState(() {
@@ -2608,7 +2702,7 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                                     color: DVStudioStyle.muted),
                               ]),
                             ),
-                          ),
+                          ))),
                           const SizedBox(width: DVStudioStyle.space2),
                         ],
                         Flexible(
@@ -2636,6 +2730,7 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                   'Some sensitive fields are not shown or written here.',
                   color: DVStudioStyle.faint,
                 ),
+              if (widget.model.history && !_isNew) _versions(),
               if (_error != null) ...<Widget>[
                 const SizedBox(height: DVStudioStyle.space3),
                 DVStudioStyle.body(_error!, color: DVStudioStyle.danger),
@@ -2680,6 +2775,108 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
           ),
         ),
       ],
+    );
+  }
+
+  /// The record's versions, from its model's history, read when asked for.
+  List<DVStudioRecordChange>? _versionList;
+  bool _showingVersions = false;
+  String? _versionsProblem;
+
+  Future<void> _toggleVersions() async {
+    if (_showingVersions) {
+      setState(() => _showingVersions = false);
+      return;
+    }
+    setState(() {
+      _showingVersions = true;
+      _versionsProblem = null;
+    });
+    try {
+      final ({bool kept, List<DVStudioRecordChange> changes}) history = await widget
+          .client
+          .recordHistory(widget.model.model, widget.record.key);
+      if (mounted) setState(() => _versionList = history.changes);
+    } on Object catch (error) {
+      if (mounted) setState(() => _versionsProblem = '$error');
+    }
+  }
+
+  /// Puts the record back as it was at [version], from the version this
+  /// form read; a record moved since is refused, as a save is.
+  Future<void> _restore(int version) async {
+    try {
+      final DVStudioRecordData restored = await widget.client
+          .revert(widget.model.model, widget.record, to: version);
+      if (!mounted) return;
+      widget.onSaved(restored);
+    } on Object catch (error) {
+      if (mounted) setState(() => _versionsProblem = '$error');
+    }
+  }
+
+  Widget _versions() {
+    final List<DVStudioRecordChange>? changes = _versionList;
+    return Padding(
+      padding: const .only(top: DVStudioStyle.space3),
+      child: Column(
+        crossAxisAlignment: .stretch,
+        children: <Widget>[
+          Align(
+            alignment: .centerLeft,
+            child: DVStudioControl(
+              key: const ValueKey<String>('dv-studio-record-history'),
+              label: _showingVersions ? 'Hide versions' : 'Show versions',
+              enabled: true,
+              icon: Icons.history,
+              onTap: () => unawaited(_toggleVersions()),
+            ),
+          ),
+          if (_showingVersions && _versionsProblem != null)
+            DVStudioStyle.body(_versionsProblem!, color: DVStudioStyle.danger),
+          if (_showingVersions && changes != null)
+            for (final DVStudioRecordChange change in changes.reversed)
+              Padding(
+                padding: const .only(top: DVStudioStyle.space2),
+                child: Row(
+                  crossAxisAlignment: .start,
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: .stretch,
+                        children: <Widget>[
+                          DVStudioStyle.body(
+                            'Version ${change.version} · '
+                            '${_formatMoment(change.at)}'
+                            '${change.actor == null ? '' : ' · ${change.actor}'}',
+                          ),
+                          DVStudioStyle.caption(
+                            change.deleted
+                                ? 'Deleted'
+                                : change.restored
+                                ? 'Restored'
+                                : change.changes.isEmpty
+                                ? 'No field changed'
+                                : 'Changed ${change.changes.keys.map(_fieldLabel).join(', ')}',
+                            color: DVStudioStyle.muted,
+                          ),
+                        ],
+                      ),
+                    ),
+                    // The version the record is at now is the one shown.
+                    if (change.version != widget.record.version)
+                      DVStudioControl(
+                        key: ValueKey<String>(
+                            'dv-studio-record-restore-${change.version}'),
+                        label: 'Restore version ${change.version}',
+                        enabled: true,
+                        onTap: () => unawaited(_restore(change.version)),
+                      ),
+                  ],
+                ),
+              ),
+        ],
+      ),
     );
   }
 

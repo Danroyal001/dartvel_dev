@@ -215,6 +215,7 @@ class DVStudioModelSpec {
     this.tenantScoped = false,
     this.versioned = true,
     this.softDelete = false,
+    this.history,
     this.offline,
     this.capture = false,
     this.module,
@@ -291,6 +292,10 @@ class DVStudioModelSpec {
   final bool versioned;
   final bool softDelete;
 
+  /// The change log the model declared with `@DVModel(history: ...)`, which
+  /// Studio's writes are kept in as the model's own are; null keeps none.
+  final DVHistory? history;
+
   /// How a write this model made offline is resolved when it is replayed, or
   /// null when it declared no `offline:` at all.
   ///
@@ -324,6 +329,8 @@ class DVStudioModelSpec {
     'tenantScoped': tenantScoped,
     'versioned': versioned,
     'softDelete': softDelete,
+    if (history != null)
+      'history': <String, Object?>{'keepSeconds': ?history!.keep?.inSeconds},
     if (offline != null) 'offline': offline!.name,
     if (capture) 'capture': true,
     if (indexes.isNotEmpty)
@@ -343,6 +350,14 @@ class DVStudioModelSpec {
         tenantScoped: json['tenantScoped'] == true,
         versioned: json['versioned'] != false,
         softDelete: json['softDelete'] == true,
+        history: json['history'] is Map
+            ? DVHistory(
+                keep: (json['history']! as Map)['keepSeconds'] is num
+                    ? Duration(
+                        seconds: ((json['history']! as Map)['keepSeconds']! as num)
+                            .toInt())
+                    : null)
+            : null,
         capture: json['capture'] == true,
         offline: json['offline'] == null
             ? null
@@ -380,6 +395,7 @@ class DVStudioModelSpec {
     ],
     'versioned': versioned,
     'softDelete': softDelete,
+    'history': history != null,
     'origin': origin.name,
     if (indexes.isNotEmpty)
       'indexes': <Object?>[
@@ -960,7 +976,7 @@ class DVStudioApi {
       return _writeSource(await _spec(path.first));
     }
     final DVStudioModelSpec spec = await _spec(path.first);
-    if (path.length < 2 || path[1] != 'records' || path.length > 3) {
+    if (path.length < 2 || path[1] != 'records' || path.length > 4) {
       throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
     }
     return _recordsOf(request, method, spec, path.sublist(2));
@@ -979,11 +995,22 @@ class DVStudioApi {
     await prepare(spec, table);
     if (rest.isEmpty) {
       if (method == 'GET') return _list(request, spec, table);
-      if (method == 'POST') return _create(spec, table, await _body(request));
+      if (method == 'POST') {
+        return _create(spec, table, await _body(request),
+            actor: await _caller(request));
+      }
       _notAllowed();
     }
     if (rest.length == 1 && rest.first == 'delete' && method == 'POST') {
       return _deleteMany(spec, table, await _body(request));
+    }
+    if (rest.length == 2 && rest[1] == 'history') {
+      if (method != 'GET') _notAllowed();
+      return _recordHistory(spec, table, rest.first);
+    }
+    if (rest.length == 2 && rest[1] == 'revert') {
+      if (method != 'POST') _notAllowed();
+      return _revertRecord(request, spec, table, rest.first);
     }
     final String key = rest.first;
     switch (method) {
@@ -992,7 +1019,8 @@ class DVStudioApi {
         if (record == null) _missing(spec, key);
         return _reply(_recordJson(spec, record));
       case 'PUT':
-        return _update(spec, table, key, await _body(request));
+        return _update(spec, table, key, await _body(request),
+            actor: await _caller(request));
       case 'DELETE':
         final DVRecord? current = await table.read(key);
         if (current == null) _missing(spec, key);
@@ -1017,6 +1045,99 @@ class DVStudioApi {
     _notAllowed();
   }
 
+
+  /// Whether [spec]'s changes are kept: it declared a history, and the
+  /// database is one its entries can be written to.
+  bool _keepsHistory(DVStudioModelSpec spec) =>
+      spec.history != null && _databaseFor(spec) is! DVRecordAdapter;
+
+  /// Every change to the record at [key], oldest first: who, when, and what
+  /// each field went from and to. A sensitive field says that it changed,
+  /// never what it held.
+  Future<Response> _recordHistory(
+    DVStudioModelSpec spec,
+    DVRecordTable table,
+    String key,
+  ) async {
+    if (await table.read(key, withDeleted: true) == null) _missing(spec, key);
+    final Set<String> sensitive = <String>{
+      for (final DVStudioFieldSpec field in spec.fields)
+        if (field.sensitive) field.name,
+    };
+    return _reply(<String, Object?>{
+      'kept': _keepsHistory(spec),
+      'history': <Object?>[
+        for (final DVHistoryEntry entry in await table.history(key))
+          <String, Object?>{
+            'version': entry.version,
+            'at': entry.at.toUtc().toIso8601String(),
+            'actor': entry.actor,
+            'deleted': entry.deleted,
+            'restored': entry.restored,
+            'changes': <String, Object?>{
+              for (final MapEntry<String, DVFieldChange> change
+                  in entry.changes.entries)
+                if (change.key != dvTenantColumn)
+                  change.key: change.value.redacted ||
+                          sensitive.contains(change.key)
+                      ? <String, Object?>{'redacted': true}
+                      : <String, Object?>{
+                          'from': change.value.from,
+                          'to': change.value.to,
+                        },
+            },
+          },
+      ],
+    });
+  }
+
+  /// Puts the record at [key] back as it was at version `to`, as a change of
+  /// its own, from the version the caller read: refused if it moved since.
+  Future<Response> _revertRecord(
+    Request request,
+    DVStudioModelSpec spec,
+    DVRecordTable table,
+    String key,
+  ) async {
+    if (!_keepsHistory(spec)) {
+      throw _StudioRefusal(
+        409,
+        'no_history',
+        '${spec.model} keeps no history, so there is no version to put back.',
+      );
+    }
+    final Map<String, Object?> body = await _body(request);
+    final DVRecord? current = await table.read(key, withDeleted: true);
+    if (current == null) _missing(spec, key);
+    final Object? read = body['version'];
+    if (spec.versioned && (read is! num || read.toInt() != current.version)) {
+      throw DVConflictError(
+        table: spec.table,
+        key: key,
+        mine: const <String, Object?>{},
+        theirs: current.values,
+        base: null,
+        expectedVersion: read is num ? read.toInt() : null,
+        actualVersion: current.version,
+      );
+    }
+    final Object? to = body['to'];
+    DVHistoryEntry? entry;
+    for (final DVHistoryEntry e in await table.history(key)) {
+      if (to is num && e.version == to.toInt()) entry = e;
+    }
+    if (entry == null) {
+      throw _StudioRefusal(404, 'no_version', 'No version $to of $key.');
+    }
+    final String? actor = await _caller(request);
+    final DVRevertResult result =
+        await table.revert(key, to: entry, base: current, actor: actor);
+    await _noteRecord(spec, key, 'restored');
+    return _reply(<String, Object?>{
+      ..._recordJson(spec, result.record),
+      'unrestored': result.unrestored.toList()..sort(),
+    });
+  }
 
   /// The most records one page of a list carries.
   static const int maxRecordsPerPage = 500;
@@ -1190,6 +1311,19 @@ class DVStudioApi {
         failed[key] =
             'It changed after the list was read. Reload and try again.';
       }
+    }
+    // One entry for the lot, as a person would say it: Recent changes keeps
+    // the last few, and a hundred lines of one delete would push out the rest.
+    if (deleted.isNotEmpty) {
+      await _note(
+        'record',
+        'deleted',
+        deleted.length == 1
+            ? 'A ${spec.model} record'
+            : '${deleted.length} ${spec.model} records',
+        screen: 'models',
+        object: spec.id,
+      );
     }
     return _reply(<String, Object?>{'deleted': deleted, 'failed': failed});
   }
@@ -1494,6 +1628,10 @@ class DVStudioApi {
     },
     versioned: spec.versioned,
     softDelete: spec.softDelete,
+    // The model's change log, so an edit made here is in it as the model's
+    // own saves are. Its entries are SQL rows, so a document database keeps
+    // none, as it keeps none for the generated model either.
+    history: _keepsHistory(spec) ? spec.history : null,
     // An edit made here is a write to the data model, and a captured one is
     // recorded as its own saves are.
     capture: spec.capture ? DVCapture.configured : null,
@@ -1527,8 +1665,9 @@ class DVStudioApi {
   Future<Response> _create(
     DVStudioModelSpec spec,
     DVRecordTable table,
-    Map<String, Object?> body,
-  ) async {
+    Map<String, Object?> body, {
+    String? actor,
+  }) async {
     final Map<String, Object?> values = await _in(spec, body['values']);
     Object? key = values[spec.key];
     if (key == null || '$key'.isEmpty) {
@@ -1556,7 +1695,7 @@ class DVStudioApi {
     }
     await _checkRequired(spec, values);
     await _checkUnique(spec, table, '$key', values);
-    final DVWriteResult written = await table.write(values);
+    final DVWriteResult written = await table.write(values, actor: actor);
     await _noteRecord(spec, '$key', 'created');
     return _reply(_recordJson(spec, written.record), status: 201);
   }
@@ -1565,8 +1704,9 @@ class DVStudioApi {
     DVStudioModelSpec spec,
     DVRecordTable table,
     String key,
-    Map<String, Object?> body,
-  ) async {
+    Map<String, Object?> body, {
+    String? actor,
+  }) async {
     final Map<String, Object?> values = await _in(spec, body['values']);
     if (values.containsKey(spec.key) && '${values[spec.key]}' != key) {
       throw _StudioRefusal(
@@ -1595,7 +1735,8 @@ class DVStudioApi {
       ...values,
     };
     await _checkUnique(spec, table, key, next);
-    final DVWriteResult written = await table.write(next, base: current);
+    final DVWriteResult written =
+        await table.write(next, base: current, actor: actor);
     await _noteRecord(spec, key, 'saved');
     return _reply(_recordJson(spec, written.record));
   }

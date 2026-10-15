@@ -2149,6 +2149,7 @@ class ModelGenerator {
             tenantScoped: tenantScoped,
             versioned: versioned,
             softDelete: softDelete,
+            history: history?.history,
             capture: capture,
             fields: <DVStudioFieldSpec>[
               for (final Map<String, String> f in fields)
@@ -2192,6 +2193,8 @@ class ModelGenerator {
             '${tenantScoped ? '    tenantScoped: true,\n' : ''}'
             '${versioned ? '' : '    versioned: false,\n'}'
             '${softDelete ? '    softDelete: true,\n' : ''}'
+            // Studio writes into the model's change log as its saves do.
+            '${history == null ? '' : '    history: ${history.source},\n'}'
             // The server's own writes to a captured model -- Studio's, a
             // device's replayed ones -- are recorded as its saves are, and
             // the capture runtime backfills the tables named here.

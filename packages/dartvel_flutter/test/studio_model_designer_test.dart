@@ -175,6 +175,8 @@ void main() {
     expect(find.text('Uyo'), findsOneWidget);
 
     await _type(tester, _key('dv-studio-records-search'), 'l');
+    // Asked of the server once typing stops, which matches every field.
+    await tester.pumpAndSettle(const Duration(seconds: 1));
     expect(find.text('Lagos'), findsOneWidget);
     expect(find.text('Lisbon'), findsOneWidget);
     expect(find.text('Uyo'), findsNothing);

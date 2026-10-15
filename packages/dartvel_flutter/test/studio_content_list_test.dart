@@ -35,6 +35,9 @@ class _Server {
   final List<String> calls = <String>[];
   final List<Object?> deleteBodies = <Object?>[];
 
+  /// Records somebody else changed after the list was read.
+  final Set<String> changedSinceRead = <String>{};
+
   Future<DVStudioReply> call(String method, String path, {Object? body}) async {
     calls.add('$method $path');
     final Uri uri = Uri.parse('http://studio.test/$path');
@@ -69,7 +72,11 @@ class _Server {
         final Map<String, List<String>> query = uri.queryParametersAll;
         List<Map<String, Object?>> rows = users.values.toList();
         final String q = (query['q']?.first ?? '').toLowerCase();
-        if (q.isNotEmpty) {
+        // The server matches what the table does not show -- a record's key,
+        // a column left out of the list -- as Studio's API does.
+        if (q == 'matched-elsewhere') {
+          rows = <Map<String, Object?>>[users['user-001']!];
+        } else if (q.isNotEmpty) {
           rows = rows
               .where((Map<String, Object?> r) => (r['values']! as Map).values
                   .any((Object? v) => '$v'.toLowerCase().contains(q)))
@@ -102,13 +109,18 @@ class _Server {
       case 'POST /api/models/User/records/delete':
         deleteBodies.add(body);
         final List<String> deleted = <String>[];
+        final Map<String, Object?> failed = <String, Object?>{};
         for (final Object? entry in (body! as Map)['records'] as List) {
           final String key = '${(entry! as Map)['key']}';
-          if (users.remove(key) != null) deleted.add(key);
+          if (changedSinceRead.contains(key)) {
+            failed[key] = 'changed';
+          } else if (users.remove(key) != null) {
+            deleted.add(key);
+          }
         }
         return reply(200, <String, Object?>{
           'deleted': deleted,
-          'failed': <String, Object?>{},
+          'failed': failed,
         });
       case 'GET /api/site':
         return reply(200, <String, Object?>{'pages': <Object?>[]});
@@ -351,5 +363,76 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pumpAndSettle();
     expect(find.text('Delete 1 record'), findsOneWidget);
+  });
+  testWidgets('choosing a filter field filters nothing until it has a value',
+      (WidgetTester tester) async {
+    // It sent `tier:`, which the server reads as "tier is empty", and the
+    // list showed no records at all.
+    await _at(tester, server, '/__studio/models/User');
+    await tester.tap(_key('dv-studio-records-filter-field'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Name').last);
+    await tester.pumpAndSettle();
+    expect(server.lastList['filter'], isNull);
+    expect(find.text('1–50 of 120'), findsOneWidget);
+  });
+
+  testWidgets('a typed filter value is asked once, when typing stops',
+      (WidgetTester tester) async {
+    await _at(tester, server, '/__studio/models/User');
+    await tester.tap(_key('dv-studio-records-filter-field'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Name').last);
+    await tester.pumpAndSettle();
+    final int before = server.calls.length;
+    final Finder value = find.descendant(
+        of: _key('dv-studio-records-filter-value'),
+        matching: find.byType(EditableText));
+    for (final String typed in <String>['A', 'Ad', 'Ada', 'Ada Lovelace']) {
+      await tester.enterText(value, typed);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pumpAndSettle(const Duration(seconds: 1));
+    final List<String> asked = server.calls
+        .skip(before)
+        .where((String c) => c.startsWith('GET api/models/User/records'))
+        .toList();
+    expect(asked, hasLength(1), reason: '$asked');
+    expect(server.lastList['filter'], <String>['name:Ada Lovelace']);
+    expect(find.text('1–1 of 1'), findsOneWidget);
+  });
+
+  testWidgets('every record the server found is listed', (WidgetTester tester) async {
+    // The list searched the server's page again by the words in its cells,
+    // and hid what the server had matched by a key or an unlisted column.
+    await _at(tester, server, '/__studio/models/User');
+    await tester.enterText(
+        find.descendant(
+            of: _key('dv-studio-records-search'),
+            matching: find.byType(EditableText)),
+        'matched-elsewhere');
+    await tester.pumpAndSettle(const Duration(seconds: 1));
+    expect(find.text('1–1 of 1'), findsOneWidget);
+    expect(find.text('Person 1'), findsOneWidget);
+  });
+
+  testWidgets('a record that could not be deleted is named, not hidden',
+      (WidgetTester tester) async {
+    server.changedSinceRead.add('user-002');
+    await _at(tester, server, '/__studio/models/User');
+    await tester.tap(_key('dv-studio-record-check-user-001'));
+    await tester.tap(_key('dv-studio-record-check-user-002'));
+    await tester.pumpAndSettle();
+    await tester.tap(_key('dv-studio-records-bulk-delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(_key('dv-studio-records-bulk-delete-confirm'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('user-002'), findsWidgets);
+    expect(find.textContaining('could not be deleted'), findsOneWidget);
+  });
+
+  testWidgets('a record row says which record it opens', (WidgetTester tester) async {
+    await _at(tester, server, '/__studio/models/User');
+    expect(find.byTooltip('Open user-001'), findsWidgets);
   });
 }
