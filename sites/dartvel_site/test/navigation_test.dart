@@ -72,7 +72,7 @@ void main() {
   }
 
   testWidgets('a filled button navigates', (WidgetTester tester) async {
-    await pumpWith(tester, const PrimaryLink('Get started', '/docs'));
+    await pumpWith(tester, const PrimaryLink('Get started', DVRoutes.docs));
 
     await tester.tap(find.text('Get started'));
     await tester.pump();
@@ -81,7 +81,7 @@ void main() {
   });
 
   testWidgets('an outlined button navigates', (WidgetTester tester) async {
-    await pumpWith(tester, const GhostLink('Cloud', '/cloud'));
+    await pumpWith(tester, const GhostLink('Cloud', DVRoutes.cloud));
 
     await tester.tap(find.text('Cloud'));
     await tester.pump();
