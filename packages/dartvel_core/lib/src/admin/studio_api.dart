@@ -4163,39 +4163,9 @@ class DVStudioApi {
   }
 
   Future<DVStudioSettings> _getSettings() async {
-    final DVRecordAdapter? records = await _readable(dvStudioSettingsShape);
-    if (records == null) return dvStudioDefaultSettings();
-    final List<Map<String, Object?>> rows = await records.find(
-      dvStudioSettingsTable,
-      where: DVFilter.equals('id', 'global'),
-    );
-    if (rows.isEmpty) return dvStudioDefaultSettings();
-    final Map<String, Object?> r = rows.first;
-    const DVStudioSettings neutral = DVStudioSettings();
-    final int? updatedMillis = (r['updated_at'] as num?)?.toInt();
-    return DVStudioSettings(
-      siteTitle: '${r['site_title'] ?? neutral.siteTitle}',
-      tagline: '${r['tagline'] ?? neutral.tagline}',
-      siteUrl: '${r['site_url'] ?? neutral.siteUrl}',
-      timezone: '${r['timezone'] ?? neutral.timezone}',
-      dateFormat: '${r['date_format'] ?? neutral.dateFormat}',
-      favicon: r['favicon'] as String?,
-      defaultSeoTitle: r['default_seo_title'] as String?,
-      defaultSeoDescription: r['default_seo_description'] as String?,
-      defaultSeoImage: r['default_seo_image'] as String?,
-      socialLinks: switch (_decoded(r['social_links_json'])) {
-        final Map<Object?, Object?> links => <String, String>{
-            for (final MapEntry<Object?, Object?> e in links.entries)
-              '${e.key}': '${e.value}',
-          },
-        _ => const <String, String>{},
-      },
-      maintenanceMode: r['maintenance_mode'] == 1 || r['maintenance_mode'] == true,
-      maintenanceMessage: r['maintenance_message'] as String?,
-      updatedAt: updatedMillis != null
-          ? DateTime.fromMillisecondsSinceEpoch(updatedMillis, isUtc: true)
-          : null,
-    );
+    final DVDatabaseAdapter? db = database;
+    return (db == null ? null : await dvStudioStoredSettings(db)) ??
+        dvStudioDefaultSettings();
   }
 
   Future<Response> _settings(
@@ -4263,9 +4233,58 @@ class DVStudioApi {
         object: 'global',
       );
 
+      // Every rendered page carries the site's name and defaults.
+      dvPurgeRenderedPages();
       return _reply(updated.toJson(), status: 200);
     }
 
     _notAllowed();
   }
+}
+
+/// The settings saved in Studio, or null when none have been saved: what the
+/// site is called, its default title, description and picture, and whether
+/// it is in maintenance.
+Future<DVStudioSettings?> dvStudioStoredSettings(DVDatabaseAdapter database) async {
+  final DVRecordAdapter records = DVRecordAdapter.over(database);
+  await records.ensure(dvStudioSettingsShape);
+  final List<Map<String, Object?>> rows = await records.find(
+    dvStudioSettingsTable,
+    where: DVFilter.equals('id', 'global'),
+    limit: 1,
+  );
+  if (rows.isEmpty) return null;
+  final Map<String, Object?> r = rows.first;
+  const DVStudioSettings neutral = DVStudioSettings();
+  final int? updatedMillis = (r['updated_at'] as num?)?.toInt();
+  Object? links;
+  try {
+    final Object? stored = r['social_links_json'];
+    links = stored is String && stored.isNotEmpty ? jsonDecode(stored) : null;
+  } on FormatException {
+    links = null;
+  }
+  return DVStudioSettings(
+    siteTitle: '${r['site_title'] ?? neutral.siteTitle}',
+    tagline: '${r['tagline'] ?? neutral.tagline}',
+    siteUrl: '${r['site_url'] ?? neutral.siteUrl}',
+    timezone: '${r['timezone'] ?? neutral.timezone}',
+    dateFormat: '${r['date_format'] ?? neutral.dateFormat}',
+    favicon: r['favicon'] as String?,
+    defaultSeoTitle: r['default_seo_title'] as String?,
+    defaultSeoDescription: r['default_seo_description'] as String?,
+    defaultSeoImage: r['default_seo_image'] as String?,
+    socialLinks: links is Map
+        ? <String, String>{
+            for (final MapEntry<Object?, Object?> e in links.entries)
+              '${e.key}': '${e.value}',
+          }
+        : const <String, String>{},
+    // A bool on an engine that keeps one, 1 on one that keeps integers.
+    maintenanceMode: r['maintenance_mode'] == 1 || r['maintenance_mode'] == true,
+    maintenanceMessage: r['maintenance_message'] as String?,
+    updatedAt: updatedMillis != null
+        ? DateTime.fromMillisecondsSinceEpoch(updatedMillis, isUtc: true)
+        : null,
+  );
 }

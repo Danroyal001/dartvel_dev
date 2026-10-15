@@ -2109,7 +2109,7 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   // The page documents Studio published, which the web app reads to let a
   // stored page take over its route without a rebuild. Public: a published
   // page is what the site shows anybody.
-  final core.DVPublishedPages? publishedPages = !dartvelStudio ? null : core.DVPublishedPages(database: () => const core.DVDatabase().configuredAdapter ?? dartvelDatabase, media: studioMedia);
+  final core.DVPublishedPages? publishedPages = !dartvelStudio ? null : core.DVPublishedPages(database: () => const core.DVDatabase().configuredAdapter ?? dartvelDatabase, media: studioMedia, passesMaintenance: adminServer?.admits);
   // The data API of the models designed in Studio: their records, read and
   // written through the same checks Studio's own writes go through, for the
   // callers each model's access allows.
@@ -2126,7 +2126,7 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   final Future<dv.Response> Function(dv.Request) siteHandler = docsServer == null
       ? handler
       : (dv.Request request) async => await docsServer.respond(request) ?? await handler(request);
-  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, publishedPage: publishedPages?.seo, publishedSitemap: publishedPages?.sitemapRoutes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
+  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, publishedPage: publishedPages?.seo, publishedSitemap: publishedPages?.sitemapRoutes, siteDefaults: publishedPages?.siteDefaults, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
     // A patch is larger than a request body usually is.
     if (patchPrefix != null) dv.DVRouteBodyLimit('POST', '\$patchPrefix/_dartvel/publish', $dvPatchPublishMaxBytes),
     ...router.bodyLimits,

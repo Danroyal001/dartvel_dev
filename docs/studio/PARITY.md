@@ -175,7 +175,7 @@ Full accessibility remains **Partial** until those flows are verified too.
 | Queue / Cache | Queue names and cache entries | Partial |
 | GitHub | Diff, pull request or push of the project's `studio/` folder | Not in any of the four; unique to Dartvel |
 | Team | Teammates directory, role assignment, permissions matrix, and invite dialog | Done |
-| Settings | Site identity, localization, default SEO and social links, maintenance mode — stored, but not yet applied to what visitors are served | Partial |
+| Settings | Site identity, localization, default SEO and social links, maintenance mode. Maintenance closes the site's pages (503) for everyone Studio does not admit; the site title and default description and image are served in every page's head. The default SEO title, favicon, timezone, date format and social links are stored but nothing serves them yet | Partial |
 | Flags / Operations | Feature flags with rules, service levels, alert rules, incidents, status preview | Not in the four; unique to Dartvel, and real |
 
 ### A URL for every screen, and what it is read by

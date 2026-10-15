@@ -92,4 +92,22 @@ void main() {
       isNull,
     );
   });
+  test('the description Studio\'s Settings give is the site\'s', () async {
+    final Response response = await handleSsrFallback(
+      _get('/'),
+      _site().path,
+      siteDefaults: () async => (
+        name: 'Harbour Hire',
+        title: null,
+        description: 'Boats by the hour.',
+        image: '/_dartvel/media/boat.png',
+        favicon: null,
+      ),
+    );
+    final String html = await _body(response);
+    expect(html, contains('content="Boats by the hour."'));
+    expect(html, isNot(contains('Boats, for hire.')));
+    expect(html, contains('content="Harbour Hire"'));
+    expect(html, contains('https://harbour.example/_dartvel/media/boat.png'));
+  });
 }

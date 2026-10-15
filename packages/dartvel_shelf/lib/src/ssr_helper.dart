@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVPublishedPageSeo, dvRenderPublishedPage, dvSitemapWithRoutes;
+    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVPublishedPageSeo, DVStudioSiteDefaults, dvRenderPublishedPage, dvSitemapWithRoutes;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
@@ -35,6 +35,7 @@ Future<Response> handleSsrFallback(
   DVCacheAdapter? pageStore,
   Future<Set<String>> Function()? publishedRoutes,
   Future<DVPublishedPageSeo?> Function(String path)? publishedPage,
+  Future<DVStudioSiteDefaults?> Function()? siteDefaults,
 }) =>
     dvWithRequestTenant(
       req,
@@ -46,6 +47,7 @@ Future<Response> handleSsrFallback(
         pageStore: pageStore,
         publishedRoutes: publishedRoutes,
         publishedPage: publishedPage,
+        siteDefaults: siteDefaults,
       ),
     );
 
@@ -57,6 +59,7 @@ Future<Response> _handleSsrFallback(
   DVCacheAdapter? pageStore,
   Future<Set<String>> Function()? publishedRoutes,
   Future<DVPublishedPageSeo?> Function(String path)? publishedPage,
+  Future<DVStudioSiteDefaults?> Function()? siteDefaults,
 }) async {
   // Read through the source registered for the root: the pack inside a
   // web-server binary, the directory everywhere else.
@@ -71,7 +74,7 @@ Future<Response> _handleSsrFallback(
   // assembled from it on request, with the route's data from the resolver
   // the backend was started with, by the declared mode.
   if (dvSiteHash(spaRoot, 'dartvel_routes.json') != null) {
-    return _fromManifest(req, html, spaRoot: spaRoot, pageData: pageData, cache: cache, pageStore: pageStore, publishedRoutes: publishedRoutes, publishedPage: publishedPage);
+    return _fromManifest(req, html, spaRoot: spaRoot, pageData: pageData, cache: cache, pageStore: pageStore, publishedRoutes: publishedRoutes, publishedPage: publishedPage, siteDefaults: siteDefaults);
   }
 
   // Check for prerendered metadata
@@ -157,6 +160,7 @@ Future<Response> _fromManifest(
   required DVCacheAdapter? pageStore,
   required Future<Set<String>> Function()? publishedRoutes,
   Future<DVPublishedPageSeo?> Function(String path)? publishedPage,
+  Future<DVStudioSiteDefaults?> Function()? siteDefaults,
 }) async {
   Map<String, Object?> manifest;
   try {
@@ -172,7 +176,17 @@ Future<Response> _fromManifest(
   // build wrote into the shell, so without these every served page came out
   // with no description, no image and no site name -- less than the shell it
   // was rendered from, and no worse-looking in a browser.
-  final DVSiteSeo site = DVSiteSeo.parse(manifest['site']);
+  final DVSiteSeo built = DVSiteSeo.parse(manifest['site']);
+  // What Studio's Settings say about the site, over what the build said:
+  // they are changed without a build.
+  final DVStudioSiteDefaults? defaults = await siteDefaults?.call();
+  final DVSiteSeo site = defaults == null
+      ? built
+      : DVSiteSeo(
+          name: defaults.name ?? built.name,
+          description: defaults.description ?? built.description,
+          image: defaults.image ?? built.image,
+        );
   final DVWebServerSettings settings = DVWebServerSettings.parse(manifest['server']);
   final String raw = req.url.path.isEmpty ? '/' : (req.url.path.startsWith('/') ? req.url.path : '/${req.url.path}');
   final String path = raw == '/' ? '/' : raw.replaceAll(RegExp(r'/+$'), '');
@@ -380,6 +394,7 @@ Future<Response> _cachedSsrFallback(
   DVCacheAdapter? pageStore,
   Future<Set<String>> Function()? publishedRoutes,
   Future<DVPublishedPageSeo?> Function(String path)? publishedPage,
+  Future<DVStudioSiteDefaults?> Function()? siteDefaults,
 }) async {
   Future<Response> render() => _handleSsrFallback(
     req,
@@ -389,6 +404,7 @@ Future<Response> _cachedSsrFallback(
     pageStore: pageStore,
     publishedRoutes: publishedRoutes,
         publishedPage: publishedPage,
+        siteDefaults: siteDefaults,
   );
   Object? manifest;
   try {

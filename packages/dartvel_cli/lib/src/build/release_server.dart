@@ -85,6 +85,25 @@ Future<void> dvServeRelease({
           );
         }
       }
+      final DVAdminServer? adminServer = admin.enabled
+          ? _resumingSchedules(DVAdminServer(
+                mount: admin,
+                root: p.join(root, dvStudioDataDirectory),
+                webRoot: buildDir.path,
+                title: 'Studio · ${_appName(root)}',
+                studioParts: <String, Uint8List>{
+                  for (final MapEntry<String, List<int>> part
+                      in dvReadStudioParts(
+                        p.join(root, dvStudioPartsDirectory),
+                      ).entries)
+                    part.key: Uint8List.fromList(part.value),
+                },
+                devGrant: grant,
+                models: dvDevStudioModels(root),
+                database: database,
+                storage: media,
+              ))
+          : null;
       server = await shelf_io.serve(
         dvWebServerHandler(
           webRoot: buildDir.path,
@@ -92,27 +111,14 @@ Future<void> dvServeRelease({
           // Studio as the binary serves it: pages of the application
           // rendered from its shell, its data from what the build kept
           // for it, and its code handed out from memory.
-          adminServer: admin.enabled
-              ? _resumingSchedules(DVAdminServer(
-                  mount: admin,
-                  root: p.join(root, dvStudioDataDirectory),
-                  webRoot: buildDir.path,
-                  title: 'Studio · ${_appName(root)}',
-                  studioParts: <String, Uint8List>{
-                    for (final MapEntry<String, List<int>> part
-                        in dvReadStudioParts(
-                          p.join(root, dvStudioPartsDirectory),
-                        ).entries)
-                      part.key: Uint8List.fromList(part.value),
-                  },
-                  devGrant: grant,
-                  models: dvDevStudioModels(root),
-                  database: database,
-                  storage: media,
-                ))
-              : null,
-          publishedPages:
-              DVPublishedPages(database: () => database, media: media),
+          adminServer: adminServer,
+          // Studio, and whoever may open it, see the site while it is in
+          // maintenance.
+          publishedPages: DVPublishedPages(
+            database: () => database,
+            media: media,
+            passesMaintenance: adminServer?.admits,
+          ),
           modelData: DVModelDataApi(database: () => database),
         ),
         host,

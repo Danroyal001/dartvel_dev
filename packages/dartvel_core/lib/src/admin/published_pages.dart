@@ -25,7 +25,8 @@ import '../web/seo_head.dart' show dvAbsoluteAsset, dvSeoApply, dvSeoHead;
 import '../http/client_address.dart' show DVClientAddress;
 import 'studio_form_inbox.dart';
 import 'studio_media_files.dart';
-import 'studio_api.dart' show dvStudioPagesTable;
+import 'studio_api.dart' show dvStudioPagesTable, dvStudioStoredSettings;
+import 'studio_settings.dart' show DVStudioSettings;
 import 'studio_site.dart' show dvStudioIsReservedRoute;
 
 /// Where the generated backend answers the published page documents.
@@ -36,7 +37,92 @@ class DVPublishedPages {
   DVPublishedPages({
     required DVDatabaseAdapter? Function() database,
     this.media,
-  }) : _database = database;
+    Future<bool> Function(Request request)? passesMaintenance,
+  })  : _database = database,
+        _passesMaintenance = passesMaintenance;
+
+  /// Whether a request sees the site as it is while it is in maintenance:
+  /// somebody who may open Studio, to check the work before it is lifted.
+  final Future<bool> Function(Request request)? _passesMaintenance;
+
+  DVStudioSettings? _settings;
+  DateTime? _settingsRead;
+
+  /// The settings saved in Studio, read at most every few seconds: they are
+  /// asked on every page request, and a change shows within that.
+  Future<DVStudioSettings?> _storedSettings() async {
+    final DateTime now = DateTime.now();
+    final DateTime? read = _settingsRead;
+    if (read != null && now.difference(read) < const Duration(seconds: 5)) {
+      return _settings;
+    }
+    final DVDatabaseAdapter? database = _database();
+    try {
+      _settings = database == null ? null : await dvStudioStoredSettings(database);
+    } on Object {
+      _settings = null;
+    }
+    _settingsRead = now;
+    return _settings;
+  }
+
+  /// What the site is called and says about itself by default, from Studio's
+  /// Settings, or null when none were saved there. A page's own title and
+  /// description come first; these fill in what a page does not say.
+  Future<DVStudioSiteDefaults?> siteDefaults() async {
+    final DVStudioSettings? settings = await _storedSettings();
+    if (settings == null) return null;
+    String? named(String? value) =>
+        value == null || value.trim().isEmpty ? null : value.trim();
+    return (
+      name: named(settings.siteTitle),
+      title: named(settings.defaultSeoTitle),
+      description: named(settings.defaultSeoDescription),
+      image: named(settings.defaultSeoImage),
+      favicon: named(settings.favicon),
+    );
+  }
+
+  /// The maintenance page, for a page request while Studio's Settings say the
+  /// site is in maintenance. Not for what the framework serves itself under
+  /// `/_dartvel/`, and not for somebody who may open Studio.
+  Future<Response?> maintenance(Request request) async {
+    final String method = request.method.toUpperCase();
+    if (method != 'GET' && method != 'HEAD') return null;
+    if (request.url.path.startsWith('/_dartvel/')) return null;
+    final DVStudioSettings? settings = await _storedSettings();
+    if (settings == null || !settings.maintenanceMode) return null;
+    if (await _passesMaintenance?.call(request) ?? false) return null;
+    const HtmlEscape text = HtmlEscape(HtmlEscapeMode.element);
+    final String name = settings.siteTitle.trim();
+    final String message = (settings.maintenanceMessage ?? '').trim().isEmpty
+        ? 'This site is down for maintenance. Please come back soon.'
+        : settings.maintenanceMessage!.trim();
+    final String html = '<!DOCTYPE html>\n<html lang="en"><head>'
+        '<meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<meta name="robots" content="noindex">'
+        '<title>${text.convert(name.isEmpty ? 'Maintenance' : name)}</title>'
+        '<style>body{font:16px/1.5 system-ui,sans-serif;margin:0;'
+        'display:grid;place-items:center;min-height:100vh;padding:16px;'
+        'box-sizing:border-box}main{max-width:32rem}</style>'
+        '</head><body><main>'
+        '${name.isEmpty ? '' : '<h1>${text.convert(name)}</h1>'}'
+        '<p>${text.convert(message)}</p>'
+        '</main></body></html>\n';
+    return Response(
+      503,
+      headers: Headers(<String, String>{
+        'content-type': 'text/html; charset=utf-8',
+        // Asked again soon, and never kept: the site comes back.
+        'retry-after': '300',
+        'cache-control': 'no-store',
+      }),
+      body: method == 'HEAD'
+          ? const Stream<List<int>>.empty()
+          : Stream<List<int>>.value(utf8.encode(html)),
+    );
+  }
 
   final DVDatabaseAdapter? Function() _database;
 
@@ -235,6 +321,7 @@ class DVPublishedPages {
 
   /// The documents, or null for a request that is not for them.
   Future<Response?> respond(Request request) async {
+    if (await maintenance(request) case final Response closed) return closed;
     if (await _media(request) case final Response file) return file;
     if (await _form(request) case final Response form) return form;
     if (request.url.path != dvPublishedPagesPath) return null;
@@ -277,6 +364,16 @@ class DVPublishedPages {
     );
   }
 }
+
+/// What Studio's Settings say about the whole site: its name, and the title,
+/// description, picture and icon a page has when it names none of its own.
+typedef DVStudioSiteDefaults = ({
+  String? name,
+  String? title,
+  String? description,
+  String? image,
+  String? favicon,
+});
 
 /// What a page built in Studio says about itself: its title, description,
 /// picture, indexing rule, canonical address and structured-data type, and

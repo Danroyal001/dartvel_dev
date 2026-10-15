@@ -8,6 +8,7 @@ import 'package:dartvel_core/dartvel.dart'
     show
         DVCacheAdapter,
         DVPublishedPageSeo,
+        DVStudioSiteDefaults,
         DVLogLevel,
         DVPageDataResolver,
         DVPreviewMembership,
@@ -167,6 +168,8 @@ Future<ServerHandle> serve(
   // the sitemap lists.
   Future<DVPublishedPageSeo?> Function(String path)? publishedPage,
   Future<List<String>> Function()? publishedSitemap,
+  // What Studio's Settings say about the whole site.
+  Future<DVStudioSiteDefaults?> Function()? siteDefaults,
   DVPageDataResolver? pageData, // The route's data on request, for the page pipeline
   DVCacheAdapter? pageStore, // Where the kept pages live, when they are shared
   bool compression = true, // Enable/disable compression
@@ -335,14 +338,14 @@ Future<ServerHandle> serve(
       // 2. Fall back to normal handler or SPA index
       final resp = await handler(req);
       if (resp.status == 404 && req.method == 'GET') {
-        return handleSsrFallback(req, spaRoot, pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes, publishedPage: publishedPage);
+        return handleSsrFallback(req, spaRoot, pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes, publishedPage: publishedPage, siteDefaults: siteDefaults);
       }
       // HEAD is GET without the body. Answering it 404 told an uptime
       // monitor, a link checker and a crawler that asks HEAD first that a
       // page served to every browser was not there.
       if (resp.status == 404 && req.method == 'HEAD') {
         final page = await handleSsrFallback(req, spaRoot,
-            pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes, publishedPage: publishedPage);
+            pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes, publishedPage: publishedPage, siteDefaults: siteDefaults);
         return Response(page.status,
             headers: page.headers, body: const Stream<List<int>>.empty());
       }

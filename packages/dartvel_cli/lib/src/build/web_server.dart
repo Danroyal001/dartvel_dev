@@ -30,6 +30,7 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:dartvel_core/dartvel.dart' as core
     show
         DVSessionAuthentication,
+        DVStudioSiteDefaults,
         DVSessionAuthenticationResult,
         DVSessionCookie,
         dvSignInLocation,
@@ -411,6 +412,14 @@ Handler dvWebServerHandler({
           body: '', headers: dvAdminHiddenHeaders);
     }
 
+    // Studio's Settings put the site in maintenance: every page is the
+    // maintenance page, except for somebody who may open Studio.
+    if (publishedPages != null) {
+      final core.Response? closed =
+          await publishedPages.maintenance(await _coreRequest(request));
+      if (closed != null) return _shelfResponse(closed);
+    }
+
     // A file on disk wins, so main.dart.js and the assets are served as
     // themselves. index.html does not: it is the shell, and serving it raw
     // would hand back a page with no route metadata at all.
@@ -463,9 +472,14 @@ Handler dvWebServerHandler({
     // the build carried in the manifest, then the shell's own title. Not
     // optional decoration -- rendering replaces the shell's head block
     // wholesale, so a value missing here is a value deleted from the page.
-    final String? siteDescription = description ?? site.description;
-    final String? siteImage = image ?? site.image;
-    final String? name = siteName ?? site.name ?? shellTitle;
+    // Studio's Settings come before the manifest: they were changed since
+    // the build.
+    final core.DVStudioSiteDefaults? studio =
+        await publishedPages?.siteDefaults();
+    final String? siteDescription =
+        description ?? studio?.description ?? site.description;
+    final String? siteImage = image ?? studio?.image ?? site.image;
+    final String? name = siteName ?? studio?.name ?? site.name ?? shellTitle;
 
     final DVPageRequest? matched =
         dvMatchRoute(cleanPath, routeMap.keys, headers: request.headers);

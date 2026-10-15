@@ -293,6 +293,11 @@ class DVAdminServer {
     'cache-control': 'no-store',
   };
 
+  /// Whether [request] is Studio's, or comes from somebody who may open it:
+  /// what sees the site as it is while it is in maintenance.
+  Future<bool> admits(Request request) async =>
+      mount.owns(request.url.path) || await _allowed(request);
+
   /// Whether this caller may have what the mount guards.
   Future<bool> _allowed(Request request) async =>
       !mount.requiresAuth || await _authenticated(request);
