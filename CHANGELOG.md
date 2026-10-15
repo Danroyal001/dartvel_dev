@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+- `DVModifier.meshGradient(colors, period:)` is a mesh now: one soft blob per colour, each drifting on its own orbit behind the box's content, padding included. It was a static linear gradient under that name. Reduced motion paints it once and runs no ticker; fewer than two colours is an `ArgumentError`.
+- `DVModifier.hoverGlow(color:, radius:)` is a light that follows the pointer behind the content, repainting without rebuilding the box. It no longer replaces the box's own `hover(...)` state (it was a `hover(shadow)`), and under reduced motion it sits at the centre.
+- `DVModifier.revealChildren(step:)` reveals a collection box's children one after another on scroll; an `Expanded` or `Flexible` child keeps its place. **Removed:** `DVModifier.stagger`, which was `revealOnScroll(delay:)` under a second name and never released.
+
 ## 0.12.2 — 2026-10-14
 
 - Fix: a web-server binary's backend saw no pages. `DVSitePages.load()` read `dartvel_routes.json` from disk, but a web-server binary serves its site from the pack inside it, so every page-reading backend (a site search, an llms.txt) got an empty list; dartvel.dev's search answered every query with a 500 for two days. The manifest is now read through the site's registered asset source.

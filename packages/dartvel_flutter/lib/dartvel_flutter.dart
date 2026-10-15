@@ -21,7 +21,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
-    show OrdinalSortKey, Selectable, SelectedContent, SelectionRegistrar;
+    show
+        OrdinalSortKey,
+        PipelineOwner,
+        Selectable,
+        SelectedContent,
+        SelectionRegistrar;
 import 'package:flutter/services.dart'
     show Clipboard,
         ClipboardData,
@@ -1089,6 +1094,24 @@ class DVModifier {
 
   /// A stagger, so a row of cards does not all arrive at once.
   final Duration revealDelay;
+
+  /// The colours of a drifting mesh painted behind the box's content, or
+  /// null for none. See [meshGradient].
+  final List<Color>? meshColors;
+
+  /// How long one full drift of [meshColors] takes.
+  final Duration meshPeriod;
+
+  /// The colour of a glow that follows the pointer across the box, or null
+  /// for none. See [hoverGlow].
+  final Color? glowColor;
+
+  /// The radius of the [glowColor] glow, in logical pixels.
+  final double glowRadius;
+
+  /// When set, each child of a collection box reveals on scroll, this much
+  /// after the one before it. See [revealChildren].
+  final Duration? revealStep;
   final double? widthValue;
   final double? heightValue;
   final AlignmentGeometry? alignmentValue;
@@ -1170,6 +1193,11 @@ class DVModifier {
     this.hoverValue,
     this.revealValue = false,
     this.revealDelay = Duration.zero,
+    this.meshColors,
+    this.meshPeriod = const Duration(seconds: 24),
+    this.glowColor,
+    this.glowRadius = 240,
+    this.revealStep,
     this.widthValue,
     this.heightValue,
     this.alignmentValue,
@@ -1226,6 +1254,11 @@ class DVModifier {
         hoverValue = null,
         revealValue = false,
         revealDelay = Duration.zero,
+        meshColors = null,
+        meshPeriod = const Duration(seconds: 24),
+        glowColor = null,
+        glowRadius = 240,
+        revealStep = null,
         widthValue = null,
         heightValue = null,
         alignmentValue = null,
@@ -1282,6 +1315,11 @@ class DVModifier {
     DVModifier? hoverValue,
     bool? revealValue,
     Duration? revealDelay,
+    List<Color>? meshColors,
+    Duration? meshPeriod,
+    Color? glowColor,
+    double? glowRadius,
+    Duration? revealStep,
     double? widthValue,
     double? heightValue,
     AlignmentGeometry? alignmentValue,
@@ -1353,6 +1391,11 @@ class DVModifier {
       hoverValue: hoverValue ?? this.hoverValue,
       revealValue: revealValue ?? this.revealValue,
       revealDelay: revealDelay ?? this.revealDelay,
+      meshColors: meshColors ?? this.meshColors,
+      meshPeriod: meshPeriod ?? this.meshPeriod,
+      glowColor: glowColor ?? this.glowColor,
+      glowRadius: glowRadius ?? this.glowRadius,
+      revealStep: revealStep ?? this.revealStep,
       widthValue: widthValue ?? this.widthValue,
       heightValue: heightValue ?? this.heightValue,
       alignmentValue: alignmentValue ?? this.alignmentValue,
@@ -1584,6 +1627,8 @@ class DVModifier {
       marginValue != null ||
       boxColor != null ||
       gradientValue != null ||
+      meshColors != null ||
+      glowColor != null ||
       borderRadius != null ||
       borderValue != null ||
       shadows != null ||
@@ -1675,31 +1720,59 @@ class DVModifier {
   DVModifier revealOnScroll({Duration delay = Duration.zero}) =>
       _copyWith(revealValue: true, revealDelay: delay);
 
-  /// Animated mesh-style gradient background from a list of colors.
-  DVModifier meshGradient(List<Color> colors) => _copyWith(
-        gradientValue: LinearGradient(
-          colors: colors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      );
+  /// A mesh of soft colour drifting behind the box's content.
+  ///
+  /// One blurred blob per colour, each on its own slow orbit, over whatever
+  /// background the box already has -- so pass colours with some
+  /// transparency and the box's own colour shows between them. It covers the
+  /// whole box, padding included, adds nothing to the semantics tree and
+  /// takes no taps.
+  ///
+  /// [period] is one full drift. Under reduced motion the mesh is painted
+  /// once, where it would start, and asks for no further frames: the reader
+  /// still gets the colour, and nothing moves.
+  ///
+  /// Two colours at least: one is a background colour, and
+  /// [backgroundColor] already says that.
+  DVModifier meshGradient(
+    List<Color> colors, {
+    Duration period = const Duration(seconds: 24),
+  }) {
+    if (colors.length < 2) {
+      throw ArgumentError.value(colors, 'colors',
+          'a mesh needs two colours or more; use backgroundColor for one');
+    }
+    return _copyWith(
+        meshColors: List<Color>.unmodifiable(colors), meshPeriod: period);
+  }
 
-  /// A glow effect applied when the pointer is over the box.
-  DVModifier hoverGlow({Color? color, double sigma = 16}) => hover(
-        DVModifier().shadow(<BoxShadow>[
-          BoxShadow(
-            color: (color ?? const Color(0xFF7BA2FF)).withValues(alpha: 0.35),
-            blurRadius: sigma,
-            spreadRadius: 4,
-          ),
-        ]),
-      );
+  /// A soft light that follows the pointer across the box.
+  ///
+  /// Painted behind the content and inside the box's corners, so text stays
+  /// crisp and the glow stops where the card does. It layers on top of
+  /// [hover] rather than replacing it: a card can take an accent border on
+  /// hover and glow as well, in either order.
+  ///
+  /// Moving the pointer repaints the glow without rebuilding the box. Under
+  /// reduced motion it still lights the card under the pointer, but sits at
+  /// the centre instead of tracking the pointer. A touch screen has no hover,
+  /// so it never shows there.
+  DVModifier hoverGlow({
+    Color color = const Color(0x332F6BFF),
+    double radius = 240,
+  }) =>
+      _copyWith(glowColor: color, glowRadius: radius);
 
-  /// Staggered reveal: delays reveal animation by [delay].
-  DVModifier stagger({Duration delay = Duration.zero}) => _copyWith(
-        revealValue: true,
-        revealDelay: delay,
-      );
+  /// Reveals each child of a collection box on scroll, [step] after the one
+  /// before it, so a row of cards arrives as a sequence rather than at once.
+  ///
+  /// The same reveal as [revealOnScroll], per child: reduced motion shows
+  /// them all at once, a faded child stays in the semantics tree, and an
+  /// `Expanded` or `Flexible` child keeps its place in its row.
+  DVModifier revealChildren({
+    Duration step = const Duration(milliseconds: 80),
+  }) =>
+      _copyWith(revealStep: step);
 
   /// This modifier with [other]'s set fields layered over it.
   ///
@@ -1736,7 +1809,11 @@ class DVModifier {
         onHoverChangedCallback:
             other.onHoverChangedCallback ?? onHoverChangedCallback,
         // Not carried over: a hover state describing its own hover state, or
-        // re-revealing on every pointer move, is never what was meant.
+        // re-revealing on every pointer move, is never what was meant. The
+        // same goes for a glow and a stagger. The mesh is part of the box's
+        // look, so a hover state that does not mention it keeps it.
+        meshColors: other.meshColors ?? meshColors,
+        meshPeriod: other.meshColors != null ? other.meshPeriod : meshPeriod,
         widthValue: other.widthValue ?? widthValue,
         heightValue: other.heightValue ?? heightValue,
         alignmentValue: other.alignmentValue ?? alignmentValue,
@@ -2565,23 +2642,47 @@ class DVBox<T> extends StatelessWidget {
     final content = _buildContent(context);
     final DVModifier? mod = _modifier;
 
+    // Painted behind the content, inside the box's own decoration. The mesh
+    // is read from the modifier being shown, so a hover state may change it;
+    // the glow from the box's own, because a hover state is merged without
+    // behaviour and the glow is behaviour.
+    List<Widget> underlays(DVModifier m, ValueListenable<Offset?>? pointer) =>
+        <Widget>[
+          if (m.meshColors case final List<Color> colors)
+            _DVMesh(colors: colors, period: m.meshPeriod),
+          if ((pointer, mod?.glowColor)
+              case (final ValueListenable<Offset?> at, final Color color))
+            _DVGlowLayer(
+              pointer: at,
+              color: color,
+              radius: mod!.glowRadius,
+              still: context.screen.reducedMotion,
+            ),
+        ];
+
     Widget result;
-    if (mod?.hoverValue != null || mod?.onHoverChangedCallback != null) {
+    final bool glows = mod?.glowColor != null;
+    if (mod?.hoverValue != null ||
+        mod?.onHoverChangedCallback != null ||
+        glows) {
       // A MouseRegion only where one was asked for. Every box on a page
       // listening for the pointer is a cost nobody asked for, and it makes
       // hit-testing harder to reason about.
       result = _DVHoverRegion(
         onChanged: mod!.onHoverChangedCallback,
-        builder: (BuildContext context, bool hovered) => _decorate(
-          context,
-          hovered && mod.hoverValue != null
+        tracksPointer: glows,
+        builder: (BuildContext context, bool hovered,
+            ValueListenable<Offset?>? pointer) {
+          final DVModifier shown = hovered && mod.hoverValue != null
               ? mod.merge(mod.hoverValue!)
-              : mod,
-          content,
-        ),
+              : mod;
+          return _decorate(context, shown, content,
+              underlays: underlays(shown, pointer));
+        },
       );
     } else {
-      result = _decorate(context, mod, content);
+      result = _decorate(context, mod, content,
+          underlays: mod == null ? const <Widget>[] : underlays(mod, null));
     }
 
     if (mod?.revealValue ?? false) {
@@ -2595,7 +2696,25 @@ class DVBox<T> extends StatelessWidget {
   WrapCrossAlignment get _wrapCrossAlignment =>
       dvWrapCrossAlignmentOf(_crossAlign);
 
-  Widget _decorate(BuildContext context, DVModifier? m, Widget? content) {
+  Widget _decorate(
+    BuildContext context,
+    DVModifier? m,
+    Widget? content, {
+    List<Widget> underlays = const <Widget>[],
+  }) {
+    // A mesh or a glow is painted across the whole box, padding included, so
+    // the padding moves inside the stack with the content and the layers fill
+    // what is left: the box's own area inside its border.
+    EdgeInsetsGeometry? padding = m?.paddingValue;
+    if (underlays.isNotEmpty) {
+      Widget inner = content ?? const SizedBox.shrink();
+      if (padding != null) inner = Padding(padding: padding, child: inner);
+      content = Stack(
+        fit: .passthrough,
+        children: <Widget>[...underlays, inner],
+      );
+      padding = null;
+    }
     // A background video sits behind the content and takes the box's shape,
     // so padding, corners and the decoration above it still belong to the
     // box rather than to the player.
@@ -2653,7 +2772,7 @@ class DVBox<T> extends StatelessWidget {
             height: m?.heightValue,
             alignment: m?.alignmentValue,
             margin: m?.marginValue,
-            padding: m?.paddingValue,
+            padding: padding,
             decoration: decoration,
             clipBehavior: clip,
             child: content,
@@ -2663,7 +2782,7 @@ class DVBox<T> extends StatelessWidget {
             height: m?.heightValue,
             alignment: m?.alignmentValue,
             margin: m?.marginValue,
-            padding: m?.paddingValue,
+            padding: padding,
             decoration: decoration,
             clipBehavior: clip,
             child: content,
@@ -2813,8 +2932,37 @@ class DVBox<T> extends StatelessWidget {
     final child = _child;
     if (child != null) return _maybeScrollable(child);
     final children = _children;
-    if (children != null) return _buildStaticCollection(context, children);
+    if (children != null) {
+      return _buildStaticCollection(context, _staggered(children));
+    }
     return null;
+  }
+
+  /// Each child revealed on scroll, a step after the one before, when the
+  /// modifier asks for it. A Flexible keeps its place as the row's direct
+  /// child and its own child is the one revealed.
+  List<Widget> _staggered(List<Widget> children) {
+    final Duration? step = _modifier?.revealStep;
+    if (step == null) return children;
+    Widget reveal(Widget child, int index) =>
+        _DVReveal(delay: step * index, child: child);
+    return <Widget>[
+      for (int i = 0; i < children.length; i++)
+        switch (children[i]) {
+          final Expanded expanded => Expanded(
+              key: expanded.key,
+              flex: expanded.flex,
+              child: reveal(expanded.child, i),
+            ),
+          final Flexible flexible => Flexible(
+              key: flexible.key,
+              flex: flexible.flex,
+              fit: flexible.fit,
+              child: reveal(flexible.child, i),
+            ),
+          final Widget child => reveal(child, i),
+        },
+    ];
   }
 
   Widget _buildStaticCollection(BuildContext context, List<Widget> children) {
@@ -3241,9 +3389,23 @@ class DVBox<T> extends StatelessWidget {
 /// with no other home. Application code does not write one of these; it says
 /// `DVModifier().hover(...)`.
 class _DVHoverRegion extends StatefulWidget {
-  const _DVHoverRegion({required this.builder, this.onChanged});
+  const _DVHoverRegion({
+    required this.builder,
+    this.onChanged,
+    this.tracksPointer = false,
+  });
 
-  final Widget Function(BuildContext context, bool hovered) builder;
+  /// Builds the box. `pointer` is where the pointer is, in global
+  /// coordinates, while it is over the box; it is null unless
+  /// [tracksPointer], and it changes without a rebuild.
+  final Widget Function(
+    BuildContext context,
+    bool hovered,
+    ValueListenable<Offset?>? pointer,
+  ) builder;
+
+  /// Whether to follow the pointer across the box, for a glow.
+  final bool tracksPointer;
 
   /// Told about the change as well as restyling, so one MouseRegion serves
   /// both and asking for one does not lose the other.
@@ -3255,19 +3417,273 @@ class _DVHoverRegion extends StatefulWidget {
 
 class _DVHoverRegionState extends State<_DVHoverRegion> {
   bool _over = false;
+  final ValueNotifier<Offset?> _pointer = ValueNotifier<Offset?>(null);
 
   void _set(bool over) {
+    if (!over) _pointer.value = null;
     if (_over == over) return;
     setState(() => _over = over);
     widget.onChanged?.call(over);
   }
 
+  void _track(PointerEvent event) {
+    if (widget.tracksPointer) _pointer.value = event.position;
+  }
+
+  @override
+  void dispose() {
+    _pointer.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => MouseRegion(
-        onEnter: (_) => _set(true),
+        onEnter: (PointerEvent event) {
+          _track(event);
+          _set(true);
+        },
+        onHover: _track,
         onExit: (_) => _set(false),
-        child: widget.builder(context, _over),
+        child: widget.builder(
+            context, _over, widget.tracksPointer ? _pointer : null),
       );
+}
+
+/// A drifting mesh of soft colour behind a box's content. See
+/// [DVModifier.meshGradient].
+///
+/// Framework-internal: a ticker is per-element state with no other home.
+class _DVMesh extends StatefulWidget {
+  const _DVMesh({required this.colors, required this.period});
+
+  final List<Color> colors;
+  final Duration period;
+
+  @override
+  State<_DVMesh> createState() => _DVMeshState();
+}
+
+class _DVMeshState extends State<_DVMesh> with SingleTickerProviderStateMixin {
+  late final AnimationController _drift =
+      AnimationController(vsync: this, duration: widget.period);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _follow();
+  }
+
+  @override
+  void didUpdateWidget(_DVMesh old) {
+    super.didUpdateWidget(old);
+    if (old.period != widget.period) {
+      _drift.duration = widget.period;
+      _follow();
+    }
+  }
+
+  /// Runs, or holds still at the start when the reader asked for less
+  /// movement. Held at the start rather than wherever it had got to, so a
+  /// reduced-motion reader always sees the same picture.
+  void _follow() {
+    if (context.screen.reducedMotion) {
+      _drift
+        ..stop()
+        ..value = 0;
+    } else if (!_drift.isAnimating) {
+      _drift.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _drift.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Positioned.fill(
+        // Its own layer, so a frame of drift repaints the mesh and not the
+        // text over it.
+        child: RepaintBoundary(
+          child: ExcludeSemantics(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _DVMeshPainter(widget.colors, _drift),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class _DVMeshPainter extends CustomPainter {
+  _DVMeshPainter(this.colors, this.drift) : super(repaint: drift);
+
+  final List<Color> colors;
+  final Animation<double> drift;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final double turn = drift.value * 2 * math.pi;
+    final double reach = math.max(size.width, size.height) * 0.6;
+    for (int i = 0; i < colors.length; i++) {
+      // Each blob starts at its own place around the box and orbits at its
+      // own rate, so the picture never lines up into a pattern.
+      final double phase = i * 2 * math.pi / colors.length;
+      final double rate = 1 + (i % 3);
+      final Offset centre = Offset(
+        size.width * (0.5 + 0.38 * math.cos(phase + turn * rate)),
+        size.height * (0.5 + 0.38 * math.sin(phase * 1.3 + turn * rate)),
+      );
+      final Color color = colors[i];
+      final Paint paint = Paint()
+        ..shader = RadialGradient(
+          colors: <Color>[color, color.withValues(alpha: 0)],
+        ).createShader(Rect.fromCircle(center: centre, radius: reach));
+      canvas.drawCircle(centre, reach, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DVMeshPainter old) =>
+      !listEquals(old.colors, colors) || old.drift != drift;
+}
+
+/// A soft light at the pointer, behind a box's content. See
+/// [DVModifier.hoverGlow].
+class _DVGlowLayer extends StatelessWidget {
+  const _DVGlowLayer({
+    required this.pointer,
+    required this.color,
+    required this.radius,
+    required this.still,
+  });
+
+  final ValueListenable<Offset?> pointer;
+  final Color color;
+  final double radius;
+
+  /// Reduced motion: lit at the centre rather than following the pointer.
+  final bool still;
+
+  @override
+  Widget build(BuildContext context) => Positioned.fill(
+        child: RepaintBoundary(
+          child: ExcludeSemantics(
+            child: IgnorePointer(
+              child: _DVGlowPaint(
+                pointer: pointer,
+                color: color,
+                radius: radius,
+                still: still,
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+/// A render object rather than a CustomPaint because the pointer arrives in
+/// global coordinates and only the render object knows where it is.
+class _DVGlowPaint extends LeafRenderObjectWidget {
+  const _DVGlowPaint({
+    required this.pointer,
+    required this.color,
+    required this.radius,
+    required this.still,
+  });
+
+  final ValueListenable<Offset?> pointer;
+  final Color color;
+  final double radius;
+  final bool still;
+
+  @override
+  _DVRenderGlow createRenderObject(BuildContext context) =>
+      _DVRenderGlow(pointer, color, radius, still);
+
+  @override
+  void updateRenderObject(BuildContext context, _DVRenderGlow glow) {
+    glow
+      ..pointer = pointer
+      ..color = color
+      ..radius = radius
+      ..still = still;
+  }
+}
+
+class _DVRenderGlow extends RenderBox {
+  _DVRenderGlow(this._pointer, this._color, this._radius, this._still);
+
+  ValueListenable<Offset?> _pointer;
+  set pointer(ValueListenable<Offset?> value) {
+    if (identical(value, _pointer)) return;
+    if (attached) {
+      _pointer.removeListener(markNeedsPaint);
+      value.addListener(markNeedsPaint);
+    }
+    _pointer = value;
+    markNeedsPaint();
+  }
+
+  Color _color;
+  set color(Color value) {
+    if (value == _color) return;
+    _color = value;
+    markNeedsPaint();
+  }
+
+  double _radius;
+  set radius(double value) {
+    if (value == _radius) return;
+    _radius = value;
+    markNeedsPaint();
+  }
+
+  bool _still;
+  set still(bool value) {
+    if (value == _still) return;
+    _still = value;
+    markNeedsPaint();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _pointer.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    _pointer.removeListener(markNeedsPaint);
+    super.detach();
+  }
+
+  @override
+  bool get sizedByParent => true;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.biggest;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final Offset? at = _pointer.value;
+    if (at == null) return;
+    final Offset centre =
+        _still ? size.center(Offset.zero) : globalToLocal(at);
+    final Paint paint = Paint()
+      ..shader = RadialGradient(
+        colors: <Color>[_color, _color.withValues(alpha: 0)],
+      ).createShader(Rect.fromCircle(center: centre, radius: _radius));
+    final Canvas canvas = context.canvas;
+    canvas.save();
+    canvas.translate(offset.dx, offset.dy);
+    canvas.clipRect(Offset.zero & size);
+    canvas.drawCircle(centre, _radius, paint);
+    canvas.restore();
+  }
 }
 
 /// Fades and rises its child into view, once.
