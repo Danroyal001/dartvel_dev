@@ -1,3 +1,10 @@
+## 0.13.0 — 2026-10-15
+
+- `DV.run(args)` entry template, `@DVBoot`/`@DVAppRoot` generation and the typed `DV` facade.
+- `middleware:` fields on `@DVPage` and `@DVBackendFunction`; typed model arguments and returns in backend functions.
+- `dartvel doctor --conventions` and `dartvel build --strict` (DV-CONV-001..011).
+- Host routing manifest for web-server builds; minifier fix.
+
 ## 0.12.2 — 2026-10-14
 
 - The page capture keeps text fields: each is a labelled input in the server-rendered HTML, a password with the eye.

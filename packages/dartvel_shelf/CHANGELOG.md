@@ -1,3 +1,7 @@
+## 0.13.0 — 2026-10-15
+
+- Host-aware server rendering, robots.txt and sitemap.xml per host.
+
 ## 0.12.2 — 2026-10-14
 
 - Released alongside dartvel_core 0.12.2 (private `/metrics`, packed site pages); no changes in this package.
