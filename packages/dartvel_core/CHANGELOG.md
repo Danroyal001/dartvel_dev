@@ -1,3 +1,8 @@
+## 0.13.0 — 2026-10-15
+
+- `DV.run(args)` entry and boot sequence; middleware annotation fields.
+- Inbound host routing (`DVHostRouting`) with per-host SEO and cache keys; minifier fix.
+
 ## 0.12.2 — 2026-10-14
 
 - Fix: `DVSitePages.load()` reads the route manifest from a web-server binary's pack; it saw no pages in every deployed binary.

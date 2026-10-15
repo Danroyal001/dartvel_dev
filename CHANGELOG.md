@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.13.0 — 2026-10-15
+
+**Breaking (alpha):** application entry is now one line in every app, `void main(List<String> args) => DV.run(args);`. Startup work goes in a private `@DVBoot()` function; an existing Flutter root goes in `@DVAppRoot()`. `DV.run` negotiates the launch (terminal, single instance) before the app runs.
+
+- Middleware is the `middleware:` field of `@DVPage` and `@DVBackendFunction`.
+- Backend functions are typed end to end: a function that takes or returns a data model gets the model, not JSON. `dartvel create` scaffolds a typed backend function and a plain index page.
+- `dartvel doctor --conventions` and `dartvel build --strict` check an app against Dartvel's conventions (rules DV-CONV-001 to 011).
+- Web-server builds route by inbound host (`dartvel.hosts` in pubspec.yaml): exact and wildcard hosts, trusted-proxy `X-Forwarded-Host`, per-host SEO, canonical links, robots.txt, sitemap.xml and cache keys, and 301s for legacy tool URLs.
+- Web drag and drop delivers file bytes (`DVDropEvent.files`, `draggingOver`), and `DV.Platform.media.readCapture` reads a capture.
+- Fix: the JS minifier kept a regex with quotes from corrupting a following template literal.
+- Fix: a pure-Dart server with a data model compiled again (the backend no longer imports Flutter unless a function names a model).
+- CLI release binaries for macOS (arm64, x64) and Windows build on Codemagic from a version tag.
+
 ## 0.12.2 — 2026-10-14
 
 - Fix: a web-server binary's backend saw no pages. `DVSitePages.load()` read `dartvel_routes.json` from disk, but a web-server binary serves its site from the pack inside it, so every page-reading backend (a site search, an llms.txt) got an empty list; dartvel.dev's search answered every query with a 500 for two days. The manifest is now read through the site's registered asset source.
