@@ -4015,17 +4015,13 @@ void startDartvelKiosk() {
   }
 
 
-  /// Renders one `@DVFunctionalWidget` as a widget class.
+  /// Writes `application.g.dart`: the application root and the `DV` the
+  /// barrel exports, whose `run` boots the process.
   ///
-  /// A widget rather than a function, which is what this used to emit. A
-  /// function has no element: it cannot be const, cannot hold state, cannot be
-  /// rebuilt independently of its parent, and cannot reach a BuildContext
-  /// unless every caller threads one in. "Dartvel decides whether a widget is
-  /// stateless" is not something a function can ever do.
-  ///
-  /// Call sites are unchanged -- `FeatureCard('a', 'b')` reads the same
-  /// against a constructor as against a function -- so this is strictly more
-  /// capable at the same syntax.
+  /// `@DVBoot` functions run in path order, then declaration order. An
+  /// `@DVAppRoot` replaces the default `MaterialApp.router` for an existing
+  /// Flutter application that keeps its own root; a pure Dartvel application
+  /// declares none.
   static void _generateApplicationEntry({required String root, required String pkgName, required String title}) {
     final imports = <String>{
       "import 'dart:async';",
@@ -4033,7 +4029,8 @@ void startDartvelKiosk() {
       "import 'package:dartvel_flutter/dartvel_flutter.dart' hide DV;",
       "import 'package:dartvel_flutter/dartvel_flutter.dart' as runtime;",
       "import 'router.g.dart';",
-      "import 'launch.g.dart';",
+      "import 'dartvel_runtime.dart' show negotiateDartvelLaunch;",
+      "import 'package:dartvel_core/dartvel.dart' as core;",
     };
     final hooks = <String>[];
     String? appRoot;
@@ -4088,20 +4085,91 @@ void startDartvelKiosk() {
       ..writeln('}')
       ..writeln('abstract final class DV {')
       ..writeln('  static Future<void> run([List<String> args = const []]) => dvRunApplication(args, root: () => createDartvelApp(args: args), boot: [${hooks.join(',')}], launch: negotiateDartvelLaunch);');
-    // Static members are not inherited in Dart. Forward the single namespace,
-    // keeping configuration and globals in the Flutter runtime.
-    for (final name in <String>['progress','global','lifecycle','Modules','transaction','Platform','Navigation','Location','Bluetooth','NFC','Clipboard','Share','Sensors','Biometrics','DeepLinking','Haptics','Contacts','Auth','Session','Analytics','Privacy','Theme','AI','Billing','Purchases','DB','Database','Cache','Storage','FileStorage','BlobStorage','Queues','Jobs','Workers','Notifications','notifications','Updates','Secrets','Memory','Http','Webhooks','Test','CSRF','Csrf','I18n','Accessibility','ObservabilityAndLogging','Tenants','Crashes','withTenant','baseUrl','apiBasePath','api','\$','registerRuntime']) {
-      out.writeln('  static get $name => runtime.DV.$name;');
-    }
-    out..writeln('  static const log = runtime.DV.log;')
-      ..writeln('  static get currentTenant => runtime.DV.currentTenant;')
-      ..writeln('  static set currentTenant(String value) => runtime.DV.currentTenant = value;')
-      ..writeln('  static get container => runtime.DV.container;')
-      ..writeln('  static set container(value) => runtime.DV.container = value;')
+    // Static members are not inherited in Dart, so the runtime's namespace is
+    // forwarded member by member -- each with its declared type, or
+    // `DV.Auth.signIn(...)` would be a dynamic call that compiles with any
+    // arguments. A test reads the runtime's class and fails on a member
+    // missing here.
+    out
+      ..write(_dvFacadeForwarders)
       ..writeln('}');
     File(p.join(root, 'lib/dartvel_client/application.g.dart')).writeAsStringSync(out.toString());
   }
 
+  /// The runtime `DV`'s public statics, forwarded with their types.
+  static const String _dvFacadeForwarders = r'''
+  static DVTopProgress get progress => runtime.DV.progress;
+  static T global<T>([T? instance, String namespace = '']) => runtime.DV.global<T>(instance, namespace);
+  static DVLifecycleRegistry get lifecycle => runtime.DV.lifecycle;
+  static DVModuleRegistry get Modules => runtime.DV.Modules;
+  static Future<T> transaction<T>(FutureOr<T> Function(DVContext context) body, {bool isolated = false}) => runtime.DV.transaction<T>(body, isolated: isolated);
+  static DVPlatform get Platform => runtime.DV.Platform;
+  static DVNavigation get Navigation => runtime.DV.Navigation;
+  static DVLocation get Location => runtime.DV.Location;
+  static DVBluetooth get Bluetooth => runtime.DV.Bluetooth;
+  static DVNfc get NFC => runtime.DV.NFC;
+  static DVClipboard get Clipboard => runtime.DV.Clipboard;
+  static DVShare get Share => runtime.DV.Share;
+  static DVSensors get Sensors => runtime.DV.Sensors;
+  static DVBiometrics get Biometrics => runtime.DV.Biometrics;
+  static DVDeepLinks get DeepLinking => runtime.DV.DeepLinking;
+  static DVHaptics get Haptics => runtime.DV.Haptics;
+  static DVContacts get Contacts => runtime.DV.Contacts;
+  static DVAuth get Auth => runtime.DV.Auth;
+  static DVSessionSignal get Session => runtime.DV.Session;
+  static core.DVAnalyticsRuntime get Analytics => runtime.DV.Analytics;
+  static core.DVPrivacy get Privacy => runtime.DV.Privacy;
+  static DVTheme get Theme => runtime.DV.Theme;
+  static DVAI get AI => runtime.DV.AI;
+  static DVBilling get Billing => runtime.DV.Billing;
+  static DVPurchases get Purchases => runtime.DV.Purchases;
+  static DVDatabase get DB => runtime.DV.DB;
+  static DVDatabase get Database => runtime.DV.Database;
+  static DVCache get Cache => runtime.DV.Cache;
+  @Deprecated('Use DV.FileStorage. DV.Storage is removed in the next minor.')
+  static DVStorage get Storage => runtime.DV.FileStorage;
+  static DVStorage get FileStorage => runtime.DV.FileStorage;
+  static DVStorage get BlobStorage => runtime.DV.BlobStorage;
+  static DVQueues get Queues => runtime.DV.Queues;
+  static DVQueues get Jobs => runtime.DV.Jobs;
+  static DVWorkers get Workers => runtime.DV.Workers;
+  static DVNotificationsService get Notifications => runtime.DV.Notifications;
+  static DVNotificationsService get notifications => runtime.DV.notifications;
+  static DVUpdates get Updates => runtime.DV.Updates;
+  static DVSecrets get Secrets => runtime.DV.Secrets;
+  static DVMemory get Memory => runtime.DV.Memory;
+  static core.DVHttp get Http => runtime.DV.Http;
+  static core.DVWebhooks get Webhooks => runtime.DV.Webhooks;
+  static DVTestHarness get Test => runtime.DV.Test;
+  static core.DVCSRF get CSRF => runtime.DV.CSRF;
+  static core.DVCSRF get Csrf => runtime.DV.Csrf;
+  static DVI18n get I18n => runtime.DV.I18n;
+  static DVAccessibility get Accessibility => runtime.DV.Accessibility;
+  static DVObservabilityAndLogging get ObservabilityAndLogging => runtime.DV.ObservabilityAndLogging;
+  static DVTenants get Tenants => runtime.DV.Tenants;
+  static DVCrashes get Crashes => runtime.DV.Crashes;
+  static String get currentTenant => runtime.DV.currentTenant;
+  static set currentTenant(String tenant) => runtime.DV.currentTenant = tenant;
+  static R withTenant<R>(String tenant, R Function() callback) => runtime.DV.withTenant<R>(tenant, callback);
+  static void registerRuntime({required String Function() baseUrl, required String Function() apiBasePath, required Uri Function(String path) api}) => runtime.DV.registerRuntime(baseUrl: baseUrl, apiBasePath: apiBasePath, api: api);
+  static String get baseUrl => runtime.DV.baseUrl;
+  static String get apiBasePath => runtime.DV.apiBasePath;
+  static Uri api(String path) => runtime.DV.api(path);
+  static Future<DVShellResult> $(String command, {Map<String, String> environment = const <String, String>{}, String? workingDirectory}) => runtime.DV.$(command, environment: environment, workingDirectory: workingDirectory);
+  static const DVLog log = runtime.DV.log;
+''';
+
+  /// Renders one `@DVFunctionalWidget` as a widget class.
+  ///
+  /// A widget rather than a function, which is what this used to emit. A
+  /// function has no element: it cannot be const, cannot hold state, cannot be
+  /// rebuilt independently of its parent, and cannot reach a BuildContext
+  /// unless every caller threads one in. "Dartvel decides whether a widget is
+  /// stateless" is not something a function can ever do.
+  ///
+  /// Call sites are unchanged -- `FeatureCard('a', 'b')` reads the same
+  /// against a constructor as against a function -- so this is strictly more
+  /// capable at the same syntax.
   static String _functionalWidgetClass(_FunctionalWidgetEntry entry) {
     final List<_WidgetParameter> parameters =
         _widgetParameters(entry.parameters);
