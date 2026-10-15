@@ -89,7 +89,7 @@ void main() {
   });
 
   test("the project template's main hands its arguments to DV.run, which negotiates before it runs the app", () {
-    expect(ProjectTemplates.mainTemplate, contains('void main(List<String> arguments) => DV.run(arguments);'));
+    expect(ProjectTemplates.mainTemplate, contains('void main(List<String> args) => DV.run(args);'));
     final String run = File('../dartvel_flutter/lib/src/run/application.dart').readAsStringSync();
     final int negotiate = run.indexOf('await launch(args)');
     expect(negotiate, greaterThan(0));

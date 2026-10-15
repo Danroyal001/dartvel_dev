@@ -233,7 +233,7 @@ Future<String> _contact(
 
   static const String mainTemplate = '''import 'dartvel_client/dartvel_client.dart';
 
-void main(List<String> arguments) => DV.run(arguments);
+void main(List<String> args) => DV.run(args);
 ''';
 
   static String widgetTestTemplate(String projectName) =>

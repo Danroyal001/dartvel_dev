@@ -77,7 +77,7 @@ lib/
 *Application Entry*):
 
 ```dart
-void main() => DV.run();
+void main(List<String> args) => DV.run(args);
 ```
 
 These paths are the defaults. Projects may override them under the `dartvel:`
