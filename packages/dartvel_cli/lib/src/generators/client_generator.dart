@@ -3978,7 +3978,9 @@ void startDartvelKiosk() {
     final imports = <String>{
       "import 'dart:async';",
       "import 'package:flutter/material.dart'$hideModels;",
-      "import 'package:dartvel_flutter/dartvel_flutter.dart'$hideModels;",
+      // DV hidden: the copied source imports bring it, the barrel's or core's,
+      // exactly as the source file resolved it. Both at once is ambiguous.
+      "import 'package:dartvel_flutter/dartvel_flutter.dart'${_hideWith(hideModels, 'DV')};",
       ...sourceImports,
     };
     final importAliases = <String, String>{};
@@ -4611,7 +4613,7 @@ void startDartvelKiosk() {
       // The models' names hidden: the body names the application's Post,
       // and these two are the generator's imports, not the page's.
       "import 'package:flutter/material.dart'$hideModels;",
-      "import 'package:dartvel_flutter/dartvel_flutter.dart'$hideModels;",
+      "import 'package:dartvel_flutter/dartvel_flutter.dart'${_hideWith(hideModels, 'DV')};",
       // _importsFor leaves dart: libraries to its caller, which for the
       // router meant only dart:async. The body was written against the
       // page's own, so it gets those.
@@ -4677,6 +4679,10 @@ $code
     }
     return out;
   }
+
+  /// [hide] (a ` hide A, B` clause or empty) with [name] added.
+  static String _hideWith(String hide, String name) =>
+      hide.isEmpty ? ' hide $name' : '$hide, $name';
 
   static String _generatedWidgetName(String functionName) {
     final stripped =
