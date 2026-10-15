@@ -1,3 +1,7 @@
+## 0.13.1 — 2026-10-15
+
+- Dartvel 0.13.1: host routing rewritten; pages keep their own descriptions.
+
 ## 0.13.0 — 2026-10-15
 
 - Dartvel 0.13.0: one-line `DV.run(args)` entry, middleware fields, typed backend functions, conventions checks, host routing.

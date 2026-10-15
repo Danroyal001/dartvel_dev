@@ -1,3 +1,7 @@
+## 0.13.1 — 2026-10-15
+
+- Routes by `dartvel.hosts` after hydration and prefetches a linked page on the host that serves it.
+
 ## 0.13.0 — 2026-10-15
 
 - `dvRunApplication`: boot hooks, launch negotiation before `runApp`, boot-failure page.
