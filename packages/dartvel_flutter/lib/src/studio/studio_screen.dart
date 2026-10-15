@@ -62,7 +62,7 @@ class DVStudioScreen extends StatefulWidget {
   /// The seam collaboration and permissions attach through.
   final List<DVStudioEditorHook> editorHooks;
 
-  final DVStudioContent? content;
+  final DVStudioVersions? content;
   final Object? actor;
   final List<String> reviewers;
 
@@ -703,7 +703,7 @@ class _DVStudioPagesSection extends StatefulWidget {
   /// The labels of the sections attached beyond Pages, for the overview.
   final List<String> attached;
 
-  final DVStudioContent? content;
+  final DVStudioVersions? content;
   final Object? actor;
   final List<String> reviewers;
 
@@ -906,7 +906,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   @override
   void didUpdateWidget(_DVStudioPagesSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final DVStudioContent? content = widget.content;
+    final DVStudioVersions? content = widget.content;
     // Compared by the id the workflow records rather than by identity, so an
     // application that builds a fresh user object on every frame does not
     // close the editor on every frame.
@@ -949,7 +949,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   Future<void> _loadRoutes() async {
     try {
-      final DVStudioContent? content = widget.content;
+      final DVStudioVersions? content = widget.content;
       final List<String> everything = await widget.store.routes();
       // Components live beside the pages and are not pages.
       final List<String> stored = <String>[
@@ -968,7 +968,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           <String, List<DVContentVersion<DVPageDocument>>>{};
       if (content != null) {
         for (final String route in routes) {
-          versions[route] = await content.workflow.versions(route);
+          versions[route] = await content.versions(route);
         }
       }
       // The documents too, for the overview's thumbnails. A page that fails
@@ -1074,7 +1074,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     // the editor says so, and deleting it brings the compiled one back.
     final DVStudioSitePage? compiled =
         page != null && page.isCompiled ? page : null;
-    final DVStudioContent? content = widget.content;
+    final DVStudioVersions? content = widget.content;
     if (content == null) {
       final DVPageDocument? document = await widget.store.load(route);
       if (!mounted || document == null) return;
@@ -1085,7 +1085,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       // The open version is what is being written; the published page is
       // what an edit starts from when nothing is open.
       final List<DVContentVersion<DVPageDocument>> versions =
-          await content.workflow.versions(route);
+          await content.versions(route);
       final DVPageDocument? document =
           studioOpenVersion(versions)?.document ??
               await widget.store.load(route) ??
@@ -1202,7 +1202,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       // controller's default it went to DV.Database, so Studio served by a
       // web-server binary published nowhere the server could read.
       controller.publisher = widget.store.save;
-      final DVStudioContent? content = widget.content;
+      final DVStudioVersions? content = widget.content;
       if (content != null && !readOnly) {
         // Before the hooks, so a hook can still take the publisher over.
         content.attach(controller, as: widget.actor);

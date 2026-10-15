@@ -88,7 +88,7 @@ Future<void> dvServeRelease({
           // rendered from its shell, its data from what the build kept
           // for it, and its code handed out from memory.
           adminServer: admin.enabled
-              ? DVAdminServer(
+              ? _resumingSchedules(DVAdminServer(
                   mount: admin,
                   root: p.join(root, dvStudioDataDirectory),
                   webRoot: buildDir.path,
@@ -103,7 +103,7 @@ Future<void> dvServeRelease({
                   devGrant: grant,
                   models: dvDevStudioModels(root),
                   database: database,
-                )
+                ))
               : null,
           publishedPages: DVPublishedPages(database: () => database),
           modelData: DVModelDataApi(database: () => database),
@@ -168,4 +168,11 @@ Object? _dartvelSection(String root) {
     // else's error, worse.
     return null;
   }
+}
+
+/// [server], with the pages scheduled before this process started published
+/// at their time.
+DVAdminServer _resumingSchedules(DVAdminServer server) {
+  server.api.resumeSchedules().ignore();
+  return server;
 }

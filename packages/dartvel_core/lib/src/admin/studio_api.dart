@@ -23,7 +23,8 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import '../../dartvel.dart'
-    show DVCacheTags, DVJobEnvelope, DVJobPayload, DVQueues;
+    show DVAuthAuthorization, DVCacheTags, DVJobEnvelope, DVJobPayload, DVQueues;
+import '../content/content_workflow.dart';
 import '../annotations/model_access.dart';
 import '../auth/auth.dart'
     show AuthUser, DVAccountDirectory, DVAccountLookup;
@@ -398,6 +399,23 @@ enum DVStudioModelOrigin {
 }
 
 /// A refusal with a status and a code Studio can show.
+/// The workflow's policy for Studio's pages: Studio's own answer rather than
+/// the application's registered policies, which are about the application's
+/// users and know nothing of Studio grants.
+class _DVStudioPagePolicy extends DVAuthAuthorization {
+  const _DVStudioPagePolicy(this._allow);
+
+  final Future<bool> Function(Object? user, String action) _allow;
+
+  @override
+  Future<bool> can<TUser, TResource>(
+    TUser user,
+    String action,
+    TResource resource,
+  ) =>
+      _allow(user, action);
+}
+
 class _StudioRefusal implements Exception {
   _StudioRefusal(this.status, this.code, this.message);
 
@@ -607,10 +625,12 @@ class DVStudioApi {
     String? structureRoot,
     DVGitHubTransport? gitHub,
     String? gitHubToken,
+    DateTime Function()? clock,
   })  : storage = storage ?? DVMemoryFileStorageAdapter(),
         _gitHub = gitHub,
         _gitHubToken = gitHubToken ?? Platform.environment[dvGitHubTokenVariable],
         _caller = caller ?? dvStudioSessionUserId,
+        _clock = clock ?? (() => DateTime.now().toUtc()),
         _compiledRoutes = compiledRoutes ?? (() => dvStudioGraphRoutes(root)),
         _structureRoot = structureRoot ??
             (root == null
@@ -698,7 +718,7 @@ class DVStudioApi {
           case 'models':
             return await _models(request, method, segments.sublist(1));
           case 'pages':
-            return await _pages(request, method);
+            return await _pages(request, method, segments.sublist(1));
           case 'site':
             return await _site(request, method, segments.sublist(1));
           case 'functions':
@@ -1858,7 +1878,12 @@ class DVStudioApi {
         status: 409,
       );
 
-  Future<Response> _pages(Request request, String method) async {
+  Future<Response> _pages(
+    Request request,
+    String method,
+    List<String> rest,
+  ) async {
+    if (rest.isNotEmpty) return _pageVersionsAt(request, method, rest);
     // Records, not SQL: the same collection DVPageStore writes, on whatever
     // engine the server was given.
     final DVRecordAdapter records = DVRecordAdapter.over(_database);
@@ -1887,6 +1912,10 @@ class DVStudioApi {
           dvStudioPagesTable,
           fields: const <String>['route', 'title', 'document'],
         );
+        // The open version of each page, if it has one: what Studio opens to
+        // edit, while visitors go on being served the published row.
+        final Map<String, DVContentVersion<Map<String, Object?>>> drafts =
+            await _openDrafts();
         final List<Map<String, Object?>> pages =
             <Map<String, Object?>>[
               for (final Map<String, Object?> row in rows)
@@ -1894,12 +1923,30 @@ class DVStudioApi {
                   'route': '${row['route']}',
                   'title': row['title'] == null ? null : '${row['title']}',
                   'document': jsonDecode('${row['document']}'),
+                  'published': true,
+                  'draft': drafts.remove('${row['route']}')?.toJson(_same),
+                },
+              // A page that has only ever been a draft is still a page
+              // somebody is writing.
+              for (final DVContentVersion<Map<String, Object?>> draft
+                  in drafts.values)
+                <String, Object?>{
+                  'route': draft.documentId,
+                  'title': draft.document['title'] as String?,
+                  'document': draft.document,
+                  'published': false,
+                  'draft': draft.toJson(_same),
                 },
             ]..sort(
               (Map<String, Object?> a, Map<String, Object?> b) =>
                   '${a['route']}'.compareTo('${b['route']}'),
             );
-        return _reply(<String, Object?>{'pages': pages});
+        return _reply(<String, Object?>{
+          'pages': pages,
+          // Whether drafts are kept: when they are not, a save publishes, and
+          // Studio must not save on its own.
+          'versions': _keepsVersions,
+        });
       case 'PUT':
         final Map<String, Object?> body = await _body(request);
         final Object? document = body['document'];
@@ -1925,16 +1972,22 @@ class DVStudioApi {
         } on DVStudioSourceConflict catch (conflict) {
           return _conflict(conflict);
         }
-        await records.delete(dvStudioPagesTable,
-            where: DVFilter.equals('route', route));
-        await records.insert(dvStudioPagesTable, <String, Object?>{
+        if (!_keepsVersions) {
+          await _servePage(document.cast<String, Object?>());
+          return _reply(<String, Object?>{'route': route});
+        }
+        // Published as a version, so the page it replaces is a revision
+        // that can be restored; the workflow's publish writes the served row.
+        final Object actor = await _actor(request);
+        final DVContentVersion<Map<String, Object?>> published =
+            await _pageVersions.publish(
+              await _saveDraft(document.cast<String, Object?>(), actor),
+              as: actor,
+            );
+        return _reply(<String, Object?>{
           'route': route,
-          'title': document['title'],
-          'document': jsonEncode(document),
+          'version': published.toJson(_same),
         });
-        dvPurgeRenderedPages();
-        await _notePage(route, document['title'], 'saved');
-        return _reply(<String, Object?>{'route': route});
       case 'DELETE':
         final String? route = request.url.queryParameters['route'];
         if (route == null || route.isEmpty) {
@@ -1946,6 +1999,18 @@ class DVStudioApi {
         } on DVStudioSourceConflict catch (conflict) {
           return _conflict(conflict);
         }
+        // Its versions stay, withdrawn, so a deleted page can be restored.
+        final Object actor = await _actor(request);
+        for (final DVContentVersion<Map<String, Object?>> v
+            in _keepsVersions
+                ? await _pageVersions.versions(route)
+                : const <DVContentVersion<Map<String, Object?>>>[]) {
+          if (v.state == DVContentState.superseded ||
+              v.state == DVContentState.withdrawn) {
+            continue;
+          }
+          await _pageVersions.withdraw(v, as: actor);
+        }
         await records.delete(dvStudioPagesTable,
             where: DVFilter.equals('route', route));
         dvPurgeRenderedPages();
@@ -1953,6 +2018,347 @@ class DVStudioApi {
         return _reply(<String, Object?>{'deleted': route});
     }
     _notAllowed();
+  }
+
+  // ---- page drafts, revisions and schedules -------------------------------
+
+  /// Whether this database keeps page versions. The content workflow's
+  /// versions are SQL tables, so a record engine -- a document database --
+  /// publishes on save and keeps no drafts or revisions.
+  bool get _keepsVersions => _database is! DVRecordAdapter;
+
+  /// The page document as JSON is the document: nothing to convert.
+  static Map<String, Object?> _same(Map<String, Object?> document) => document;
+
+  final DateTime Function() _clock;
+
+  /// Studio's pages as versions: drafts beside what is served, every publish
+  /// kept as a revision, and publishes at a time. What a visitor is served is
+  /// the `dartvel_pages` row, which only a publish writes.
+  late final DVContentWorkflow<Map<String, Object?>> _pageVersions =
+      DVContentWorkflow<Map<String, Object?>>(
+        kind: 'page',
+        encode: _same,
+        decode: _same,
+        documentId: (Map<String, Object?> document) => '${document['route']}',
+        actorId: (Object? user) => '$user',
+        findActor: (String id) async => id,
+        database: _database,
+        authorization: _DVStudioPagePolicy(_mayChangePages),
+        // One person editing their own site publishes their own draft; the
+        // approval step stays available to a project that wants review.
+        requireApproval: false,
+        clock: _clock,
+        // The rendered-page cache is purged where the served row is written.
+        revalidateTag: (String _) {},
+        onPublished: (DVContentVersion<Map<String, Object?>> v) =>
+            _servePage(v.document),
+        onWithdrawn: (DVContentVersion<Map<String, Object?>> v) =>
+            _unservePage(v.documentId),
+      );
+
+  /// Whether [user] may take a content [action] on a page. The caller already
+  /// passed the Studio grant to reach the API.
+  Future<bool> _mayChangePages(Object? user, String action) async => true;
+
+  Timer? _scheduleSweep;
+
+  /// Who is asking, as the workflow records them.
+  Future<Object> _actor(Request request) async {
+    final String? id = await _caller(request);
+    return id == null || id.isEmpty ? 'studio' : id;
+  }
+
+  Future<void> _servePage(Map<String, Object?> document) async {
+    final String route = '${document['route']}';
+    final DVRecordAdapter records = DVRecordAdapter.over(_database);
+    await records.ensure(dvStudioPagesShape);
+    await records.delete(dvStudioPagesTable,
+        where: DVFilter.equals('route', route));
+    await records.insert(dvStudioPagesTable, <String, Object?>{
+      'route': route,
+      'title': document['title'],
+      'document': jsonEncode(document),
+    });
+    dvPurgeRenderedPages();
+    await _notePage(route, document['title'], 'published');
+  }
+
+  Future<void> _unservePage(String route) async {
+    final DVRecordAdapter records = DVRecordAdapter.over(_database);
+    await records.ensure(dvStudioPagesShape);
+    await records.delete(dvStudioPagesTable,
+        where: DVFilter.equals('route', route));
+    dvPurgeRenderedPages();
+  }
+
+  static bool _isOpen(DVContentState state) =>
+      state == DVContentState.draft ||
+      state == DVContentState.review ||
+      state == DVContentState.approved ||
+      state == DVContentState.scheduled;
+
+  /// The open version of every page that has one, by route.
+  Future<Map<String, DVContentVersion<Map<String, Object?>>>>
+      _openDrafts() async {
+    if (database == null || !_keepsVersions) {
+      return <String, DVContentVersion<Map<String, Object?>>>{};
+    }
+    await _pageVersions.ensureSchema();
+    return <String, DVContentVersion<Map<String, Object?>>>{
+      for (final DVContentState state in DVContentState.values)
+        if (_isOpen(state))
+          for (final DVContentVersion<Map<String, Object?>> v
+              in await _pageVersions.inState(state))
+            v.documentId: v,
+    };
+  }
+
+  /// [route]'s open version, or null.
+  Future<DVContentVersion<Map<String, Object?>>?> _openVersion(
+    String route,
+  ) async {
+    await _pageVersions.ensureSchema();
+    for (final DVContentVersion<Map<String, Object?>> v
+        in await _pageVersions.versions(route)) {
+      if (_isOpen(v.state)) return v;
+    }
+    return null;
+  }
+
+  /// Saves [document] into its page's open version, or opens a draft beside
+  /// the published one.
+  Future<DVContentVersion<Map<String, Object?>>> _saveDraft(
+    Map<String, Object?> document,
+    Object actor,
+  ) async {
+    final DVContentVersion<Map<String, Object?>>? open =
+        await _openVersion('${document['route']}');
+    return open == null
+        ? _pageVersions.draft(document, as: actor)
+        : _pageVersions.edit(open, document, as: actor);
+  }
+
+  /// The version a transition names: by `id`, as read at `expect` when the
+  /// caller says which record version it read; or `route`'s open version.
+  Future<DVContentVersion<Map<String, Object?>>> _namedVersion(
+    Map<String, Object?> body,
+  ) async {
+    await _pageVersions.ensureSchema();
+    final Object? id = body['id'];
+    final DVContentVersion<Map<String, Object?>>? found;
+    if (id is String) {
+      found = await _pageVersions.version(id);
+    } else if (body['route'] is String) {
+      found = await _openVersion(body['route']! as String);
+    } else {
+      throw _StudioRefusal(400, 'bad_version', 'Name a version or a route.');
+    }
+    if (found == null) {
+      throw _StudioRefusal(404, 'no_version', 'There is no such version.');
+    }
+    final Object? expected = body['expect'];
+    if (expected is num && expected.toInt() != found.recordVersion) {
+      throw _StudioRefusal(
+        409,
+        'stale',
+        'This version changed after it was read. Reload it and try again.',
+      );
+    }
+    return found;
+  }
+
+  String _routeParameter(Request request) {
+    final String? route = request.url.queryParameters['route'];
+    if (route == null || !route.startsWith('/')) {
+      throw _StudioRefusal(400, 'bad_route', 'Name the page route.');
+    }
+    return route;
+  }
+
+  Future<Response> _pageVersionsAt(
+    Request request,
+    String method,
+    List<String> rest,
+  ) async {
+    if (rest.length != 1) {
+      throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
+    }
+    final String action = rest.single;
+    if (!_keepsVersions) {
+      throw _StudioRefusal(
+        501,
+        'no_versions',
+        'This database keeps no page versions: a save publishes the page.',
+      );
+    }
+    final bool reads = action == 'versions' || action == 'history';
+    if (reads ? method != 'GET' : method != (action == 'draft' ? 'PUT' : 'POST')) {
+      _notAllowed();
+    }
+    await _pageVersions.ensureSchema();
+    Response version(DVContentVersion<Map<String, Object?>> v) =>
+        _reply(<String, Object?>{'version': v.toJson(_same)});
+    try {
+      switch (action) {
+        case 'versions':
+          return _reply(<String, Object?>{
+            'versions': <Object?>[
+              for (final DVContentVersion<Map<String, Object?>> v
+                  in await _pageVersions.versions(_routeParameter(request)))
+                v.toJson(_same),
+            ],
+          });
+        case 'history':
+          return _reply(<String, Object?>{
+            'history': <Object?>[
+              for (final DVContentTransition t
+                  in await _pageVersions.history(_routeParameter(request)))
+                t.toJson(),
+            ],
+          });
+      }
+      final Map<String, Object?> body = await _body(request);
+      final Object actor = await _actor(request);
+      switch (action) {
+        case 'draft':
+          final Object? document = body['document'];
+          if (document is! Map ||
+              document['route'] is! String ||
+              !(document['route']! as String).startsWith('/')) {
+            throw _StudioRefusal(
+              400,
+              'bad_document',
+              'A page document names its route, which begins with "/".',
+            );
+          }
+          return version(
+            await _saveDraft(document.cast<String, Object?>(), actor),
+          );
+        case 'publish':
+          return version(
+            await _pageVersions.publish(await _namedVersion(body), as: actor),
+          );
+        case 'restore':
+          return version(
+            await _pageVersions.restore(await _namedVersion(body), as: actor),
+          );
+        case 'discard':
+          return version(
+            await _pageVersions.withdraw(await _namedVersion(body), as: actor),
+          );
+        case 'submit':
+          final Object? to = body['to'];
+          if (to is! String || to.isEmpty) {
+            throw _StudioRefusal(400, 'bad_reviewer', 'Name the reviewer.');
+          }
+          return version(await _pageVersions.submit(
+            await _namedVersion(body),
+            to: to,
+            as: actor,
+          ));
+        case 'approve':
+          return version(await _pageVersions.approve(
+            await _namedVersion(body),
+            as: actor,
+          ));
+        case 'request-changes':
+          return version(await _pageVersions.requestChanges(
+            await _namedVersion(body),
+            as: actor,
+            note: body['note'] as String?,
+          ));
+        case 'schedule':
+          final DateTime? at = DateTime.tryParse('${body['at']}');
+          if (at == null) {
+            throw _StudioRefusal(400, 'bad_time', 'Say when to publish.');
+          }
+          final DVContentVersion<Map<String, Object?>> scheduled =
+              await _pageVersions.schedule(
+                await _namedVersion(body),
+                at: at.toUtc(),
+                as: actor,
+              );
+          _armScheduleSweep();
+          return version(scheduled);
+        case 'unschedule':
+          return version(await _pageVersions.cancelSchedule(
+            await _namedVersion(body),
+            as: actor,
+          ));
+      }
+    } on DVContentRefused catch (refused) {
+      throw _StudioRefusal(403, 'refused', '$refused');
+    } on DVContentError catch (error) {
+      throw _StudioRefusal(409, 'content_state', '$error');
+    } on ArgumentError catch (error) {
+      throw _StudioRefusal(400, 'bad_request', '${error.message}');
+    }
+    throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
+  }
+
+  /// Publishes every page whose scheduled time has come, and answers how
+  /// many. A slot missed by more than the workflow's grace is reported, not
+  /// published late.
+  Future<int> runDueSchedules() async {
+    if (database == null || !_keepsVersions) return 0;
+    await _pageVersions.ensureSchema();
+    final DateTime now = _clock();
+    int published = 0;
+    for (final DVContentVersion<Map<String, Object?>> v
+        in await _pageVersions.inState(DVContentState.scheduled)) {
+      final DateTime? at = v.scheduledAt;
+      final String? id = v.scheduleId;
+      if (at == null || id == null || now.isBefore(at)) continue;
+      final DVContentScheduleOutcome outcome =
+          await _pageVersions.runScheduled(DVContentScheduledJob(
+        kind: _pageVersions.kind,
+        versionId: v.id,
+        scheduleId: id,
+        action: DVContentScheduledAction.publish,
+        at: at,
+      ));
+      if (outcome == DVContentScheduleOutcome.done) published++;
+    }
+    return published;
+  }
+
+  /// Starts the minute sweep when a page is waiting for its time: on a
+  /// schedule, and when a server starts with schedules already stored. It
+  /// stops itself once nothing is waiting.
+  void _armScheduleSweep() {
+    if (_scheduleSweep != null) return;
+    _scheduleSweep = Timer.periodic(const Duration(minutes: 1), (_) async {
+      try {
+        await runDueSchedules();
+        if ((await _pageVersions.inState(DVContentState.scheduled)).isEmpty) {
+          _scheduleSweep?.cancel();
+          _scheduleSweep = null;
+        }
+      } on Object catch (error) {
+        DVObservability.logger.warn('Studio schedule sweep failed: $error');
+      }
+    });
+  }
+
+  /// Picks up the schedules a previous process stored.
+  Future<void> resumeSchedules() async {
+    if (database == null || !_keepsVersions) return;
+    try {
+      await _pageVersions.ensureSchema();
+      await runDueSchedules();
+      if ((await _pageVersions.inState(DVContentState.scheduled)).isNotEmpty) {
+        _armScheduleSweep();
+      }
+    } on Object {
+      // No versions table yet means nothing was ever scheduled.
+    }
+  }
+
+  /// Stops the schedule sweep, for a server shutting down.
+  void close() {
+    _scheduleSweep?.cancel();
+    _scheduleSweep = null;
   }
 
   // ---- functions ---------------------------------------------------------

@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+- **Fixed: Studio's autosave no longer publishes.** In a web-server binary the editor's two-second autosave went to the same endpoint as Publish, so every edit was served to visitors moments later. Autosave now writes a draft beside the published page; only Publish, or a schedule arriving, changes what visitors get. On a document database, which keeps no page versions, autosave stays off.
+- Studio in a web-server binary keeps page versions on the server: drafts, a revision for every publish, restore, review, and publishing at a time, which the server runs itself and picks up again after a restart. `DVContentVersion` and `DVContentTransition` travel as JSON (`toJson`/`fromJson`), and a workflow without required approval can schedule a draft.
+
 ## 0.12.1 — 2026-10-14
 
 - Adding a data model field with a declared default now reads older missing or null values through that default, preserving existing zero, false and empty values. Primary constructor defaults, classic optional constructor defaults and field initializers are retained; generated SQL migrations backfill literal defaults. Required fields without a default fail with the data model, field and record key in the error. Encrypted fields never receive plaintext SQL defaults.

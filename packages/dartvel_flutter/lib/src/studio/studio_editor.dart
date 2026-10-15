@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart'
@@ -54,7 +55,10 @@ class DVStudioEditorController extends ChangeNotifier {
   /// the controller and whatever attaches to it decides who may edit.
   bool readOnly;
 
-  /// Whether changes are automatically persisted to [publisher] or page store.
+  /// Whether changes are saved on their own, a moment after the last one,
+  /// to [draftSaver]. Never to [publisher]: a save nobody pressed must not
+  /// change what visitors are served, so with no [draftSaver] nothing is
+  /// saved on its own and the page stays marked unsaved.
   bool autosave;
 
   /// Debounce interval before an automatic save is dispatched following mutations.
@@ -64,6 +68,9 @@ class DVStudioEditorController extends ChangeNotifier {
   DVStudioAutosaveStatus get autosaveStatus => _autosaveStatus;
 
   Timer? _autosaveTimer;
+
+  /// How long the next retry of a failed autosave waits; doubles per failure.
+  Duration _retryAfter = const Duration(seconds: 5);
   DateTime? _lastSaved;
   DateTime? get lastSaved => _lastSaved;
 
@@ -163,12 +170,53 @@ class DVStudioEditorController extends ChangeNotifier {
     }
   }
 
-  void _scheduleAutosave() {
+  void _scheduleAutosave([Duration? after]) {
+    if (draftSaver == null) return;
     _autosaveTimer?.cancel();
-    _autosaveTimer = Timer(autosaveInterval, () {
+    _autosaveTimer = Timer(after ?? autosaveInterval, () {
       if (!_isDirty || readOnly) return;
-      unawaited(save());
+      unawaited(saveDraft());
     });
+  }
+
+  /// Where autosave keeps the document: a draft beside the published page.
+  /// Null when there is nowhere to keep one, which turns autosave off.
+  Future<void> Function(DVPageDocument document)? draftSaver;
+
+  /// Saves the document as a draft through [draftSaver].
+  ///
+  /// Never throws: a failure is shown as [DVStudioAutosaveStatus.error] and
+  /// tried again after a wait that doubles each time, up to a minute, so a
+  /// dropped connection loses nothing and does not hammer the server.
+  Future<void> saveDraft() async {
+    final Future<void> Function(DVPageDocument document)? keep = draftSaver;
+    if (keep == null) return;
+    _autosaveTimer?.cancel();
+    final String saving = jsonEncode(_document.toJson());
+    _autosaveStatus = DVStudioAutosaveStatus.saving;
+    notifyListeners();
+    try {
+      await keep(DVPageDocument.fromJson(
+          (jsonDecode(saving) as Map).cast<String, Object?>()));
+      _retryAfter = const Duration(seconds: 5);
+      _lastSaved = DateTime.now();
+      // An edit made while the draft was on its way is still unsaved.
+      if (saving == jsonEncode(_document.toJson())) {
+        _isDirty = false;
+        _autosaveStatus = DVStudioAutosaveStatus.saved;
+      } else {
+        _autosaveStatus = DVStudioAutosaveStatus.dirty;
+        _scheduleAutosave();
+      }
+    } catch (_) {
+      _autosaveStatus = DVStudioAutosaveStatus.error;
+      final Duration wait = _retryAfter;
+      _retryAfter = wait * 2 > const Duration(minutes: 1)
+          ? const Duration(minutes: 1)
+          : wait * 2;
+      if (autosave && !readOnly) _scheduleAutosave(wait);
+    }
+    notifyListeners();
   }
 
   /// Inserts [node] under [parent]. This is a drop from the palette.

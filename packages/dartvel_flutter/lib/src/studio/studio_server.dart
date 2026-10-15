@@ -741,12 +741,76 @@ class DVStudioClient {
       );
 
   Future<List<DVPageDocument>> pages() async => <DVPageDocument>[
-        for (final Map<String, Object?> page
-            in _list(await _send('GET', 'api/pages'), 'pages'))
-          if (page['document'] is Map)
-            DVPageDocument.fromJson(
-                (page['document']! as Map).cast<String, Object?>()),
+        for (final DVStudioPageEntry page in await pageEntries()) page.document,
       ];
+
+  /// Every page Studio holds: the published ones and those only ever drafted,
+  /// each with its open draft when it has one.
+  Future<List<DVStudioPageEntry>> pageEntries() async =>
+      (await pageList()).pages;
+
+  /// [pageEntries], and whether the server keeps drafts at all. One that does
+  /// not publishes on every save, so Studio must not save on its own there.
+  Future<({List<DVStudioPageEntry> pages, bool keepsVersions})>
+      pageList() async {
+    final Map<String, Object?> body = _map(await _send('GET', 'api/pages'));
+    return (
+      pages: <DVStudioPageEntry>[
+        for (final Map<String, Object?> page in _list(body, 'pages'))
+          if (page['document'] is Map) DVStudioPageEntry.fromJson(page),
+      ],
+      keepsVersions: body['versions'] == true,
+    );
+  }
+
+  /// Saves [document] as its page's draft. Visitors go on being served the
+  /// published page.
+  Future<DVContentVersion<DVPageDocument>> savePageDraft(
+    DVPageDocument document,
+  ) async =>
+      _version(await _send('PUT', 'api/pages/draft',
+          body: <String, Object?>{'document': document.toJson()}));
+
+  /// Every version of [route], oldest first.
+  Future<List<DVContentVersion<DVPageDocument>>> pageVersions(
+    String route,
+  ) async =>
+      <DVContentVersion<DVPageDocument>>[
+        for (final Map<String, Object?> v in _list(
+          await _send('GET',
+              'api/pages/versions?route=${Uri.encodeQueryComponent(route)}'),
+          'versions',
+        ))
+          dvStudioPageVersion(v),
+      ];
+
+  /// Every state change of every version of [route].
+  Future<List<DVContentTransition>> pageHistory(String route) async =>
+      <DVContentTransition>[
+        for (final Map<String, Object?> t in _list(
+          await _send('GET',
+              'api/pages/history?route=${Uri.encodeQueryComponent(route)}'),
+          'history',
+        ))
+          DVContentTransition.fromJson(t),
+      ];
+
+  /// Takes [action] -- publish, restore, discard, submit, approve,
+  /// request-changes, schedule, unschedule -- on [version] as it was read:
+  /// refused with a 409 when it has moved since.
+  Future<DVContentVersion<DVPageDocument>> pageVersionAction(
+    String action,
+    DVContentVersion<DVPageDocument> version, [
+    Map<String, Object?> extra = const <String, Object?>{},
+  ]) async =>
+      _version(await _send('POST', 'api/pages/$action', body: <String, Object?>{
+        'id': version.id,
+        'expect': version.recordVersion,
+        ...extra,
+      }));
+
+  DVContentVersion<DVPageDocument> _version(Object? reply) =>
+      dvStudioPageVersion((_map(reply)['version']! as Map).cast<String, Object?>());
 
   /// Saves [document]. On a development server, where the page is also a
   /// file of the project, a file changed in code since Studio last saved it
@@ -864,14 +928,20 @@ class DVStudioRemotePageStore extends DVPageStore {
   @override
   Future<void> save(DVPageDocument document) => client.savePage(document);
 
+  /// Saves [document] as its page's draft, leaving the published page served.
+  Future<void> saveDraft(DVPageDocument document) =>
+      client.savePageDraft(document);
+
   /// Saves [document] over a version code changed, which [save] refuses.
   Future<void> saveOverCode(DVPageDocument document) =>
       client.savePage(document, force: true);
 
+  /// [route] as Studio opens it: at its draft when one is open, so the
+  /// editor shows the work in progress rather than what visitors see.
   @override
   Future<DVPageDocument?> load(String route) async {
-    for (final DVPageDocument document in await client.pages()) {
-      if (document.route == route) return document;
+    for (final DVStudioPageEntry page in await client.pageEntries()) {
+      if (page.route == route) return page.draft?.document ?? page.document;
     }
     return null;
   }
@@ -884,6 +954,177 @@ class DVStudioRemotePageStore extends DVPageStore {
 
   @override
   Future<void> delete(String route) => client.deletePage(route);
+}
+
+/// A version of a page as Studio's API writes it.
+DVContentVersion<DVPageDocument> dvStudioPageVersion(
+  Map<String, Object?> json,
+) =>
+    DVContentVersion<DVPageDocument>.fromJson(json, DVPageDocument.fromJson);
+
+/// One page as Studio lists it: what is served at [route], whether anything
+/// is, and the draft open beside it.
+class DVStudioPageEntry {
+  const DVStudioPageEntry({
+    required this.route,
+    required this.document,
+    required this.published,
+    this.draft,
+  });
+
+  factory DVStudioPageEntry.fromJson(Map<String, Object?> json) {
+    final Object? draft = json['draft'];
+    final DVPageDocument document =
+        DVPageDocument.fromJson((json['document']! as Map).cast<String, Object?>());
+    return DVStudioPageEntry(
+      // An older server named the route only inside the document.
+      route: json['route'] is String ? json['route']! as String : document.route,
+      document: document,
+      // An older server listed only published pages.
+      published: json['published'] != false,
+      draft: draft is Map
+          ? dvStudioPageVersion(draft.cast<String, Object?>())
+          : null,
+    );
+  }
+
+  final String route;
+
+  /// The published document, or the draft's for a page never published.
+  final DVPageDocument document;
+  final bool published;
+  final DVContentVersion<DVPageDocument>? draft;
+}
+
+/// The page versions a web-server binary keeps, reached over Studio's API:
+/// the same drafts, review, schedules and revisions as [DVStudioContent], run
+/// by the server, which is the only place that can publish at a time with
+/// nobody's browser open.
+///
+/// Who acts is the signed-in account the server sees, never what the browser
+/// says it is: `as` is ignored here, and the server records its own caller.
+class DVStudioRemoteVersions implements DVStudioVersions {
+  DVStudioRemoteVersions(this.client, {String? actorId})
+      : _actorId = actorId ?? 'you';
+
+  final DVStudioClient client;
+  final String _actorId;
+
+  @override
+  String actorIdOf(Object? user) => user is String ? user : _actorId;
+
+  @override
+  DateTime now() => DateTime.now().toUtc();
+
+  /// The server decides at the transition and says why when it refuses;
+  /// every action is offered, and a refusal is shown where it was taken.
+  @override
+  Future<bool> can(Object? user, String action, DVPageDocument document) async =>
+      true;
+
+  @override
+  Future<List<String>> routes() async => <String>[
+        for (final DVStudioPageEntry page in await client.pageEntries())
+          page.route,
+      ]..sort();
+
+  @override
+  Future<List<DVContentVersion<DVPageDocument>>> versions(String route) =>
+      client.pageVersions(route);
+
+  @override
+  Future<List<DVContentTransition>> history(String route) =>
+      client.pageHistory(route);
+
+  @override
+  Future<DVContentVersion<DVPageDocument>> saveDraft(
+    DVPageDocument document, {
+    required Object? as,
+  }) =>
+      client.savePageDraft(document);
+
+  @override
+  Future<DVContentVersion<DVPageDocument>> submit(
+    DVContentVersion<DVPageDocument> version, {
+    required String to,
+    required Object? as,
+  }) =>
+      client.pageVersionAction('submit', version, <String, Object?>{'to': to});
+
+  @override
+  Future<DVContentVersion<DVPageDocument>> approve(
+    DVContentVersion<DVPageDocument> version, {
+    required Object? as,
+  }) =>
+      client.pageVersionAction('approve', version);
+
+  @override
+  Future<DVContentVersion<DVPageDocument>> requestChanges(
+    DVContentVersion<DVPageDocument> version, {
+    required Object? as,
+    String? note,
+  }) =>
+      client.pageVersionAction(
+          'request-changes', version, <String, Object?>{'note': note});
+
+  @override
+  Future<DVContentVersion<DVPageDocument>> schedule(
+    DVContentVersion<DVPageDocument> version, {
+    required DateTime at,
+    required Object? as,
+  }) =>
+      client.pageVersionAction('schedule', version,
+          <String, Object?>{'at': at.toUtc().toIso8601String()});
+
+  @override
+  Future<DVContentVersion<DVPageDocument>> cancelSchedule(
+    DVContentVersion<DVPageDocument> version, {
+    required Object? as,
+  }) =>
+      client.pageVersionAction('unschedule', version);
+
+  @override
+  Future<DVContentVersion<DVPageDocument>> publish(
+    DVContentVersion<DVPageDocument> version, {
+    required Object? as,
+  }) =>
+      client.pageVersionAction('publish', version);
+
+  @override
+  Future<DVContentVersion<DVPageDocument>> restore(
+    DVContentVersion<DVPageDocument> version, {
+    required Object? as,
+  }) =>
+      client.pageVersionAction('restore', version);
+
+  @override
+  Future<DVContentVersion<DVPageDocument>> withdraw(
+    DVContentVersion<DVPageDocument> version, {
+    required Object? as,
+  }) =>
+      client.pageVersionAction('discard', version);
+
+  /// Not yet: the server serves published pages only, so a preview link
+  /// would show visitors' page rather than the draft.
+  @override
+  Future<Uri> previewLink(
+    DVContentVersion<DVPageDocument> version, {
+    required Object? as,
+    Duration expiresIn = const Duration(hours: 1),
+  }) =>
+      Future<Uri>.error(UnsupportedError(
+        'Preview links are not served by this server yet. Use Preview in '
+        'the editor to see the draft.',
+      ));
+
+  /// Autosave keeps drafts; Publish still publishes, through the workflow,
+  /// so every publish leaves a revision.
+  @override
+  void attach(DVStudioEditorController controller, {required Object? as}) {
+    controller.draftSaver = (DVPageDocument document) async {
+      await client.savePageDraft(document);
+    };
+  }
 }
 
 /// The whole of Studio, as a web-server binary serves it.
@@ -941,6 +1182,32 @@ class DVStudioApp extends StatefulWidget {
 
 class _DVStudioAppState extends State<DVStudioApp> {
   Uri get _here => widget.location ?? Uri.base;
+
+  /// The server's page versions, once it has said it keeps them: drafts for
+  /// autosave, review, schedules and revisions. Null until then, and on a
+  /// server that keeps none, where autosave stays off rather than publish.
+  DVStudioRemoteVersions? _versions;
+
+  /// Who the server records as acting, for the review panel's "you".
+  String? _actorId;
+
+  Future<void> _loadVersions() async {
+    try {
+      final ({List<DVStudioPageEntry> pages, bool keepsVersions}) list =
+          await widget.client.pageList();
+      if (!list.keepsVersions) return;
+      final Object? userId = (await widget.client.me())['userId'];
+      final String actor =
+          userId is String && userId.isNotEmpty ? userId : 'studio';
+      if (!mounted) return;
+      setState(() {
+        _actorId = actor;
+        _versions = DVStudioRemoteVersions(widget.client, actorId: actor);
+      });
+    } on Object {
+      // Without versions the editor publishes only when asked, which is safe.
+    }
+  }
 
   bool get _signingIn =>
       _here.path.endsWith('/login') || _here.path.endsWith('/login/');
@@ -1008,6 +1275,7 @@ class _DVStudioAppState extends State<DVStudioApp> {
     if (mounted) {
       setState(() => _granted = granted);
     }
+    if (granted && _versions == null) await _loadVersions();
   }
 
   @override
@@ -1037,6 +1305,8 @@ class _DVStudioAppState extends State<DVStudioApp> {
               ? Material(
                   child: DVStudioScreen(
                     store: DVStudioRemotePageStore(widget.client),
+                    content: _versions,
+                    actor: _actorId,
                     site: DVStudioSiteSource(
                       pages: widget.client.site,
                       structure: widget.client.structure,

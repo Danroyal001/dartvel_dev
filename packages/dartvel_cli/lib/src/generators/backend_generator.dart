@@ -2099,6 +2099,8 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   final core.DVAdminServer? adminServer = !dartvelStudio || admin == null || adminRoot == null
       ? null
       : core.DVAdminServer(mount: admin, root: adminRoot, models: ${studioModules.isEmpty ? 'dartvelStudioModels' : '<core.DVStudioModelSpec>[...dartvelStudioModels, ${studioModules.map(((String, String) m) => '...${m.$2}.dartvelStudioModels').join(', ')}]'}, database: dartvelDatabase, devGrant: studioDevGrant, sourceRoot: studioSourceRoot, structureRoot: studioStructureRoot, webRoot: spaRoot, title: '${esc('Studio · $pkgName')}', studioParts: studioParts);
+  // Pages scheduled before this process started are published at their time.
+  adminServer?.api.resumeSchedules().ignore();
   final Future<dv.Response> Function(dv.Request) withAdmin = adminServer == null
       ? application
       : (dv.Request request) async => await adminServer.respond(request) ?? await application(request);

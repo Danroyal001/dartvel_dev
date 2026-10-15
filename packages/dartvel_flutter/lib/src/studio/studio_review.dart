@@ -181,7 +181,7 @@ class StudioReviewSession extends ChangeNotifier {
     this.onSettled,
   });
 
-  final DVStudioContent content;
+  final DVStudioVersions content;
   final Object? actor;
   final String route;
 
@@ -189,7 +189,7 @@ class StudioReviewSession extends ChangeNotifier {
   /// can show the state it left.
   final VoidCallback? onSettled;
 
-  DVContentWorkflow<DVPageDocument> get workflow => content.workflow;
+  DVStudioVersions get workflow => content;
   String get actorId => content.actorIdOf(actor);
 
   List<DVContentVersion<DVPageDocument>> versions =

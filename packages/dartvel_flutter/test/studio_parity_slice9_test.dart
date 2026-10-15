@@ -96,16 +96,22 @@ void main() {
   });
 
   group('Autosave parity', () {
+    // Autosave keeps a draft. It used to call the publisher, which made every
+    // edit live two seconds later; publishing is only ever asked for.
     test('mutations mark controller dirty and trigger debounced autosave', () async {
       final doc = DVPageDocument(route: '/auto');
       var saveCount = 0;
+      var publishCount = 0;
       final controller = DVStudioEditorController(
         doc,
         autosave: true,
         autosaveInterval: const Duration(milliseconds: 50),
       );
-      controller.publisher = (DVPageDocument savedDoc) async {
+      controller.draftSaver = (DVPageDocument savedDoc) async {
         saveCount++;
+      };
+      controller.publisher = (DVPageDocument savedDoc) async {
+        publishCount++;
       };
 
       expect(controller.isDirty, isFalse);
@@ -122,6 +128,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
       expect(saveCount, 1);
+      expect(publishCount, 0, reason: 'autosave published the page');
       expect(controller.isDirty, isFalse);
       expect(controller.autosaveStatus, DVStudioAutosaveStatus.saved);
       expect(controller.lastSaved, isNotNull);
@@ -167,7 +174,9 @@ void main() {
 
       controller.insert(DVPageNode.text('Fails'), parent: doc.root.id);
 
-      expect(() => controller.save(), throwsA(isA<Exception>()));
+      // The status is read once the save has failed, not while it is in
+      // flight.
+      await expectLater(controller.save(), throwsA(isA<Exception>()));
       expect(controller.autosaveStatus, DVStudioAutosaveStatus.error);
 
       controller.dispose();

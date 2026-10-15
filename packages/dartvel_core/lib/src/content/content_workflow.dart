@@ -252,7 +252,91 @@ class DVContentVersion<T> {
         _decodeSet(_record.values['machine_keys']),
       );
 
+  /// A version as [toJson] wrote it, with its document read by [decode].
+  ///
+  /// For a client that reaches the workflow over HTTP: what comes back is the
+  /// same snapshot the server read, record version included, so a transition
+  /// the client asks for is still refused when the version moved since.
+  factory DVContentVersion.fromJson(
+    Map<String, Object?> json,
+    T Function(Map<String, Object?> document) decode,
+  ) {
+    final Map<String, Object?> document = (json['document']! as Map)
+        .cast<String, Object?>();
+    final Map<String, Object?> values = <String, Object?>{
+      for (final MapEntry<String, String> field in _jsonFields.entries)
+        field.key: json[field.value],
+    };
+    final Object? approval = json['approval'];
+    if (approval is Map) {
+      final DVContentApproval given = DVContentApproval.fromJson(
+        approval.cast<String, Object?>(),
+      );
+      values['approved_by'] = given.approvedBy;
+      values['approved_at'] = _stamp(given.approvedAt);
+      values['approved_revision'] = given.revision;
+      values['approved_digest'] = given.digest;
+    }
+    values['editors'] = _encodeSet(<String>{
+      for (final Object? e in json['editors'] as List<Object?>? ?? const [])
+        '$e',
+    });
+    values['machine_keys'] = _encodeSet(<String>{
+      for (final Object? k
+          in json['machineTranslated'] as List<Object?>? ?? const [])
+        '$k',
+    });
+    values['body'] = _canonicalJson(document);
+    return DVContentVersion<T>._(
+      DVRecord(
+        key: json['id']! as String,
+        version: (json['recordVersion']! as num).toInt(),
+        values: values,
+      ),
+      decode(document),
+    );
+  }
+
+  /// Row columns and the names a version's JSON gives them.
+  static const Map<String, String> _jsonFields = <String, String>{
+    'id': 'id',
+    'kind': 'kind',
+    'document_id': 'documentId',
+    'number': 'number',
+    'revision': 'revision',
+    'digest': 'digest',
+    'state': 'state',
+    'author': 'author',
+    'reviewer': 'reviewer',
+    'scheduled_at': 'scheduledAt',
+    'scheduled_by': 'scheduledBy',
+    'schedule_id': 'scheduleId',
+    'withdraw_at': 'withdrawAt',
+    'withdraw_by': 'withdrawBy',
+    'withdraw_id': 'withdrawId',
+    'published_at': 'publishedAt',
+    'published_by': 'publishedBy',
+    'note': 'note',
+    'moved_at': 'movedAt',
+  };
+
   final DVRecord _record;
+
+  /// The record version this snapshot was read at: a transition is a
+  /// conditional write against it.
+  int get recordVersion => _record.version;
+
+  /// This version as JSON, its document written by [encode].
+  Map<String, Object?> toJson(Map<String, Object?> Function(T document) encode) =>
+      <String, Object?>{
+        for (final MapEntry<String, String> field in _jsonFields.entries)
+          field.value: _v[field.key],
+        'approval': approval?.toJson(),
+        'editors': editors.toList()..sort(),
+        'machineTranslated': machineTranslated.toList()..sort(),
+        'recordVersion': recordVersion,
+        'document': encode(document),
+      };
 
   /// The document as this version holds it.
   final T document;
@@ -360,6 +444,28 @@ class DVContentTransition {
     required this.actor,
     required this.at,
   });
+
+  /// A transition as [toJson] wrote it.
+  factory DVContentTransition.fromJson(Map<String, Object?> json) =>
+      DVContentTransition._(
+        version: (json['version']! as num).toInt(),
+        versionId: json['versionId']! as String,
+        from: json['from'] == null
+            ? null
+            : DVContentState.values.byName(json['from']! as String),
+        to: DVContentState.values.byName(json['to']! as String),
+        actor: json['actor'] as String?,
+        at: DateTime.parse(json['at']! as String),
+      );
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'version': version,
+    'versionId': versionId,
+    'from': from?.name,
+    'to': to.name,
+    'actor': actor,
+    'at': _stamp(at),
+  };
 
   /// The version's number.
   final int version;
@@ -759,6 +865,11 @@ class DVContentWorkflow<T> {
     return '$payload.${_b64(Hmac(sha256, key).convert(utf8.encode(payload)).bytes)}';
   }
 
+  /// Every version of this kind in [state], oldest first: the drafts open
+  /// across a site, or the schedules a sweep has to look at.
+  Future<List<DVContentVersion<T>>> inState(DVContentState state) =>
+      _select('state', state.name);
+
   /// Every state change of every version of [documentId], version by version.
   Future<List<DVContentTransition>> history(String documentId) async {
     final List<DVContentTransition> transitions = <DVContentTransition>[];
@@ -1045,9 +1156,17 @@ class DVContentWorkflow<T> {
       version.document,
       versionId: version.id,
     );
-    _expect(version, 'schedule', const <DVContentState>{
-      DVContentState.approved,
-    });
+    // As for publish: without required approval a draft may be scheduled.
+    _expect(
+      version,
+      'schedule',
+      requireApproval
+          ? const <DVContentState>{DVContentState.approved}
+          : const <DVContentState>{
+              DVContentState.draft,
+              DVContentState.approved,
+            },
+    );
     _requireApproved(version);
     if (at.isBefore(_clock())) {
       throw ArgumentError.value(at, 'at', 'is in the past; publish instead');
@@ -1076,8 +1195,11 @@ class DVContentWorkflow<T> {
     _expect(version, 'cancel the schedule of', const <DVContentState>{
       DVContentState.scheduled,
     });
+    // Back to where it was scheduled from: a draft nobody approved stays one.
     return _move(version, actor, <String, Object?>{
-      'state': DVContentState.approved.name,
+      'state': version.approval == null
+          ? DVContentState.draft.name
+          : DVContentState.approved.name,
       ..._cleared(_scheduleColumns),
     });
   }
