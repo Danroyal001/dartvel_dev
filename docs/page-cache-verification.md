@@ -7,10 +7,10 @@ changes. Its scope and invalidation limits are in
 
 ## Built application
 
-NaijaLife was copied read-only from the owner's checkout into the worktree's
-ignored `.private/page-cache/naijalife`, excluding secrets and runtime data.
-The copy's package paths pointed at this framework branch. The existing
-NaijaLife server executable supplied the baseline.
+A production Dartvel application was copied read-only into an ignored
+directory of the worktree, excluding secrets and runtime data. The copy's
+package paths pointed at this framework branch. The application's existing
+server executable supplied the baseline.
 
 `dartvel build web-server` completed on Linux x64 with Flutter 3.47.5 / Dart
 3.13.4, all four public route semantics captured, and a clean accessibility
@@ -23,8 +23,8 @@ and loopback ports; nothing was deployed.
 Baseline, cached and cookie-bypassed `/login` responses are byte-identical:
 8,393 UTF-8 bytes, SHA-256
 `c1bb5f6bb9145d22f2c395186d22bcc7923dbf93470733e4c94678b49964323d`.
-The live https://naijalife.sigmadev.digital/login response also matched that
-hash and those bytes in a read-only comparison. The cache adds revalidation
+The live deployment's `/login` response also matched that hash and those
+bytes in a read-only comparison. The cache adds revalidation
 headers without changing the body. An actual
 conditional GET returned 304; guarded `/` and `/__studio` returned 302 with
 `no-store` and no ETag.

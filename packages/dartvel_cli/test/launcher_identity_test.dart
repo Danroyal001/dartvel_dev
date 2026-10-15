@@ -57,7 +57,7 @@ void main() {
   });
 
   test('the configured icon becomes every launcher density at its size', () {
-    pubspec('  pwa:\n    name: NaijaLife\n    icon: assets/logo.png\n');
+    pubspec('  pwa:\n    name: Harbour\n    icon: assets/logo.png\n');
     dvWriteAndroidLauncher(root.path);
     const Map<String, int> sizes = <String, int>{
       'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192,

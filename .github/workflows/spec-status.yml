@@ -90,6 +90,7 @@ jobs:
       # script is six lines, and the language breakdown of a project sold as
       # "Flutter's Laravel" then says Python. A rule nothing checks drifts.
       - run: dart run tool/ci/no_python_check.dart
+      - run: dart tool/ci/private_paths_check.dart
 
       # GitHub runs every step as `bash -e {0}`, so `set -uo pipefail` adds
       # two options and leaves errexit exactly where it was -- while reading

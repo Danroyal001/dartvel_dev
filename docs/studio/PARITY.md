@@ -268,7 +268,7 @@ does not establish browser parity for every Studio control.
   is named in the row.
 - When a row changes, the change is made here in the same commit as the code, and a
   feature is never described as Done because a demo of it exists.
-- The definition of done for anything added here is the one in `~/AGENTS.md`: one render
+- The definition of done for anything added here is the one in `AGENTS.md`: one render
   path, its own URL, Ctrl+F/selection/Tab/screen reader working, generic for every
   Dartvel project, checked in a real browser on a web-server build, with the docs updated
   in the same change.

@@ -25,5 +25,5 @@ Approved, with these changes:
    widget — yes (`render: DVHomeWidgetRender.snapshot`). Bound keys — keep, ship with the Apple widget step.
    Extension background via `dart2js` — moved after the rest of the web work.
 7. **Our own apps must follow Dartvel's own conventions** (basic_app, the coffee example `examples/dartvel_example`,
-   the Dartvel VPN `~/passepartout/app-dartvel`, the NaijaLife/Wahala game `~/naijalife`). Every convention change
+   and the applications the maintainers build on Dartvel). Every convention change
    migrates them in the same push.

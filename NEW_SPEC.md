@@ -16395,9 +16395,9 @@ request; the section it lands in carries the usual Stability and Status labels, 
 was decided and in what order. Nothing here is claimed as shipped until its section says so.
 
 Every item is framework-level, generic for every Dartvel project, and must pass the Definition of done in
-~/agent-context/AGENTS.md (one render path, own URLs, keyboard and screen-reader accessible, checked in a
+`AGENTS.md` (one render path, own URLs, keyboard and screen-reader accessible, checked in a
 real browser on a web-server build, diffed against live, README + NEW_SPEC + site docs + CHANGELOG in the
-same PR, no over-claiming). Background: ~/dartvel-proposals/2026-10-01-competitive-proposal.md.
+same PR, no over-claiming).
 
 ## Track A: agents and docs (beats Flutter Agent Kit, matches Expo/Next.js agent tooling)
 1. `dartvel create`/`init` set up every major agent: AGENTS.md, CLAUDE.md, GEMINI.md, .cursor/rules,
