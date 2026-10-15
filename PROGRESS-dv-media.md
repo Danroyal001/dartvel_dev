@@ -35,3 +35,9 @@ Branch: `feat/media-player-camera` (do NOT push to main/master, do NOT merge).
 
 ## Final report (written at end of task)
 Branch `feat/media-player-camera` kept. Media Playback and Capture tests pass; docs-samples copy regenerated via `dart run sites/dartvel_site/tool/docs_samples.dart`; `docs/spec-status.json` remains honest (`Draft`/`Partial` with real evidence and explicit absent notes — no false `Shipped` claim). Nothing pushed to main, no PR merged, no deploy, no message sent. Ready for lead agent to land.
+
+
+## LEAD NOTE (owner, 14 Oct night) — binding
+- With Dartvel's strongly typed backend functions there must be NO JSON anywhere in application code: no toJson/fromJson, jsonEncode/jsonDecode, Map<String,dynamic> payloads (e.g. lib/vault/vault_remote.dart:108). Call the generated typed backend functions with typed params/returns.
+- Middleware is the `middleware:` field of the backend function annotation, never a separate annotation.
+- Follow ALL Dartvel conventions: DV.run() only in main, pages/index.dart + _guard, DVFunctionalWidget/DVClassWidget, DVBox/DVText, UpperCamelCase generated widgets, signals not Listenable*, Dart-only tooling, no private host tooling in public docs. Run `dartvel doctor --conventions` (codex is adding it in dv-conventions-framework) and fix every finding.
