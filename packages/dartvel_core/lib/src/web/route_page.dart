@@ -201,14 +201,17 @@ class DVRoutePage {
   /// Plain lines from the page's source, used only when nothing was captured.
   final List<String> text;
 
-  /// The same page at [path], for a route matched by a pattern.
-  DVRoutePage at(String path) => path == route
+  /// The same page at [path], for a route matched by a pattern, and on the
+  /// site at [siteUrl] when one is given: a host of `dartvel.hosts` shows a
+  /// route at its own path on its own origin.
+  DVRoutePage at(String path, {String? siteUrl}) =>
+      path == route && (siteUrl == null || siteUrl == this.siteUrl)
       ? this
       : DVRoutePage(
           route: path,
           title: title,
           description: description,
-          siteUrl: siteUrl,
+          siteUrl: siteUrl ?? this.siteUrl,
           image: image,
           siteName: siteName,
           alternates: alternates,
