@@ -14,16 +14,21 @@ import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 DVHosts _hosts = DVHosts.none;
 DVHostMatch? _current;
 
-/// Installs [hosts] for this page. [host] is the host it was loaded from:
-/// `Uri.base.host` on the web; off the web an application is not served
-/// from a host, and the primary host's view -- the whole route tree, no
-/// mount -- is the one it routes by. An unknown host is the primary, as it
-/// is on the server.
+/// Installs [hosts] for this page. [host] is the host it was loaded from,
+/// `Uri.base.host` on the web when not given. An unknown host is the
+/// primary, as it is on the server.
+///
+/// Off the web no host served the application, and the table is not used:
+/// a link to a route stays a route of this app rather than a URL handed to
+/// a browser.
 void dvUseHosts(DVHosts hosts, {String? host}) {
+  final String? served = host ?? (kIsWeb ? Uri.base.host : null);
+  if (hosts.isEmpty || served == null) {
+    dvResetHosts();
+    return;
+  }
   _hosts = hosts;
-  _current = hosts.isEmpty
-      ? null
-      : hosts.matchOrPrimary(host ?? (kIsWeb ? Uri.base.host : null));
+  _current = hosts.matchOrPrimary(served);
 }
 
 /// Back to no hosts, for tests.
