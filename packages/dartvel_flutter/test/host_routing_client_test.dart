@@ -121,12 +121,15 @@ void main() {
       expect(dvLocationToPlatform('/x'), '/x');
     });
 
-    test('off the web, where no host served the app, the table is not used', () {
-      dvUseHosts(hosts());
-      expect(dvCurrentHost, isNull);
-      expect(dvPublicLocation('/docs/x'), '/docs/x');
-      expect(dvLocationFromPlatform('/'), '/');
-    });
+    test(
+      'off the web, where no host served the app, the table is not used',
+      () {
+        dvUseHosts(hosts());
+        expect(dvCurrentHost, isNull);
+        expect(dvPublicLocation('/docs/x'), '/docs/x');
+        expect(dvLocationFromPlatform('/'), '/');
+      },
+    );
 
     test('an unknown host is the primary', () {
       dvUseHosts(hosts(), host: 'localhost');
@@ -335,6 +338,61 @@ void main() {
       expect(opened, isEmpty);
       expect(find.text('page /docs/x'), findsOneWidget);
       semantics.dispose();
+    });
+  });
+
+  group('prefetch across hosts', () {
+    final List<String> fetched = <String>[];
+    setUp(() {
+      fetched.clear();
+      DVRoutePrefetch.fetch = (String path) async {
+        fetched.add(path);
+        return const <String>[];
+      };
+    });
+    tearDown(DVRoutePrefetch.reset);
+
+    test('a mounted host prefetches the document at the address it serves', () {
+      dvUseHosts(hosts(), host: 'docs.example.com');
+      expect(dvPrefetchHref('/docs'), './');
+      expect(dvPrefetchHref('/docs/x'), 'x');
+    });
+
+    test('without hosts the document is the route'
+        's own', () {
+      expect(dvPrefetchHref('/docs/x'), 'docs/x');
+    });
+
+    testWidgets('a link to another host is not prefetched on this one', (
+      WidgetTester tester,
+    ) async {
+      dvUseHosts(hosts(), host: 'docs.example.com');
+      await pumpRouter(
+        tester,
+        initialLocation: '/docs',
+        page: (String path) => path == '/docs'
+            ? const Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    DVNavLink(
+                      to: DVRouteTarget('/pricing'),
+                      preload: DVLinkPreload.immediate,
+                      preview: DVLinkPreview.none,
+                      child: Text('pricing'),
+                    ),
+                    DVNavLink(
+                      to: DVRouteTarget('/docs/x'),
+                      preload: DVLinkPreload.immediate,
+                      preview: DVLinkPreview.none,
+                      child: Text('x'),
+                    ),
+                  ],
+                ),
+              )
+            : label(path),
+      );
+      await tester.pumpAndSettle();
+      expect(fetched, <String>['/docs/x']);
     });
   });
 }

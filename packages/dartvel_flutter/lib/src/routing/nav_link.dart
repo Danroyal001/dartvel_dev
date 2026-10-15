@@ -23,7 +23,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart' show GoRouter;
 
-import '../../dartvel_flutter.dart' show DV, DVNavigation, DVRouteTarget, DartvelRouteState;
+import '../../dartvel_flutter.dart'
+    show DV, DVNavigation, DVRouteTarget, DartvelRouteState;
 import '../widgets/browser_menu.dart' show DVBrowserMenu;
 import 'client_hosts.dart' show dvIsOtherOrigin, dvPublicLocation;
 import 'link_interception.dart' show DVPressedLink;
@@ -60,7 +61,6 @@ enum DVLinkPreload {
 
 /// Whether a link shows what it points at.
 class const DVLinkPreview({final Widget? child, final bool enabled = true}) {
-
   /// No preview.
   static const none = DVLinkPreview(enabled: false);
 
@@ -101,8 +101,8 @@ class DVNavLink extends StatefulWidget {
     this.semanticLabel,
     this.focusNode,
     this.autofocus = false,
-  })  : externalUrl = null,
-        assert(true);
+  }) : externalUrl = null,
+       assert(true);
 
   /// A link that leaves the site.
   ///
@@ -128,12 +128,12 @@ class DVNavLink extends StatefulWidget {
     this.semanticLabel,
     this.focusNode,
     this.autofocus = false,
-  })  : externalUrl = url,
-        to = const DVRouteTarget('/'),
-        preload = DVLinkPreload.none,
-        preview = DVLinkPreview.none,
-        onPreload = null,
-        onPreview = null;
+  }) : externalUrl = url,
+       to = const DVRouteTarget('/'),
+       preload = DVLinkPreload.none,
+       preview = DVLinkPreview.none,
+       onPreload = null,
+       onPreview = null;
 
   /// Where this goes when it leaves the site, or null for a route link.
   final String? externalUrl;
@@ -205,7 +205,8 @@ class _DVNavLinkState extends State<DVNavLink> {
   bool _focused = false;
 
   FocusNode get _focusNode =>
-      widget.focusNode ?? (_ownedFocusNode ??= FocusNode(debugLabel: 'DVNavLink'));
+      widget.focusNode ??
+      (_ownedFocusNode ??= FocusNode(debugLabel: 'DVNavLink'));
 
   @override
   void initState() {
@@ -215,8 +216,9 @@ class _DVNavLinkState extends State<DVNavLink> {
     DVBrowserMenu.install();
     if (widget.preload == DVLinkPreload.immediate) {
       // After the frame: a build must not start work that could rebuild it.
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => unawaited(_preload()));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(_preload()),
+      );
     }
     if (widget.preload == DVLinkPreload.visible) {
       // After the frame, because whether the link is on screen is a question
@@ -250,7 +252,8 @@ class _DVNavLinkState extends State<DVNavLink> {
     // Not awaited: neither depends on the other, and a slow image must not
     // hold up the code the tap is waiting for.
     unawaited(_prefetchDocument());
-    final loader = widget.onPreload ?? DVRoutePreloaders.forPath(widget.to.path);
+    final loader =
+        widget.onPreload ?? DVRoutePreloaders.forPath(widget.to.path);
     if (loader == null) return;
     try {
       await loader();
@@ -258,12 +261,14 @@ class _DVNavLinkState extends State<DVNavLink> {
       // Preloading is an optimisation, so a failure must not stop the tap
       // that follows. Reported rather than swallowed: a preload that silently
       // never works is a performance bug nobody can see.
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: error,
-        stack: stack,
-        library: 'dartvel',
-        context: ErrorDescription('preloading ${widget.to.path}'),
-      ));
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'dartvel',
+          context: ErrorDescription('preloading ${widget.to.path}'),
+        ),
+      );
     }
   }
 
@@ -272,6 +277,10 @@ class _DVNavLinkState extends State<DVNavLink> {
   /// off the web, where there is no document.
   Future<void> _prefetchDocument() async {
     final String path = widget.to.path;
+    // A page another host serves (`dartvel.hosts`) is not on this origin:
+    // asking this host for it is a 404, and the browser keys a prefetch by
+    // URL, so it would not be used anyway.
+    if (dvIsOtherOrigin(dvPublicLocation(path))) return;
     try {
       final List<String> images = await DVRoutePrefetch.fetch(path);
       // The link may be gone by the time the browser answers, and with it the
@@ -282,12 +291,14 @@ class _DVNavLinkState extends State<DVNavLink> {
         unawaited(DVRoutePrefetch.precache(context, url));
       }
     } on Object catch (error, stack) {
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: error,
-        stack: stack,
-        library: 'dartvel',
-        context: ErrorDescription('prefetching the document for $path'),
-      ));
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'dartvel',
+          context: ErrorDescription('prefetching the document for $path'),
+        ),
+      );
     }
   }
 
@@ -341,8 +352,8 @@ class _DVNavLinkState extends State<DVNavLink> {
     final RenderObject? viewport = _scrollable?.context.findRenderObject();
     final Rect visible =
         viewport is RenderBox && viewport.attached && viewport.hasSize
-            ? viewport.localToGlobal(Offset.zero) & viewport.size
-            : Offset.zero & MediaQuery.sizeOf(context);
+        ? viewport.localToGlobal(Offset.zero) & viewport.size
+        : Offset.zero & MediaQuery.sizeOf(context);
     return bounds.overlaps(visible);
   }
 
@@ -368,7 +379,10 @@ class _DVNavLinkState extends State<DVNavLink> {
     _previewTimer?.cancel();
     _previewPending = false;
     if (widget.preview.child != null && _previewEntry != null) {
-      _previewExitTimer = Timer(const Duration(milliseconds: 150), _removePreview);
+      _previewExitTimer = Timer(
+        const Duration(milliseconds: 150),
+        _removePreview,
+      );
     } else {
       _removePreview();
     }
@@ -387,15 +401,19 @@ class _DVNavLinkState extends State<DVNavLink> {
   /// the idle moment cancels it, and a navigation gets the frame to itself.
   void _previewWhenIdle() {
     _previewPending = true;
-    unawaited(SchedulerBinding.instance.scheduleTask<void>(() {
-      if (!_previewPending) return;
-      _previewPending = false;
-      _showPreview();
-    }, Priority.idle));
+    unawaited(
+      SchedulerBinding.instance.scheduleTask<void>(() {
+        if (!_previewPending) return;
+        _previewPending = false;
+        _showPreview();
+      }, Priority.idle),
+    );
   }
 
   void _showPreview() {
-    if (!mounted || !widget.enabled || !widget.preview.enabled ||
+    if (!mounted ||
+        !widget.enabled ||
+        !widget.preview.enabled ||
         _previewEntry != null) {
       return;
     }
@@ -423,21 +441,25 @@ class _DVNavLinkState extends State<DVNavLink> {
         path: widget.to.path,
         cardKey: _previewCardKey,
         custom: widget.preview.child != null,
-        child: widget.preview.child == null ? Builder(builder: builder!) : MouseRegion(
-          onEnter: (_) => _previewExitTimer?.cancel(),
-          onExit: (_) => _removePreview(),
-          child: widget.preview.child!,
-        ),
+        child: widget.preview.child == null
+            ? Builder(builder: builder!)
+            : MouseRegion(
+                onEnter: (_) => _previewExitTimer?.cancel(),
+                onExit: (_) => _removePreview(),
+                child: widget.preview.child!,
+              ),
       ),
     );
     Overlay.of(context, rootOverlay: true).insert(_previewEntry!);
     GestureBinding.instance.pointerRouter.addGlobalRoute(_previewPointer);
     final route = ModalRoute.of(context);
     if (route != null) {
-      _previewHistory = LocalHistoryEntry(onRemove: () {
-        _previewHistory = null;
-        _removePreview();
-      });
+      _previewHistory = LocalHistoryEntry(
+        onRemove: () {
+          _previewHistory = null;
+          _removePreview();
+        },
+      );
       route.addLocalHistoryEntry(_previewHistory!);
     }
   }
@@ -457,8 +479,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   bool get _isCurrentRoute {
     final GoRouter? router = GoRouter.maybeOf(context);
     if (router == null) return false;
-    final String current =
-        router.routerDelegate.currentConfiguration.uri.path;
+    final String current = router.routerDelegate.currentConfiguration.uri.path;
     String normal(String path) => path.length > 1 && path.endsWith('/')
         ? path.substring(0, path.length - 1)
         : path;
@@ -483,7 +504,8 @@ class _DVNavLinkState extends State<DVNavLink> {
   /// this host without its mount, or an absolute URL on the host that owns
   /// the route. The route's own location when there are no hosts.
   String get _href =>
-      widget.externalUrl ?? dvPublicLocation(DVNavigation.locationOf(widget.to));
+      widget.externalUrl ??
+      dvPublicLocation(DVNavigation.locationOf(widget.to));
 
   bool get _wantsNewTab {
     final keys = HardwareKeyboard.instance.logicalKeysPressed;
@@ -503,8 +525,7 @@ class _DVNavLinkState extends State<DVNavLink> {
     // the anchor under the mouse may be another link's, so a pointer opens
     // it here.
     if (DVLinkOpener.browserFollowsAnchors && !fromPointer) return;
-    final String destination =
-        _href;
+    final String destination = _href;
     final void Function(String)? override = widget.openInNewTab;
     if (override != null) {
       override(destination);
@@ -520,8 +541,8 @@ class _DVNavLinkState extends State<DVNavLink> {
     _removePreview();
     // A route another host of dartvel.hosts owns is that host's page: left
     // for, in this tab, as a link off the site is, never routed here.
-    final String? external = widget.externalUrl ??
-        (dvIsOtherOrigin(_href) ? _href : null);
+    final String? external =
+        widget.externalUrl ?? (dvIsOtherOrigin(_href) ? _href : null);
     if (external != null) {
       // Opened, never routed. The router has no route for another origin.
       //
@@ -706,19 +727,33 @@ class _DVLinkPreviewCard extends StatelessWidget {
     final leftEdge = safe.left + 8;
     final topEdge = safe.top + 8;
     final rightEdge = screen.width - safe.right - 8;
-    final bottomEdge = screen.height - safe.bottom - media.viewInsets.bottom - 8;
+    final bottomEdge =
+        screen.height - safe.bottom - media.viewInsets.bottom - 8;
     final size = Size(
-      _size.width.clamp(0.0, (rightEdge - leftEdge).clamp(0.0, double.infinity)),
-      _size.height.clamp(0.0, (bottomEdge - topEdge).clamp(0.0, double.infinity)),
+      _size.width.clamp(
+        0.0,
+        (rightEdge - leftEdge).clamp(0.0, double.infinity),
+      ),
+      _size.height.clamp(
+        0.0,
+        (bottomEdge - topEdge).clamp(0.0, double.infinity),
+      ),
     );
     // Below the link where there is room, above it where there is not, and
     // never off the side.
     final below = anchor.bottom + 10;
-    final top = (below + size.height > bottomEdge
-        ? anchor.top - size.height - 10 : below)
-        .clamp(topEdge, (bottomEdge - size.height).clamp(topEdge, double.infinity));
-    final left = anchor.left.clamp(leftEdge,
-        (rightEdge - size.width).clamp(leftEdge, double.infinity));
+    final top =
+        (below + size.height > bottomEdge
+                ? anchor.top - size.height - 10
+                : below)
+            .clamp(
+              topEdge,
+              (bottomEdge - size.height).clamp(topEdge, double.infinity),
+            );
+    final left = anchor.left.clamp(
+      leftEdge,
+      (rightEdge - size.width).clamp(leftEdge, double.infinity),
+    );
 
     return Positioned(
       left: left,
@@ -734,41 +769,46 @@ class _DVLinkPreviewCard extends StatelessWidget {
           clipBehavior: .antiAlias,
           child: SizedBox.fromSize(
             size: size,
-            child: custom ? child : Column(
-              crossAxisAlignment: .stretch,
-              children: <Widget>[
-                Expanded(
-                  child: FittedBox(
-                    fit: .cover,
-                    alignment: .topLeft,
-                    child: SizedBox(
-                      width: 1200,
-                      height: 850,
-                      child: MediaQuery(
-                        // The destination believes it has a full window, so
-                        // it lays out the way it really would rather than
-                        // collapsing into a card-sized shape.
-                        data: MediaQuery.of(context).copyWith(
-                          size: const Size(1200, 850),
+            child: custom
+                ? child
+                : Column(
+                    crossAxisAlignment: .stretch,
+                    children: <Widget>[
+                      Expanded(
+                        child: FittedBox(
+                          fit: .cover,
+                          alignment: .topLeft,
+                          child: SizedBox(
+                            width: 1200,
+                            height: 850,
+                            child: MediaQuery(
+                              // The destination believes it has a full window, so
+                              // it lays out the way it really would rather than
+                              // collapsing into a card-sized shape.
+                              data: MediaQuery.of(context)
+                                  .copyWith(size: const Size(1200, 850)),
+                              child: child,
+                            ),
+                          ),
                         ),
-                        child: child,
                       ),
-                    ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        child: Text(
+                          path,
+                          maxLines: 1,
+                          overflow: .ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: Text(
-                    path,
-                    maxLines: 1,
-                    overflow: .ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
@@ -898,7 +938,10 @@ class DVRoutePreloaders {
 /// Builds a route's preview for the concrete [location] a link names, with the
 /// [params] taken from it.
 typedef DVLocationPreviewBuilder = Widget Function(
-    BuildContext context, String location, Map<String, String> params);
+  BuildContext context,
+  String location,
+  Map<String, String> params,
+);
 
 /// Route builders, so a link can show what it points at.
 ///
@@ -923,8 +966,10 @@ class DVRoutePreviews {
 
   /// Register a builder for a pattern that is given the concrete location a
   /// link names and the parameters taken from it.
-  static void registerForLocation(String pattern, DVLocationPreviewBuilder builder) =>
-      _locationBuilders[pattern] = builder;
+  static void registerForLocation(
+    String pattern,
+    DVLocationPreviewBuilder builder,
+  ) => _locationBuilders[pattern] = builder;
 
   /// Mark a path or pattern as guarded: its preview is a card naming
   /// [title], never the page. Wins over any builder registered for it.
@@ -935,8 +980,11 @@ class DVRoutePreviews {
   static WidgetBuilder? forPath(String location) {
     // A link may carry a query; the route is the path.
     final String path = location.split('?').first.split('#').first;
-    final String? pattern = _patternFor(
-        path, <String>{..._builders.keys, ..._locationBuilders.keys, ..._guarded.keys});
+    final String? pattern = _patternFor(path, <String>{
+      ..._builders.keys,
+      ..._locationBuilders.keys,
+      ..._guarded.keys,
+    });
     if (pattern == null) return null;
     if (_guarded.containsKey(pattern)) {
       final String? title = _guarded[pattern];
@@ -950,10 +998,10 @@ class DVRoutePreviews {
     final WidgetBuilder builder = _builders[pattern]!;
     if (params.isEmpty) return builder;
     return (BuildContext context) => DartvelRouteState(
-          params: params,
-          query: const <String, String>{},
-          child: Builder(builder: builder),
-        );
+      params: params,
+      query: const <String, String>{},
+      child: Builder(builder: builder),
+    );
   }
 
   /// The registered pattern that answers [path]: an exact path first, then
@@ -965,7 +1013,10 @@ class DVRoutePreviews {
     for (final String pattern in patterns) {
       if (!_matches(path, pattern)) continue;
       final int fixed = _segments(pattern)
-          .where((String segment) => !segment.startsWith(':') && !segment.startsWith('*'))
+          .where(
+            (String segment) =>
+                !segment.startsWith(':') && !segment.startsWith('*'),
+          )
           .length;
       if (fixed > bestFixed) {
         best = pattern;
@@ -995,9 +1046,15 @@ class DVRoutePreviews {
     final List<String> pathSegments = _segments(path);
     final List<String> patternSegments = _segments(pattern);
     return <String, String>{
-      for (int index = 0; index < patternSegments.length && index < pathSegments.length; index++)
+      for (
+        int index = 0;
+        index < patternSegments.length && index < pathSegments.length;
+        index++
+      )
         if (patternSegments[index].startsWith(':'))
-          patternSegments[index].substring(1): Uri.decodeComponent(pathSegments[index]),
+          patternSegments[index].substring(1): Uri.decodeComponent(
+            pathSegments[index],
+          ),
     };
   }
 
@@ -1009,8 +1066,11 @@ class DVRoutePreviews {
   }
 
   @visibleForTesting
-  static int get count =>
-      <String>{..._builders.keys, ..._locationBuilders.keys, ..._guarded.keys}.length;
+  static int get count => <String>{
+    ..._builders.keys,
+    ..._locationBuilders.keys,
+    ..._guarded.keys,
+  }.length;
 }
 
 /// The preview of a guarded route: its public title and that it needs
@@ -1033,11 +1093,17 @@ class DVGuardedRoutePreview extends StatelessWidget {
           if (title != null && title!.isNotEmpty)
             Text(title!, style: theme.textTheme.titleMedium),
           const SizedBox(height: 4),
-          Row(mainAxisSize: MainAxisSize.min, children: <Widget>[
-            Icon(Icons.lock_outline, size: 16, color: theme.hintColor),
-            const SizedBox(width: 6),
-            Text('Sign in to view this page.', style: theme.textTheme.bodySmall),
-          ]),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(Icons.lock_outline, size: 16, color: theme.hintColor),
+              const SizedBox(width: 6),
+              Text(
+                'Sign in to view this page.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
         ],
       ),
     );
