@@ -25,6 +25,7 @@ import 'package:go_router/go_router.dart' show GoRouter;
 
 import '../../dartvel_flutter.dart' show DV, DVNavigation, DVRouteTarget, DartvelRouteState;
 import '../widgets/browser_menu.dart' show DVBrowserMenu;
+import 'client_hosts.dart' show dvIsOtherOrigin, dvPublicLocation;
 import 'link_interception.dart' show DVPressedLink;
 import 'link_menu.dart' show DVLinkMenuScope, dvShowLinkMenu;
 import 'route_prefetch.dart' show DVRoutePrefetch;
@@ -477,6 +478,13 @@ class _DVNavLinkState extends State<DVNavLink> {
   }
 
   /// Whether this click means "beside this page" rather than "instead of it".
+  /// Where this link points, as its anchor's href says it: the external
+  /// URL, or the route's public location -- with dartvel.hosts, a path on
+  /// this host without its mount, or an absolute URL on the host that owns
+  /// the route. The route's own location when there are no hosts.
+  String get _href =>
+      widget.externalUrl ?? dvPublicLocation(DVNavigation.locationOf(widget.to));
+
   bool get _wantsNewTab {
     final keys = HardwareKeyboard.instance.logicalKeysPressed;
     return keys.contains(LogicalKeyboardKey.controlLeft) ||
@@ -496,7 +504,7 @@ class _DVNavLinkState extends State<DVNavLink> {
     // it here.
     if (DVLinkOpener.browserFollowsAnchors && !fromPointer) return;
     final String destination =
-        widget.externalUrl ?? DVNavigation.locationOf(widget.to);
+        _href;
     final void Function(String)? override = widget.openInNewTab;
     if (override != null) {
       override(destination);
@@ -510,7 +518,10 @@ class _DVNavLinkState extends State<DVNavLink> {
     _previewTimer?.cancel();
     _previewPending = false;
     _removePreview();
-    final String? external = widget.externalUrl;
+    // A route another host of dartvel.hosts owns is that host's page: left
+    // for, in this tab, as a link off the site is, never routed here.
+    final String? external = widget.externalUrl ??
+        (dvIsOtherOrigin(_href) ? _href : null);
     if (external != null) {
       // Opened, never routed. The router has no route for another origin.
       //
@@ -541,8 +552,7 @@ class _DVNavLinkState extends State<DVNavLink> {
     }
     // A right-click: the page's menu opens over it, and asks what it was on.
     if (event.buttons == kSecondaryMouseButton) {
-      final String link =
-          widget.externalUrl ?? DVNavigation.locationOf(widget.to);
+      final String link = _href;
       DVPressedLinkTarget.press(link, event.position);
       // A menu, not a preview: the pointer is still over the link.
       _previewTimer?.cancel();
@@ -574,7 +584,7 @@ class _DVNavLinkState extends State<DVNavLink> {
       // click when the button comes up. The record lets the interceptor know
       // that click has already been followed.
       if (widget.externalUrl == null) {
-        DVPressedLink.record(DVNavigation.locationOf(widget.to));
+        DVPressedLink.record(_href);
       }
       _activate(fromPointer: true);
     }
@@ -586,9 +596,7 @@ class _DVNavLinkState extends State<DVNavLink> {
       // A screen reader should hear a link and its destination, not a piece
       // of tappable text.
       link: true,
-      linkUrl: Uri.tryParse(
-        widget.externalUrl ?? DVNavigation.locationOf(widget.to),
-      ),
+      linkUrl: Uri.tryParse(_href),
       label: widget.semanticLabel,
       // An explicit label replaces the child's text rather than being read
       // before it. Without this a screen reader announces both -- "Read more
