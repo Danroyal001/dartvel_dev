@@ -7561,8 +7561,9 @@ class DVLocalAuthProvider implements DVAuthProvider {
     return user;
   }
 
+  // 0xffffffff, not 1 << 32: on the web a shift is 32-bit and 1 << 32 is 0.
   String _newId(String prefix) =>
-      '$prefix-${DateTime.now().microsecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+      '$prefix-${DateTime.now().microsecondsSinceEpoch}-${math.Random.secure().nextInt(0xffffffff)}';
 }
 
 class DVAuth {
