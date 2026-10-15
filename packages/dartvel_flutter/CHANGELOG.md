@@ -3,6 +3,8 @@
 - `DVModifier.meshGradient(colors, period:)` is a mesh now: one soft blob per colour, each drifting on its own orbit behind the box's content, padding included. It was a static linear gradient under that name. It drifts while the pointer is over it and holds still otherwise, so no motion starts by itself (WCAG 2.2.2) and an idle page does no work; it steps about twelve times a second and never off screen. Reduced motion paints it once and runs no timer. Fewer than two colours is an `ArgumentError`.
 - `DVModifier.hoverGlow(color:, radius:)` is a light that follows the pointer behind the content, repainting without rebuilding the box. It no longer replaces the box's own `hover(...)` state (it was a `hover(shadow)`), and under reduced motion it sits at the centre.
 - `DVModifier.revealChildren(step:)` reveals a collection box's children one after another on scroll; an `Expanded` or `Flexible` child keeps its place. **Removed:** `DVModifier.stagger`, which was `revealOnScroll(delay:)` under a second name and never released.
+- Drag and drop on the web: `DV.Platform.dragDrop.accept()` now works in a browser. Dropped files arrive in the new `DVDropEvent.files` (`DVDroppedFile`: name, MIME type and bytes), since a page is never given a path; dropped text arrives as `text`. `DV.Platform.dragDrop.draggingOver` reports a drag entering and leaving the window, so a page can show where to drop.
+- `DV.Platform.media.readCapture(file)`: the bytes of a photo or recording from `DVBox.camera`, `DVCameraController.takePhoto` or `recordAudio`/`recordVideo`, on every target. In a browser a capture's path is a key into the page's capture store that no file API opens, so before this a web app could show a photo it could not read.
 
 ## 0.12.2 — 2026-10-14
 

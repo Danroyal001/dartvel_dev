@@ -69,6 +69,10 @@ import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
 import 'src/platform/storage/device_storage.dart';
+import 'src/platform/storage/device_storage_stub.dart'
+    if (dart.library.io) 'src/platform/storage/device_storage_io.dart'
+    if (dart.library.js_interop) 'src/platform/storage/device_storage_web.dart' as capture_platform;
+import 'src/media/web_media_mapping.dart' show DVWebCaptureStore;
 import 'src/platform/drag_drop.dart';
 import 'src/platform/file_associations.dart';
 import 'src/platform/launch_at_login.dart';
@@ -5242,6 +5246,21 @@ class DVCamera {
 
 class DVMedia {
   const DVMedia();
+
+  /// The contents of a photo or recording a camera or `recordAudio`/
+  /// `recordVideo` produced. On a device that is the private file at
+  /// [DVFile.path]; in a browser the path is a key into the page's capture
+  /// store, which no file API can open, so this is the way to the bytes on
+  /// every target -- to decode a frame (a QR code, a document) or upload it.
+  Future<Uint8List> readCapture(DVFile file) async {
+    final DVCaptureFiles files = DVMediaBackends.captureFiles;
+    if (files is DVWebCaptureStore) {
+      final Uint8List? bytes = files.bytesOf(file.path);
+      if (bytes == null) throw StateError('No capture is stored under ${file.path}.');
+      return bytes;
+    }
+    return Uint8List.fromList(await capture_platform.dvReadPickedPath(file.path));
+  }
 
   /// What this target can record, as its capture binding reports it. Nothing
   /// on a target with no binding registered.
