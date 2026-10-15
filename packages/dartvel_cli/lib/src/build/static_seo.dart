@@ -14,7 +14,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:dartvel_core/dartvel.dart'
-    show dvIsErrorPageRoute, dvStaticCanonical;
+    show dvIsErrorPageRoute, dvRobotsTxt, dvStaticCanonical;
 
 export 'package:dartvel_core/dartvel.dart' show dvStaticCanonical, dvStaticPage, dvStructuredData, dvRenderRoutePage, DVRoutePage;
 
@@ -320,6 +320,7 @@ String dvSitemap({
   Map<String, DVSitemapEntry> entries = const <String, DVSitemapEntry>{},
   DVSitemapEntry? defaults,
   List<String> exclude = const <String>[],
+  String Function(String route)? publicUrl,
 }) {
   final buffer = StringBuffer()
     ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
@@ -353,7 +354,9 @@ String dvSitemap({
     // was meant to help it.
     if (dvStaticRoutePath(route) == null) continue;
     final url = const HtmlEscape(HtmlEscapeMode.element)
-        .convert(dvStaticCanonical(siteUrl, route));
+        // With dartvel.hosts, the page's public URL on the host that owns it;
+        // the server answers each host with the entries on its own origin.
+        .convert(publicUrl?.call(route) ?? dvStaticCanonical(siteUrl, route));
     final DVSitemapEntry entry =
         (entries[route] ?? const DVSitemapEntry()).over(defaults);
     buffer
@@ -384,15 +387,8 @@ String dvSitemap({
 /// [sitemap] is false when `dartvel.seo.sitemap.enabled` turned the file
 /// off. Naming a sitemap the build did not write points a crawler at a 404,
 /// which is worse than saying nothing about it.
-String dvRobots({required String siteUrl, bool sitemap = true}) {
-  final base = siteUrl.replaceAll(RegExp(r'/+$'), '');
-  const String head = 'User-agent: *\n'
-      'Allow: /\n';
-  if (!sitemap) return head;
-  return '$head'
-      '\n'
-      'Sitemap: $base/sitemap.xml\n';
-}
+String dvRobots({required String siteUrl, bool sitemap = true}) =>
+    dvRobotsTxt(siteUrl: siteUrl, sitemap: sitemap);
 
 /// What `dartvel prerender` captured for one route.
 class DVPrerenderedMeta {

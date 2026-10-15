@@ -6,6 +6,9 @@ import 'package:dartvel_core/dartvel.dart'
         DVCrashBuildMode,
         DVCrashConfig,
         DVFileStorageConfig,
+        DVHostEntry,
+        DVHosts,
+        DVHostsParse,
         DVHomeWidgetSpec,
         DVLogConfig,
         DVPushConfig,
@@ -194,6 +197,18 @@ class ClientGenerator {
       throw StateError(
         'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
       );
+    }
+    // dartvel.hosts, refused here naming every problem: a table the router
+    // installs at start-up cannot be half right.
+    final Object? seoSection = _plain(dv['seo']);
+    final DVHostsParse hostsConfig = DVHosts.parse(
+      _plain(dv['hosts']),
+      defaultSiteUrl: seoSection is Map && seoSection['siteUrl'] is String
+          ? seoSection['siteUrl']! as String
+          : null,
+    );
+    if (hostsConfig.problems.isNotEmpty) {
+      throw StateError('pubspec.yaml ${hostsConfig.problems.join('\n')}');
     }
     final List<String> crashesOff = <String>[
       for (final DVCrashBuildMode mode in DVCrashBuildMode.values)
@@ -1536,6 +1551,20 @@ ${shell.branches.map((b) => '        StatefulShellBranch(routes: <RouteBase>[\n$
             'DV.Auth.currentUser != null;'
         : '';
 
+    // dartvel.hosts: the table the client routes by on the web, installed
+    // before the router is built. Nothing at all without hosts.
+    final DVHosts hostsTable = hostsConfig.hosts;
+    String hostField(String name, String? value) =>
+        value == null ? '' : " $name: '${_escape(value)}',";
+    final String hostsTableSrc = hostsTable.isEmpty
+        ? ''
+        : '\n/// dartvel.hosts: which host shows which part of the route tree.\n'
+            'const DVHosts dartvelHosts = DVHosts(<DVHostEntry>[\n'
+            '${hostsTable.entries.map((DVHostEntry e) => "  DVHostEntry(${hostField('pattern', e.pattern)}${hostField('siteUrl', e.siteUrl)}${hostField('mount', e.mount)}${hostField('name', e.name)}${hostField('description', e.description)}),").join('\n')}\n'
+            ']);\n';
+    final String hostsInstall =
+        hostsTable.isEmpty ? '' : '  dvUseHosts(dartvelHosts);';
+
     // The text each route's page contains, taken from the source this
     // generator already has in hand. The build used to guess the file from
     // the route name and get it wrong: /docs picked up a code sample and
@@ -2121,7 +2150,7 @@ const List<DVAccountPageEntry> dartvelAccountPages = $accountEntriesSrc;
 /// Read by the build that writes sitemap.xml. A route that is not here said
 /// nothing, and takes the project's defaults.
 const Map<String, DVPageSitemap> dartvelSitemapEntries = $sitemapEntriesSrc;
-
+$hostsTableSrc
 /// What the routes need before the first one is built, whichever router
 /// they end up in.
 void _dartvelSetUp(List<String> arguments) {
@@ -2138,6 +2167,7 @@ $authPageLinks
 $authAppearance
 $semanticsCall
 $pageMiddlewareInstall
+$hostsInstall
 }
 
 /// Every route this application serves, in one list ordered so a static

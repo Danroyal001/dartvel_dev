@@ -299,6 +299,10 @@ export 'package:dartvel_core/dartvel.dart'
         // Sitemap tuning, named in a generated router's per-route entries
         DVPageSitemap,
         DVSitemapChangeFrequency,
+        // dartvel.hosts, the table a generated router installs with dvUseHosts
+        DVHostEntry,
+        DVHostMatch,
+        DVHosts,
         // Modules
         DVModule,
         DVModuleRegistry,
