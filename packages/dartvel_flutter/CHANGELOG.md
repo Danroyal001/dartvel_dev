@@ -1,3 +1,7 @@
+## 0.13.2 — 2026-10-15
+
+- `DVPageShell` keeps the scrollbar on screen under any app theme (`dvWithPageScrollbars`).
+
 ## 0.13.1 — 2026-10-15
 
 - Routes by `dartvel.hosts` after hydration and prefetches a linked page on the host that serves it.

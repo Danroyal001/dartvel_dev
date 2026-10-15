@@ -1,3 +1,7 @@
+## 0.13.2 — 2026-10-15
+
+- Dartvel 0.13.2: `generatePages`, always-visible page scrollbars.
+
 ## 0.13.1 — 2026-10-15
 
 - Dartvel 0.13.1: host routing rewritten; pages keep their own descriptions.

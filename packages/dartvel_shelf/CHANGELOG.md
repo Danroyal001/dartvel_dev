@@ -1,3 +1,7 @@
+## 0.13.2 — 2026-10-15
+
+- Version bump to match Dartvel 0.13.2.
+
 ## 0.13.1 — 2026-10-15
 
 - Fix: 0.13.0's host routing replaced every page's own meta description with the site-wide one, in every app. Host routing is reimplemented (below) and pages keep their descriptions.
