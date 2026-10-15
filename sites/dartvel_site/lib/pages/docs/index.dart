@@ -299,7 +299,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
         DocsPlatformIndex(),
         DVBox.wrapLine(
           <Widget>[
-            PrimaryLink('See what works today', '/features'),
+            PrimaryLink('See what works today', DVRoutes.features),
             ExternalLink('Read spec-status.json', kSpecStatusUrl),
           ],
           spacing: 20,

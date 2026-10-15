@@ -232,7 +232,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
                   'and the frontend and backend function builders are free, in '
                   'the Studio your own binary serves.',
             ]),
-            GhostLink('See Studio and Studio Pro', '/studio'),
+            GhostLink('See Studio and Studio Pro', DVRoutes.studio),
           ],
         ),
         KeyedSubtree(
@@ -281,8 +281,8 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
                   'hosting your app yourself stay free, and Cloud never gates them.',
             ),
             DVBox.wrapLine(<Widget>[
-              PrimaryLink('Create your first app', '/docs'),
-              GhostLink('See what works today', '/features'),
+              PrimaryLink('Create your first app', DVRoutes.docs),
+              GhostLink('See what works today', DVRoutes.features),
             ], spacing: 12),
           ],
         ),

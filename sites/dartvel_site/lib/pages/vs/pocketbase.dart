@@ -87,8 +87,8 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
               'Deploy to phones only and the website keeps its compiled page.',
             ]),
             DVBox.wrapLine(<Widget>[
-              PrimaryLink('See Studio', '/studio'),
-              GhostLink('The web-server binary', '/docs/web-hosting'),
+              PrimaryLink('See Studio', DVRoutes.studio),
+              GhostLink('The web-server binary', DVRoutes.docswebhosting),
             ], spacing: 12),
           ],
         ),
@@ -117,7 +117,7 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
                 '2026-09-25'),
           ],
         ),
-        Section(children: <Widget>[VersusMore(current: '/vs/pocketbase')]),
+        Section(children: <Widget>[VersusMore(current: DVRoutes.vspocketbase)]),
         SiteFooter(),
       ], spacing: 0),
     );

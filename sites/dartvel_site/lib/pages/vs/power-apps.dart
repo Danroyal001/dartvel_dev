@@ -165,8 +165,8 @@ Widget _vsPowerAppsPage(BuildContext context) => const SingleChildScrollView(
               'needs no server of yours at all.',
         ),
         DVBox.wrapLine(<Widget>[
-          PrimaryLink('See Studio', '/studio'),
-          GhostLink('What ships today', '/features'),
+          PrimaryLink('See Studio', DVRoutes.studio),
+          GhostLink('What ships today', DVRoutes.features),
         ], spacing: 12),
         VersusChecked(
           'Power Apps',
@@ -180,7 +180,7 @@ Widget _vsPowerAppsPage(BuildContext context) => const SingleChildScrollView(
         ),
       ],
     ),
-    Section(children: <Widget>[VersusMore(current: '/vs/power-apps')]),
+    Section(children: <Widget>[VersusMore(current: DVRoutes.vspowerapps)]),
     SiteFooter(),
   ], spacing: 0),
 );

@@ -10,7 +10,7 @@ import '../dartvel_client/dartvel_client.dart';
 /// out of step with the pages it lists.
 class const VersusPage({
   /// Where the page is.
-  required final String path,
+  required final DVRouteTarget path,
 
   /// What it is being compared with, as that project writes its own name.
   required final String name,
@@ -27,14 +27,14 @@ class const VersusPage({
 /// Every comparison page, in the order the index lists them.
 const List<VersusPage> kVersusPages = <VersusPage>[
   VersusPage(
-    path: '/vs/expo',
+    path: DVRoutes.vsexpo,
     name: 'Expo',
     phrase: 'Expo for Flutter',
     summary: 'Development builds paired by a QR code, store uploads and '
         'Android patches, set beside Expo, EAS and Expo Router API routes.',
   ),
   VersusPage(
-    path: '/vs/laravel',
+    path: DVRoutes.vslaravel,
     name: 'Laravel',
     phrase: 'Laravel for Flutter',
     summary: 'Data models, migrations, queues, mail, auth, policies and an '
@@ -42,42 +42,42 @@ const List<VersusPage> kVersusPages = <VersusPage>[
         'repository.',
   ),
   VersusPage(
-    path: '/vs/hasura',
+    path: DVRoutes.vshasura,
     name: 'Hasura',
     phrase: 'Hasura for Flutter',
     summary: 'A Dart client generated from your models, next to a GraphQL '
         'API generated over the data sources you already have.',
   ),
   VersusPage(
-    path: '/vs/rails',
+    path: DVRoutes.vsrails,
     name: 'Ruby on Rails',
     phrase: 'Ruby on Rails for Flutter',
     summary: 'Convention over configuration for a Flutter app: pages are '
         'files, models generate their own client, forms and admin.',
   ),
   VersusPage(
-    path: '/vs/bubble',
+    path: DVRoutes.vsbubble,
     name: 'Bubble',
     phrase: 'Dartvel vs Bubble',
     summary: 'A visual builder with a backend built in, on more platforms, '
         'writing real Dart you own when the drag-and-drop runs out.',
   ),
   VersusPage(
-    path: '/vs/pocketbase',
+    path: DVRoutes.vspocketbase,
     name: 'PocketBase',
     phrase: 'Dartvel vs PocketBase',
     summary: 'One binary with SQLite beside it, an admin built in, and '
         'your app inside it, plus the phone, desktop and TV builds.',
   ),
   VersusPage(
-    path: '/vs/qt',
+    path: DVRoutes.vsqt,
     name: 'Qt',
     phrase: 'Dartvel vs Qt',
     summary: 'Phones, desktops, TVs and embedded Linux from one codebase, in '
         'Dart, with a backend and no per-seat licence.',
   ),
   VersusPage(
-    path: '/vs/power-apps',
+    path: DVRoutes.vspowerapps,
     name: 'Power Apps',
     phrase: 'Dartvel vs Power Apps',
     summary: 'Pages, data models and functions built in a browser, in a '
@@ -87,13 +87,13 @@ const List<VersusPage> kVersusPages = <VersusPage>[
 
 /// The other comparison pages, linked at the foot of one of them.
 @DVFunctionalWidget()
-Widget _versusMore(BuildContext context, {required String current}) =>
+Widget _versusMore(BuildContext context, {required DVRouteTarget current}) =>
     DVBox.list(<Widget>[
       const Eyebrow('ALSO'),
       const Heading('Dartvel next to the tools people ask about.'),
       DVBox.wrapLine(<Widget>[
         for (final VersusPage page in kVersusPages)
-          if (page.path != current) GhostLink(page.phrase, page.path),
+          if (page.path.path != current.path) GhostLink(page.phrase, page.path),
       ], spacing: 12),
     ], spacing: 22, crossAlign: .start);
 

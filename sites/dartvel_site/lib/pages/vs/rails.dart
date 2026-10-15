@@ -121,15 +121,15 @@ Widget _vsRailsPage(BuildContext context) => const SingleChildScrollView(
                 'generators and the batteries, for the app I am actually '
                 'building.'),
             DVBox.wrapLine(<Widget>[
-              PrimaryLink('Start an app', '/docs'),
-              GhostLink('Routing', '/docs/routing'),
-              GhostLink('Forms', '/docs/forms'),
+              PrimaryLink('Start an app', DVRoutes.docs),
+              GhostLink('Routing', DVRoutes.docsrouting),
+              GhostLink('Forms', DVRoutes.docsforms),
             ], spacing: 12),
             VersusChecked('Rails', 'https://guides.rubyonrails.org/',
                 '2026-09-25'),
           ],
         ),
-        Section(children: <Widget>[VersusMore(current: '/vs/rails')]),
+        Section(children: <Widget>[VersusMore(current: DVRoutes.vsrails)]),
         SiteFooter(),
       ], spacing: 0),
     );

@@ -134,15 +134,15 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
                 'without running a second stack in a second language to get '
                 'them.'),
             DVBox.wrapLine(<Widget>[
-              PrimaryLink('Start an app', '/docs'),
-              GhostLink('Data models', '/docs/models'),
-              GhostLink('Backend functions', '/docs/backend-functions'),
+              PrimaryLink('Start an app', DVRoutes.docs),
+              GhostLink('Data models', DVRoutes.docsmodels),
+              GhostLink('Backend functions', DVRoutes.docsbackendfunctions),
             ], spacing: 12),
             VersusChecked('Laravel', 'https://laravel.com/docs/13.x',
                 '2026-09-25'),
           ],
         ),
-        Section(children: <Widget>[VersusMore(current: '/vs/laravel')]),
+        Section(children: <Widget>[VersusMore(current: DVRoutes.vslaravel)]),
         SiteFooter(),
       ], spacing: 0),
     );

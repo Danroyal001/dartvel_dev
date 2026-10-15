@@ -58,8 +58,8 @@ Widget _vsIndexPage(BuildContext context) => SingleChildScrollView(
                 'and the three that do have a route that is not buying a '
                 'Mac.'),
             DVBox.wrapLine(<Widget>[
-              PrimaryLink('Flutter without a Mac', '/flutter-without-a-mac'),
-              GhostLink('What ships today', '/features'),
+              PrimaryLink('Flutter without a Mac', DVRoutes.flutterwithoutamac),
+              GhostLink('What ships today', DVRoutes.features),
             ], spacing: 12),
           ],
         ),

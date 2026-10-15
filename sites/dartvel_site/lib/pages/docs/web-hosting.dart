@@ -185,9 +185,16 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
             ]),
             DocsText('Try it: this button goes to '
                 '/docs/web-hosting#find-text-with-ctrlf.'),
-            GhostLink('Go to "Find text with Ctrl+F"',
-                '/docs/web-hosting#find-text-with-ctrlf'),
+            FindTextJump(),
           ],
         ),
       ],
+    );
+
+/// The button the anchor demo above uses: the page's own typed route with the
+/// section's anchor on it, so moving the page moves the link.
+@DVFunctionalWidget()
+Widget _findTextJump(BuildContext context) => GhostLink(
+      'Go to "Find text with Ctrl+F"',
+      DVRouteTarget('${DVRoutes.docswebhosting.path}#find-text-with-ctrlf'),
     );

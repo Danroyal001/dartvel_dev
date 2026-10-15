@@ -126,8 +126,8 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
         'SDK you already have.',
   ),
   const DVBox.wrapLine(<Widget>[
-    PrimaryLink('Create your first app', '/docs'),
-    GhostLink('See what works today', '/features'),
+    PrimaryLink('Create your first app', DVRoutes.docs),
+    GhostLink('See what works today', DVRoutes.features),
   ], spacing: 12),
   const DVText('FSL-1.1-MIT licensed. dartvel_dev 0.11.5 is on pub.dev.').modifier(
     const DVModifier()
@@ -352,7 +352,7 @@ Widget _oneFileBackend(BuildContext context) => const Section(
           'client generated for it.',
     ),
     DVBox.wrapLine(<Widget>[
-      PrimaryLink('Build your one-file backend', '/docs/deploying'),
+      PrimaryLink('Build your one-file backend', DVRoutes.docsdeploying),
     ]),
   ],
 );
@@ -378,7 +378,7 @@ Widget _studioProof(BuildContext context) => const Section(
       'Dartvel Studio page builder with the Layers tree, a selected heading '
           'on the canvas and the inspector',
     ),
-    DVBox.wrapLine(<Widget>[GhostLink('See Studio and Studio Pro', '/studio')]),
+    DVBox.wrapLine(<Widget>[GhostLink('See Studio and Studio Pro', DVRoutes.studio)]),
   ],
 );
 
@@ -418,7 +418,7 @@ Widget _phoneLoop(BuildContext context) => const Section(
           'Preview runs on Android and desktops and is not on an iPhone yet.',
     ),
     DVBox.wrapLine(<Widget>[
-      GhostLink('See Dev Client and Preview', '/docs/dev-client'),
+      GhostLink('See Dev Client and Preview', DVRoutes.docsdevclient),
     ]),
   ],
 );
@@ -492,7 +492,7 @@ Widget _routingProof(BuildContext context) => const Section(
           'Dartvel\'s router with DVGoRoutes. Or keep your router: go_router, '
           'auto_route, Navigator 1.0 or 2.0, or a RouterConfig of your own.',
     ),
-    DVBox.wrapLine(<Widget>[GhostLink('Read the routing docs', '/docs/routing')]),
+    DVBox.wrapLine(<Widget>[GhostLink('Read the routing docs', DVRoutes.docsrouting)]),
   ],
 );
 
@@ -602,7 +602,7 @@ Widget _honest(BuildContext context) => const Section(
       'Parts of it. Check the section you need before you depend on it.',
     ),
     DVBox.wrapLine(<Widget>[
-      PrimaryLink('Check what works today', '/features'),
+      PrimaryLink('Check what works today', DVRoutes.features),
       ExternalLink('Read spec-status.json', kSpecStatusUrl),
     ], spacing: 20, crossAlign: .center),
   ],
@@ -629,7 +629,7 @@ Widget _startNow(BuildContext context) => const Section(
     ),
     // In a row, as the other buttons are: directly in the section's column
     // it stretched to the full width of the page.
-    DVBox.wrapLine(<Widget>[PrimaryLink('Create your first app', '/docs')]),
+    DVBox.wrapLine(<Widget>[PrimaryLink('Create your first app', DVRoutes.docs)]),
   ],
 );
 

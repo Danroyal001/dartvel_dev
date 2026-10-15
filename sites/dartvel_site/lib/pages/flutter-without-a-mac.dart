@@ -150,13 +150,13 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
                   'not.',
             ),
             DVBox.wrapLine(<Widget>[
-              PrimaryLink('Start an app', '/docs'),
-              GhostLink('Build target status', '/docs/building'),
-              GhostLink('Expo for Flutter', '/vs/expo'),
+              PrimaryLink('Start an app', DVRoutes.docs),
+              GhostLink('Build target status', DVRoutes.docsbuilding),
+              GhostLink('Expo for Flutter', DVRoutes.vsexpo),
             ], spacing: 12),
           ],
         ),
-        Section(children: <Widget>[VersusMore(current: '/flutter-without-a-mac')]),
+        Section(children: <Widget>[VersusMore(current: DVRoutes.flutterwithoutamac)]),
         SiteFooter(),
       ], spacing: 0),
     );

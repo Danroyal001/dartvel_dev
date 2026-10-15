@@ -124,8 +124,8 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
           'can check the claim before you make a decision on it.',
         ),
         DVBox.wrapLine(<Widget>[
-          PrimaryLink('Build target status', '/docs/building'),
-          GhostLink('What ships today', '/features'),
+          PrimaryLink('Build target status', DVRoutes.docsbuilding),
+          GhostLink('What ships today', DVRoutes.features),
         ], spacing: 12),
       ],
     ),
@@ -155,7 +155,7 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
         VersusChecked('Qt', 'https://doc.qt.io/llms.txt', '2026-09-25'),
       ],
     ),
-    Section(children: <Widget>[VersusMore(current: '/vs/qt')]),
+    Section(children: <Widget>[VersusMore(current: DVRoutes.vsqt)]),
     SiteFooter(),
   ], spacing: 0),
 );

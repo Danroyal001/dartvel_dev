@@ -65,7 +65,7 @@ void main() {
     expect(File(page).existsSync(), isTrue, reason: 'no lib/pages/studio.dart');
     final String header = code('lib/components/site.dart');
     expect(
-      RegExp(r"NavLink\('Studio', '/studio'\)").allMatches(header).length,
+      RegExp(r"NavLink\('Studio', DVRoutes\.studio\)").allMatches(header).length,
       2,
       reason: 'the phone and desktop headers both need the Studio link',
     );
@@ -218,7 +218,7 @@ void main() {
   test('the cloud page points at /studio for Studio Pro', () {
     final String cloud = code('lib/pages/cloud.dart');
     final String pro = sectionFrom(cloud, "Eyebrow('STUDIO PRO'");
-    expect(pro, contains("'/studio'"));
+    expect(pro, contains('DVRoutes.studio'));
     // One place lists what Pro ships, so the two pages cannot disagree.
     expect(cardFlags(pro).keys.where(kProCards.containsKey), isEmpty);
   });
@@ -227,7 +227,7 @@ void main() {
     final String home = code('lib/pages/index.dart');
     final String studio = sectionFrom(home, "Eyebrow('STUDIO'");
     expect(studio, isNotEmpty);
-    expect(studio, contains("'/studio'"));
+    expect(studio, contains('DVRoutes.studio'));
     expect(studio, contains('Studio Pro'));
   });
 }

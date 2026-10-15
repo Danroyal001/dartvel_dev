@@ -156,15 +156,15 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
                 'models, auth and an admin in the same repository, that is '
                 'what Dartvel is for.'),
             DVBox.wrapLine(<Widget>[
-              PrimaryLink('Start an app', '/docs'),
-              GhostLink('What ships today', '/features'),
-              GhostLink('Build without a Mac', '/flutter-without-a-mac'),
+              PrimaryLink('Start an app', DVRoutes.docs),
+              GhostLink('What ships today', DVRoutes.features),
+              GhostLink('Build without a Mac', DVRoutes.flutterwithoutamac),
             ], spacing: 12),
             VersusChecked('Expo', 'https://docs.expo.dev/llms.txt',
                 '2026-09-25'),
           ],
         ),
-        Section(children: <Widget>[VersusMore(current: '/vs/expo')]),
+        Section(children: <Widget>[VersusMore(current: DVRoutes.vsexpo)]),
         SiteFooter(),
       ], spacing: 0),
     );

@@ -196,11 +196,11 @@ Widget _siteHeader(BuildContext context) {
               DVBox.row(<Widget>[Wordmark(), SiteSearchButton()],
                   align: .spaceBetween),
               DVBox.wrapLine(<Widget>[
-                NavLink('Docs', '/docs'),
-                NavLink('Features', '/features'),
-                NavLink('Studio', '/studio'),
-                NavLink('Cloud', '/cloud'),
-                NavLink('Compared', '/vs'),
+                NavLink('Docs', DVRoutes.docs),
+                NavLink('Features', DVRoutes.features),
+                NavLink('Studio', DVRoutes.studio),
+                NavLink('Cloud', DVRoutes.cloud),
+                NavLink('Compared', DVRoutes.vs),
                 // Four, not twelve. Five links in the site's own face need
                 // 367 points at twelve and a 360-point phone has 316 after
                 // its gutters, so the last one went onto a line of its own
@@ -212,11 +212,11 @@ Widget _siteHeader(BuildContext context) {
           : DVBox.row(<Widget>[
               const DVBox.row(<Widget>[
                 Wordmark(),
-                NavLink('Docs', '/docs'),
-                NavLink('Features', '/features'),
-                NavLink('Studio', '/studio'),
-                NavLink('Cloud', '/cloud'),
-                NavLink('Compared', '/vs'),
+                NavLink('Docs', DVRoutes.docs),
+                NavLink('Features', DVRoutes.features),
+                NavLink('Studio', DVRoutes.studio),
+                NavLink('Cloud', DVRoutes.cloud),
+                NavLink('Compared', DVRoutes.vs),
               ], spacing: 18),
               // Four site links and two outbound ones do not fit a tablet or a
               // phone on its side, and the site links are the ones a visitor
@@ -253,8 +253,8 @@ Widget _siteFooter(BuildContext context) {
           // The embedders and packages Dartvel forks, with their authors and
           // licences, on every page.
           AcknowledgementsLink(),
-          FooterLink('Privacy', '/privacy'),
-          FooterLink('Terms', '/terms'),
+          FooterLink('Privacy', DVRoutes.privacy),
+          FooterLink('Terms', DVRoutes.terms),
         ], spacing: 20),
         // The mark again, quietly, at the size a piece of small print takes.
         // Flat rather than gradient: at sixteen points the fold is two
@@ -289,9 +289,9 @@ Widget _siteFooter(BuildContext context) {
 
 /// A link to one of the site's own pages, styled like the other footer links.
 @DVFunctionalWidget()
-Widget _footerLink(BuildContext context, String label, String href) =>
+Widget _footerLink(BuildContext context, String label, DVRouteTarget to) =>
     DVNavLink(
-      to: DVRouteTarget(href),
+      to: to,
       child: Prose(label, const DVModifier()
           .fontSize(14)
           .fontWeight(.w600)
@@ -421,7 +421,7 @@ Widget _siteCard(
   String body, {
   bool? built,
   String? section,
-  String? href,
+  DVRouteTarget? href,
 }) {
   final Palette palette = Palette.of(context);
   // Copied to a local before it is tested. The body of a
@@ -446,7 +446,7 @@ Widget _siteCard(
   // A card that names a page is a link to it, not a box with a hover state
   // that does nothing: it navigates, previews, preloads, takes keyboard focus
   // and opens in a new tab on a middle click, and a crawler follows it.
-  final String? to = href;
+  final DVRouteTarget? to = href;
   final Widget card = DVBox(
     DVBox.list(<Widget>[
       DVBox.wrapLine(<Widget>[
@@ -493,7 +493,7 @@ Widget _siteCard(
         ),
   );
   if (to == null) return card;
-  return DVNavLink(to: DVRouteTarget(to), child: card);
+  return DVNavLink(to: to, child: card);
 }
 
 @DVFunctionalWidget()
@@ -608,16 +608,17 @@ Widget _wordmark(BuildContext context) {
 /// A route repeated as a literal drifts the moment the page file moves, and
 /// nothing catches it: the nav simply stops highlighting.
 @DVFunctionalWidget()
-Widget _navLink(BuildContext context, String label, String href) {
+Widget _navLink(BuildContext context, String label, DVRouteTarget to) {
   final Palette palette = Palette.of(context);
   final String path = GoRouterState.of(context).uri.path;
   // A prefix match, so /docs stays lit on /docs/anything, but compared
   // segment-wise: /docs must not light up on /docsomething.
+  final String href = to.path;
   final bool active =
       href == '/' ? path == '/' : path == href || path.startsWith('$href/');
 
   return DVNavLink(
-    to: DVRouteTarget(href),
+    to: to,
     padding: const .symmetric(horizontal: 6, vertical: 8),
     child: DVText(label).modifier(const DVModifier()
         // Smaller on a phone, so the five site links share one line. At 15
@@ -631,12 +632,12 @@ Widget _navLink(BuildContext context, String label, String href) {
 }
 
 @DVFunctionalWidget()
-Widget _primaryLink(BuildContext context, String label, String href) =>
-    SiteButton(label, href, filled: true);
+Widget _primaryLink(BuildContext context, String label, DVRouteTarget to) =>
+    SiteButton(label, to, filled: true);
 
 @DVFunctionalWidget()
-Widget _ghostLink(BuildContext context, String label, String href) =>
-    SiteButton(label, href, filled: false);
+Widget _ghostLink(BuildContext context, String label, DVRouteTarget to) =>
+    SiteButton(label, to, filled: false);
 
 /// A button that is a link: it navigates, previews, preloads, takes keyboard
 /// focus and opens in a new tab on a middle click, because DVNavLink does all
@@ -645,12 +646,12 @@ Widget _ghostLink(BuildContext context, String label, String href) =>
 Widget _siteButton(
   BuildContext context,
   String label,
-  String href, {
+  DVRouteTarget to, {
   bool filled = false,
 }) {
   final Palette palette = Palette.of(context);
   return DVNavLink(
-    to: DVRouteTarget(href),
+    to: to,
     padding: .zero,
     child: DVBox(
       DVText(label).modifier(const DVModifier()

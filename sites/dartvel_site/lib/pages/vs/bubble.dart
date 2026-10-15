@@ -116,14 +116,14 @@ Widget _vsBubblePage(BuildContext context) => const SingleChildScrollView(
                   'different platforms.',
             ),
             DVBox.wrapLine(<Widget>[
-              PrimaryLink('See Studio', '/studio'),
-              GhostLink('What ships today', '/features'),
+              PrimaryLink('See Studio', DVRoutes.studio),
+              GhostLink('What ships today', DVRoutes.features),
             ], spacing: 12),
             VersusChecked('Bubble', 'https://manual.bubble.io/llms.txt',
                 '2026-09-25'),
           ],
         ),
-        Section(children: <Widget>[VersusMore(current: '/vs/bubble')]),
+        Section(children: <Widget>[VersusMore(current: DVRoutes.vsbubble)]),
         SiteFooter(),
       ], spacing: 0),
     );

@@ -120,15 +120,15 @@ Widget _vsHasuraPage(BuildContext context) => const SingleChildScrollView(
                 'data access from the app, and that is a thing Dartvel gives '
                 'them without a query language.'),
             DVBox.wrapLine(<Widget>[
-              PrimaryLink('Data models', '/docs/models'),
-              GhostLink('Authorization', '/docs/authorization'),
-              GhostLink('Sync and realtime', '/docs/sync'),
+              PrimaryLink('Data models', DVRoutes.docsmodels),
+              GhostLink('Authorization', DVRoutes.docsauthorization),
+              GhostLink('Sync and realtime', DVRoutes.docssync),
             ], spacing: 12),
             VersusChecked('Hasura DDN',
                 'https://hasura.io/docs/3.0/llms-full.txt', '2026-09-25'),
           ],
         ),
-        Section(children: <Widget>[VersusMore(current: '/vs/hasura')]),
+        Section(children: <Widget>[VersusMore(current: DVRoutes.vshasura)]),
         SiteFooter(),
       ], spacing: 0),
     );

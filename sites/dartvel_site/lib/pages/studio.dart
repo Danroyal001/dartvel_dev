@@ -502,8 +502,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'every Dartvel project.',
         ),
         DVBox.wrapLine(<Widget>[
-          PrimaryLink('Create your first app', '/docs'),
-          GhostLink('Deploy the web-server binary', '/docs/deploying'),
+          PrimaryLink('Create your first app', DVRoutes.docs),
+          GhostLink('Deploy the web-server binary', DVRoutes.docsdeploying),
         ], spacing: 12),
       ],
     ),
