@@ -19,16 +19,14 @@ import '../dartvel_client/dartvel_client.dart';
 class const Layout({super.key, required super.child}) extends DartvelLayout {
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: Palette.of(context).page,
-      child: Column(
-        children: <Widget>[
-          const SiteHeader(),
-          // One scroll controller per page, and the button that uses it.
-          // Ctrl+K or Cmd+K opens the search from anywhere on it.
-          Expanded(child: SiteSearchShortcut(child: PageScroll(child: child))),
-        ],
-      ),
+    return DVBox(
+      DVBox.list(<Widget>[
+        const SiteHeader(),
+        // One scroll controller per page, and the button that uses it.
+        // Ctrl+K or Cmd+K opens the search from anywhere on it.
+        Expanded(child: SiteSearchShortcut(child: PageScroll(child: child))),
+      ], spacing: 0),
+      const DVModifier().backgroundColor(Palette.of(context).page),
     );
   }
 }

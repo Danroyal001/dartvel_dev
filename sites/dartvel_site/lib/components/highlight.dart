@@ -259,11 +259,7 @@ Widget _codeSample(BuildContext context, List<String> lines) {
     LayoutBuilder(builder: (BuildContext context, BoxConstraints box) {
       final bool narrow = box.maxWidth < 560;
       return DVBox.stack(<Widget>[
-      Padding(
-        padding: narrow
-            ? const EdgeInsets.only(top: 52)
-            : const EdgeInsets.only(right: 80),
-        child:
+      DVBox(
       // Labelled, because Flutter renders SelectableText as a textarea whose
       // value it manages: without this the code is absent from the semantics
       // tree entirely, so a crawler never sees the install commands and a
@@ -286,6 +282,9 @@ Widget _codeSample(BuildContext context, List<String> lines) {
           ),
         ),
       ),
+        narrow
+            ? const DVModifier().paddingOnly(top: 52)
+            : const DVModifier().paddingOnly(right: 80),
       ),
       DVBox(
         CopyButton(source, copied),

@@ -818,8 +818,8 @@ Widget _objection(
 
 /// A short list, for the points a skimmer reads instead of a paragraph.
 ///
-/// A Row with a Flexible, because a bullet whose second line wraps back under
-/// the dot is not a list any more, and DVBox has no flexible child.
+/// A row with a Flexible text, because a bullet whose second line wraps back
+/// under the dot is not a list any more.
 @DVFunctionalWidget()
 Widget _bullets(BuildContext context, List<String> items, {bool onDark = false}) {
   final Palette palette = Palette.of(context);
@@ -827,24 +827,23 @@ Widget _bullets(BuildContext context, List<String> items, {bool onDark = false})
   final Color dot = onDark ? Palette.deepAccent : palette.accent;
   return DVBox.list(<Widget>[
     for (final String item in items)
-      Row(
-        crossAxisAlignment: .start,
-        children: <Widget>[
-          Padding(
-            padding: const .only(top: 9, right: 12),
-            child: DVBox(
-              const SizedBox(width: 6, height: 6),
-              const DVModifier().backgroundColor(dot).rounded(3),
-            ),
-          ),
-          Flexible(
-            child: Prose(item, const DVModifier()
-                .fontSize(17)
-                .color(text)
-                .lineHeight(1.5)
-                .maxWidth(620)),
-          ),
-        ],
-      ),
+      DVBox.row(<Widget>[
+        DVBox(
+          const DVBox(),
+          const DVModifier()
+              .width(6)
+              .height(6)
+              .marginOnly(top: 9)
+              .backgroundColor(dot)
+              .rounded(3),
+        ),
+        Flexible(
+          child: Prose(item, const DVModifier()
+              .fontSize(17)
+              .color(text)
+              .lineHeight(1.5)
+              .maxWidth(620)),
+        ),
+      ], spacing: 12, align: .start, crossAlign: .start),
   ], spacing: 10, crossAlign: .start);
 }

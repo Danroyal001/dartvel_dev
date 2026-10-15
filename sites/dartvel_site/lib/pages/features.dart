@@ -778,9 +778,9 @@ Widget _featureGrid(
       runSpacing: gap,
       children: <Widget>[
         for (final (String area, String surface, String body) f in items)
-          SizedBox(
-            width: width,
-            child: FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
+          DVBox(
+            FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
+            const DVModifier().width(width),
           ),
       ],
     );
