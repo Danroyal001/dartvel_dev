@@ -37,40 +37,31 @@ class const Palette._(final bool dark) {
   Color get page => dark ? const Color(0xFF0A0D13) : const Color(0xFFFFFFFF);
   Color get rule => dark ? const Color(0xFF222A38) : const Color(0xFFE3E7EF);
 
+  /// The ground of a filled button: the accent, a shade deeper in the light
+  /// mode, where white on the accent itself measures 4.499:1 and misses AA
+  /// by a rounding error.
+  Color get accentFill => dark ? accent : const Color(0xFF2560F0);
+
+  /// The label on [accentFill].
+  ///
+  /// White in the light mode and the deep ink in the dark one: white on the
+  /// dark mode's lighter blue was 2.48:1, which made the page's main call to
+  /// action its least legible words.
+  Color get onAccent => dark ? deep : const Color(0xFFFFFFFF);
+
+  /// The colours drifting behind the hero, translucent so the page's own
+  /// ground shows between them. Stronger in the dark, where the same alpha
+  /// over near-black barely registers.
+  List<Color> get heroMesh => dark
+      ? const <Color>[Color(0x552F6BFF), Color(0x337BA2FF), Color(0x2E8B5CF6), Color(0x2614B8A6)]
+      : const <Color>[Color(0x2E2F6BFF), Color(0x247BA2FF), Color(0x1F8B5CF6), Color(0x1A14B8A6)];
+
   /// The one ground that stops the scroll: a band that is darker than the
   /// page in either mode, so a section can sit apart without a gradient.
   ///
   /// It is also what a code block and a terminal sit on, so the dark thing
   /// in the middle of a light page and the dark band around it are the same
   /// colour instead of two nearly-equal ones.
-  /// A gradient that moves from the accent through a deeper blue.
-  LinearGradient get accentGradient => LinearGradient(
-        colors: dark
-            ? <Color>[const Color(0xFF7BA2FF), const Color(0xFF4A6BFF)]
-            : <Color>[const Color(0xFF2F6BFF), const Color(0xFF7BA2FF)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-
-  /// A mesh-style gradient with multiple stops for hero backgrounds.
-  LinearGradient get meshGradient => LinearGradient(
-        colors: dark
-            ? <Color>[
-                const Color(0xFF2F6BFF),
-                const Color(0xFF7BA2FF),
-                const Color(0xFF4A6BFF),
-                const Color(0xFF1A3D99),
-              ]
-            : <Color>[
-                const Color(0xFF2F6BFF),
-                const Color(0xFF7BA2FF),
-                const Color(0xFF4A6BFF),
-                const Color(0xFF1A3D99),
-              ],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-
   static const Color deep = Color(0xFF0B1020);
 
   /// The text colours for [deep], which does not change with the mode.
@@ -308,9 +299,15 @@ Widget _footerLink(BuildContext context, String label, DVRouteTarget to) =>
 /// which is the most recognisable mark of an interface nobody art-directed:
 /// a flat page does need depth, and a gradient is the wrong way to get it.
 /// Grain is a 96-point tile of monochrome noise, repeated, at an opacity
-/// low enough that you notice it only when it is taken away. Used on the
-/// hero and nowhere else, because a page where every band is textured is a
-/// page with no texture.
+/// low enough that you notice it only when it is taken away.
+///
+/// [mesh] drifts those colours behind the band (DVModifier.meshGradient),
+/// held still for a reader who asked for less motion. The hero has it and
+/// nothing else does: one moving thing on a page is life, several is noise.
+///
+/// [reveal] fades each child in as the band is scrolled to, one after
+/// another. The hero turns it off, because the first screen is the one
+/// thing a visitor should never wait for.
 @DVFunctionalWidget()
 Widget _section(
   BuildContext context, {
@@ -318,6 +315,8 @@ Widget _section(
   bool tint = false,
   bool dark = false,
   bool grain = false,
+  List<Color>? mesh,
+  bool reveal = true,
 }) {
   final Palette palette = Palette.of(context);
   final Color background =
@@ -342,14 +341,20 @@ Widget _section(
     );
   }
 
+  final List<Color>? colors = mesh;
+  if (colors != null) band = band.meshGradient(colors);
+
+  // Each child fades and rises as it comes into view, a beat after the one
+  // above it. The band's own background is outside this, so the colour is
+  // already painted when the content arrives -- a section that faded in
+  // whole would flash the page colour behind it.
+  final DVModifier column = const DVModifier();
   return DVBox(
     DVBox(
-      DVBox.list(children, spacing: 22),
-      // Fades and rises as it comes into view. The band's own background is
-      // outside this, so the colour is already painted when the content
-      // arrives -- a section that faded in whole would flash the page colour
-      // behind it.
-      const DVModifier().maxWidth(kColumn).centered().revealOnScroll(),
+      DVBox.list(children, spacing: 22).modifier(reveal
+          ? column.revealChildren(step: const Duration(milliseconds: 70))
+          : column),
+      const DVModifier().maxWidth(kColumn).centered(),
     ),
     band,
   );
@@ -480,6 +485,9 @@ Widget _siteCard(
         .border(Border.all(color: palette.rule))
         .rounded(12)
         .animate(const Duration(milliseconds: 180))
+        // A light under the pointer, so a grid of cards answers the mouse
+        // the way the page around it does. Still under reduced motion.
+        .hoverGlow(color: palette.accent.withValues(alpha: palette.dark ? 0.16 : 0.10))
         .hover(
           const DVModifier()
               .border(Border.all(color: palette.accent.withValues(alpha: 0.5)))
@@ -658,10 +666,10 @@ Widget _siteButton(
           .fontSize(15)
           .fontWeight(.w600)
           .lineHeight(1.2)
-          .color(filled ? const Color(0xFFFFFFFF) : palette.ink)),
+          .color(filled ? palette.onAccent : palette.ink)),
       const DVModifier()
           .paddingSymmetric(horizontal: 22, vertical: 15)
-          .backgroundColor(filled ? palette.accent : const Color(0x00000000))
+          .backgroundColor(filled ? palette.accentFill : const Color(0x00000000))
           .border(filled
               ? Border.all(color: const Color(0x00000000), width: 0)
               : Border.all(color: palette.rule, width: 1.5))

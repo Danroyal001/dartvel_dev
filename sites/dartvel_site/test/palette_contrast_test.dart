@@ -94,6 +94,15 @@ void main() {
               reason: 'rule on $name is ${measured.toStringAsFixed(4)}:1');
         }
       });
+
+      test('a filled button\'s label clears 4.5:1 on its fill', () {
+        // White on the dark mode's lighter accent was 2.48:1, so "Create your
+        // first app" was the least legible words on the page.
+        expect(ratio(palette.onAccent, palette.accentFill),
+            greaterThanOrEqualTo(4.5),
+            reason: 'onAccent on accentFill is '
+                '${ratio(palette.onAccent, palette.accentFill).toStringAsFixed(3)}:1');
+      });
     });
   }
 

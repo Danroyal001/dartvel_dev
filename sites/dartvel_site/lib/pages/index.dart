@@ -19,10 +19,11 @@ Widget _indexPage(BuildContext context) => const SingleChildScrollView(
       // bottom of one section and the top of the next can never be on screen
       // together, which on a narrow screen is most of reading.
       //
-      // Every section below backs the headline: one Dart project for the app
-      // and its backend. Anything that did not was cut.
+      // The order is the argument: what it is and a piece of it working, where
+      // it runs, what you write, and then proof that it runs today.
       child: DVBox.list(<Widget>[
         HeroSection(),
+        OneProject(),
         Proof(),
         BackendProof(),
         OneFileBackend(),
@@ -31,8 +32,7 @@ Widget _indexPage(BuildContext context) => const SingleChildScrollView(
         OtaUpdates(),
         RoutingProof(),
         Targets(),
-        OneCodebaseStory(),
-        ProofBand(),
+        RunningOnDartvel(),
         ExpoComparison(),
         Honest(),
         StartNow(),
@@ -40,47 +40,31 @@ Widget _indexPage(BuildContext context) => const SingleChildScrollView(
       ], spacing: 0),
     );
 
+/// The first screen: what Dartvel is, and a piece of it running.
+///
+/// The colour drifting behind it is the framework's meshGradient, held still
+/// for a reader who has asked for less motion. The band does not fade in:
+/// the first screen is the one thing a visitor should never wait for.
 @DVFunctionalWidget()
-Widget _heroSection(BuildContext context) {
-  final bool narrow = context.screen.isMobile;
-  const Widget copy = HeroCopy();
-  return Section(
-    grain: true,
-    children: <Widget>[
-      DVBox(
-        DVBox(
-          if (narrow) ...const <Widget>[copy, HeroTerminal()]
-          else const Row(
-            crossAxisAlignment: .start,
-            children: <Widget>[
-              Expanded(flex: 6, child: HeroCopy()),
-              SizedBox(width: 48),
-              Expanded(flex: 5, child: HeroTerminal()),
-            ],
-          ),
-        ),
-        const DVModifier()
-            .meshGradient(<Color>[
-              Color(0xFF2F6BFF),
-              Color(0xFF7BA2FF),
-              Color(0xFF4A6BFF),
-              Color(0xFF1A3D99),
-            ])
-            .revealOnScroll(delay: Duration.zero)
-            .hoverGlow(color: Color(0xFF7BA2FF), sigma: 24),
-      ),
-    ],
-  );
-}
+Widget _heroSection(BuildContext context) => Section(
+      mesh: Palette.of(context).heroMesh,
+      reveal: false,
+      children: <Widget>[
+        context.screen.isMobile
+            ? const DVBox.list(<Widget>[HeroCopy(), HeroDemo()], spacing: 32)
+            : const DVBox.row(<Widget>[
+                Expanded(flex: 6, child: HeroCopy()),
+                Expanded(flex: 5, child: HeroDemo()),
+              ], spacing: 48, crossAlign: .start),
+      ],
+    );
 
 /// The banner, written for the reader who sees nothing else.
 ///
-/// It used to sell one part: "Ship a Flutter app and its backend from one
-/// Dart project." That is true and it is a backend pitch, and most visitors
-/// read the banner and leave. So it names the whole platform, then what you
-/// write and what Dartvel does with it, then the parts that are Shipped in
-/// docs/spec-status.json as links, and only the targets docs/build-targets.md
-/// records as building.
+/// It names the whole platform, then what you write and what Dartvel does
+/// with it, then the parts that are Shipped in docs/spec-status.json as
+/// links. The version is kDartvelVersion, which the release tooling moves:
+/// a version typed into this sentence said 0.11.5 through two releases.
 @DVFunctionalWidget()
 Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
   // The title block is tight and the gap after it is the largest in the
@@ -100,7 +84,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
     const DVText(
       'You write pages, data models and backend functions. Dartvel generates '
       'the routes, forms, typed client and API server, and builds the app for '
-      'phones, desktops, the web and TVs.',
+      'the web, phones, desktops and TVs.',
     ).modifier(
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 17, desktop: 20))
@@ -129,12 +113,11 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
     PrimaryLink('Create your first app', DVRoutes.docs),
     GhostLink('See what works today', DVRoutes.features),
   ], spacing: 12),
-  const DVText('FSL-1.1-MIT licensed. dartvel_dev 0.11.5 is on pub.dev.').modifier(
-    const DVModifier()
-        .fontSize(14)
-        .color(Palette.of(context).faint)
-        .maxWidth(560),
-  ),
+  DVText('FSL-1.1-MIT licensed. Dartvel $kDartvelVersion is on pub.dev.')
+      .modifier(const DVModifier()
+          .fontSize(14)
+          .color(Palette.of(context).faint)
+          .maxWidth(560)),
 ], spacing: 26);
 
 /// One part of the platform, as a chip that opens its docs.
@@ -142,116 +125,64 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
 Widget _heroCapability(BuildContext context, String label, DVRouteTarget to) =>
     DVNavLink(to: to, padding: .zero, child: SiteChip(label));
 
-/// A terminal beside the hero, so the promise sits next to what you type.
+/// Where one project runs, each with the status the repository records.
 ///
-/// Every line after the commands is a line the CLI prints: the dev loop's
-/// start, the generated backend announcing its port, and the loop reacting
-/// to an edit. There is no timing on it, because nothing measured one.
+/// A card that names a spec section takes its badge from the index, so it
+/// cannot read Built for a section that is Partial. Mobile and desktop name
+/// no section: their evidence is the verified rows in docs/build-targets.md.
+/// Microcontrollers and XR headsets are paid targets, built by a private
+/// package, and say so in their own words.
 @DVFunctionalWidget()
-Widget _heroTerminal(BuildContext context) {
-  final palette = Palette.of(context);
-  return Container(
-    decoration: BoxDecoration(
-      color: Palette.deep,
-      borderRadius: .circular(14),
-      border: Border.all(color: palette.rule),
-      boxShadow: <BoxShadow>[
-        BoxShadow(
-          color: Colors.black.withValues(alpha: palette.dark ? 0.5 : 0.14),
-          blurRadius: 32,
-          offset: const Offset(0, 14),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: .start,
-      children: <Widget>[
-        Container(
-          padding: const .symmetric(horizontal: 16, vertical: 11),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Color(0xFF1B2338))),
-          ),
-          child: Row(
-            children: <Widget>[
-              for (final Color light in <Color>[
-                const Color(0xFFFF5F57),
-                const Color(0xFFFEBC2E),
-                const Color(0xFF28C840),
-              ])
-                Padding(
-                  padding: const .only(right: 7),
-                  child: Container(
-                    width: 11,
-                    height: 11,
-                    decoration: BoxDecoration(
-                      color: light,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              const SizedBox(width: 8),
-              const Text(
-                'dartvel dev',
-                style: TextStyle(
-                  color: Color(0xFF8A95AD),
-                  fontFamily: 'JetBrainsMono',
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Padding(
-          padding: .fromLTRB(16, 14, 16, 18),
-          // Coloured the way the terminal actually is: the prompt, what you
-          // type and what it answers are three different things.
-          child: Typewriter(
-            style: TextStyle(
-              fontFamily: 'JetBrainsMono',
-              fontFamilyFallback: <String>['Menlo', 'Consolas', 'monospace'],
-              fontSize: 13,
-              height: 1.75,
-              color: Color(0xFFD7E1F5),
-            ),
-            <TextSpan>[
-              TextSpan(
-                text: '\$ ',
-                style: TextStyle(color: Color(0xFF9ECE6A)),
-              ),
-              TextSpan(text: 'dartvel create shop\n'),
-              TextSpan(
-                text: '\$ ',
-                style: TextStyle(color: Color(0xFF9ECE6A)),
-              ),
-              TextSpan(text: 'cd shop && dartvel dev\n\n'),
-              TextSpan(
-                text: '[dartvel] dartvel dev: starting backend and Flutter app...\n',
-                style: TextStyle(color: Color(0xFF7080A8)),
-              ),
-              TextSpan(text: 'dartvel backend listening on '),
-              TextSpan(
-                text: 'http://0.0.0.0:3000/api\n\n',
-                style: TextStyle(color: Color(0xFF7DCFFF)),
-              ),
-              TextSpan(
-                text: '# you save lib/backend/functions/hello.get.dart\n',
-                style: TextStyle(color: Color(0xFF7080A8)),
-              ),
-              TextSpan(text: '[dartvel] [dev] regenerating...\n'),
-              TextSpan(
-                text: '[dartvel] [dev] restarting backend...',
-                style: TextStyle(
-                  color: Color(0xFF9ECE6A),
-                  fontWeight: .w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-}
+Widget _oneProject(BuildContext context) => const Section(
+  children: <Widget>[
+    Eyebrow('ONE PROJECT'),
+    Heading('One Dart project, on every screen it needs to reach.'),
+    DVBox.wrapLine(<Widget>[
+      SiteCard(
+        'Web',
+        'Every page is rendered at build time with its title, description '
+            'and readable text, then Flutter takes over in the browser.',
+        section: 'Static Web Generation',
+      ),
+      SiteCard(
+        'Web server',
+        'One executable carries the backend, the web app and its database, '
+            'and renders pages on request.',
+        section: 'Deployment',
+      ),
+      SiteCard(
+        'Phones',
+        'Android and iOS builds from the same pages, with hot reload on a '
+            'paired phone.',
+        built: true,
+      ),
+      SiteCard(
+        'Desktops',
+        'Linux, macOS and Windows apps, each verified by building it and '
+            'inspecting what came out.',
+        built: true,
+      ),
+      SiteCard(
+        'Microcontrollers',
+        'With a Cloud plan, pages written only in DVBox, DVText and signals '
+            'become firmware for boards like the ESP32-S3. Early.',
+      ),
+      SiteCard(
+        'XR headsets',
+        'With a Cloud plan, the same app opens as windows and volumes on '
+            'visionOS and Horizon.',
+        section: 'XR: Spatial Presentation',
+      ),
+      SiteCard(
+        'Studio',
+        'Edit pages and records in a browser, served by your own web-server '
+            'binary.',
+        section: 'Dartvel Studio',
+        href: DVRoutes.studio,
+      ),
+    ], spacing: 16),
+  ],
+);
 
 @DVFunctionalWidget()
 Widget _proof(BuildContext context) => const Section(
@@ -294,14 +225,14 @@ Widget _backendProof(BuildContext context) => const Section(
     CodeBlock(<String>[
       '// Server: lib/backend/functions/hello.get.dart',
       '@DVBackendFunction()',
-      'Future<Map<String, Object?>> _hello(String name) async =>',
-      "    <String, Object?>{'greeting': 'Hello, \$name'};",
+      "Future<String> _hello(String name) async => 'Hello, \$name';",
       '',
-      '// Client',
-      "final Map<String, Object?> greeting = await hello(name: 'Ada');",
+      '// Client: the same types, checked by the compiler',
+      "final String greeting = await hello(name: 'Ada');",
     ]),
     Bullets(<String>[
-      'The HTTP endpoint and its typed client are generated together.',
+      'The HTTP endpoint and its typed client are generated together, so '
+          'there is no JSON to write on either side.',
       'Return a Stream and the function is served as server-sent events.',
       'A Rust server built on Axum and Tokio calls your Dart through FFI.',
     ]),
@@ -576,8 +507,9 @@ Widget _expoComparison(BuildContext context) => const Section(
       ),
       SiteCard(
         'Cloud builds',
-        'There is no hosted build service and no certificate management. '
-            'You build on your own machine or in CI.',
+        'Dartvel Cloud builds are coming and not open yet. Today you build '
+            'on your own machine or in CI.',
+        href: DVRoutes.cloud,
       ),
     ], spacing: 16),
   ],
@@ -587,11 +519,11 @@ Widget _expoComparison(BuildContext context) => const Section(
 Widget _honest(BuildContext context) => const Section(
   children: <Widget>[
     Eyebrow('STATUS'),
-    Heading('24 spec sections ship today.'),
+    Heading('$kSpecShipped spec sections ship today.'),
     DVBox.wrapLine(<Widget>[
-      Stat('24', 'sections shipped'),
-      Stat('79', 'sections partial'),
-      Stat('0.11.5', 'current version'),
+      Stat('$kSpecShipped', 'sections shipped'),
+      Stat('$kSpecPartial', 'sections partial'),
+      Stat(kDartvelVersion, 'current version'),
     ], spacing: 14),
     Bullets(<String>[
       'Every partial section names what is missing.',
@@ -633,85 +565,46 @@ Widget _startNow(BuildContext context) => const Section(
   ],
 );
 
-/// One codebase runs on web, web-server, mobile, desktop, MCU, XR and Studio.
-/// Real apps built with Dartvel prove the platform.
+/// Proof from what this project runs itself, with only measured numbers.
+///
+/// The site you are reading is a Dartvel app served by the binary
+/// `dartvel build web-server` writes, with its search backend and Studio in
+/// the same file. Both figures are from docs/web-performance.md, measured
+/// with Lighthouse on https://dartvel.dev, and test/home_alive_test.dart
+/// fails if either is not there.
 @DVFunctionalWidget()
-Widget _oneCodebaseStory(BuildContext context) => const Section(
+Widget _runningOnDartvel(BuildContext context) => const Section(
   tint: true,
   children: <Widget>[
-    Eyebrow('ONE CODEBASE'),
-    Heading('One Dart project builds for web, server, mobile, desktop, MCU, XR and Studio.'),
+    Eyebrow('RUNNING ON DARTVEL'),
+    Heading('This site is a Dartvel app, served by one Dartvel binary.'),
     DVBox.wrapLine(<Widget>[
       SiteCard(
-        'Web',
-        'The same pages render in the browser and on the server from one codebase.',
+        'dartvel.dev',
+        'Every page here is a @DVPage, rendered on request by the web-server '
+            'binary with its head, meta tags and crawler text.',
+        built: true,
       ),
       SiteCard(
-        'Web-server',
-        'A self-hosted binary serves pages, APIs and the Studio admin.',
-      ),
-      SiteCard(
-        'Mobile',
-        'Android and iOS builds from the same project, with hot reload.',
-      ),
-      SiteCard(
-        'Desktop',
-        'Linux, macOS and Windows binaries share your backend code.',
-      ),
-    ], spacing: 16),
-    DVBox.wrapLine(<Widget>[
-      SiteCard(
-        'MCU',
-        'ESP32-S3 and similar embedded targets build with the same framework.',
-      ),
-      SiteCard(
-        'XR',
-        'Vision Pro and Horizon runtimes are supported through Dartvel targets.',
+        'Search',
+        'Ctrl+K asks a backend function in the same binary, which ranks '
+            'every page of these docs.',
+        built: true,
+        href: DVRoutes.docssearch,
       ),
       SiteCard(
         'Studio',
-        'Edit pages and records in a browser, running inside your server binary.',
+        'The same file serves the Studio this site is edited in, open only '
+            'to an account granted Studio.access.',
+        built: true,
+        href: DVRoutes.studio,
       ),
     ], spacing: 16),
-  ],
-);
-
-/// Proof from our own live apps. Only measured numbers with sources.
-/// Never names clients (per binding rules).
-@DVFunctionalWidget()
-Widget _proofBand(BuildContext context) => const Section(
-  dark: true,
-  children: <Widget>[
-    Eyebrow('LIVE APPS', onDark: true),
-    Heading('Built by the same framework that builds this site.', onDark: true),
-    DVBox.wrapLine(<Widget>[
-      SiteCard(
-        'Wahala',
-        'A live interactive story platform with state-based gameplay.',
-      ),
-      SiteCard(
-        'EatingToday',
-        'Food discovery and restaurant booking platform.',
-      ),
-      SiteCard(
-        'Elena',
-        'Personal health monitoring with device integration.',
-      ),
-      SiteCard(
-        'Dartvel VPN',
-        'Network security with native device integration.',
-      ),
-      SiteCard(
-        'Dartvel Authenticator',
-        'Zero-knowledge 2FA vault with native browser extensions.',
-      ),
-    ], spacing: 16),
-    Stats(onDark: true, <Figure>[
-      Figure('5', 'live apps'),
-      Figure('11', 'verified build targets'),
-      Figure('1', 'shared codebase'),
+    Stats(<Figure>[
+      Figure('16 ms', 'to the first byte, phone profile'),
+      Figure('7 KB', 'of compressed HTML per page'),
     ]),
-    DVText('Every claim above links to source in docs/spec-status.json or docs/build-targets.md.')
-        .modifier(const DVModifier().fontSize(14).color(Palette.deepMuted).lineHeight(1.5)),
+    Body('Measured with Lighthouse on 28 September 2026. The full table, and '
+        'what is still slow, is in docs/web-performance.md.'),
   ],
 );
