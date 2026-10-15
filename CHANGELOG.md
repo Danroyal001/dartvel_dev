@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+- One web-server binary can serve several hostnames: `dartvel.hosts` maps each host onto a part of the route tree (`docs.example.com` is `/docs`, `*.apps.example.com` is `/apps/{label}`), with canonical URLs and a sitemap and robots.txt per host, `301`s from a route's old location to its host, and a Flutter web client that routes by the host after hydration. Without `dartvel.hosts` nothing changes. See docs/web-server-binary.md.
+
 ## 0.12.2 — 2026-10-14
 
 - Fix: a web-server binary's backend saw no pages. `DVSitePages.load()` read `dartvel_routes.json` from disk, but a web-server binary serves its site from the pack inside it, so every page-reading backend (a site search, an llms.txt) got an empty list; dartvel.dev's search answered every query with a 500 for two days. The manifest is now read through the site's registered asset source.

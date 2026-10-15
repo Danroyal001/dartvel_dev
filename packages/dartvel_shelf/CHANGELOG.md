@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel.hosts`: each host shows its mount of the route tree; a route asked for on a host that does not own it is a `301` to its public URL; canonical and `og:url` are the public URL; unknown hosts are served as the primary. `X-Forwarded-Host` is read only from a peer `dartvel.server.trustedProxies` trusts. Rendered pages are kept per effective host, the sign-in redirect goes to the sign-in page's public URL, and `robots.txt` and `sitemap.xml` are answered per host.
+
 ## 0.12.2 — 2026-10-14
 
 - Released alongside dartvel_core 0.12.2 (private `/metrics`, packed site pages); no changes in this package.

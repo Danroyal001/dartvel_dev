@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel.hosts`: `DVHosts`, `DVHostEntry` and `DVHostMatch` parse and validate the hosts, match a request's host (exact before a single leftmost-label wildcard) and give each route's public URL (`publicUrl`, longest mount wins). `dvHostedRequest`, `dvHostSiteFileFor` and `dvEffectiveHost` are the decisions the web-server binary and `dartvel dev --release` share; `DVRoutePage.at` takes the origin a page renders on.
+
 ## 0.12.2 — 2026-10-14
 
 - Fix: `DVSitePages.load()` reads the route manifest from a web-server binary's pack; it saw no pages in every deployed binary.
