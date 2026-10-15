@@ -1064,6 +1064,18 @@ final List<DVStudioLeafType> dvStudioLeafTypes = <DVStudioLeafType>[
         'const SizedBox(height: ${_size(node, 'thickness', 1)}, '
         'child: ColoredBox(color: Color(0x33000000)))',
   ),
+  // A form built in Studio's Forms screen: drawn from the site's own copy of
+  // it and answered there, so a page shows the form as it now stands.
+  DVStudioLeafType(
+    type: 'form',
+    label: 'Form',
+    create: DVPageNode.form,
+    build: (node) => DVStudioPublishedForm(
+      formId: '${node.properties['formId'] ?? ''}',
+    ),
+    source: (node, escape) =>
+        "DVStudioPublishedForm(formId: '${escape('${node.properties['formId'] ?? ''}')}')",
+  ),
 ];
 
 /// How a button looks when nothing says otherwise: filled, padded, rounded.

@@ -22,6 +22,8 @@ import '../storage/adapters.dart' show DVFileStorageAdapter;
 import '../web/page_data.dart' show DVPageData, dvApplyPageExtras, dvCanonicalUrl;
 import '../web/page_text.dart' show dvApplyPageText;
 import '../web/seo_head.dart' show dvAbsoluteAsset, dvSeoApply, dvSeoHead;
+import '../http/client_address.dart' show DVClientAddress;
+import 'studio_form_inbox.dart';
 import 'studio_media_files.dart';
 import 'studio_api.dart' show dvStudioPagesTable;
 import 'studio_site.dart' show dvStudioIsReservedRoute;
@@ -76,6 +78,108 @@ class DVPublishedPages {
     }
     return listed..sort();
   }
+
+  /// The largest answer to a form that is read.
+  static const int maxFormBytes = 32 * 1024;
+
+  /// How many answers one source may send in [formWindow].
+  static const int formsPerWindow = 10;
+  static const Duration formWindow = Duration(minutes: 1);
+
+  /// When each source last answered, per source, within [formWindow]. In
+  /// this process: a limit for a single server, not for a fleet.
+  final Map<String, List<DateTime>> _answers = <String, List<DateTime>>{};
+
+  /// A form built in Studio, at `/_dartvel/forms/<id>`: read with GET, as
+  /// visitors are given it, and answered with POST.
+  Future<Response?> _form(Request request) async {
+    const String prefix = '/_dartvel/forms/';
+    final String path = request.url.path;
+    if (!path.startsWith(prefix)) return null;
+    final String id = Uri.decodeComponent(path.substring(prefix.length));
+    final String method = request.method.toUpperCase();
+    final DVDatabaseAdapter? database = _database();
+    if (id.isEmpty || id.contains('/')) return _formReply(404, 'not_found', 'No such form.');
+    if (database == null) {
+      return _formReply(503, 'no_database', 'This site keeps no answers.');
+    }
+    final DVStudioFormInbox inbox = DVStudioFormInbox(database);
+    try {
+      if (method == 'GET' || method == 'HEAD') {
+        final form = await inbox.form(id);
+        if (form == null) return _formReply(404, 'not_found', 'No such form.');
+        return _json(200, DVStudioFormInbox.publicJson(form));
+      }
+      if (method != 'POST') return _formReply(405, 'method', 'Use POST.');
+      // JSON only: a page on another site can post a form to this one, but
+      // not with this content type without asking first.
+      final String type = request.headers.get('content-type') ?? '';
+      if (!type.toLowerCase().startsWith('application/json')) {
+        return _formReply(415, 'unsupported_type', 'Send the answer as JSON.');
+      }
+      final int? declared = int.tryParse(request.headers.get('content-length') ?? '');
+      if (declared != null && declared > maxFormBytes) {
+        return _formReply(413, 'too_large', 'The answer is too long.');
+      }
+      final List<int> bytes = <int>[];
+      await for (final List<int> chunk in request.body.stream) {
+        bytes.addAll(chunk);
+        if (bytes.length > maxFormBytes) {
+          return _formReply(413, 'too_large', 'The answer is too long.');
+        }
+      }
+      final String source = DVClientAddress.sourceOf(request);
+      final DateTime now = DateTime.now().toUtc();
+      final List<DateTime> recent = (_answers[source] ?? <DateTime>[])
+        ..removeWhere((DateTime at) => now.difference(at) > formWindow);
+      if (recent.length >= formsPerWindow) {
+        return Response(
+          429,
+          headers: Headers(<String, String>{
+            'content-type': 'application/json; charset=utf-8',
+            'retry-after': '${formWindow.inSeconds}',
+            'cache-control': 'no-store',
+          }),
+          body: Stream<List<int>>.value(utf8.encode(jsonEncode(<String, Object?>{
+            'error': 'too_many',
+            'message': 'Too many answers from here. Try again in a minute.',
+          }))),
+        );
+      }
+      final Object? answer;
+      try {
+        answer = jsonDecode(utf8.decode(bytes));
+      } on FormatException {
+        return _formReply(400, 'bad_body', 'The answer is not JSON.');
+      }
+      if (answer is! Map) {
+        return _formReply(400, 'bad_body', 'The answer is not a JSON object.');
+      }
+      final DVStudioFormReceipt receipt = await inbox.submit(
+        id,
+        answer.cast<String, Object?>(),
+        source: source,
+        userAgent: request.headers.get('user-agent'),
+      );
+      _answers[source] = recent..add(now);
+      if (_answers.length > 10000) _answers.remove(_answers.keys.first);
+      return _json(201, <String, Object?>{'ok': true, 'message': receipt.message});
+    } on DVStudioFormRefusal catch (refused) {
+      return _formReply(refused.status, refused.code, refused.message);
+    }
+  }
+
+  static Response _formReply(int status, String code, String message) =>
+      _json(status, <String, Object?>{'error': code, 'message': message});
+
+  static Response _json(int status, Object? body) => Response(
+    status,
+    headers: Headers(<String, String>{
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+    }),
+    body: Stream<List<int>>.value(utf8.encode(jsonEncode(body))),
+  );
 
   /// A file of the media library, for anybody: a site's pictures are what it
   /// shows everybody. Only files inside the library, of a type it takes.
@@ -132,6 +236,7 @@ class DVPublishedPages {
   /// The documents, or null for a request that is not for them.
   Future<Response?> respond(Request request) async {
     if (await _media(request) case final Response file) return file;
+    if (await _form(request) case final Response form) return form;
     if (request.url.path != dvPublishedPagesPath) return null;
     final String method = request.method.toUpperCase();
     if (method != 'GET' && method != 'HEAD') return null;

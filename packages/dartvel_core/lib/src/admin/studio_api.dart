@@ -36,6 +36,7 @@ import '../data/change_capture.dart' show DVCapture;
 import '../data/record_history.dart';
 import '../database/adapter.dart';
 import '../database/records.dart';
+import '../http/client_address.dart' show DVClientAddress;
 import '../http/wintercg.dart';
 import '../modules/modules.dart'
     show DVModuleData, DVModuleDataMode, dvModuleRegistry;
@@ -49,6 +50,7 @@ import '../web/asset_source.dart';
 import '../web/rendered_page_cache.dart';
 import 'studio_access.dart';
 import 'studio_document.dart' show DVStudioProjectData;
+import 'studio_form_inbox.dart';
 import 'studio_forms.dart';
 import 'studio_media_files.dart';
 import 'studio_menus.dart';
@@ -730,13 +732,10 @@ class DVStudioApi {
         if (segments.isEmpty) {
           throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
         }
-        final bool isPublicSubmit =
-            segments.first == 'forms' && segments.contains('submit');
-        if (method != 'GET' && method != 'HEAD' && !isPublicSubmit) {
-          _requireCsrf(request);
-        }
-        final String? permission =
-            isPublicSubmit ? null : dvStudioPermissionFor(method, segments);
+        // Visitors answer forms at /_dartvel/forms/<id>; a submit through
+        // Studio is a Studio write like any other.
+        if (method != 'GET' && method != 'HEAD') _requireCsrf(request);
+        final String? permission = dvStudioPermissionFor(method, segments);
         if (permission != null && !await _callerMay(request, permission)) {
           throw _StudioRefusal(
             403,
@@ -3917,83 +3916,38 @@ class DVStudioApi {
         throw _StudioRefusal(
             400, 'missing_form_id', 'Form id is required for submission.');
       }
-      final List<DVStudioForm> forms = await _listForms();
-      final DVStudioForm? form =
-          forms.where((DVStudioForm f) => f.id == formId).firstOrNull;
-      if (form == null) {
-        throw _StudioRefusal(
-            404, 'not_found', 'No form found with id "$formId".');
-      }
-
       final Map<String, Object?> data = body['data'] is Map
           ? (body['data']! as Map).cast<String, Object?>()
           : (Map<String, Object?>.from(body)
             ..remove('formId')
             ..remove('form')
             ..remove('id'));
-
-      for (final DVStudioFormField field in form.fields) {
-        final Object? val = data[field.id] ?? data[field.label];
-        if (field.required) {
-          if (val == null || (val is String && val.trim().isEmpty)) {
-            throw _StudioRefusal(
-                400, 'validation_error', 'Field "${field.label}" is required.');
-          }
-        }
-        if (val is String && val.trim().isNotEmpty) {
-          if (field.type == 'email' &&
-              (!val.contains('@') || !val.contains('.'))) {
-            throw _StudioRefusal(400, 'validation_error',
-                'Invalid email address for "${field.label}".');
-          }
-        }
+      // The same checks a visitor's answer goes through.
+      final DVStudioFormReceipt receipt;
+      try {
+        receipt = await DVStudioFormInbox(_database, clock: _clock).submit(
+          formId,
+          data,
+          source: DVClientAddress.sourceOf(request),
+          userAgent: request.headers.get('user-agent'),
+        );
+      } on DVStudioFormRefusal catch (refused) {
+        throw _StudioRefusal(refused.status, refused.code, refused.message);
       }
-
-      final DateTime now = DateTime.now().toUtc();
-      final String submissionId =
-          'sub-${now.millisecondsSinceEpoch}-${math.Random().nextInt(0xffffff).toRadixString(16)}';
-      final String? ip = request.headers
-              .get('x-forwarded-for')
-              ?.split(',')
-              .first
-              .trim() ??
-          request.headers.get('x-real-ip');
-      final String? userAgent = request.headers.get('user-agent');
-
-      final DVRecordAdapter submissions =
-          await _writable(dvStudioSubmissionsShape);
-      await submissions.insert(dvStudioSubmissionsTable, <String, Object?>{
-        'id': submissionId,
-        'form_id': form.id,
-        'data_json': jsonEncode(data),
-        'status': 'unread',
-        'submitted_at': now.millisecondsSinceEpoch,
-        if (ip != null) 'ip_address': ip,
-        if (userAgent != null) 'user_agent': userAgent,
-      });
-
-      final DVRecordAdapter formRecords = await _writable(dvStudioFormsShape);
-      await formRecords.update(
-        dvStudioFormsTable,
-        <String, Object?>{
-          'submissions_count': form.submissionsCount + 1,
-          'updated_at': now.millisecondsSinceEpoch,
-        },
-        where: DVFilter.equals('id', form.id),
-      );
-
-      await _note(
-        'forms',
-        'submitted',
-        'New submission for "${form.name}"',
-        screen: 'forms',
-        object: submissionId,
-      );
-
+      final String? submissionId = receipt.id;
+      if (submissionId != null) {
+        await _note(
+          'forms',
+          'submitted',
+          'A submission to "$formId"',
+          screen: 'forms',
+          object: '$formId/submissions',
+        );
+      }
       return _reply(<String, Object?>{
         'ok': true,
         'submissionId': submissionId,
-        'message': form.successMessage,
+        'message': receipt.message,
       }, status: 201);
     }
 

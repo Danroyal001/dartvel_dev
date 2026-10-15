@@ -254,12 +254,26 @@ void main() {
       await _makeForms(api);
     });
 
-    test('POST api/forms/submit without CSRF token successfully accepts submission', () async {
+    // This route was CSRF-exempt to serve visitors, but it is under the
+    // Studio mount, behind the grant, where no visitor reaches it. Visitors
+    // answer at /_dartvel/forms/<id> (studio_public_forms_test.dart); here a
+    // submit is a Studio write, and needs the header every one carries.
+    test('a submit through Studio without the CSRF header is refused', () async {
+      final Response response = await api.respond(
+        _request('POST', 'api/forms/submit', csrf: false, body: <String, Object?>{
+          'formId': 'contact',
+          'data': <String, Object?>{'email': 'user@example.com'},
+        }),
+        'forms/submit',
+      );
+      expect(response.status, 403);
+    });
+
+    test('POST api/forms/submit through Studio accepts a submission', () async {
       final Response response = await api.respond(
         _request(
           'POST',
           'api/forms/submit',
-          csrf: false, // Public submissions do NOT require CSRF token
           body: <String, Object?>{
             'formId': 'contact',
             'data': <String, Object?>{
@@ -292,7 +306,6 @@ void main() {
         _request(
           'POST',
           'api/forms/contact/submit',
-          csrf: false,
           body: <String, Object?>{
             'data': <String, Object?>{'email': 'user@example.com'},
           },
@@ -307,7 +320,6 @@ void main() {
         _request(
           'POST',
           'api/forms/contact/submit',
-          csrf: false,
           body: <String, Object?>{
             'data': <String, Object?>{
               'name': 'Test User',
@@ -328,7 +340,6 @@ void main() {
         _request(
           'POST',
           'api/forms/contact/submit',
-          csrf: false,
           body: <String, Object?>{
             'data': <String, Object?>{
               'name': 'Test User',
@@ -351,7 +362,6 @@ void main() {
         _request(
           'POST',
           'api/forms/submit',
-          csrf: false,
           body: <String, Object?>{
             'formId': 'contact',
             'data': <String, Object?>{
@@ -368,7 +378,6 @@ void main() {
         _request(
           'POST',
           'api/forms/submit',
-          csrf: false,
           body: <String, Object?>{
             'formId': 'newsletter',
             'data': <String, Object?>{

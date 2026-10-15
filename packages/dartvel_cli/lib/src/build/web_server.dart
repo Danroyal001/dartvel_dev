@@ -369,7 +369,8 @@ Handler dvWebServerHandler({
     // Studio's published pages, and its media library's files.
     if (publishedPages != null &&
         (path == core.dvPublishedPagesPath ||
-            path.startsWith(dvStudioPublicMediaPath))) {
+            path.startsWith(dvStudioPublicMediaPath) ||
+            path.startsWith('/_dartvel/forms/'))) {
       final core.Response? pages =
           await publishedPages.respond(await _coreRequest(request));
       if (pages != null) return _shelfResponse(pages);

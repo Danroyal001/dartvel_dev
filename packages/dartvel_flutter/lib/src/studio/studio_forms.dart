@@ -12,6 +12,8 @@ import 'package:flutter/services.dart';
 
 import 'studio_server.dart';
 import 'studio_style.dart';
+import 'studio_site_transport.dart';
+import '../../dartvel_flutter.dart' show DVText;
 
 enum _FormsTab { forms, submissions }
 
@@ -2364,4 +2366,81 @@ class _DVStudioFormWidgetState extends State<DVStudioFormWidget> {
       ],
     );
   }
+}
+
+/// A form built in Studio, as a published page draws it: read from the
+/// site's `/_dartvel/forms/<id>` and answered there, which keeps only what
+/// the form asks for.
+class DVStudioPublishedForm extends StatefulWidget {
+  const DVStudioPublishedForm({super.key, required this.formId, this.transport});
+
+  final String formId;
+
+  /// How the site's server is reached; the one that served this page by
+  /// default.
+  final DVStudioTransport? transport;
+
+  @override
+  State<DVStudioPublishedForm> createState() => _DVStudioPublishedFormState();
+}
+
+class _DVStudioPublishedFormState extends State<DVStudioPublishedForm> {
+  late final DVStudioTransport _send = widget.transport ?? dvStudioSiteTransport();
+  late Future<DVStudioForm?> _form = _load();
+
+  String get _path => '/_dartvel/forms/${Uri.encodeComponent(widget.formId)}';
+
+  Future<DVStudioForm?> _load() async {
+    try {
+      final DVStudioReply reply = await _send('GET', _path);
+      final Object? body = reply.body;
+      if (reply.status != 200 || body is! Map) return null;
+      return DVStudioForm.fromJson(<String, Object?>{
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
+        ...body.cast<String, Object?>(),
+      });
+    } on Object {
+      return null;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant DVStudioPublishedForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.formId != widget.formId) _form = _load();
+  }
+
+  /// Sends [data]; a refusal is thrown with the server's words, which the
+  /// form shows where it was submitted.
+  Future<void> _submit(Map<String, Object?> data) async {
+    final DVStudioReply reply = await _send('POST', _path, body: data);
+    if (reply.status == 201) return;
+    final Object? body = reply.body;
+    throw StateError(body is Map && body['message'] is String
+        ? body['message']! as String
+        : 'The form could not be sent (${reply.status}).');
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<DVStudioForm?>(
+        future: _form,
+        builder: (BuildContext context, AsyncSnapshot<DVStudioForm?> snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const SizedBox(height: 48);
+          }
+          final DVStudioForm? form = snapshot.data;
+          if (form == null) {
+            return Semantics(
+              key: const ValueKey<String>('dv-studio-form-unavailable'),
+              liveRegion: true,
+              child: const DVText('This form is not available right now.'),
+            );
+          }
+          return DVStudioFormWidget(
+            formId: form.id,
+            form: form,
+            onSubmit: _submit,
+          );
+        },
+      );
 }
