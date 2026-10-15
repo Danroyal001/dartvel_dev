@@ -1,3 +1,7 @@
+## 0.13.0 — 2026-10-15
+
+- Dartvel 0.13.0: one-line `DV.run(args)` entry, middleware fields, typed backend functions, conventions checks, host routing.
+
 ## 0.12.2 — 2026-10-14
 
 - Released alongside dartvel_core, dartvel_flutter and dartvel_cli 0.12.2: the password eye everywhere, form fields in server-rendered HTML, private `/metrics`, and site pages read from a web-server binary.

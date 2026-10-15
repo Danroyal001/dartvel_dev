@@ -1,3 +1,7 @@
+## 0.13.0 — 2026-10-15
+
+- Version bump to match Dartvel 0.13.0.
+
 ## 0.12.2 — 2026-10-14
 
 - Released alongside dartvel_core 0.12.2; no changes in this package.

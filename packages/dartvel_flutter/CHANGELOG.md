@@ -1,3 +1,8 @@
+## 0.13.0 — 2026-10-15
+
+- `dvRunApplication`: boot hooks, launch negotiation before `runApp`, boot-failure page.
+- Web drag and drop with file bytes; `DV.Platform.media.readCapture`.
+
 ## Unreleased
 
 - Drag and drop on the web: `DV.Platform.dragDrop.accept()` now works in a browser. Dropped files arrive in the new `DVDropEvent.files` (`DVDroppedFile`: name, MIME type and bytes), since a page is never given a path; dropped text arrives as `text`. `DV.Platform.dragDrop.draggingOver` reports a drag entering and leaving the window, so a page can show where to drop.
