@@ -50,37 +50,6 @@ answers its own target. A query string is carried over unless the target has one
 path, points at itself or names another status is reported by the build and left out. `dartvel dev
 --release` answers them the same way.
 
-## Inbound Host-based routing
-
-One web-server binary serves multiple host patterns (e.g. `example.com`, `tools.example.com`,
-and `*.tools.example.com`), routing requests to internal routes based on the validated Host header:
-
-```yaml
-dartvel:
-  hosts:
-    trustedProxies:
-      - 127.0.0.1
-    entries:
-      example.com:
-        siteUrl: https://example.com
-        name: Example Main
-      tools.example.com:
-        siteUrl: https://tools.example.com
-        mount: /tools
-        name: Example Tools
-      '*.tools.example.com':
-        siteUrl: 'https://{slug}.tools.example.com'
-        mount: /tools/{slug}
-```
-
-Key guarantees:
-- **Host Normalisation & Security**: ASCII case is lowered, port numbers and trailing dots are stripped, and RFC 1123 label syntax is verified. Malformed Host headers receive `400 Bad Request`.
-- **Proxy Trust**: `X-Forwarded-Host` is evaluated only if the direct client/peer IP is in `trustedProxies` (or loopback when configured); otherwise, untrusted forwarded headers are ignored.
-- **Route Mounts**: An incoming request on a mounted host (e.g. `GET /` on `tools.example.com`) resolves to the internal mount path (`/tools`) without modifying the browser's address bar.
-- **Wildcard Subdomains**: Single-label wildcard hosts (e.g. `*.tools.example.com`) extract `{slug}` to resolve paths such as `/tools/{slug}`. Multi-label subdomains (e.g. `sub.tool.tools.example.com`) or unregistered slugs return `404 Not Found` without echoing untrusted hostnames into titles or SEO tags.
-- **Partitioned Document Cache**: SSR document cache keys are partitioned by validated client host, preventing cross-domain content leaks.
-- **SEO & Canonicals**: Each host receives its own title, site name, meta tags, and host-specific canonical URL (`<link rel="canonical">`).
-
 ## Assets
 
 Each file is kept the smallest way the build finds it

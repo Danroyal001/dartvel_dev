@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVHostRoutingConfig, DVHostMatch, dvExtractHost, dvMatchHost, dvResolveHostPath, dvHostLegacyRedirect;
+    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
@@ -181,109 +181,7 @@ Future<Response> _fromManifest(
     return Response(redirect.status, headers: Headers()..set('location', target), body: const Stream<List<int>>.empty());
   }
 
-  final DVHostRoutingConfig hostConfig = DVHostRoutingConfig.fromJson(
-    (manifest['hosts'] as Map?)?.cast<String, Object?>() ?? const <String, Object?>{},
-  );
-  DVHostMatch? hostMatch;
-  String resolvedPath = path;
-  String? effectiveSiteUrl = siteUrl;
-  DVSiteSeo effectiveSite = site;
-
-  if (hostConfig.isNotEmpty) {
-    final String? clientHost = dvExtractHost(
-      req.headers.singleValueMap,
-      trustedProxies: hostConfig.trustedProxies,
-      trustLoopback: hostConfig.trustLoopback,
-    );
-    if (clientHost == null) {
-      return Response(400, headers: Headers()..set('content-type', 'text/plain'), body: Stream.value(utf8.encode('Bad Request: Invalid or missing Host header')));
-    }
-    hostMatch = dvMatchHost(clientHost, hostConfig);
-    if (hostMatch == null) {
-      final String? bareTitle = RegExp(r'<title>(.*?)</title>', dotAll: true).firstMatch(shell)?.group(1)?.trim();
-      return _html(dvMinifyHtml(dvRenderRoute(shell: shell, path: '/', title: bareTitle ?? 'Not Found')), status: 404);
-    }
-
-    final Set<String> registeredToolSlugs = <String>{
-      for (final String r in routeMap.keys)
-        if (r.startsWith('/tools/') && r.length > 7) r.substring(7)
-    };
-    final String? legacyRedirect = dvHostLegacyRedirect(
-      hostMatch,
-      raw,
-      registeredToolSlugs: registeredToolSlugs,
-    );
-    if (legacyRedirect != null) {
-      final String target = req.url.hasQuery && !legacyRedirect.contains('?')
-          ? '$legacyRedirect?${req.url.query}'
-          : legacyRedirect;
-      return Response(
-        301,
-        headers: Headers()
-          ..set('location', target)
-          ..set('cache-control', 'public, max-age=86400'),
-        body: const Stream<List<int>>.empty(),
-      );
-    }
-
-    resolvedPath = dvResolveHostPath(hostMatch, path);
-    effectiveSiteUrl = hostMatch.siteUrl ?? siteUrl;
-    effectiveSite = DVSiteSeo(
-      name: hostMatch.entry.name ?? site.name,
-      description: hostMatch.entry.description ?? site.description,
-      image: site.image,
-    );
-
-    if (path == '/robots.txt') {
-      final origin = hostMatch.siteUrl ?? 'https://${hostMatch.matchedHost}';
-      final body = 'User-agent: *\nAllow: /\nSitemap: $origin/sitemap.xml\n';
-      return Response(
-        200,
-        headers: Headers()
-          ..set('content-type', 'text/plain; charset=utf-8')
-          ..set('cache-control', 'public, max-age=86400'),
-        body: Stream.value(utf8.encode(body)),
-      );
-    }
-    if (path == '/sitemap.xml') {
-      final origin = hostMatch.siteUrl ?? 'https://${hostMatch.matchedHost}';
-      final StringBuffer xml = StringBuffer();
-      xml.writeln('<?xml version="1.0" encoding="UTF-8"?>');
-      xml.writeln('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
-      if (hostMatch.entry.isWildcard) {
-        xml.writeln('  <url>');
-        xml.writeln('    <loc>$origin/</loc>');
-        xml.writeln('  </url>');
-      } else if (hostMatch.entry.pattern == 'tools.sigmadev.digital') {
-        xml.writeln('  <url>');
-        xml.writeln('    <loc>$origin/</loc>');
-        xml.writeln('  </url>');
-      } else {
-        for (final r in routeMap.keys) {
-          if (!r.startsWith('/tools')) {
-            final loc = r == '/' ? '$origin/' : '$origin$r';
-            xml.writeln('  <url>');
-            xml.writeln('    <loc>$loc</loc>');
-            xml.writeln('  </url>');
-          }
-        }
-      }
-      xml.writeln('</urlset>');
-      return Response(
-        200,
-        headers: Headers()
-          ..set('content-type', 'application/xml; charset=utf-8')
-          ..set('cache-control', 'public, max-age=86400'),
-        body: Stream.value(utf8.encode(xml.toString())),
-      );
-    }
-  }
-
-  final DVPageRequest? matched = dvMatchRoute(resolvedPath, routeMap.keys, headers: req.headers.singleValueMap);
-  if (hostMatch != null && hostMatch.entry.isWildcard && matched == null) {
-    final String? bareTitle = RegExp(r'<title>(.*?)</title>', dotAll: true).firstMatch(shell)?.group(1)?.trim();
-    return _html(dvMinifyHtml(dvRenderRoute(shell: shell, path: '/', title: bareTitle ?? 'Not Found')), status: 404);
-  }
+  final DVPageRequest? matched = dvMatchRoute(path, routeMap.keys, headers: req.headers.singleValueMap);
   // The route's own deferred parts and first-frame images, by the pattern it
   // matched. They depend on the route and never on the data, so they go in
   // whatever part of the head goes first.
@@ -303,8 +201,8 @@ Future<Response> _fromManifest(
         route: route,
         resolving: (cache ?? _cacheFor(spaRoot, settings, pageStore))
             .resolve(matched, pageData, settings.pageDataMode),
-        siteUrl: effectiveSiteUrl,
-        site: effectiveSite,
+        siteUrl: siteUrl,
+        site: site,
         preloads: preloads,
       );
       if (early != null) return early;
@@ -353,7 +251,7 @@ Future<Response> _fromManifest(
       );
     }
     final String? bareTitle = RegExp(r'<title>(.*?)</title>', dotAll: true).firstMatch(shell)?.group(1)?.trim();
-    return _html(dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: bareTitle ?? path, siteUrl: effectiveSiteUrl, siteName: effectiveSite.name ?? bareTitle)), status: 401);
+    return _html(dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: bareTitle ?? path, siteUrl: siteUrl, siteName: site.name ?? bareTitle)), status: 401);
   }
   final String? shellTitle = RegExp(r'<title>(.*?)</title>', dotAll: true).firstMatch(shell)?.group(1)?.trim();
   final String title = route?['title'] is String ? route!['title']! as String : (shellTitle ?? path);
@@ -361,12 +259,12 @@ Future<Response> _fromManifest(
   // The declared name, and the shell's title only as a last resort: that
   // title is the homepage's, so falling back to it names the site with a
   // sentence in every link preview.
-  final String? siteName = effectiveSite.name ?? shellTitle;
+  final String? siteName = site.name ?? shellTitle;
 
   if (data != null && data.visibility != DVPageVisibility.public) {
     // No description and no image: they describe a page the reader is not
     // being shown.
-    final String bare = dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: shellTitle ?? title, siteUrl: effectiveSiteUrl, siteName: siteName));
+    final String bare = dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: shellTitle ?? title, siteUrl: siteUrl, siteName: siteName));
     // Not streamed whatever the declaration says: there is no slow half to
     // wait for, and a refusal is smaller than the chunk framing around it.
     return _html(bare, status: data.visibility == DVPageVisibility.hidden ? 404 : 401);
@@ -376,11 +274,11 @@ Future<Response> _fromManifest(
   // manifest from before it carried the page.
   final Object? routePage = route?['page'];
   final String page = data == null && routePage is Map
-      ? dvRenderRoutePage(shell, DVRoutePage.fromJson(routePage.cast<String, Object?>()).at(path, siteUrl: effectiveSiteUrl, siteName: siteName, description: effectiveSite.description),
+      ? dvRenderRoutePage(shell, DVRoutePage.fromJson(routePage.cast<String, Object?>()).at(path),
           onUncaptured: (String r) => stderr.writeln('dartvel: $r has no captured page; serving its source text'))
       : data == null
-      ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: effectiveSiteUrl, siteName: siteName, description: effectiveSite.description, image: effectiveSite.image)
-      : dvRenderPage(shell: shell, path: path, data: data, siteUrl: effectiveSiteUrl, siteName: siteName, description: effectiveSite.description, image: effectiveSite.image);
+      ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image)
+      : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image);
   // A path nothing serves is a 404, with the shell still the body so the app
   // draws its not-found page. A 200 here was a soft 404 a crawler indexed as
   // a page. A Studio page is a route the manifest does not list, so the
@@ -388,66 +286,8 @@ Future<Response> _fromManifest(
   // nothing about what is missing.
   final bool missing = matched == null &&
       routeMap.isNotEmpty &&
-      !(await publishedRoutes?.call() ?? const <String>{}).contains(resolvedPath);
-
-  String finalPage = page;
-  if (hostMatch != null && hostMatch.entry.isWildcard) {
-    final String toolName = title.split('—').first.split('|').first.trim();
-    final Map<String, Object?> jsonLd = {
-      '@context': 'https://schema.org',
-      '@graph': [
-        {
-          '@type': 'WebApplication',
-          '@id': '$effectiveSiteUrl/#app',
-          'name': toolName,
-          'url': effectiveSiteUrl,
-          'applicationCategory': 'DeveloperApplication',
-          'operatingSystem': 'Any',
-          'offers': {
-            '@type': 'Offer',
-            'price': '0',
-            'priceCurrency': 'USD',
-          },
-          if (effectiveSite.description != null && effectiveSite.description!.isNotEmpty)
-            'description': effectiveSite.description,
-        },
-        {
-          '@type': 'BreadcrumbList',
-          '@id': '$effectiveSiteUrl/#breadcrumbs',
-          'itemListElement': [
-            {
-              '@type': 'ListItem',
-              'position': 1,
-              'name': 'Home',
-              'item': 'https://sigmadev.digital/',
-            },
-            {
-              '@type': 'ListItem',
-              'position': 2,
-              'name': 'Tools',
-              'item': 'https://tools.sigmadev.digital/',
-            },
-            {
-              '@type': 'ListItem',
-              'position': 3,
-              'name': toolName,
-              'item': '$effectiveSiteUrl/',
-            },
-          ],
-        },
-      ],
-    };
-    final String encodedLd = jsonEncode(jsonLd).replaceAll('</', r'<\/');
-    final String ldScript = '<!--dv:ld--><script type="application/ld+json">$encodedLd</script><!--/dv:ld-->';
-    final RegExp genericLd = RegExp(r'<script[^>]*type=["'']application/ld\+json["''][^>]*>.*?</script>', dotAll: true);
-    if (finalPage.contains(genericLd)) {
-      finalPage = finalPage.replaceFirst(genericLd, ldScript);
-    } else {
-      finalPage = finalPage.replaceFirst('</head>', '$ldScript\n</head>');
-    }
-  }
-
-  return _html(dvMinifyHtml(dvWithPreloads(finalPage, preloads)), status: missing ? 404 : 200, streaming: settings.streaming);
+      !(await publishedRoutes?.call() ?? const <String>{}).contains(path);
+  return _html(dvMinifyHtml(dvWithPreloads(page, preloads)), status: missing ? 404 : 200, streaming: settings.streaming);
 }
 
 /// The page for [path] as three writes, the first before the data: the
@@ -546,30 +386,11 @@ Future<Response> _cachedSsrFallback(
   final path = req.url.path == '/'
       ? '/'
       : req.url.path.replaceAll(RegExp(r'/+$'), '');
-  final headers = req.headers.singleValueMap;
-  final hostsMap = manifest is Map ? manifest['hosts'] : null;
-  final hostConfig = DVHostRoutingConfig.fromJson(
-    hostsMap is Map ? hostsMap.cast<String, Object?>() : const <String, Object?>{},
-  );
-  String? clientHost;
-  var checkPath = path;
-  if (hostConfig.isNotEmpty) {
-    clientHost = dvExtractHost(
-      headers,
-      trustedProxies: hostConfig.trustedProxies,
-      trustLoopback: hostConfig.trustLoopback,
-    );
-    if (clientHost != null) {
-      final match = dvMatchHost(clientHost, hostConfig);
-      if (match != null) {
-        checkPath = dvResolveHostPath(match, path);
-      }
-    }
-  }
   final matched = routes is Map
-      ? dvMatchRoute(checkPath, routes.keys.cast<String>())
+      ? dvMatchRoute(path, routes.keys.cast<String>())
       : null;
   final route = matched == null ? null : routes[matched.pattern];
+  final headers = req.headers.singleValueMap;
   if (!dvMayCacheRenderedPage(
     req.method,
     headers,
@@ -585,7 +406,7 @@ Future<Response> _cachedSsrFallback(
     dvSiteHash(spaRoot, 'dartvel_routes.json'),
     dvSiteHash(spaRoot, dvRoutePreloadsFile),
   ].join('|');
-  final key = dvRenderedPageKey(stamp, req.url, headers, host: clientHost);
+  final key = dvRenderedPageKey(stamp, req.url, headers);
   final documents = _documents.putIfAbsent(
     spaRoot,
     () => DVRenderedPageCache(),

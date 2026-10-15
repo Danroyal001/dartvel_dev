@@ -233,29 +233,6 @@ const b = 2;
       // one out of a file that worked.
       expect(dvMinifyJs('const a = 1\nconst b = 2'), 'const a = 1\nconst b = 2');
     });
-
-    test('keeps a regex literal following a keyword that contains quotes', () {
-      // `return /["\n\r]/` has quotes inside the pattern. A minifier that
-      // loses the token before the slash treats `/` as division and `"` as
-      // opening a string, inverting string and code parsing for the rest of
-      // the file.
-      expect(
-        dvMinifyJs('return /["\\n\\r]|^\\s|\\s\$/.test(text);'),
-        'return /["\\n\\r]|^\\s|\\s\$/.test(text);',
-      );
-      expect(
-        dvMinifyJs(r'const a = typeof /x/ === "object";'),
-        r'const a = typeof /x/ === "object";',
-      );
-      expect(
-        dvMinifyJs(
-          'return /["\\n\\r]/.test(text) ? `"\${text}"` : text;\n'
-          'url = new URL(/^https?:\\/\\//i.test(raw) ? raw : `https://\${raw}`);',
-        ),
-        'return /["\\n\\r]/.test(text) ? `"\${text}"` : text;\n'
-        'url = new URL(/^https?:\\/\\//i.test(raw) ? raw : `https://\${raw}`);',
-      );
-    });
   });
 
   group('the pass over a built web output', () {

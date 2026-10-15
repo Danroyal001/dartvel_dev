@@ -17,7 +17,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
 
-import 'package:dartvel_core/dartvel.dart' show DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant, DVHostRoutingConfig;
+import 'package:dartvel_core/dartvel.dart' show DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant;
 // Shell-first streaming and each route's preloads, through the same core
 // functions the deployed server uses.
 import 'package:dartvel_core/dartvel.dart'
@@ -51,7 +51,7 @@ import 'package:shelf_static/shelf_static.dart';
 import 'admin_mount.dart';
 import 'admin_serving.dart';
 
-export 'package:dartvel_core/dartvel.dart' show DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute, dvRouteParams, DVHostRoutingConfig, DVHostEntry, DVHostMatch, dvNormalizeHost, dvExtractHost, dvMatchHost, dvResolveHostPath, dvHostLegacyRedirect;
+export 'package:dartvel_core/dartvel.dart' show DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute, dvRouteParams;
 
 
 
@@ -103,11 +103,9 @@ String dvWebServerManifest({
   Map<String, DVConfiguredRedirectDeclaration> redirects = const <String, DVConfiguredRedirectDeclaration>{},
   DVImageVariants? images,
   Map<String, DVRoutePage> pages = const <String, DVRoutePage>{},
-  DVHostRoutingConfig? hosts,
 }) =>
     const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'siteUrl': siteUrl,
-      if (hosts != null && hosts.isNotEmpty) 'hosts': hosts.toJson(),
       // Where the server sends somebody signed out who asked for a guarded
       // route: the sign-in page the client's gate sends them to.
       if (signIn != null) 'signIn': signIn,
