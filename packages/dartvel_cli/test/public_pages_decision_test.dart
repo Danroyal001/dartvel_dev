@@ -49,9 +49,9 @@ void main() {
           '/categories/:id');
     });
 
-    test('generatePublicPages: false opts out, and says nothing', () {
+    test('generatePages: false opts out, and says nothing', () {
       final DVPublicPages pages =
-          decide('Article', 'generatePublicPages: false', article);
+          decide('Article', 'generatePages: false', article);
       expect(pages.generates, isFalse);
       expect(pages.skipped, isNull);
     });
@@ -61,7 +61,7 @@ void main() {
           const <Field>[(type: 'int', name: 'id'), (type: 'double', name: 'value')]);
       expect(pages.generates, isFalse);
       expect(pages.skipped, contains('no String field'));
-      expect(pages.skipped, contains('generatePublicPages: false'));
+      expect(pages.skipped, contains('generatePages: false'));
     });
 
     test('a model whose key is sensitive is skipped: a key is in every URL', () {
@@ -115,7 +115,7 @@ void main() {
         final DVPublicPages pages =
             decide(name, '', const <Field>[(type: 'String', name: 'id')]);
         expect(pages.generates, isFalse);
-        expect(pages.skipped, contains('generatePublicPages: true'));
+        expect(pages.skipped, contains('generatePages: true'));
       });
     }
 
@@ -136,7 +136,7 @@ void main() {
           sensitive: <String>{'customerEmail'});
       expect(pages.generates, isFalse);
       expect(pages.skipped, contains('published'));
-      expect(pages.skipped, contains('generatePublicPages: true'));
+      expect(pages.skipped, contains('generatePages: true'));
     });
 
     test('a record about a person with a published flag gets its page', () {
@@ -154,11 +154,11 @@ void main() {
     });
   });
 
-  group('asked for with generatePublicPages: true', () {
+  group('asked for with generatePages: true', () {
     test('an account model gets its page, and it is personal', () {
       final DVPublicPages pages = decide(
           'User',
-          'generatePublicPages: true, subject: DVSubject.self',
+          'generatePages: true, subject: DVSubject.self',
           const <Field>[(type: 'String', name: 'slug'), (type: 'String', name: 'name')]);
       expect(pages.generates, isTrue);
       expect(pages.explicit, isTrue);
@@ -168,21 +168,21 @@ void main() {
 
     test('a model with no key refuses the build, because a page was asked for', () {
       expect(
-          () => decide('Reading', 'generatePublicPages: true',
+          () => decide('Reading', 'generatePages: true',
               const <Field>[(type: 'int', name: 'id')]),
           throwsStateError);
     });
 
     test('a sensitive key refuses the build', () {
       expect(
-          () => decide('Contact', 'generatePublicPages: true',
+          () => decide('Contact', 'generatePages: true',
               const <Field>[(type: 'String', name: 'email')],
               sensitive: <String>{'email'}),
           throwsStateError);
     });
 
     test('a value the generator cannot read refuses the build', () {
-      expect(() => decide('Article', 'generatePublicPages: kPages', article),
+      expect(() => decide('Article', 'generatePages: kPages', article),
           throwsStateError);
     });
   });
@@ -230,7 +230,7 @@ void main() {
       expect(
           DVPublicPages.of(
             className: 'Article',
-            modelArgs: 'generatePublicPages: true',
+            modelArgs: 'generatePages: true',
             fields: article,
             takenRoutes: <String>{'/articles/:slug'},
           ).generates,

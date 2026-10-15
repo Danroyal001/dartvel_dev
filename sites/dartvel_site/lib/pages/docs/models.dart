@@ -54,7 +54,7 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
               'Parameter',
               'What it does',
             ], rows: <List<String>>[
-              <String>['generatePublicPages: false', 'No public page per '
+              <String>['generatePages: false', 'No public page per '
                   'record. Pages are on by default, at /articles/:slug'],
               <String>['publicPathsResolver: fn', 'Your function lists the '
                   'paths to render statically'],
@@ -159,7 +159,7 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsText('Dartvel generates a public page for every record by '
                 'default. To turn it off for a data model, set '
-                'generatePublicPages: false on it.'),
+                'generatePages: false on it.'),
             DocsText('The route comes from the model\'s name, in plural '
                 'kebab-case, followed by the record\'s slug, or its id when '
                 'the model has no slug: an Article is served at '
@@ -175,7 +175,7 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
               'A record your view policy refuses gets a 404, the same as '
                   'one that does not exist.',
               'Users, sessions, tokens, audit logs and tenant data get no '
-                  'page unless you set generatePublicPages: true.',
+                  'page unless you set generatePages: true.',
             ]),
             DocsSubheading('Decide who sees what'),
             DocsCode('models-page-policy'),

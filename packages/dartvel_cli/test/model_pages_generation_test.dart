@@ -23,7 +23,7 @@ Future<Directory> project() async {
     ..writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(generatePublicPages: true, schemaType: 'Person')
+@DVModel(generatePages: true, schemaType: 'Person')
 @pragma('vm:entry-point')
 class _User {
   final String slug;
@@ -40,7 +40,7 @@ class _User {
   File(p.join(root.path, 'lib', 'models', 'note.dart')).writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(generatePublicPages: false)
+@DVModel(generatePages: false)
 @pragma('vm:entry-point')
 class _Note {
   final String id;

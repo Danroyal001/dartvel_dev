@@ -242,11 +242,16 @@ class DVModel {
   /// How generated `Model.Page(...)` resolves its data by default.
   final DVModelPageDataMode pageDataMode;
 
-  /// Whether the generator emits public pages, and static paths for them
-  /// during static generation, from this model's published records.
+  /// Whether the generator emits a page per record, and static paths for
+  /// them during static generation, from this model's published records.
+  ///
+  /// A generated page is not necessarily public. Who may open it is the
+  /// model's `view` policy, exactly as for any other read: a model whose
+  /// policy admits only signed-in readers, an owner or a role has private,
+  /// auth-guarded pages, and a refused reader gets 404.
   ///
   /// On by default: every model gets a page per record at
-  /// `/<plural-kebab-model>/:<key>` unless it says `generatePublicPages:
+  /// `/<plural-kebab-model>/:<key>` unless it says `generatePages:
   /// false`. What a page shows is decided by the model's other
   /// declarations, not by this flag. A `@DVModel.sensitiveField()`, and the
   /// fields that identify a model's privacy `subject:`, are never on a page,
@@ -258,11 +263,11 @@ class DVModel {
   /// Models that stand for accounts and credentials -- a `User`, a
   /// `Session`, an `ApiToken`, an `AuditLog`, a row that is its own privacy
   /// subject -- and tenant-scoped models get no page unless they ask for one
-  /// with `generatePublicPages: true`.
+  /// with `generatePages: true`.
   ///
   /// The field-scoped constructors carry the same default so no annotation
   /// states a second one; a field's value is never read.
-  final bool generatePublicPages;
+  final bool generatePages;
 
   /// Supplies the path values static generation should render for this
   /// model's parameterized route, when the default enumeration is not what is
@@ -270,7 +275,7 @@ class DVModel {
   ///
   /// Static generation can enumerate `/about` on its own but not
   /// `/products/:slug`: nothing tells it which slugs exist. With
-  /// [generatePublicPages] the values come from the model's published
+  /// [generatePages] the values come from the model's published
   /// records; this replaces that with an explicit resolver — a subset, an
   /// ordering, or paths drawn from somewhere the model does not know about.
   ///
@@ -444,7 +449,7 @@ class DVModel {
     this.billable = false,
     this.nativePrice,
     this.pageDataMode = DVModelPageDataMode.auto,
-    this.generatePublicPages = true,
+    this.generatePages = true,
     this.publicPathsResolver,
     this.schemaType,
     this.favicon,
@@ -528,7 +533,7 @@ class DVModel {
        billable = false,
        nativePrice = null,
        pageDataMode = DVModelPageDataMode.auto,
-       generatePublicPages = true,
+       generatePages = true,
        publicPathsResolver = null,
        pageRole = null,
        pageOrderIndex = null,
@@ -571,7 +576,7 @@ class DVModel {
        billable = false,
        nativePrice = null,
        pageDataMode = DVModelPageDataMode.auto,
-       generatePublicPages = true,
+       generatePages = true,
        publicPathsResolver = null,
        encrypted = false,
        showInForms = false,
@@ -614,7 +619,7 @@ class DVModel {
       billable = false,
       nativePrice = null,
       pageDataMode = DVModelPageDataMode.auto,
-      generatePublicPages = true,
+      generatePages = true,
       publicPathsResolver = null,
       encrypted = false,
       showInForms = false,
@@ -655,7 +660,7 @@ class DVModel {
       billable = false,
       nativePrice = null,
       pageDataMode = DVModelPageDataMode.auto,
-      generatePublicPages = true,
+      generatePages = true,
       publicPathsResolver = null,
       encrypted = false,
       showInForms = false,
@@ -746,7 +751,7 @@ class DVModel {
        billable = false,
        nativePrice = null,
        pageDataMode = DVModelPageDataMode.auto,
-       generatePublicPages = true,
+       generatePages = true,
        publicPathsResolver = null,
        encrypted = false,
        showInForms = false,
@@ -788,7 +793,7 @@ class DVModel {
       billable = false,
       nativePrice = null,
       pageDataMode = DVModelPageDataMode.auto,
-      generatePublicPages = true,
+      generatePages = true,
       publicPathsResolver = null,
       encrypted = false,
       showInForms = false,
@@ -827,7 +832,7 @@ class DVModel {
       billable = false,
       nativePrice = null,
       pageDataMode = DVModelPageDataMode.auto,
-      generatePublicPages = true,
+      generatePages = true,
       publicPathsResolver = null,
       encrypted = false,
       showInForms = false,

@@ -35,7 +35,7 @@ import 'package:dartvel_core/dartvel.dart';
 @DVModel(
   subject: DVSubject.field('authorId'),
   retain: DVRetention.indefinite,
-  generatePublicPages: true,
+  generatePages: true,
 )
 class const _Post({
   required final String slug,
