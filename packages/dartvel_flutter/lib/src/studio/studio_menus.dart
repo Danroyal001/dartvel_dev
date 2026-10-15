@@ -95,6 +95,18 @@ class _DVStudioMenusSectionState extends State<DVStudioMenusSection> {
     return res;
   }
 
+  /// Back and Forward move between menus: the address names one, and the
+  /// screen opens it without saying so back to the address.
+  @override
+  void didUpdateWidget(covariant DVStudioMenusSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final String? id = widget.selectedMenuId;
+    if (id != null && id.isNotEmpty && id != oldWidget.selectedMenuId && id != _selectedId) {
+      _selectedId = id;
+      _data = _load();
+    }
+  }
+
   void _reload([String? selectId]) {
     setState(() {
       if (selectId != null) {

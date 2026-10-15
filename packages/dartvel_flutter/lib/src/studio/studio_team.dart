@@ -9,9 +9,20 @@ import 'studio_style.dart';
 
 /// The Team and Access control section in Studio.
 class DVStudioTeamSection extends StatefulWidget {
-  const DVStudioTeamSection({super.key, required this.client});
+  const DVStudioTeamSection({
+    super.key,
+    required this.client,
+    this.tab,
+    this.onTab,
+  });
 
   final DVStudioClient client;
+
+  /// The tab the address names: `roles`, or the teammates.
+  final String? tab;
+
+  /// Called with the tab a person chose, so the address follows.
+  final ValueChanged<String>? onTab;
 
   @override
   State<DVStudioTeamSection> createState() => _DVStudioTeamSectionState();
@@ -19,7 +30,15 @@ class DVStudioTeamSection extends StatefulWidget {
 
 class _DVStudioTeamSectionState extends State<DVStudioTeamSection> {
   late Future<Map<String, Object?>> _data = _load();
-  String _activeTab = 'teammates'; // 'teammates' | 'roles'
+  late String _activeTab = widget.tab == 'roles' ? 'roles' : 'teammates';
+
+  @override
+  void didUpdateWidget(covariant DVStudioTeamSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.tab != oldWidget.tab) {
+      _activeTab = widget.tab == 'roles' ? 'roles' : 'teammates';
+    }
+  }
   String _searchQuery = '';
   String _roleFilter = 'all';
   bool _busy = false;
@@ -467,7 +486,10 @@ class _DVStudioTeamSectionState extends State<DVStudioTeamSection> {
     final bool isSelected = _activeTab == id;
     return InkWell(
       key: ValueKey<String>('dv-studio-tab-$id'),
-      onTap: () => setState(() => _activeTab = id),
+      onTap: () {
+        setState(() => _activeTab = id);
+        widget.onTab?.call(id);
+      },
       borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
       child: Container(
         padding: const .symmetric(horizontal: DVStudioStyle.space3, vertical: 6),

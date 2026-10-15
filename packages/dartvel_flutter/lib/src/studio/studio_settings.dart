@@ -11,9 +11,18 @@ class DVStudioSettingsSection extends StatefulWidget {
   const DVStudioSettingsSection({
     super.key,
     required this.client,
+    this.tab,
+    this.onTab,
   });
 
   final DVStudioClient client;
+
+  /// The tab the address names: `seo`, `maintenance`, `localization`, or
+  /// the general one.
+  final String? tab;
+
+  /// Called with the tab a person chose, so the address follows.
+  final ValueChanged<String>? onTab;
 
   @override
   State<DVStudioSettingsSection> createState() =>
@@ -27,7 +36,31 @@ class _DVStudioSettingsSectionState extends State<DVStudioSettingsSection> {
   String? _notice;
   DVStudioSettings? _savedSettings;
   DVStudioSettings? _workingSettings;
-  int _selectedTab = 0;
+  late int _selectedTab = _tabFor(widget.tab);
+
+  /// Each tab's name in the address: `<mount>/settings/seo`.
+  static const List<String> tabIds = <String>[
+    'general',
+    'localization',
+    'seo',
+    'maintenance',
+  ];
+
+  int _tabFor(String? id) {
+    final int at = tabIds.indexOf(id ?? '');
+    return at < 0 ? 0 : at;
+  }
+
+  void _openTab(int i) {
+    setState(() => _selectedTab = i);
+    widget.onTab?.call(tabIds[i]);
+  }
+
+  @override
+  void didUpdateWidget(covariant DVStudioSettingsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.tab != oldWidget.tab) _selectedTab = _tabFor(widget.tab);
+  }
   int _revision = 0;
 
   /// The social links being edited, in order: the project's own labels and
@@ -345,8 +378,12 @@ class _DVStudioSettingsSectionState extends State<DVStudioSettingsSection> {
       child: Row(
         children: <Widget>[
           for (int i = 0; i < _tabs.length; i++) ...<Widget>[
-            InkWell(
-              onTap: () => setState(() => _selectedTab = i),
+            Semantics(
+              key: ValueKey<String>('dv-studio-settings-tab-${tabIds[i]}'),
+              selected: _selectedTab == i,
+              button: true,
+              child: DVStudioStyle.tooltip(_tabs[i], InkWell(
+              onTap: () => _openTab(i),
               borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
               child: Container(
                 padding: const .symmetric(
@@ -375,7 +412,7 @@ class _DVStudioSettingsSectionState extends State<DVStudioSettingsSection> {
                   ),
                 ),
               ),
-            ),
+            ))),
             const SizedBox(width: DVStudioStyle.space2),
           ],
         ],

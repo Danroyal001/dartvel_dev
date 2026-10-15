@@ -56,16 +56,43 @@ class _DVStudioFormsSectionState extends State<DVStudioFormsSection> {
   @override
   void initState() {
     super.initState();
-    _selectedFormId = widget.selectedFormId;
+    _follow(widget.selectedFormId);
   }
+
+  /// Opens what the address names: `<form>`, the inbox (`submissions`), or
+  /// one form's submissions (`<form>/submissions`).
+  void _follow(String? address) {
+    final List<String> parts = (address ?? '')
+        .split('/')
+        .where((String p) => p.isNotEmpty)
+        .toList();
+    if (parts.isNotEmpty && parts.first == 'submissions') {
+      _tab = _FormsTab.submissions;
+      _filterFormId = 'all';
+    } else if (parts.length >= 2 && parts[1] == 'submissions') {
+      _tab = _FormsTab.submissions;
+      _filterFormId = parts.first;
+    } else {
+      _tab = _FormsTab.forms;
+      if (parts.isNotEmpty) _selectedFormId = parts.first;
+    }
+  }
+
+  /// The address of what is open, for the section to put in the bar.
+  String? get _address => _tab == _FormsTab.submissions
+      ? (_filterFormId == 'all' ? 'submissions' : '$_filterFormId/submissions')
+      : _selectedFormId;
 
   @override
   void didUpdateWidget(covariant DVStudioFormsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.selectedFormId != null &&
-        widget.selectedFormId != _selectedFormId) {
-      _selectedFormId = widget.selectedFormId;
-      _reloadForms(_selectedFormId);
+    // Followed, never echoed: navigating from here while the address is
+    // being applied was a navigation in the middle of a build.
+    if (widget.selectedFormId != oldWidget.selectedFormId &&
+        widget.selectedFormId != _address) {
+      _follow(widget.selectedFormId);
+      _formsFuture = _loadForms();
+      _submissionsFuture = _loadSubmissions();
     }
   }
 
@@ -1048,13 +1075,13 @@ class _DVStudioFormsSectionState extends State<DVStudioFormsSection> {
                       value: _FormsTab.forms,
                       label: 'Forms',
                       icon: Icons.dynamic_form_outlined,
-                      tooltip: 'Form Definitions',
+                      tooltip: 'Forms',
                     ),
                     DVStudioSegment<_FormsTab>(
                       value: _FormsTab.submissions,
                       label: 'Submissions Inbox',
                       icon: Icons.inbox_outlined,
-                      tooltip: 'Visitor Responses',
+                      tooltip: 'Submissions Inbox',
                     ),
                   ],
                   value: _tab,
@@ -1062,9 +1089,10 @@ class _DVStudioFormsSectionState extends State<DVStudioFormsSection> {
                     setState(() {
                       _tab = tab;
                       if (tab == _FormsTab.submissions) {
-                        _reloadSubmissions();
+                        _submissionsFuture = _loadSubmissions();
                       }
                     });
+                    widget.onSelect?.call(_address);
                   },
                 ),
                 const Spacer(),
@@ -1134,7 +1162,10 @@ class _DVStudioFormsSectionState extends State<DVStudioFormsSection> {
           Expanded(
             child: _tab == _FormsTab.forms
                 ? _buildFormsTab()
-                : _buildSubmissionsTab(),
+                : KeyedSubtree(
+                    key: const ValueKey<String>('dv-studio-forms-inbox'),
+                    child: _buildSubmissionsTab(),
+                  ),
           ),
         ],
       ),
@@ -1682,6 +1713,16 @@ class _DVStudioFormsSectionState extends State<DVStudioFormsSection> {
                             DropdownMenuItem<String>(
                               value: f.id,
                               child: Text(f.name,
+                                  style: const TextStyle(
+                                      fontSize: 13, color: DVStudioStyle.ink)),
+                            ),
+                          // The form the address names, before the forms
+                          // have been read, by its id.
+                          if (_filterFormId != 'all' &&
+                              !_forms.any((DVStudioForm f) => f.id == _filterFormId))
+                            DropdownMenuItem<String>(
+                              value: _filterFormId,
+                              child: Text(_filterFormId,
                                   style: const TextStyle(
                                       fontSize: 13, color: DVStudioStyle.ink)),
                             ),

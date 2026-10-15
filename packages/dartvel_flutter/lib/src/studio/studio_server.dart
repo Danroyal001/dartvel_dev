@@ -1669,11 +1669,17 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client, {
         build: (BuildContext context) =>
             DVStudioRepositorySection(client: client),
       ),
-      DVStudioSection(
+      DVStudioSection.opening(
         id: 'access',
         label: 'Team',
         icon: Icons.admin_panel_settings_outlined,
-        build: (BuildContext context) => DVStudioTeamSection(client: client),
+        build: (BuildContext context, DVStudioSelection selection) =>
+            DVStudioTeamSection(
+          client: client,
+          tab: selection.object,
+          onTab: (String tab) =>
+              selection.select?.call(tab == 'roles' ? 'roles' : ''),
+        ),
       ),
       dvStudioSettingsSection(client),
     ];
@@ -1722,11 +1728,17 @@ DVStudioSection dvStudioFormsSection(DVStudioClient client) =>
 
 /// Global Settings: site identity, SEO defaults, localization, social profiles, and maintenance mode.
 DVStudioSection dvStudioSettingsSection(DVStudioClient client) =>
-    DVStudioSection(
+    DVStudioSection.opening(
       id: 'settings',
       label: 'Settings',
       icon: DVStudioIcons.settings,
-      build: (BuildContext context) => DVStudioSettingsSection(client: client),
+      build: (BuildContext context, DVStudioSelection selection) =>
+          DVStudioSettingsSection(
+        client: client,
+        tab: selection.object,
+        onTab: (String tab) =>
+            selection.select?.call(tab == 'general' ? '' : tab),
+      ),
     );
 
 /// Data: every data model, compiled or designed in Studio, its records, and
