@@ -1,3 +1,7 @@
+## Unreleased
+
+- `@DVBackendFunction(middleware: [...])` and `@DVPage(middleware: [...])`: middleware is declared on the annotation, with the same meaning and build checks as `@DVUseMiddleware`. `@DVUseMiddleware` is deprecated and still builds; both forms on one declaration run the union, the field's keys first, and two keys listed in opposite orders fail the build.
+
 ## 0.12.2 — 2026-10-14
 
 - Fix: `DVSitePages.load()` reads the route manifest from a web-server binary's pack; it saw no pages in every deployed binary.

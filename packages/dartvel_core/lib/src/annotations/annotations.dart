@@ -103,6 +103,22 @@ class DVPage {
   /// the interface; the backend functions it calls enforce their own `mfa`.
   final DVMfa? mfa;
 
+  /// The middleware this page's route runs before it activates, in order:
+  /// `@DVPage(title: 'Account', middleware: [DVMiddlewares.auth])`.
+  ///
+  /// A page route can run `auth` and `maintenance`. Every other key fails
+  /// the build with where it belongs instead -- `bodyLimit` on the
+  /// `@DVBackendFunction` that reads the body, a policy in [policy].
+  ///
+  /// The build reads this from source, so it has to be a list literal of
+  /// `DVMiddlewares` constants; anything else fails the build rather than
+  /// being dropped. Declaring a key here and in the deprecated
+  /// [DVUseMiddleware] on the same page runs the union: these keys first,
+  /// then the ones only the other annotation names. When both name two of
+  /// the same keys in opposite orders the build fails, because which order
+  /// was meant cannot be read off the source.
+  final List<DVMiddlewareKey> middleware;
+
   const DVPage({
     this.path,
     this.title,
@@ -121,6 +137,7 @@ class DVPage {
     this.backgroundColor,
     this.appBarBackgroundColor,
     this.sitemap,
+    this.middleware = const <DVMiddlewareKey>[],
   });
 }
 
@@ -898,12 +915,26 @@ class DVBackendFunction {
   /// Functions are planned to read this one registry; none exists yet.
   final DVAITool? aiTool;
 
+  /// The middleware wrapped around this function's route, outermost first:
+  /// `@DVBackendFunction(middleware: [DVMiddlewares.rateLimit])`.
+  ///
+  /// The build reads this from source, so it has to be a list literal of
+  /// `DVMiddlewares` constants; anything else, and any key the server does
+  /// not implement, fails the build rather than being dropped. Declaring a
+  /// key here and in the deprecated [DVUseMiddleware] on the same function
+  /// runs the union: these keys first, then the ones only the other
+  /// annotation names. When both name two of the same keys in opposite
+  /// orders the build fails, because which order was meant cannot be read
+  /// off the source.
+  final List<DVMiddlewareKey> middleware;
+
   const DVBackendFunction({
     this.policy,
     this.mfa,
     this.rawPath,
     this.rawPathSuffix,
     this.aiTool,
+    this.middleware = const <DVMiddlewareKey>[],
   }) : assert(rawPath == null || rawPathSuffix == null,
             'rawPath and rawPathSuffix are mutually exclusive');
 }
@@ -985,7 +1016,16 @@ class DVMiddlewareKey {
   String toString() => name;
 }
 
-/// Typed annotation for page, layout, model, storage, and backend middleware.
+/// The middleware a page or backend function declares, as an annotation of
+/// its own.
+///
+/// Superseded by the `middleware:` argument of the annotation it sat next to
+/// -- [DVBackendFunction.middleware] and [DVPage.middleware] -- which the
+/// build reads with the same meaning and the same checks. It still builds:
+/// both forms on one declaration run the union, the annotation's own keys
+/// first. Layout middleware is not run in either form, and a `_layout.dart`
+/// declaring it fails the build.
+@Deprecated('Use the middleware: field of @DVBackendFunction or @DVPage')
 class DVUseMiddleware {
   final List<DVMiddlewareKey> middleware;
 
