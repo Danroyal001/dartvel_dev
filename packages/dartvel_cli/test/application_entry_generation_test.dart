@@ -132,6 +132,34 @@ Widget _root(BuildContext context, DVAppParts parts) => MaterialApp.router(route
       expect(output, contains('routerConfig: parts.router'));
     },
   );
+  // An app root that wraps the project's own @DVFunctionalWidget (the app's
+  // theme shell, say) names a class that only exists in widgets.g.dart. The
+  // entry inlined that body without importing it, so `DV.run(args)` failed to
+  // compile with "Method not found" (found on Dartvel Authenticator).
+  test('a host root may use the project\'s own functional widgets', () async {
+    final root = await _project();
+    addTearDown(() => root.deleteSync(recursive: true));
+    _page(root, 'index.dart', '@DVPage() Widget _index() => DVText("Home");');
+    File(p.join(root.path, 'lib/app.dart')).writeAsStringSync('''
+import 'dartvel_client/dartvel_client.dart';
+@DVAppRoot()
+Widget _root(BuildContext context, DVAppParts parts) => ShellApp(router: parts.router);
+@DVFunctionalWidget()
+Widget _shellApp(BuildContext context, {required RouterConfig<Object> router}) =>
+    MaterialApp.router(routerConfig: router);
+''');
+    await _routerFor(root);
+    final output = File(
+      p.join(root.path, 'lib/dartvel_client/application.g.dart'),
+    ).readAsStringSync();
+    expect(output, contains('ShellApp(router: parts.router)'));
+    expect(output, contains("import 'widgets.g.dart';"));
+    expect(
+      File(p.join(root.path, 'lib/dartvel_client/widgets.g.dart'))
+          .readAsStringSync(),
+      contains('ShellApp'),
+    );
+  });
   // The barrel hides the runtime's DV and exports the generated one, so every
   // public static the runtime has must be on the generated class too, with
   // its type. A forwarder written `static get Auth => runtime.DV.Auth` is
