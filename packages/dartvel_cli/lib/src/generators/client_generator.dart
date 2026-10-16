@@ -4109,6 +4109,12 @@ void startDartvelKiosk() {
         }
       }
     }
+    // An inlined root may name the project's own @DVFunctionalWidget classes,
+    // which exist only in widgets.g.dart (written on every generation, after
+    // this entry).
+    if (appRoot != null) {
+      imports.add("import 'widgets.g.dart';");
+    }
     final out = StringBuffer('// GENERATED – do not edit.\n// ignore_for_file: non_constant_identifier_names, unused_import\n')
       ..writeln(imports.join('\n'))
       ..writeln('Widget createDartvelApp({List<String> args = const []}) {')
