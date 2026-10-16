@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.13.3 — 2026-10-17
+
+- An `@DVAppRoot` may wrap the project's own `@DVFunctionalWidget` (the application entry imports the generated widgets).
+
 ## 0.13.2 — 2026-10-15
 
 **Breaking (alpha):** `@DVModel(generatePublicPages: ...)` is now `generatePages`. A generated model page was never necessarily public: the model's `view` policy decides who may open it, so a model's pages can be private and auth-guarded. `dartvel migrate-code` rewrites old code.
