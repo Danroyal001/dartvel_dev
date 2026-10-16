@@ -1,3 +1,7 @@
+## 0.13.3 — 2026-10-17
+
+- An `@DVAppRoot` may wrap the project's own `@DVFunctionalWidget` (the application entry imports the generated widgets).
+
 ## 0.13.2 — 2026-10-15
 
 - `DVPageShell` keeps the scrollbar on screen under any app theme (`dvWithPageScrollbars`).
