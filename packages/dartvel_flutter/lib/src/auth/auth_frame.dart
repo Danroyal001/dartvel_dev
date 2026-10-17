@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+
+import 'auth_image_source.dart';
 
 /// Identity for prebuilt auth pages. Generated from dartvel.pwa and dartvel.auth.
 class const DVAuthAppearance({
@@ -73,12 +76,7 @@ class const DVAuthFrame({
                 mainAxisSize: .min,
                 children: [
                   if (appearance.icon case final icon?) ...[
-                    Image.asset(
-                      icon,
-                      width: 64,
-                      height: 64,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                    ),
+                    _authImage(icon, width: 64, height: 64),
                     const SizedBox(height: 32),
                   ],
                   Text(
@@ -96,11 +94,7 @@ class const DVAuthFrame({
                   ),
                   if (appearance.heroImage case final image?) ...[
                     const SizedBox(height: 32),
-                    Image.asset(
-                      image,
-                      fit: .cover,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                    ),
+                    _authImage(image, fit: .cover),
                   ],
                 ],
               ),
@@ -135,4 +129,17 @@ class const DVAuthFrame({
       );
     },
   );
+}
+
+/// An auth page image from the asset bundle, or from the site for a file in
+/// the project's web/ folder; a missing one leaves no gap.
+Widget _authImage(String path, {double? width, double? height, BoxFit? fit}) {
+  final DVAuthImageSource source = dvAuthImageSource(path, web: kIsWeb);
+  Widget missing(BuildContext context, Object error, StackTrace? stack) =>
+      const SizedBox.shrink();
+  return source.network
+      ? Image.network(source.location,
+          width: width, height: height, fit: fit, errorBuilder: missing)
+      : Image.asset(source.location,
+          width: width, height: height, fit: fit, errorBuilder: missing);
 }
