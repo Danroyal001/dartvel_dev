@@ -154,8 +154,15 @@ class ModelGenerator {
     for (final file in files) {
       final String text = dvDesugarPrimaryConstructors(await file.readAsString());
       studioEnums.addAll(dvStudioEnumValues(text));
-      for (final declaration in dvModelEnumDeclarations(text)) {
-        sb.writeln(declaration);
+      // Only a file that declares a model has its enums copied. Any other
+      // file under lib/models is the application's own code, imported as
+      // it is: a copy would be a second type of the same name, and a file
+      // importing the barrel and that file would no longer compile.
+      if (RegExp(r'@DVModel\b')
+          .hasMatch(dvMaskAnnotationArgs(text, 'DVModel'))) {
+        for (final declaration in dvModelEnumDeclarations(text)) {
+          sb.writeln(declaration);
+        }
       }
       for (final RegExpMatch m in RegExp(
         r'@DVModel\b[\s\S]*?class\s+_([A-Za-z0-9_]+)\b',
