@@ -49,9 +49,9 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                   'served to a browser before the app starts, the element\'s '
                   'title and aria-label.',
               'A control that draws text takes the tooltip from the text. A '
-                  'control that is only an icon says what it is with '
-                  '.tooltip(\'Delete order\') on its modifier, or is a '
-                  'DVIconButton, whose label is a required parameter.',
+                  'control that is only an icon is a DVBox around the Icon '
+                  'and says what it is with .tooltip(\'Delete order\') on '
+                  'its modifier.',
               'A control with no name stops the build: a debug '
                   'build throws naming the file and line, and `dartvel build` '
                   'fails with the same list. `dartvel doctor` reports it too.',

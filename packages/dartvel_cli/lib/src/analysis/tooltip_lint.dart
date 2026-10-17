@@ -52,9 +52,9 @@ final RegExp _showsWords = RegExp(
 const String _rawFix = "Add tooltip: 'What it does' -- it is also the "
     'screen-reader name.';
 const String _gestureFix = "Wrap it in Tooltip(message: 'What it does', child: ...) "
-    'and name it with Semantics(label: ...) (or use DVIconButton).';
-const String _modifierFix = "Add .tooltip('What it does') to its DVModifier "
-    '(or use DVIconButton(label: ...)); it is also the screen-reader name.';
+    'and name it with Semantics(label: ...).';
+const String _modifierFix = "Add .tooltip('What it does') to its DVModifier; "
+    'it is also the screen-reader name.';
 
 /// Findings in one source file.
 List<DVTooltipFinding> dvFindUntooltippedControls({

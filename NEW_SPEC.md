@@ -7869,9 +7869,9 @@ Runtime and tooling:
   and on a long press on touch, and the same words are its semantic label
   (read by screen readers) and, on the server-rendered page, its `title` and
   `aria-label`. A control that draws text takes the tooltip from the text; a
-  control that is only a picture says what it is with `.tooltip('...')` on its
-  `DVModifier`, or is a `DVIconButton`, whose `label` is a required parameter
-  so leaving it out does not compile. A nameless icon control is an error: a
+  control that is only a picture is a `DVBox` around it and says what it is
+  with `.tooltip('...')` on its `DVModifier`; there is no separate icon-button
+  widget. A nameless icon control is an error: a
   debug build throws naming the file and line that drew it, and `dartvel build`
   fails (and `dartvel doctor` reports) on the same rule read from the source,
   because a release build compiles the run-time assert away

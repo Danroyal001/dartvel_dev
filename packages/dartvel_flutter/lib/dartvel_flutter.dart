@@ -3,7 +3,7 @@ library dartvel_flutter;
 export 'src/default_theme.dart';
 import 'src/default_theme.dart' show dvWithPageScrollbars;
 export 'src/accessibility/tooltips.dart'
-    show DVIconButton, DVTooltipTarget, dvDeriveLabel;
+    show DVTooltipTarget, dvDeriveLabel;
 export 'src/platform/platform_host.dart';
 export 'src/windowing/window_space_backend.dart';
 import 'src/platform/platform_host.dart';
@@ -2066,13 +2066,15 @@ class DVBox<T> extends StatelessWidget {
     DVModifier? modifier,
     double spacing = 8,
     DVAlign align = DVAlign.start,
-    DVCrossAlign crossAlign = DVCrossAlign.stretch,
+    DVCrossAlign? crossAlign,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.row,
         _align = align,
-        _crossAlign = crossAlign,
+        // Unset centres the row's children, as it always rendered; an
+        // explicit stretch fills the row's height (a side rail beside a page).
+        _crossAlign = crossAlign ?? DVCrossAlign.center,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -2830,12 +2832,10 @@ class DVBox<T> extends StatelessWidget {
         result = Row(
           mainAxisSize: _mainAxisSize,
           mainAxisAlignment: _mainAxisAlignment,
-          // A row has no stretch: a full-height row of cards is what
-          // CrossAxisAlignment.stretch would mean here, which is never what a
-          // header or a button pair wants.
-          crossAxisAlignment: _crossAlign == DVCrossAlign.stretch
-              ? CrossAxisAlignment.center
-              : _crossAxisAlignment,
+          // Centred unless the caller asked otherwise; an explicit stretch
+          // was turned into centre, which left a page beside a side rail
+          // shrink-wrapped and floating mid-screen.
+          crossAxisAlignment: _crossAxisAlignment,
           children: spaced,
         );
         break;
@@ -7576,6 +7576,7 @@ class DVAuth {
   static bool _customAppearance = false;
   static DVRouteTarget? _signInTarget;
   static DVRouteTarget? _signUpTarget;
+  static DVRouteTarget? _forgotPasswordTarget;
   static bool _pageRoutesConfigured = false;
 
   DVAuthAppearance get appearance => _appearance;
@@ -7590,10 +7591,11 @@ class DVAuth {
   }
 
   /// The generated router installs the configured account routes.
-  void configurePageRoutes({DVRouteTarget? signIn, DVRouteTarget? signUp}) {
+  void configurePageRoutes({DVRouteTarget? signIn, DVRouteTarget? signUp, DVRouteTarget? forgotPassword}) {
     _pageRoutesConfigured = true;
     _signInTarget = signIn;
     _signUpTarget = signUp;
+    _forgotPasswordTarget = forgotPassword;
   }
 
   static DVAuthProvider? _provider;
@@ -8453,10 +8455,10 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
     return _dvAutofillForm(
       DVAuthFrame(
         appearance: widget.auth.appearance,
+        screen: _awaitingCode ? DVAuthScreen.secondFactor : DVAuthScreen.signIn,
         children: [
-          _dvAccountHeading(
-          _awaitingCode ? 'Verify your identity' : 'Sign in to your account',
-          ),
+          _dvAccountHeading(widget.auth.appearance.titleFor(
+            _awaitingCode ? DVAuthScreen.secondFactor : DVAuthScreen.signIn)),
           if (!_awaitingCode) ...[
               TextField(
                 key: const ValueKey<String>('dv-auth-email'),
@@ -8479,6 +8481,13 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
                 textInputAction: .done,
                 onSubmitted: (_) => unawaited(_submit()),
               ),
+              // Under the field it belongs to, on every width: in a brand
+              // panel it vanished on a phone.
+              if (DVAuth._forgotPasswordTarget case final forgot?)
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: DVNavLink(to: forgot, child: const Text('Forgot your password?')),
+                ),
             ] else
               TextField(
                 key: const ValueKey<String>('dv-auth-code'),
@@ -8593,7 +8602,7 @@ class _SecondFactorPageState extends State<_SecondFactorPage> {
   @override
   Widget build(BuildContext context) {
     final String? error = _error;
-    return DVAuthFrame(appearance: widget.auth.appearance, children: [
+    return DVAuthFrame(appearance: widget.auth.appearance, screen: DVAuthScreen.secondFactor, children: [
       _dvAccountHeading('Verify your identity'),
       Text(_useRecovery ? 'Enter one of your recovery codes.'
           : 'Enter the code from your authenticator app.'),
@@ -9260,8 +9269,9 @@ class _SignUpPageState extends State<_SignUpPage> {
     return _dvAutofillForm(
       DVAuthFrame(
         appearance: widget.auth.appearance,
+        screen: DVAuthScreen.signUp,
         children: <Widget>[
-      _dvAccountHeading('Create an account'),
+      _dvAccountHeading(widget.auth.appearance.titleFor(DVAuthScreen.signUp)),
       TextField(
         key: const ValueKey<String>('dv-signup-name'),
         controller: _name,

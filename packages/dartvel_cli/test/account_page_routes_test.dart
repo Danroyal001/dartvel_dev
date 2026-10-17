@@ -131,6 +131,13 @@ auth:
     expect(router, contains("signIn: DVRouteTarget('/enter')"));
     expect(router, contains("signUp: DVRouteTarget('/join')"));
   });
+  test('the sign-in form links to the application\'s own reset page', () async {
+    final router = _router(await _generate({'index.dart': _page('home', '@DVPage()')},
+      config: "auth:\n  forgotPassword: /forgot-password\n"));
+    expect(router, contains("forgotPassword: DVRouteTarget('/forgot-password')"));
+    await expectLater(_generate({}, config: "auth:\n  forgotPassword: forgot\n"),
+      throwsA(isA<StateError>()));
+  });
   test('with nothing declared, every account page is served, behind sign-in '
       'but sign-up, and listed for navigation', () async {
     final String router = _router(await _generate(<String, String>{

@@ -211,8 +211,8 @@ class _DVTooltipTargetState extends State<DVTooltipTarget> {
             '${widget.site == null ? '' : 'It is drawn at ${widget.site}.\n'}'
             'Everything hoverable has a tooltip, and the same words are its '
             'semantic label. Give it one with .tooltip(\'What it does\') on '
-            'its DVModifier, put text in it, or use DVIconButton(label: ...), '
-            'whose label is required.',
+            'its DVModifier, or put text in it. An icon-only control is a '
+            'DVBox around the Icon with .tooltip(...).onTap(...).',
         );
       }
     });
@@ -251,40 +251,6 @@ class _DVTooltipTargetState extends State<DVTooltipTarget> {
         waitDuration: const Duration(milliseconds: 400),
         child: inner,
       ),
-    );
-  }
-}
-
-/// A button that is only an icon. The [label] is required, so leaving it out
-/// does not compile, and it is the tooltip and the screen-reader name both.
-class DVIconButton extends StatelessWidget {
-  const DVIconButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    this.size = 24,
-    this.color,
-  });
-
-  final IconData icon;
-
-  /// What pressing it does, in words. Shown on hover, on keyboard focus and on
-  /// a long press, and read out by a screen reader.
-  final String label;
-
-  final VoidCallback onPressed;
-  final double size;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    return DVBox(
-      Center(child: Icon(icon, size: size, color: color)),
-      DVModifier()
-          .tooltip(label)
-          .onTap(onPressed)
-          .minimumTapTarget(width: 48, height: 48),
     );
   }
 }

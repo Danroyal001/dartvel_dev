@@ -29,7 +29,11 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
                 'dartvel.auth accepts tagline, heroImage and brandPanelColor '
                 '(a six-digit RGB hex color). Include images in flutter.assets.'),
             DocsText('DV.Auth.appearance accepts DVAuthAppearance with a '
-                'brandPanelBuilder for your own wide-screen panel. '
+                'brandPanelBuilder for your own wide-screen panel, or a '
+                'frameBuilder that draws the whole sign-in screen around '
+                'the form Dartvel hands it, plus signInTitle and '
+                'signUpTitle. dartvel.auth.forgotPassword links the '
+                'sign-in form to your reset page. '
                 'Sign-in and sign-up links follow configured account routes '
                 'and carry the internal from destination. Pending requests '
                 'disable submission and errors are announced.'),
