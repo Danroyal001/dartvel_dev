@@ -1811,10 +1811,17 @@ ${page.requiresSession ? '      redirect: (context, state) => DVAccountPages.req
     final signInRouteAssignment = signInPage.isEmpty
         ? ''
         : "\n  dvSignInRoute = '${esc(signInPage.first.path)}';";
+    final Object? authConfig = dv['auth'];
+    // dartvel.auth.forgotPassword: the application's own reset page, which
+    // the sign-in form links to under the password field.
+    final Object? forgotPassword = authConfig is Map ? authConfig['forgotPassword'] : null;
+    if (forgotPassword != null && (forgotPassword is! String || !forgotPassword.startsWith('/'))) {
+      throw StateError('dartvel.auth.forgotPassword must be a path starting with "/", not "$forgotPassword".');
+    }
     final authPageLinks = '  DV.Auth.configurePageRoutes(\n'
         '${accountPages.where((page) => page.key == 'signIn' || page.key == 'signUp').map((page) => "    ${page.key}: DVRouteTarget('${esc(page.path)}'),\n").join()}'
+        '${forgotPassword is String ? "    forgotPassword: DVRouteTarget('${esc(forgotPassword)}'),\n" : ''}'
         '  );';
-    final Object? authConfig = dv['auth'];
     final Object? pwaConfig = dv['pwa'];
     String? authText(Object? value, String key) {
       if (value == null) return null;

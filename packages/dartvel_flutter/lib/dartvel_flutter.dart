@@ -7576,6 +7576,7 @@ class DVAuth {
   static bool _customAppearance = false;
   static DVRouteTarget? _signInTarget;
   static DVRouteTarget? _signUpTarget;
+  static DVRouteTarget? _forgotPasswordTarget;
   static bool _pageRoutesConfigured = false;
 
   DVAuthAppearance get appearance => _appearance;
@@ -7590,10 +7591,11 @@ class DVAuth {
   }
 
   /// The generated router installs the configured account routes.
-  void configurePageRoutes({DVRouteTarget? signIn, DVRouteTarget? signUp}) {
+  void configurePageRoutes({DVRouteTarget? signIn, DVRouteTarget? signUp, DVRouteTarget? forgotPassword}) {
     _pageRoutesConfigured = true;
     _signInTarget = signIn;
     _signUpTarget = signUp;
+    _forgotPasswordTarget = forgotPassword;
   }
 
   static DVAuthProvider? _provider;
@@ -8453,10 +8455,10 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
     return _dvAutofillForm(
       DVAuthFrame(
         appearance: widget.auth.appearance,
+        screen: _awaitingCode ? DVAuthScreen.secondFactor : DVAuthScreen.signIn,
         children: [
-          _dvAccountHeading(
-          _awaitingCode ? 'Verify your identity' : 'Sign in to your account',
-          ),
+          _dvAccountHeading(widget.auth.appearance.titleFor(
+            _awaitingCode ? DVAuthScreen.secondFactor : DVAuthScreen.signIn)),
           if (!_awaitingCode) ...[
               TextField(
                 key: const ValueKey<String>('dv-auth-email'),
@@ -8479,6 +8481,13 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
                 textInputAction: .done,
                 onSubmitted: (_) => unawaited(_submit()),
               ),
+              // Under the field it belongs to, on every width: in a brand
+              // panel it vanished on a phone.
+              if (DVAuth._forgotPasswordTarget case final forgot?)
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: DVNavLink(to: forgot, child: const Text('Forgot your password?')),
+                ),
             ] else
               TextField(
                 key: const ValueKey<String>('dv-auth-code'),
@@ -8593,7 +8602,7 @@ class _SecondFactorPageState extends State<_SecondFactorPage> {
   @override
   Widget build(BuildContext context) {
     final String? error = _error;
-    return DVAuthFrame(appearance: widget.auth.appearance, children: [
+    return DVAuthFrame(appearance: widget.auth.appearance, screen: DVAuthScreen.secondFactor, children: [
       _dvAccountHeading('Verify your identity'),
       Text(_useRecovery ? 'Enter one of your recovery codes.'
           : 'Enter the code from your authenticator app.'),
@@ -9260,8 +9269,9 @@ class _SignUpPageState extends State<_SignUpPage> {
     return _dvAutofillForm(
       DVAuthFrame(
         appearance: widget.auth.appearance,
+        screen: DVAuthScreen.signUp,
         children: <Widget>[
-      _dvAccountHeading('Create an account'),
+      _dvAccountHeading(widget.auth.appearance.titleFor(DVAuthScreen.signUp)),
       TextField(
         key: const ValueKey<String>('dv-signup-name'),
         controller: _name,

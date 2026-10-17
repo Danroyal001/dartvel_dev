@@ -26,7 +26,20 @@ DV.Auth.appearance = DVAuthAppearance(
 );
 ```
 
-An application-supplied appearance wins over generated defaults. The custom panel is used at wide sizes; its name is also shown on compact screens.
+An application-supplied appearance wins over generated defaults. The custom panel is used at wide sizes; on compact screens the frame shows the icon, name and tagline above the form.
+
+To make the sign-in look like your application rather than like every Dartvel application, draw the whole screen with `frameBuilder`. Dartvel hands it the form (fields, errors, buttons, second factor, password-manager saving) and which screen it is; the layout, art and copy are yours:
+
+```dart
+DV.Auth.appearance = DVAuthAppearance(
+  name: 'Harvest',
+  signInTitle: 'Welcome back to the farm',
+  signUpTitle: 'Join the harvest',
+  frameBuilder: (context, screen, form) => HarvestSignInScreen(form: form),
+);
+```
+
+`dartvel.auth.forgotPassword: /forgot-password` in `pubspec.yaml` puts a "Forgot your password?" link under the password field, pointing at your own reset page.
 
 Email fields use email keyboards and autofill hints. Passwords distinguish current and new passwords, with a reveal control. Next moves through the fields; Done submits the last field. Multiline data-model fields keep Enter as a newline.
 
