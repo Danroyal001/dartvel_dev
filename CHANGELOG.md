@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.13.6 — 2026-10-17
+
+- `DVIconButton` is removed: an icon-only control is `DVBox(Icon(...), DVModifier().tooltip(...).onTap(...))`, with `.minimumTapTarget(width: 48, height: 48)` for touch. It stretched to fill whatever held it (an eye icon filled a password field).
+- `DVAuthAppearance.frameBuilder` draws an app's own sign-in screen around the framework form; `signInTitle`/`signUpTitle`; `dartvel.auth.forgotPassword` links the sign-in form to the app's reset page; narrow screens show the brand.
+- `DVBox.row` honours an explicit `crossAlign: .stretch`; an unset row still centres.
+
+
 ## 0.13.5 — 2026-10-17
 
 - `@DVBoot` runs in every entry its code can run in: the app, and the web server, worker and cron processes, through one runner in dartvel_core (`DVBootStep`, `dvRunBoot`). A hook in a file that imports Flutter stays in the app; naming `server` from one is refused (`DV-RUN-008`).
