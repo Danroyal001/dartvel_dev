@@ -2066,13 +2066,15 @@ class DVBox<T> extends StatelessWidget {
     DVModifier? modifier,
     double spacing = 8,
     DVAlign align = DVAlign.start,
-    DVCrossAlign crossAlign = DVCrossAlign.stretch,
+    DVCrossAlign? crossAlign,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.row,
         _align = align,
-        _crossAlign = crossAlign,
+        // Unset centres the row's children, as it always rendered; an
+        // explicit stretch fills the row's height (a side rail beside a page).
+        _crossAlign = crossAlign ?? DVCrossAlign.center,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -2830,12 +2832,10 @@ class DVBox<T> extends StatelessWidget {
         result = Row(
           mainAxisSize: _mainAxisSize,
           mainAxisAlignment: _mainAxisAlignment,
-          // A row has no stretch: a full-height row of cards is what
-          // CrossAxisAlignment.stretch would mean here, which is never what a
-          // header or a button pair wants.
-          crossAxisAlignment: _crossAlign == DVCrossAlign.stretch
-              ? CrossAxisAlignment.center
-              : _crossAxisAlignment,
+          // Centred unless the caller asked otherwise; an explicit stretch
+          // was turned into centre, which left a page beside a side rail
+          // shrink-wrapped and floating mid-screen.
+          crossAxisAlignment: _crossAxisAlignment,
           children: spaced,
         );
         break;
