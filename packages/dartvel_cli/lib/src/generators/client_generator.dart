@@ -4074,7 +4074,7 @@ void startDartvelKiosk() {
       final source = file.readAsStringSync();
       final rel = p.relative(file.path, from: root).replaceAll('\\', '/');
       final masked = dvDartSourceView(source).masked;
-      for (final annotation in RegExp(r'@(DVBoot|DVAppRoot)\s*\(').allMatches(masked)) {
+      for (final annotation in RegExp(r'@(DVAppRoot)\s*\(').allMatches(masked)) {
         final kind = annotation.group(1)!;
         final annotationClose = _matchingParen(source, annotation.end - 1);
         if (annotationClose < 0) throw StateError('Unclosed @$kind in $rel');
@@ -4092,14 +4092,7 @@ void startDartvelKiosk() {
         final rawBody = body.isBlock ? body.statements! : (kind == 'DVBoot' ? '$expression;' : 'return $expression;');
         _refusePrivateReferences(body: rawBody, source: source, rel: rel, pageName: declaration.group(1)!);
         final rendered = _qualifySourceSymbols(rawBody, alias, _topLevelSourceSymbols(source));
-        if (kind == 'DVBoot') {
-          if (params.length != 1 || !params.first.startsWith('DVBoot ')) throw StateError('@DVBoot takes one DVBoot context in $rel');
-          final name = params.first.split(' ').last;
-          final args = dvAnnotationArgs(source.substring(annotation.start), 'DVBoot')!;
-          final entries = dvSplitArgs(args).where((a)=>a.startsWith('entries:')).toList();
-          final filter = entries.isEmpty ? '' : 'if (!(${entries.first.substring(8)}).contains(DVEntryKind.app)) return;';
-          hooks.add('($name) async { $filter $rendered }');
-        } else {
+        {
           if (appRoot != null) throw StateError('Only one @DVAppRoot is allowed. Duplicate in $rel');
           if (params.length != 2 || !params[0].startsWith('BuildContext ') || !params[1].startsWith('DVAppParts ')) throw StateError('@DVAppRoot takes BuildContext and DVAppParts in $rel');
           final context = params[0].split(' ').last;
@@ -4109,6 +4102,14 @@ void startDartvelKiosk() {
         }
       }
     }
+    // The app entry runs the boot functions whose entries include it; one
+    // that names only other entries is not even imported here.
+    for (final DVBootHook hook in bootHooks(root: root, pkgName: pkgName, aliasPrefix: 'boot')) {
+      if (!hook.runsIn('app')) continue;
+      imports.addAll(hook.imports);
+      hooks.add(hook.step);
+    }
+    imports.add("import 'package:dartvel_core/framework.dart' as framework;");
     // An inlined root may name the project's own @DVFunctionalWidget classes,
     // which exist only in widgets.g.dart (written on every generation, after
     // this entry).
@@ -4132,6 +4133,58 @@ void startDartvelKiosk() {
       ..write(_dvFacadeForwarders)
       ..writeln('}');
     File(p.join(root, 'lib/dartvel_client/application.g.dart')).writeAsStringSync(out.toString());
+  }
+
+  /// Every `@DVBoot` function in lib/, in path order then declaration
+  /// order, lowered into a `framework.DVBootStep` the app entry and the
+  /// server entry both run. A function in a file that imports Flutter (or the
+  /// client barrel, which does) can only run in the app; asking for it on a
+  /// server entry is refused with DV-RUN-008, since the server is pure Dart.
+  static List<DVBootHook> bootHooks({required String root, required String pkgName, required String aliasPrefix}) {
+    final List<DVBootHook> hooks = <DVBootHook>[];
+    var index = 0;
+    final files = Directory(p.join(root, 'lib')).listSync(recursive: true, followLinks: false)
+        .whereType<File>().where((f) => f.path.endsWith('.dart') && !f.path.contains('${p.separator}dartvel_client${p.separator}'))
+        .toList()..sort((a, b) => a.path.compareTo(b.path));
+    for (final file in files) {
+      final source = file.readAsStringSync();
+      final rel = p.relative(file.path, from: root).replaceAll('\\', '/');
+      final masked = dvDartSourceView(source).masked;
+      for (final annotation in RegExp(r'@DVBoot\s*\(').allMatches(masked)) {
+        final annotationClose = _matchingParen(source, annotation.end - 1);
+        if (annotationClose < 0) throw StateError('Unclosed @DVBoot in $rel');
+        final declaration = RegExp(r'^\s*(?:Future<void>|void)\s+(_[A-Za-z]\w*)\s*\(').firstMatch(source.substring(annotationClose + 1));
+        if (declaration == null) throw StateError('@DVBoot requires a private function in $rel');
+        final open = annotationClose + 1 + declaration.end - 1;
+        final close = _matchingParen(source, open);
+        final body = dvFunctionBodyAfter(source, close);
+        if (body == null) throw StateError('@DVBoot requires a function body in $rel');
+        final params = dvSplitArgs(source.substring(open + 1, close));
+        if (params.length != 1 || !params.first.startsWith('DVBoot ')) throw StateError('@DVBoot takes one DVBoot context in $rel');
+        final name = params.first.split(' ').last;
+        final sourceImports = _importsFor(source, rel, pkgName).where((i) => !i.contains('/dartvel_client.dart') && !i.contains("'dartvel_client/dartvel_client.dart'")).toSet();
+        // The SDK libraries the body uses (dart:io in a server boot, say),
+        // which _importsFor leaves to callers that already import them.
+        sourceImports.addAll(RegExp(r"^\s*import\s+'(dart:[\w:]+)'\s*;", multiLine: true).allMatches(source).map((RegExpMatch m) => "import '${m.group(1)}';"));
+        final uiBound = RegExp(r"""^\s*import\s+['"](?:package:flutter/|package:dartvel_flutter/|[^'"]*dartvel_client/dartvel_client\.dart)""", multiLine: true).hasMatch(source);
+        final alias = '$aliasPrefix${index++}';
+        final rawBody = body.isBlock ? body.statements! : '${body.expression};';
+        _refusePrivateReferences(body: rawBody, source: source, rel: rel, pageName: declaration.group(1)!);
+        final rendered = _qualifySourceSymbols(rawBody, alias, _topLevelSourceSymbols(source));
+        final args = dvAnnotationArgs(source.substring(annotation.start), 'DVBoot') ?? '';
+        final entriesArg = dvSplitArgs(args).where((a) => a.startsWith('entries:')).toList();
+        final entries = entriesArg.isEmpty ? const <String>{} : RegExp(r'(?:DVEntryKind)?\.(\w+)').allMatches(entriesArg.first.substring(8)).map((m) => m.group(1)!).toSet();
+        final entriesCode = entries.isEmpty ? '' : 'entries: <core.DVEntryKind>{${entries.map((e) => 'core.DVEntryKind.$e').join(', ')}}, ';
+        hooks.add(DVBootHook(
+          rel: rel,
+          imports: <String>{...sourceImports, "import 'package:$pkgName/${rel.substring(4)}' as $alias;"},
+          step: 'framework.DVBootStep(${entriesCode}run: (core.DVBoot $name) async { $rendered })',
+          entries: entries,
+          uiBound: uiBound,
+        ));
+      }
+    }
+    return hooks;
   }
 
   /// The runtime `DV`'s public statics, forwarded with their types.
@@ -5214,4 +5267,27 @@ String _studioDocumentsSource(String root) {
   }
   out.writeln('];');
   return out.toString();
+}
+
+/// One `@DVBoot` function, lowered for an entry to run.
+class DVBootHook {
+  DVBootHook({required this.rel, required this.imports, required this.step, required this.entries, required this.uiBound});
+
+  /// The file it was declared in, relative to the project.
+  final String rel;
+
+  /// What the lowered step needs imported.
+  final Set<String> imports;
+
+  /// A `framework.DVBootStep(...)` expression.
+  final String step;
+
+  /// The entry kinds it names; empty for every entry its code can run in.
+  final Set<String> entries;
+
+  /// Whether its file imports Flutter, which only the app entry can load.
+  final bool uiBound;
+
+  /// Whether the entry of this kind runs it.
+  bool runsIn(String kind) => entries.isEmpty || entries.contains(kind);
 }

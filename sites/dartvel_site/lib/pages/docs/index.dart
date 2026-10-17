@@ -196,12 +196,12 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
       id: 'services',
       title: 'Choose your services at startup',
       children: <Widget>[
-        DocsText('Keep `main.dart` to one line, `void main(List<String> args) => DV.run(args)`. Set up auth and mail in a private @DVBoot() function. Pure Dartvel apps use the generated root; @DVAppRoot() is optional for an existing Flutter host.'),
+        DocsText('Keep `main.dart` to one line, `void main(List<String> args) => DV.run(args)`. Set up auth and mail in a private @DVBoot() function. It runs in every entry its code can run in: the app, and the web server, worker and cron processes. A hook in a file that imports Flutter stays in the app. Pure Dartvel apps use the generated root; @DVAppRoot() is optional for an existing Flutter host.'),
         DocsCode('start-configure'),
         DocsStatus(
           'Application Entry',
           missing: <String>[
-            'DV.run boots the Flutter app today. The backend and headless entries, the native single-instance check, boot budgets and the `dartvel migrate-code` rewrite of `runApp` are not built yet.',
+            'Boot hooks run in the app and in the web server, worker and cron processes. The other headless entries (home widget, background task, push, command), the native single-instance check, boot budgets and the `dartvel migrate-code` rewrite of `runApp` are not built yet.',
           ],
         ),
         DocsText(

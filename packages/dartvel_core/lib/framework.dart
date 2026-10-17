@@ -16,6 +16,7 @@ library;
 // and tag inspection. An application reads and writes DV.Cache and names its
 // store in dartvel.cache.
 export 'src/cache/dv_cache.dart' show DVCacheRuntime;
+export 'src/run/boot.dart';
 export 'src/data/offline_database.dart';
 export 'src/data/offline_replay.dart';
 export 'src/data/offline_sync.dart';
