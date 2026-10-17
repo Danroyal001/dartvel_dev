@@ -199,7 +199,7 @@ List<DVConventionFinding> dvFindConventionIssues({
         'DV-CONV-003',
         'flutterWidgetInsteadOfDv',
         '$name used where DVBox/DVText/DVModifier exists.',
-        'Prefer DVBox, DVText, DVModifier or DVIconButton.',
+        'Prefer DVBox, DVText and DVModifier.',
       );
     }
   }
@@ -217,7 +217,7 @@ List<DVConventionFinding> dvFindConventionIssues({
         'DV-CONV-003',
         'iconButtonNoLabel',
         'IconButton without label or tooltip.',
-        'Use DVIconButton(label: ...) or add tooltip and label.',
+        'Use DVBox(Icon(...), DVModifier().tooltip(...).onTap(...)).',
       );
     }
   }

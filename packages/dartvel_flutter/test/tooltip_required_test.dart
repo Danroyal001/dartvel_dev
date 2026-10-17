@@ -89,13 +89,12 @@ void main() {
     });
   });
 
-  group('DVIconButton', () {
-    testWidgets('takes a required label that is the tooltip and the name', (WidgetTester tester) async {
+  group('an icon-only control is a DVBox', () {
+    testWidgets('its tooltip is the tooltip and the name', (WidgetTester tester) async {
       final SemanticsHandle handle = tester.ensureSemantics();
-      await tester.pumpWidget(_app(DVIconButton(
-        icon: Icons.add,
-        label: 'Add item',
-        onPressed: _nothing,
+      await tester.pumpWidget(_app(DVBox(
+        const Icon(Icons.add),
+        DVModifier().tooltip('Add item').onTap(_nothing),
       )));
       expect(find.bySemanticsLabel('Add item'), findsOneWidget);
       await _hover(tester, find.byIcon(Icons.add));

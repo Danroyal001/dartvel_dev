@@ -3,7 +3,7 @@ library dartvel_flutter;
 export 'src/default_theme.dart';
 import 'src/default_theme.dart' show dvWithPageScrollbars;
 export 'src/accessibility/tooltips.dart'
-    show DVIconButton, DVTooltipTarget, dvDeriveLabel;
+    show DVTooltipTarget, dvDeriveLabel;
 export 'src/platform/platform_host.dart';
 export 'src/windowing/window_space_backend.dart';
 import 'src/platform/platform_host.dart';
