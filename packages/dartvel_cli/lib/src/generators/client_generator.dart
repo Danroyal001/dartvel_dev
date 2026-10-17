@@ -4129,8 +4129,11 @@ void startDartvelKiosk() {
       ..writeln('  final router = createDartvelRouter(arguments: args);')
       ..writeln(appRoot == null ? "  return MaterialApp.router(title: '${esc(title)}', theme: dartvelDefaultTheme(.light), darkTheme: dartvelDefaultTheme(.dark), themeMode: .system, routerConfig: router);" : '  return Builder(builder: $appRoot);')
       ..writeln('}')
+      // Outside the DV class: a boot body naming the application's own
+      // Session, Auth or Cache would otherwise resolve to DV's static.
+      ..writeln('final List<framework.DVBootStep> _dvBootSteps = <framework.DVBootStep>[${hooks.join(',')}];')
       ..writeln('abstract final class DV {')
-      ..writeln('  static Future<void> run([List<String> args = const []]) => dvRunApplication(args, root: () => createDartvelApp(args: args), boot: [${hooks.join(',')}], launch: negotiateDartvelLaunch);');
+      ..writeln('  static Future<void> run([List<String> args = const []]) => dvRunApplication(args, root: () => createDartvelApp(args: args), boot: _dvBootSteps, launch: negotiateDartvelLaunch);');
     // Static members are not inherited in Dart, so the runtime's namespace is
     // forwarded member by member -- each with its declared type, or
     // `DV.Auth.signIn(...)` would be a dynamic call that compiles with any

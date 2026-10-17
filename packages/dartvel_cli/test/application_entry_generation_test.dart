@@ -232,6 +232,24 @@ Widget _copyButton(BuildContext context) =>
     }
     expect(widgets, contains("dartvel_client/dartvel_client.dart'"));
   });
+  // The lowered boot body sat inside `abstract final class DV`, so a name
+  // the application declares and DV also has -- Session, Auth, Cache --
+  // resolved to DV's static instead (found on the SigmaDev site's `Session`).
+  test('boot bodies are lowered outside the DV class', () async {
+    final root = await _project();
+    addTearDown(() => root.deleteSync(recursive: true));
+    _page(root, 'index.dart', '@DVPage() Widget _index() => DVText("Home");');
+    File(p.join(root.path, 'lib/boot.dart')).writeAsStringSync('''
+import 'dartvel_client/dartvel_client.dart';
+@DVBoot()
+void _start(DVBoot boot) { DV.log('boot ran'); }
+''');
+    await _routerFor(root);
+    final output = File(p.join(root.path, 'lib/dartvel_client/application.g.dart')).readAsStringSync();
+    final int classStart = output.indexOf('abstract final class DV');
+    expect(output.indexOf("DV.log('boot ran')"), greaterThanOrEqualTo(0));
+    expect(output.indexOf("DV.log('boot ran')"), lessThan(classStart));
+  });
   test('a host root that drops the router is refused', () async {
     final root = await _project();
     addTearDown(() => root.deleteSync(recursive: true));
