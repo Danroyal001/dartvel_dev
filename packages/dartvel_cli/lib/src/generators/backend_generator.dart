@@ -35,6 +35,7 @@ import 'function_body.dart';
 import 'raw_path.dart';
 import 'job_generator.dart';
 import 'symbol_qualifier.dart';
+import 'client_generator.dart' show ClientGenerator, DVBootHook;
 
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
@@ -1053,6 +1054,31 @@ $openApiJson\'\'\';
             ).existsSync())
           (mount.packageName, 'dvStudioModule$i'),
     ];
+    // The @DVBoot functions this server runs: every one whose entries
+    // include the server and whose file a pure-Dart process can load. One
+    // that asks for the server from a file importing Flutter is refused.
+    final List<DVBootHook> serverBoot = <DVBootHook>[];
+    for (final DVBootHook hook in ClientGenerator.bootHooks(root: root, pkgName: pkgName, aliasPrefix: 'boot')) {
+      if (hook.uiBound) {
+        if (hook.entries.contains('server')) {
+          throw StateError('DV-RUN-008: the @DVBoot function in ${hook.rel} names the server entry, but its file imports Flutter, which a server cannot load. Move it to a file that imports only package:dartvel_core.');
+        }
+        continue;
+      }
+      if (hook.runsIn('server')) serverBoot.add(hook);
+    }
+    File(p.join(backendOut.path, 'dartvel_backend_boot.g.dart')).writeAsStringSync('''
+// GENERATED – do not edit.
+// ignore_for_file: unused_import
+import 'package:dartvel_core/dartvel.dart' as core;
+import 'package:dartvel_core/framework.dart' as framework;
+${(serverBoot.expand((DVBootHook hook) => hook.imports).toSet().toList()..sort()).join('\n')}
+
+/// The @DVBoot functions this server runs, in path then declaration order.
+final List<framework.DVBootStep> dartvelBootSteps = <framework.DVBootStep>[
+${serverBoot.map((DVBootHook hook) => '  ${hook.step},').join('\n')}
+];
+''');
     final backendRoutes =
         '''
 // GENERATED – do not edit.
@@ -1070,6 +1096,7 @@ import 'package:dartvel_core/framework.dart' as framework;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 ${telegramProvider?.serverImport == null ? '' : "import '${telegramProvider!.serverImport}' as ${telegramProvider.name};\n"}${servesCrashes ? "import 'package:dartvel_shelf/symbols.dart' as symbols;\n" : ''}import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
+import 'dartvel_backend_boot.g.dart' as boot;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages, dartvelStudioModels;
 ${studioModules.map(((String, String) m) => "import 'package:${m.$1}/dartvel_client/model_pages.g.dart' as ${m.$2} show dartvelStudioModels;\n").join()}import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
 import 'package:$pkgName/dartvel_client/studio_documents.g.dart' show dartvelStudioDocuments;
@@ -1972,6 +1999,9 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // a database where nothing had created it. Backend functions are where
   // model queries actually run.
   registerDartvelModules();$tenancyConfiguration$cspAssignment
+  // The application's @DVBoot functions, after the providers and modules
+  // and before anything is served.
+  await framework.dvRunBoot(boot.dartvelBootSteps, core.DVBoot(entry: const core.DVEntry.server(role: core.DVServerRole.web), args: _dartvelArguments));
   // DV.Analytics and DV.Privacy over the application's database, when this
   // process has one. Analytics first, so its adapters are in the privacy
   // walk; DV.Privacy is configured only where DARTVEL_PRIVACY_KEY is set.
@@ -2231,7 +2261,11 @@ void _dartvelInstallServerCrashes(core.DVProcessRole role) {
 ///
 /// Throws core.DVProcessConfigurationError, before anything starts, for a
 /// role, port or queue it cannot honour. Returns when [until] completes.
+/// The arguments this process was started with, for the boot functions.
+List<String> _dartvelArguments = const <String>[];
+
 Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, Map<String, Uint8List> studioParts = const <String, Uint8List>{}, core.DVDocsMount? docs, String? docsRoot}) async {
+  _dartvelArguments = arguments;
   final core.DVProcessConfiguration process = core.DVProcessConfiguration.resolve(environment: Platform.environment, arguments: arguments, generatedPort: cfg.backendPort);
   final Future<void> stopped = until ?? Completer<void>().future;
   switch (process.role) {
@@ -2265,6 +2299,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       final core.DVProcessStores workerStores = core.DVProcessStores.install(fallback: defaultDatabase);
       await _dartvelPrepareDatabase(workerStores);
       await _dartvelInstallCache(workerStores.database);
+      await framework.dvRunBoot(boot.dartvelBootSteps, core.DVBoot(entry: const core.DVEntry.server(role: core.DVServerRole.worker), args: arguments));
       // DV.Privacy, so an erasure or a retention sweep queued elsewhere runs
       // here -- the account erasure job included.
       // Change capture, so the delivery and backfill jobs the schedule
@@ -2307,6 +2342,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       final core.DVProcessStores stores = core.DVProcessStores.install(fallback: defaultDatabase);
       await _dartvelPrepareDatabase(stores);
       await _dartvelInstallCache(stores.database);
+      await framework.dvRunBoot(boot.dartvelBootSteps, core.DVBoot(entry: const core.DVEntry.server(role: core.DVServerRole.cron), args: arguments));
       // Each occurrence claimed in the shared database, so a second cron
       // process fires nothing twice. With none shared this throws rather than
       // start, unless DARTVEL_SCHEDULE_LEASE=none says this one is alone.

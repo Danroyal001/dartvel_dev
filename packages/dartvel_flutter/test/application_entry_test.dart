@@ -1,4 +1,5 @@
-import 'package:dartvel_core/dartvel.dart' show DVAppLifecycle, DVBoot;
+import 'package:dartvel_core/dartvel.dart' show DVAppLifecycle, DVBoot, DVEntryKind, DVEntryKindOf;
+import 'package:dartvel_core/framework.dart' show DVBootStep;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,10 +17,17 @@ void main() {
         return const Directionality(textDirection: .ltr, child: DVText('Home'));
       },
       boot: [
-        (DVBoot boot) async {
-          expect(boot.args, ['--example']);
-          calls.add('boot');
-        },
+        DVBootStep(
+          run: (DVBoot boot) async {
+            expect(boot.args, ['--example']);
+            expect(boot.entry.kind, DVEntryKind.app);
+            calls.add('boot');
+          },
+        ),
+        DVBootStep(
+          entries: const {DVEntryKind.server},
+          run: (_) => calls.add('server boot'),
+        ),
       ],
     );
     await tester.pump();
@@ -42,7 +50,7 @@ void main() {
       dvRunApplication(
         [],
         root: () => const SizedBox(),
-        boot: [(_) => throw StateError('broken boot')],
+        boot: [DVBootStep(run: (_) => throw StateError('broken boot'))],
       ),
       throwsStateError,
     );

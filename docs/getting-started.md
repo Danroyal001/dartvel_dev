@@ -413,9 +413,27 @@ void _configure(DVBoot boot) {
 }
 ```
 
+Boot hooks run in every entry their code can run in, not only the app: the app
+before its root, and the web server, a worker and a cron process after providers
+and modules are up and before they serve. They run in file path and declaration
+order, once per process, and nothing about them waits for a UI.
+
+A hook in a file that imports Flutter (or the client barrel) can only run in the
+app, so the server leaves it out. Put work a server or a headless application
+needs in a file that imports only `package:dartvel_core`. `entries:` narrows a
+hook further:
+
+```dart
+@DVBoot(entries: {DVEntryKind.server})
+void _warmIndex(DVBoot boot) => DV.global<SearchIndex>(SearchIndex.open());
+```
+
+A hook that names `server` from a file importing Flutter is refused at generation
+(`DV-RUN-008`).
+
 An existing Flutter host can declare `@DVAppRoot()` on a private function taking
 `BuildContext` and `DVAppParts`; use `parts.router` in its MaterialApp, CupertinoApp
-or WidgetsApp. Boot hooks run before the root, in file path and declaration order.
+or WidgetsApp.
 
 Run `dart run dartvel_cli:dartvel doctor --conventions` in application CI after
 client generation. It exits nonzero for violations. Keep build warnings visible;

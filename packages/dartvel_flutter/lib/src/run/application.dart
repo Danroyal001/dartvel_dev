@@ -1,6 +1,8 @@
 import 'dart:async';
 
-import 'package:dartvel_core/dartvel.dart' show DVBoot;
+import 'package:dartvel_core/dartvel.dart' show DVBoot, DVEntry;
+import 'package:dartvel_core/framework.dart'
+    show DVBootStep, dvResetBootForTest, dvRunBoot;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -24,7 +26,7 @@ List<String> get dvApplicationArguments => _args;
 Future<void> dvRunApplication(
   List<String> args, {
   required Widget Function() root,
-  List<FutureOr<void> Function(DVBoot)> boot = const [],
+  List<DVBootStep> boot = const [],
   FutureOr<void> Function(List<String>)? launch,
 }) async {
   if (_running) {
@@ -44,10 +46,9 @@ Future<void> dvRunApplication(
         DV.lifecycle.setApp(.initializing);
         if (launch != null) await launch(args);
         DV.lifecycle.setApp(.booting);
-        final context = DVBoot(args: _args);
-        for (final hook in boot) {
-          await hook(context);
-        }
+        // The same runner a server, a worker or a command boots through;
+        // only the entry differs.
+        await dvRunBoot(boot, DVBoot(entry: const DVEntry.app(), args: _args));
         final previousFlutterError = FlutterError.onError;
         FlutterError.onError = (details) {
           DV.log.error(
@@ -96,4 +97,5 @@ Future<void> dvRunApplication(
 void dvResetApplicationEntryForTest() {
   _running = false;
   _args = const [];
+  dvResetBootForTest();
 }

@@ -34,6 +34,22 @@ class const DVTestEntry() extends DVEntry;
 
 enum DVEntryKind { app, terminal, server, command, homeWidget, background, push, worker, embedded, test }
 
+/// Which kind of entry this is, the value an `@DVBoot(entries:)` names.
+extension DVEntryKindOf on DVEntry {
+  DVEntryKind get kind => switch (this) {
+        DVAppEntry() => DVEntryKind.app,
+        DVTerminalEntry() => DVEntryKind.terminal,
+        DVServerEntry() => DVEntryKind.server,
+        DVCommandEntry() => DVEntryKind.command,
+        DVHomeWidgetEntry() => DVEntryKind.homeWidget,
+        DVBackgroundEntry() => DVEntryKind.background,
+        DVPushEntry() => DVEntryKind.push,
+        DVWorkerEntry() => DVEntryKind.worker,
+        DVEmbeddedEntry() => DVEntryKind.embedded,
+        DVTestEntry() => DVEntryKind.test,
+      };
+}
+
 /// A private startup function and its entry filter; the runtime passes its context.
 class const DVBoot({final Set<DVEntryKind> entries = const <DVEntryKind>{},
     final DVEntry entry = const DVEntry.app(), final List<String> args = const <String>[]});
