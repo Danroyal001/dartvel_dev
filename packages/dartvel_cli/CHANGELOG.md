@@ -1,3 +1,9 @@
+## 0.13.7 — 2026-10-18
+
+- `DVModifier.maxWidth`/`maxHeight` hold inside a column that stretches its children: the bounded box sits at the start edge instead of being forced to the full width (a lead paragraph capped at 680 ran 1,270 pixels). Under loose constraints nothing changes; `.centered()` still centres.
+- `@DVBoot` bodies are lowered outside `abstract final class DV`, into a top-level `_dvBootSteps` list, so an app name that matches one of DV's statics (`Session`) resolves to the app's own.
+
+
 ## 0.13.6 — 2026-10-17
 
 - `DVIconButton` is removed: an icon-only control is `DVBox(Icon(...), DVModifier().tooltip(...).onTap(...))`, with `.minimumTapTarget(width: 48, height: 48)` for touch. It stretched to fill whatever held it (an eye icon filled a password field).
