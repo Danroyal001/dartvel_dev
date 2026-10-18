@@ -2666,6 +2666,21 @@ class DVBox<T> extends StatelessWidget {
     final BoxConstraints? constraints = m?.constraintsValue;
     if (constraints != null) {
       result = ConstrainedBox(constraints: constraints, child: result);
+      // A column that stretches its children hands each one a tight width,
+      // and a tight width beats any maximum: `.maxWidth(680)` on a lead
+      // paragraph ran the full 1,270 pixels of the page. Aligning the bounded
+      // box loosens that tight width so the maximum holds; the box sits at
+      // the start edge and the slot keeps its size. Under loose constraints
+      // the factors of 1 make this the size of its child, so nothing moves.
+      if (!(m?.centeredValue ?? false) &&
+          (constraints.maxWidth.isFinite || constraints.maxHeight.isFinite)) {
+        result = Align(
+          alignment: AlignmentDirectional.topStart,
+          widthFactor: 1,
+          heightFactor: 1,
+          child: result,
+        );
+      }
     }
 
     if (m?.centeredValue ?? false) {
