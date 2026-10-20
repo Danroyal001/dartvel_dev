@@ -229,7 +229,7 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
           'dartvel targets                  # what this install can build',
         ]),
         Bullets(<String>[
-          'Without a plan, dartvel build visionos says which plan '
+          'Without a plan, `dartvel build visionos` says which plan '
               'includes it and stops. Nothing is built or sent.',
           'The package adds build steps only. Nothing from it, and no '
               'licence key, ends up in your app.',
