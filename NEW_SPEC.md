@@ -15452,6 +15452,20 @@ Redis. The resolver for a public model page is generated from the model
 `@type`. Hidden pages answer 404 and unauthorized ones 401, each as the shell
 with none of the data.
 
+An ordinary page resolves its own request-time data from
+`lib/backend/page_data/index.dart`, which exports
+`final dartvelRoutePageData = <String, DVPageDataResolver>{...}` keyed by route
+pattern (`'/days/:day'`). The generated server puts those resolvers in front of
+the model pages (`dvRoutePageResolver(..., fallback: dvModelPageResolver(...))`):
+a route named there belongs to its function, a null answer included, and every
+other route keeps the model pages and the captured text. The file is compiled
+into the server, so it may not import Flutter (`DV-PAGE-010`). `DVPageData.document`
+carries the page as typed headings, paragraphs and links (`DVDocumentBlock`);
+the framework escapes every value, writes a link only for a relative, http,
+https or mailto address, and keeps the document in the page cache. A resolver
+is not authentication: a private page still needs its guard, its policy or a
+boundary in front of the server.
+
 The same binary also answers `/_dartvel/image` (Media Pipeline) and the admin
 mount (Admin, Devtools, and Scaffolding). Rendering Flutter widgets to HTML on
 the server is not part of this section.

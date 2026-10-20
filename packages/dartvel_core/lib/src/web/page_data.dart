@@ -282,6 +282,7 @@ class DVPageData {
     this.image,
     this.favicon,
     this.text = const <String>[],
+    this.document = const <DVDocumentBlock>[],
     this.structuredData,
     this.visibility = DVPageVisibility.public,
   });
@@ -294,6 +295,12 @@ class DVPageData {
   final String? favicon;
   final List<String> text;
 
+  /// The page's content as a document: headings, paragraphs and links, for
+  /// a reader without the app (a screen reader before it loads, a printer, a
+  /// crawler, a browser with scripting off). Takes the place of [text] when
+  /// set; plain lines cannot carry a heading level or a link.
+  final List<DVDocumentBlock> document;
+
   /// JSON-LD, written as the page's structured data.
   final Map<String, Object?>? structuredData;
   final DVPageVisibility visibility;
@@ -305,6 +312,7 @@ class DVPageData {
         if (image != null) 'image': image,
         if (favicon != null) 'favicon': favicon,
         if (text.isNotEmpty) 'text': text,
+        if (document.isNotEmpty) 'document': <Map<String, Object?>>[for (final DVDocumentBlock block in document) block.toJson()],
         if (structuredData != null) 'structuredData': structuredData,
         if (visibility != DVPageVisibility.public) 'visibility': visibility.name,
       };
@@ -323,6 +331,10 @@ class DVPageData {
       image: json['image'] as String?,
       favicon: json['favicon'] as String?,
       text: <String>[for (final Object? line in (json['text'] as List?) ?? const <Object?>[]) '$line'],
+      document: <DVDocumentBlock>[
+        for (final Object? block in (json['document'] as List?) ?? const <Object?>[])
+          if (block is Map) DVDocumentBlock.fromJson(block.cast<String, Object?>()),
+      ],
       structuredData: json['structuredData'] is Map
           ? (json['structuredData']! as Map).cast<String, Object?>()
           : null,
@@ -332,6 +344,76 @@ class DVPageData {
       ),
     );
   }
+}
+
+/// One piece of a page's server-rendered document: a heading, a paragraph or
+/// a link. Typed rather than HTML, so the framework escapes every value and
+/// decides which links are safe to write -- a resolver reads untrusted rows.
+class DVDocumentBlock {
+  const DVDocumentBlock.heading(this.text, {int level = 2})
+      : kind = 'heading',
+        level = level < 2 ? 2 : (level > 6 ? 6 : level),
+        href = null;
+  const DVDocumentBlock.paragraph(this.text)
+      : kind = 'paragraph',
+        level = null,
+        href = null;
+  const DVDocumentBlock.link(this.text, this.href)
+      : kind = 'link',
+        level = null;
+
+  /// The block from what [toJson] wrote; an unknown kind reads as a paragraph.
+  factory DVDocumentBlock.fromJson(Map<String, Object?> json) {
+    final String text = '${json['text'] ?? ''}';
+    return switch (json['kind']) {
+      'heading' => DVDocumentBlock.heading(text, level: (json['level'] as num?)?.toInt() ?? 2),
+      'link' => DVDocumentBlock.link(text, json['href'] as String?),
+      _ => DVDocumentBlock.paragraph(text),
+    };
+  }
+
+  final String kind;
+  final String text;
+
+  /// h2 to h6: the page's title is its one h1.
+  final int? level;
+  final String? href;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'kind': kind,
+        'text': text,
+        if (level != null) 'level': level,
+        if (href != null) 'href': href,
+      };
+
+  /// The block as HTML. A link is written only for a relative address or an
+  /// http, https or mailto one; anything else (javascript:, data:, a
+  /// protocol-relative //host) is written as its text alone.
+  String toHtml() {
+    const HtmlEscape element = HtmlEscape(HtmlEscapeMode.element);
+    const HtmlEscape attribute = HtmlEscape(HtmlEscapeMode.attribute);
+    final String label = element.convert(text);
+    switch (kind) {
+      case 'heading':
+        return '<h$level>$label</h$level>';
+      case 'link':
+        final String target = href ?? '';
+        if (_dvSafeDocumentHref(target)) {
+          return '<p><a href="${attribute.convert(target)}">$label</a></p>';
+        }
+        return '<p>$label</p>';
+      default:
+        return '<p>$label</p>';
+    }
+  }
+}
+
+bool _dvSafeDocumentHref(String target) {
+  if (target.isEmpty || target.startsWith('//')) return false;
+  if (target.contains(RegExp(r'[\x00-\x20\\]'))) return false;
+  final Uri? uri = Uri.tryParse(target);
+  if (uri == null) return false;
+  return !uri.hasScheme || const <String>{'http', 'https', 'mailto'}.contains(uri.scheme.toLowerCase());
 }
 
 typedef DVPageDataResolver = FutureOr<DVPageData?> Function(DVPageRequest request);
@@ -411,18 +493,34 @@ String dvRenderPage({
   String? image,
 }) =>
     dvApplyPageExtras(
-      dvRenderRoute(
-        shell: shell,
-        path: path,
-        title: data.title,
-        text: data.text,
-        siteUrl: siteUrl,
-        description: data.description ?? description,
-        image: data.image ?? image,
-        siteName: siteName,
+      _dvWithDocument(
+        dvRenderRoute(
+          shell: shell,
+          path: path,
+          title: data.title,
+          text: data.document.isEmpty ? data.text : const <String>[],
+          siteUrl: siteUrl,
+          description: data.description ?? description,
+          image: data.image ?? image,
+          siteName: siteName,
+        ),
+        data,
+        path,
       ),
       data,
     );
+
+/// [html] with [data]'s document as the page's own document, when it has one:
+/// the title as the page's h1, then every block.
+String _dvWithDocument(String html, DVPageData data, String path) {
+  if (data.document.isEmpty) return html;
+  final StringBuffer content = StringBuffer()
+    ..writeln('<h1>${const HtmlEscape(HtmlEscapeMode.element).convert(data.title)}</h1>');
+  for (final DVDocumentBlock block in data.document) {
+    content.writeln(block.toHtml());
+  }
+  return dvApplyPageHtml(html, content.toString(), path: path);
+}
 
 /// Where a federated route sends the reader, with the request's own
 /// parameters put back into it.
@@ -1062,6 +1160,36 @@ DVPageDataResolver dvModelPageResolver(
 }
 
 final Expando<Set<String>> _modelResolverPatterns = Expando();
+
+/// A resolver answering the routes in [routes] with the application's own
+/// functions, and every other route with [fallback] (the generated model
+/// pages).
+///
+/// An ordinary page -- a dashboard, a listing, a day's report -- has data no
+/// model page describes, and its server-rendered document should carry that
+/// data rather than the text captured at build time. The application names
+/// the route pattern and how to resolve it; a matched route belongs to its
+/// function, a null answer included. The function reads whatever it reads
+/// and is not authentication: a private page still needs its guard, its
+/// policy, or a boundary in front of the server.
+DVPageDataResolver dvRoutePageResolver(
+  Map<String, DVPageDataResolver> routes, {
+  DVPageDataResolver? fallback,
+}) {
+  final Map<String, DVPageDataResolver> owned = Map<String, DVPageDataResolver>.unmodifiable(routes);
+  final DVPageDataResolver resolver = (DVPageRequest request) async {
+    final DVPageDataResolver? own = owned[request.pattern];
+    if (own != null) return own(request);
+    return fallback == null ? null : await fallback(request);
+  };
+  // Static unless a route here or in the fallback reads data, so the server
+  // keeps answering every other page from what the build captured.
+  final Set<String>? fallbackPatterns = fallback == null ? <String>{} : _modelResolverPatterns[fallback];
+  if (fallbackPatterns != null) {
+    _modelResolverPatterns[resolver] = <String>{...owned.keys, ...fallbackPatterns};
+  }
+  return resolver;
+}
 
 /// Framework proof: this generated resolver cannot read data for this pattern.
 bool dvPageResolverIsStatic(DVPageDataResolver? resolver, String? pattern) =>

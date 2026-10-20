@@ -183,6 +183,31 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'page-data',
+          title: 'Serve a page with its data on the first load',
+          children: <Widget>[
+            DocsText('A page whose content comes from your data, such as '
+                "a day's report or a listing, can carry that content in the "
+                'document the server sends, before the app loads. Export '
+                'dartvelRoutePageData from lib/backend/page_data/index.dart: '
+                'a map from a route pattern such as /days/:day to a function '
+                'that takes the DVPageRequest and returns DVPageData.'),
+            Bullets(<String>[
+              'Give DVPageData a document: DVDocumentBlock.heading, '
+                  '.paragraph and .link. Screen readers, printers, crawlers '
+                  'and browsers without JavaScript read it.',
+              'Every value is escaped, and a link is written only for a '
+                  'relative, http, https or mailto address.',
+              'A route you name belongs to your function, a null answer '
+                  'included. Other routes keep model pages and the text '
+                  'captured at build time.',
+              'The file runs in the server, so it cannot import Flutter.',
+              'It is not authentication. Keep a guard, a policy or a '
+                  'boundary in front of a private page.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'loading-error',
           title: 'Show loading and error states',
           children: <Widget>[
