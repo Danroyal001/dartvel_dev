@@ -1,3 +1,9 @@
+## 0.13.9 — 2026-10-20
+
+- Ordinary pages carry request-time data in their first document: export `dartvelRoutePageData` (route pattern -> resolver) from `lib/backend/page_data/index.dart`; `DVPageData.document` holds typed headings, paragraphs and links (`DVDocumentBlock`), escaped, with unsafe link schemes written as text. The file may not import Flutter (`DV-PAGE-010`).
+- A backend function returning a model, or a model holding models, encodes (`dvToEncodable`); the server registers the application's models at startup. Before, `jsonEncode` failed on the generated extension `toJson`.
+
+
 ## 0.13.8 — 2026-10-20
 
 - CSV import reads what export writes: a quoted value keeps its commas, quotes and line breaks (`dvParseCsv`, `dvSplitCsvRecords`), and resumable CSV chunks are cut by record. An app's own `exportCsv` file with a note like "first, second" could not be imported back.
