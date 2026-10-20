@@ -72,7 +72,10 @@ this.mood = .happy}) : joined = joined ?? DateTime(2020, 1, 2);
     final sqlStart = source.indexOf('  String get createTableSql =>');
     final sqlEnd = source.indexOf('\n', sqlStart);
     final script = File(p.join(root.path, 'reader.dart'));
+    // The generated models file imports dart:convert as convert; its helpers
+    // (_dvAsJson) rely on that.
     script.writeAsStringSync('''
+import 'dart:convert' as convert;
 ${source.substring(helperStart, helperEnd)}
 String dvTenantTable(String table) => table;
 class Player({required final String id, required final String storyJson,

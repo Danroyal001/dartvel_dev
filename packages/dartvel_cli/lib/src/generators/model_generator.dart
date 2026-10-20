@@ -129,6 +129,13 @@ class ModelGenerator {
     sb.writeln('    : value is num');
     sb.writeln('        ? DateTime.fromMillisecondsSinceEpoch(value.toInt())');
     sb.writeln('        : DateTime.parse(value.toString());');
+    sb.writeln();
+    sb.writeln('/// Reads a list, a map or a nested model. Decoded JSON gives');
+    sb.writeln('/// untyped lists and maps, which no cast turns into a');
+    sb.writeln('/// List<String> or a Map<String, Status>; a storage column');
+    sb.writeln('/// may hold the same value as its JSON text.');
+    sb.writeln('Object? _dvAsJson(Object? value) =>');
+    sb.writeln('    value is String ? convert.jsonDecode(value) : value;');
 
     if (ownModuleId != null) {
       // This project is a module, so every statement below resolves its
@@ -1266,6 +1273,8 @@ class ModelGenerator {
             } else if (studioEnums.containsKey(base)) {
               final value = "row['$name'] is $base ? row['$name'] as $base : $base.values.byName(row['$name'].toString())";
               read = nullable ? "row['$name'] == null ? null : ($value)" : value;
+            } else if (_structuredRead("row['$name']", base, studioModelNames) case final String structured) {
+              read = nullable ? "row['$name'] == null ? null : ($structured)" : structured;
             } else {
               read = "row['$name'] as $type";
             }
@@ -2267,7 +2276,7 @@ class ModelGenerator {
         sb.writeln('    return $className(');
         for (final field in fields) {
           final name = field['name']!;
-          sb.writeln('      $name: ${_fromJsonValue(field)},');
+          sb.writeln('      $name: ${_fromJsonValue(field, studioModelNames)},');
         }
         sb.writeln('    );');
         sb.writeln('  }');
@@ -2733,22 +2742,21 @@ class ModelGenerator {
         sb.writeln('/// How [$className] reads a file. Reached through the model.');
         sb.writeln('class _${className}Import {');
         sb.writeln('  static DVImportResult<$className> csv(String content) {');
-        sb.writeln('    final lines = const convert.LineSplitter()');
-        sb.writeln('        .convert(content)');
-        sb.writeln('        .where((line) => line.trim().isNotEmpty)');
-        sb.writeln('        .toList(growable: false);');
+        // Records, not lines: a quoted value can hold a comma or a line
+        // break, and the exporter writes exactly those (dvParseCsv).
+        sb.writeln('    final lines = dvParseCsv(content);');
         sb.writeln('    if (lines.isEmpty) {');
         sb.writeln(
           '      return const DVImportResult<$className>(items: <$className>[]);',
         );
         sb.writeln('    }');
-        sb.writeln('    final headers = _splitCsvLine(lines.first);');
+        sb.writeln('    final headers = lines.first;');
         sb.writeln('    final items = <$className>[];');
         sb.writeln('    final errors = <DVImportRowError>[];');
         sb.writeln(
           '    for (int index = 1; index < lines.length; index += 1) {',
         );
-        sb.writeln('      final values = _splitCsvLine(lines[index]);');
+        sb.writeln('      final values = lines[index];');
         sb.writeln('      final row = <String, Object?>{};');
         sb.writeln('      for (int i = 0; i < headers.length; i += 1) {');
         sb.writeln(
@@ -3220,18 +3228,6 @@ class ModelGenerator {
 
     if (classesGenerated.isNotEmpty) {
       sb.writeln();
-      sb.writeln('List<String> _splitCsvLine(String line) {');
-      sb.writeln("  return line.split(',').map((value) {");
-      sb.writeln('    final trimmed = value.trim();');
-      sb.writeln(
-        "    if (trimmed.length >= 2 && trimmed.startsWith('\"') && trimmed.endsWith('\"')) {",
-      );
-      sb.writeln('      return trimmed.substring(1, trimmed.length - 1);');
-      sb.writeln('    }');
-      sb.writeln('    return trimmed;');
-      sb.writeln('  }).toList(growable: false);');
-      sb.writeln('}');
-      sb.writeln();
       sb.writeln('String _escapeCsvValue(Object? value) {');
       sb.writeln("  final text = value?.toString() ?? '';");
       sb.writeln(
@@ -3475,11 +3471,15 @@ class ModelGenerator {
   /// Casting is not enough: a decoded map holds strings and numbers, so a
   /// straight `as DateTime` or `as int` throws on exactly the values
   /// `toJson` produced.
-  static String _fromJsonValue(Map<String, String> field) {
+  static String _fromJsonValue(Map<String, String> field, Set<String> models) {
     final name = field['name']!;
     final type = field['type']!;
-    final base = type.replaceAll('?', '');
     final nullable = type.endsWith('?');
+    final base = nullable ? type.substring(0, type.length - 1) : type;
+    final structured = _structuredRead("json['$name']", base, models);
+    if (structured != null) {
+      return nullable ? "json['$name'] == null ? null : ($structured)" : structured;
+    }
     final read = switch (base) {
       'DateTime' => "_dvAsDateTime(json['$name'])",
       'int' => "_dvAsNum(json['$name']).toInt()",
@@ -3494,6 +3494,44 @@ class ModelGenerator {
     // only those need the null guard.
     if (!nullable || !read.startsWith('_dv')) return read;
     return "json['$name'] == null ? null : $read";
+  }
+
+  /// An expression reading [source] as a [type] that is a list, a map or one
+  /// of this project's [models]; null for any other type, which keeps its
+  /// plain cast. Lists and maps are rebuilt element by element and a nested
+  /// model goes through its own parser, because the decoded JSON they arrive
+  /// as is List<dynamic> / Map<String, dynamic> and a cast of that throws.
+  static String? _structuredRead(String source, String type, Set<String> models) {
+    final list = RegExp(r'^List<(.+)>$').firstMatch(type);
+    if (list != null) {
+      return "(_dvAsJson($source) as List).map((item) => ${_elementRead('item', list.group(1)!.trim(), models)}).toList()";
+    }
+    final map = RegExp(r'^Map<String,\s*(.+)>$').firstMatch(type);
+    if (map != null) {
+      return "(_dvAsJson($source) as Map).map((key, value) => MapEntry(key as String, ${_elementRead('value', map.group(1)!.trim(), models)}))";
+    }
+    if (models.contains(type)) {
+      return "${type}Parser.fromJson(Map<String, Object?>.from(_dvAsJson($source) as Map))";
+    }
+    return null;
+  }
+
+  /// One element of a list or map: [type] may itself be nullable, a
+  /// collection, a model or a primitive.
+  static String _elementRead(String source, String type, Set<String> models) {
+    if (type.endsWith('?')) {
+      return "$source == null ? null : (${_elementRead(source, type.substring(0, type.length - 1), models)})";
+    }
+    final structured = _structuredRead(source, type, models);
+    if (structured != null) return structured;
+    return switch (type) {
+      'int' => '_dvAsNum($source).toInt()',
+      'double' => '_dvAsNum($source).toDouble()',
+      'num' => '_dvAsNum($source)',
+      'DateTime' => '_dvAsDateTime($source)',
+      'dynamic' || 'Object?' || 'Object' => source,
+      _ => '$source as $type',
+    };
   }
 
   static String? _factoryAdminValue(String type, String name) {
