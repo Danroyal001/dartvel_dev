@@ -1,3 +1,8 @@
+## 0.13.9 — 2026-10-20
+
+- Version aligned with dartvel_core 0.13.9.
+
+
 ## 1.4.7 — 2026-10-08
 
 - Resolve the matching 0.11.4 Dartvel package family (hooks 2).
