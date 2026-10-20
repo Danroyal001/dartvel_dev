@@ -1,3 +1,9 @@
+## 0.13.8 — 2026-10-20
+
+- CSV import reads what export writes: a quoted value keeps its commas, quotes and line breaks (`dvParseCsv`, `dvSplitCsvRecords`), and resumable CSV chunks are cut by record. An app's own `exportCsv` file with a note like "first, second" could not be imported back.
+- Fields typed `List<T>`, `Map<String, T>` or another model are rebuilt from JSON element by element (nested models through their own parser) instead of a cast that threw on decoded JSON.
+
+
 ## 0.13.7 — 2026-10-18
 
 - `DVModifier.maxWidth`/`maxHeight` hold inside a column that stretches its children: the bounded box sits at the start edge instead of being forced to the full width (a lead paragraph capped at 680 ran 1,270 pixels). Under loose constraints nothing changes; `.centered()` still centres.
