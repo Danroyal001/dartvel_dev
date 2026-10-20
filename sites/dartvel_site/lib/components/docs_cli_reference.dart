@@ -109,7 +109,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     description: 'Build for production. Pass a platform (dartvel build web) or omit it to build every available platform.',
     options: <String>[
       '-p, --platform                   Target platform (or pass it positionally)',
-      '                                 [android, ios, web, windows, macos, linux, fireos, tizen, sony-elinux, webos, tvos, web-server, tpk, sony-elinux-iso, sony-elinux-img, all (default), visionos, horizon, chrome-extension, firefox-extension, vscode, linux-cli, linux-tui, macos-cli, macos-tui, windows-cli, windows-tui, fuchsia, fuchsia-cli, fuchsia-tui, telegram]',
+      '                                 [android, ios, web, windows, macos, linux, fireos, tizen, sony-elinux, webos, tvos, web-server, tpk, sony-elinux-iso, sony-elinux-img, all (default), visionos, horizon, chrome-extension, firefox-extension, vscode, linux-cli, linux-tui, macos-cli, macos-tui, windows-cli, windows-tui, fuchsia, fuchsia-cli, fuchsia-tui, telegram, mcu]',
       '    --profile                    What kind of build to make.',
       '',
       '          [development]          Flutter debug (JIT). On Android, iOS, macOS, Linux and Windows it carries the dev-client pairing, so `dartvel dev` can hot reload it over the network.',
@@ -146,6 +146,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '                                 (defaults to on)',
       '    --[no-]auto-install          Install missing build tools without prompting. Defaults to prompting when interactive, and to installing in CI. Use --no-auto-install to require a pre-provisioned toolchain.',
       '    --cloud                      Build on Dartvel Cloud instead of this machine, which needs no SDK for the target: iOS and macOS build on a macOS worker. Prints the build log as it runs and downloads the artifacts into build/cloud/<target>. Needs a paid Dartvel Cloud plan.',
+      '    --[no-]strict                Treat convention warnings (DV-CONV-xxx) as errors.',
       '    --cloud-os                   With --cloud and web-server: the operating system of the worker, which is the one the server executable runs on. Defaults to linux.',
       '                                 [linux, macos, windows]',
       '    --cloud-token                The Dartvel Cloud token for --cloud. Defaults to DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.',
@@ -426,9 +427,10 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     name: 'doctor',
     description: 'Check your environment and project for common issues.',
     options: <String>[
-      '    --modules    Verify every module pin (digest, signing key, publisher, version) and compare what each module uses against what this application grants.',
-      '    --target     Validate the toolchain for an embedded or TV build target, answer for a paid target through its package (or say how to get it), or, for android and ios, the deep-link verification documents the declared domains serve. Comma-separate several: --target android,ios.',
-      '                 [tizen, sony-elinux, webos, tvos, visionos, horizon, chrome-extension, firefox-extension, vscode, linux-cli, linux-tui, macos-cli, macos-tui, windows-cli, windows-tui, fuchsia, fuchsia-cli, fuchsia-tui, telegram, android, ios]',
+      '    --modules        Verify every module pin (digest, signing key, publisher, version) and compare what each module uses against what this application grants.',
+      '    --conventions    Check application source against Dartvel conventions (DV-CONV-0xx rules).',
+      '    --target         Validate the toolchain for an embedded or TV build target, answer for a paid target through its package (or say how to get it), or, for android and ios, the deep-link verification documents the declared domains serve. Comma-separate several: --target android,ios.',
+      '                     [tizen, sony-elinux, webos, tvos, visionos, horizon, chrome-extension, firefox-extension, vscode, linux-cli, linux-tui, macos-cli, macos-tui, windows-cli, windows-tui, fuchsia, fuchsia-cli, fuchsia-tui, telegram, mcu, android, ios]',
     ],
   ),
   DocsCliCommand(
@@ -665,8 +667,9 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     name: 'metrics',
     description: 'Fetch the /metrics endpoint of a running Dartvel server.',
     options: <String>[
-      '    --url     Base URL of the running Dartvel server to read /metrics from.',
-      '              (defaults to "http://localhost:8080")',
+      '    --url      Base URL of the running Dartvel server to read /metrics from.',
+      '               (defaults to "http://localhost:8080")',
+      '    --token    The server\'s DARTVEL_METRICS_TOKEN, sent as a bearer token. A server answers /metrics without it only to its own host and private networks.',
     ],
   ),
   DocsCliCommand(
