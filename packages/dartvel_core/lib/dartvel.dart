@@ -186,6 +186,7 @@ export 'src/compute/workers.dart';
 // change could not be logged is undone and throws DVCaptureWriteError, which
 // an application may catch.
 export 'src/data/change_capture.dart' show DVCaptureWriteError;
+export 'src/data/csv.dart';
 export 'src/data/import_chunking.dart';
 // An offline data model is saved, deleted and read like any other, and the
 // runtime sends its queue. What an application sees of it is what a record

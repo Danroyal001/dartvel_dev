@@ -37,6 +37,13 @@ Widget _docsImportExportPage(BuildContext context) => const DocsArticle(
               'A row that does not parse becomes a DVImportRowError. The other '
                   'rows still import.',
               'Import builds models and saves nothing. You decide what to save.',
+              'CSV is read the way export writes it: a quoted value keeps its '
+                  'commas, quotes and line breaks, so a file you exported '
+                  'imports back unchanged.',
+              'CSV has no null: an empty cell reads as an empty string. Use '
+                  'NDJSON when null and empty must stay different.',
+              'A list, a map or another model as a field is rebuilt from '
+                  'NDJSON element by element, through that model\'s own parser.',
             ]),
           ],
         ),

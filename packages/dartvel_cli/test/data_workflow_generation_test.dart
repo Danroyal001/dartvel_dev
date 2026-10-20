@@ -125,7 +125,7 @@ class _Order {
       final parserStart = content.indexOf('class OrderParser');
       final formStart = content.indexOf('class OrderFormControls');
       final reportStart = content.indexOf('class OrderReport');
-      final facetsStart = content.indexOf('List<String> _splitCsvLine');
+      final facetsStart = content.indexOf('String _escapeCsvValue');
       expect(parserStart, isNonNegative);
       expect(formStart, isNonNegative);
       expect(reportStart, isNonNegative);
@@ -141,6 +141,10 @@ class _Order {
           contains(
               'static Future<DVJobEnvelope<DVScheduledReport>> dispatchMonthly'));
       expect(content, contains('const convert.LineSplitter()'));
+      // CSV is read by record through one shared reader, so a quoted comma
+      // or line break -- which the exporter writes -- reads back intact.
+      expect(content, contains('final lines = dvParseCsv(content);'));
+      expect(content, isNot(contains("line.split(',')")));
     } finally {
       root.deleteSync(recursive: true);
     }

@@ -13,6 +13,8 @@ library dartvel.data.import_chunking;
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'csv.dart';
+
 /// One chunk: the rows, where they came from, and the header they need.
 class DVImportChunkPlan {
   const DVImportChunkPlan({
@@ -55,14 +57,19 @@ List<DVImportChunkPlan> dvChunkImportRows(
   // Blank lines are dropped rather than imported as empty records. The
   // trailing \r matters too: left on the end of the last field it silently
   // becomes part of the value, so "Ada\r" is imported and never matches
-  // "Ada".
-  final List<String> lines = const LineSplitter()
-      .convert(content)
-      .map((String line) => line.endsWith('\r')
-          ? line.substring(0, line.length - 1)
-          : line)
-      .where((String line) => line.trim().isNotEmpty)
-      .toList(growable: false);
+  // "Ada". A CSV file (one with a header) is cut by record, not by line: a
+  // quoted value can hold a line break, and cutting there split one record
+  // into two broken ones.
+  final List<int> sourceLines = <int>[];
+  final List<String> lines = hasHeader
+      ? dvSplitCsvRecords(content, startLines: sourceLines)
+      : const LineSplitter()
+          .convert(content)
+          .map((String line) => line.endsWith('\r')
+              ? line.substring(0, line.length - 1)
+              : line)
+          .where((String line) => line.trim().isNotEmpty)
+          .toList(growable: false);
 
   if (lines.isEmpty) return const <DVImportChunkPlan>[];
 
@@ -80,7 +87,7 @@ List<DVImportChunkPlan> dvChunkImportRows(
     chunks.add(DVImportChunkPlan(
       // 1-based over the source file, header included, so the number points
       // at the line someone would open the file to.
-      startRow: index + 1,
+      startRow: hasHeader ? sourceLines[index] : index + 1,
       rows: lines.sublist(index, end),
       header: header,
     ));
