@@ -1079,6 +1079,20 @@ final List<framework.DVBootStep> dartvelBootSteps = <framework.DVBootStep>[
 ${serverBoot.map((DVBootHook hook) => '  ${hook.step},').join('\n')}
 ];
 ''');
+    // An application's own request-time page data: route patterns and the
+    // functions that resolve them, in lib/<backend>/page_data/index.dart.
+    // That file is compiled into the server, so it must not import Flutter.
+    final File pageHooks = File(p.join(root, backendDir, 'page_data', 'index.dart'));
+    final String? pageHooksImport = pageHooks.existsSync()
+        ? "import 'package:$pkgName/${p.relative(pageHooks.path, from: p.join(root, 'lib')).replaceAll(r'\\', '/')}' as app_page_data;"
+        : null;
+    // models_server.g.dart registers every model; the server registers them
+    // once, however many times its router is built.
+    final bool serverModels = File(p.join(root, 'lib', 'dartvel_client', 'models_server.g.dart')).existsSync() &&
+        File(p.join(root, 'lib', 'dartvel_client', 'models_server.g.dart')).readAsStringSync().contains('void registerDartvelModels(');
+    if (pageHooksImport != null && RegExp(r'''import\s+['"]package:flutter/''').hasMatch(pageHooks.readAsStringSync())) {
+      throw StateError('DV-PAGE-010: ${p.relative(pageHooks.path, from: root)} imports Flutter, but it is compiled into the server. Read data with package:dartvel_core and the generated server models only.');
+    }
     final backendRoutes =
         '''
 // GENERATED – do not edit.
@@ -1098,6 +1112,8 @@ ${telegramProvider?.serverImport == null ? '' : "import '${telegramProvider!.ser
 import 'dartvel_backend.g.dart' as cfg;
 import 'dartvel_backend_boot.g.dart' as boot;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages, dartvelStudioModels;
+${pageHooksImport ?? ''}
+${serverModels ? "import 'package:$pkgName/dartvel_client/models_server.g.dart' as dv_server_models;" : ''}
 ${studioModules.map(((String, String) m) => "import 'package:${m.$1}/dartvel_client/model_pages.g.dart' as ${m.$2} show dartvelStudioModels;\n").join()}import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
 import 'package:$pkgName/dartvel_client/studio_documents.g.dart' show dartvelStudioDocuments;
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelBackendCronEntries, dartvelStartBackendSchedules;
@@ -1377,7 +1393,11 @@ ${servesCrashes ? '/// The crash endpoint\'s ingest, built on the first report.\
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(conv.utf8.encode('CSRF token missing')));
 
+${serverModels ? "bool _dvServerModelsRegistered = false;\n\n/// Registers the application's models once, however many routers are built.\nvoid dartvelRegisterServerModels() {\n  if (_dvServerModelsRegistered) return;\n  _dvServerModelsRegistered = true;\n  dv_server_models.registerDartvelModels();\n}\n" : ''}
 dv.Router buildBackendRouter() {
+  // The application's models, so a function returning one encodes through
+  // its serializer (core.dvToEncodable) the way the client decodes it.
+  ${serverModels ? 'dartvelRegisterServerModels();' : ''}
   // Every @DVPolicy class this server can load, from the application and the
   // modules it merges, registered before a single route exists -- so no
   // request can be answered by an empty registry, whether the router is
@@ -1678,13 +1698,13 @@ $requestPrelude$mfaGate$policyGate$contextPrelude
             // One JSON value per event, which is what the generated client
             // decodes. toString() sent an object as "Instance of ...", and a
             // newline split one value into two events; JSON has neither.
-            body: result.map((e) => 'data: \${conv.jsonEncode(e)}\\n\\n').map(conv.utf8.encode),
+            body: result.map((e) => 'data: \${conv.jsonEncode(core.dvToEncodable(e))}\\n\\n').map(conv.utf8.encode),
             isStream: true);
       }
       if (result is String) return dv.Response.text(result);
       return dv.Response(200,
           headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
-          body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result))));
+          body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(core.dvToEncodable(result)))));
     } catch (e, st) {
 $contextFailed
       // Written before anything else in the error path, and never throws.
@@ -1711,13 +1731,13 @@ $requestPrelude$mfaGate$policyGate$contextPrelude
             // One JSON value per event, which is what the generated client
             // decodes. toString() sent an object as "Instance of ...", and a
             // newline split one value into two events; JSON has neither.
-            body: result.map((e) => 'data: \${conv.jsonEncode(e)}\\n\\n').map(conv.utf8.encode),
+            body: result.map((e) => 'data: \${conv.jsonEncode(core.dvToEncodable(e))}\\n\\n').map(conv.utf8.encode),
             isStream: true);
       }
       if (result is String) return dv.Response.text(result);
       return dv.Response(200,
           headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
-          body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result))));
+          body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(core.dvToEncodable(result)))));
     } catch (e, st) {
 $contextFailed
       // Written before anything else in the error path, and never throws.
@@ -1859,14 +1879,14 @@ dv.Router buildBackend() => buildBackendRouter();
 
 /// A public model page's data on request: the row named by the route's
 /// parameter, read from the application's database.
-final core.DVPageDataResolver dartvelPageData = core.dvModelPageResolver(
+final core.DVPageDataResolver dartvelPageData = ${pageHooksImport == null ? '' : 'core.dvRoutePageResolver(app_page_data.dartvelRoutePageData, fallback: '}core.dvModelPageResolver(
   dartvelModelPages,
   (String sql, List<Object?> params) => const core.DVDatabase().query(sql, params),
   // The last of the specification's three fallbacks -- model, module,
   // application. The first two are already in the spec each model carries,
   // because a module's models are generated from the module's own project.
   applicationFavicon: $applicationFavicon,
-);
+)${pageHooksImport == null ? '' : ')'};
 
 /// The CORS policy `dartvel.server.cors` configures, or null when the
 /// project named none -- which means no CORS headers rather than "allow

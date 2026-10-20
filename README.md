@@ -77,6 +77,9 @@ Everything else is automatically compiled, generated, or served by the framework
 asset pack reads files on request, serves precompressed bytes when accepted,
 and keeps Studio assets private. Linux builds can load deferred AOT code from
 the same executable. See [the binary layout and HTTP policy](docs/web-server-binary.md).
+A page whose content comes from your data sends that content in the first
+document too: export `dartvelRoutePageData` from `lib/backend/page_data/index.dart`
+and return `DVPageData` with a `document` of headings, paragraphs and links.
 
 ---
 

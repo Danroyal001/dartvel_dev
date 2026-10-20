@@ -1217,6 +1217,33 @@ Map<String, Object?>? serializeDVModel<T>(T model) {
   return serializer(model);
 }
 
+/// [value] as something `jsonEncode` can write: a model through its
+/// registered serializer, found by its runtime type, and maps, lists and the
+/// models inside them the same way, all the way down; a DateTime as ISO 8601.
+///
+/// A generated model's toJson is an extension member, which `jsonEncode`
+/// cannot see -- so a backend function returning a model, or a model holding
+/// another, failed with "Converting object to an encodable object failed".
+/// Anything else is returned as it is, for `jsonEncode` to write or refuse.
+Object? dvToEncodable(Object? value) {
+  if (value == null || value is num || value is bool || value is String) {
+    return value;
+  }
+  if (value is DateTime) return value.toIso8601String();
+  if (value is Map) {
+    return <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in value.entries)
+        '${entry.key}': dvToEncodable(entry.value),
+    };
+  }
+  if (value is Iterable) {
+    return <Object?>[for (final Object? item in value) dvToEncodable(item)];
+  }
+  final Map<String, Object?> Function(Object?)? serializer = dvModelSerializers[value.runtimeType];
+  if (serializer != null) return dvToEncodable(serializer(value));
+  return value;
+}
+
 /// The fields a generated form may show for each model type.
 ///
 /// The serializer a form reads is the model's internal one and carries every
