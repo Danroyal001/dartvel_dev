@@ -1,3 +1,8 @@
+## 0.13.8 — 2026-10-20
+
+- Version aligned with dartvel_core 0.13.8.
+
+
 ## 0.13.7 — 2026-10-18
 
 - `DVModifier.maxWidth`/`maxHeight` hold inside a column that stretches its children: the bounded box sits at the start edge instead of being forced to the full width (a lead paragraph capped at 680 ran 1,270 pixels). Under loose constraints nothing changes; `.centered()` still centres.
