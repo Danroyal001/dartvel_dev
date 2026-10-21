@@ -1,3 +1,8 @@
+## 0.13.11 — 2026-10-21
+
+- A web-server binary built without Studio answers `/_dartvel/pages` with an empty list instead of a 404 on every page load.
+
+
 ## 0.13.10 — 2026-10-21
 
 - Linux video, cameras and screens through GStreamer: frames drawn into Flutter, webcams and capture cards (`DVCameraDevice`, `DVBox.camera(device:)`), each display as a screen (`DVCameraLens.screen`; also the web's `getDisplayMedia`), JPEG photos and MP4 recording; the first audio output or microphone that opens.
