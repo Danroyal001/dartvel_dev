@@ -18,10 +18,13 @@ import '../dartvel_client/dartvel_client.dart';
 Widget _page(BuildContext context) => const SizedBox();
 ''';
 
+String bootSource = '';
+
 Future<String> _generate(Map<String, Object?> dartvel) async {
   final Directory root = await Directory.systemTemp.createTemp('dartvel_start_routes_');
   addTearDown(() => root.deleteSync(recursive: true));
   Directory(p.join(root.path, 'lib', 'dartvel_client')).createSync(recursive: true);
+  File(p.join(root.path, 'lib', 'boot.dart')).writeAsStringSync(bootSource);
   for (final String name in <String>['index.dart', 'editor.dart']) {
     File(p.join(root.path, 'lib', 'pages', name))
       ..parent.createSync(recursive: true)
@@ -92,5 +95,20 @@ void main() {
       throwsA(isA<StateError>().having((StateError e) => e.message, 'message',
           contains('linuks'))),
     );
+  });
+
+  test('an app root may carry other annotations, such as an entry-point pragma', () async {
+    bootSource = '''
+import 'package:flutter/material.dart';
+import 'dartvel_client/dartvel_client.dart';
+
+@DVAppRoot()
+@pragma('vm:entry-point')
+Widget _root(BuildContext context, DVAppParts parts) =>
+    MaterialApp.router(routerConfig: parts.router);
+''';
+    addTearDown(() => bootSource = '');
+    final String client = await _generate(const <String, Object?>{});
+    expect(client, contains('MaterialApp.router(routerConfig: parts.router)'));
   });
 }

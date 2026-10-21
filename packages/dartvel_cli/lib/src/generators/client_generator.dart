@@ -4101,7 +4101,7 @@ void startDartvelKiosk() {
         final kind = annotation.group(1)!;
         final annotationClose = _matchingParen(source, annotation.end - 1);
         if (annotationClose < 0) throw StateError('Unclosed @$kind in $rel');
-        final declaration = RegExp(r'^\s*(?:Future<void>|void|Widget)\s+(_[A-Za-z]\w*)\s*\(').firstMatch(source.substring(annotationClose + 1));
+        final declaration = RegExp(r'^\s*(?:@[\w.]+(?:\([^()]*\))?\s*)*(?:Future<void>|void|Widget)\s+(_[A-Za-z]\w*)\s*\(').firstMatch(source.substring(annotationClose + 1));
         if (declaration == null) throw StateError('@$kind requires a private function in $rel');
         final open = annotationClose + 1 + declaration.end - 1;
         final close = _matchingParen(source, open);
@@ -4179,7 +4179,7 @@ void startDartvelKiosk() {
       for (final annotation in RegExp(r'@DVBoot\s*\(').allMatches(masked)) {
         final annotationClose = _matchingParen(source, annotation.end - 1);
         if (annotationClose < 0) throw StateError('Unclosed @DVBoot in $rel');
-        final declaration = RegExp(r'^\s*(?:Future<void>|void)\s+(_[A-Za-z]\w*)\s*\(').firstMatch(source.substring(annotationClose + 1));
+        final declaration = RegExp(r'^\s*(?:@[\w.]+(?:\([^()]*\))?\s*)*(?:Future<void>|void)\s+(_[A-Za-z]\w*)\s*\(').firstMatch(source.substring(annotationClose + 1));
         if (declaration == null) throw StateError('@DVBoot requires a private function in $rel');
         final open = annotationClose + 1 + declaration.end - 1;
         final close = _matchingParen(source, open);
