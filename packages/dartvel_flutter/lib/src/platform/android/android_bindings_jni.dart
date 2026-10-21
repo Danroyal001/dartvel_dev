@@ -38,8 +38,8 @@ import '../file_bindings.dart';
 import 'android_capabilities.dart';
 import 'android_capture_jni.dart';
 import 'android_device.dart';
+import 'android_drag_drop_jni.dart';
 import 'android_kiosk_jni.dart';
-import 'android_push_jni.dart';
 import 'android_radios_jni.dart';
 import 'android_system_jni.dart';
 import 'generated/android/app/Activity.dart';
@@ -64,7 +64,6 @@ import 'generated/java/lang/CharSequence.dart';
 // with plain `flutter build` has no Activity for a permission result to
 // come back to.
 export 'android_capture_jni.dart' show DVAndroidCapture;
-export 'android_push_jni.dart' show DVAndroidPush;
 
 /// The class that holds the application Context, written by
 /// `dartvel build android`.
@@ -129,11 +128,10 @@ class DVAndroidBindings {
     // take, so they go through the transparent Activity the build writes.
     DVAndroidCapture.register(DVNativeBridge.register);
 
-    // Firebase Cloud Messaging, when the project declared dartvel.push.android
-    // and the build therefore wrote the DartvelPush class. Registers nothing
-    // otherwise, so PushNotifications.getToken() answers null rather than
-    // pretending.
-    DVAndroidPush.register(DVNativeBridge.register);
+    // Drag and drop, through the Java the build writes beside the capture
+    // bridge: drops from other applications in split screen, freeform and
+    // desktop windows, and drags out to them.
+    DVAndroidDragDrop.register(DVNativeBridge.register);
 
     // What the application was opened with. The launch Intent belongs to the
     // Activity, so this was unanswerable until the Activity was -- and a

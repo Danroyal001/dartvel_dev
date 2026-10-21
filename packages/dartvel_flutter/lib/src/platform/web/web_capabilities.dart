@@ -23,6 +23,13 @@ library dartvel_flutter.platform.web.capabilities;
 /// `DVNativeBridge.isRegistered` keeps telling the truth. Read
 /// [dvWebUnconditionalBindings] for the ones that need no probe.
 const Set<String> dvWebImplementedBindings = <String>{
+  // HTML drag and drop: drops read off DataTransfer (files, text/uri-list,
+  // text/plain), and drags out filled in dragstart from the payload a
+  // draggable widget set when it was pressed.
+  'dragDrop.accept',
+  'dragDrop.stop',
+  'dragDrop.setPending',
+
   // Fullscreen, Keyboard Lock and Pointer Lock, each needing a user gesture
   // and reported refused, with the browser's reason, when it is absent.
   'kiosk.enforce',
@@ -44,13 +51,6 @@ const Set<String> dvWebImplementedBindings = <String>{
 
   // The Notification API, subject to permission.
   'notifications.sendLocal',
-
-  // Web Push: the PushManager subscription and the messages the generated
-  // service worker forwards. Registered only where the browser has the Push
-  // API, and only answering once notifications are granted.
-  'push.token',
-  'push.unsubscribe',
-  'push.drainMessages',
 
   // navigator.share, which Firefox on the desktop does not have. Probed, so
   // that browser leaves the name unregistered rather than throwing a
@@ -103,11 +103,6 @@ const Set<String> dvWebImplementedBindings = <String>{
   // dialogs.openFile below for why a fabricated path would be worse.
   'media.pick',
 
-  // Drops onto the page: File objects arrive with their bytes in
-  // DVDropEvent.files (a page is never given a path), text as text.
-  'dragDrop.accept',
-  'dragDrop.stop',
-
   // The origin-private file system, through navigator.storage.getDirectory.
   // A real filesystem with real paths, private to the origin, and present in
   // Chrome, Firefox and Safari.
@@ -158,6 +153,9 @@ const Set<String> dvWebImplementedBindings = <String>{
 /// which browser the runner installed. These are the ones any engine running
 /// Flutter web has, and a browser test may insist on them.
 const Set<String> dvWebUnconditionalBindings = <String>{
+  'dragDrop.accept',
+  'dragDrop.stop',
+  'dragDrop.setPending',
   'screen.geometry',
   'window.setTitle',
   'install.prompt',
@@ -165,8 +163,6 @@ const Set<String> dvWebUnconditionalBindings = <String>{
   'kiosk.release',
   'deepLinks.initial',
   'media.pick',
-  'dragDrop.accept',
-  'dragDrop.stop',
   'dialogs.message',
   'device.capabilityManifest',
   'device.health',
@@ -188,12 +184,6 @@ const Set<String> dvWebUnconditionalBindings = <String>{
 /// name stays out, because a shorter list that is true is worth more than a
 /// longer one that is not.
 const Map<String, String> dvWebUnavailableBindings = <String, String>{
-  'push.subscribeToTopic': 'Web Push has no topics: a subscription is one '
-      'endpoint belonging to one browser profile, and the push service offers '
-      'no way to address a group of them. Topic membership is the '
-      'application server\'s to keep.',
-  'push.unsubscribeFromTopic': 'The other half of topics, which Web Push '
-      'does not have; see push.subscribeToTopic.',
   'clipboard.readSelection': 'The X11 PRIMARY selection, which is what a '
       'middle-click pastes on a Unix desktop. It is a second clipboard that '
       'only X has -- there is no browser API for it, and aliasing it onto the '
@@ -207,15 +197,6 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
       'shell, and nothing in a tab reaches it.',
   'tray.hide': 'The other half of a tray icon a browser cannot create in the '
       'first place.',
-  'launchAtLogin.isEnabled': 'A page cannot start itself. An installed PWA can '
-      'be set to open at login only by the person, in the browser\'s own '
-      'settings, and a page cannot read whether they did.',
-  'launchAtLogin.setEnabled': 'The same wall from the other side: no browser '
-      'API adds a page to the session\'s login items.',
-  'window.hide': 'A page cannot hide the tab or window it is in; only the '
-      'person can.',
-  'window.show': 'A page cannot raise its own window. focus() on a window a '
-      'page did not open is ignored by every browser.',
 
   'homeWidgets.publish': 'A home-screen widget is drawn by a launcher or by '
       'the system shell, in its own process. A browser has no way to hand '
@@ -332,6 +313,9 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
   'dialogs.chooseDirectory': 'A directory handle is not a directory path, '
       'and the handle is meaningless to every other binding that takes one.',
 
+  'dragDrop.startDrag': 'A page cannot start a drag from script: a browser '
+      'starts one only from a press on a draggable element, so the web takes '
+      'the payload ahead of the press through dragDrop.setPending instead.',
 
   'associations.register': 'A PWA declares its file handlers in the manifest '
       'at install time. There is no runtime call, so this could only edit a '
@@ -341,6 +325,42 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
   'associations.handlerFor': 'A page is not told what else on the machine '
       'opens a file type. That would be a fingerprinting surface, and no '
       'browser exposes it.',
+
+  // XR. WebXR is a browser API, so these are not things a browser forbids:
+  // each needs a live XRSession, and an XRSession draws only into an
+  // XR-compatible WebGL2 context that a renderer owns. 3D Scenes ships no
+  // WebGL2 renderer, so there is nothing for a session to present, and every
+  // entry here is stale the day one lands.
+  'xr.capability.query': 'navigator.xr.isSessionSupported answers whether the '
+      'device could run a session, not whether this page can present one. With '
+      'no WebGL2 renderer to draw into, reporting volumes or an immersive space '
+      'would offer a control whose open() then degrades.',
+  'xr.session.open': 'requestSession must run inside a user gesture and needs '
+      'an XR-compatible WebGL2 context to draw into; 3D Scenes has no WebGL2 '
+      'renderer, so a session opened here would present nothing.',
+  'xr.session.close': 'XRSession.end() on a session this platform cannot open '
+      'without a WebGL2 renderer to present it.',
+  'xr.space.open': 'A WebXR volume or immersive space is the session itself, '
+      'drawn through a WebGL2 layer that 3D Scenes does not provide.',
+  'xr.space.close': 'The other half of a space that has no WebGL2 layer to be '
+      'drawn through on this platform.',
+  'xr.passthrough.set': 'Passthrough is the immersive-ar session mode, fixed '
+      'when the session is requested and not switched afterwards, and there is '
+      'no session to request without a WebGL2 renderer.',
+  'xr.anchor.create': 'WebXR Anchors live inside an XRSession and are located '
+      'against its reference space, which does not exist here without a '
+      'WebGL2 renderer to run the session.',
+  'xr.anchor.persist': 'Persistent WebXR anchors are Chromium-only on Android, '
+      'and like every anchor they need a running XRSession this platform has '
+      'no WebGL2 renderer to start.',
+  'xr.anchor.resolve': 'restorePersistentAnchor is Chromium-only and needs a '
+      'running XRSession, which this platform cannot start without a WebGL2 '
+      'renderer.',
+  'xr.input.observe': 'XRInputSource events arrive from a running XRSession; '
+      'with no WebGL2 renderer to start one there is no input stream to observe.',
+  'xr.environment.probe': 'WebXR Lighting Estimation is requested as a feature '
+      'of an immersive-ar session, which this platform cannot start without a '
+      'WebGL2 renderer.',
 };
 
 /// The browser had the API and the answer was no.

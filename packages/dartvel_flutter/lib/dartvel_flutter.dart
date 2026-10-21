@@ -71,6 +71,8 @@ import 'src/platform/storage/device_storage_stub.dart'
     if (dart.library.js_interop) 'src/platform/storage/device_storage_web.dart' as capture_platform;
 import 'src/media/web_media_mapping.dart' show DVWebCaptureStore;
 import 'src/platform/drag_drop.dart';
+import 'src/platform/drag_drop_widgets.dart';
+import 'src/platform/incoming_file.dart';
 import 'src/platform/file_associations.dart';
 import 'src/platform/launch_at_login.dart';
 import 'src/platform/network.dart';
@@ -837,6 +839,8 @@ export 'src/platform/device_runtime.dart';
 export 'src/platform/dialogs.dart';
 export 'src/platform/storage/device_storage.dart';
 export 'src/platform/drag_drop.dart';
+export 'src/platform/drag_drop_widgets.dart';
+export 'src/platform/incoming_file.dart';
 export 'src/platform/file_associations.dart';
 export 'src/platform/launch_at_login.dart';
 export 'src/platform/file_bindings.dart';

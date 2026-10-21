@@ -152,6 +152,8 @@ const Set<String> dvNativeBindingNames = <String>{
   // and each one arrives as what was dropped and where.
   'dragDrop.accept',
   'dragDrop.stop',
+  'dragDrop.startDrag',
+  'dragDrop.setPending',
 
   // File associations: what this application opens, registered with the
   // desktop for the user running it rather than by an installer.

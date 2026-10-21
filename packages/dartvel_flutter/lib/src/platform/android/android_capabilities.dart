@@ -64,6 +64,14 @@ library dartvel_flutter.platform.android.capabilities;
 /// Flutter answers for the window — different numbers in split screen, and
 /// the name says screen.
 const Set<String> dvAndroidImplementedBindings = <String>{
+  // Drag and drop through the DartvelDragDrop Java class the build writes:
+  // an OnDragListener on the window, DragAndDropPermissions for another
+  // application's content:// URIs, and startDragAndDrop with
+  // DRAG_FLAG_GLOBAL | DRAG_FLAG_GLOBAL_URI_READ.
+  'dragDrop.accept',
+  'dragDrop.stop',
+  'dragDrop.startDrag',
+
   // ClipboardManager through Context.getSystemService.
   'clipboard.copy',
   'clipboard.paste',
@@ -144,16 +152,6 @@ const Set<String> dvAndroidImplementedBindings = <String>{
 
   // NotificationManager, with the channel API 26 and later require.
   'notifications.sendLocal',
-
-  // Firebase Cloud Messaging through the DartvelPush class the build writes
-  // for a project that declares dartvel.push.android. Registered only where
-  // that class is found, so an application without push leaves them
-  // unregistered.
-  'push.token',
-  'push.unsubscribe',
-  'push.drainMessages',
-  'push.subscribeToTopic',
-  'push.unsubscribeFromTopic',
 
   // The device runtime, which is procfs and one Android class for the disk.
   // Six names rather than two: the watchdog, provisioning and the
@@ -395,16 +393,3 @@ String? dvAndroidLaunchRoute(String? uri) {
   if (!parsed.path.startsWith('/')) return null;
   return parsed.hasQuery ? '${parsed.path}?${parsed.query}' : parsed.path;
 }
-
-/// The push group: Firebase Cloud Messaging through `DartvelPush`.
-///
-/// Its own set, shared by both branches of the conditional import, so the
-/// analyser (which resolves the non-JNI branch) and an Android build agree on
-/// what the group is called and what it holds.
-const Set<String> dvAndroidPushBindings = <String>{
-  'push.token',
-  'push.unsubscribe',
-  'push.drainMessages',
-  'push.subscribeToTopic',
-  'push.unsubscribeFromTopic',
-};
