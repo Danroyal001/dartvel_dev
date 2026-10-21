@@ -1,7 +1,8 @@
-## Unreleased
+## 0.13.12 — 2026-10-21
 
-- App icon quick actions (`DVAppShortcut` / `DVAppShortcutsConfig`) on every target: PWA manifest shortcuts, Android `shortcuts.xml`, iOS `UIApplicationShortcutItems` with delegate, Linux desktop actions. Every shortcut opens its route through `dartvel:///route`.
-- `DVContextMenu`: per-element context menu (right-click/secondary click, long-press, menu key/Shift+F10, screen-reader actions), with `DVBrowserMenu` rules preserved (web gets "More"; Shift+right-click goes to browser; selected text defers to selection menu; every item has tooltip = label; long-press beats child's tooltip).
+- App icon quick actions (`dartvel.appShortcuts`, `DVAppShortcut`) declared once and written by the build for every target: the web manifest's shortcuts, Android `shortcuts.xml`, iOS `UIApplicationShortcutItems`, Linux desktop actions. Each opens its route.
+- `DVContextMenu`: a per-element menu opened by right-click, long-press, the menu key or Shift+F10, and by screen readers as custom actions. On the web it adds "More" for the browser's menu and leaves Shift+right-click to the browser; it steps aside for selected text so Copy and Select all still open; every item's tooltip is its label.
+- Android media: `dartvel build` writes a Media3 (ExoPlayer) player, media session and CameraX camera bridge behind the existing `DVMediaController` and `DVCameraController` contracts, with device selection, permissions and one native event decoder shared with Apple targets. Built and unit-tested; not yet verified on a device. Apple players and cameras are not implemented yet.
 
 ## 0.13.11 — 2026-10-21
 
@@ -1392,8 +1393,6 @@ Packages at 0.1.0:
 - dartvel_shelf
 
 ## Unreleased
-
-- Android native media: generated Media3/CameraX bridges and JNI adapters against the current player/camera contracts, with device ids, event decoding and disposal tests. Hardware verification pending. Apple branch contributes event-schema tests only; no AVPlayer/AVFoundation implementation.
 
 - Page and backend-function annotations accept ordered typed `middleware:` lists. `@DVUseMiddleware` remains a deprecated alias; conventions diagnostics point to the field.
 - `dartvel doctor --conventions` checks application entry, Flutter widget classes/builders, legacy middleware, manual backend serialization, root pages, scripts and private host documentation. Builds warn by default; `--strict` refuses violations.

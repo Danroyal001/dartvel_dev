@@ -2,6 +2,12 @@
 
 - Internal Android media bridge names shared by build generation and JNI runtime. Shared controller contracts retained.
 
+## 0.13.12 — 2026-10-21
+
+- `DVAppShortcut` and `DVAppShortcutsConfig`: the `dartvel.appShortcuts` list as typed configuration, validated the same way in pubspec and in a Dart config class.
+- Android media bridge contracts and the native media event decoder shared by Android and Apple targets.
+
+
 ## 0.13.11 — 2026-10-21
 
 - Version aligned with dartvel_core 0.13.11.
