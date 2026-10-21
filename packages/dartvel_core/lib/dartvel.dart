@@ -266,6 +266,7 @@ export 'src/notifications/web_push_vapid.dart';
 // src/dv.dart; DVObservability itself stays inside the framework.
 export 'src/observability/observability.dart' hide DVObservability;
 export 'src/platform/android_capture.dart';
+export 'src/platform/android_media.dart';
 export 'src/platform/ios_platform_shim.dart';
 export 'src/platform_config.dart';
 export 'src/preview/preview.dart';
