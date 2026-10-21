@@ -440,6 +440,7 @@ class DVMediaView extends StatefulWidget {
     this.aspectRatio,
     this.session,
     this.captions,
+    bool loop = false,
     DVMediaController? controller,
   })  : ownsController = controller == null,
         controller = controller ??
@@ -448,6 +449,7 @@ class DVMediaView extends StatefulWidget {
               background: background,
               session: session,
               captions: captions,
+              loop: loop,
               environment: DVMediaBackends.environment(),
             );
 

@@ -46,6 +46,8 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
               'drive the same player.',
           'Remote files are read through a disk cache, and precache fetches '
               'the start of a video before anyone presses play.',
+          'loop: true starts a video or song again from the beginning when it '
+              'ends, for a background that plays all through a service.',
         ]),
         DocsCode('media3d-video'),
         DocsCode('media3d-precache'),

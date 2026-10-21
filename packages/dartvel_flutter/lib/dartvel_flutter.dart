@@ -2332,6 +2332,7 @@ class DVBox<T> extends StatelessWidget {
     bool autoplay = false,
     DVMediaSession? session,
     DVCaptions? captions,
+    bool loop = false,
     DVMediaController? controller,
     DVModifier? modifier,
   }) : this._(
@@ -2344,6 +2345,7 @@ class DVBox<T> extends StatelessWidget {
             autoplay: autoplay,
             session: session,
             captions: captions,
+            loop: loop,
             controller: controller,
           ),
           modifier: modifier,
@@ -2358,6 +2360,7 @@ class DVBox<T> extends StatelessWidget {
     bool autoplay = false,
     DVMediaSession? session,
     DVCaptions? captions,
+    bool loop = false,
     DVMediaController? controller,
     DVModifier? modifier,
   }) : this._(
@@ -2370,6 +2373,7 @@ class DVBox<T> extends StatelessWidget {
             autoplay: autoplay,
             session: session,
             captions: captions,
+            loop: loop,
             controller: controller,
           ),
           modifier: modifier,
