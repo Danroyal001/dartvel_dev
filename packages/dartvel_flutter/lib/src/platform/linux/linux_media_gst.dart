@@ -33,6 +33,10 @@ typedef _PV = Pointer<Void>;
 
 // GstState
 const int _stateNull = 1;
+const int _stateReady = 2;
+
+// GstStateChangeReturn
+const int _stateChangeFailure = 0;
 const int _statePaused = 3;
 const int _statePlaying = 4;
 
@@ -573,7 +577,38 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend, DVVideoSurface {
     this.videoSink,
     this.pollInterval = const Duration(milliseconds: 50),
     this.frameInterval = const Duration(milliseconds: 15),
+    this.audioOutputs = _audioOutputs,
+    this.silentVideo = true,
   });
+
+  /// The audio outputs tried, in order, when [audioSink] is null: the first
+  /// that opens is used.
+  final List<String> audioOutputs;
+
+  /// Whether a video plays without sound when no audio output opens -- a
+  /// projector computer with no sound card, a sound server not running yet
+  /// -- rather than failing. False for an audio player, which would be
+  /// playing into nothing.
+  final bool silentVideo;
+
+  bool _silent = false;
+
+  /// Whether this player found no audio output that opened and plays
+  /// video without sound.
+  bool get silent => _silent;
+
+  /// Whether [name] can open its device: made and taken to READY, which is
+  /// where an audio sink connects to its server or card.
+  static bool _opens(_Gst gst, String name) {
+    final _PV element = gst.make(name);
+    if (element == nullptr) return false;
+    try {
+      return gst.setState(element, _stateReady) != _stateChangeFailure;
+    } finally {
+      gst.setState(element, _stateNull);
+      gst.objectUnref(element);
+    }
+  }
 
   /// The audio output element, or null for the first installed of
   /// pipewiresink, pulsesink, alsasink and autoaudiosink.
@@ -693,8 +728,11 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend, DVVideoSurface {
 
     // Every element is looked up before one is made, so a missing one fails
     // the open with its name instead of leaving a half-built player polling.
-    final List<String> missing =
-        missingElements(audioSink: audioSink, videoSink: videoSink);
+    final List<String> missing = <String>[
+      for (final String element in missingElements(audioSink: audioSink, videoSink: videoSink))
+        // With no audio output installed a video still plays, silently.
+        if (!(silentVideo && audioSink == null && _audioOutputs.contains(element))) element,
+    ];
     if (missing.isNotEmpty) {
       final bool noOutput =
           audioSink == null && _audioOutputs.every(missing.contains);
@@ -708,8 +746,24 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend, DVVideoSurface {
           'these GStreamer elements are not installed: ${named.join(', ')}'));
       return;
     }
-    final String audioName = audioSink ??
-        _audioOutputs.firstWhere(DVGStreamer.hasElement);
+    String? opened = audioSink;
+    if (opened == null) {
+      for (final String candidate in audioOutputs) {
+        if (DVGStreamer.hasElement(candidate) && _opens(gst, candidate)) {
+          opened = candidate;
+          break;
+        }
+      }
+    }
+    if (opened == null) {
+      if (!silentVideo) {
+        _emit(DVMediaFailed('no audio output could be opened (tried '
+            '${audioOutputs.join(', ')}): is the sound server running?'));
+        return;
+      }
+      _silent = true;
+    }
+    final String audioName = opened ?? 'fakesink';
     final bool frames = videoSink == null && drawsFrames;
     final String videoName = frames ? 'the frame sink' : videoSink ?? 'fakesink';
 
@@ -1843,7 +1897,8 @@ abstract final class DVLinuxMedia {
     // A desktop process keeps running with its window hidden, so background
     // audio needs nothing declared.
     DVMediaBackends.registerPlayer(
-        (DVMediaSource source, DVMediaKind kind) => DVGStreamerPlayer(),
+        (DVMediaSource source, DVMediaKind kind) =>
+            DVGStreamerPlayer(silentVideo: kind == DVMediaKind.video),
         backgroundAudioDeclared: true);
     DVMediaBackends.useCache(DVDiskMediaCache(cacheDirectory()));
     DVMediaBackends.registerCapture(

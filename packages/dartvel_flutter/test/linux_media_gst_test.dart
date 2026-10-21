@@ -356,6 +356,27 @@ void main() {
       await c.dispose();
     }, skip: noFrames);
 
+    test('with no audio output that opens, the video still plays, silently', () async {
+      // filesink is installed but will not open without a file: as a sound
+      // server that is not running, or a computer with no sound card.
+      final DVGStreamerPlayer backend = DVGStreamerPlayer(audioOutputs: const <String>['filesink']);
+      final DVMediaController c = controllerFor(DVMediaSource.file(redVideo));
+      await c.attach(backend);
+      await until(() => c.state.value == DVPlaybackState.paused);
+      await c.play();
+      await until(() => c.state.value == DVPlaybackState.playing);
+      await until(() => backend.frame.value != null);
+      expect(backend.silent, isTrue);
+      await c.dispose();
+    }, skip: noFrames);
+
+    test('an audio player with no output that opens fails, saying why', () async {
+      final DVMediaController c = controllerFor(DVMediaSource.file(tone));
+      await c.attach(DVGStreamerPlayer(audioOutputs: const <String>['filesink'], silentVideo: false));
+      await until(() => c.state.value == DVPlaybackState.failed);
+      expect(c.error.value, contains('no audio output could be opened'));
+    }, skip: noFrames);
+
     test('the player is a video surface that draws the frames', () async {
       final DVGStreamerPlayer backend = DVGStreamerPlayer(audioSink: 'fakesink');
       expect(backend, isA<DVVideoSurface>());
