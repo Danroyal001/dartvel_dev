@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/gestures.dart' show kLongPressTimeout;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, kLongPressTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -159,6 +159,42 @@ void main() {
   });
 
   group('a draggable on a platform that starts its own drag', () {
+    // A browser decides at the press whether a movement is a drag, from the
+    // draggable attribute, and Flutter handles that press itself; so the
+    // payload is set while the mouse is over the draggable, before the press.
+    testWidgets('a mouse over it sets the payload before the press, and leaving takes it back',
+        (WidgetTester tester) async {
+      final List<Object?> pending = <Object?>[];
+      DVNativeBridge.register('dragDrop.setPending', (Object? arguments) {
+        pending.add(arguments);
+        return true;
+      });
+      await tester.pumpWidget(MaterialApp(
+        home: Center(
+          child: const DVBox(SizedBox(width: 80, height: 80, child: Text('drag me')))
+              .modifier(const DVModifier().draggable(const DVDragPayload(text: 'hovered'))),
+        ),
+      ));
+      final TestGesture mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(find.text('drag me')));
+      await tester.pump();
+      expect((pending.last! as Map<Object?, Object?>)['text'], 'hovered');
+      expect(DVDragDrop.pendingPayload?.text, 'hovered');
+
+      // A click that did not drag leaves it armed for the next press.
+      await mouse.down(tester.getCenter(find.text('drag me')));
+      await mouse.up();
+      await tester.pump();
+      expect(DVDragDrop.pendingPayload?.text, 'hovered');
+
+      await mouse.moveTo(const Offset(1, 1));
+      await tester.pump();
+      expect(pending.last, isNull);
+      expect(DVDragDrop.pendingPayload, isNull);
+    });
+
     testWidgets('sets the payload on press and takes it back on release', (WidgetTester tester) async {
       final List<Object?> pending = <Object?>[];
       DVNativeBridge.register('dragDrop.setPending', (Object? arguments) {

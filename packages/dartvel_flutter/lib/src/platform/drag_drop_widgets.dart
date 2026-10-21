@@ -10,7 +10,7 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, PointerHoverEvent;
 import 'package:flutter/widgets.dart';
 
 import 'drag_drop.dart';
@@ -133,15 +133,42 @@ DVDropEvent dvDropEventFromPayload(DVDragPayload payload, Offset at) =>
     );
 
 /// Carries [payload] out of [child] when it is dragged.
-class DVDraggable extends StatelessWidget {
+class DVDraggable extends StatefulWidget {
   const DVDraggable({super.key, required this.payload, required this.child});
 
   final DVDragPayload payload;
   final Widget child;
 
   @override
+  State<DVDraggable> createState() => _DVDraggableState();
+}
+
+class _DVDraggableState extends State<DVDraggable> {
+  bool _hovered = false;
+
+  void _arm() {
+    if (!identical(DVDragDrop.pendingPayload, widget.payload)) {
+      DVDragDrop.pendingPayload = widget.payload;
+    }
+  }
+
+  void _disarm() {
+    if (identical(DVDragDrop.pendingPayload, widget.payload)) {
+      DVDragDrop.pendingPayload = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _disarm();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     const DVDragDrop dragDrop = DVDragDrop();
+    final DVDragPayload payload = widget.payload;
+    final Widget child = widget.child;
     final Widget feedback = Opacity(opacity: 0.7, child: child);
     if (!dragDrop.canDragOut) {
       // No system drag on this target: a drag inside the application, so
@@ -153,9 +180,10 @@ class DVDraggable extends StatelessWidget {
         child: child,
       );
     }
+    final bool startsDrags = dragDrop.startsDrags;
     // Where the platform starts the drag itself from the press (a browser)
     // the pending payload is all it needs: there is no startDrag to call.
-    final Widget pressed = !dragDrop.startsDrags
+    final Widget pressed = !startsDrags
         ? child
         : GestureDetector(
             // A finger holds before it drags, so a scroll stays a scroll; a
@@ -180,16 +208,35 @@ class DVDraggable extends StatelessWidget {
             },
             child: child,
           );
-    return Listener(
+    final Widget listened = Listener(
       // Set before the platform asks: iPadOS and browsers start their own
       // drag from the pointer and ask what it carries at that moment.
-      onPointerDown: (_) => DVDragDrop.pendingPayload = payload,
+      onPointerDown: (_) => _arm(),
       // And taken back when the press ends, or a later long press on
       // something else would drag this. A drag the platform started has
-      // already read it by then.
-      onPointerUp: (_) => DVDragDrop.pendingPayload = null,
-      onPointerCancel: (_) => DVDragDrop.pendingPayload = null,
+      // already read it by then. A mouse still over it stays armed.
+      onPointerUp: (_) => _hovered && !startsDrags ? _arm() : _disarm(),
+      onPointerCancel: (_) => _disarm(),
       child: pressed,
+    );
+    if (startsDrags) return listened;
+    // A browser decides at the press whether a movement is a drag, and the
+    // press is Flutter's before it is this widget's: so a mouse over the
+    // draggable sets the payload ahead of the press.
+    return MouseRegion(
+      onEnter: (_) {
+        _hovered = true;
+        _arm();
+      },
+      onHover: (PointerHoverEvent _) {
+        // Re-armed after a drag ended with the mouse still here.
+        if (DVDragDrop.pendingPayload == null) _arm();
+      },
+      onExit: (_) {
+        _hovered = false;
+        _disarm();
+      },
+      child: listened,
     );
   }
 }

@@ -9,14 +9,20 @@
 /// Dragging out: a browser only starts a drag from an element the pointer
 /// went down on that is `draggable`, and fills the drag in that element's
 /// `dragstart`. Flutter draws into one element, so a draggable widget marks
-/// that element draggable for the press it started ([setPending]), and the
-/// `dragstart` that follows is filled from the payload: text, links, and
-/// files as `File` objects plus Chrome's `DownloadURL` so a file can land on
-/// the desktop.
+/// that element draggable while a mouse is over it or a press is on it
+/// ([setPending]), and the `dragstart` that follows is filled from the
+/// payload: text, links, and files as `File` objects plus Chrome's
+/// `DownloadURL` so a file can land on the desktop.
+///
+/// Flutter cancels every `pointerdown`, and a browser starts no drag from a
+/// cancelled press. So while a payload is pending, a capture listener that
+/// runs before Flutter's leaves that one press uncancelled; Flutter still
+/// receives it, and every other press is untouched.
 library;
 
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
 import 'package:web/web.dart' as web;
@@ -37,7 +43,7 @@ class DVWebDragDrop {
   static JSFunction? _leave;
   static JSFunction? _drop;
   static JSFunction? _dragStart;
-  static JSFunction? _reset;
+  static JSFunction? _press;
   static Map<Object?, Object?>? _pending;
   static final List<String> _objectUrls = <String>[];
 
@@ -127,24 +133,35 @@ class DVWebDragDrop {
       host.draggable = false;
       return;
     }
-    // Draggable for this press only: the browser decides at the press
+    // Draggable while a payload is pending: the browser decides at the press
     // whether a movement is a drag, and decides it from this attribute.
     host.draggable = true;
-    _dragStart ??= ((web.DragEvent event) {
-      final Map<Object?, Object?>? pending = _pending;
-      final web.DataTransfer? transfer = event.dataTransfer;
-      if (pending == null || transfer == null) return;
-      dvFillWebDrag(pending, transfer, _objectUrls);
-    }).toJS;
-    _reset ??= ((web.Event _) {
-      _pending = null;
-      _host.draggable = false;
-    }).toJS;
-    host.addEventListener('dragstart', _dragStart);
-    // Every way the press can end: released without dragging, or a drag
-    // that finished either way.
-    web.window.addEventListener('pointerup', _reset);
-    web.window.addEventListener('dragend', _reset);
+    if (_dragStart == null) {
+      _dragStart = ((web.DragEvent event) {
+        final Map<Object?, Object?>? pending = _pending;
+        final web.DataTransfer? transfer = event.dataTransfer;
+        if (pending == null || transfer == null) return;
+        dvFillWebDrag(pending, transfer, _objectUrls);
+      }).toJS;
+      host.addEventListener('dragstart', _dragStart);
+    }
+    if (_press == null) {
+      final JSFunction keep = (() {}).toJS;
+      _press = ((web.PointerEvent event) {
+        if (_pending == null || event.button != 0) return;
+        // Shadows preventDefault on this one event, so Flutter's call to it
+        // does not cancel the press the browser would start the drag from.
+        event['preventDefault'] = keep;
+      }).toJS;
+      web.window.addEventListener(
+        'pointerdown',
+        _press,
+        web.AddEventListenerOptions(capture: true),
+      );
+    }
+    // Taken back by the widget: when the mouse leaves it, a press that did
+    // not drag ends, or the drag it started ends (the browser cancels the
+    // pointer when its drag begins).
   }
 }
 

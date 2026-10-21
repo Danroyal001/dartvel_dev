@@ -110,6 +110,10 @@ void main() {
     await gesture.up();
     await tester.pump();
     expect(pending.first, isA<Map>());
+    // A mouse still over the draggable keeps it armed for the next press;
+    // moving away takes the payload back.
+    await gesture.moveTo(Offset.zero);
+    await tester.pump();
     expect(pending.last, isNull);
     expect(tester.takeException(), isNull);
   });
