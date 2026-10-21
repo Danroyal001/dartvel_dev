@@ -133,6 +133,8 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '    --arch                       Target architecture for embedded builds',
       '                                 [arm, arm64 (default), x64]',
       '    --[no-]split-per-abi         Split APKs per ABI (Android)',
+      '    --[no-]cache                 Reuse a step whose inputs are byte-for-byte unchanged (the Flutter web build, each route\'s semantics capture). Kept in .dartvel/cache; --no-cache builds everything afresh.',
+      '                                 (defaults to on)',
       '    --build-number               Build number',
       '    --build-name                 Build name/version',
       '    --[no-]obfuscate             Obfuscate code (release only)',

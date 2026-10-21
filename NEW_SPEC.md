@@ -5238,6 +5238,7 @@ are not.
 
 ## CLI
 
+
 ```bash
 dartvel flags list                       # every declared flag, rule and owner
 dartvel flags status newCheckout
@@ -10109,6 +10110,67 @@ What makes the OS deliver that request in the first place is verification, and
 its two files are generated from the route index: see
 [Deep-link verification files](#deep-link-verification-files).
 
+## File associations
+
+File associations are not a desktop feature. A phone opens a file from Files or
+a share sheet, an installed web app is offered for the types in its manifest,
+and an embedded Linux image with a shell reads the same desktop entry a desktop
+does. So the declaration is platform-neutral and lives at the top of the
+`dartvel:` section:
+
+```yaml
+dartvel:
+  fileAssociations:
+    - mimeType: application/x-shop-order   # required
+      extensions: [order]                   # a type the app introduces needs one
+      description: Shop order
+      icon: assets/order.png
+      role: editor                          # default; viewer for read-only
+```
+
+A project whose `dartvel:` names a Dart config file declares the same thing as
+`DartvelConfig.fileAssociations` (`package:dartvel_core/config.dart`). The
+class serialises to exactly the YAML object through `toPubspec()`, and both go
+through one parser, so every key, default and validation message is shared;
+the build runs the class once and caches the answer against the file.
+`dartvel.desktop.fileAssociations` is a deprecated alias that warns once.
+
+`dartvel build` registers the declaration the way each target expects. Native
+folders are never edited by hand: where a toolchain only reads a file the
+developer owns, the build writes a marked block it replaces on every build,
+removes when the declaration goes away, and never writes beside entries the
+developer made themselves.
+
+| Target | Registration | Delivery to `DV.Platform.associations.opened` |
+|---|---|---|
+| Android (+ Fire OS) | `DartvelOpenActivity` (generated) with VIEW, SEND and SEND_MULTIPLE filters by MIME type, plus `pathPattern` for a new type's extensions | the Activity copies each file to the cache and queues it; JNI `take()` at start and on resume; `MainActivity` is untouched |
+| iOS | `CFBundleDocumentTypes`, `UTExportedTypeDeclarations` / `UTImportedTypeDeclarations`, `LSSupportsOpeningDocumentsInPlace` | the app delegate block copies the file out of its security scope; FFI read of the defaults at start and on resume |
+| macOS | document types and declared types in `Info.plist` | launch arguments |
+| Windows | per-user registry script beside the binary, Open (and Edit for an editor) verbs; no MSIX is produced | launch arguments |
+| Linux, Sony eLinux | `.desktop` `MimeType=` and a shared-mime-info package | launch arguments, handed to the running instance |
+| Tizen | `app-control` with the view operation per type in `tizen-manifest.xml` | not wired yet; picker |
+| Web, installed PWA | manifest `file_handlers` | `launchQueue`, with the bytes |
+| Web tab, webOS, terminal, browser extensions | none: no system mechanism exists | `pick()` |
+
+A type's `icon` is used where a platform takes one from a file: the web
+handler's icon, the Linux MIME-type icon (installed under the bundle's
+`share/icons/hicolor`), and Windows' `DefaultIcon` when it is an `.ico`. Apple
+and Android per-type icons are not generated; those documents use the
+application's icon.
+
+Run so far: Linux, where the generated desktop entry and MIME package were
+installed per user, `xdg-mime` resolved `*.anote` to the declared type, `gio open`
+started the built app with the file, and files opened while it ran reached the
+same instance's stream; and the web, where the server's manifest carries the
+handlers and icons and a `launchQueue` file reaches the stream with its bytes in
+headless Chrome (an installed PWA's OS launch was not exercised). Android, iOS,
+macOS, Windows and Tizen output is checked by generated-output tests only.
+
+`initial()` answers the files the application was started with. `pick()` is the
+fallback everywhere: the platform's own picker, narrowed to the given types
+where the picker can be narrowed, feeding the same stream. On a desktop a file
+argument still also opens the `/open?path=` route.
+
 ## Shared window state
 
 Two handover modes, chosen automatically from `capability.sameEngine`:
@@ -12375,6 +12437,37 @@ Dartvel should own the full build orchestration:
 
 `dartvel build` and `dartvel dev` run `dartvel routes` first. Users do not
 need to remember a separate generation command for normal workflows.
+
+## Web build cache
+
+`dartvel build web` and `web-server` reuse raw Flutter web output when source,
+assets, local dependency contents, flags and SDK revisions have not changed.
+Each route's semantics tree and image capture is cached against the web output,
+route and capture implementation version. Captures are kept together per web
+build rather than pruning sibling routes. Cached output is checked against a
+size/hash manifest before reuse; incomplete or corrupt entries are rebuilt.
+Post-processing always runs on the raw restored output. The Flutter step starts
+from an empty `build/web` (Flutter does not clear it), so an entry holds only
+Flutter's files and never what an earlier build's later steps left behind. A
+capture's key ignores the one value Flutter changes on every compile of
+unchanged code, `serviceWorkerVersion` in `flutter_bootstrap.js`, which only
+names Flutter's deprecated worker; so an edit that leaves the compiled app the
+same (a backend function) recompiles Flutter but reuses every capture.
+
+`SOURCE_DATE_EPOCH` (seconds, the reproducible-builds convention) fixes the
+build id in Dartvel's service worker; without it the id is the build time.
+
+Verified on a fresh `dartvel create` app with two pages, built as web-server
+with `SOURCE_DATE_EPOCH` set: cold 263 s, warm 73 s, and `diff -r` of `build/web`,
+`build/server` and every capture is empty between the two. A `--no-cache` build
+differs from the cached one only in Flutter's own `serviceWorkerVersion` (two
+lines of `flutter_bootstrap.js`, and the server binary embedding them). After
+editing one page, only that route's capture changed.
+
+`--no-cache` bypasses both reads and writes in `.dartvel/cache`. Use it when a
+prerender reads changing external data or the clock: those are not source inputs.
+Native build caching and generated CI recipes remain designed. This does not
+cache a compiled web-server backend.
 
 ## Designed commands
 

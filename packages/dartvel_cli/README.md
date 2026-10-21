@@ -399,6 +399,30 @@ cleartext refused through a network security config except to
 host), and an R8 rule keeping the `dev.dartvel` classes Dart calls over JNI.
 Debug and profile builds are otherwise unchanged.
 
+### Repeat web builds
+
+`dartvel build web` and `web-server` keep Flutter's web output and each route's
+semantics capture in `.dartvel/cache`, keyed by the contents of everything that
+can change them (sources, assets, path dependencies, flags, Flutter and Dartvel
+versions). An unchanged rebuild reuses both; an edit that leaves the compiled
+app the same (a backend function) recompiles Flutter but reuses the captures.
+`--no-cache` neither reads nor writes the cache; use it when a prerendered page
+reads changing external data or the clock. Native targets and the server binary
+are always built. Set `SOURCE_DATE_EPOCH` to make two builds of the same
+sources byte-identical (it fixes the service worker's build id).
+
+### File types the app opens
+
+`dartvel.fileAssociations` (or the same field of a Dart config class) is
+registered by every build: web manifest `file_handlers`, a Linux and Sony eLinux
+desktop entry with a shared-mime-info package, a per-user Windows registry
+script beside the binary (no MSIX), macOS and iOS document types, Android
+intent filters, Tizen app controls. Per-type `icon`s are written for the web,
+Linux and Windows (`.ico`). On a desktop the files take effect once installed:
+on Linux the `.desktop` file into `applications/` and the bundle's `share/` into
+the data directory, followed by `update-mime-database`; on Windows the `.reg`
+script.
+
 ## Deploying
 
 ```sh

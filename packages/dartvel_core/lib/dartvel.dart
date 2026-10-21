@@ -37,6 +37,7 @@ import 'src/search/search_tuning.dart';
 import 'src/tenancy/tenants.dart';
 
 export 'src/run/entry.dart';
+export 'src/config/file_associations.dart';
 export 'src/ai/ai.dart';
 export 'src/ai/ai_eval.dart';
 export 'src/ai/ai_features.dart';

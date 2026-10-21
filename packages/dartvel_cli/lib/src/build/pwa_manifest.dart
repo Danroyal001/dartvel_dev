@@ -34,11 +34,11 @@ class DVPwaIcon {
   final String? purpose;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'src': src,
-        'sizes': '${size}x$size',
-        'type': type,
-        if (purpose != null) 'purpose': purpose,
-      };
+    'src': src,
+    'sizes': '${size}x$size',
+    'type': type,
+    if (purpose != null) 'purpose': purpose,
+  };
 }
 
 /// The icon sizes a browser requires before it will offer an install.
@@ -72,22 +72,23 @@ Map<String, Object?> dvPwaManifest({
   String themeColor = '#000000',
   String? description,
   List<DVPwaIcon> icons = _defaultIcons,
+  List<Map<String, Object?>> fileHandlers = const [],
   List<Map<String, Object?>> shortcuts = const <Map<String, Object?>>[],
-}) =>
-    <String, Object?>{
-      'name': name,
-      // What a launcher shows under the icon. Omitting it is legal and gives
-      // the truncated full name, which is worse than a sensible default.
-      'short_name': shortName ?? name,
-      'start_url': startUrl,
-      'display': display,
-      'background_color': backgroundColor,
-      'theme_color': themeColor,
-      if (description != null) 'description': description,
-      'icons': icons.map((DVPwaIcon icon) => icon.toJson()).toList(),
-      // What an installed app shows on its icon: dartvel.appShortcuts.
-      if (shortcuts.isNotEmpty) 'shortcuts': shortcuts,
-    };
+}) => <String, Object?>{
+  'name': name,
+  // What a launcher shows under the icon. Omitting it is legal and gives
+  // the truncated full name, which is worse than a sensible default.
+  'short_name': shortName ?? name,
+  'start_url': startUrl,
+  'display': display,
+  'background_color': backgroundColor,
+  'theme_color': themeColor,
+  if (description != null) 'description': description,
+  if (fileHandlers.isNotEmpty) 'file_handlers': fileHandlers,
+  'icons': icons.map((DVPwaIcon icon) => icon.toJson()).toList(),
+  // What an installed app shows on its icon: dartvel.appShortcuts.
+  if (shortcuts.isNotEmpty) 'shortcuts': shortcuts,
+};
 
 /// Why a manifest would or would not be installable.
 class DVPwaInstallability {
@@ -116,12 +117,16 @@ DVPwaInstallability dvPwaInstallability(Map<String, Object?> manifest) {
 
   final display = manifest['display'];
   if (display is! String || !dvPwaDisplayModes.contains(display)) {
-    problems.add('display "$display" is not one of '
-        '${dvPwaDisplayModes.join(', ')}. A browser ignores an unknown value '
-        'and opens the app in a tab.');
+    problems.add(
+      'display "$display" is not one of '
+      '${dvPwaDisplayModes.join(', ')}. A browser ignores an unknown value '
+      'and opens the app in a tab.',
+    );
   } else if (display == 'browser') {
-    problems.add('display is "browser", which is legal and means the app '
-        'opens in a tab rather than a window, so no install is offered.');
+    problems.add(
+      'display is "browser", which is legal and means the app '
+      'opens in a tab rather than a window, so no install is offered.',
+    );
   }
 
   final icons = manifest['icons'];
@@ -139,8 +144,10 @@ DVPwaInstallability dvPwaInstallability(Map<String, Object?> manifest) {
   }
   for (final int required in dvPwaRequiredIconSizes) {
     if (!sizes.any((int size) => size >= required)) {
-      problems.add('No icon of at least ${required}px. A browser rejects the '
-          'whole manifest for want of one and shows no error.');
+      problems.add(
+        'No icon of at least ${required}px. A browser rejects the '
+        'whole manifest for want of one and shows no error.',
+      );
     }
   }
 
@@ -201,8 +208,9 @@ DVPwaWriteResult dvPwaWrite({
     );
   }
 
-  File(p.join(webBuildDir, 'manifest.json'))
-      .writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(manifest)}\n');
+  File(p.join(webBuildDir, 'manifest.json')).writeAsStringSync(
+    '${const JsonEncoder.withIndent('  ').convert(manifest)}\n',
+  );
 
   var linked = false;
   final index = File(p.join(webBuildDir, 'index.html'));

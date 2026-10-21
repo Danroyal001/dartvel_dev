@@ -1,4 +1,14 @@
-/// Telling the desktop what this application opens, while it is running.
+/// The files this application opens: the ones it is opened with, a picker
+/// for the targets nothing can open it from, and registering the types at
+/// run time on a desktop.
+///
+/// Which types the system offers to the application is declared once, in
+/// `dartvel.fileAssociations`, and registered by `dartvel build` on every
+/// target that has a way to register them. [DVFileAssociations.opened] is
+/// where those files arrive, the same way on every one; see
+/// `opened_files.dart` for how each target delivers.
+///
+/// The rest of this file is the desktop's run-time registration:
 ///
 /// The build writes the declaration -- a `.desktop` file and MIME info on
 /// Linux, document types into the macOS plist, a registry script beside the
@@ -14,6 +24,8 @@
 library;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+
+import 'opened_files.dart';
 
 /// One file type this application opens.
 class DVFileType {
@@ -52,6 +64,64 @@ String _bare(String extension) =>
 /// Registering this application as the handler for its own file types.
 class DVFileAssociations {
   const DVFileAssociations();
+
+  /// Every file the application is opened with or shared: at launch, while
+  /// it is running, and from [pick]. A file that arrived before anything
+  /// listened goes to the first listener.
+  ///
+  /// ```dart
+  /// DV.Platform.associations.opened.listen((DVOpenedFile file) async {
+  ///   final order = Order.fromBytes(await file.read());
+  ///   DV.Navigation.navigate(DVRoutes.order(order.id));
+  /// });
+  /// ```
+  Stream<DVOpenedFile> get opened => DVOpenedFiles.opened;
+
+  /// The files the application was started with; empty when it was started
+  /// from its icon. Also delivered on [opened].
+  Future<List<DVOpenedFile>> initial() => DVOpenedFiles.initial();
+
+  /// Whether [pick] has a picker to show here.
+  bool get canPick =>
+      DVNativeBridge.isRegistered('dialogs.openFile') || DVNativeBridge.isRegistered('media.pick');
+
+  /// Asks the person for files with the platform's own picker, and hands
+  /// what they choose to [opened] as well as returning it -- the fallback
+  /// for a target nothing can open the application from, through the same
+  /// handler as everywhere else. [types] narrows the picker where it can be
+  /// narrowed. Cancelling answers an empty list.
+  Future<List<DVOpenedFile>> pick({List<DVFileType> types = const <DVFileType>[], bool multiple = false}) async {
+    final List<DVOpenedFile> picked;
+    if (DVNativeBridge.isRegistered('dialogs.openFile')) {
+      final List<String> paths = await const DVDialogs().openFile(
+        multiple: multiple,
+        filters: <DVFileFilter>[
+          for (final DVFileType type in types)
+            if (type.extensions.isNotEmpty)
+              DVFileFilter(
+                label: type.description ?? type.mimeType,
+                extensions: <String>[for (final String extension in type.extensions) _bare(extension)],
+              ),
+        ],
+      );
+      picked = <DVOpenedFile>[for (final String path in paths) DVOpenedFile.atPath(path)];
+    } else {
+      final Object? answer = await DVNativeBridge.require<Object?>('media.pick', <String, Object?>{
+        'type': 'file',
+        'multiple': multiple,
+        if (types.isNotEmpty)
+          'accept': <String>[
+            for (final DVFileType type in types) ...<String>[
+              type.mimeType,
+              for (final String extension in type.extensions) '.${_bare(extension)}',
+            ],
+          ],
+      });
+      picked = dvOpenedFilesFrom(answer);
+    }
+    DVOpenedFiles.deliver(picked);
+    return picked;
+  }
 
   /// Whether this platform can register at run time.
   ///

@@ -45,6 +45,7 @@ import 'web_files_js.dart';
 import 'web_fonts_js.dart';
 import 'web_interop.dart';
 import 'web_kiosk_js.dart';
+import 'web_launch_queue_js.dart';
 import 'web_media_js.dart';
 import 'web_drag_drop_js.dart';
 import 'web_nfc_js.dart';
@@ -410,6 +411,7 @@ class DVWebBindings {
     // unregistered; nothing here ever shows the permission prompt.
     if (DVWebPushBrowser.available) DVWebPushBrowser.register(register);
     DVWebMedia.registerPicker(register);
+    DVWebLaunchQueue.register();
     // Drops: File objects with their bytes, and text.
     DVWebDragDrop.register(register);
     DVWebBluetooth.register(register);

@@ -69,6 +69,23 @@ Widget _docsShortcutsPage(BuildContext context) => const DocsArticle(
       ],
     ),
     DocsSection(
+      id: 'context-menu',
+      title: 'Give an element its own menu',
+      children: <Widget>[
+        DocsText(
+          'DVContextMenu opens a menu for one element on right-click, '
+          'long-press, the menu key or Shift+F10, and screen readers offer its '
+          'items as custom actions. Every item’s tooltip is its label.',
+        ),
+        DocsText(
+          'On the web it adds More for the browser’s own menu, and '
+          'Shift+right-click goes straight to the browser. With text selected '
+          'it steps aside, so Copy and Select all still open.',
+        ),
+        DocsCode('context-menu'),
+      ],
+    ),
+    DocsSection(
       id: 'data',
       title: 'Save shortcut settings',
       children: <Widget>[
