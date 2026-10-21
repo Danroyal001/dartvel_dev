@@ -51,16 +51,19 @@ fail() { red "✗ $*"; exit 1; }
 local_pub_version()  { grep -m1 '^version:' "packages/$1/pubspec.yaml" | awk '{print $2}'; }
 local_npm_version()  { node -p "require('./npm/$1/package.json').version"; }
 
-# Empty when the package has never been published, which is not an error.
+# The version being released when it is already published (a package such as
+# dartvel_generator has a higher version line, so "latest" is never the one
+# being released), otherwise the latest. Empty when the package has never been
+# published, which is not an error.
 live_pub_version() {
   curl -fsS "https://pub.dev/api/packages/$1" 2>/dev/null \
-    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).latest.version)}catch(e){}})' \
+    | WANT="$2" node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const p=JSON.parse(s);console.log(p.versions.some(v=>v.version===process.env.WANT)?process.env.WANT:p.latest.version)}catch(e){}})' \
     2>/dev/null
 }
 
 live_npm_version() {
   curl -fsS "https://registry.npmjs.org/$1" 2>/dev/null \
-    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s)["dist-tags"].latest)}catch(e){}})' \
+    | WANT="$2" node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const p=JSON.parse(s);console.log(process.env.WANT in p.versions?process.env.WANT:p["dist-tags"].latest)}catch(e){}})' \
     2>/dev/null
 }
 
@@ -126,7 +129,7 @@ echo "── versions ───────────────────�
 PUB_TODO=()
 for p in "${PUB_PACKAGES[@]}"; do
   want="$(local_pub_version "$p")"
-  have="$(live_pub_version "$p")"
+  have="$(live_pub_version "$p" "$want")"
   if [[ "$want" == "$have" ]]; then
     dim "  $p $want — already published, skipping"
   else
@@ -138,7 +141,7 @@ done
 NPM_TODO=()
 for p in "${NPM_PACKAGES[@]}"; do
   want="$(local_npm_version "$p")"
-  have="$(live_npm_version "$p")"
+  have="$(live_npm_version "$p" "$want")"
   if [[ "$want" == "$have" ]]; then
     dim "  npm/$p $want — already published, skipping"
   else
