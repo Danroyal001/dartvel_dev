@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.13 — 2026-10-21
 
 - `DV.Platform.fonts`: the installed font families and faces (`families()`, `faces()`), and `load(family)` to render a picked family through FontLoader. Linux via fontconfig (the list matches `fc-list`, verified in a running app) and the web via the Local Font Access API (verified in headless Chrome); Windows (registry), macOS (CoreText) and Android (`/system/fonts`) written and unit-tested, not yet run there; iOS and other browsers answer an empty list with the reason.
 - `DVWindowOptions(takesFocus: false)`: a projector or stage-display window that never takes the keyboard from the operator's window, when it opens, when it is clicked, or through a widget inside it. Built on Linux (GTK accept-focus and focus-on-map off) and verified with two windows under openbox on a two-monitor X server; elsewhere the window opens with `DV-WINDOW-016` on its `codes`.
