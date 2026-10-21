@@ -261,6 +261,11 @@ final class DVMediaController {
   /// Whether this handle drives a session rather than following another's.
   bool get isAttached => identical(_session, _own) && _own.backend != null;
 
+  /// The player this handle's session plays through, or null before one is
+  /// attached. For a second box on the same controller to draw the same
+  /// surface rather than open a second player.
+  DVMediaPlayerBackend? get attachedBackend => _session.backend;
+
   /// Loads [source] into [backend] and starts observing the application.
   ///
   /// Refuses protected content with no adapter for its scheme

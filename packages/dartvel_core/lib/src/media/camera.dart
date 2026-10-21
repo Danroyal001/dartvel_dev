@@ -269,8 +269,24 @@ final class DVCameraController {
   /// Asks permission and opens the camera. Throws
   /// [DVCapturePermissionRefused] (state [DVCameraState.refused]) or
   /// [DVCameraUnavailable].
+  ///
+  /// Opening a camera that is already open, or opening, does nothing more: a
+  /// controller shown in two boxes -- a preview and a projector -- opens its
+  /// device once.
   Future<void> open() async {
     _check();
+    switch (_state.value) {
+      case DVCameraState.ready ||
+            DVCameraState.takingPhoto ||
+            DVCameraState.recording:
+        return;
+      case DVCameraState.opening || DVCameraState.requestingPermission:
+        final Completer<void>? opened = _opened;
+        if (opened != null) await opened.future;
+        return;
+      default:
+        break;
+    }
     if (!capabilities.available) {
       _state.set(DVCameraState.failed);
       _error.set('this target has no camera');

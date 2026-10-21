@@ -280,5 +280,13 @@ void main() {
       expect(c.lens.value, DVCameraLens.back);
       expect(backend.calls.where((String call) => call == 'open:screen'), isEmpty);
     });
+  
+    test('a camera shown in two boxes opens the device once', () async {
+      final DVCameraController c = camera();
+      await c.open();
+      await c.open();
+      expect(backend.calls.where((String call) => call.startsWith('open')).length, 1);
+      expect(c.state.value, DVCameraState.ready);
+    });
   });
 }

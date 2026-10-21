@@ -663,7 +663,9 @@ class _DVMediaViewState extends State<DVMediaView> {
   Widget build(BuildContext context) {
     final DVPlaybackState state = _current.state.value;
     final bool video = widget.kind == DVMediaKind.video;
-    final DVMediaPlayerBackend? backend = _backend;
+    // A box sharing an application's controller draws the player another
+    // box attached.
+    final DVMediaPlayerBackend? backend = _backend ?? _current.attachedBackend;
     final bool failed = state == DVPlaybackState.failed ||
         state == DVPlaybackState.disposed;
     final bool started = state == DVPlaybackState.playing ||
