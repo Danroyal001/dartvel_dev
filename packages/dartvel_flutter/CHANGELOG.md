@@ -1,3 +1,9 @@
+## 0.13.12 — 2026-10-21
+
+- `DVContextMenu`: a per-element menu opened by right-click, long-press, the menu key or Shift+F10, and by screen readers as custom actions. On the web it adds "More" for the browser's menu and leaves Shift+right-click to the browser; it steps aside for selected text so Copy and Select all still open; every item's tooltip is its label.
+- Android media: `dartvel build` writes a Media3 (ExoPlayer) player, media session and CameraX camera bridge behind the existing `DVMediaController` and `DVCameraController` contracts, with device selection, permissions and one native event decoder shared with Apple targets. Built and unit-tested; not yet verified on a device. Apple players and cameras are not implemented yet.
+
+
 ## 0.13.11 — 2026-10-21
 
 - Version aligned with dartvel_core 0.13.11.
