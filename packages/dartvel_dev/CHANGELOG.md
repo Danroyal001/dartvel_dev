@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvelDefaultTheme` names its bundled Manrope by asset path (`packages/dartvel_flutter/Manrope`) instead of passing `package:`. Flutter hands a theme's package on to every style merged into it, so a widget naming an installed font loaded with `DV.Platform.fonts` asked for `packages/dartvel_flutter/<font>` and was drawn in Manrope. Found in Media-Bits' font picker on Linux, where every font previewed the same.
+
 ## 0.13.13 — 2026-10-21
 
 - `DV.Platform.fonts`: the installed font families and faces (`families()`, `faces()`), and `load(family)` to render a picked family through FontLoader. Linux via fontconfig (the list matches `fc-list`, verified in a running app) and the web via the Local Font Access API (verified in headless Chrome); Windows (registry), macOS (CoreText) and Android (`/system/fonts`) written and unit-tested, not yet run there; iOS and other browsers answer an empty list with the reason.

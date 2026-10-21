@@ -5,6 +5,7 @@
 - Breaking: `DVDroppedFile` is replaced by `DVIncomingFile` (`await file.readBytes()` for the old `bytes`; `mimeType` is nullable). `DVDragDrop.dispatchDragOver` is replaced by `dispatchHover(x, y)`/`dispatchLeave()` for bindings.
 - A drop zone or draggable with no words and no `.tooltip()` is refused in a debug build, like an icon-only control; a tooltip on one is also its screen reader label.
 - Android (`DVAndroidDragDrop`, JNI) and iOS (`DVIosDragDrop`, Objective-C runtime) adapters for the generated bridges; not yet run on a device.
+- `dartvelDefaultTheme` names its bundled Manrope by asset path (`packages/dartvel_flutter/Manrope`) instead of passing `package:`. Flutter hands a theme's package on to every style merged into it, so a widget naming an installed font loaded with `DV.Platform.fonts` asked for `packages/dartvel_flutter/<font>` and was drawn in Manrope. Found in Media-Bits' font picker on Linux, where every font previewed the same.
 
 ## 0.13.13 — 2026-10-21
 
