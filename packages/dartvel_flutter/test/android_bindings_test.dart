@@ -38,6 +38,11 @@ void main() {
         // link, so without it a widget opened the application's home route.
         'deepLinks.initial',
         'associations.opened',
+        // Drops from another app in split screen or a freeform window, and
+        // dragging out, through the generated DartvelDragDrop bridge.
+        'dragDrop.accept',
+        'dragDrop.stop',
+        'dragDrop.startDrag',
         // What a home-screen widget shows. The provider is a receiver in
         // this application's own process, so both ends reach the same
         // SharedPreferences -- but the launcher composes the widget, so
