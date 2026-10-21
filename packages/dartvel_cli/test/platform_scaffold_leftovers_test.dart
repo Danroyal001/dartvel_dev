@@ -24,7 +24,9 @@ void main() {
   Future<ProcessResult> fakeFlutterCreate(String executable, List<String> arguments,
       {String? workingDirectory, bool runInShell = true}) async {
     File(p.join(root.path, 'linux', 'CMakeLists.txt')).createSync(recursive: true);
-    File(p.join(root.path, 'test', 'widget_test.dart')).writeAsStringSync('MyApp');
+    File(p.join(root.path, 'test', 'widget_test.dart'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('MyApp');
     File(p.join(root.path, '.metadata')).writeAsStringSync('version');
     return ProcessResult(1, 0, '', '');
   }
@@ -47,5 +49,49 @@ void main() {
       return ProcessResult(1, 0, '', '');
     });
     expect(File(p.join(root.path, 'test', 'widget_test.dart')).readAsStringSync(), '// mine too');
+  });
+
+  test('a flutter create that fails still leaves nothing behind', () async {
+    final bool ok = await dvEnsurePlatformScaffold(root: root.path, platform: 'linux', processRun:
+        (String executable, List<String> arguments, {String? workingDirectory, bool runInShell = true}) async {
+      // flutter create writes the counter-app files first and then fails in
+      // its own `pub get`; the build stops, and the project must not keep them.
+      File(p.join(root.path, 'test', 'widget_test.dart')).writeAsStringSync('MyApp');
+      File(p.join(root.path, '.metadata')).writeAsStringSync('version');
+      return ProcessResult(1, 1, '', 'pub get failed');
+    });
+    expect(ok, isFalse);
+    expect(File(p.join(root.path, 'test', 'widget_test.dart')).existsSync(), isFalse);
+    expect(File(p.join(root.path, '.metadata')).existsSync(), isFalse);
+  });
+
+  test('a test/ directory flutter create made is removed with its file', () async {
+    Directory(p.join(root.path, 'test')).deleteSync(recursive: true);
+    await dvEnsurePlatformScaffold(
+        root: root.path, platform: 'linux', processRun: fakeFlutterCreate);
+    expect(Directory(p.join(root.path, 'test')).existsSync(), isFalse,
+        reason: 'an empty test/ the project never had is still a leftover');
+  });
+
+  test('a vendor embedder create (tizen, elinux, webos, tvos) is cleaned the same way', () async {
+    final int exitCode = await dvGeneratePlatformScaffold(
+      root: root.path,
+      directory: 'elinux',
+      create: () async {
+        File(p.join(root.path, 'elinux', 'CMakeLists.txt')).createSync(recursive: true);
+        File(p.join(root.path, 'test', 'widget_test.dart')).writeAsStringSync('MyApp');
+        File(p.join(root.path, 'lib', 'main.dart'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync('void main() => runApp(const MyApp());');
+        File(p.join(root.path, 'desk.iml')).writeAsStringSync('<module/>');
+        return 0;
+      },
+    );
+    expect(exitCode, 0);
+    expect(File(p.join(root.path, 'elinux', 'CMakeLists.txt')).existsSync(), isTrue);
+    expect(File(p.join(root.path, 'test', 'widget_test.dart')).existsSync(), isFalse);
+    expect(Directory(p.join(root.path, 'lib')).existsSync(), isFalse);
+    expect(File(p.join(root.path, 'desk.iml')).existsSync(), isFalse);
+    expect(File(p.join(root.path, 'test', 'desk_test.dart')).readAsStringSync(), '// mine');
   });
 }
