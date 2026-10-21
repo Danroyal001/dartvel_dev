@@ -73,3 +73,36 @@ Future<void> installDesktopChrome() async {
   );
 }
 // docs:end
+
+// docs:start devices-drag-drop
+// A drop zone is a modifier. Files, links and text dropped on it from
+// another app arrive as one DVDropEvent, and so does a .draggable() dragged
+// across from elsewhere in the app. Like every control it says what it is,
+// and choosing a file does the same job for a keyboard or a screen reader.
+Widget attachments(BuildContext context) {
+  final DVSignal<String> attached = context.signal('Nothing attached yet');
+  Future<void> attach(DVDropEvent event) async {
+    final List<String> names = <String>[
+      for (final DVIncomingFile file in event.files)
+        '${file.name} (${(await file.readBytes()).length} bytes)',
+      for (final Uri link in event.urls) '$link',
+      if (event.text != null) event.text!,
+    ];
+    attached.value = names.join(', ');
+  }
+
+  return DVBox.list(<Widget>[
+    const DVText('Drop receipts, links or notes here').modifier(
+      DVModifier().padding(24).dropTarget(onDrop: attach),
+    ),
+    DVText(attached.value),
+    DVText('Choose files instead').modifier(DVModifier().onTap(() async {
+      final DVDropEvent? chosen = await DV.Platform.dragDrop.chooseInstead();
+      if (chosen != null) await attach(chosen);
+    })),
+    DVText('Drag the cart link').modifier(DVModifier().draggable(
+      DVDragPayload(urls: <Uri>[Uri.parse('https://oakline.example/cart')]),
+    )),
+  ]);
+}
+// docs:end
