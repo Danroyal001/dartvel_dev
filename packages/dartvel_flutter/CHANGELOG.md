@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvelDefaultTheme` names its bundled Manrope by asset path (`packages/dartvel_flutter/Manrope`) instead of passing `package:`. Flutter hands a theme's package on to every style merged into it, so a widget naming an installed font loaded with `DV.Platform.fonts` asked for `packages/dartvel_flutter/<font>` and was drawn in Manrope. Found in Media-Bits' font picker on Linux, where every font previewed the same.
+
 ## 0.13.13 — 2026-10-21
 
 - `DV.Platform.associations.opened`, `initial()`, `pick()` and `canPick`: files the app is opened with or shared, delivered the same way on every target (`DVOpenedFile`): launch arguments and the single-instance hand-over on desktops, `launchQueue` on the web, the generated Android activity and iOS delegate block on mobile.
