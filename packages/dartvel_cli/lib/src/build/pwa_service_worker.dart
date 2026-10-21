@@ -19,6 +19,28 @@ import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart' show dvOfflineRoute;
 
+/// The service worker's build id: when this build was made.
+///
+/// `SOURCE_DATE_EPOCH` (whole seconds since 1970, the reproducible-builds.org
+/// convention) replaces the clock, so two builds of the same sources are byte
+/// for byte the same, the server binary that embeds the worker included.
+/// Without it the id is the current time and every build opens a new cache.
+/// A value that is not a whole, non-negative number of seconds is ignored.
+String dvServiceWorkerBuildId({
+  Map<String, String>? environment,
+  DateTime Function()? now,
+}) {
+  final String? epoch =
+      (environment ?? Platform.environment)['SOURCE_DATE_EPOCH']?.trim();
+  if (epoch != null && RegExp(r'^\d+$').hasMatch(epoch)) {
+    return DateTime.fromMillisecondsSinceEpoch(
+      int.parse(epoch) * 1000,
+      isUtc: true,
+    ).toIso8601String();
+  }
+  return (now ?? DateTime.now)().toUtc().toIso8601String();
+}
+
 /// The worker source for a build.
 ///
 /// [buildId] is part of the cache name, so a deploy opens a new cache and

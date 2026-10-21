@@ -3512,7 +3512,7 @@ class BuildCommand extends Command<void> {
     final List<String> parts = dvDeferredPartFiles(web);
     File(p.join(web.path, 'flutter_service_worker.js')).writeAsStringSync(
       dvServiceWorker(
-        buildId: DateTime.now().toUtc().toIso8601String(),
+        buildId: dvServiceWorkerBuildId(),
         precache: <String>[...routes, ...parts],
         // On unless the project says otherwise: a backend call made offline
         // is queued and replayed, which is the behaviour a PWA promises.
