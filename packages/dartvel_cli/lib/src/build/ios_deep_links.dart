@@ -65,6 +65,13 @@ String dvIosAppDelegate(String source, {required bool enabled}) {
     ..writeln('      UserDefaults.standard.set(')
     ..writeln('        url.absoluteString, forKey: "$dvIosLaunchUrlKey")')
     ..writeln('    }')
+    // A Home Screen quick action that launched the application: its type
+    // is the launch link dartvel.appShortcuts wrote into Info.plist.
+    ..writeln('    if let item = launchOptions?[.shortcutItem]')
+    ..writeln('      as? UIApplicationShortcutItem {')
+    ..writeln('      UserDefaults.standard.set(')
+    ..writeln('        item.type, forKey: "$dvIosLaunchUrlKey")')
+    ..writeln('    }')
     ..writeln('    return super.application(')
     ..writeln('      application, willFinishLaunchingWithOptions: launchOptions)')
     ..writeln('  }')
