@@ -823,6 +823,7 @@ export 'src/media/image_view.dart'
 export 'src/media/camera_view.dart' hide DVCameraView;
 export 'src/media/media_box.dart' hide DVMediaView;
 export 'src/media/stored_image.dart';
+export 'src/media/video_frame.dart';
 export 'src/modules/module_shell.dart';
 export 'src/modules/module_theme.dart';
 export 'src/platform/accelerator.dart';

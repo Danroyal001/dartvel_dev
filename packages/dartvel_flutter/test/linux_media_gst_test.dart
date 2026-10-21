@@ -60,6 +60,13 @@ void main() {
 
   late Directory dir;
   late String tone;
+  late String redVideo;
+  final String? noFrames = skip ??
+      (<String>['appsink', 'videoconvert', 'videoscale', 'videotestsrc',
+                  'vp8enc', 'vp8dec', 'webmmux', 'matroskademux']
+              .every(DVGStreamer.hasElement)
+          ? null
+          : 'the video elements are not installed (gstreamer1.0-plugins-good)');
 
   // A skip is a pass that ran nothing. Where the workflow installs the
   // plugins, their absence is a broken runner, not a reason to skip.
@@ -163,6 +170,13 @@ void main() {
     // 130 buffers of 1024 samples at 44.1 kHz: 3.02 seconds.
     await DVGStreamer.runToEos('audiotestsrc num-buffers=130 ! audioconvert ! '
         'vorbisenc ! oggmux ! filesink location=$tone');
+    if (noFrames != null) return;
+    redVideo = '${dir.path}/red.webm';
+    // Two seconds of solid red, 320x240 at 15 frames a second.
+    await DVGStreamer.runToEos('videotestsrc num-buffers=30 pattern=solid-color '
+        'foreground-color=0xffff0000 ! '
+        'video/x-raw,width=320,height=240,framerate=15/1 ! '
+        'vp8enc ! webmmux ! filesink location=$redVideo');
   });
 
   tearDownAll(() {
@@ -196,8 +210,13 @@ void main() {
             (DVGStreamer.hasElement('dashdemux') ||
                 DVGStreamer.hasElement('dashdemux2')),
       );
-      // Frames are not drawn into Flutter by this backend yet.
-      expect(caps.video, isFalse);
+      // Frames are drawn when the elements that convert them to RGBA for
+      // Flutter are installed.
+      expect(caps.video, DVGStreamerPlayer.drawsFrames);
+      expect(
+          DVGStreamerPlayer.drawsFrames,
+          <String>['appsink', 'videoconvert', 'videoscale']
+              .every(DVGStreamer.hasElement));
     }, skip: skip);
 
     test('loads with the real duration, plays, advances and completes',
@@ -297,6 +316,51 @@ void main() {
       expect(backend.isPolling, isFalse);
       expect(backend.isReleased, isTrue);
     }, skip: skip);
+  });
+
+  group('video frames', () {
+    test('a video file draws real frames: its size, its colour, in time',
+        () async {
+      final DVGStreamerPlayer backend = DVGStreamerPlayer(audioSink: 'fakesink');
+      final DVMediaController c = controllerFor(DVMediaSource.file(redVideo));
+      await c.attach(backend);
+      await until(() => c.state.value == DVPlaybackState.paused);
+      await c.play();
+      await until(() => backend.frame.value != null);
+      final DVVideoFrame frame = backend.frame.value!;
+      expect((frame.width, frame.height), (320, 240));
+      expect(frame.rgba.length, 320 * 240 * 4);
+      // The middle pixel is red, opaque: RGBA as Flutter decodes it.
+      final int middle = (120 * 320 + 160) * 4;
+      expect(frame.rgba[middle], greaterThan(230));
+      expect(frame.rgba[middle + 1], lessThan(25));
+      expect(frame.rgba[middle + 2], lessThan(25));
+      expect(frame.rgba[middle + 3], 255);
+      await until(() => c.videoSize.value == (320, 240));
+      // New frames keep arriving while it plays, not one picture held.
+      final DVVideoFrame first = backend.frame.value!;
+      await until(() => !identical(backend.frame.value, first));
+      await c.dispose();
+      expect(backend.frame.value, isNull);
+    }, skip: noFrames);
+
+    test('the player is a video surface that draws the frames', () async {
+      final DVGStreamerPlayer backend = DVGStreamerPlayer(audioSink: 'fakesink');
+      expect(backend, isA<DVVideoSurface>());
+      await backend.dispose();
+    }, skip: noFrames);
+
+    test('a fakesink video sink keeps the old audio-under-poster behaviour',
+        () async {
+      final DVGStreamerPlayer backend = player();
+      final DVMediaController c = controllerFor(DVMediaSource.file(redVideo));
+      await c.attach(backend);
+      await until(() => c.state.value == DVPlaybackState.paused);
+      await c.play();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(backend.frame.value, isNull);
+      await c.dispose();
+    }, skip: noFrames);
   });
 
   group('capture', () {

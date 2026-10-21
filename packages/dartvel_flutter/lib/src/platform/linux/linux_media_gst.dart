@@ -16,11 +16,15 @@ library dartvel_flutter.platform.linux.media;
 import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dartvel_core/dartvel.dart' hide Platform;
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
+import 'package:flutter/widgets.dart' show BuildContext, Widget;
 
 import '../../media/media_box.dart';
+import '../../media/video_frame.dart';
 
 typedef _PV = Pointer<Void>;
 
@@ -48,6 +52,20 @@ const int _seekAccurate = 1 << 1;
 // timestamp and the source object. Stable across GStreamer 1.x.
 const int _messageTypeOffset = 64;
 const int _messageSourceOffset = 80;
+
+// GstMapInfo: the memory, the flags, then the data pointer and its size,
+// with user data and padding after -- 104 bytes on LP64.
+const int _mapRead = 1 << 0;
+const int _mapInfoSize = 104;
+const int _mapDataOffset = 16;
+const int _mapSizeOffset = 24;
+
+/// The bin a player's video goes into when frames are drawn: converted and
+/// scaled to RGBA, the newest frame kept, synced to the clock so it shows
+/// when it is due rather than when it is decoded.
+const String _frameSinkDescription = 'videoconvert ! videoscale ! '
+    'video/x-raw,format=RGBA,pixel-aspect-ratio=1/1 ! '
+    'appsink name=dvframes max-buffers=1 drop=true sync=true';
 
 final class _Gst {
   _Gst(DynamicLibrary gst, DynamicLibrary gobject, DynamicLibrary glib)
@@ -133,6 +151,26 @@ final class _Gst {
         setDouble = gobject.lookupFunction<
             Void Function(_PV, Pointer<Utf8>, VarArgs<(Double, _PV)>),
             void Function(_PV, Pointer<Utf8>, double, _PV)>('g_object_set'),
+        parseBin = gst.lookupFunction<
+            _PV Function(Pointer<Utf8>, Int32, Pointer<_PV>),
+            _PV Function(Pointer<Utf8>, int, Pointer<_PV>)>(
+          'gst_parse_bin_from_description',
+        ),
+        sampleBuffer = gst.lookupFunction<_PV Function(_PV), _PV Function(_PV)>(
+            'gst_sample_get_buffer'),
+        sampleCaps = gst.lookupFunction<_PV Function(_PV), _PV Function(_PV)>(
+            'gst_sample_get_caps'),
+        capsStructure = gst.lookupFunction<_PV Function(_PV, Uint32),
+            _PV Function(_PV, int)>('gst_caps_get_structure'),
+        structureInt = gst.lookupFunction<
+            Int32 Function(_PV, Pointer<Utf8>, Pointer<Int32>),
+            int Function(_PV, Pointer<Utf8>, Pointer<Int32>)>(
+          'gst_structure_get_int',
+        ),
+        bufferMap = gst.lookupFunction<Int32 Function(_PV, _PV, Int32),
+            int Function(_PV, _PV, int)>('gst_buffer_map'),
+        bufferUnmap = gst.lookupFunction<Void Function(_PV, _PV),
+            void Function(_PV, _PV)>('gst_buffer_unmap'),
         errorFree = glib.lookupFunction<Void Function(_PV), void Function(_PV)>(
             'g_error_free'),
         gFree = glib.lookupFunction<Void Function(_PV), void Function(_PV)>(
@@ -233,6 +271,70 @@ final class _Gst {
   final void Function(_PV, Pointer<Utf8>, double, _PV) setDouble;
   final void Function(_PV) errorFree;
   final void Function(_PV) gFree;
+  final _PV Function(Pointer<Utf8>, int, Pointer<_PV>) parseBin;
+  final _PV Function(_PV) sampleBuffer;
+  final _PV Function(_PV) sampleCaps;
+  final _PV Function(_PV, int) capsStructure;
+  final int Function(_PV, Pointer<Utf8>, Pointer<Int32>) structureInt;
+  final int Function(_PV, _PV, int) bufferMap;
+  final void Function(_PV, _PV) bufferUnmap;
+
+  /// [description] as a bin whose unlinked pads become its own, or throws
+  /// [DVGStreamerPipelineError].
+  _PV bin(String description) => using((Arena arena) {
+        final Pointer<_PV> error = arena<_PV>()..value = nullptr;
+        final _PV built = parseBin(
+            description.toNativeUtf8(allocator: arena), 1, error);
+        if (error.value != nullptr) {
+          final String message = gerrorText(error.value);
+          errorFree(error.value);
+          if (built != nullptr) objectUnref(built);
+          throw DVGStreamerPipelineError(description, message);
+        }
+        if (built == nullptr) {
+          throw DVGStreamerPipelineError(
+              description, 'GStreamer could not build $description');
+        }
+        return built;
+      });
+
+  /// The newest RGBA frame in [sample], copied out of GStreamer's memory.
+  DVVideoFrame? frameOf(_PV sample) => using((Arena arena) {
+        final _PV caps = sampleCaps(sample);
+        final _PV buffer = sampleBuffer(sample);
+        if (caps == nullptr || buffer == nullptr) return null;
+        final _PV structure = capsStructure(caps, 0);
+        final Pointer<Int32> width = arena<Int32>();
+        final Pointer<Int32> height = arena<Int32>();
+        if (structure == nullptr ||
+            structureInt(structure, 'width'.toNativeUtf8(allocator: arena),
+                    width) ==
+                0 ||
+            structureInt(structure, 'height'.toNativeUtf8(allocator: arena),
+                    height) ==
+                0) {
+          return null;
+        }
+        final Pointer<Uint8> info = arena<Uint8>(_mapInfoSize);
+        if (bufferMap(buffer, info.cast(), _mapRead) == 0) return null;
+        try {
+          final Pointer<Uint8> data =
+              Pointer<Pointer<Uint8>>.fromAddress(info.address + _mapDataOffset)
+                  .value;
+          final int size =
+              Pointer<Uint64>.fromAddress(info.address + _mapSizeOffset).value;
+          final int expected = width.value * height.value * 4;
+          // RGBA rows are whole words, so there is no stride padding; a
+          // buffer of any other size is not the format the caps promised.
+          if (size < expected) return null;
+          return DVVideoFrame(
+              width: width.value,
+              height: height.value,
+              rgba: Uint8List.fromList(data.asTypedList(expected)));
+        } finally {
+          bufferUnmap(buffer, info.cast());
+        }
+      });
 
   _PV make(String factory) => using((Arena arena) =>
       factoryMake(factory.toNativeUtf8(allocator: arena), nullptr));
@@ -331,6 +433,10 @@ abstract final class DVGStreamer {
   static _Gst? _gst;
   static bool _tried = false;
 
+  /// `gst_app_sink_try_pull_sample`, from libgstapp: null when that library
+  /// (gstreamer1.0-plugins-base) is not installed, and frames are not drawn.
+  static _PV Function(_PV, int)? _pullSample;
+
   /// Loads and initialises GStreamer. False when it is not installed.
   static bool load() {
     if (_tried) return _gst != null;
@@ -343,6 +449,13 @@ abstract final class DVGStreamer {
       );
       if (gst.initCheck(nullptr, nullptr, nullptr) == 0) return false;
       _gst = gst;
+      try {
+        _pullSample = DynamicLibrary.open('libgstapp-1.0.so.0').lookupFunction<
+            _PV Function(_PV, Uint64),
+            _PV Function(_PV, int)>('gst_app_sink_try_pull_sample');
+      } on ArgumentError {
+        _pullSample = null;
+      }
       return true;
     } on ArgumentError {
       return false;
@@ -406,22 +519,41 @@ abstract final class DVGStreamer {
 }
 
 /// A `playbin` player.
-final class DVGStreamerPlayer implements DVMediaPlayerBackend {
+///
+/// Video is drawn into Flutter when the frame elements are installed (see
+/// [drawsFrames]): decoded frames are converted to RGBA and handed to a
+/// [DVVideoFrameView]. Otherwise video decodes in step with the audio under
+/// the box's poster.
+final class DVGStreamerPlayer implements DVMediaPlayerBackend, DVVideoSurface {
   DVGStreamerPlayer({
     this.audioSink,
     this.videoSink,
     this.pollInterval = const Duration(milliseconds: 50),
+    this.frameInterval = const Duration(milliseconds: 15),
   });
 
   /// The audio output element, or null for the first installed of
   /// pipewiresink, pulsesink, alsasink and autoaudiosink.
   final String? audioSink;
 
-  /// The video output element, or null for fakesink: frames are decoded to
-  /// keep audio and video in step but not drawn into Flutter.
+  /// The video output element, or null to draw frames into Flutter (or,
+  /// where the frame elements are not installed, fakesink). An explicit sink
+  /// is used as it is and no frames are drawn.
   final String? videoSink;
 
   final Duration pollInterval;
+
+  /// How often a new frame is looked for. Below a display's refresh interval,
+  /// so a frame waits at most one interval before it is drawn.
+  final Duration frameInterval;
+
+  /// Whether this machine can draw video frames into Flutter: libgstapp and
+  /// the elements that convert frames to RGBA are installed.
+  static bool get drawsFrames =>
+      DVGStreamer.load() &&
+      DVGStreamer._pullSample != null &&
+      <String>['appsink', 'videoconvert', 'videoscale']
+          .every(DVGStreamer.hasElement);
 
   static const List<String> _audioOutputs = <String>[
     'pipewiresink',
@@ -438,7 +570,7 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend {
                 DVGStreamer.hasElement('dashdemux2')),
         // A desktop process keeps running in the background.
         backgroundAudio: true,
-        video: false,
+        video: drawsFrames,
       );
 
   final StreamController<DVMediaBackendEvent> _events =
@@ -453,11 +585,18 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend {
   int? _pendingSeek;
   int _lastState = 0;
 
+  _PV _frameSink = nullptr;
+  Timer? _frameTimer;
+  final ValueNotifier<DVVideoFrame?> _frame = ValueNotifier<DVVideoFrame?>(null);
+
+  /// The newest decoded frame; null before the first and after [dispose].
+  ValueListenable<DVVideoFrame?> get frame => _frame;
+
   /// The elements [open] would need that are not installed: playbin, the
   /// audio output -- [audioSink], or every default when none of them is --
   /// and [videoSink] or fakesink. Empty when this machine can play.
   static List<String> missingElements({String? audioSink, String? videoSink}) {
-    final String video = videoSink ?? 'fakesink';
+    final String video = videoSink ?? (drawsFrames ? 'appsink' : 'fakesink');
     return <String>[
       if (!DVGStreamer.hasElement('playbin')) 'playbin',
       if (audioSink != null && !DVGStreamer.hasElement(audioSink))
@@ -475,7 +614,18 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend {
   bool get isReleased => _released;
 
   @override
-  DVMediaBackendCapabilities get capabilities => probe();
+  DVMediaBackendCapabilities get capabilities {
+    final DVMediaBackendCapabilities probed = probe();
+    return videoSink == null
+        ? probed
+        : DVMediaBackendCapabilities(
+            adaptiveStreaming: probed.adaptiveStreaming,
+            backgroundAudio: probed.backgroundAudio,
+            video: false);
+  }
+
+  @override
+  Widget buildSurface(BuildContext context) => DVVideoFrameView(_frame);
 
   @override
   Stream<DVMediaBackendEvent> get events => _events.stream;
@@ -516,10 +666,22 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend {
     }
     final String audioName = audioSink ??
         _audioOutputs.firstWhere(DVGStreamer.hasElement);
-    final String videoName = videoSink ?? 'fakesink';
+    final bool frames = videoSink == null && drawsFrames;
+    final String videoName = frames ? 'the frame sink' : videoSink ?? 'fakesink';
 
     final _PV audio = gst.make(audioName);
-    final _PV video = gst.make(videoName);
+    _PV video = nullptr;
+    if (frames) {
+      try {
+        video = gst.bin(_frameSinkDescription);
+      } on DVGStreamerPipelineError catch (error) {
+        gst.objectUnref(audio);
+        _emit(DVMediaFailed(error.reason));
+        return;
+      }
+    } else {
+      video = gst.make(videoName);
+    }
     final _PV playbin = gst.make('playbin');
     if (audio == nullptr || video == nullptr || playbin == nullptr) {
       for (final _PV made in <_PV>[audio, video, playbin]) {
@@ -539,12 +701,40 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend {
     }
 
     _playbin = playbin;
+    if (frames) {
+      _frameSink = using((Arena arena) =>
+          gst.binByName(video, 'dvframes'.toNativeUtf8(allocator: arena)));
+    }
     gst.setStringProperty(playbin, 'uri', _uriFor(source));
     gst.setPointerProperty(playbin, 'audio-sink', audio);
     gst.setPointerProperty(playbin, 'video-sink', video);
     _bus = gst.getBus(playbin);
     gst.setState(playbin, _statePaused);
     _timer = Timer.periodic(pollInterval, (_) => _poll());
+    if (_frameSink != nullptr) {
+      _frameTimer = Timer.periodic(frameInterval, (_) => _pullFrame());
+    }
+  }
+
+  void _pullFrame() {
+    if (_released || _frameSink == nullptr) return;
+    final _PV sample = DVGStreamer._pullSample!(_frameSink, 0);
+    if (sample == nullptr) return;
+    final _Gst gst = DVGStreamer._api;
+    final DVVideoFrame? next;
+    try {
+      next = gst.frameOf(sample);
+    } finally {
+      gst.miniUnref(sample);
+    }
+    if (next == null) return;
+    final DVVideoFrame? previous = _frame.value;
+    if (previous == null ||
+        previous.width != next.width ||
+        previous.height != next.height) {
+      _emit(DVMediaVideoSize(next.width, next.height));
+    }
+    _frame.value = next;
   }
 
   static String _uriFor(DVMediaSource source) => switch (source.kind) {
@@ -672,9 +862,14 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend {
     _released = true;
     _timer?.cancel();
     _timer = null;
+    _frameTimer?.cancel();
+    _frameTimer = null;
+    _frame.value = null;
     if (_playbin != nullptr) {
       final _Gst gst = DVGStreamer._api;
       gst.setState(_playbin, _stateNull);
+      if (_frameSink != nullptr) gst.objectUnref(_frameSink);
+      _frameSink = nullptr;
       if (_bus != nullptr) gst.objectUnref(_bus);
       gst.objectUnref(_playbin);
       _bus = nullptr;
