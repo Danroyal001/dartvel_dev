@@ -1,3 +1,11 @@
+## Unreleased
+
+- `DVModifier().dropTarget(onDrop:, types:, onHover:)` and `.draggable(DVDragPayload)` (`DVDropTarget`, `DVDraggable`): drops routed to the smallest widget under them, a Flutter drag between widgets where the platform has no drag out, and the browser's own drag out of a page. `DVDragDrop.startsDrags`; `startDrag` returns false and hands the payload over as pending where the platform starts drags itself.
+- `DVDropEvent.urls`, `DVDropType.urls`, `DVIncomingFile` (`readBytes()`, path, content URI or browser `File`), `DVDragPayload`/`DVOutgoingFile`, `DVDragDrop.chooseInstead()` (the file picker delivered as a drop). `DVDropEvent.fromMap` reads a file map's `bytes`. `draggingOver` now follows `dispatchHover`/`dispatchLeave` and a drop.
+- Breaking: `DVDroppedFile` is replaced by `DVIncomingFile` (`await file.readBytes()` for the old `bytes`; `mimeType` is nullable). `DVDragDrop.dispatchDragOver` is replaced by `dispatchHover(x, y)`/`dispatchLeave()` for bindings.
+- A drop zone or draggable with no words and no `.tooltip()` is refused in a debug build, like an icon-only control; a tooltip on one is also its screen reader label.
+- Android (`DVAndroidDragDrop`, JNI) and iOS (`DVIosDragDrop`, Objective-C runtime) adapters for the generated bridges; not yet run on a device.
+
 ## 0.13.13 — 2026-10-21
 
 - `DV.Platform.associations.opened`, `initial()`, `pick()` and `canPick`: files the app is opened with or shared, delivered the same way on every target (`DVOpenedFile`): launch arguments and the single-instance hand-over on desktops, `launchQueue` on the web, the generated Android activity and iOS delegate block on mobile.

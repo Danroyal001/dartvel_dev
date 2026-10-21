@@ -423,6 +423,16 @@ on Linux the `.desktop` file into `applications/` and the bundle's `share/` into
 the data directory, followed by `update-mime-database`; on Windows the `.reg`
 script.
 
+### Drag and drop on phones
+
+`dartvel build android` writes `DartvelDragDrop.java` (a `View.OnDragListener`
+on the activity's window, reached from Dart over JNI) beside the capture
+provider, and `dartvel build ios` writes `DartvelDragDrop.swift`
+(`UIDropInteraction` and `UIDragInteraction` on the Flutter view) and adds it
+to Runner's Sources. Both are generated output, like the rest of the native
+folders. The Java is compiled against `android.jar` in the tests and the
+Swift is checked as generated text; neither has been run on a device.
+
 ## Deploying
 
 ```sh
@@ -613,11 +623,3 @@ published identifiers carry a suffix: `dartvel_cli` for this package and
 - [What is built, per spec section](https://github.com/Danroyal001/dartvel_dev/blob/main/docs/spec-status.json)
 - [Releases](https://github.com/Danroyal001/dartvel_dev/releases)
 - [Issues](https://github.com/Danroyal001/dartvel_dev/issues)
-
-## Native drag-and-drop generation
-
-Android builds write `DartvelDragDrop.java` beside the capture provider;
-iOS builds write `DartvelDragDrop.swift` and add it to Runner Sources.
-The native folders remain generated output. iOS wiring has generated-output
-tests only, with no Xcode or device verification; mobile device gestures
-remain unverified.

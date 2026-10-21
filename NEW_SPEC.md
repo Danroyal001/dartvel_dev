@@ -7976,26 +7976,40 @@ Desktop:
 - system dialogs
 - installed fonts — see [Installed fonts](#installed-fonts) below
 
-Drag and drop uses `DV.Platform.dragDrop` for a window, or
-`DVModifier().dropTarget(onDrop: ...)` for one widget. `DVDropEvent` carries
-`files`, `urls`, `text` and logical coordinates; `DVIncomingFile.readBytes()`
-reads a file even when the browser or Android gives no filesystem path.
-Browser drops retain eager bytes for compatibility with existing `.bytes`
-consumers; native URI/path files are read when requested.
-`DVModifier().draggable(DVDragPayload(...))` offers text, links or files to
-the system where a native drag is available, with a Flutter drag between
-widgets otherwise. `chooseInstead()` uses the file picker where dropping
-is unavailable. Provide a named, keyboard-accessible picker action alongside
-any drop target; dragging is an additional input method.
+Drag and drop uses `DV.Platform.dragDrop` for a whole window, or
+`DVModifier().dropTarget(onDrop: ...)` for one widget; a drop goes to the
+smallest drop target under it that takes what it carries, else to the
+window. `DVDropEvent` carries `files`, `urls`, `text` and where it landed,
+in logical pixels. `DVIncomingFile.readBytes()` reads a file whether the
+platform gave a path (desktop), a content URI (Android) or a browser `File`
+(read when asked, not when dropped). `draggingOver` says when a drag is over
+an accepting window, and `onHover` on `.dropTarget(...)` when it is over that
+widget.
 
-`dartvel build android` generates the Java bridge used through JNI.
-`dartvel build ios` writes the Swift bridge and adds it to Runner's Sources
-phase; the runtime reaches it through FFI and the Objective-C runtime.
-Android and iOS device drag gestures are not verified. iOS is covered by
-generated-output tests only; no Xcode build or device run has been performed.
-Desktop bindings retain their existing incoming-drop support; this change
-adds no desktop system drag-out implementation. Browser system drag-out is
-subject to the browser's DataTransfer rules.
+`DVModifier().draggable(DVDragPayload(...))` carries text, links or files.
+In a browser the press starts the browser's own drag, so it can land in
+another tab or application as well as on a drop target in the page; where
+the platform has no drag out (the desktops, today), the drag stays inside
+the application and still reaches a `.dropTarget(...)`.
+
+A drop zone and a draggable are named like every hoverable control: the
+words inside them, or `.tooltip('...')`, which is also the screen reader
+label. One with neither is refused in a debug build with its file and line,
+and by the tooltip lint `dartvel build` runs. Dragging is an extra way in,
+never the only one: put a named control beside a drop zone that calls
+`DV.Platform.dragDrop.chooseInstead()`, which opens the file picker and
+delivers the choice as the same drop.
+
+Where it is verified: Linux (GTK, under Xvfb), Windows (OLE) and macOS
+(AppKit) take drops in their live suites, and headless Chrome takes a file
+from disk, a link and text through its own drag pipeline and starts a drag
+out of a `.draggable()` (`sites/dartvel_site/tool/verify_drag_drop.dart`).
+`dartvel build android` writes a Java `OnDragListener` bridge reached
+through JNI, and `dartvel build ios` writes a Swift
+`UIDropInteraction`/`UIDragInteraction` bridge and adds it to Runner's
+Sources; the Android Java is compiled against `android.jar` in the tests,
+and the iOS Swift is checked as generated output only. Neither has been run
+on a device, and no desktop starts a drag out to another application yet.
 
 Desktop APIs live under `DV.Platform.*` and generated app services:
 

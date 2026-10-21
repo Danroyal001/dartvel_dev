@@ -1,48 +1,53 @@
 # Drag-and-drop verification
 
-Run focused Flutter tests from `packages/dartvel_flutter`:
+## Unit and widget tests
+
+From `packages/dartvel_flutter`:
 
 ```sh
-~/heavy.sh flutter test test/drag_drop_everywhere_test.dart test/drag_drop_delivery_test.dart test/drag_drop_translation_test.dart test/drag_drop_modifier_test.dart test/drag_drop_lifecycle_test.dart
+~/heavy.sh flutter test test/drag_drop_everywhere_test.dart test/drag_drop_delivery_test.dart \
+  test/drag_drop_compatibility_test.dart test/drag_drop_translation_test.dart \
+  test/drag_drop_modifier_test.dart test/drag_drop_lifecycle_test.dart test/tooltip_required_test.dart
 ~/heavy.sh xvfb-run -a flutter test test/linux_drag_drop_test.dart
 ```
 
-Run native generation tests from `packages/dartvel_cli`, with `ANDROID_HOME`
-pointing to the installed SDK. These compile the generated Java against
-`android.jar` and exercise iOS project-file insertion and idempotence.
-They do **not** compile Swift or perform a device drag.
+From `packages/dartvel_cli`, with `ANDROID_HOME` pointing at an installed SDK
+so the generated Java is compiled against `android.jar` (the test skips that
+step without one). The iOS test checks the generated Swift and the Runner
+project edit as text; it does not compile Swift.
 
 ```sh
-~/heavy.sh dart test test/android_drag_drop_bridge_test.dart test/ios_drag_drop_bridge_test.dart
+~/heavy.sh dart test test/android_drag_drop_bridge_test.dart test/ios_drag_drop_bridge_test.dart test/tooltip_lint_test.dart
 ```
 
-The mobile folders are generated output. For an APK check, create a scratch
-app through this branch's CLI, override `dartvel_cli`, `dartvel_core`,
-`dartvel_flutter` and `dartvel_shelf` to this checkout, run `flutter pub get`,
-then `dartvel build android --profile development`. Inspect the APK for
-`dev.dartvel.jni.DartvelDragDrop` and check the generated Java source.
-An APK build proves compilation and packaging, not real device behavior.
+## In a browser
 
-For web, build the scratch app with `dartvel build web-server`. Use an isolated
-Chrome instance and drop `DataTransfer` file, URI-list and plain-text payloads
-onto a widget using `.dropTarget(onDrop: ...)`. Assert both the received
-metadata and `await file.readBytes()`; browsers supply no local paths.
-Injected `DragEvent`s test the browser event/DataTransfer integration; they
-are not an operating-system drag from a second application. Also check
-find-in-page, selection, Tab navigation and the accessibility tree.
+1. `dartvel create` a scratch app with this checkout's CLI, so its
+   `dartvel_*` dependencies and overrides point here.
+2. Copy [the scratch page](drag_drop_page.dart.txt) to its
+   `lib/pages/index.dart`.
+3. `dartvel build web-server`, then run `PORT=<port> ./build/server`.
+4. From `sites/dartvel_site`:
+   `dart run tool/verify_drag_drop.dart http://127.0.0.1:<port>/ <output-dir>`.
 
-Mobile device gestures, iOS compilation, and browser/desktop drag-out across
-applications still require separate device/manual validation.
+The verifier launches and closes its own headless Chrome (never the shared one).
+At 390, 1024 and 1366 pixels in light and dark it:
 
-The browser verifier is `sites/dartvel_site/tool/verify_drag_drop.dart`, run
-with the site's resolved package configuration. It expects a scratch page
-headed “Drag and drop verification”, a target named “Drop a file, link or
-text here”, and a JSON display of the received files' names/byte arrays,
-URLs and text. Pass the web-server URL and screenshot output directory.
-It launches and closes its own headless Chrome; it never connects to shared
-CDP ports. Screenshot widths are 360, 390, 1024, 1280 and 1366 in both themes.
+- drops a real file from disk, a `text/uri-list` link and plain text through
+  Chrome's own drag pipeline (CDP `Input.dispatchDragEvent`), and checks what
+  reached `.dropTarget(onDrop: ...)`, the file's bytes included, and that
+  `onHover` turned on and off;
+- moves a mouse down the page until the draggable arms itself, presses and
+  moves on it, and checks with `Input.setInterceptDrags` that the browser
+  started its own drag carrying the link and text, then drops that drag back
+  on the drop zone;
+- checks find-in-page, Tab reaching the "Choose files instead" control,
+  screen reader names for the drop zone and the draggable, the heading role
+  and no horizontal scroll, and saves a screenshot with the drop zone's
+  tooltip showing.
 
-Copy [the scratch page fixture](drag_drop_page.dart.txt) to the created app's
-`lib/pages/index.dart` before building it. This fixture is verification code:
-its JSON output makes the dropped metadata and bytes inspectable, and its
-“Choose files instead” control provides a keyboard-accessible alternative.
+It writes `checks.json` and the screenshots to the output directory and
+exits non-zero on any failure.
+
+What it cannot do is drag from a second operating-system application, and
+nothing here runs on an Android or iOS device.

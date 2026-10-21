@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dvAndroidDragDropClass` and `dvIosDragDropClass`: the generated drag and drop bridges' class names, shared by the build and the runtime.
+
 ## 0.13.13 — 2026-10-21
 
 - `package:dartvel_core/config.dart`: `DartvelConfig` (Dart form of the `dartvel:` section) and `DVFileAssociation` with one parser and validation for YAML and Dart.

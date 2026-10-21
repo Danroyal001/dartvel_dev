@@ -1,3 +1,8 @@
+## Unreleased
+
+- `dartvel build android` writes `DartvelDragDrop.java` and `dartvel build ios` writes `DartvelDragDrop.swift` and adds it to Runner's Sources (`android_drag_drop_bridge.dart`, `ios_drag_drop_bridge.dart`).
+- The tooltip lint also judges `.dropTarget(` and `.draggable(` chains on an icon-only `DVBox`.
+
 ## 0.13.13 — 2026-10-21
 
 - `dartvel.fileAssociations` registered at build time on every target (web `file_handlers`, Linux desktop entry + shared-mime-info, Windows registry script, Apple document types/UTIs, Android intent filters and `DartvelOpenActivity`, Tizen app controls), with per-type icons on web, Linux and Windows; `dartvel:` may name a Dart config class (`dvDartvelSection`).
