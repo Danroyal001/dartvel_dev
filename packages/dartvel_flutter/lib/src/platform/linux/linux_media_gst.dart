@@ -477,12 +477,28 @@ abstract final class DVGStreamer {
   /// Runs a `gst-launch`-style pipeline until it ends. Throws on an error,
   /// and throws [DVGStreamerPipelineError] before running when the pipeline
   /// cannot be built.
+  ///
+  /// [locations] maps element names in [description] to the file each reads
+  /// or writes, set as properties so a path is never parsed as pipeline
+  /// syntax.
   static Future<void> runToEos(
     String description, {
     Duration timeout = const Duration(seconds: 30),
+    Map<String, String> locations = const <String, String>{},
   }) async {
     final _Gst gst = _api;
     final _PV pipeline = gst.launch(description);
+    for (final MapEntry<String, String> entry in locations.entries) {
+      final _PV element = using((Arena arena) =>
+          gst.binByName(pipeline, entry.key.toNativeUtf8(allocator: arena)));
+      if (element == nullptr) {
+        gst.objectUnref(pipeline);
+        throw DVGStreamerPipelineError(
+            description, 'no element named ${entry.key}');
+      }
+      gst.setStringProperty(element, 'location', entry.value);
+      gst.objectUnref(element);
+    }
     final _PV bus = gst.getBus(pipeline);
     if (bus == nullptr) {
       // One element parses to that element, not a pipeline, and nothing
@@ -718,15 +734,7 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend, DVVideoSurface {
 
   void _pullFrame() {
     if (_released || _frameSink == nullptr) return;
-    final _PV sample = DVGStreamer._pullSample!(_frameSink, 0);
-    if (sample == nullptr) return;
-    final _Gst gst = DVGStreamer._api;
-    final DVVideoFrame? next;
-    try {
-      next = gst.frameOf(sample);
-    } finally {
-      gst.miniUnref(sample);
-    }
+    final DVVideoFrame? next = _pullNewestFrame(_frameSink);
     if (next == null) return;
     final DVVideoFrame? previous = _frame.value;
     if (previous == null ||
@@ -1108,6 +1116,444 @@ final class DVGStreamerCapture implements DVCaptureBackend {
   }
 }
 
+/// The newest frame waiting in [appsink], or null when none has arrived
+/// since the last pull.
+DVVideoFrame? _pullNewestFrame(_PV appsink) {
+  final _PV sample = DVGStreamer._pullSample!(appsink, 0);
+  if (sample == nullptr) return null;
+  final _Gst gst = DVGStreamer._api;
+  try {
+    return gst.frameOf(sample);
+  } finally {
+    gst.miniUnref(sample);
+  }
+}
+
+/// Webcams, capture cards and the screen, through GStreamer.
+///
+/// A camera is `v4l2src`; the screen is `ximagesrc` on an X11 display.
+/// Wayland has no screen here yet: its screens are shared through the
+/// desktop portal, which this backend does not speak, so the screen lens is
+/// not offered there rather than offered and black. The picture is split
+/// with a tee: one branch is converted to RGBA for the preview, and while
+/// recording a second is encoded to H.264 and muxed with the microphone into
+/// MP4. Starting and stopping a recording rebuilds the pipeline, so the
+/// preview pauses for a moment then; the file is finalised before
+/// [DVCameraRecordingStopped] is reported.
+final class DVGStreamerCamera implements DVCameraBackend, DVCameraSurface {
+  DVGStreamerCamera({
+    this.videoSource,
+    this.screenSource,
+    this.audioSource,
+    this.sysfsRoot = '/sys/class/video4linux',
+    Map<String, String>? environment,
+    this.pollInterval = const Duration(milliseconds: 20),
+    this.frameInterval = const Duration(milliseconds: 15),
+  }) : environment = environment ?? Platform.environment;
+
+  /// A pipeline fragment that replaces every camera device, or null for
+  /// `v4l2src`. For tests and for a source a device needs set up a certain
+  /// way.
+  final String? videoSource;
+
+  /// A pipeline fragment for the screen, or null for `ximagesrc` on X11.
+  final String? screenSource;
+
+  /// A pipeline fragment for the microphone recorded with video, or null for
+  /// the first installed of pipewiresrc, pulsesrc and autoaudiosrc.
+  final String? audioSource;
+
+  /// Where the kernel lists video devices.
+  final String sysfsRoot;
+
+  /// Read for `DISPLAY` and `WAYLAND_DISPLAY`.
+  final Map<String, String> environment;
+
+  final Duration pollInterval;
+  final Duration frameInterval;
+
+  static final RegExp _videoNode = RegExp(r'^/dev/video[0-9]+$');
+
+  static const List<String> _microphones = <String>[
+    'pipewiresrc',
+    'pulsesrc',
+    'autoaudiosrc',
+  ];
+
+  final StreamController<DVCameraEvent> _events =
+      StreamController<DVCameraEvent>.broadcast();
+  final ValueNotifier<DVVideoFrame?> _frame = ValueNotifier<DVVideoFrame?>(null);
+
+  _PV _pipeline = nullptr;
+  _PV _bus = nullptr;
+  _PV _frameSink = nullptr;
+  Timer? _busTimer;
+  Timer? _frameTimer;
+  DVCameraLens? _lens;
+  String? _source;
+  bool _announced = false;
+  bool _disposed = false;
+
+  // Recording.
+  bool _recording = false;
+  bool _stopping = false;
+  DateTime? _recordingSince;
+  DateTime? _eosDeadline;
+
+  /// The newest preview frame; null while closed.
+  ValueListenable<DVVideoFrame?> get frame => _frame;
+
+  @override
+  Stream<DVCameraEvent> get events => _events.stream;
+
+  void _emit(DVCameraEvent event) {
+    if (!_events.isClosed) _events.add(event);
+  }
+
+  /// The capture nodes under [sysfsRoot], in device order. A camera with
+  /// metadata has a second node with index 1, which is not a picture.
+  List<DVCameraDevice> _scan() {
+    final Directory root = Directory(sysfsRoot);
+    if (!root.existsSync()) return const <DVCameraDevice>[];
+    final List<(int, DVCameraDevice)> found = <(int, DVCameraDevice)>[];
+    for (final FileSystemEntity entry in root.listSync()) {
+      final String node = entry.uri.pathSegments
+          .lastWhere((String segment) => segment.isNotEmpty);
+      final Match? number = RegExp(r'^video([0-9]+)$').firstMatch(node);
+      if (number == null) continue;
+      final File index = File('${entry.path}/index');
+      if (index.existsSync() && index.readAsStringSync().trim() != '0') continue;
+      final File name = File('${entry.path}/name');
+      found.add((
+        int.parse(number.group(1)!),
+        DVCameraDevice(
+          id: '/dev/$node',
+          name: name.existsSync() ? name.readAsStringSync().trim() : node,
+          lens: DVCameraLens.external,
+        ),
+      ));
+    }
+    found.sort(((int, DVCameraDevice) a, (int, DVCameraDevice) b) =>
+        a.$1.compareTo(b.$1));
+    return <DVCameraDevice>[for (final (_, DVCameraDevice d) in found) d];
+  }
+
+  String? get _screen {
+    if (screenSource != null) return screenSource;
+    final bool x11 = (environment['DISPLAY'] ?? '').isNotEmpty &&
+        (environment['WAYLAND_DISPLAY'] ?? '').isEmpty;
+    if (!x11 || !DVGStreamer.hasElement('ximagesrc')) return null;
+    return 'ximagesrc use-damage=false show-pointer=true ! '
+        'video/x-raw,framerate=30/1';
+  }
+
+  bool get _cameras =>
+      videoSource != null ||
+      (DVGStreamer.hasElement('v4l2src') && _scan().isNotEmpty);
+
+  @override
+  DVCameraCapabilities get capabilities {
+    if (!DVGStreamer.load()) return DVCameraCapabilities.none;
+    final bool video = <String>['x264enc', 'h264parse', 'mp4mux']
+        .every(DVGStreamer.hasElement);
+    return DVCameraCapabilities(
+      lenses: <DVCameraLens>{
+        if (_cameras) DVCameraLens.external,
+        if (_screen != null) DVCameraLens.screen,
+      },
+      preview: DVGStreamerPlayer.drawsFrames && DVGStreamer.hasElement('tee'),
+      photo: <String>['rawvideoparse', 'jpegenc'].every(DVGStreamer.hasElement),
+      video: video,
+      videoQualities: video ? DVVideoQuality.values.toSet() : const <DVVideoQuality>{},
+    );
+  }
+
+  @override
+  Future<List<DVCameraDevice>> devices() async => <DVCameraDevice>[
+        if (DVGStreamer.load() && DVGStreamer.hasElement('v4l2src')) ..._scan(),
+        if (DVGStreamer.load() && _screen != null)
+          const DVCameraDevice(id: 'screen', name: 'Screen', lens: DVCameraLens.screen),
+      ];
+
+  @override
+  Widget buildPreview(BuildContext context) => DVVideoFrameView(_frame);
+
+  @override
+  Future<void> open(DVCameraLens lens, {String? device}) async {
+    _teardown();
+    if (!DVGStreamer.load()) {
+      _emit(const DVCameraFailed('GStreamer is not installed'));
+      return;
+    }
+    final String? source;
+    if (lens == DVCameraLens.screen) {
+      source = _screen;
+      if (source == null) {
+        _emit(const DVCameraFailed('this display cannot be shared here '
+            '(Wayland, or no ximagesrc)'));
+        return;
+      }
+    } else if (videoSource != null) {
+      source = videoSource;
+    } else {
+      if (device != null && !_videoNode.hasMatch(device)) {
+        _emit(DVCameraFailed('$device is not a camera: a camera here is a '
+            '/dev/videoN node'));
+        return;
+      }
+      final String? node = device ??
+          (_scan().isEmpty ? null : _scan().first.id);
+      if (node == null) {
+        _emit(const DVCameraFailed('no camera is connected'));
+        return;
+      }
+      if (!File(node).existsSync()) {
+        _emit(DVCameraFailed('$node is not connected'));
+        return;
+      }
+      source = 'v4l2src device=$node';
+    }
+    _lens = lens;
+    _source = source;
+    _announced = false;
+    _start(_previewDescription(source!));
+  }
+
+  static const String _previewBranch = 'dvtee. ! queue leaky=downstream '
+      'max-size-buffers=2 ! videoconvert ! videoscale ! '
+      'video/x-raw,format=RGBA,pixel-aspect-ratio=1/1 ! '
+      'appsink name=dvframes max-buffers=1 drop=true sync=false';
+
+  static String _previewDescription(String source) =>
+      '$source ! videoconvert ! tee name=dvtee $_previewBranch';
+
+  String? _recordingDescription(String source, DVVideoQuality quality,
+      {required bool audio}) {
+    final int lines = switch (quality) {
+      DVVideoQuality.sd480 => 480,
+      DVVideoQuality.hd720 => 720,
+      DVVideoQuality.hd1080 => 1080,
+    };
+    final String video = 'dvtee. ! queue ! videoconvert ! videoscale ! '
+        'video/x-raw,height=$lines,pixel-aspect-ratio=1/1 ! '
+        'x264enc tune=zerolatency speed-preset=veryfast key-int-max=30 ! '
+        'h264parse ! mp4mux name=dvmux ! filesink name=dvsink';
+    String sound = '';
+    if (audio) {
+      final String? microphone = audioSource ??
+          _microphones.cast<String?>().firstWhere(
+              (String? e) => DVGStreamer.hasElement(e!),
+              orElse: () => null);
+      final String? aac = <String>['avenc_aac', 'voaacenc', 'fdkaacenc']
+          .cast<String?>()
+          .firstWhere((String? e) => DVGStreamer.hasElement(e!),
+              orElse: () => null);
+      if (microphone != null && aac != null) {
+        sound = ' $microphone ! audioconvert ! audioresample ! $aac ! '
+            'queue ! dvmux.';
+      }
+    }
+    return '$source ! videoconvert ! tee name=dvtee $_previewBranch $video$sound';
+  }
+
+  /// Builds and plays [description]; false when it could not be built.
+  bool _start(String description, {String? output}) {
+    final _Gst gst = DVGStreamer._api;
+    final _PV pipeline;
+    try {
+      pipeline = gst.launch(description);
+    } on DVGStreamerPipelineError catch (error) {
+      _emit(DVCameraFailed(error.reason));
+      return false;
+    }
+    _PV named(String name) => using((Arena arena) =>
+        gst.binByName(pipeline, name.toNativeUtf8(allocator: arena)));
+    if (output != null) {
+      final _PV sink = named('dvsink');
+      gst.setStringProperty(sink, 'location', output);
+      gst.objectUnref(sink);
+    }
+    _pipeline = pipeline;
+    _bus = gst.getBus(pipeline);
+    _frameSink = named('dvframes');
+    gst.setState(pipeline, _statePlaying);
+    _busTimer = Timer.periodic(pollInterval, (_) => _poll());
+    _frameTimer = Timer.periodic(frameInterval, (_) => _pullFrame());
+    return true;
+  }
+
+  void _pullFrame() {
+    if (_frameSink == nullptr) return;
+    final DVVideoFrame? next = _pullNewestFrame(_frameSink);
+    if (next == null) return;
+    _frame.value = next;
+    if (!_announced) {
+      _announced = true;
+      _emit(DVCameraOpened(_lens!, width: next.width, height: next.height));
+    }
+  }
+
+  void _poll() {
+    if (_pipeline == nullptr) return;
+    final _Gst gst = DVGStreamer._api;
+    while (_pipeline != nullptr) {
+      final _PV message = gst.pop(_bus, 0, -1);
+      if (message == nullptr) break;
+      try {
+        switch (_Gst.typeOf(message)) {
+          case _msgError:
+            final String error = gst.errorMessage(message);
+            final bool wasRecording = _recording;
+            _teardown();
+            _emit(DVCameraFailed(error));
+            if (wasRecording) _emit(const DVCameraRecordingStopped(Duration.zero));
+          case _msgEos:
+            if (_stopping) {
+              _finishRecording();
+              return;
+            }
+          case _msgStateChanged:
+            if (_recording &&
+                _recordingSince == null &&
+                _Gst.sourceOf(message) == _pipeline) {
+              using((Arena arena) {
+                final Pointer<Int32> old = arena<Int32>();
+                final Pointer<Int32> now = arena<Int32>();
+                final Pointer<Int32> pending = arena<Int32>();
+                gst.parseStateChanged(message, old, now, pending);
+                if (now.value == _statePlaying) {
+                  _recordingSince = DateTime.now();
+                  _emit(const DVCameraRecordingStarted());
+                }
+              });
+            }
+        }
+      } finally {
+        gst.miniUnref(message);
+      }
+    }
+    final DateTime? deadline = _eosDeadline;
+    if (_stopping && deadline != null && DateTime.now().isAfter(deadline)) {
+      // An encoder that never drains: stop anyway, with what was written.
+      _finishRecording();
+    }
+  }
+
+  void _finishRecording() {
+    final DateTime? since = _recordingSince;
+    final Duration length =
+        since == null ? Duration.zero : DateTime.now().difference(since);
+    _teardown(keepFrame: true);
+    _emit(DVCameraRecordingStopped(length));
+    final String? source = _source;
+    if (source != null && !_disposed) _start(_previewDescription(source));
+  }
+
+  @override
+  Future<void> startRecording(String path,
+      {DVVideoQuality quality = DVVideoQuality.hd720, bool audio = true}) async {
+    final String? source = _source;
+    if (source == null || _pipeline == nullptr) {
+      _emit(const DVCameraFailed('the camera is not open'));
+      return;
+    }
+    if (_recording) return;
+    final String? description =
+        _recordingDescription(source, quality, audio: audio);
+    if (description == null) {
+      _emit(const DVCameraFailed('this machine cannot encode H.264 into MP4'));
+      return;
+    }
+    _teardown(keepFrame: true);
+    _recording = true;
+    _stopping = false;
+    _recordingSince = null;
+    if (!_start(description, output: path)) {
+      _recording = false;
+      _start(_previewDescription(source));
+    }
+  }
+
+  @override
+  Future<void> stopRecording() async {
+    if (!_recording || _stopping || _pipeline == nullptr) return;
+    _stopping = true;
+    _eosDeadline = DateTime.now().add(const Duration(seconds: 10));
+    final _Gst gst = DVGStreamer._api;
+    gst.sendEvent(_pipeline, gst.eventEos());
+  }
+
+  @override
+  Future<void> takePhoto(String path, {DVFlashMode flash = DVFlashMode.off}) async {
+    final DVVideoFrame? frame = _frame.value;
+    if (frame == null) {
+      _emit(const DVCameraFailed('the camera has sent no frame yet'));
+      return;
+    }
+    final File raw = File('$path.rgba');
+    try {
+      raw.writeAsBytesSync(frame.rgba, flush: true);
+      await DVGStreamer.runToEos(
+        'filesrc name=dvsrc blocksize=${frame.rgba.length} ! '
+        'rawvideoparse width=${frame.width} height=${frame.height} '
+        'format=rgba framerate=1/1 ! videoconvert ! jpegenc ! '
+        'filesink name=dvsink',
+        locations: <String, String>{'dvsrc': raw.path, 'dvsink': path},
+      );
+      _emit(DVCameraPhotoTaken(path));
+    } on Object catch (error) {
+      _emit(DVCameraFailed('the photo could not be written: $error'));
+    } finally {
+      if (raw.existsSync()) raw.deleteSync();
+    }
+  }
+
+  /// No desktop camera here has a torch GStreamer can reach.
+  @override
+  Future<void> setTorch(bool on) async {
+    if (on) throw const DVCameraUnavailable('this camera has no torch');
+  }
+
+  void _teardown({bool keepFrame = false}) {
+    _busTimer?.cancel();
+    _busTimer = null;
+    _frameTimer?.cancel();
+    _frameTimer = null;
+    if (_pipeline != nullptr) {
+      final _Gst gst = DVGStreamer._api;
+      gst.setState(_pipeline, _stateNull);
+      if (_frameSink != nullptr) gst.objectUnref(_frameSink);
+      if (_bus != nullptr) gst.objectUnref(_bus);
+      gst.objectUnref(_pipeline);
+    }
+    _pipeline = nullptr;
+    _bus = nullptr;
+    _frameSink = nullptr;
+    _recording = false;
+    _stopping = false;
+    _eosDeadline = null;
+    if (!keepFrame) _frame.value = null;
+  }
+
+  @override
+  Future<void> close() async {
+    final bool wasRecording = _recording;
+    _teardown();
+    _source = null;
+    _lens = null;
+    if (wasRecording) _emit(const DVCameraRecordingStopped(Duration.zero));
+    _emit(const DVCameraClosed());
+  }
+
+  @override
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    _teardown();
+    await _events.close();
+  }
+}
+
 /// Registers the GStreamer player and recorder with [DVMediaBackends].
 abstract final class DVLinuxMedia {
   /// False when GStreamer is not installed; nothing is registered then, and a
@@ -1125,6 +1571,9 @@ abstract final class DVLinuxMedia {
       backend: DVGStreamerCapture.new,
       directory: captureDirectory(),
     );
+    DVMediaBackends.registerCamera(DVGStreamerCamera.new,
+        capabilities: DVGStreamerCamera().capabilities,
+        directory: captureDirectory());
     return true;
   }
 

@@ -32,7 +32,11 @@ abstract final class DVWebCamera {
   /// (`facingMode` falls back to whatever camera there is) and the torch is
   /// reported once a stream is open and its track says it has one.
   static DVCameraCapabilities get initialCapabilities => DVCameraCapabilities(
-        lenses: const <DVCameraLens>{DVCameraLens.back, DVCameraLens.front},
+        lenses: <DVCameraLens>{
+          DVCameraLens.back,
+          DVCameraLens.front,
+          if (screenAvailable) DVCameraLens.screen,
+        },
         photo: true,
         video: recorderAvailable,
         preview: true,
@@ -46,6 +50,17 @@ abstract final class DVWebCamera {
       );
 
   static bool get recorderAvailable => globalContext.has('MediaRecorder');
+
+  /// Whether this browser can share a screen: `getDisplayMedia`.
+  static bool get screenAvailable {
+    final JSObject? devices = _mediaDevices;
+    return devices != null && dvJsMethod(devices, 'getDisplayMedia') != null;
+  }
+
+  static JSObject? get _mediaDevices {
+    final JSObject? navigator = dvNavigator;
+    return navigator == null ? null : dvJsObject(navigator, 'mediaDevices');
+  }
 
   static void register() {
     if (_registered) return;
@@ -120,17 +135,62 @@ final class DVWebCameraBackend implements DVCameraBackend, DVCameraSurface {
     _video.srcObject = null;
   }
 
+  /// Cameras by `enumerateDevices`, whose labels are empty until the page
+  /// has been allowed a camera once -- then named by position -- and the
+  /// screen where it can be shared. A browser does not say which way a
+  /// webcam faces, so each is [DVCameraLens.external].
   @override
-  Future<void> open(DVCameraLens lens) async {
+  Future<List<DVCameraDevice>> devices() async {
+    final List<DVCameraDevice> found = <DVCameraDevice>[];
+    try {
+      final List<web.MediaDeviceInfo> all =
+          (await web.window.navigator.mediaDevices.enumerateDevices().toDart)
+              .toDart;
+      int number = 0;
+      for (final web.MediaDeviceInfo info in all) {
+        if (info.kind != 'videoinput') continue;
+        number++;
+        found.add(DVCameraDevice(
+            id: info.deviceId,
+            name: info.label.isEmpty ? 'Camera $number' : info.label,
+            lens: DVCameraLens.external));
+      }
+    } on Object {
+      // No mediaDevices (an insecure page): no cameras to list.
+    }
+    if (DVWebCamera.screenAvailable) {
+      found.add(const DVCameraDevice(
+          id: 'screen', name: 'Screen', lens: DVCameraLens.screen));
+    }
+    return found;
+  }
+
+  @override
+  Future<void> open(DVCameraLens lens, {String? device}) async {
     _stopStream();
     try {
-      final JSObject video = JSObject()
-        ..setProperty('facingMode'.toJS,
-            (JSObject()..setProperty('ideal'.toJS,
-                (lens == DVCameraLens.front ? 'user' : 'environment').toJS)));
-      final web.MediaStream stream = await web.window.navigator.mediaDevices
-          .getUserMedia(web.MediaStreamConstraints(video: video))
-          .toDart;
+      final web.MediaStream stream;
+      if (lens == DVCameraLens.screen) {
+        // The browser's own picker chooses the screen, window or tab.
+        stream = await web.window.navigator.mediaDevices
+            .getDisplayMedia(web.DisplayMediaStreamOptions(video: true.toJS))
+            .toDart;
+      } else {
+        final JSObject video = JSObject();
+        if (device != null) {
+          video.setProperty(
+              'deviceId'.toJS, JSObject()..setProperty('exact'.toJS, device.toJS));
+        } else {
+          video.setProperty(
+              'facingMode'.toJS,
+              JSObject()
+                ..setProperty('ideal'.toJS,
+                    (lens == DVCameraLens.front ? 'user' : 'environment').toJS));
+        }
+        stream = await web.window.navigator.mediaDevices
+            .getUserMedia(web.MediaStreamConstraints(video: video))
+            .toDart;
+      }
       _stream = stream;
       _video.srcObject = stream;
       await _video.play().toDart;

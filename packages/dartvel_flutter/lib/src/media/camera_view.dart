@@ -28,11 +28,13 @@ enum DVCameraControls {
 DVCameraController dvMakeCameraController({
   DVCameraLens lens = DVCameraLens.back,
   DVFlashMode flash = DVFlashMode.off,
+  String? device,
 }) =>
     DVCameraController(
       DVMediaBackends.createCamera() ?? const _DVNoCamera(),
       lens: lens,
       flash: flash,
+      device: device,
       environment: DVCameraEnvironment(
         permissions: DVMediaBackends.capturePermissions,
         files: DVMediaBackends.captureFiles,
@@ -54,7 +56,10 @@ final class _DVNoCamera implements DVCameraBackend {
   Never _none() => throw const DVCameraUnavailable('this target has no camera');
 
   @override
-  Future<void> open(DVCameraLens lens) async => _none();
+  Future<List<DVCameraDevice>> devices() async => const <DVCameraDevice>[];
+
+  @override
+  Future<void> open(DVCameraLens lens, {String? device}) async => _none();
 
   @override
   Future<void> close() async {}
@@ -84,12 +89,14 @@ class DVCameraView extends StatefulWidget {
   DVCameraView({
     super.key,
     DVCameraLens lens = DVCameraLens.back,
+    String? device,
     this.controls = DVCameraControls.standard,
     this.onPhoto,
     this.onVideo,
     DVCameraController? controller,
   })  : ownsController = controller == null,
-        controller = controller ?? dvMakeCameraController(lens: lens);
+        controller =
+            controller ?? dvMakeCameraController(lens: lens, device: device);
 
   final DVCameraControls controls;
 
@@ -221,7 +228,10 @@ class _DVCameraViewState extends State<DVCameraView> {
                         : Icons.stop),
                     onPressed: live ? _record : null,
                   ),
-                if (can.lenses.length > 1)
+                if (can.lenses
+                        .where((DVCameraLens lens) => lens != DVCameraLens.screen)
+                        .length >
+                    1)
                   IconButton(
                     tooltip: 'Switch camera (now ${_camera.lens.value.name})',
                     icon: const Icon(Icons.cameraswitch),

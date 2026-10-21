@@ -372,6 +372,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVCameraCapabilities,
         DVCameraClosed,
         DVCameraController,
+        DVCameraDevice,
         DVCameraDisconnected,
         DVCameraEnvironment,
         DVCameraEvent,
@@ -415,6 +416,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVCaptureInterrupted,
         DVCaptureInterruption,
         DVCaptureKind,
+        DVVideoQuality,
         DVCapturePermissionRefused,
         DVCapturePermissionRevoked,
         DVCapturePermissions,
@@ -2378,8 +2380,13 @@ class DVBox<T> extends StatelessWidget {
   /// opens it, leaving the page closes it, and it closes while the
   /// application is in the background. Read [DVBox.camera] for the handle,
   /// to take photos and record from the application's own controls.
+  ///
+  /// [device] is a [DVCameraDevice] id from `DV.Platform.media.cameras()`,
+  /// for a target with more than one camera of a kind -- two webcams, a
+  /// capture card -- and `lens: DVCameraLens.screen` shares the display.
   DVBox.camera({
     DVCameraLens lens = DVCameraLens.back,
+    String? device,
     DVCameraControls controls = DVCameraControls.standard,
     void Function(DVFile photo)? onPhoto,
     void Function(DVFile clip)? onVideo,
@@ -2388,6 +2395,7 @@ class DVBox<T> extends StatelessWidget {
   }) : this._(
           child: DVCameraView(
             lens: lens,
+            device: device,
             controls: controls,
             onPhoto: onPhoto,
             onVideo: onVideo,
@@ -4807,6 +4815,18 @@ class DVMedia {
   /// opening it.
   DVCameraCapabilities get cameraCapabilities =>
       DVMediaBackends.cameraCapabilities;
+
+  /// The cameras and screens this target can open now, for a picker: pass
+  /// one's id to `DVBox.camera(device: ...)`. Empty where none is bound.
+  Future<List<DVCameraDevice>> cameras() async {
+    final DVCameraBackend? backend = DVMediaBackends.createCamera();
+    if (backend == null) return const <DVCameraDevice>[];
+    try {
+      return await backend.devices();
+    } finally {
+      await backend.dispose();
+    }
+  }
 
   /// Fetches [source] before anything plays it: the first [bytes], or all
   /// of it, into the disk cache -- or, in a browser, into the browser's

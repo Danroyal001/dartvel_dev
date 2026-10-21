@@ -160,6 +160,15 @@ class DVWebPermissions {
       case 'microphone':
         return _media(video: permission == 'camera');
 
+      // getDisplayMedia is its own prompt, shown when the screen is opened;
+      // asking here as well would show it twice. Granted means the browser
+      // can share a screen at all.
+      case 'screen':
+        final JSObject? navigator = dvNavigator;
+        final JSObject? devices =
+            navigator == null ? null : dvJsObject(navigator, 'mediaDevices');
+        return devices != null && dvJsMethod(devices, 'getDisplayMedia') != null;
+
       case 'location':
       case 'geolocation':
         return _location();
