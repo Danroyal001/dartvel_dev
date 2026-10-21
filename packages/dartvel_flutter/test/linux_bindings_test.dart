@@ -81,6 +81,9 @@ void main() {
         'window.show',
         'launchAtLogin.isEnabled',
         'launchAtLogin.setEnabled',
+        // fontconfig's installed faces, and one face's bytes for FontLoader.
+        'fonts.faces',
+        'fonts.read',
         'shortcuts.register',
         'shortcuts.unregister',
         'menus.setApplicationMenu',

@@ -45,6 +45,17 @@ What is built and tested:
   Windows and macOS a fullscreen that names a display is refused until it is
   built for them.
 
+- A window opened with `DVWindowOptions(takesFocus: false)` never takes the
+  keyboard: on Linux its GTK window refuses input focus and is not focused on
+  map, and nothing in its route can be focused (`ExcludeFocus`), on every
+  platform. Measured on 2026-10-21 on the dummy-driver two-monitor X server
+  with openbox: with the operator focused, a projector opened with
+  `takesFocus: false` left `_NET_ACTIVE_WINDOW` and the X input focus on the
+  operator, and keys typed before, after it opened and after clicking it all
+  reached the operator's widgets; an ordinary projector (the control) took
+  focus when it opened. Windows and macOS do not apply it yet and the window
+  carries `DV-WINDOW-016`.
+
 What is not settled:
 
 - **Which Flutter it builds against.** The package uses Flutter's windowing
@@ -117,6 +128,18 @@ Then open a window from anywhere, with a generated route:
 final DVWindow projector = await DV.Platform.window.open(
   DVRoutes.projector,
   options: const DVWindowOptions(title: 'Projector', size: Size(1280, 720)),
+);
+```
+
+A projector, a stage display or any other output the operator never types
+into is opened with `takesFocus: false`, so a keystroke meant for the
+operator's window (Space to take, an arrow for the next slide) never lands
+in it:
+
+```dart
+await DV.Platform.window.open(
+  DVRoutes.projector,
+  options: const DVWindowOptions(title: 'Projector', takesFocus: false),
 );
 ```
 

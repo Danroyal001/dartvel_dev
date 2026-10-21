@@ -1,3 +1,7 @@
+## Unreleased
+
+- Generating a native folder removes what the vendor embedders' `create` adds besides it too, and cleans up after a `create` that fails (`dvGeneratePlatformScaffold`).
+
 ## 0.13.12 — 2026-10-21
 
 - Generate Media3/CameraX Java, inferred camera permissions and dependencies for Android media call sites; remove unused generated bridges on rebuild.
