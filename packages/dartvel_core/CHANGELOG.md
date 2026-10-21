@@ -1,3 +1,7 @@
+## Unreleased
+
+- Internal Android media bridge names shared by build generation and JNI runtime. Shared controller contracts retained.
+
 ## 0.13.11 — 2026-10-21
 
 - Version aligned with dartvel_core 0.13.11.

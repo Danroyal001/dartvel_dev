@@ -60,8 +60,13 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
                 'yet.',
             'The browser player and camera are written but not yet checked '
                 'in a real browser.',
-            'No player or camera backend yet for Android, iOS, macOS, '
-                'Windows or TVs.',
+            'Android has generated Media3/CameraX bridges and JNI adapters, '
+                'with unit-tested controller contracts. Playback, physical '
+                'cameras and lock-screen controls need a device run. No '
+                'Android screen capture or widget encoder yet.',
+            'Apple event decoding is unit-tested, but iOS/macOS have no '
+                'AVPlayer/AVFoundation backend or verified Apple build. '
+                'No native player or camera backend for Windows or TVs.',
             'No casting.',
           ],
         ),

@@ -1388,5 +1388,7 @@ Packages at 0.1.0:
 
 ## Unreleased
 
+- Android native media: generated Media3/CameraX bridges and JNI adapters against the current player/camera contracts, with device ids, event decoding and disposal tests. Hardware verification pending. Apple branch contributes event-schema tests only; no AVPlayer/AVFoundation implementation.
+
 - Page and backend-function annotations accept ordered typed `middleware:` lists. `@DVUseMiddleware` remains a deprecated alias; conventions diagnostics point to the field.
 - `dartvel doctor --conventions` checks application entry, Flutter widget classes/builders, legacy middleware, manual backend serialization, root pages, scripts and private host documentation. Builds warn by default; `--strict` refuses violations.

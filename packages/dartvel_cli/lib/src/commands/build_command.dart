@@ -44,6 +44,7 @@ import 'symbols_command.dart';
 // dvPurchasesDeclared is the same rule in both bridges; the Apple one is used.
 import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
 import '../build/android_capture_bridge.dart';
+import '../build/android_media_bridge.dart';
 import '../build/file_storage_permissions.dart';
 import 'store_command.dart' show dvWriteDataSafetyFiles;
 import '../build/scene3d_native.dart';
@@ -1158,6 +1159,7 @@ class BuildCommand extends Command<void> {
       // the same manifest and the order the blocks appear in is the order
       // they are written.
       _writeAndroidCaptureBridge(_projectRoot);
+      _writeAndroidMedia(_projectRoot);
       // A target riding on this pipeline may leave a step out; what an
       // earlier build wrote for it then comes back out of the shared project.
       final Map<DVPlatformStep, String> leftOut =
@@ -2086,6 +2088,59 @@ class BuildCommand extends Command<void> {
     }
   }
 
+  /// What the code under lib/ uses of Dartvel's media.
+  DVAndroidMediaUsage _androidMediaUsage(String root) {
+    final Directory lib = Directory(p.join(root, 'lib'));
+    if (!lib.existsSync()) return const DVAndroidMediaUsage();
+    return dvAndroidMediaUsage(lib
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((File f) => f.path.endsWith('.dart'))
+        .map((File f) => f.readAsStringSync()));
+  }
+
+  /// ExoPlayer, the media session and CameraX: their Java, Gradle
+  /// dependencies and manifest lines, for an application whose code uses
+  /// them, and none of it -- removed again -- for one that does not.
+  void _writeAndroidMedia(String root) {
+    final DVAndroidMediaUsage usage = _androidMediaUsage(root);
+    final File manifest = File(
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) return;
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidMediaManifest(before, usage);
+    if (after != before) manifest.writeAsStringSync(after);
+
+    for (final String name in <String>['build.gradle.kts', 'build.gradle']) {
+      final File gradle = File(p.join(root, 'android', 'app', name));
+      if (!gradle.existsSync()) continue;
+      final String was = gradle.readAsStringSync();
+      final String now =
+          dvAndroidMediaGradle(was, usage, kotlin: name.endsWith('.kts'));
+      if (now != was) gradle.writeAsStringSync(now);
+      break;
+    }
+
+    final Map<String, String> sources = dvAndroidMediaSources(usage);
+    for (final String path in dvAndroidMediaAllPaths) {
+      final File file = File(p.join(root, path));
+      final String? source = sources[path];
+      if (source == null) {
+        if (file.existsSync()) file.deleteSync();
+        continue;
+      }
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync(source);
+    }
+    if (usage.any) {
+      Logger.log('   Media: ${<String>[
+        if (usage.player) 'ExoPlayer and a media session',
+        if (usage.camera) 'CameraX',
+      ].join(' and ')} for the code under lib/.');
+    }
+  }
+
+  /// Writes the Activity and permissions used by the capture bindings.
   void _writeAndroidCaptureBridge(String root) {
     final File manifest = File(
         p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
@@ -2098,6 +2153,7 @@ class BuildCommand extends Command<void> {
     final DVFileStorageConfig fileStorage =
         DVFileStorageConfig.parse(_dartvelSection(root)['fileStorage']);
     final List<String> requested = <String>[
+      ...dvAndroidMediaPermissions(_androidMediaUsage(root)),
       // dartvel.push.android implies the notifications permission, which
       // Android 13 and later will not show a banner without.
       ...dvAndroidPushPermissions(
