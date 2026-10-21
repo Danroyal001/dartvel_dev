@@ -391,6 +391,12 @@ DV.Platform.associations.opened.listen((DVOpenedFile file) async {
 await DV.Platform.associations.pick();
 ```
 
+File-association registration is generated for the supported targets, while
+Tizen opened-file delivery remains unwired. The common picker fallback is
+available only when `DV.Platform.associations.canPick` is true. Physical mobile
+opening, installed-PWA opening and desktop installation are not verified by the
+portable runtime tests.
+
 The bindings reach native code through `dart:ffi` (X11, GTK and GDBus on
 Linux, the Win32 API, the Objective-C runtime on Apple platforms),
 `dart:js_interop` on the web and jnigen on Android. There are no platform

@@ -1368,6 +1368,12 @@ DV.Platform.associations.opened.listen((DVOpenedFile file) async {
 });
 ```
 
+File-association delivery is implemented through Android JNI, iOS defaults,
+web `launchQueue` and desktop launch arguments. Tizen delivery remains unwired;
+use the picker where `DV.Platform.associations.canPick` is true. Generated
+registration files still need normal OS installation, and physical mobile and
+installed-PWA opening require device verification.
+
 **How this compares to Expo.** People looking for "Expo for Flutter" usually
 want some of these:
 

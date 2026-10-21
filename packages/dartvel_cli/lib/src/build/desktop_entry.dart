@@ -382,9 +382,7 @@ String? dvWindowsAssociationsScript(
         );
         out
           ..writeln('[$classes\\$progId\\DefaultIcon]')
-          ..writeln(
-            '@="${_reg('$directory${icon.replaceAll(r'\', '/').split('/').last}')}"',
-          )
+          ..writeln('@="${_reg('$directory${_windowsIconFile(settings, a)}')}"')
           ..writeln();
       }
       // An editor is also offered for Edit, which Explorer shows beside Open.
@@ -429,11 +427,17 @@ DVDesktopWrite dvWriteWindowsDesktopFiles(String root, String bundle) {
   for (final DVFileAssociation a in settings.associations) {
     final String? icon = a.icon;
     if (icon == null || !icon.toLowerCase().endsWith('.ico')) continue;
-    final String file = icon.replaceAll(r'\', '/').split('/').last;
+    final String file = _windowsIconFile(settings, a);
     if (_copyIcon(root, icon, '$bundle/$file', problems)) written.add(file);
   }
   return DVDesktopWrite(written: written, problems: problems);
 }
+
+/// The file name a type's .ico takes beside the binary: the app and the type,
+/// never the source's basename, so `assets/alpha/icon.ico` and
+/// `assets/beta/icon.ico` cannot overwrite each other.
+String _windowsIconFile(DVDesktopSettings s, DVFileAssociation a) =>
+    '${s.app}-${dvFileTypeSlug(a.mimeType)}.ico';
 
 DVDesktopSettings _settingsFor(String root) {
   final DVDartvelSection section = dvDartvelSection(root);

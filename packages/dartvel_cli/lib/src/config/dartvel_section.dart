@@ -9,7 +9,9 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -52,7 +54,9 @@ DVDartvelSection dvDartvelSection(String root) {
 ///
 /// The class is imported by a small program the build writes under
 /// `.dart_tool/dartvel/` and asked for `toPubspec()`. The answer is cached
-/// against the file's size and modification time, so a build reads it once.
+/// against a digest of the file, the project sources it imports and the
+/// resolved package configuration, so a build reads it once and an edit to
+/// an imported helper is never answered from a stale cache.
 DVDartvelSection dvEvaluateDartConfig(String root, String relativePath) {
   final File configFile = File(p.join(root, relativePath));
   if (!configFile.existsSync()) {
@@ -80,9 +84,7 @@ DVDartvelSection dvEvaluateDartConfig(String root, String relativePath) {
   final String className = declaration.group(1)!;
   final Directory work = Directory(p.join(root, '.dart_tool', 'dartvel'))
     ..createSync(recursive: true);
-  final FileStat stat = configFile.statSync();
-  final String stamp =
-      '${stat.size}:${stat.modified.millisecondsSinceEpoch}:$className';
+  final String stamp = '${_configSourcesDigest(root, configFile)}:$className';
   final File cache = File(p.join(work.path, 'dart_config.json'));
   if (cache.existsSync()) {
     try {
@@ -147,6 +149,56 @@ void main() => print(jsonEncode(const config.$className().toPubspec()));
       fromDartConfig: relativePath,
     );
   }
+}
+
+/// A digest of every project source the config file reaches, so editing a
+/// helper it imports is a different answer and not a stale cached one.
+///
+/// Relative `import`/`export`/`part` URIs and `package:<this package>/` URIs
+/// are followed transitively; other packages are pinned by the resolved
+/// package configuration, which is part of the digest too.
+String _configSourcesDigest(String root, File configFile) {
+  final String? self = dvPackageName(root);
+  final RegExp directive = RegExp(
+    r'''^\s*(?:import|export|part)\s+['"]([^'"]+)['"]''',
+    multiLine: true,
+  );
+  final List<String> pending = <String>[p.normalize(configFile.absolute.path)];
+  final Set<String> seen = <String>{};
+  while (pending.isNotEmpty) {
+    final String path = pending.removeLast();
+    if (!seen.add(path)) continue;
+    final File file = File(path);
+    if (!file.existsSync()) continue;
+    final String source = file.readAsStringSync();
+    for (final Match m in directive.allMatches(source)) {
+      final String uri = m.group(1)!;
+      if (uri.startsWith('dart:')) continue;
+      if (uri.startsWith('package:')) {
+        if (self == null || !uri.startsWith('package:$self/')) continue;
+        pending.add(
+          p.normalize(
+            p.join(root, 'lib', uri.substring('package:$self/'.length)),
+          ),
+        );
+      } else if (!uri.contains(':')) {
+        pending.add(p.normalize(p.join(p.dirname(path), uri)));
+      }
+    }
+  }
+  final File packages = File(p.join(root, '.dart_tool', 'package_config.json'));
+  final BytesBuilder bytes = BytesBuilder(copy: false);
+  final List<String> ordered = seen.toList()..sort();
+  for (final String path in <String>[...ordered, packages.path]) {
+    final File file = File(path);
+    if (!file.existsSync()) continue;
+    bytes
+      ..add(utf8.encode(p.relative(path, from: root)))
+      ..add(const <int>[0])
+      ..add(file.readAsBytesSync())
+      ..add(const <int>[0]);
+  }
+  return '${sha256.convert(bytes.takeBytes())}';
 }
 
 /// The package name in the project's pubspec, or null.

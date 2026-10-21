@@ -542,7 +542,7 @@ dartvel:
             r'[HKEY_CURRENT_USER\Software\Classes\shop.order\DefaultIcon]',
           ),
         );
-        expect(ico, contains(r'@="C:\\shop\\order.ico"'));
+        expect(ico, contains(r'@="C:\\shop\\shop-application-x-shop-order.ico"'));
         final String png = dvWindowsAssociationsScript(
           settingsWith('assets/order.png'),
           executable: r'C:\shop\shop.exe',

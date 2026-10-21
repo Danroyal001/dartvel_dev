@@ -10098,8 +10098,8 @@ developer made themselves.
 A type's `icon` is used where a platform takes one from a file: the web
 handler's icon, the Linux MIME-type icon (installed under the bundle's
 `share/icons/hicolor`), and Windows' `DefaultIcon` when it is an `.ico`. Apple
-platforms want an `.icns` in the bundle and Android a drawable resource, so
-there a document shows the application's icon.
+and Android per-type icons are not generated; those documents use the
+application's icon.
 
 `initial()` answers the files the application was started with. `pick()` is the
 fallback everywhere: the platform's own picker, narrowed to the given types
@@ -12114,23 +12114,6 @@ for Play alpha, beta and production and for the App Store with
 
 Stability: `Contract` · Status: `Partial`
 
-## Web build cache
-
-`dartvel build web` and `web-server` reuse raw Flutter web output when source,
-assets, local dependency contents, flags and SDK revisions have not changed.
-Each route's semantics tree and image capture is cached against the web output,
-route and capture implementation version. Captures are kept together per web
-build rather than pruning sibling routes. Cached output is checked against a
-size/hash manifest before reuse; incomplete or corrupt entries are rebuilt.
-Post-processing always runs on the raw restored output.
-
-`--no-cache` bypasses both reads and writes in `.dartvel/cache`. Use it when a
-prerender reads changing external data or the clock: those are not source inputs.
-Native build caching and generated CI recipes remain designed. This does not
-cache a compiled web-server backend.
-
-
-
 `dartvel build mcu` builds the microcontroller target (Rust firmware, *Application Entry* › *Microcontrollers*). `dartvel migrate-code` rewrites `runApp(createDartvelApp())` and the old `DV.run(Widget)` into `DV.run(args)` plus an `@DVAppRoot` (printed, then applied).
 
 Dartvel should feel like a single fast toolkit, not a bag of unrelated tools.
@@ -12389,6 +12372,21 @@ Dartvel should own the full build orchestration:
 
 `dartvel build` and `dartvel dev` run `dartvel routes` first. Users do not
 need to remember a separate generation command for normal workflows.
+
+## Web build cache
+
+`dartvel build web` and `web-server` reuse raw Flutter web output when source,
+assets, local dependency contents, flags and SDK revisions have not changed.
+Each route's semantics tree and image capture is cached against the web output,
+route and capture implementation version. Captures are kept together per web
+build rather than pruning sibling routes. Cached output is checked against a
+size/hash manifest before reuse; incomplete or corrupt entries are rebuilt.
+Post-processing always runs on the raw restored output.
+
+`--no-cache` bypasses both reads and writes in `.dartvel/cache`. Use it when a
+prerender reads changing external data or the clock: those are not source inputs.
+Native build caching and generated CI recipes remain designed. This does not
+cache a compiled web-server backend.
 
 ## Designed commands
 
