@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.14 — 2026-10-22
 
 - `DVModifier().dropTarget(onDrop:, types:, onHover:)` and `.draggable(DVDragPayload)` (`DVDropTarget`, `DVDraggable`): drops routed to the smallest widget under them, a Flutter drag between widgets where the platform has no drag out, and the browser's own drag out of a page. `DVDragDrop.startsDrags`; `startDrag` returns false and hands the payload over as pending where the platform starts drags itself.
 - `DVDropEvent.urls`, `DVDropType.urls`, `DVIncomingFile` (`readBytes()`, path, content URI or browser `File`), `DVDragPayload`/`DVOutgoingFile`, `DVDragDrop.chooseInstead()` (the file picker delivered as a drop). `DVDropEvent.fromMap` reads a file map's `bytes`. `draggingOver` now follows `dispatchHover`/`dispatchLeave` and a drop.

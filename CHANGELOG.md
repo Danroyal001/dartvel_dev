@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.14 — 2026-10-22
 
 - Native scaffold cleanup retains Flutter's resolved plugin metadata, so a fresh development build can name the JNI and other native plugins in its shell manifest. Counter-app tests and IDE artifacts are still removed.
 - An armed `.draggable(...)` refreshes its outgoing payload on rebuild and clears it on removal.

@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.14 — 2026-10-22
 
 - `dvAndroidDragDropClass` and `dvIosDragDropClass`: the generated drag and drop bridges' class names, shared by the build and the runtime.
 
