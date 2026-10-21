@@ -170,16 +170,18 @@ class _DVContextMenuState extends State<DVContextMenu> {
           child: RawGestureDetector(
             behavior: .opaque,
             gestures: <Type, GestureRecognizerFactory>{
-              TapGestureRecognizer:
-                  GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
-                () => TapGestureRecognizer(debugOwner: this),
-                (TapGestureRecognizer recognizer) => recognizer
+              _DVMenuSecondaryTap:
+                  GestureRecognizerFactoryWithHandlers<_DVMenuSecondaryTap>(
+                () => _DVMenuSecondaryTap(
+                    debugOwner: this, yieldsTo: () => _textSelected),
+                (_DVMenuSecondaryTap recognizer) => recognizer
                   ..onSecondaryTapUp = (TapUpDetails details) =>
                       _openFromPointer(details.localPosition),
               ),
               _DVMenuLongPress:
                   GestureRecognizerFactoryWithHandlers<_DVMenuLongPress>(
-                () => _DVMenuLongPress(debugOwner: this),
+                () => _DVMenuLongPress(
+                    debugOwner: this, yieldsTo: () => _textSelected),
                 (_DVMenuLongPress recognizer) => recognizer
                   ..onLongPressStart = (LongPressStartDetails details) =>
                       _openFromPointer(details.localPosition),
@@ -203,8 +205,28 @@ class _DVContextMenuState extends State<DVContextMenu> {
 /// menu opens the menu, which names the row's actions, and the tooltip still
 /// shows on hover and on keyboard focus.
 class _DVMenuLongPress extends LongPressGestureRecognizer {
-  _DVMenuLongPress({super.debugOwner})
+  _DVMenuLongPress({super.debugOwner, required this.yieldsTo})
       : super(duration: kLongPressTimeout - const Duration(milliseconds: 50));
+
+  /// True while selected text inside owns the press: the menu stays out of
+  /// the gesture arena so the selection's own menu (Copy, Select all) opens.
+  final bool Function() yieldsTo;
+
+  @override
+  bool isPointerAllowed(PointerDownEvent event) =>
+      !yieldsTo() && super.isPointerAllowed(event);
+}
+
+/// The menu's right-click. Like [_DVMenuLongPress] it steps aside while text
+/// inside is selected, so the right-click reaches the selection's menu.
+class _DVMenuSecondaryTap extends TapGestureRecognizer {
+  _DVMenuSecondaryTap({super.debugOwner, required this.yieldsTo});
+
+  final bool Function() yieldsTo;
+
+  @override
+  bool isPointerAllowed(PointerDownEvent event) =>
+      !yieldsTo() && super.isPointerAllowed(event);
 }
 
 /// [keys] (`mod+shift+r`) as the platform writes a shortcut: `⇧⌘R` on Apple

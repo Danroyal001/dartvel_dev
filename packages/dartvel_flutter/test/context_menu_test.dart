@@ -169,7 +169,11 @@ void main() {
 
   testWidgets('a right-click on selected text keeps the selection menu',
       (WidgetTester tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    // macOS keeps a selection under a right-click and offers Copy; Windows and
+    // Linux clear it first in Flutter's own SelectionArea, with or without
+    // DVContextMenu, so the selection rule is checked where it can hold.
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
     final List<String> chosen = <String>[];
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -185,13 +189,11 @@ void main() {
       ),
     ));
     final Finder text = find.text('Quarterly report for the board');
-    final Rect box = tester.getRect(text);
-    final TestGesture drag = await tester.startGesture(box.centerLeft + const Offset(1, 0),
-        kind: PointerDeviceKind.mouse);
-    await tester.pump();
-    await drag.moveTo(box.centerRight - const Offset(1, 0));
-    await tester.pump();
-    await drag.up();
+    await tester.tapAt(tester.getCenter(text), kind: PointerDeviceKind.mouse);
+    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
     await tester.pumpAndSettle();
 
     final TestGesture mouse = await tester.startGesture(tester.getCenter(text),
@@ -200,6 +202,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Copy'), findsOneWidget, reason: 'selected text is copied, not hidden behind app items');
     expect(find.text('Open'), findsNothing);
+    expect(chosen, isEmpty);
     debugDefaultTargetPlatformOverride = null;
   });
 
