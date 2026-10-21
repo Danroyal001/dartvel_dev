@@ -4717,6 +4717,36 @@ the person says no, and a capability report rather than an assumption. What
 comes back is a `DVFile`, so it flows straight into Media Pipeline's upload
 validation and variant generation without an intermediate format.
 
+### Choosing a camera, and the screen
+
+```dart
+final List<DVCameraDevice> found = await DV.Platform.media.cameras();
+DVBox.camera(lens: found.last.lens, device: found.last.id);
+DVBox.camera(lens: .screen); // the display, shared like a camera
+```
+
+A desktop has several cameras of one kind -- two webcams, a capture card -- so
+a lens is not enough to say which. `DVCameraDevice` names each by the id the
+backend opens and the name the system gives it. `DVCameraLens.screen` is the
+display: previewed, photographed and recorded through the same calls, asking
+for the `screen` permission (on the web and Wayland, the system's own share
+prompt). Switching lens never lands on the screen.
+
+### Recording what the application draws
+
+```dart
+final program = DVWidgetRecorder(quality: .hd720);
+DVBox.recorded(recorder: program, child: live);
+await program.start();                       // a private MP4 on stop()
+await program.start(streamTo: rtmpIngestUrl); // or live, over RTMP
+```
+
+The frames are the subtree's own pixels, so a video, a camera and the text
+over them are recorded as composed. Encoding is the target's `DVFrameEncoder`,
+reported in `DV.Platform.media.recordingCapabilities`; a target without one
+refuses with `DVRecordingUnavailable`. Linux encodes through GStreamer
+(`appsrc` into H.264, then MP4 or FLV over RTMP).
+
 ## DRM
 
 DRM is adapters, labelled per target, and deliberately not a promise: Widevine

@@ -52,9 +52,10 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
         DocsStatus(
           'Media Playback and Capture',
           missing: <String>[
-            'Linux plays through GStreamer, and only the audio: video frames '
-                'are not drawn yet. Linux has no lock-screen controls or '
-                'camera yet.',
+            'Linux plays through GStreamer and draws video frames by copying '
+                'each one, with no hardware path yet, so very large video is '
+                'heavy on the processor. Linux has no lock-screen controls '
+                'yet.',
             'The browser player and camera are written but not yet checked '
                 'in a real browser.',
             'No player or camera backend yet for Android, iOS, macOS, '
@@ -78,6 +79,45 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
               'and a clip is the same recording session recordVideo gives.',
         ]),
         DocsCode('media3d-camera'),
+        DocsText('With more than one camera, list them and open the one you '
+            'want. The screen is opened the same way, as a lens.'),
+        DocsCode('media3d-camera-device'),
+        DocsStatus(
+          'Media Playback and Capture',
+          missing: <String>[
+            'Linux cameras are webcams and capture cards (V4L2). The screen '
+                'can be shared on X11 and in a browser. Wayland is not '
+                'supported yet.',
+            'The Linux camera was checked with a test picture source; no '
+                'physical webcam was on the test machine.',
+          ],
+        ),
+      ],
+    ),
+    DocsSection(
+      id: 'record-screen',
+      title: 'Record or stream part of the screen',
+      children: <Widget>[
+        Bullets(<String>[
+          'DVBox.recorded marks what to record. Nothing changes on screen.',
+          'start() records to a private MP4; start(streamTo:) sends it live '
+              'to the RTMP address a streaming service gives you.',
+          'Frames are what the box draws, at a fixed size. When the device '
+              'falls behind, a frame is skipped so the recording stays in '
+              'time.',
+          'DV.Platform.media.recordingCapabilities says what this device can '
+              'do; start() refuses with DVRecordingUnavailable where it '
+              'cannot.',
+        ]),
+        DocsCode('media3d-recorder'),
+        DocsStatus(
+          'Media Playback and Capture',
+          missing: <String>[
+            'Recording and streaming work on Linux only so far.',
+            'Streaming has been checked up to a refused connection. It has '
+                'not yet been tried with a live streaming service.',
+          ],
+        ),
       ],
     ),
     DocsSection(

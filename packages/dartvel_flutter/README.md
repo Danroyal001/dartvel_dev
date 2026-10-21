@@ -408,6 +408,13 @@ Widget scanner(void Function(DVFile photo) keep) =>
     DVBox.camera(lens: .back, onPhoto: keep);
 ```
 
+With several cameras, `DV.Platform.media.cameras()` lists them and
+`DVBox.camera(device: id)` opens one; `lens: .screen` shares the display.
+`DVBox.recorded(recorder: r, child: ...)` makes whatever a subtree draws
+recordable: `r.start()` records an MP4, `r.start(streamTo: rtmpUrl)` streams
+it live. On Linux, video frames, webcams, the X11 screen and the encoder all
+go through GStreamer.
+
 Captions are text over the picture, so screen readers and Ctrl+F reach them.
 The standard controls are labelled and keyboard-operable. A `DVMediaSession`
 puts the player on the lock screen. Remote files go through a disk cache, and

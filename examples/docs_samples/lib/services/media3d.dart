@@ -30,6 +30,33 @@ Widget scanner(void Function(DVFile photo) keep) =>
     DVBox.camera(lens: .back, onPhoto: keep);
 // docs:end
 
+// docs:start media3d-camera-device
+// Two webcams, a capture card and the screen, by the names the system
+// gives them. The id is what the box opens.
+Future<List<DVCameraDevice>> sources() => DV.Platform.media.cameras();
+
+Widget stageCamera(DVCameraDevice device) =>
+    DVBox.camera(lens: device.lens, device: device.id, controls: .none);
+
+// The display, previewed and recorded like a camera.
+Widget sharedScreen() => DVBox.camera(lens: .screen, controls: .none);
+// docs:end
+
+// docs:start media3d-recorder
+// Whatever the box draws -- a video, a camera, a lyric slide -- is what is
+// recorded, at 720 lines.
+final DVWidgetRecorder program = DVWidgetRecorder(quality: .hd720);
+
+Widget programOut(Widget live) => DVBox.recorded(recorder: program, child: live);
+
+// A private MP4 when it stops.
+Future<void> record() => program.start();
+Future<DVFile?> finish() => program.stop();
+
+// Or live, to the RTMP URL and key a streaming service gives you.
+Future<void> goLive(Uri ingest) => program.start(streamTo: ingest);
+// docs:end
+
 // docs:start media3d-scene
 // A scene is a list of nodes, so what is in it is data a page builds rather
 // than a sequence of calls into a renderer. The viewport reports how it had
