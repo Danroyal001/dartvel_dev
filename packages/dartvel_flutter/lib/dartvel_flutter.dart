@@ -1,14 +1,5 @@
 library dartvel_flutter;
 
-export 'src/default_theme.dart';
-import 'src/default_theme.dart' show dvWithPageScrollbars;
-export 'src/accessibility/tooltips.dart'
-    show DVTooltipTarget, dvDeriveLabel;
-export 'src/platform/platform_host.dart';
-export 'src/windowing/window_space_backend.dart';
-import 'src/platform/platform_host.dart';
-export 'src/auth/auth_frame.dart';
-
 import 'dart:async';
 import 'dart:convert' show jsonDecode, jsonEncode, utf8;
 import 'dart:math' as math;
@@ -41,12 +32,11 @@ import 'src/accessibility/switch_control.dart';
 import 'src/accessibility/tooltips.dart';
 import 'src/auth/ask_for_code.dart';
 import 'src/auth/auth_frame.dart';
-import 'src/routing/nav_link.dart' show DVNavLink;
 import 'src/auth/qr_code.dart' show DVQrImage;
 import 'src/auth/session_client.dart';
-import 'src/purchases/purchases_runtime.dart' show dvInstallPurchaseRuntime;
 // conditional SEO implementation
 import 'src/crashes/crashes.dart';
+import 'src/default_theme.dart' show dvWithPageScrollbars;
 import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
@@ -58,34 +48,37 @@ import 'src/kiosk/device_kiosk.dart';
 import 'src/kiosk/kiosk.dart' show DVKioskEnforced;
 import 'src/kiosk/kiosk_keys.dart';
 import 'src/kiosk/session_clear.dart';
-import 'src/media/image_view.dart';
 import 'src/media/camera_view.dart';
+import 'src/media/image_view.dart';
 import 'src/media/media_box.dart';
+import 'src/media/web_media_mapping.dart' show DVWebCaptureStore;
 import 'src/media/widget_recorder.dart';
 import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
+import 'src/platform/display_availability.dart';
+import 'src/platform/display_availability_web.dart'
+    if (dart.library.io) 'src/platform/display_availability_io.dart' as display_availability;
+import 'src/platform/drag_drop.dart';
+import 'src/platform/drag_drop_widgets.dart';
+import 'src/platform/file_associations.dart';
+import 'src/platform/fonts.dart';
+import 'src/platform/launch_at_login.dart';
+import 'src/platform/network.dart';
+import 'src/platform/platform_host.dart';
+import 'src/platform/printing.dart';
 import 'src/platform/storage/device_storage.dart';
 import 'src/platform/storage/device_storage_stub.dart'
     if (dart.library.io) 'src/platform/storage/device_storage_io.dart'
     if (dart.library.js_interop) 'src/platform/storage/device_storage_web.dart' as capture_platform;
-import 'src/media/web_media_mapping.dart' show DVWebCaptureStore;
-import 'src/platform/drag_drop.dart';
-import 'src/platform/drag_drop_widgets.dart';
-import 'src/platform/file_associations.dart';
-import 'src/platform/launch_at_login.dart';
-import 'src/platform/network.dart';
-import 'src/platform/printing.dart';
-import 'src/platform/fonts.dart';
-import 'src/platform/display_availability.dart';
-import 'src/platform/display_availability_web.dart'
-    if (dart.library.io) 'src/platform/display_availability_io.dart' as display_availability;
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/progress/top_progress.dart';
+import 'src/purchases/purchases_runtime.dart' show dvInstallPurchaseRuntime;
 import 'src/pwa/install_prompt.dart';
 import 'src/routing/link_menu.dart' show DVLinkMenuScope, dvLinkMenuItems;
 import 'src/routing/mount.dart' show dvMountedLocation;
 import 'src/routing/nav_link.dart' show DVLinkOpener, DVPressedLinkTarget;
+import 'src/routing/nav_link.dart' show DVNavLink;
 import 'src/routing/page_mfa.dart' show DVPageMfa;
 import 'src/routing/url_strategy.dart' show dvOpenUrl;
 import 'src/scene3d/scene_viewport.dart';
@@ -490,6 +483,8 @@ export 'package:dartvel_core/dartvel.dart'
         DVStudioPageKind,
         DVStudioSitePage,
         dvStudioSitePages,
+        // Kept for source compatibility with older annotated inputs.
+        // ignore: deprecated_member_use
         DVUseMiddleware,
         DVCache,
         DVCacheAdapter,
@@ -783,6 +778,8 @@ export 'package:go_router/go_router.dart';
 export 'src/accessibility/keyboard_scroll.dart';
 export 'src/accessibility/selection_column.dart';
 export 'src/accessibility/switch_control.dart';
+export 'src/accessibility/tooltips.dart'
+    show DVTooltipTarget, dvDeriveLabel;
 export 'src/admin/cache_admin.dart';
 export 'src/admin/model_admin.dart';
 export 'src/admin/outbox_admin.dart';
@@ -794,13 +791,13 @@ export 'src/admin/telemetry_admin.dart';
 export 'src/analytics/app_tracking_transparency.dart';
 export 'src/analytics/consent_ui.dart';
 export 'src/auth/ask_for_code.dart';
+export 'src/auth/auth_frame.dart';
 export 'src/auth/qr_code.dart';
 export 'src/auth/session_client.dart';
-export 'src/purchases/purchases_runtime.dart'
-    show DVPurchasesWatch, dvPurchaseChannel, dvInstallPurchaseRuntime;
 export 'src/auth/session_token_file_io.dart'
     if (dart.library.js_interop) 'src/auth/session_token_file_web.dart';
 export 'src/crashes/crashes.dart';
+export 'src/default_theme.dart';
 // The documentation site: the widgets that draw the document `dartvel docs`
 // writes, so a project hosting its documentation under a mount of its own can
 // reach them. The document itself is re-exported from dartvel_core below.
@@ -815,8 +812,8 @@ export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
 export 'src/kiosk/session_clear.dart';
 export 'src/lifecycle/app_lifecycle_bridge.dart';
-export 'src/run/application.dart' show DVAppParts, dvRunApplication, dvResetApplicationEntryForTest;
 export 'src/logging/logging.dart';
+export 'src/media/camera_view.dart' hide DVCameraView;
 // The renderer behind DVBox.image is not a second image widget, so it is
 // not exported; what the site build needs from it is.
 export 'src/media/image_view.dart'
@@ -825,7 +822,6 @@ export 'src/media/image_view.dart'
         DVImageView,
         dvImageServedPath,
         dvImageVariantProvider;
-export 'src/media/camera_view.dart' hide DVCameraView;
 export 'src/media/media_box.dart' hide DVMediaView;
 export 'src/media/stored_image.dart';
 export 'src/media/video_frame.dart';
@@ -837,32 +833,35 @@ export 'src/platform/android/android_bindings.dart';
 export 'src/platform/desktop_permissions.dart';
 export 'src/platform/device_runtime.dart';
 export 'src/platform/dialogs.dart';
-export 'src/platform/storage/device_storage.dart';
+export 'src/platform/display_availability.dart';
 export 'src/platform/drag_drop.dart';
 export 'src/platform/drag_drop_widgets.dart';
 export 'src/platform/file_associations.dart';
-export 'src/platform/opened_files.dart' show DVOpenedFile;
-export 'src/platform/launch_at_login.dart';
 export 'src/platform/file_bindings.dart';
+export 'src/platform/fonts.dart';
 export 'src/platform/incoming_file.dart';
 export 'src/platform/ios/ios_bindings.dart';
+export 'src/platform/launch_at_login.dart';
 export 'src/platform/linux/linux_bindings.dart';
 export 'src/platform/macos/macos_bindings.dart';
 // The application-facing half only. Reporting connectivity is the platform
 // binding's job and lives in src/platform/network_source.dart, which is not
 // exported: an application reads the signal rather than feeding it.
 export 'src/platform/network.dart';
+export 'src/platform/opened_files.dart' show DVOpenedFile;
+export 'src/platform/platform_host.dart';
 export 'src/platform/printing.dart';
-export 'src/platform/fonts.dart';
 export 'src/platform/raster.dart';
-export 'src/platform/display_availability.dart';
+export 'src/platform/storage/device_storage.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/webcrypto_key_store_io.dart'
     if (dart.library.js_interop) 'src/platform/webcrypto_key_store_web.dart';
 export 'src/platform/windows/windows_bindings.dart';
 export 'src/progress/top_progress.dart' show DVTopProgress, DVTopProgressBar;
-export 'src/pwa/install_prompt.dart';
+export 'src/purchases/purchases_runtime.dart'
+    show DVPurchasesWatch, dvPurchaseChannel, dvInstallPurchaseRuntime;
 export 'src/push/device_push.dart';
+export 'src/pwa/install_prompt.dart';
 export 'src/routing/account_pages.dart';
 export 'src/routing/client_hosts.dart';
 export 'src/routing/config_routes.dart';
@@ -877,6 +876,7 @@ export 'src/routing/page_policy.dart';
 export 'src/routing/route_prefetch.dart';
 export 'src/routing/router.dart';
 export 'src/routing/url_strategy.dart';
+export 'src/run/application.dart' show DVAppParts, dvRunApplication, dvResetApplicationEntryForTest;
 export 'src/scene3d/model_viewer.dart';
 export 'src/scene3d/scene_nodes.dart';
 export 'src/scene3d/scene_viewport.dart';
@@ -889,17 +889,17 @@ export 'src/studio/page_document.dart';
 export 'src/studio/studio_app_shortcuts.dart';
 export 'src/studio/studio_components.dart';
 export 'src/studio/studio_components_section.dart';
-export 'src/studio/studio_repository_section.dart';
 export 'src/studio/studio_content.dart';
 export 'src/studio/studio_edit.dart';
 export 'src/studio/studio_editor.dart';
+export 'src/studio/studio_first_run.dart' show DVStudioFirstRunScreen;
+export 'src/studio/studio_host.dart';
 export 'src/studio/studio_mark.dart';
 export 'src/studio/studio_modules.dart';
-export 'src/studio/studio_screen.dart';
+export 'src/studio/studio_repository_section.dart';
 export 'src/studio/studio_routes.dart';
-export 'src/studio/studio_host.dart';
+export 'src/studio/studio_screen.dart';
 export 'src/studio/studio_server.dart';
-export 'src/studio/studio_first_run.dart' show DVStudioFirstRunScreen;
 export 'src/studio/studio_sign_in.dart'
     show DVStudioFrame, DVStudioSignInScreen, dvStudioSignInTarget;
 export 'src/studio/studio_site_pages.dart';
@@ -918,6 +918,7 @@ export 'src/windowing/performance.dart';
 export 'src/windowing/shared_store.dart';
 export 'src/windowing/tab_workspace.dart';
 export 'src/windowing/window.dart';
+export 'src/windowing/window_space_backend.dart';
 export 'src/windowing/window_state.dart';
 
 // ==========================================
@@ -2850,7 +2851,6 @@ class DVBox<T> extends StatelessWidget {
         label: m!.tooltipValue ?? m.semanticLabelValue,
         required: dragDrop,
         site: m.dragDropSite,
-        child: hoverChild,
         // A drag surface is named without pretending to be a button. The
         // capture uses this identifier to retain its title and aria-label
         // in the server document, including names derived from its text.
@@ -2863,6 +2863,7 @@ class DVBox<T> extends StatelessWidget {
                 child: hoverChild,
               )
             : null,
+        child: hoverChild,
       );
     }
 
@@ -4595,9 +4596,9 @@ class _DVFormState<T> extends State<DVForm<T>> {
     if (widget.onSubmit != null) {
       fields.add(
         _busy
-            ? FilledButton(
+            ? const FilledButton(
                 onPressed: null,
-                child: const SizedBox.square(
+                child: SizedBox.square(
                   dimension: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
