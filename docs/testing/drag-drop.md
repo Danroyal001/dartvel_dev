@@ -5,10 +5,10 @@
 From `packages/dartvel_flutter`:
 
 ```sh
-~/heavy.sh flutter test test/drag_drop_everywhere_test.dart test/drag_drop_delivery_test.dart \
+flutter test test/drag_drop_everywhere_test.dart test/drag_drop_delivery_test.dart \
   test/drag_drop_compatibility_test.dart test/drag_drop_translation_test.dart \
   test/drag_drop_modifier_test.dart test/drag_drop_lifecycle_test.dart test/tooltip_required_test.dart
-~/heavy.sh xvfb-run -a flutter test test/linux_drag_drop_test.dart
+xvfb-run -a flutter test test/linux_drag_drop_test.dart
 ```
 
 From `packages/dartvel_cli`, with `ANDROID_HOME` pointing at an installed SDK
@@ -17,7 +17,7 @@ step without one). The iOS test checks the generated Swift and the Runner
 project edit as text; it does not compile Swift.
 
 ```sh
-~/heavy.sh dart test test/android_drag_drop_bridge_test.dart test/ios_drag_drop_bridge_test.dart test/tooltip_lint_test.dart
+dart test test/android_drag_drop_bridge_test.dart test/ios_drag_drop_bridge_test.dart test/tooltip_lint_test.dart
 ```
 
 ## In a browser
