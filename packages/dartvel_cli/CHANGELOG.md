@@ -5,6 +5,7 @@
 - `@DVAppRoot` and `@DVBoot` functions may carry another annotation, such as `@pragma('vm:entry-point')`.
 - Generating a native folder removes what `flutter create` adds besides it (a counter-app `test/widget_test.dart`, `.metadata`).
 - The launcher and window title fall back to `dartvel.seo.siteName` when `dartvel.pwa` has no name.
+- A web-server build without Studio answers `/_dartvel/pages` with an empty list; the web app asks on every page and every visitor's console showed a 404.
 
 
 ## 0.13.9 — 2026-10-20
