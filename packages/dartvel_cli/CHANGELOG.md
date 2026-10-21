@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.13 — 2026-10-21
 
 - `dartvel.fileAssociations` registered at build time on every target (web `file_handlers`, Linux desktop entry + shared-mime-info, Windows registry script, Apple document types/UTIs, Android intent filters and `DartvelOpenActivity`, Tizen app controls), with per-type icons on web, Linux and Windows; `dartvel:` may name a Dart config class (`dvDartvelSection`).
 - Build cache (`build_cache.dart`, `--[no-]cache`): Flutter web output and per-route semantics captures reused by content hash; the Flutter web step starts from an empty `build/web`.

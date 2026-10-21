@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.13 — 2026-10-21
 
 - `package:dartvel_core/config.dart`: `DartvelConfig` (Dart form of the `dartvel:` section) and `DVFileAssociation` with one parser and validation for YAML and Dart.
 - `DV-WINDOW-016` (warning): `takesFocus: false` not honoured on this target.
