@@ -237,6 +237,39 @@ List<({String name, String root})> dvPathDependencies(String projectRoot) {
   return found;
 }
 
+/// What a route's semantics capture reads: every file of the web output
+/// [web] except those in [skip], keyed by content.
+///
+/// One value is left out of `flutter_bootstrap.js`: Flutter writes a fresh
+/// `serviceWorkerVersion` on every compile, even of unchanged code, and it
+/// only names Flutter's own deprecated worker (which Dartvel's replaces). It
+/// cannot change what a page shows, and keeping it would make every
+/// recompile recapture every route.
+String dvCaptureInputHash(Directory web, {Set<String> skip = const <String>{}}) {
+  final DVContentHash hash = DVContentHash();
+  if (!web.existsSync()) return (hash..addText('web', '<missing>')).digest;
+  final List<File> files = <File>[
+    for (final FileSystemEntity entity in web.listSync(recursive: true, followLinks: false))
+      if (entity is File) entity,
+  ]..sort((File a, File b) => a.path.compareTo(b.path));
+  for (final File file in files) {
+    final String relative = p.relative(file.path, from: web.path).replaceAll(r'\', '/');
+    if (skip.contains(relative)) continue;
+    if (relative == 'flutter_bootstrap.js') {
+      hash.addText(
+        'file:$relative',
+        file
+            .readAsStringSync()
+            .replaceAll(RegExp(r'serviceWorkerVersion: "\d+"'), 'serviceWorkerVersion: ""')
+            .replaceAll(RegExp(r'flutter_service_worker\.js\?v=\d+'), 'flutter_service_worker.js?v='),
+      );
+    } else {
+      hash.addFile(relative, file);
+    }
+  }
+  return hash.digest;
+}
+
 /// A hash of every file in [directory], for keying what is derived from it.
 String dvDirectoryHash(Directory directory) {
   final DVContentHash hash = DVContentHash()

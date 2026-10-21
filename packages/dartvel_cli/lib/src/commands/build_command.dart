@@ -1348,6 +1348,16 @@ class BuildCommand extends Command<void> {
       );
       exitCode = 0;
     } else {
+      // From an empty directory: Flutter writes into build/web without
+      // clearing it, so what an earlier build's later steps left there
+      // (routes, prefetch manifest, pages) would otherwise be stored as
+      // Flutter's output and decide the capture keys. A restored entry
+      // replaces the directory the same way, so cached and uncached builds
+      // start the later steps from the same files.
+      if ((platform == 'web' || platform == 'web-server') &&
+          webOutput.existsSync()) {
+        webOutput.deleteSync(recursive: true);
+      }
       Logger.log('   flutter ${args.join(' ')}');
 
       final Map<String, String>? signingEnvironment =
@@ -3895,16 +3905,8 @@ class BuildCommand extends Command<void> {
 
   /// What the capture reads: every file of the web output except the
   /// prefetch manifest, which the capture itself refuses to serve.
-  String _captureInputHash(Directory web) {
-    final DVContentHash hash = DVContentHash()
-      ..addDirectory(
-        '',
-        web,
-        relativeTo: web.path,
-        skip: (String relative) => relative == dvPrefetchManifestFile,
-      );
-    return hash.digest;
-  }
+  String _captureInputHash(Directory web) =>
+      dvCaptureInputHash(web, skip: const <String>{dvPrefetchManifestFile});
 
   /// [route]'s capture outputs (its tree and its images), copied into a
   /// directory of their own for the cache.

@@ -289,4 +289,46 @@ flutter:
       },
     );
   });
+
+  group('what a route capture is keyed on', () {
+    Directory web(String name, {String version = '1', String code = 'main();'}) {
+      final Directory output = Directory(p.join(project.path, name))..createSync();
+      File(p.join(output.path, 'main.dart.js')).writeAsStringSync(code);
+      File(p.join(output.path, 'flutter_bootstrap.js')).writeAsStringSync(
+        '_flutter.loader.load({\n'
+        '  serviceWorkerSettings: {\n'
+        '    serviceWorkerVersion: "$version" /* deprecated */\n'
+        '  }\n'
+        '});\n'
+        'register("flutter_service_worker.js?v=$version");\n',
+      );
+      File(p.join(output.path, 'dartvel_prefetch.json')).writeAsStringSync(version);
+      return output;
+    }
+
+    test('two compiles of the same code are the same input', () {
+      // Flutter numbers its deprecated worker afresh on every compile; that
+      // number cannot change what a page shows, so it must not cost a capture.
+      expect(
+        dvCaptureInputHash(web('a', version: '4292166236'), skip: <String>{'dartvel_prefetch.json'}),
+        dvCaptureInputHash(web('b', version: '2878916900'), skip: <String>{'dartvel_prefetch.json'}),
+      );
+    });
+
+    test('different code is a different input', () {
+      expect(
+        dvCaptureInputHash(web('a')),
+        isNot(dvCaptureInputHash(web('b', code: 'main(2);'))),
+      );
+    });
+
+    test('the bootstrap still counts apart from the worker version', () {
+      final Directory a = web('a');
+      final Directory b = web('b');
+      File(p.join(b.path, 'flutter_bootstrap.js')).writeAsStringSync(
+        File(p.join(a.path, 'flutter_bootstrap.js')).readAsStringSync().replaceAll('load(', 'load2('),
+      );
+      expect(dvCaptureInputHash(a), isNot(dvCaptureInputHash(b)));
+    });
+  });
 }
