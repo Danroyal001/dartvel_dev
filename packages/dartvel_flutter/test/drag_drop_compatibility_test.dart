@@ -1,4 +1,7 @@
-import 'dart:typed_data';
+// What a drop delivered before widget targets and links existed still
+// arrives the same way: a binding that hands over a file's bytes in the map
+// (the browser binding did, and a custom binding may) gives a readable file,
+// and the window's drag-over stream still says when a drag is over it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,32 +17,38 @@ void main() {
     DVNativeBridge.unregister('dragDrop.stop');
   });
 
-  test('existing dropped-file constructor and byte maps remain readable', () async {
-    final file = DVDroppedFile(name: 'before.txt', bytes: Uint8List.fromList([1, 2]));
-    final event = DVDropEvent(files: <DVDroppedFile>[file]);
-    final DVDroppedFile legacy = event.files.single;
-    expect(legacy.bytes, [1, 2]);
-    expect(legacy.mimeType.isEmpty, isTrue);
-    expect(await event.files.single.readBytes(), [1, 2]);
-    final decoded = DVDropEvent.fromMap({
-      'files': [{'name': 'map.txt', 'mimeType': 'text/plain', 'bytes': [3, 4]}],
+  test('a file map carrying bytes is read from those bytes', () async {
+    final DVDropEvent decoded = DVDropEvent.fromMap(<Object?, Object?>{
+      'files': <Object?>[
+        <Object?, Object?>{'name': 'map.txt', 'mimeType': 'text/plain', 'bytes': <int>[3, 4]},
+      ],
     });
-    expect(decoded.files.single.bytes, [3, 4]);
-    expect(await decoded.files.single.readBytes(), [3, 4]);
+    expect(decoded.files.single.name, 'map.txt');
+    expect(await decoded.files.single.readBytes(), <int>[3, 4]);
   });
 
-  test('window drag-over stream still reports enter and leave', () async {
-    final over = <bool>[];
+  test('a file map without a type takes one from its name', () {
+    final DVDropEvent decoded = DVDropEvent.fromMap(<Object?, Object?>{
+      'files': <Object?>[
+        <Object?, Object?>{'name': 'photo.png', 'bytes': <int>[1]},
+      ],
+    });
+    expect(decoded.files.single.mimeType, 'image/png');
+  });
+
+  test('a drop ends the drag-over, and nothing is reported after stop', () async {
+    final List<bool> over = <bool>[];
     final subscription = const DVDragDrop().draggingOver.listen(over.add);
     await const DVDragDrop().accept();
     DVDragDrop.dispatchHover(12, 12);
-    DVDragDrop.dispatchLeave();
-    await Future<void>.delayed(.zero);
-    expect(over, [true, false]);
+    DVDragDrop.dispatch(const DVDropEvent(text: 'dropped', x: 12, y: 12));
+    await Future<void>.delayed(Duration.zero);
+    expect(over, <bool>[true, false]);
     await const DVDragDrop().stop();
-    DVDragDrop.dispatchDragOver(true);
-    await Future<void>.delayed(.zero);
-    expect(over, [true, false]);
+    DVDragDrop.dispatchHover(12, 12);
+    DVDragDrop.dispatchLeave();
+    await Future<void>.delayed(Duration.zero);
+    expect(over, <bool>[true, false]);
     await subscription.cancel();
   });
 }

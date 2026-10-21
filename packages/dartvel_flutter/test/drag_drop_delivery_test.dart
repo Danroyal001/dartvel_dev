@@ -99,10 +99,11 @@ void main() {
       'x': 5,
       'y': 6,
     }));
-    final DVDroppedFile file = got.single.files.single;
+    final DVIncomingFile file = got.single.files.single;
     expect(file.name, 'qr.png');
     expect(file.mimeType, 'image/png');
-    expect(file.bytes, <int>[137, 80, 78, 71]);
+    expect(file.size, 4);
+    expect(await file.readBytes(), <int>[137, 80, 78, 71]);
     expect(got.single.paths, isEmpty);
     expect(got.single.isEmpty, isFalse);
   });
@@ -110,12 +111,14 @@ void main() {
   test('drag-over is reported only while the window accepts drops', () async {
     final List<bool> over = <bool>[];
     final sub = const DVDragDrop().draggingOver.listen(over.add);
-    DVDragDrop.dispatchDragOver(true);
+    DVDragDrop.dispatchHover(10, 10);
+    DVDragDrop.dispatchLeave();
     await const DVDragDrop().accept();
-    DVDragDrop.dispatchDragOver(true);
-    DVDragDrop.dispatchDragOver(false);
+    DVDragDrop.dispatchHover(10, 10);
+    DVDragDrop.dispatchHover(20, 20);
+    DVDragDrop.dispatchLeave();
     await Future<void>.delayed(Duration.zero);
-    expect(over, <bool>[true, false]);
+    expect(over, <bool>[true, false], reason: 'one enter and one leave, however many moves between');
     await sub.cancel();
   });
 }

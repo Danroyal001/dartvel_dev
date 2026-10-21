@@ -122,16 +122,27 @@ class DVDropEvent {
                     ? Uri.parse(uri).pathSegments.lastOrNull ?? uri
                     : 'file'));
       final int fileIndex = index;
+      // A binding may hand the contents over in the map itself.
+      final Object? rawBytes = raw['bytes'];
+      final Uint8List? bytes = rawBytes is List
+          ? dvAsUint8List(<int>[
+              for (final Object? byte in rawBytes) (byte! as num).toInt(),
+            ])
+          : null;
       files.add(
         DVIncomingFile(
           name: name,
           mimeType: (raw['mimeType'] as String?) ?? dvMimeTypeFor(name),
           path: path,
           uri: uri == null ? null : Uri.tryParse(uri),
-          size: raw['size'] is num ? (raw['size']! as num).toInt() : null,
-          read: readers == null || path != null
-              ? null
-              : () async => dvAsUint8List(await readers(fileIndex)),
+          size: raw['size'] is num
+              ? (raw['size']! as num).toInt()
+              : bytes?.length,
+          read: bytes != null
+              ? () async => bytes
+              : (readers == null || path != null
+                    ? null
+                    : () async => dvAsUint8List(await readers(fileIndex))),
         ),
       );
     }
@@ -240,9 +251,17 @@ class DVDragDrop {
   static final List<DVDropTargetRegistration> _targets =
       <DVDropTargetRegistration>[];
   static DVDragPayload? _pending;
+  static final StreamController<bool> _over =
+      StreamController<bool>.broadcast();
+  static bool _windowOver = false;
 
   /// Every drop the application took, whichever window or widget took it.
   Stream<DVDropEvent> get dropped => _dropped.stream;
+
+  /// True when a drag comes over the window, false when it leaves or is
+  /// dropped, while the window is accepting (so a page can show where to
+  /// drop). One true per drag, however far it moves.
+  Stream<bool> get draggingOver => _over.stream;
 
   /// Whether this target can take drops at all. Where it cannot,
   /// [chooseInstead] is the way in.
@@ -265,6 +284,7 @@ class DVDragDrop {
   /// accepting. A drop that nothing admits reaches nobody, and an empty drop
   /// is not a drop.
   static void dispatch(DVDropEvent event) {
+    _endWindowOver();
     if (event.isEmpty) return;
     _clearHover();
     final DVDropTargetRegistration? target = _targetAt(event.position, event);
@@ -283,6 +303,10 @@ class DVDragDrop {
   /// For platform bindings: a drag is over the window at ([x], [y]). Lets a
   /// widget target show that it would take the drop.
   static void dispatchHover(double x, double y) {
+    if (_accepting && !_windowOver) {
+      _windowOver = true;
+      _over.add(true);
+    }
     final Offset point = Offset(x, y);
     final DVDropTargetRegistration? over = _targetAt(point, null);
     for (final DVDropTargetRegistration target in _targets) {
@@ -295,7 +319,16 @@ class DVDragDrop {
   }
 
   /// For platform bindings: the drag left the window, or was cancelled.
-  static void dispatchLeave() => _clearHover();
+  static void dispatchLeave() {
+    _endWindowOver();
+    _clearHover();
+  }
+
+  static void _endWindowOver() {
+    if (!_windowOver) return;
+    _windowOver = false;
+    _over.add(false);
+  }
 
   static void _clearHover() {
     for (final DVDropTargetRegistration target in _targets) {
@@ -368,6 +401,7 @@ class DVDragDrop {
     _types = DVDropType.values.toSet();
     _targets.clear();
     _pending = null;
+    _windowOver = false;
   }
 
   /// Whether the window is taking drops.
@@ -401,6 +435,7 @@ class DVDragDrop {
 
   /// Stops taking drops on the window. Widget targets keep theirs.
   Future<void> stop() async {
+    _endWindowOver();
     _onDrop = null;
     _accepting = false;
     if (_targets.isEmpty) await _stopNative();
