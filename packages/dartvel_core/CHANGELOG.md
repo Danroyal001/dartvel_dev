@@ -1,3 +1,9 @@
+## 0.13.10 — 2026-10-21
+
+- Cameras: `DVCameraDevice` and `DVCameraBackend.devices()`; `DVCameraController(device:)` opens a chosen camera. `DVCameraLens.screen` shares the display through the camera calls and asks for the `screen` permission; `switchLens` never lands on it. A controller already open does not reopen its device when a second box shows it.
+- `DVMediaController(loop: true)` starts again from the beginning at the end; `attachedBackend` lets a second box draw the player another box attached.
+
+
 ## 0.13.9 — 2026-10-20
 
 - Ordinary pages carry request-time data in their first document: export `dartvelRoutePageData` (route pattern -> resolver) from `lib/backend/page_data/index.dart`; `DVPageData.document` holds typed headings, paragraphs and links (`DVDocumentBlock`), escaped, with unsafe link schemes written as text. The file may not import Flutter (`DV-PAGE-010`).
