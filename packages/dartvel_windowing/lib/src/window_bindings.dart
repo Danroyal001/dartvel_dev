@@ -8,7 +8,14 @@ part of 'windowing_native.dart';
 /// that window is built.
 @immutable
 class DVWindowRequest {
-  const DVWindowRequest({this.size, this.title, this.route, this.kind, this.displayId});
+  const DVWindowRequest({
+    this.size,
+    this.title,
+    this.route,
+    this.kind,
+    this.displayId,
+    this.takesFocus = true,
+  });
 
   /// The size asked for, or null to let the platform choose.
   final Size? size;
@@ -25,6 +32,20 @@ class DVWindowRequest {
 
   /// The display the manager resolved, if it asked for one.
   final String? displayId;
+
+  /// False for a window that must never take keyboard focus: a projector or
+  /// stage display (`DVWindowOptions.takesFocus`).
+  final bool takesFocus;
+
+  /// This request with [takesFocus] changed.
+  DVWindowRequest withTakesFocus(bool takesFocus) => DVWindowRequest(
+        size: size,
+        title: title,
+        route: route,
+        kind: kind,
+        displayId: displayId,
+        takesFocus: takesFocus,
+      );
 }
 
 /// Registers the desktop window bindings.
@@ -73,8 +94,8 @@ class _DVWindowBindings {
     return null;
   }
 
-  /// Registers `window.open`, `window.close`, `window.displays` and
-  /// `window.setFullscreen`.
+  /// Registers `window.open`, `window.close`, `window.displays`,
+  /// `window.setFullscreen` and `window.setTakesFocus`.
   ///
   /// The handlers do not create the OS window. They allocate its identity and
   /// record what was asked for; the window itself is created by
@@ -131,6 +152,27 @@ class _DVWindowBindings {
       return surface.setFullscreen(fullscreen, on: displayFor(displayId));
     });
 
+    // A window that never takes keyboard focus. The manager asks right after
+    // window.open, before the window is listed and so before its surface
+    // exists; the surface applies it when the OS window is created, which is
+    // before it is first shown. Linux only: elsewhere the answer is no, and
+    // the manager puts DV-WINDOW-016 on the window rather than pretending.
+    DVNativeBridge.register('window.setTakesFocus', (Object? arguments) {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      final id = map['id'];
+      if (id is! String || !_requests.containsKey(id)) return false;
+      final takesFocus = map['takesFocus'] != false;
+      // Recorded everywhere: the window's own widgets are kept from taking
+      // focus on every platform (see contentFor). Only the OS half is Linux.
+      _requests[id] = _requests[id]!.withTakesFocus(takesFocus);
+      if (!Platform.isLinux) return false;
+      final surface = _surfaces?.forNativeId(id);
+      if (surface is _FlutterWindowSurface) {
+        return surface.setTakesFocus(takesFocus);
+      }
+      return true;
+    });
+
     DVNativeBridge.register('window.close', (Object? arguments) {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
       final id = map['id'];
@@ -152,6 +194,21 @@ class _DVWindowBindings {
     return const <Map<String, Object?>>[];
   }
 
+  /// What [window] renders [content] as.
+  ///
+  /// A window that takes no focus gets none inside Flutter either. Every
+  /// window is a view of one widget tree with one FocusManager, and a key goes
+  /// to its primary focus whichever OS window delivered it. Measured on a
+  /// two-monitor X server: with the projector's GTK window refusing focus the
+  /// operator's window kept the X input focus, and an `autofocus` in the
+  /// projector's route still took every keystroke. [ExcludeFocus] keeps any
+  /// widget in it from becoming focused at all.
+  static Widget contentFor(DVWindow window, Widget content) {
+    final DVWindowRequest? request = requestFor(window.nativeId);
+    if (request == null || request.takesFocus) return content;
+    return ExcludeFocus(child: content);
+  }
+
   /// What was asked for when the window with [nativeId] was opened.
   static DVWindowRequest? requestFor(String? nativeId) =>
       nativeId == null ? null : _requests[nativeId];
@@ -163,6 +220,7 @@ class _DVWindowBindings {
     DVNativeBridge.unregister('window.close');
     DVNativeBridge.unregister('window.displays');
     DVNativeBridge.unregister('window.setFullscreen');
+    DVNativeBridge.unregister('window.setTakesFocus');
     _requests.clear();
     _pendingFullscreen.clear();
     _surfaces = null;

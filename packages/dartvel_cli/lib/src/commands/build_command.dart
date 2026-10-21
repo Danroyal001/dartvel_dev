@@ -2970,41 +2970,52 @@ class BuildCommand extends Command<void> {
       // embedder auto-installed moments ago lives on a PATH this process was
       // not started with, so a plain run would not find the executable the
       // availability check just resolved.
-      final scaffold = await Process.start(
-        plan.executable,
-        plan.scaffoldArguments,
-        workingDirectory: _projectRoot,
-        runInShell: true,
-        environment: _buildEnvironment,
-      );
-      // Kept for the same reason as the build's own output below: the
-      // vendor's `create` runs pub inside the scaffold it just wrote, and
-      // when that refuses on the SDK the message is the only thing that says
-      // which wall was hit.
+      // The vendor `create` writes a counter-app test/widget_test.dart and
+      // more besides the platform folder; those are removed after, also when
+      // it fails.
       final StringBuffer scaffoldSaid = StringBuffer();
-      void keepScaffold(List<int> data) {
-        if (scaffoldSaid.length > 64 * 1024) return;
-        scaffoldSaid.write(utf8.decode(data, allowMalformed: true));
-      }
+      int? scaffoldCode;
+      await dvGeneratePlatformScaffold(
+        root: _projectRoot,
+        directory: scaffoldDir,
+        create: () async {
+          final scaffold = await Process.start(
+            plan.executable,
+            plan.scaffoldArguments,
+            workingDirectory: _projectRoot,
+            runInShell: true,
+            environment: _buildEnvironment,
+          );
+          // Kept for the same reason as the build's own output below: the
+          // vendor's `create` runs pub inside the scaffold it just wrote, and
+          // when that refuses on the SDK the message is the only thing that says
+          // which wall was hit.
+          void keepScaffold(List<int> data) {
+            if (scaffoldSaid.length > 64 * 1024) return;
+            scaffoldSaid.write(utf8.decode(data, allowMalformed: true));
+          }
 
-      scaffold.stdout.listen((data) {
-        stdout.add(data);
-        keepScaffold(data);
-      });
-      scaffold.stderr.listen((data) {
-        stderr.add(data);
-        keepScaffold(data);
-      });
-      // Scaffold generation shells out to the vendor CLI, which is exactly
-      // the kind of process that has hung before. Bounded at a share of the
-      // build's allowance: generating a platform directory is quick, and one
-      // that is not quick is stuck.
-      final scaffoldCode = await _awaitBuild(
-        scaffold,
-        timeout: timeout == null
-            ? null
-            : Duration(minutes: (timeout.inMinutes ~/ 3).clamp(1, 10)),
-        description: 'generating the $scaffoldDir/ scaffold',
+          scaffold.stdout.listen((data) {
+            stdout.add(data);
+            keepScaffold(data);
+          });
+          scaffold.stderr.listen((data) {
+            stderr.add(data);
+            keepScaffold(data);
+          });
+          // Scaffold generation shells out to the vendor CLI, which is exactly
+          // the kind of process that has hung before. Bounded at a share of the
+          // build's allowance: generating a platform directory is quick, and one
+          // that is not quick is stuck.
+          scaffoldCode = await _awaitBuild(
+            scaffold,
+            timeout: timeout == null
+                ? null
+                : Duration(minutes: (timeout.inMinutes ~/ 3).clamp(1, 10)),
+            description: 'generating the $scaffoldDir/ scaffold',
+          );
+          return scaffoldCode ?? -1;
+        },
       );
       if (scaffoldCode == null) return DVBuildTargetResult.failed;
       final generated = Directory(p.join(_projectRoot, scaffoldDir));

@@ -144,6 +144,30 @@ class _DVLinuxWindows {
     return true;
   }
 
+  /// Lets [window] take keyboard focus, or keeps it from ever taking it.
+  ///
+  /// Two settings, because there are two moments a window gets focus.
+  /// `gtk_window_set_accept_focus` sets WM_HINTS input to False, so a window
+  /// manager does not give it focus when it is clicked or activated, and GDK
+  /// ignores the WM_TAKE_FOCUS a manager sends instead.
+  /// `gtk_window_set_focus_on_map` sets `_NET_WM_USER_TIME` to 0 when the
+  /// window is mapped, which tells an EWMH manager not to focus it on map.
+  /// Without the second a manager focuses the window as it appears, before the
+  /// first matters.
+  static bool setTakesFocus(ffi.Pointer<ffi.Void> window, bool takesFocus) {
+    final gtk = _load();
+    if (gtk == null || window == ffi.nullptr) return false;
+    final acceptFocus = gtk.lookupFunction<
+        ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int32),
+        void Function(ffi.Pointer<ffi.Void>, int)>('gtk_window_set_accept_focus');
+    final focusOnMap = gtk.lookupFunction<
+        ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int32),
+        void Function(ffi.Pointer<ffi.Void>, int)>('gtk_window_set_focus_on_map');
+    acceptFocus(window, takesFocus ? 1 : 0);
+    focusOnMap(window, takesFocus ? 1 : 0);
+    return true;
+  }
+
   /// Leaves fullscreen.
   static bool unfullscreen(ffi.Pointer<ffi.Void> window) {
     final gtk = _load();

@@ -181,6 +181,14 @@ const Set<String> dvNativeBindingNames = <String>{
   'window.open',
   'window.restore',
   'window.setFullscreen',
+  // A window that never takes keyboard focus (DVWindowOptions.takesFocus),
+  // registered by dartvel_windowing with the other desktop windowing names.
+  'window.setTakesFocus',
   'window.setSize',
   'window.setTitle',
+
+  // The installed fonts (DV.Platform.fonts): every face the system lists,
+  // and one face's bytes for FontLoader.
+  'fonts.faces',
+  'fonts.read',
 };

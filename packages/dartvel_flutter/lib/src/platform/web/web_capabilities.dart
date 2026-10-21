@@ -150,6 +150,13 @@ const Set<String> dvWebImplementedBindings = <String>{
   // window.alert, which is the browser's message dialog whether or not
   // anybody likes it.
   'dialogs.message',
+
+  // The Local Font Access API (window.queryLocalFonts), Chromium only and
+  // permission-gated: the installed faces, and a face's bytes through
+  // FontData.blob() for FontLoader. Probed, so another browser leaves both
+  // unregistered and DV.Platform.fonts says why.
+  'fonts.faces',
+  'fonts.read',
 };
 
 /// The bindings registered with no feature probe at all.
@@ -240,6 +247,10 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
   'window.minimize': 'Same wall as maximize: the window belongs to the '
       'browser and a page is not allowed to move it.',
   'window.restore': 'The undo of a maximise a page was never able to do.',
+  'window.setTakesFocus': 'A page opens no window that stays in the '
+      'background: a popup comes to the front, and a tab cannot be told to '
+      'refuse the keyboard. DVWindowOptions(takesFocus: false) opens the window '
+      'with DV-WINDOW-016 on its codes instead.',
   'window.setSize': 'window.resizeTo() is refused for any window the script '
       'did not open, which is every tab a person navigated to.',
   'window.displays': 'The Window Management API can enumerate screens, but '

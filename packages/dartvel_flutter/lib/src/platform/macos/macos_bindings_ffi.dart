@@ -35,6 +35,7 @@ import 'macos_device_ffi.dart';
 import 'macos_dialogs_ffi.dart';
 import 'macos_dnd_ffi.dart';
 import 'macos_kiosk_ffi.dart';
+import 'macos_fonts_ffi.dart';
 import 'macos_launch_at_login_ffi.dart';
 import 'macos_menus_ffi.dart';
 import 'macos_printing_ffi.dart';
@@ -137,6 +138,7 @@ class DVMacosBindings {
     DVMacosTray.register(DVNativeBridge.register, objc: _objc);
     DVMacosWindow.register(DVNativeBridge.register, objc: _objc);
     DVMacosLaunchAtLogin.register(DVNativeBridge.register, objc: _objc);
+    DVMacosFonts.register(DVNativeBridge.register);
     DVMacosPrinting.register(DVNativeBridge.register);
     DVMacosDialogs.register(DVNativeBridge.register, objc: _objc);
     DVMacosDragDrop.register(DVNativeBridge.register, objc: _objc);

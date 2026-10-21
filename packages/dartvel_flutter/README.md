@@ -379,6 +379,21 @@ final DVNetworkStatus status = DV.Platform.network.watch(context);
 // online, metered, offline or unknown
 ```
 
+The installed fonts, for a font picker, and the picked one in Flutter text.
+An empty list always says why (a browser without the Local Font Access API, a
+person who declined it, iOS, which gives apps no font files):
+
+```dart
+final DVFontFamilies families = await DV.Platform.fonts.families();
+final String family = await DV.Platform.fonts.load(families.first);
+final Widget line = DVText('Amazing grace').modifier(DVModifier().fontFamily(family));
+```
+
+fontconfig on Linux (verified against `fc-list` in a running app), the
+Local Font Access API in Chromium browsers (verified in headless Chrome), the
+registry on Windows, CoreText on macOS and `/system/fonts` on Android (those
+three written, not yet run on the platform).
+
 The bindings reach native code through `dart:ffi` (X11, GTK and GDBus on
 Linux, the Win32 API, the Objective-C runtime on Apple platforms),
 `dart:js_interop` on the web and jnigen on Android. There are no platform

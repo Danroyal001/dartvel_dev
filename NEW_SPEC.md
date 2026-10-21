@@ -7973,6 +7973,7 @@ Desktop:
 - clipboard and selection integration
 - printing
 - system dialogs
+- installed fonts — see [Installed fonts](#installed-fonts) below
 
 Drag and drop uses `DV.Platform.dragDrop` for a window, or
 `DVModifier().dropTarget(onDrop: ...)` for one widget. `DVDropEvent` carries
@@ -8045,6 +8046,44 @@ await DV.Platform.shortcuts.register(
 Desktop APIs are backed by generated native bindings registered under
 `window.*`, `tray.*`, `menus.*`, and `shortcuts.*`; they must fail if the
 binding is missing or rejects the request.
+
+### Installed fonts
+
+A font picker lists what is installed and renders with what is picked:
+
+```dart
+final DVFontFamilies families = await DV.Platform.fonts.families();
+if (families.isEmpty) showNote(families.reason!); // why, never a bare empty list
+
+final List<DVSystemFontFace> faces = await DV.Platform.fonts.faces(family: 'DejaVu Sans');
+final String family = await DV.Platform.fonts.load('DejaVu Sans'); // FontLoader
+DVText('Amazing grace').modifier(DVModifier().fontFamily(family));
+```
+
+`families()` never throws: where a platform cannot list its fonts it answers
+an empty list whose `reason` says why, because "this machine has no fonts" and
+"this browser will not say" are different answers. `load(family)` gives the
+family's faces to the engine through `FontLoader`, one face per weight and
+slant (the normal width where a family also has condensed faces), so a
+`TextStyle(fontFamily:)` renders in it; it throws `DVSystemFontUnavailable`,
+with the reason, when the family is not installed or its files cannot be
+read. A face in a collection (`.ttc`) is cut out as a font of its own first,
+since `FontLoader` takes one font. On a desktop the engine often finds an
+installed family by name without loading; loading makes it certain, and in a
+browser, which draws only the fonts it is given, it is the only way.
+
+Two bindings carry it: `fonts.faces` (every face: family, style, weight,
+slant, width, and the file or the browser's id) and `fonts.read` (one listed
+face's bytes; a path nothing listed is refused).
+
+| Target | Source | Status |
+|---|---|---|
+| Linux, eLinux | fontconfig (`FcFontList`) over FFI; scalable TrueType/CFF faces only, a variable font once | Built; the list matches `fc-list` exactly, and loaded faces render, in a running app |
+| Windows | the registry's font lists (HKLM and HKCU `...\CurrentVersion\Fonts`, RegEnumValueW over FFI), each file's own `name`/`OS/2` tables | Written and unit-tested off Windows; not yet run on Windows |
+| macOS | CoreText `CTFontManagerCopyAvailableFontURLs` over FFI, each file's own tables | Written; not yet run on a Mac (`.dfont` files are skipped) |
+| Android | the files in `/system/fonts`, `/product/fonts`, `/system/product/fonts`, `/vendor/fonts`, read in Dart (no JNI) | Written; not yet run on a device |
+| iOS | none: an app cannot read the system's font files | an empty list with the reason |
+| Web | the Local Font Access API (`window.queryLocalFonts`, Chromium only, permission-gated, the first call from a gesture), bytes from `FontData.blob()` | Built; listing and loading verified in headless Chrome with the permission granted, and the refusal's reason without it. Other browsers: an empty list with the reason |
 
 Embedded/device creation:
 - kiosk mode and fullscreen mode — specified in [Kiosk Mode](#kiosk-mode),
@@ -9768,6 +9807,7 @@ final win = await DV.Window.open(
     modality: DVWindowModality.none, // none | window | application
     duplicate: false,                // true: a second window on the same URL
     display: null,                   // DVDisplayHint — which display, never where on it
+    takesFocus: true,                // false: never takes the keyboard (projector, stage display)
     kiosk: null,                     // DVWindowKiosk — kiosk kind only
     volume: null,                    // DVVolumeOptions — volume kind only, see XR
     immersion: null,                 // DVImmersion — immersive kind only, see XR
@@ -9860,6 +9900,20 @@ and it is best-effort by name.
 - `popup` and `tooltip` on desktop are the native window kinds the Flutter
   windowing API provides for exactly this purpose, which is why menus and
   tooltips align to the cursor instead of clipping to the parent window.
+- `takesFocus: false` is for a secondary output -- a projector, a stage
+  display, a confidence monitor -- that shows what another window drives. It
+  never takes keyboard focus: not when it opens, not when it is clicked, and
+  nothing inside it can be focused, because every window is a view of one
+  widget tree with one focus manager and a key goes to its primary focus
+  whichever OS window delivered it. The OS half is the binding
+  `window.setTakesFocus`, asked right after `window.open` and before the window
+  is first shown. A target that cannot promise it still opens the window and
+  puts `DV-WINDOW-016` (`warning`) on its `codes`; a browser popup always comes
+  to the front, so on the web it is always `DV-WINDOW-016`. Built on Linux
+  (GTK: `gtk_window_set_accept_focus` and `gtk_window_set_focus_on_map`, so
+  WM_HINTS input is False and `_NET_WM_USER_TIME` is 0 at map); Windows
+  (`WS_EX_NOACTIVATE`) and macOS (a panel that does not become key) are not
+  built yet and report the code.
 
 ## Kiosk windows
 
@@ -9998,6 +10052,8 @@ on the window's `codes` and nowhere else, because each describes one
 placement or one refused call rather than the state the window came to rest
 in: a window placed away from a kiosk-owned display is otherwise ordinary,
 and a pinned window refusing a move is still pinned afterwards.
+`DV-WINDOW-016` is on `codes` for the first reason: the window opened and is a
+window, and what the platform could not promise is how it treats the keyboard.
 `DV-WINDOW-014` and `DV-WINDOW-015` are on `codes` for a different reason:
 the spatial kinds they belong to are `Designed` and nothing presents them
 yet, and a degradation member nothing can set is exactly the defect four of
@@ -10020,6 +10076,7 @@ these shipped with. They become members when a target can set them.
 | `DV-WINDOW-013` | `display:` hint matched no connected display; the OS placed the window | `warning` |
 | `DV-WINDOW-014` | volume requested where none can be presented; shown as a viewport | `debug` |
 | `DV-WINDOW-015` | immersive space requested where none can be presented; shown as a fullscreen page | `debug` |
+| `DV-WINDOW-016` | `takesFocus: false` not honoured on this target; the window may take keyboard focus | `warning` |
 
 Levels are calibrated to whether the developer can act. A phone has no windows
 and the fallback is the intended behaviour, so warning on every call would
