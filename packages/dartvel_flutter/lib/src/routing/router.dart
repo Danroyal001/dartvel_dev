@@ -264,3 +264,14 @@ GoRoute dvStudioPagesRoute({Widget Function(Widget document)? frame}) =>
             ),
           ),
     );
+
+/// The page this target was configured to open on (`dartvel.startRoutes`),
+/// or null to start where the router does. A web page always opens where the
+/// browser's address says.
+///
+/// [operatingSystem] and [web] are this process's own unless given.
+String? dvStartRoute(Map<String, String> routes,
+    {String? operatingSystem, bool? web}) {
+  if (web ?? kIsWeb) return null;
+  return routes[operatingSystem ?? defaultTargetPlatform.name.toLowerCase()];
+}

@@ -226,6 +226,29 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'start-routes',
+          title: 'Open an installed app on another page',
+          children: <Widget>[
+            DocsText('A project can be a website and a desktop app at once. '
+                'The site opens on its home page; the app can open on the '
+                'page people use it for:'),
+            DocsShell(<String>[
+              '# pubspec.yaml',
+              'dartvel:',
+              '  startRoutes:',
+              '    linux: /editor',
+              '    windows: /editor',
+              '    macos: /editor',
+            ]),
+            Bullets(<String>[
+              'Targets are linux, windows, macos, android, ios and fuchsia.',
+              'A web page opens at the address in the browser, so the web is '
+                  'never listed.',
+              'The build stops when a route is not one of your pages.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'not-found',
           title: 'Handle unknown URLs',
           children: <Widget>[

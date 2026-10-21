@@ -1200,6 +1200,14 @@ rather than importing or calling `go_router` directly, so the engine can evolve
 (for example, generating onto `StatefulShellRoute` for nested-stack navigation)
 without breaking application code.
 
+### Start routes
+
+`dartvel.startRoutes` maps an installed target (`linux`, `windows`, `macos`,
+`android`, `ios`, `fuchsia`) to the page it opens on, so one project can be a
+website that opens on its home page and a desktop app that opens on its
+editor. A browser opens where its address says, so the web is not a key. A
+route that is not a page fails the build, naming it.
+
 ## Config routes
 
 Pages are routes by file. Routes can also be declared in code, the way a team

@@ -451,6 +451,7 @@ dartvel:
 | `transitions` | `fade`, `220`, `easeInOut` | Default page transition: `default`, `durationMs`, `curve`. |
 | `routingNormalizeTrailingSlash` | `true` | Treat `/about/` as `/about`. |
 | `notFoundRedirect` | empty | Where an unknown route redirects. |
+| `startRoutes` | empty | The page an installed target opens on, e.g. `{linux: /editor}`. The web opens at its address. |
 | `plugins` | `[]` | Enabled Dartvel plugins. |
 | `ota` | `false` | Over-the-air updates. |
 
