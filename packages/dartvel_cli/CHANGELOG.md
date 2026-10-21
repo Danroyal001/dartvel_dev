@@ -1,3 +1,8 @@
+## 0.13.11 — 2026-10-21
+
+- A server built without Studio (switched off, or compiled out of a release) answers `/_dartvel/pages` with an empty list. 0.13.10 fixed the development server only; the generated server, which a web-server binary runs, still answered 404 on every page load.
+
+
 ## 0.13.10 — 2026-10-21
 
 - `dartvel.startRoutes`: the page an installed target opens on (`{linux: /editor}`); a route that is not a page fails the build.

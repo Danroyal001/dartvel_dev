@@ -2159,7 +2159,11 @@ ${telegramProvider == null ? '' : '''  if (!core.DVAuthEndpoints.installed) {
 ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard, no published
   // pages, no data API of models designed in it. Nothing of it is compiled in,
   // and its mount is a path like any other the application does not serve.
-  final Future<dv.Response> Function(dv.Request) handler = application;
+  // Nothing is published without Studio, and the web app still asks on
+  // every page: an empty list, not a 404 in every visitor's console.
+  final core.DVPublishedPages noPublishedPages = core.DVPublishedPages(database: () => null);
+  final Future<dv.Response> Function(dv.Request) handler =
+      (dv.Request request) async => await noPublishedPages.respond(request) ?? await application(request);
   const core.DVPublishedPages? publishedPages = null;''' : '''  // Studio is behind dartvelStudio, which a release build without it sets
   // false: AOT then compiles none of what follows into the binary.
   final core.DVAdminServer? adminServer = !dartvelStudio || admin == null || adminRoot == null
@@ -2176,8 +2180,11 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   // written through the same checks Studio's own writes go through, for the
   // callers each model's access allows.
   final core.DVModelDataApi? modelData = !dartvelStudio ? null : core.DVModelDataApi(database: () => const core.DVDatabase().configuredAdapter ?? dartvelDatabase);
+  // A release with Studio compiled out publishes nothing, and the web app
+  // still asks on every page: an empty list, not a 404.
+  final core.DVPublishedPages noPublishedPages = core.DVPublishedPages(database: () => null);
   final Future<dv.Response> Function(dv.Request) handler = publishedPages == null || modelData == null
-      ? withAdmin
+      ? (dv.Request request) async => await noPublishedPages.respond(request) ?? await withAdmin(request)
       : (dv.Request request) async => await publishedPages.respond(request) ?? await modelData.respond(request) ?? await withAdmin(request);'''}
   // The documentation site, when the build carries one: its mount is its own,
   // ahead of everything else, and what it hides falls through to the
