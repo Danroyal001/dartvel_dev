@@ -66,6 +66,7 @@ import 'generated/java/lang/CharSequence.dart';
 // with plain `flutter build` has no Activity for a permission result to
 // come back to.
 export 'android_capture_jni.dart' show DVAndroidCapture;
+export 'android_push_jni.dart' show DVAndroidPush;
 
 /// The class that holds the application Context, written by
 /// `dartvel build android`.
@@ -134,6 +135,7 @@ class DVAndroidBindings {
     // bridge: drops from other applications in split screen, freeform and
     // desktop windows, and drags out to them.
     DVAndroidDragDrop.register(DVNativeBridge.register);
+    DVAndroidPush.register(DVNativeBridge.register);
 
     // What the application was opened with. The launch Intent belongs to the
     // Activity, so this was unanswerable until the Activity was -- and a

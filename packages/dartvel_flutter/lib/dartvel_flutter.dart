@@ -72,7 +72,6 @@ import 'src/platform/storage/device_storage_stub.dart'
 import 'src/media/web_media_mapping.dart' show DVWebCaptureStore;
 import 'src/platform/drag_drop.dart';
 import 'src/platform/drag_drop_widgets.dart';
-import 'src/platform/incoming_file.dart';
 import 'src/platform/file_associations.dart';
 import 'src/platform/launch_at_login.dart';
 import 'src/platform/network.dart';
@@ -994,6 +993,18 @@ final class DVCustomVisibilityToggle extends DVVisibilityToggle {
 const Object _unset = Object();
 
 class DVModifier {
+  final DVDropTargetSpec? dropTargetValue;
+  final DVDragPayload? draggableValue;
+
+  /// Accept files, links or text dropped on this widget.
+  DVModifier dropTarget({required void Function(DVDropEvent) onDrop,
+    Set<DVDropType> types = const {.files, .text, .urls},
+    void Function(bool)? onHover,
+  }) => _copyWith(dropTargetValue: DVDropTargetSpec(onDrop: onDrop, types: types, onHover: onHover));
+
+  /// Carry this payload to another widget or application.
+  DVModifier draggable(DVDragPayload payload) => _copyWith(draggableValue: payload);
+
   final EdgeInsetsGeometry? paddingValue;
   final EdgeInsetsGeometry? marginValue;
   final BorderRadiusGeometry? borderRadius;
@@ -1167,6 +1178,8 @@ class DVModifier {
   final ValueChanged<String>? inputChanged;
 
   const DVModifier({
+    this.dropTargetValue,
+    this.draggableValue,
     this.paddingValue,
     this.marginValue,
     this.borderRadius,
@@ -1223,7 +1236,9 @@ class DVModifier {
   });
 
   const DVModifier.fromStyle()
-      : paddingValue = null,
+      : dropTargetValue = null,
+        draggableValue = null,
+        paddingValue = null,
         marginValue = null,
         borderRadius = null,
         borderValue = null,
@@ -1278,6 +1293,8 @@ class DVModifier {
         inputChanged = null;
 
   DVModifier _copyWith({
+    DVDropTargetSpec? dropTargetValue,
+    DVDragPayload? draggableValue,
     EdgeInsetsGeometry? paddingValue,
     EdgeInsetsGeometry? marginValue,
     BorderRadiusGeometry? borderRadius,
@@ -1349,6 +1366,8 @@ class DVModifier {
       'told to be, and the words are clipped away inside it.',
     );
     return DVModifier(
+      dropTargetValue: dropTargetValue ?? this.dropTargetValue,
+      draggableValue: draggableValue ?? this.draggableValue,
       paddingValue: paddingValue ?? this.paddingValue,
       marginValue: marginValue ?? this.marginValue,
       borderRadius: borderRadius ?? this.borderRadius,
@@ -1605,6 +1624,7 @@ class DVModifier {
   /// the most-used widget here for something nothing in this repository asks
   /// for yet. Left whole rather than half-done.
   bool get hasBoxStyling =>
+      dropTargetValue != null || draggableValue != null ||
       paddingValue != null ||
       marginValue != null ||
       boxColor != null ||
@@ -1705,6 +1725,8 @@ class DVModifier {
   /// Every field is nullable and every setter is a copyWith, so "set" means
   /// non-null. A field [other] never mentions keeps this one's value.
   DVModifier merge(DVModifier other) => DVModifier(
+        dropTargetValue: other.dropTargetValue ?? dropTargetValue,
+        draggableValue: other.draggableValue ?? draggableValue,
         paddingValue: other.paddingValue ?? paddingValue,
         marginValue: other.marginValue ?? marginValue,
         borderRadius: other.borderRadius ?? borderRadius,
@@ -2838,7 +2860,7 @@ class DVBox<T> extends StatelessWidget {
       }
     }
 
-    return result;
+    return dvWrapDragDrop(result, m?.dropTargetValue, m?.draggableValue);
   }
 
   Widget? _buildContent(BuildContext context) {

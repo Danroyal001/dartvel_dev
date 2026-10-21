@@ -48,6 +48,8 @@ import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
 import '../build/app_shortcuts.dart';
 import '../build/android_capture_bridge.dart';
 import '../build/android_media_bridge.dart';
+import '../build/android_drag_drop_bridge.dart';
+import '../build/ios_drag_drop_bridge.dart';
 import '../build/file_storage_permissions.dart';
 import 'store_command.dart' show dvWriteDataSafetyFiles;
 import '../build/scene3d_native.dart';
@@ -1154,6 +1156,7 @@ class BuildCommand extends Command<void> {
     // bindings call, and the usage descriptions iOS terminates an app
     // without.
     if (project == 'ios') _writeIosPlatformShim(_projectRoot);
+    if (project == 'ios') _writeIosDragDrop(_projectRoot);
     if (project == 'ios') _writeIosAssociatedDomains(_projectRoot, deepLinks);
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
@@ -2260,6 +2263,7 @@ class BuildCommand extends Command<void> {
 
     for (final MapEntry<String, String> file in <String, String>{
       dvAndroidCaptureBridgePath: dvAndroidCaptureBridgeSource(),
+      dvAndroidDragDropPath: dvAndroidDragDropSource(),
       dvAndroidBridgeActivityPath: dvAndroidBridgeActivitySource(),
       dvAndroidCaptureFilesPath: dvAndroidCaptureFilesSource(),
     }.entries) {
@@ -2647,6 +2651,17 @@ class BuildCommand extends Command<void> {
   /// Written for every iOS build, like the deep link capture, because the
   /// capability list claims these bindings on iOS. A build without the shim
   /// leaves them unregistered and `DVIosBindings.lastFailure` says why.
+  void _writeIosDragDrop(String root) {
+    final project = File(p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'));
+    if (!project.existsSync()) return;
+    final bridge = File(p.join(root, 'ios', 'Runner', dvIosDragDropFileName));
+    bridge.parent.createSync(recursive: true);
+    bridge.writeAsStringSync(dvIosDragDropSource());
+    final before = project.readAsStringSync();
+    final after = dvIosPbxprojWithDragDrop(before);
+    if (after != before) project.writeAsStringSync(after);
+  }
+
   void _writeIosPlatformShim(String root) {
     final File project =
         File(p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'));

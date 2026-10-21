@@ -23,7 +23,7 @@ library;
 
 import 'package:dartvel_core/dartvel.dart' show dvIosDragDropClass;
 
-import 'apple_widget_reload.dart' show dvApplePbxprojWithSwiftFile;
+import 'apple_widget_reload.dart' show dvApplePbxprojWithRunnerSwift;
 
 /// The file the bridge is written to, inside the `Runner` folder.
 const String dvIosDragDropFileName = 'DartvelDragDrop.swift';
@@ -36,7 +36,7 @@ const String dvIosDragDropIdPrefix = 'DA97D2D1D2D3';
 const List<String> dvIosDragDropSelectors = <String>['start:', 'stop', 'setPending:'];
 
 /// [pbxproj] with the bridge compiled into the application.
-String dvIosPbxprojWithDragDrop(String pbxproj) => dvApplePbxprojWithSwiftFile(
+String dvIosPbxprojWithDragDrop(String pbxproj) => dvApplePbxprojWithRunnerSwift(
       pbxproj,
       fileName: dvIosDragDropFileName,
       idPrefix: dvIosDragDropIdPrefix,

@@ -34,6 +34,7 @@ import '../device_runtime.dart';
 import '../file_bindings.dart';
 import '../network_source.dart';
 import 'ios_capabilities.dart';
+import 'ios_drag_drop_ffi.dart';
 import 'ios_device_ffi.dart';
 import 'ios_shim_ffi.dart';
 import 'ios_shim_plan.dart';
@@ -206,6 +207,7 @@ class DVIosBindings {
 
     _registerDeviceAndFiles();
     _registerShim();
+    DVIosDragDrop.register(_objc, DVNativeBridge.register);
     _registered = true;
     return true;
   }
