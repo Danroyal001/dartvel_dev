@@ -89,6 +89,10 @@ Future<bool> dvEnsurePlatformScaffold({
   final String? org = _readOrg(root);
 
   Logger.log('   No $folderName/ scaffold; generating it...');
+  // flutter create also writes files outside the platform folder -- a
+  // counter-app test/widget_test.dart and .metadata -- into a project that
+  // did not ask for them. What was not there before is removed after.
+  final Set<String> before = _projectFiles(root);
   final run = processRun ?? _defaultProcessRun;
   final ProcessResult result = await run(
     'flutter',
@@ -108,7 +112,34 @@ Future<bool> dvEnsurePlatformScaffold({
     Logger.log('⚠️  Failed to generate $folderName/ scaffold: ${result.stderr}');
     return false;
   }
+  for (final String added in _projectFiles(root).difference(before)) {
+    if (p.split(added).first == folderName) continue;
+    File(p.join(root, added)).deleteSync();
+  }
   return true;
+}
+
+/// The project's own files, relative to [root]: everything but build output,
+/// tool state and the native folders, which are ephemeral.
+Set<String> _projectFiles(String root) {
+  const Set<String> skipped = <String>{
+    'build', '.dart_tool', '.git', 'android', 'ios', 'linux', 'macos', 'windows', 'web',
+  };
+  final Set<String> files = <String>{};
+  final Directory dir = Directory(root);
+  if (!dir.existsSync()) return files;
+  for (final FileSystemEntity entry in dir.listSync()) {
+    final String name = p.basename(entry.path);
+    if (skipped.contains(name)) continue;
+    if (entry is File) {
+      files.add(name);
+    } else if (entry is Directory) {
+      for (final FileSystemEntity inner in entry.listSync(recursive: true, followLinks: false)) {
+        if (inner is File) files.add(p.relative(inner.path, from: root));
+      }
+    }
+  }
+  return files;
 }
 
 Future<ProcessResult> _defaultProcessRun(
