@@ -49,6 +49,18 @@ class DVWindowHost extends StatefulWidget {
   static bool debugReleaseCurrentEglContext() =>
       _DVLinuxEgl.releaseCurrentContext();
 
+  /// Applies `takesFocus` to a GtkWindow, as the host does for a window
+  /// opened with `DVWindowOptions(takesFocus: false)`. Linux only.
+  @visibleForTesting
+  static bool debugSetTakesFocus(ffi.Pointer<ffi.Void> gtkWindow, bool takesFocus) =>
+      _DVLinuxWindows.setTakesFocus(gtkWindow, takesFocus);
+
+  /// What [window] renders [content] as: with no focusable descendant when it
+  /// was opened with `DVWindowOptions(takesFocus: false)`.
+  @visibleForTesting
+  static Widget debugContentFor(DVWindow window, Widget content) =>
+      _DVWindowBindings.contentFor(window, content);
+
   /// What was asked for when the window with [nativeId] was opened.
   @visibleForTesting
   static DVWindowRequest? debugRequestFor(String? nativeId) =>
@@ -67,9 +79,12 @@ class _DVWindowHostState extends State<DVWindowHost> {
 
     _surfaces = DVWindowSurfaces(
       factory: widget.factory,
-      contentFor: (DVWindow window) => Builder(
-        builder: (BuildContext context) =>
-            widget.routeBuilder(context, window.route),
+      contentFor: (DVWindow window) => _DVWindowBindings.contentFor(
+        window,
+        Builder(
+          builder: (BuildContext context) =>
+              widget.routeBuilder(context, window.route),
+        ),
       ),
     );
 

@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVWindowOptions.takesFocus`: false asks the platform (`window.setTakesFocus`) for a window that never takes keyboard focus; a target that cannot promise it reports `DV-WINDOW-016` on the window's `codes`.
+
 ## 0.13.12 — 2026-10-21
 
 - `DVContextMenu`: a per-element menu opened by right-click, long-press, the menu key or Shift+F10, and by screen readers as custom actions. On the web it adds "More" for the browser's menu and leaves Shift+right-click to the browser; it steps aside for selected text so Copy and Select all still open; every item's tooltip is its label.

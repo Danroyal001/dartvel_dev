@@ -179,6 +179,13 @@ final class DVDiagnostics {
       level: 'debug',
     ),
     DVDiagnostic(
+      code: 'DV-WINDOW-016',
+      reason:
+          '`takesFocus: false` not honoured on this target; the window may '
+          'take keyboard focus',
+      level: 'warning',
+    ),
+    DVDiagnostic(
       code: 'DV-XR-001',
       reason: 'passthrough unavailable; the studio environment was used',
       level: 'info',

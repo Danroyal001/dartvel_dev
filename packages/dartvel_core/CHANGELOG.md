@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `DV-WINDOW-016` (warning): `takesFocus: false` not honoured on this target.
 - Internal Android media bridge names shared by build generation and JNI runtime. Shared controller contracts retained.
 
 ## 0.13.12 — 2026-10-21

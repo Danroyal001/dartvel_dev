@@ -72,6 +72,12 @@ class DVFlutterWindowSurfaceFactory implements DVWindowSurfaceFactory {
     // refuses, and the process ends with a GLX BadAccess. See _DVLinuxEgl.
     if (Platform.isLinux) _DVLinuxEgl.releaseCurrentContext();
 
+    // A projector or stage display that must never take the keyboard. Set
+    // now, while the GTK window is realized but not yet shown: Flutter shows
+    // it on its first frame, and that map is when a window manager decides
+    // whether to focus it.
+    if (request != null && !request.takesFocus) surface.setTakesFocus(false);
+
     // Which display, as DVWindowOptions.display asked: Flutter's controller
     // takes no display, so without this the window manager puts the
     // projector on the operator's screen.
@@ -110,6 +116,13 @@ class _FlutterWindowSurface implements DVWindowSurface {
   bool placeOn(DVDisplay display, {Size? size}) {
     final handle = _gtkWindow;
     return handle != null && _DVLinuxWindows.placeOn(handle, display, size: size);
+  }
+
+  /// Whether the window may take keyboard focus. Linux only; false
+  /// elsewhere, where nothing applies it.
+  bool setTakesFocus(bool takesFocus) {
+    final handle = _gtkWindow;
+    return handle != null && _DVLinuxWindows.setTakesFocus(handle, takesFocus);
   }
 
   @override

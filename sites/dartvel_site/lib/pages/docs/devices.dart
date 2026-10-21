@@ -95,6 +95,11 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
                   'window.setFullscreen(true, on: ...) fills that display. '
                   'If that display is not connected, the call is refused and '
                   'the current screen stays as it is.',
+              'A projector or stage display opened with '
+                  'DVWindowOptions(takesFocus: false) never takes the keyboard '
+                  'from the window you are working in, even when it is clicked. '
+                  'That is built on Linux; on Windows, macOS and the web the '
+                  'window still opens and reports DV-WINDOW-016.',
               'Tab workspaces keep tabs in order, let you drag one out into a '
                   'window where the target allows it, and restore them per '
                   'user and tenant.',
