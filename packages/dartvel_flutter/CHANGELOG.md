@@ -1,3 +1,8 @@
+## 0.13.11 — 2026-10-21
+
+- Version aligned with dartvel_core 0.13.11.
+
+
 ## 0.13.10 — 2026-10-21
 
 - Linux video is drawn: the GStreamer player sends frames through `appsink` to `DVVideoFrameView` (`DVVideoFrame`, RGBA), shows a paused video's frame, reports `DVMediaVideoSize`, uses the first audio output that opens and plays video silently with none.

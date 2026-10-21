@@ -1,3 +1,8 @@
+## 0.13.11 — 2026-10-21
+
+- Version aligned with dartvel_core 0.13.11.
+
+
 ## 0.13.10 — 2026-10-21
 
 - Cameras: `DVCameraDevice` and `DVCameraBackend.devices()`; `DVCameraController(device:)` opens a chosen camera. `DVCameraLens.screen` shares the display through the camera calls and asks for the `screen` permission; `switchLens` never lands on it. A controller already open does not reopen its device when a second box shows it.
