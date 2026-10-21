@@ -498,6 +498,16 @@ abstract final class DVGStreamer {
     return _gst!;
   }
 
+  /// The first of [names] that is installed and opens its device -- a
+  /// microphone whose sound server is running -- or null.
+  static String? firstThatOpens(List<String> names) {
+    if (!load()) return null;
+    for (final String name in names) {
+      if (hasElement(name) && DVGStreamerPlayer._opens(_gst!, name)) return name;
+    }
+    return null;
+  }
+
   /// Whether an element factory named [name] is installed.
   static bool hasElement(String name) {
     if (!load()) return false;
@@ -611,7 +621,7 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend, DVVideoSurface {
   }
 
   /// The audio output element, or null for the first installed of
-  /// pipewiresink, pulsesink, alsasink and autoaudiosink.
+  /// pipewiresink, pulsesink and alsasink that opens.
   final String? audioSink;
 
   /// The video output element, or null to draw frames into Flutter (or,
@@ -637,7 +647,8 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend, DVVideoSurface {
     'pipewiresink',
     'pulsesink',
     'alsasink',
-    'autoaudiosink',
+    // Not autoaudiosink: it reports itself open and fails at playback when
+    // nothing behind it works, which defeats choosing one that opens.
   ];
 
   /// What GStreamer on this machine can do.
@@ -739,8 +750,7 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend, DVVideoSurface {
       final List<String> named = <String>[
         ...missing.where((String e) => !noOutput || !_audioOutputs.contains(e)),
         if (noOutput)
-          'an audio output (pipewiresink, pulsesink, alsasink or '
-              'autoaudiosink)',
+          'an audio output (pipewiresink, pulsesink or alsasink)',
       ];
       _emit(DVMediaFailed(
           'these GStreamer elements are not installed: ${named.join(', ')}'));
@@ -987,7 +997,7 @@ final class DVGStreamerCapture implements DVCaptureBackend {
   });
 
   /// A pipeline fragment for the microphone, or null for the first installed
-  /// of pipewiresrc, pulsesrc, alsasrc and autoaudiosrc.
+  /// of pipewiresrc, pulsesrc and alsasrc that opens.
   final String? audioSource;
 
   final Duration pollInterval;
@@ -996,7 +1006,6 @@ final class DVGStreamerCapture implements DVCaptureBackend {
     'pipewiresrc',
     'pulsesrc',
     'alsasrc',
-    'autoaudiosrc',
   ];
 
   static String? _aacEncoder() => <String>['avenc_aac', 'voaacenc', 'fdkaacenc']
@@ -1078,9 +1087,7 @@ final class DVGStreamerCapture implements DVCaptureBackend {
       return;
     }
     final String? source = audioSource ??
-        _microphones.cast<String?>().firstWhere(
-            (String? e) => DVGStreamer.hasElement(e!),
-            orElse: () => null);
+        DVGStreamer.firstThatOpens(_microphones);
     if (source == null) {
       _emit(const DVCaptureFailed('no microphone source element is installed'));
       return;
@@ -1287,7 +1294,7 @@ final class DVGStreamerCamera implements DVCameraBackend, DVCameraSurface {
   final String? screenSource;
 
   /// A pipeline fragment for the microphone recorded with video, or null for
-  /// the first installed of pipewiresrc, pulsesrc and autoaudiosrc.
+  /// the first of pipewiresrc, pulsesrc and alsasrc that opens.
   final String? audioSource;
 
   /// Where the kernel lists video devices.
@@ -1304,7 +1311,7 @@ final class DVGStreamerCamera implements DVCameraBackend, DVCameraSurface {
   static const List<String> _microphones = <String>[
     'pipewiresrc',
     'pulsesrc',
-    'autoaudiosrc',
+    'alsasrc',
   ];
 
   final StreamController<DVCameraEvent> _events =
@@ -1488,9 +1495,7 @@ final class DVGStreamerCamera implements DVCameraBackend, DVCameraSurface {
     String sound = '';
     if (audio) {
       final String? microphone = audioSource ??
-          _microphones.cast<String?>().firstWhere(
-              (String? e) => DVGStreamer.hasElement(e!),
-              orElse: () => null);
+          DVGStreamer.firstThatOpens(_microphones);
       final String? aac = <String>['avenc_aac', 'voaacenc', 'fdkaacenc']
           .cast<String?>()
           .firstWhere((String? e) => DVGStreamer.hasElement(e!),
@@ -1710,11 +1715,17 @@ final class DVGStreamerCamera implements DVCameraBackend, DVCameraSurface {
 final class DVGStreamerFrameEncoder implements DVFrameEncoder {
   DVGStreamerFrameEncoder({
     this.audioSource,
+    this.microphones = _microphones,
     this.pollInterval = const Duration(milliseconds: 20),
   });
 
+  /// The microphones tried, in order, when [audioSource] is null; the
+  /// first that opens is recorded. With none, the recording has no sound
+  /// (a stream carries silence).
+  final List<String> microphones;
+
   /// A pipeline fragment for the microphone, or null for the first installed
-  /// of pipewiresrc, pulsesrc and autoaudiosrc.
+  /// of pipewiresrc, pulsesrc and alsasrc that opens.
   final String? audioSource;
 
   final Duration pollInterval;
@@ -1722,7 +1733,7 @@ final class DVGStreamerFrameEncoder implements DVFrameEncoder {
   static const List<String> _microphones = <String>[
     'pipewiresrc',
     'pulsesrc',
-    'autoaudiosrc',
+    'alsasrc',
   ];
 
   static String? _aac() => <String>['avenc_aac', 'voaacenc', 'fdkaacenc']
@@ -1741,7 +1752,7 @@ final class DVGStreamerFrameEncoder implements DVFrameEncoder {
           DVGStreamer.hasElement('flvmux') &&
           DVGStreamer.hasElement('rtmp2sink') &&
           _aac() != null,
-      audio: _aac() != null && _microphones.any(DVGStreamer.hasElement),
+      audio: _aac() != null && DVGStreamer.firstThatOpens(_microphones) != null,
     );
   }
 
@@ -1786,9 +1797,7 @@ final class DVGStreamerFrameEncoder implements DVFrameEncoder {
     final String? aac = _aac();
     String? microphone = audio
         ? audioSource ??
-            _microphones.cast<String?>().firstWhere(
-                (String? e) => DVGStreamer.hasElement(e!),
-                orElse: () => null)
+            DVGStreamer.firstThatOpens(microphones)
         : null;
     if (microphone == null && stream) microphone = 'audiotestsrc is-live=true wave=silence';
     final String sound = microphone != null && aac != null

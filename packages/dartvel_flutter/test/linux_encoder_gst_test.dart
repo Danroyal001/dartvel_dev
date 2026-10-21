@@ -86,6 +86,27 @@ void main() {
     expect(frame.rgba[middle], lessThan(60));
   }, skip: skip);
 
+  test('with no microphone that opens, it records the picture without sound', () async {
+    // v4l2src with no camera does not open, as a sound server that is not
+    // running does not.
+    final DVGStreamerFrameEncoder encoder = DVGStreamerFrameEncoder(microphones: const <String>['v4l2src']);
+    addTearDown(encoder.dispose);
+    final String path = '${dir.path}/silent.mp4';
+    File(path).createSync();
+    final List<String> failures = <String>[];
+    final StreamSubscription<String> sub = encoder.failures.listen(failures.add);
+    addTearDown(sub.cancel);
+    await encoder.start(DVFrameEncoderTarget.file(path), width: 320, height: 180, fps: 20, audio: true);
+    final DVVideoFrame frame = solid(320, 180, <int>[0, 255, 0, 255]);
+    for (int i = 0; i < 20; i++) {
+      encoder.push(frame);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    await encoder.stop();
+    expect(failures, isEmpty);
+    expect(File(path).lengthSync(), greaterThan(1000));
+  }, skip: skip ?? (File('/dev/video0').existsSync() ? 'a camera is connected here' : null));
+
   test('a frame of another size is dropped, not pushed', () async {
     final DVGStreamerFrameEncoder encoder = DVGStreamerFrameEncoder();
     addTearDown(encoder.dispose);
