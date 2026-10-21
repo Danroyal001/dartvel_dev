@@ -370,7 +370,7 @@ Future<void> main(List<String> args) async {
         }
         check(
           '$at: Tab reaches the "Choose files instead" control',
-          tabbed.any((String name) => name.contains('Choose files instead')),
+          tabbed.contains('Choose files instead'),
           tabbed,
         );
         File('${out.path}/drag-drop-$width-$theme.png')
