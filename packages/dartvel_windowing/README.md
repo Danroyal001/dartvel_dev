@@ -101,6 +101,10 @@ In a browser `DVWindowHost` shows `home` and nothing else, and
 `DV.Platform.window.open` navigates to the route, so the same `main` builds
 for the web.
 
+With windowing enabled Flutter opens every `showDialog` as an OS window of
+its own, sized to its content. Use `showInWindowDialog` for a dialog that
+stays in the window that asked, as it does on every other target.
+
 An opened window is a `View` beside the home window rather than inside it,
 so what `routeBuilder` returns has nothing above it: no `MaterialApp`, no
 theme, no `Directionality`. Give it what the route needs. Both windows are in

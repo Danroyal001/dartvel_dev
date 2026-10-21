@@ -10,4 +10,5 @@
 /// opens a projector window on a desktop builds for the web unchanged.
 library dartvel_windowing;
 
+export 'src/in_window_dialog.dart';
 export 'src/windowing_web.dart' if (dart.library.ffi) 'src/windowing_native.dart';
