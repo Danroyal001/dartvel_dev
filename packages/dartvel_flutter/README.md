@@ -639,7 +639,9 @@ the application and still reaches a `.dropTarget(...)`.
 
 A drop zone and a draggable are named like every hoverable control: the
 words inside them, or `.tooltip('...')`, which is also the screen reader
-label. One with neither is refused in a debug build with its file and line,
+label. The server document carries the same name in `title` and `aria-label`
+through the existing semantics capture. One with neither is refused in a debug
+build with its file and line,
 and by the tooltip lint `dartvel build` runs. Dragging is an extra way in,
 never the only one: put a named control beside a drop zone that calls
 `DV.Platform.dragDrop.chooseInstead()`, which opens the file picker and

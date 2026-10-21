@@ -1058,13 +1058,15 @@ Dart 3.13.4 and package overrides pointing to the checkout, passed explicit
 The first build generated the Android scaffold, retained the resolved JNI
 plugin metadata and produced `build/app/outputs/flutter-apk/app-debug.apk`
 (`assembleDebug`, 131.8 seconds).
+After the armed-payload lifecycle fix, the final source rebuilt successfully
+in 24.7 seconds; the hash below records that final APK.
 
 The APK passed ZIP CRC validation. Its DEX contains
 `dev.dartvel.jni.DartvelDragDrop`, `Listener` and `Shadow`; the generated Java
 uses `View.OnDragListener` and `startDragAndDrop`.
 
 - Size: 164253803 bytes.
-- SHA256: `d9b4e4e2f88c4e77dcaea557fb55ab96cc92b09d2d78cbf76541a61a922be33a`.
+- SHA256: `44a80aa7090616c58cf15efe65fedeece00e7a3f6d1fd61650dbf1fe186666b8`.
 
 This verifies build and packaging. Android device interaction was not run.
 The iOS bridge was checked only by generated Swift/Runner-project tests on

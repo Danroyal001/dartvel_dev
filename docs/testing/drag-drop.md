@@ -57,15 +57,23 @@ does not describe what the reader selected.
 What it cannot do is drag from a second operating-system application, and
 nothing here runs on an Android or iOS device.
 
-## Recorded browser run (21 October 2026)
+## Recorded browser run (22 October 2026)
 
-The scratch page built as `web-server` passed 150 checks in its own headless
+The scratch page built as `web-server` passed 152 checks in its own headless
 Chrome at all five widths in both themes. The run covered file bytes,
 URI-list links, plain text, hover delivery, browser drag-out and dropping
 that payload back, find-in-page, mouse selection and copying, accessible
 names, the heading role, Tab reaching the picker, and horizontal overflow.
+Two HTTP checks verify the drop zone's and draggable's `title` and `aria-label`
+in the server document before Flutter starts.
 [Results](../screens/drag-drop/checks.json) and
 [screenshots](../screens/drag-drop/) are checked in. The hover screenshots
-show the named drop-zone tooltip; the screenshots are a verification page,
-not an application design. This run does not verify a physical drag from a
-second application or a mobile device.
+show the named drop-zone tooltip on the diagnostic page. The interaction
+checks run after Flutter startup. The existing fallback document is clipped
+on screen; this run does not establish first-frame visual parity, a physical
+drag from a second application, or mobile device interaction.
+
+The [Android build record](../build-targets.md#native-drag-and-drop-build-check-2026-10-22)
+contains the final development APK's size, checksum and compiled-bridge
+inspection. iOS verification is limited to generated Swift and Runner-project
+tests.
