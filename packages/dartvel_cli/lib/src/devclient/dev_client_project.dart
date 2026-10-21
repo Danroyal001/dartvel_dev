@@ -43,6 +43,16 @@ class DVDevClientProjectException implements Exception {
 DVDevClientManifest dvProjectDevClientManifest(String root, String target) {
   final File resolved = File(p.join(root, '.flutter-plugins-dependencies'));
   if (!resolved.existsSync()) {
+    // Flutter does not write this file when the resolved graph has no
+    // plugins. Prove that case from the graph rather than treating every
+    // missing file as an empty manifest.
+    final String? runtime = _lockedVersion(root, 'dartvel_flutter');
+    if (runtime != null && _resolvedWithoutPlugins(root)) {
+      return DVDevClientManifest(
+        target: target,
+        bindings: <String>['dartvel_flutter@$runtime'],
+      );
+    }
     throw const DVDevClientProjectException(
       'This project\'s plugins have not been resolved, so which native '
       'bindings it needs is unknown. Run `flutter pub get` first.',
@@ -74,6 +84,49 @@ DVDevClientManifest dvProjectDevClientManifest(String root, String target) {
     target: target,
     bindings: bindings.toSet().toList()..sort(),
   );
+}
+
+bool _resolvedWithoutPlugins(String root) {
+  final File config = File(p.join(root, '.dart_tool', 'package_config.json'));
+  try {
+    final Object? document = jsonDecode(config.readAsStringSync());
+    if (document is! Map || document['configVersion'] != 2) return false;
+    final Object? packages = document['packages'];
+    if (packages is! List || packages.isEmpty) return false;
+    final Set<String> names = <String>{};
+    for (final Object? entry in packages) {
+      if (entry is! Map || entry['name'] is! String || entry['rootUri'] is! String) {
+        return false;
+      }
+      final String name = entry['name'] as String;
+      if (!names.add(name)) return false;
+      final Uri location = config.absolute.uri.resolve(entry['rootUri'] as String);
+      if (location.scheme != 'file') return false;
+      final Object? spec = loadYaml(
+        File(p.join(location.toFilePath(), 'pubspec.yaml')).readAsStringSync(),
+      );
+      if (spec is! Map || spec['name'] != name) return false;
+      final Object? flutter = spec['flutter'];
+      if (flutter is Map && flutter.containsKey('plugin')) return false;
+      if (flutter != null && flutter is! Map) return false;
+    }
+    if (!names.contains('dartvel_flutter')) return false;
+    final Object? app = loadYaml(File(p.join(root, 'pubspec.yaml')).readAsStringSync());
+    if (app is! Map || !names.contains(app['name'])) return false;
+    // A dependency just added to pubspec but not yet resolved must not
+    // disappear from the manifest because the old graph was plugin-free.
+    for (final String kind in <String>['dependencies', 'dev_dependencies']) {
+      final Object? dependencies = app[kind];
+      if (dependencies == null) continue;
+      if (dependencies is! Map || dependencies.keys.any((Object? name) => !names.contains(name))) {
+        return false;
+      }
+    }
+    return true;
+  } on Object {
+    // Missing, malformed or unreadable metadata proves nothing.
+    return false;
+  }
 }
 
 String? _lockedVersion(String root, String package) {
