@@ -1,5 +1,6 @@
-## Unreleased
+## 0.13.13 — 2026-10-21
 
+- `DV.Platform.associations.opened`, `initial()`, `pick()` and `canPick`: files the app is opened with or shared, delivered the same way on every target (`DVOpenedFile`): launch arguments and the single-instance hand-over on desktops, `launchQueue` on the web, the generated Android activity and iOS delegate block on mobile.
 - `DV.Platform.fonts` (`DVSystemFonts`): `families()` (a `DVFontFamilies` list with a `reason` when empty), `faces(family:)` and `load(family)` through FontLoader, over the `fonts.faces` and `fonts.read` bindings: fontconfig on Linux, the registry on Windows, CoreText on macOS, `/system/fonts` on Android, Local Font Access on the web. Font files are read with a pure-Dart OpenType/TrueType/collection reader (`font_file.dart`).
 - `DVWindowOptions.takesFocus`: false asks the platform (`window.setTakesFocus`) for a window that never takes keyboard focus; a target that cannot promise it reports `DV-WINDOW-016` on the window's `codes`.
 

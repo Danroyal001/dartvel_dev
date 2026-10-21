@@ -841,6 +841,7 @@ export 'src/platform/storage/device_storage.dart';
 export 'src/platform/drag_drop.dart';
 export 'src/platform/drag_drop_widgets.dart';
 export 'src/platform/file_associations.dart';
+export 'src/platform/opened_files.dart' show DVOpenedFile;
 export 'src/platform/launch_at_login.dart';
 export 'src/platform/file_bindings.dart';
 export 'src/platform/incoming_file.dart';

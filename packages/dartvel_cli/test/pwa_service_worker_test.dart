@@ -37,6 +37,43 @@ String? _node() {
 }
 
 void main() {
+  group('the build id', () {
+    test('SOURCE_DATE_EPOCH fixes it, so a rebuild is byte-identical', () {
+      final String id = dvServiceWorkerBuildId(
+        environment: <String, String>{'SOURCE_DATE_EPOCH': '1700000000'},
+      );
+      expect(id, '2023-11-14T22:13:20.000Z');
+      expect(
+        dvServiceWorkerBuildId(
+          environment: <String, String>{'SOURCE_DATE_EPOCH': '1700000000'},
+        ),
+        id,
+      );
+    });
+
+    test('without it, the build time: every deploy opens a new cache', () {
+      final DateTime at = DateTime.utc(2026, 10, 21, 12);
+      expect(
+        dvServiceWorkerBuildId(environment: const <String, String>{}, now: () => at),
+        at.toIso8601String(),
+      );
+    });
+
+    test('a value that is not whole seconds is ignored, not trusted', () {
+      final DateTime at = DateTime.utc(2026, 10, 21, 12);
+      for (final String bad in <String>['', 'yesterday', '-5', '1.5']) {
+        expect(
+          dvServiceWorkerBuildId(
+            environment: <String, String>{'SOURCE_DATE_EPOCH': bad},
+            now: () => at,
+          ),
+          at.toIso8601String(),
+          reason: bad,
+        );
+      }
+    });
+  });
+
   group('what it precaches', () {
     test('the routes the build produced', () {
       final String worker = dvServiceWorker(
@@ -257,3 +294,7 @@ console.log(JSON.stringify(puts.sort()));
     expect(worker, contains("replaying = replayOnce().finally(() => { replaying = null; });"));
   });
 }
+
+// A reproducible build: SOURCE_DATE_EPOCH (reproducible-builds.org) fixes the
+// one clock reading in the output, so two builds of the same sources can be
+// compared byte for byte. Without it each build still opens a new cache.

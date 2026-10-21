@@ -394,6 +394,24 @@ Local Font Access API in Chromium browsers (verified in headless Chrome), the
 registry on Windows, CoreText on macOS and `/system/fonts` on Android (those
 three written, not yet run on the platform).
 
+A file the application is opened with, or that is shared to it, arrives on
+one stream on every target; the types are declared in
+`dartvel.fileAssociations` and registered by `dartvel build`:
+
+```dart
+DV.Platform.associations.opened.listen((DVOpenedFile file) async {
+  final List<int> bytes = await file.read();
+});
+// Where nothing can open the app with a file, the picker feeds the same stream.
+await DV.Platform.associations.pick();
+```
+
+Run on Linux (opened through the desktop's own launcher, including files
+handed to an already running instance) and on the web (`launchQueue` in
+headless Chrome). Android, iOS, macOS and Windows delivery is unit-tested, not
+yet run on a device; Tizen delivery is not wired. The picker fallback is there
+when `DV.Platform.associations.canPick` is true.
+
 The bindings reach native code through `dart:ffi` (X11, GTK and GDBus on
 Linux, the Win32 API, the Objective-C runtime on Apple platforms),
 `dart:js_interop` on the web and jnigen on Android. There are no platform

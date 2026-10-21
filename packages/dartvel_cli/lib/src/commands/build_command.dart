@@ -69,6 +69,10 @@ import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
 import '../build/launcher_identity.dart';
 import '../build/platform_scaffold.dart';
+import '../build/build_cache.dart';
+import '../build/file_associations.dart';
+import '../config/dartvel_section.dart';
+import 'version_command.dart' show dartvelCliVersion;
 import '../build/native_splash.dart';
 import '../build/capture_completeness.dart';
 import '../build/home_widget_check.dart';
@@ -427,6 +431,11 @@ class BuildCommand extends Command<void> {
           help: 'Target architecture for embedded builds')
       ..addFlag('split-per-abi',
           defaultsTo: false, help: 'Split APKs per ABI (Android)')
+      ..addFlag('cache',
+          defaultsTo: true,
+          help: 'Reuse a step whose inputs are byte-for-byte unchanged '
+              '(the Flutter web build, each route\'s semantics capture). '
+              'Kept in .dartvel/cache; --no-cache builds everything afresh.')
       ..addOption('build-number', help: 'Build number')
       ..addOption('build-name', help: 'Build name/version')
       ..addFlag('obfuscate',
@@ -1149,6 +1158,7 @@ class BuildCommand extends Command<void> {
       if (!_writeAppleFileStorage(_projectRoot, project)) return DVBuildTargetResult.failed;
     }
     if (project == 'ios') _writeIosDeepLinks(_projectRoot);
+    if (project == 'ios') _writeIosFileAssociations(_projectRoot);
     // After the deep links: the quick-action handler stores its route where
     // that capture does, and both are blocks in the same delegate.
     if (project == 'ios') _writeIosAppShortcuts(_projectRoot);
@@ -1179,6 +1189,7 @@ class BuildCommand extends Command<void> {
       } else {
         _writeAndroidKioskFiles(_projectRoot);
       }
+      _writeAndroidFileAssociations(_projectRoot);
       final String? noWidgets = leftOut[DVPlatformStep.homeWidgets];
       if (noWidgets != null) {
         _stripAndroidHomeWidgets(_projectRoot, label, noWidgets);
@@ -1320,33 +1331,68 @@ class BuildCommand extends Command<void> {
     // Printed before starting, so a log that ends here says exactly what was
     // invoked. A macOS build once stopped at this point and produced nothing
     // for 41 minutes; the log could not even show the command.
-    Logger.log('   flutter ${args.join(' ')}');
+    final cache = _buildCache;
+    final webOutput = Directory(p.join(_projectRoot, 'build', 'web'));
+    final webKey =
+        (platform == 'web' || platform == 'web-server') && cache.enabled
+        ? dvWebBuildKey(
+            projectRoot: _projectRoot,
+            flutterArguments: args,
+            platform: platform,
+            profile: buildMode,
+            dartvelVersion: dartvelCliVersion,
+            flutterVersion: await _flutterVersion(),
+          )
+        : null;
+    int? exitCode;
+    if (webKey != null && cache.restore('flutter-web', webKey, webOutput)) {
+      Logger.log(
+        '   Flutter web build: inputs unchanged, reused cached output.',
+      );
+      exitCode = 0;
+    } else {
+      // From an empty directory: Flutter writes into build/web without
+      // clearing it, so what an earlier build's later steps left there
+      // (routes, prefetch manifest, pages) would otherwise be stored as
+      // Flutter's output and decide the capture keys. A restored entry
+      // replaces the directory the same way, so cached and uncached builds
+      // start the later steps from the same files.
+      if ((platform == 'web' || platform == 'web-server') &&
+          webOutput.existsSync()) {
+        webOutput.deleteSync(recursive: true);
+      }
+      Logger.log('   flutter ${args.join(' ')}');
 
-    final Map<String, String>? signingEnvironment = _androidSigningEnvironment;
-    final proc = await (_processStart ?? Process.start)(
-      'flutter',
-      args,
-      workingDirectory: _projectRoot,
-      runInShell: true,
-      // The release key reaches Gradle through the environment only: never
-      // through the command line, which the log above prints and `ps` shows.
-      environment: signingEnvironment == null
-          ? _buildEnvironment
-          : <String, String>{
-              ...(_buildEnvironment ?? Platform.environment),
-              ...signingEnvironment,
-            },
-    );
+      final Map<String, String>? signingEnvironment =
+          _androidSigningEnvironment;
+      final proc = await (_processStart ?? Process.start)(
+        'flutter',
+        args,
+        workingDirectory: _projectRoot,
+        runInShell: true,
+        // The release key reaches Gradle through the environment only: never
+        // through the command line, which the log above prints and `ps` shows.
+        environment: signingEnvironment == null
+            ? _buildEnvironment
+            : <String, String>{
+                ...(_buildEnvironment ?? Platform.environment),
+                ...signingEnvironment,
+              },
+      );
 
-    proc.stdout.listen((data) => stdout.add(data));
-    proc.stderr.listen((data) => stderr.add(data));
+      proc.stdout.listen((data) => stdout.add(data));
+      proc.stderr.listen((data) => stderr.add(data));
 
-    final exitCode = await _awaitBuild(
-      proc,
-      timeout: timeout,
-      description: 'flutter build $platform',
-    );
-    if (exitCode == null) return DVBuildTargetResult.failed;
+      exitCode = await _awaitBuild(
+        proc,
+        timeout: timeout,
+        description: 'flutter build $platform',
+      );
+      if (exitCode == null) return DVBuildTargetResult.failed;
+
+      if (exitCode == 0 && webKey != null)
+        cache.store('flutter-web', webKey, webOutput);
+    }
 
     if (exitCode == 0) {
       if (androidFamily && buildMode == '--release') {
@@ -1619,6 +1665,13 @@ class BuildCommand extends Command<void> {
         return DVBuildTargetResult.failed;
       }
       file.copySync(destination);
+    }
+
+    // An eLinux image with a desktop shell reads the same desktop entry and
+    // MIME info a Linux desktop does; one without a shell ignores them.
+    final DVDesktopWrite elinuxDesktop = dvWriteLinuxDesktopFiles(root, outDir);
+    for (final String problem in elinuxDesktop.problems) {
+      Logger.log('⚠️  $problem');
     }
 
     // Boot-to-app: the declaration says the target's supervisor starts the
@@ -2405,6 +2458,85 @@ class BuildCommand extends Command<void> {
     }
   }
 
+  /// The file types the project declares, read once per build, with their
+  /// problems and the moved-key warning said once rather than per target.
+  DVProjectFileAssociations _fileAssociations(String root) {
+    final DVProjectFileAssociations? known = _declaredFileAssociations;
+    if (known != null) return known;
+    final DVDartvelSection section = dvDartvelSection(root);
+    final DVProjectFileAssociations declared = DVProjectFileAssociations.of(
+      section.values,
+    );
+    for (final String line in <String>[
+      ...section.problems,
+      ...declared.problems,
+      ...declared.warnings,
+    ]) {
+      Logger.log('⚠️  $line');
+    }
+    return _declaredFileAssociations = declared;
+  }
+
+  DVProjectFileAssociations? _declaredFileAssociations;
+
+  void _writeAndroidFileAssociations(String root) {
+    final File manifest = File(
+      p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
+    );
+    if (!manifest.existsSync()) return;
+    final DVProjectFileAssociations declared = _fileAssociations(root);
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidFileAssociationsManifest(
+      before,
+      declared.associations,
+    );
+    if (after != before) manifest.writeAsStringSync(after);
+    // Dartvel's own file, so it is written whole and removed with the
+    // declaration rather than left as a class nothing starts.
+    final File activity = File(p.join(root, dvAndroidOpenActivityPath));
+    if (declared.isEmpty) {
+      if (activity.existsSync()) activity.deleteSync();
+      return;
+    }
+    activity.parent.createSync(recursive: true);
+    activity.writeAsStringSync(dvAndroidOpenActivitySource());
+    Logger.log(
+      '   File types: ${declared.associations.length} registered to open and share into the app.',
+    );
+  }
+
+  void _writeIosFileAssociations(String root) {
+    final File plist = File(p.join(root, 'ios', 'Runner', 'Info.plist'));
+    if (!plist.existsSync()) return;
+    final DVProjectFileAssociations declared = _fileAssociations(root);
+    final String before = plist.readAsStringSync();
+    final String after = dvAppleFileAssociationsPlist(
+      before,
+      dvPackageName(root) ?? 'dartvel_app',
+      declared.associations,
+      ios: true,
+    );
+    if (after != before) plist.writeAsStringSync(after);
+    if (!declared.isEmpty && dvAppleHasOwnDocumentTypes(after)) {
+      Logger.log(
+        '⚠️  ios/Runner/Info.plist already declares CFBundleDocumentTypes of its own, so '
+        'dartvel.fileAssociations was not added beside them; those entries stay in charge.',
+      );
+    }
+  }
+
+  void _writeTizenFileAssociations(String root) {
+    final File manifest = File(p.join(root, 'tizen', 'tizen-manifest.xml'));
+    if (!manifest.existsSync()) return;
+    final DVProjectFileAssociations declared = _fileAssociations(root);
+    final String before = manifest.readAsStringSync();
+    final String after = dvTizenFileAssociationsManifest(
+      before,
+      declared.associations,
+    );
+    if (after != before) manifest.writeAsStringSync(after);
+  }
+
   void _writeAndroidKioskFiles(String root) {
     final DVAndroidKiosk kiosk = DVAndroidKiosk.of(root);
     final File manifest =
@@ -2644,13 +2776,10 @@ class BuildCommand extends Command<void> {
   }
 
 
-  /// The Swift shim behind the iOS `DV.Platform` bindings that need UIKit,
-  /// delegates or completion blocks, compiled into the Runner target; and
-  /// `dartvel.ios.permissions` into Info.plist as usage descriptions.
-  ///
-  /// Written for every iOS build, like the deep link capture, because the
-  /// capability list claims these bindings on iOS. A build without the shim
-  /// leaves them unregistered and `DVIosBindings.lastFailure` says why.
+  /// The generated UIDropInteraction/UIDragInteraction bridge
+  /// (`DartvelDragDrop.swift`), written into Runner and added to its target
+  /// for every iOS build, like the platform shim: the capability list claims
+  /// the dragDrop bindings on iOS.
   void _writeIosDragDrop(String root) {
     final project = File(p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'));
     if (!project.existsSync()) return;
@@ -2662,6 +2791,13 @@ class BuildCommand extends Command<void> {
     if (after != before) project.writeAsStringSync(after);
   }
 
+  /// The Swift shim behind the iOS `DV.Platform` bindings that need UIKit,
+  /// delegates or completion blocks, compiled into the Runner target; and
+  /// `dartvel.ios.permissions` into Info.plist as usage descriptions.
+  ///
+  /// Written for every iOS build, like the deep link capture, because the
+  /// capability list claims these bindings on iOS. A build without the shim
+  /// leaves them unregistered and `DVIosBindings.lastFailure` says why.
   void _writeIosPlatformShim(String root) {
     final File project =
         File(p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'));
@@ -2743,7 +2879,7 @@ class BuildCommand extends Command<void> {
       return;
     }
     final String before = delegate.readAsStringSync();
-    final String after = dvIosAppDelegate(before, enabled: true);
+    final String after = dvIosAppDelegate(before, enabled: true, files: !_fileAssociations(root).isEmpty);
     if (after == before) return;
     if (!after.contains(dvIosLaunchUrlKey)) {
       // The delegate has been rewritten into something this does not
@@ -3046,6 +3182,10 @@ class BuildCommand extends Command<void> {
       Logger.log('   Generated $scaffoldDir/.');
     }
 
+    // After the scaffold exists and before the embedder packages it: Tizen
+    // reads the app controls from tizen-manifest.xml.
+    if (platform == 'tizen') _writeTizenFileAssociations(_projectRoot);
+
     final proc = await Process.start(
       plan.executable,
       plan.arguments,
@@ -3213,6 +3353,28 @@ class BuildCommand extends Command<void> {
     exit(1);
   }
 
+  /// Each declared type's icon, where the manifest's file_handlers say it is.
+  void _writeFileTypeIcons(String root) {
+    for (final DVFileAssociation association in _fileAssociations(
+      root,
+    ).associations) {
+      final String? name = dvFileTypeIconName(association);
+      if (name == null) continue;
+      final File icon = File(p.join(root, association.icon!));
+      if (!icon.existsSync()) {
+        Logger.log(
+          '   ⚠ dartvel.fileAssociations names the icon ${association.icon}, which is not in the project.',
+        );
+        continue;
+      }
+      final File target = File(
+        p.join(root, 'build', 'web', dvWebFileTypeIconDirectory, name),
+      );
+      target.parent.createSync(recursive: true);
+      icon.copySync(target.path);
+    }
+  }
+
   Future<void> _writePwaManifest(String root) async {
     final pwa = _dartvelSection(root)['pwa'];
     final settings = pwa is Map ? pwa : const <Object?, Object?>{};
@@ -3238,6 +3400,7 @@ class BuildCommand extends Command<void> {
         themeColor: '${settings['themeColor'] ?? '#000000'}',
         backgroundColor: '${settings['backgroundColor'] ?? '#FFFFFF'}',
         description: settings['description'] as String?,
+        fileHandlers: dvWebFileHandlers(_fileAssociations(root).associations),
         shortcuts: _pwaShortcuts(root),
       ),
     );
@@ -3253,6 +3416,7 @@ class BuildCommand extends Command<void> {
     }
 
     _writePwaIcons(root, settings);
+    _writeFileTypeIcons(root);
     await _writeServiceWorker(root, settings: settings);
   }
 
@@ -3367,7 +3531,7 @@ class BuildCommand extends Command<void> {
     final List<String> parts = dvDeferredPartFiles(web);
     File(p.join(web.path, 'flutter_service_worker.js')).writeAsStringSync(
       dvServiceWorker(
-        buildId: DateTime.now().toUtc().toIso8601String(),
+        buildId: dvServiceWorkerBuildId(),
         precache: <String>[...routes, ...parts],
         // On unless the project says otherwise: a backend call made offline
         // is queued and replayed, which is the behaviour a PWA promises.
@@ -3730,6 +3894,66 @@ class BuildCommand extends Command<void> {
   /// The crawler-visible HTML is built from these. Without the capture the
   /// pages fall back to reading string literals out of the page source, which
   /// cannot tell a heading from a sentence and produces no links at all.
+  DVBuildCache get _buildCache => DVBuildCache(
+    _projectRoot,
+    enabled: argResults?['cache'] as bool? ?? true,
+  );
+
+  String? _cachedFlutterVersion;
+
+  /// Flutter's framework and engine revisions: a different Flutter is a
+  /// different build of the same sources.
+  Future<String> _flutterVersion() async {
+    if (_cachedFlutterVersion != null) return _cachedFlutterVersion!;
+    try {
+      final ProcessResult result = await Process.run('flutter', <String>[
+        '--version',
+        '--machine',
+      ], runInShell: true);
+      final Object? decoded = jsonDecode('${result.stdout}');
+      _cachedFlutterVersion = decoded is Map
+          ? '${decoded['frameworkRevision']}/${decoded['engineRevision']}/${decoded['dartSdkVersion']}'
+          : '${result.stdout}';
+    } on Object {
+      // Unknown is its own key: never reused across a Flutter we cannot name.
+      _cachedFlutterVersion =
+          'unknown-${DateTime.now().microsecondsSinceEpoch}';
+    }
+    return _cachedFlutterVersion!;
+  }
+
+  /// What the capture reads: every file of the web output except the
+  /// prefetch manifest, which the capture itself refuses to serve.
+  String _captureInputHash(Directory web) =>
+      dvCaptureInputHash(web, skip: const <String>{dvPrefetchManifestFile});
+
+  /// [route]'s capture outputs (its tree and its images), copied into a
+  /// directory of their own for the cache.
+  Directory _collectCaptureOutputs(String root, String route) {
+    final Directory outputs = Directory(
+      p.join(root, '.dart_tool', 'dartvel_capture_store', '${route.hashCode}'),
+    );
+    if (outputs.existsSync()) outputs.deleteSync(recursive: true);
+    outputs.createSync(recursive: true);
+    final File tree = File(dvSemanticsPathFor(root, route));
+    final File images = File(dvCapturedImagesPathFor(root, route));
+    if (tree.existsSync()) tree.copySync(p.join(outputs.path, 'tree.json'));
+    if (images.existsSync())
+      images.copySync(p.join(outputs.path, 'images.json'));
+    return outputs;
+  }
+
+  /// Puts a cached capture of [route] back where the capture writes it.
+  void _placeCaptureOutputs(String root, String route, Directory outputs) {
+    final File tree = File(p.join(outputs.path, 'tree.json'));
+    final File images = File(p.join(outputs.path, 'images.json'));
+    final File treeTarget = File(dvSemanticsPathFor(root, route));
+    treeTarget.parent.createSync(recursive: true);
+    if (tree.existsSync()) tree.copySync(treeTarget.path);
+    if (images.existsSync())
+      images.copySync(dvCapturedImagesPathFor(root, route));
+  }
+
   Future<void> _captureSemantics(String root) async {
     // First, whatever else this build does: a guarded route is never
     // captured, so an old capture of it would be served as its page.
@@ -3739,8 +3963,10 @@ class BuildCommand extends Command<void> {
     // pages with no crawler-visible content, and this is the one way to say
     // the pages are not going to be served to anybody.
     if (argResults?['prerender'] == false) {
-      Logger.log('   Skipping the semantics capture: --no-prerender. Every '
-          'page in this build has an empty body to a crawler.');
+      Logger.log(
+        '   Skipping the semantics capture: --no-prerender. Every '
+        'page in this build has an empty body to a crawler.',
+      );
       return;
     }
     final web = Directory(p.join(root, 'build', 'web'));
@@ -3751,11 +3977,80 @@ class BuildCommand extends Command<void> {
     );
     if (routes.isEmpty) return;
 
-    Logger.log('   Reading the semantics tree for ${routes.length} routes...');
-    final DVCaptureRun run = await dvCaptureSemantics(
-      projectRoot: root,
-      webRoot: web.path,
-      routes: routes,
+    // Each route's capture is cached under (the web output's hash, the
+    // route, the capture's version): an unchanged build is not read again.
+    final DVBuildCache cache = _buildCache;
+    final String webHash = cache.enabled ? _captureInputHash(web) : '';
+    DVContentHash captureKey(String route) => DVContentHash()
+      ..addText('stage', 'semantics')
+      ..addText('web', webHash)
+      ..addText('route', route)
+      ..addText('capture', '$dvSemanticsCaptureVersion')
+      ..addText('dartvel', dartvelCliVersion);
+    // One stage per web output: every route's capture of one build is a
+    // group, and the newest three groups are kept.
+    final String captureStage =
+        'semantics-${webHash.isEmpty ? 'off' : webHash.substring(0, 16)}';
+    final List<String> toCapture = <String>[];
+    int reused = 0;
+    for (final String route in routes) {
+      final Directory outputs = Directory(
+        p.join(
+          root,
+          '.dart_tool',
+          'dartvel_capture_restore',
+          '${route.hashCode}',
+        ),
+      );
+      if (cache.enabled &&
+          cache.restore(captureStage, captureKey(route).digest, outputs)) {
+        _placeCaptureOutputs(root, route, outputs);
+        reused++;
+      } else {
+        toCapture.add(route);
+      }
+    }
+    int captured = 0;
+    bool browserAvailable = true;
+    if (toCapture.isNotEmpty) {
+      Logger.log(
+        '   Reading the semantics tree for ${toCapture.length} routes'
+        '${reused == 0 ? '' : ' ($reused unchanged, reused)'}...',
+      );
+      final DVCaptureRun fresh = await dvCaptureSemantics(
+        projectRoot: root,
+        webRoot: web.path,
+        routes: toCapture,
+      );
+      captured = fresh.captured;
+      browserAvailable = fresh.browserAvailable;
+      if (cache.enabled && fresh.browserAvailable) {
+        for (final String route in toCapture) {
+          final Directory outputs = _collectCaptureOutputs(root, route);
+          if (outputs.listSync().isNotEmpty) {
+            cache.store(
+              captureStage,
+              captureKey(route).digest,
+              outputs,
+              prune: false,
+            );
+          }
+          outputs.deleteSync(recursive: true);
+        }
+      }
+      if (cache.enabled) cache.pruneGroups('semantics-');
+    } else {
+      Logger.log(
+        '   Semantics trees: all ${routes.length} routes unchanged, reused.',
+      );
+    }
+    final Directory restoreArea = Directory(
+      p.join(root, '.dart_tool', 'dartvel_capture_restore'),
+    );
+    if (restoreArea.existsSync()) restoreArea.deleteSync(recursive: true);
+    final DVCaptureRun run = DVCaptureRun(
+      captured: captured + reused,
+      browserAvailable: browserAvailable,
     );
     final verdict = dvVerifyCapture(
       captured: run.captured,
@@ -4611,15 +4906,7 @@ class BuildCommand extends Command<void> {
   }
 
   Map<Object?, Object?> _dartvelSection(String root) {
-    final file = File(p.join(root, 'pubspec.yaml'));
-    if (!file.existsSync()) return const <Object?, Object?>{};
-    try {
-      final doc = loadYaml(file.readAsStringSync());
-      final section = doc is Map ? doc['dartvel'] : null;
-      return section is Map ? section : const <Object?, Object?>{};
-    } on Object {
-      return const <Object?, Object?>{};
-    }
+    return dvDartvelSection(root).values;
   }
 
   String? _packageName(String root) {

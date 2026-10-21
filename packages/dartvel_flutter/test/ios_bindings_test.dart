@@ -24,6 +24,7 @@ void main() {
             'haptics.lightVibrate',
             'haptics.vibrate',
             'deepLinks.initial',
+        'associations.opened',
             'homeWidgets.publish',
             'tracking.requestAuthorization',
             // Plain Dart under Application Support.
