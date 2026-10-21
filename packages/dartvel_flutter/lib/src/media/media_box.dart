@@ -19,6 +19,7 @@ import '../../dartvel_flutter.dart' show DV, DVRenderSurface;
 import 'caption_file.dart';
 import 'image_view.dart';
 import 'web_media_mapping.dart';
+import 'widget_recorder.dart';
 
 /// Whether a box plays video or audio.
 enum DVMediaKind { video, audio }
@@ -115,6 +116,30 @@ abstract final class DVMediaBackends {
     _cameraCapabilities = capabilities;
     if (directory != null) _captureDirectory = directory;
   }
+
+  static DVFrameEncoder Function()? _frameEncoder;
+  static DVFrameEncoderCapabilities _frameEncoderCapabilities =
+      DVFrameEncoderCapabilities.none;
+
+  /// Binds this target's video encoder, which `DVWidgetRecorder` records and
+  /// streams through.
+  static void registerFrameEncoder(DVFrameEncoder Function() factory,
+      {required DVFrameEncoderCapabilities capabilities}) {
+    _frameEncoder = factory;
+    _frameEncoderCapabilities = capabilities;
+  }
+
+  /// Unbinds the encoder.
+  @visibleForTesting
+  static void resetFrameEncoder() {
+    _frameEncoder = null;
+    _frameEncoderCapabilities = DVFrameEncoderCapabilities.none;
+  }
+
+  static DVFrameEncoderCapabilities get frameEncoderCapabilities =>
+      _frameEncoderCapabilities;
+
+  static DVFrameEncoder? createFrameEncoder() => _frameEncoder?.call();
 
   static String? _captureDirectory;
   static DVCaptureFiles? _captureFiles;

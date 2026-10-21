@@ -61,6 +61,7 @@ import 'src/kiosk/session_clear.dart';
 import 'src/media/image_view.dart';
 import 'src/media/camera_view.dart';
 import 'src/media/media_box.dart';
+import 'src/media/widget_recorder.dart';
 import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
@@ -826,6 +827,7 @@ export 'src/media/camera_view.dart' hide DVCameraView;
 export 'src/media/media_box.dart' hide DVMediaView;
 export 'src/media/stored_image.dart';
 export 'src/media/video_frame.dart';
+export 'src/media/widget_recorder.dart' hide DVRecordedView;
 export 'src/modules/module_shell.dart';
 export 'src/modules/module_theme.dart';
 export 'src/platform/accelerator.dart';
@@ -2401,6 +2403,18 @@ class DVBox<T> extends StatelessWidget {
             onVideo: onVideo,
             controller: controller,
           ),
+          modifier: modifier,
+        );
+
+  /// Whatever [child] draws, recordable: `recorder.start()` records it to an
+  /// MP4 and `recorder.start(streamTo: ...)` streams it live. Nothing changes
+  /// on screen; the box only marks what is recorded.
+  DVBox.recorded({
+    required DVWidgetRecorder recorder,
+    required Widget child,
+    DVModifier? modifier,
+  }) : this._(
+          child: DVRecordedView(recorder: recorder, child: child),
           modifier: modifier,
         );
 
@@ -4815,6 +4829,10 @@ class DVMedia {
   /// opening it.
   DVCameraCapabilities get cameraCapabilities =>
       DVMediaBackends.cameraCapabilities;
+
+  /// What this target can record and stream with `DVWidgetRecorder`.
+  DVFrameEncoderCapabilities get recordingCapabilities =>
+      DVMediaBackends.frameEncoderCapabilities;
 
   /// The cameras and screens this target can open now, for a picker: pass
   /// one's id to `DVBox.camera(device: ...)`. Empty where none is bound.

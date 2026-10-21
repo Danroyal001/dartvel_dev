@@ -25,6 +25,7 @@ import 'package:flutter/widgets.dart' show BuildContext, Widget;
 
 import '../../media/media_box.dart';
 import '../../media/video_frame.dart';
+import '../../media/widget_recorder.dart';
 
 typedef _PV = Pointer<Void>;
 
@@ -437,6 +438,12 @@ abstract final class DVGStreamer {
   /// (gstreamer1.0-plugins-base) is not installed, and frames are not drawn.
   static _PV Function(_PV, int)? _pullSample;
 
+  /// `gst_app_src_push_buffer`, from libgstapp; it takes the buffer.
+  static int Function(_PV, _PV)? _pushBuffer;
+
+  /// `gst_buffer_new_wrapped`: a buffer over memory it frees with g_free.
+  static _PV Function(Pointer<Uint8>, int)? _wrapBuffer;
+
   /// Loads and initialises GStreamer. False when it is not installed.
   static bool load() {
     if (_tried) return _gst != null;
@@ -450,12 +457,18 @@ abstract final class DVGStreamer {
       if (gst.initCheck(nullptr, nullptr, nullptr) == 0) return false;
       _gst = gst;
       try {
-        _pullSample = DynamicLibrary.open('libgstapp-1.0.so.0').lookupFunction<
-            _PV Function(_PV, Uint64),
+        final DynamicLibrary app = DynamicLibrary.open('libgstapp-1.0.so.0');
+        _pullSample = app.lookupFunction<_PV Function(_PV, Uint64),
             _PV Function(_PV, int)>('gst_app_sink_try_pull_sample');
+        _pushBuffer = app.lookupFunction<Int32 Function(_PV, _PV),
+            int Function(_PV, _PV)>('gst_app_src_push_buffer');
       } on ArgumentError {
         _pullSample = null;
+        _pushBuffer = null;
       }
+      _wrapBuffer = DynamicLibrary.open('libgstreamer-1.0.so.0').lookupFunction<
+          _PV Function(Pointer<Uint8>, Size),
+          _PV Function(Pointer<Uint8>, int)>('gst_buffer_new_wrapped');
       return true;
     } on ArgumentError {
       return false;
@@ -1554,6 +1567,193 @@ final class DVGStreamerCamera implements DVCameraBackend, DVCameraSurface {
   }
 }
 
+/// Frames from Flutter into H.264: an MP4 file, or a live RTMP stream.
+///
+/// `appsrc` timestamps each frame as it arrives, so a frame the recorder
+/// dropped leaves a frame held longer rather than the clip running fast. A
+/// stream always carries an audio track -- silence when the microphone is
+/// off -- because streaming services refuse a stream without one.
+final class DVGStreamerFrameEncoder implements DVFrameEncoder {
+  DVGStreamerFrameEncoder({
+    this.audioSource,
+    this.pollInterval = const Duration(milliseconds: 20),
+  });
+
+  /// A pipeline fragment for the microphone, or null for the first installed
+  /// of pipewiresrc, pulsesrc and autoaudiosrc.
+  final String? audioSource;
+
+  final Duration pollInterval;
+
+  static const List<String> _microphones = <String>[
+    'pipewiresrc',
+    'pulsesrc',
+    'autoaudiosrc',
+  ];
+
+  static String? _aac() => <String>['avenc_aac', 'voaacenc', 'fdkaacenc']
+      .cast<String?>()
+      .firstWhere((String? e) => DVGStreamer.hasElement(e!), orElse: () => null);
+
+  static DVFrameEncoderCapabilities probe() {
+    if (!DVGStreamer.load() || DVGStreamer._pushBuffer == null) {
+      return DVFrameEncoderCapabilities.none;
+    }
+    final bool file = <String>['appsrc', 'videoconvert', 'x264enc', 'h264parse', 'mp4mux']
+        .every(DVGStreamer.hasElement);
+    return DVFrameEncoderCapabilities(
+      file: file,
+      stream: file &&
+          DVGStreamer.hasElement('flvmux') &&
+          DVGStreamer.hasElement('rtmp2sink') &&
+          _aac() != null,
+      audio: _aac() != null && _microphones.any(DVGStreamer.hasElement),
+    );
+  }
+
+  final StreamController<String> _failures = StreamController<String>.broadcast();
+
+  _PV _pipeline = nullptr;
+  _PV _bus = nullptr;
+  _PV _source = nullptr;
+  Timer? _timer;
+  int _width = 0;
+  int _height = 0;
+  DateTime? _since;
+  Completer<void>? _ended;
+
+  /// Frames refused for being the wrong size.
+  int dropped = 0;
+
+  @override
+  DVFrameEncoderCapabilities get capabilities => probe();
+
+  @override
+  Stream<String> get failures => _failures.stream;
+
+  @override
+  Future<void> start(DVFrameEncoderTarget target,
+      {required int width, required int height, required int fps, required bool audio}) async {
+    if (_pipeline != nullptr) throw StateError('This encoder is already running.');
+    final DVFrameEncoderCapabilities can = probe();
+    final bool stream = target.url != null;
+    if (stream ? !can.stream : !can.file) {
+      throw DVRecordingUnavailable(
+          'GStreamer here cannot ${stream ? 'stream' : 'record'} H.264');
+    }
+    final int kbps = height <= 480 ? 2000 : height <= 720 ? 4000 : 6000;
+    final String video =
+        'appsrc name=dvsrc is-live=true do-timestamp=true format=time '
+        'caps=video/x-raw,format=RGBA,width=$width,height=$height,framerate=$fps/1 ! '
+        'queue ! videoconvert ! video/x-raw,format=I420 ! '
+        'x264enc tune=zerolatency speed-preset=veryfast bitrate=$kbps '
+        'key-int-max=${fps * 2} ! video/x-h264,profile=main ! h264parse ! '
+        '${stream ? 'flvmux name=dvmux streamable=true ! rtmp2sink name=dvsink' : 'mp4mux name=dvmux ! filesink name=dvsink'}';
+    final String? aac = _aac();
+    String? microphone = audio
+        ? audioSource ??
+            _microphones.cast<String?>().firstWhere(
+                (String? e) => DVGStreamer.hasElement(e!),
+                orElse: () => null)
+        : null;
+    if (microphone == null && stream) microphone = 'audiotestsrc is-live=true wave=silence';
+    final String sound = microphone != null && aac != null
+        ? ' $microphone ! audioconvert ! audioresample ! $aac ! queue ! dvmux.'
+        : '';
+    final _Gst gst = DVGStreamer._api;
+    final _PV pipeline = gst.launch('$video$sound');
+    _PV named(String name) => using((Arena arena) =>
+        gst.binByName(pipeline, name.toNativeUtf8(allocator: arena)));
+    final _PV sink = named('dvsink');
+    gst.setStringProperty(sink, 'location', stream ? target.url.toString() : target.path!);
+    gst.objectUnref(sink);
+    _pipeline = pipeline;
+    _bus = gst.getBus(pipeline);
+    _source = named('dvsrc');
+    _width = width;
+    _height = height;
+    dropped = 0;
+    gst.setState(pipeline, _statePlaying);
+    _since = DateTime.now();
+    _timer = Timer.periodic(pollInterval, (_) => _poll());
+  }
+
+  @override
+  void push(DVVideoFrame frame) {
+    if (_source == nullptr || _ended != null) return;
+    if (frame.width != _width || frame.height != _height) {
+      dropped++;
+      return;
+    }
+    final int size = frame.rgba.length;
+    final Pointer<Uint8> memory = malloc<Uint8>(size);
+    memory.asTypedList(size).setAll(0, frame.rgba);
+    // The buffer owns the memory from here and frees it with g_free, which
+    // is the C allocator's free.
+    final _PV buffer = DVGStreamer._wrapBuffer!(memory, size);
+    DVGStreamer._pushBuffer!(_source, buffer);
+  }
+
+  void _poll() {
+    if (_pipeline == nullptr) return;
+    final _Gst gst = DVGStreamer._api;
+    while (_pipeline != nullptr) {
+      final _PV message = gst.pop(_bus, 0, _msgEos | _msgError);
+      if (message == nullptr) break;
+      try {
+        if (_Gst.typeOf(message) == _msgError) {
+          final String error = gst.errorMessage(message);
+          _teardown();
+          if (!_failures.isClosed) _failures.add(error);
+        } else {
+          _teardown();
+        }
+      } finally {
+        gst.miniUnref(message);
+      }
+    }
+    final Completer<void>? ended = _ended;
+    if (_pipeline == nullptr && ended != null && !ended.isCompleted) ended.complete();
+  }
+
+  @override
+  Future<Duration> stop() async {
+    final DateTime? since = _since;
+    final Duration length =
+        since == null ? Duration.zero : DateTime.now().difference(since);
+    if (_pipeline == nullptr) return length;
+    final Completer<void> ended = _ended = Completer<void>();
+    final _Gst gst = DVGStreamer._api;
+    // EOS from every source, so the muxer writes the MP4's index.
+    gst.sendEvent(_pipeline, gst.eventEos());
+    await ended.future.timeout(const Duration(seconds: 10), onTimeout: _teardown);
+    _ended = null;
+    return length;
+  }
+
+  void _teardown() {
+    _timer?.cancel();
+    _timer = null;
+    if (_pipeline != nullptr) {
+      final _Gst gst = DVGStreamer._api;
+      gst.setState(_pipeline, _stateNull);
+      if (_source != nullptr) gst.objectUnref(_source);
+      if (_bus != nullptr) gst.objectUnref(_bus);
+      gst.objectUnref(_pipeline);
+    }
+    _pipeline = nullptr;
+    _bus = nullptr;
+    _source = nullptr;
+    _since = null;
+  }
+
+  @override
+  Future<void> dispose() async {
+    _teardown();
+    await _failures.close();
+  }
+}
+
 /// Registers the GStreamer player and recorder with [DVMediaBackends].
 abstract final class DVLinuxMedia {
   /// False when GStreamer is not installed; nothing is registered then, and a
@@ -1571,6 +1771,8 @@ abstract final class DVLinuxMedia {
       backend: DVGStreamerCapture.new,
       directory: captureDirectory(),
     );
+    DVMediaBackends.registerFrameEncoder(DVGStreamerFrameEncoder.new,
+        capabilities: DVGStreamerFrameEncoder.probe());
     DVMediaBackends.registerCamera(DVGStreamerCamera.new,
         capabilities: DVGStreamerCamera().capabilities,
         directory: captureDirectory());
