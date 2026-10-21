@@ -116,8 +116,8 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
           'Media Playback and Capture',
           missing: <String>[
             'Recording and streaming work on Linux only so far.',
-            'Streaming has been checked up to a refused connection. It has '
-                'not yet been tried with a live streaming service.',
+            'Streaming has been checked against an RTMP server on the same '
+                'computer. It has not yet been tried with YouTube or Facebook.',
           ],
         ),
       ],
