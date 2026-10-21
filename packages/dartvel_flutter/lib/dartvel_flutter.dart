@@ -995,17 +995,38 @@ final class DVCustomVisibilityToggle extends DVVisibilityToggle {
 const Object _unset = Object();
 
 class DVModifier {
+  /// What `.dropTarget(...)` was given.
   final DVDropTargetSpec? dropTargetValue;
+
+  /// What `.draggable(...)` carries.
   final DVDragPayload? draggableValue;
 
-  /// Accept files, links or text dropped on this widget.
-  DVModifier dropTarget({required void Function(DVDropEvent) onDrop,
-    Set<DVDropType> types = const {.files, .text, .urls},
-    void Function(bool)? onHover,
-  }) => _copyWith(dropTargetValue: DVDropTargetSpec(onDrop: onDrop, types: types, onHover: onHover));
+  /// The application file and line that wrote `.dropTarget` or
+  /// `.draggable`, kept in debug builds so a drop zone or a draggable with
+  /// no name can be reported where it was drawn.
+  final String? dragDropSite;
 
-  /// Carry this payload to another widget or application.
-  DVModifier draggable(DVDragPayload payload) => _copyWith(draggableValue: payload);
+  /// Takes files, links or text dropped on this widget: from another
+  /// application where the platform has drag and drop, and from a
+  /// `.draggable(...)` inside this one everywhere.
+  ///
+  /// A drop zone is hoverable, so it says what it is like every control: the
+  /// words inside it, or `.tooltip(...)`, which is also its screen reader
+  /// label. One with neither is refused in a debug build.
+  DVModifier dropTarget({
+    required void Function(DVDropEvent event) onDrop,
+    Set<DVDropType> types = const <DVDropType>{.files, .text, .urls},
+    void Function(bool hovering)? onHover,
+  }) => _copyWith(
+    dropTargetValue: DVDropTargetSpec(onDrop: onDrop, types: types, onHover: onHover),
+    dragDropSite: dvCallSite(),
+  );
+
+  /// Carries [payload] to a drop target in this application, or out to
+  /// another one where the platform has a drag out. Named like
+  /// [dropTarget]: words inside, or `.tooltip(...)`.
+  DVModifier draggable(DVDragPayload payload) =>
+      _copyWith(draggableValue: payload, dragDropSite: dvCallSite());
 
   final EdgeInsetsGeometry? paddingValue;
   final EdgeInsetsGeometry? marginValue;
@@ -1182,6 +1203,7 @@ class DVModifier {
   const DVModifier({
     this.dropTargetValue,
     this.draggableValue,
+    this.dragDropSite,
     this.paddingValue,
     this.marginValue,
     this.borderRadius,
@@ -1240,6 +1262,7 @@ class DVModifier {
   const DVModifier.fromStyle()
       : dropTargetValue = null,
         draggableValue = null,
+        dragDropSite = null,
         paddingValue = null,
         marginValue = null,
         borderRadius = null,
@@ -1297,6 +1320,7 @@ class DVModifier {
   DVModifier _copyWith({
     DVDropTargetSpec? dropTargetValue,
     DVDragPayload? draggableValue,
+    String? dragDropSite,
     EdgeInsetsGeometry? paddingValue,
     EdgeInsetsGeometry? marginValue,
     BorderRadiusGeometry? borderRadius,
@@ -1370,6 +1394,7 @@ class DVModifier {
     return DVModifier(
       dropTargetValue: dropTargetValue ?? this.dropTargetValue,
       draggableValue: draggableValue ?? this.draggableValue,
+      dragDropSite: dragDropSite ?? this.dragDropSite,
       paddingValue: paddingValue ?? this.paddingValue,
       marginValue: marginValue ?? this.marginValue,
       borderRadius: borderRadius ?? this.borderRadius,
@@ -1626,7 +1651,8 @@ class DVModifier {
   /// the most-used widget here for something nothing in this repository asks
   /// for yet. Left whole rather than half-done.
   bool get hasBoxStyling =>
-      dropTargetValue != null || draggableValue != null ||
+      dropTargetValue != null ||
+      draggableValue != null ||
       paddingValue != null ||
       marginValue != null ||
       boxColor != null ||
@@ -1729,6 +1755,7 @@ class DVModifier {
   DVModifier merge(DVModifier other) => DVModifier(
         dropTargetValue: other.dropTargetValue ?? dropTargetValue,
         draggableValue: other.draggableValue ?? draggableValue,
+        dragDropSite: other.dragDropSite ?? dragDropSite,
         paddingValue: other.paddingValue ?? paddingValue,
         marginValue: other.marginValue ?? marginValue,
         borderRadius: other.borderRadius ?? borderRadius,
@@ -2810,14 +2837,28 @@ class DVBox<T> extends StatelessWidget {
       );
     }
 
-    if (m?.onTapCallback == null && m?.tooltipValue != null) {
+    final bool dragDrop =
+        m?.dropTargetValue != null || m?.draggableValue != null;
+    if (m?.onTapCallback == null && (m?.tooltipValue != null || dragDrop)) {
       // Hoverable without being pressable (a status chip, a badge): it still
-      // says what it is.
+      // says what it is. A drop zone or a draggable must: a pointer hovers it
+      // with something in hand, and a screen reader has to be told what it
+      // takes or carries.
       result = DVTooltipTarget(
         label: m!.tooltipValue,
-        required: false,
+        required: dragDrop,
+        site: m.dragDropSite,
         child: result,
       );
+      if (dragDrop && m.tooltipValue != null && m.semanticLabelValue == null) {
+        // The tooltip keeps itself out of the semantics tree, so the zone's
+        // node carries the same words; what is inside stays reachable.
+        result = Semantics(
+          container: true,
+          label: m.tooltipValue,
+          child: result,
+        );
+      }
     }
 
     final minimumTapTarget = m?.minimumTapTargetValue;

@@ -11,8 +11,9 @@
 ///
 /// * `IconButton`, `FloatingActionButton` and `PopupMenuButton` must pass
 ///   `tooltip:` themselves.
-/// * A `DVModifier` chain with `.onTap(` / `.onPressed(` on an owner that
-///   shows an icon and no text must carry `.tooltip(` or `.semanticLabel(`.
+/// * A `DVModifier` chain with `.onTap(` / `.onPressed(`, or a drop zone or
+///   draggable (`.dropTarget(` / `.draggable(`), on an owner that shows an
+///   icon and no text must carry `.tooltip(` or `.semanticLabel(`.
 ///   An owner with text takes its name from the text.
 /// * An `InkWell` / `GestureDetector` with `onTap` and only an icon must sit
 ///   directly in a `Tooltip` or `Semantics`.
@@ -96,8 +97,10 @@ List<DVTooltipFinding> dvFindUntooltippedControls({
     }
   }
 
-  // --- a DVModifier chain that makes something pressable
-  final RegExp tap = RegExp(r'\.(onTap|onPressed)\s*\(');
+  // --- a DVModifier chain that makes something pressable, or something a
+  // pointer hovers carrying a drag
+  final RegExp tap =
+      RegExp(r'\.(onTap|onPressed|dropTarget|draggable)\s*\(');
   final Set<int> judgedChains = <int>{};
   for (final RegExpMatch match in tap.allMatches(text)) {
     final int head = _chainStart(text, match.start);

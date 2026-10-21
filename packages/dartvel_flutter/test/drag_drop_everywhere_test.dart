@@ -227,8 +227,9 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: Center(
+            // Named: a drop zone says what it takes, like every control.
             child: DVBox(const SizedBox(width: 100, height: 100))
-                .modifier(DVModifier().dropTarget(onDrop: dropped.add)),
+                .modifier(DVModifier().tooltip('Drop a file').dropTarget(onDrop: dropped.add)),
           ),
         ),
       ));
