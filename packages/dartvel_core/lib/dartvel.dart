@@ -269,6 +269,7 @@ export 'src/notifications/web_push_vapid.dart';
 export 'src/observability/observability.dart' hide DVObservability;
 export 'src/platform/android_capture.dart';
 export 'src/platform/android_media.dart';
+export 'src/platform/drag_drop_bridge.dart';
 export 'src/platform/ios_platform_shim.dart';
 export 'src/platform_config.dart';
 export 'src/preview/preview.dart';

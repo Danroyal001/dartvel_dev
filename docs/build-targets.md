@@ -1049,3 +1049,27 @@ Dartvel deleted the half-written directory and reported that it could not
 generate a scaffold. Sony eLinux skipped correctly and the job failed anyway,
 because the step after it demanded an artifact from a build that had just
 explained why there was none.
+
+## Native drag-and-drop build check (2026-10-22)
+
+A clean app created from this checkout on Linux x64, using Flutter 3.47.5 /
+Dart 3.13.4 and package overrides pointing to the checkout, passed explicit
+`flutter pub get` followed by `dartvel build android --profile development`.
+The first build generated the Android scaffold, retained the resolved JNI
+plugin metadata and produced `build/app/outputs/flutter-apk/app-debug.apk`
+(`assembleDebug`, 131.8 seconds).
+After the armed-payload lifecycle fix, the final source rebuilt successfully
+in 24.7 seconds; the hash below records that final APK.
+
+The APK passed ZIP CRC validation. Its DEX contains
+`dev.dartvel.jni.DartvelDragDrop`, `Listener` and `Shadow`; the generated Java
+uses `View.OnDragListener` and `startDragAndDrop`.
+
+- Size: 164253803 bytes.
+- SHA256: `44a80aa7090616c58cf15efe65fedeece00e7a3f6d1fd61650dbf1fe186666b8`.
+
+This verifies build and packaging. Android device interaction was not run.
+The iOS bridge was checked only by generated Swift/Runner-project tests on
+Linux; no Xcode build or device run was performed. Other targets retain their
+separate historical evidence above. See [drag/drop verification](testing/drag-drop.md)
+for browser and widget checks.

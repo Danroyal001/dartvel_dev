@@ -23,6 +23,7 @@ library dartvel_flutter.platform.web.capabilities;
 /// `DVNativeBridge.isRegistered` keeps telling the truth. Read
 /// [dvWebUnconditionalBindings] for the ones that need no probe.
 const Set<String> dvWebImplementedBindings = <String>{
+  'dragDrop.setPending',
   // Fullscreen, Keyboard Lock and Pointer Lock, each needing a user gesture
   // and reported refused, with the browser's reason, when it is absent.
   'kiosk.enforce',
@@ -347,6 +348,7 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
       'and the handle is meaningless to every other binding that takes one.',
 
 
+  'dragDrop.startDrag': 'Browsers start drags from a pointer gesture; use draggable widgets.',
   'associations.register': 'A PWA declares its file handlers in the manifest '
       'at install time. There is no runtime call, so this could only edit a '
       'file the browser already read.',

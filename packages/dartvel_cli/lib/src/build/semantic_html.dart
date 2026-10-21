@@ -144,6 +144,19 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth,
     }
 
     switch (node.role) {
+      case 'hoverable':
+        // A drop zone or draggable is a named surface, not a button. Keep
+        // its children: a zone can contain text, links or other controls.
+        final String name = hasLabel ? label : _flattenRaw(node.children);
+        if (name.isNotEmpty) {
+          out.writeln('<div role="group"${_nameAttributes(name)}>');
+          if (node.children.isEmpty) out.writeln(_text.convert(name));
+          _write(out, node.children, depth + 1, fields);
+          out.writeln('</div>');
+        } else {
+          _write(out, node.children, depth + 1, fields);
+        }
+        continue;
       case 'navigation':
         out.writeln('<nav>');
         _write(out, node.children, depth + 1, fields);

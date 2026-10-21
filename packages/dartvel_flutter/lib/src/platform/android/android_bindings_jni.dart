@@ -39,6 +39,7 @@ import 'android_capabilities.dart';
 import 'android_capture_jni.dart';
 import 'android_fonts.dart';
 import 'android_device.dart';
+import 'android_drag_drop_jni.dart';
 import 'android_kiosk_jni.dart';
 import 'android_media_jni.dart';
 import 'android_push_jni.dart';
@@ -134,10 +135,10 @@ class DVAndroidBindings {
     // take, so they go through the transparent Activity the build writes.
     DVAndroidCapture.register(DVNativeBridge.register);
 
-    // Firebase Cloud Messaging, when the project declared dartvel.push.android
-    // and the build therefore wrote the DartvelPush class. Registers nothing
-    // otherwise, so PushNotifications.getToken() answers null rather than
-    // pretending.
+    // Drag and drop, through the Java the build writes beside the capture
+    // bridge: drops from other applications in split screen, freeform and
+    // desktop windows, and drags out to them.
+    DVAndroidDragDrop.register(DVNativeBridge.register);
     DVAndroidPush.register(DVNativeBridge.register);
 
     // What the application was opened with. The launch Intent belongs to the
@@ -312,6 +313,7 @@ class DVAndroidBindings {
     // registration would reuse a class from a JVM the first one was talking
     // to, which is only ever a test.
     DVAndroidCapture.reset();
+    DVAndroidDragDrop.unregister();
     // The two that hold state of their own. Dropping the handler without
     // these would leave a watchdog timer running against a process that has
     // let go of its bindings, and a file root that the next register() would

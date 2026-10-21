@@ -67,6 +67,9 @@ const Set<String> dvAndroidImplementedBindings = <String>{
   // Files opened with or shared to the app, from the Activity the build
   // writes for dartvel.fileAssociations.
   'associations.opened',
+  'dragDrop.startDrag',
+  'dragDrop.stop',
+  'dragDrop.accept',
   // ClipboardManager through Context.getSystemService.
   'clipboard.copy',
   'clipboard.paste',

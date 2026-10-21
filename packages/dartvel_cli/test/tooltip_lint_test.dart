@@ -98,6 +98,33 @@ DVBox(
     });
   });
 
+  group('drop zones and draggables', () {
+    test('an icon-only drop zone with no name fails, naming .dropTarget()', () {
+      final List<DVTooltipFinding> found = lint('''
+Widget a() => DVBox(
+      Icon(Icons.upload_file),
+      DVModifier().dropTarget(onDrop: take),
+    );
+''');
+      expect(found, hasLength(1));
+      expect(found.single.toString(), contains('.dropTarget()'));
+    });
+
+    test('an icon-only draggable with no name fails', () {
+      expect(lint('DVBox(Icon(Icons.drag_indicator), DVModifier().draggable(payload));'),
+          hasLength(1));
+    });
+
+    test('.tooltip() or words inside name them', () {
+      expect(
+          lint("DVBox(Icon(Icons.upload_file), DVModifier().tooltip('Upload').dropTarget(onDrop: take));"),
+          isEmpty);
+      expect(
+          lint("DVBox.row([Icon(Icons.upload_file), DVText('Drop files')], modifier: DVModifier().dropTarget(onDrop: take));"),
+          isEmpty);
+    });
+  });
+
   group('raw gestures', () {
     test('an icon-only InkWell with no Tooltip around it fails', () {
       expect(lint('InkWell(onTap: go, child: Icon(Icons.a));'), hasLength(1));

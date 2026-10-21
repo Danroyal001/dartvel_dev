@@ -32,6 +32,9 @@ library dartvel_flutter.platform.ios.capabilities;
 ///     full screen; the status bar is the app's own Info.plist decision.
 const Set<String> dvIosImplementedBindings = <String>{
   'associations.opened',
+  'dragDrop.setPending',
+  'dragDrop.stop',
+  'dragDrop.accept',
   // UIPasteboard through the Objective-C runtime.
   'clipboard.copy',
   'clipboard.paste',

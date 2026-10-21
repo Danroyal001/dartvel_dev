@@ -130,6 +130,8 @@ Future<bool> dvEnsurePlatformScaffold({
 /// with the directories it alone filled -- also when [create] fails or throws
 /// part-way, because a failed build must not leave the project changed
 /// either. What the project already had is never touched.
+/// Dependency-resolution tool state stays too: `.dart_tool` and
+/// `.flutter-plugins-dependencies` describe what the native build compiles.
 Future<int> dvGeneratePlatformScaffold({
   required String root,
   required String directory,
@@ -162,6 +164,9 @@ Future<int> dvGeneratePlatformScaffold({
 const Set<String> _notProjectFiles = <String>{
   'build', '.dart_tool', '.git', 'android', 'ios', 'linux', 'macos', 'windows', 'web',
   'tizen', 'elinux', 'webos', 'tvos',
+  // Tool state from Flutter's pub resolution, not counter-app source. The
+  // development shell reads this before flutter build refreshes plugins.
+  '.flutter-plugins-dependencies',
 };
 
 /// The project's own directories, relative to [root], as [_projectFiles]

@@ -618,3 +618,61 @@ unrelated package.
 
 - `DVVisibilityToggle.eye` / `.none` / `.custom(builder)` controls the visibility toggle on sensitive fields. `.input(obscureText: true)` gets the eye by default; `.none` turns it off and `.custom(builder)` replaces it with a control of your own. The eye is one button named "Show password" (also its tooltip) with a pressed state (`aria-pressed` on the web), the same on the account pages and in Studio, and present in the server-rendered HTML before Flutter takes over; the app keeps what was typed there.
 - Every `DVForm` is keyboard-accessible with nothing added: Tab walks the fields and controls in draw order, Enter moves to the next field and submits from the last one, and every `.onTap()`/`.onPressed()` control is a focusable button with a visible focus ring and a screen-reader name. A refused save is announced in a live region and puts the focus on the field at fault. `DVFormScope` is the public piece for inputs a form does not draw itself.
+
+## Drag and drop
+
+Drag and drop uses `DV.Platform.dragDrop` for a whole window, or
+`DVModifier().dropTarget(onDrop: ...)` for one widget; a drop goes to the
+smallest drop target under it that takes what it carries, else to the
+window. `DVDropEvent` carries `files`, `urls`, `text` and where it landed,
+in logical pixels. `DVIncomingFile.readBytes()` reads a file whether the
+platform gave a path (desktop), a content URI (Android) or a browser `File`
+(read when asked, not when dropped). `draggingOver` says when a drag is over
+an accepting window, and `onHover` on `.dropTarget(...)` when it is over that
+widget.
+
+`DVModifier().draggable(DVDragPayload(...))` carries text, links or files.
+In a browser the press starts the browser's own drag, so it can land in
+another tab or application as well as on a drop target in the page; where
+the platform has no drag out (the desktops, today), the drag stays inside
+the application and still reaches a `.dropTarget(...)`.
+
+A drop zone and a draggable are named like every hoverable control: the
+words inside them, or `.tooltip('...')`, which is also the screen reader
+label. The server document carries the same name in `title` and `aria-label`
+through the existing semantics capture. One with neither is refused in a debug
+build with its file and line,
+and by the tooltip lint `dartvel build` runs. Dragging is an extra way in,
+never the only one: put a named control beside a drop zone that calls
+`DV.Platform.dragDrop.chooseInstead()`, which opens the file picker and
+delivers the choice as the same drop.
+
+Desktop incoming drops retain the GTK, OLE and AppKit backends. Linux has
+an Xvfb/GTK integration suite; headless Chrome takes a file
+from disk, a link and text through its own drag pipeline and starts a drag
+out of a `.draggable()` (`sites/dartvel_site/tool/verify_drag_drop.dart`).
+`dartvel build android` writes a Java `OnDragListener` bridge reached
+through JNI, and `dartvel build ios` writes a Swift
+`UIDropInteraction`/`UIDragInteraction` bridge and adds it to Runner's
+Sources; the Android Java is compiled against `android.jar` in the tests,
+and the iOS Swift is checked as generated output only. Neither has been run
+on a device, and no desktop starts a drag out to another application yet.
+
+```dart
+Widget fileInbox(BuildContext context) {
+  final message = context.signal('Drop files, links or text');
+  void received(DVDropEvent event) {
+    message.value = event.files.isNotEmpty
+        ? event.files.map((file) => file.name).join(', ')
+        : event.urls.isNotEmpty ? event.urls.join(', ') : event.text ?? '';
+    // File contents are available with: await event.files.first.readBytes().
+  }
+  return DVBox.list([
+    DVText(message.value),
+    const DVText('Choose files instead').modifier(DVModifier().onTap(() async {
+      final event = await DV.Platform.dragDrop.chooseInstead();
+      if (event != null) received(event);
+    })),
+  ]).modifier(DVModifier().dropTarget(onDrop: received));
+}
+```

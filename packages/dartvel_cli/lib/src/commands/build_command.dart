@@ -48,6 +48,8 @@ import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
 import '../build/app_shortcuts.dart';
 import '../build/android_capture_bridge.dart';
 import '../build/android_media_bridge.dart';
+import '../build/android_drag_drop_bridge.dart';
+import '../build/ios_drag_drop_bridge.dart';
 import '../build/file_storage_permissions.dart';
 import 'store_command.dart' show dvWriteDataSafetyFiles;
 import '../build/scene3d_native.dart';
@@ -1164,6 +1166,7 @@ class BuildCommand extends Command<void> {
     // bindings call, and the usage descriptions iOS terminates an app
     // without.
     if (project == 'ios') _writeIosPlatformShim(_projectRoot);
+    if (project == 'ios') _writeIosDragDrop(_projectRoot);
     if (project == 'ios') _writeIosAssociatedDomains(_projectRoot, deepLinks);
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
@@ -2313,6 +2316,7 @@ class BuildCommand extends Command<void> {
 
     for (final MapEntry<String, String> file in <String, String>{
       dvAndroidCaptureBridgePath: dvAndroidCaptureBridgeSource(),
+      dvAndroidDragDropPath: dvAndroidDragDropSource(),
       dvAndroidBridgeActivityPath: dvAndroidBridgeActivitySource(),
       dvAndroidCaptureFilesPath: dvAndroidCaptureFilesSource(),
     }.entries) {
@@ -2771,6 +2775,21 @@ class BuildCommand extends Command<void> {
         'sharing its App Group.');
   }
 
+
+  /// The generated UIDropInteraction/UIDragInteraction bridge
+  /// (`DartvelDragDrop.swift`), written into Runner and added to its target
+  /// for every iOS build, like the platform shim: the capability list claims
+  /// the dragDrop bindings on iOS.
+  void _writeIosDragDrop(String root) {
+    final project = File(p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'));
+    if (!project.existsSync()) return;
+    final bridge = File(p.join(root, 'ios', 'Runner', dvIosDragDropFileName));
+    bridge.parent.createSync(recursive: true);
+    bridge.writeAsStringSync(dvIosDragDropSource());
+    final before = project.readAsStringSync();
+    final after = dvIosPbxprojWithDragDrop(before);
+    if (after != before) project.writeAsStringSync(after);
+  }
 
   /// The Swift shim behind the iOS `DV.Platform` bindings that need UIKit,
   /// delegates or completion blocks, compiled into the Runner target; and

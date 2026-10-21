@@ -137,6 +137,53 @@ void main() {
     });
   });
 
+  group('a drop zone or a draggable says what it is', () {
+    void ignoreDrop(DVDropEvent _) {}
+
+    testWidgets('a drop zone with no words and no tooltip is refused, naming this line',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(_app(DVBox(
+        const Icon(Icons.upload_file),
+        const DVModifier().dropTarget(onDrop: ignoreDrop),
+      )));
+      final Object? error = tester.takeException();
+      expect(error, isNotNull);
+      expect(error.toString(), contains('tooltip_required_test.dart:'));
+    });
+
+    testWidgets('a draggable with no words and no tooltip is refused', (WidgetTester tester) async {
+      await tester.pumpWidget(_app(DVBox(
+        const Icon(Icons.drag_indicator),
+        const DVModifier().draggable(const DVDragPayload(text: 'row 3')),
+      )));
+      expect(tester.takeException(), isNotNull);
+    });
+
+    testWidgets('a drop zone named with .tooltip() shows it on hover and is named for a screen reader',
+        (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await tester.pumpWidget(_app(DVBox(
+        const Icon(Icons.upload_file),
+        const DVModifier().tooltip('Drop a photo to upload').dropTarget(onDrop: ignoreDrop),
+      )));
+      expect(tester.takeException(), isNull);
+      expect(find.bySemanticsLabel('Drop a photo to upload'), findsOneWidget);
+      await _hover(tester, find.byIcon(Icons.upload_file));
+      expect(find.text('Drop a photo to upload'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('a drop zone with words in it takes its tooltip from them', (WidgetTester tester) async {
+      await tester.pumpWidget(_app(DVBox(
+        const DVText('Drop files here'),
+        const DVModifier().dropTarget(onDrop: ignoreDrop),
+      )));
+      expect(tester.takeException(), isNull);
+      await _hover(tester, find.text('Drop files here'));
+      expect(find.text('Drop files here'), findsNWidgets(2));
+    });
+  });
+
   group('a page node linked in Studio', () {
     test('is named by its words, else by where it goes', () {
       final DVPageNode image = DVPageNode(
