@@ -145,16 +145,29 @@ class DVDraggable extends StatefulWidget {
 
 class _DVDraggableState extends State<DVDraggable> {
   bool _hovered = false;
+  DVDragPayload? _armedPayload;
 
   void _arm() {
+    _armedPayload = widget.payload;
     if (!identical(DVDragDrop.pendingPayload, widget.payload)) {
       DVDragDrop.pendingPayload = widget.payload;
     }
   }
 
   void _disarm() {
-    if (identical(DVDragDrop.pendingPayload, widget.payload)) {
+    if (_armedPayload != null &&
+        identical(DVDragDrop.pendingPayload, _armedPayload)) {
       DVDragDrop.pendingPayload = null;
+    }
+    _armedPayload = null;
+  }
+
+  @override
+  void didUpdateWidget(covariant DVDraggable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_armedPayload != null &&
+        identical(DVDragDrop.pendingPayload, _armedPayload)) {
+      _arm();
     }
   }
 

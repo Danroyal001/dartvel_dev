@@ -117,6 +117,39 @@ void main() {
     expect(pending.last, isNull);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('an armed drag updates its payload on rebuild and clears it on disposal', (tester) async {
+    final pending = <Object?>[];
+    DVNativeBridge.register('dragDrop.setPending', (value) {
+      pending.add(value);
+      return true;
+    });
+    addTearDown(() => DVNativeBridge.unregister('dragDrop.setPending'));
+    Widget build(String text) => Directionality(
+      textDirection: .ltr,
+      child: Center(
+        child: DVDraggable(
+          payload: DVDragPayload(text: text),
+          child: const ColoredBox(
+            color: Color(0xff000000),
+            child: SizedBox(width: 100, height: 100),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(build('initial'));
+    final mouse = await tester.createGesture(kind: .mouse);
+    await mouse.addPointer();
+    await mouse.moveTo(tester.getCenter(find.byType(DVDraggable)));
+    await tester.pump();
+    expect((pending.last! as Map)['text'], 'initial');
+    await tester.pumpWidget(build('updated'));
+    await tester.pump();
+    expect((pending.last! as Map)['text'], 'updated');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(pending.last, isNull);
+    await mouse.removePointer();
+  });
   test('startDrag where the platform only takes a pending payload hands it over and returns false', () async {
     DVNativeBridge.unregister('dragDrop.startDrag');
     final pending = <Object?>[];
