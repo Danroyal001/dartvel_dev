@@ -37,6 +37,7 @@ import '../device_runtime.dart';
 import '../file_bindings.dart';
 import 'android_capabilities.dart';
 import 'android_capture_jni.dart';
+import 'android_fonts.dart';
 import 'android_device.dart';
 import 'android_kiosk_jni.dart';
 import 'android_media_jni.dart';
@@ -109,6 +110,9 @@ class DVAndroidBindings {
   static bool register() {
     if (_registered) return true;
     if (!Platform.isAndroid) return false;
+
+    // The font folders are files, so they need no Context.
+    DVAndroidFonts.register(DVNativeBridge.register);
 
     final context = _applicationContext();
     if (context == null) return false;

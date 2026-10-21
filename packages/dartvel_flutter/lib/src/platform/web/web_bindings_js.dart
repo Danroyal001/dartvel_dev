@@ -42,6 +42,7 @@ import 'web_capabilities.dart';
 import 'web_contacts_js.dart';
 import 'web_device_js.dart';
 import 'web_files_js.dart';
+import 'web_fonts_js.dart';
 import 'web_interop.dart';
 import 'web_kiosk_js.dart';
 import 'web_media_js.dart';
@@ -402,6 +403,7 @@ class DVWebBindings {
     // DVBox.video and DVBox.audio through the page's own media elements.
     DVWebPlayer.register();
     if (DVWebContacts.available) DVWebContacts.register(register);
+    if (DVWebFonts.available) DVWebFonts.register(register);
     if (DVWebNfc.available) DVWebNfc.register(register);
     // Web Push: the subscription and the messages the generated worker
     // forwards. Probed, so a browser without the Push API leaves the names

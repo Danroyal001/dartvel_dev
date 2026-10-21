@@ -139,6 +139,12 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
               'A window can accept dropped files or text, and gets what was '
                   'dropped and where.',
               'Native print and file dialogs have Linux, Windows and macOS bindings.',
+              'DV.Platform.fonts lists the fonts installed on the machine and '
+                  'loads the one you pick, so a font picker shows real fonts and '
+                  'text renders in them. Built on Linux and in Chromium browsers '
+                  '(checked in Chrome); '
+                  'written for Windows, macOS and Android, not yet run there. '
+                  'Where a list is empty, it says why.',
             ]),
             DocsCode('devices-desktop'),
             DocsNote('Platform access',

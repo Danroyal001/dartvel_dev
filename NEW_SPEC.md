@@ -7973,6 +7973,7 @@ Desktop:
 - clipboard and selection integration
 - printing
 - system dialogs
+- installed fonts — see [Installed fonts](#installed-fonts) below
 
 Desktop APIs live under `DV.Platform.*` and generated app services:
 
@@ -8024,6 +8025,44 @@ await DV.Platform.shortcuts.register(
 Desktop APIs are backed by generated native bindings registered under
 `window.*`, `tray.*`, `menus.*`, and `shortcuts.*`; they must fail if the
 binding is missing or rejects the request.
+
+### Installed fonts
+
+A font picker lists what is installed and renders with what is picked:
+
+```dart
+final DVFontFamilies families = await DV.Platform.fonts.families();
+if (families.isEmpty) showNote(families.reason!); // why, never a bare empty list
+
+final List<DVSystemFontFace> faces = await DV.Platform.fonts.faces(family: 'DejaVu Sans');
+final String family = await DV.Platform.fonts.load('DejaVu Sans'); // FontLoader
+DVText('Amazing grace').modifier(DVModifier().fontFamily(family));
+```
+
+`families()` never throws: where a platform cannot list its fonts it answers
+an empty list whose `reason` says why, because "this machine has no fonts" and
+"this browser will not say" are different answers. `load(family)` gives the
+family's faces to the engine through `FontLoader`, one face per weight and
+slant (the normal width where a family also has condensed faces), so a
+`TextStyle(fontFamily:)` renders in it; it throws `DVSystemFontUnavailable`,
+with the reason, when the family is not installed or its files cannot be
+read. A face in a collection (`.ttc`) is cut out as a font of its own first,
+since `FontLoader` takes one font. On a desktop the engine often finds an
+installed family by name without loading; loading makes it certain, and in a
+browser, which draws only the fonts it is given, it is the only way.
+
+Two bindings carry it: `fonts.faces` (every face: family, style, weight,
+slant, width, and the file or the browser's id) and `fonts.read` (one listed
+face's bytes; a path nothing listed is refused).
+
+| Target | Source | Status |
+|---|---|---|
+| Linux, eLinux | fontconfig (`FcFontList`) over FFI; scalable TrueType/CFF faces only, a variable font once | Built; the list matches `fc-list` exactly, and loaded faces render, in a running app |
+| Windows | the registry's font lists (HKLM and HKCU `...\CurrentVersion\Fonts`, RegEnumValueW over FFI), each file's own `name`/`OS/2` tables | Written and unit-tested off Windows; not yet run on Windows |
+| macOS | CoreText `CTFontManagerCopyAvailableFontURLs` over FFI, each file's own tables | Written; not yet run on a Mac (`.dfont` files are skipped) |
+| Android | the files in `/system/fonts`, `/product/fonts`, `/system/product/fonts`, `/vendor/fonts`, read in Dart (no JNI) | Written; not yet run on a device |
+| iOS | none: an app cannot read the system's font files | an empty list with the reason |
+| Web | the Local Font Access API (`window.queryLocalFonts`, Chromium only, permission-gated, the first call from a gesture), bytes from `FontData.blob()` | Built; listing and loading verified in headless Chrome with the permission granted, and the refusal's reason without it. Other browsers: an empty list with the reason |
 
 Embedded/device creation:
 - kiosk mode and fullscreen mode — specified in [Kiosk Mode](#kiosk-mode),
