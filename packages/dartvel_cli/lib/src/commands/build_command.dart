@@ -22,6 +22,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVHosts,
         DVModuleEnvironment,
         DVHomeWidgetSpec,
+        DVAppShortcut,
+        DVAppShortcutsConfig,
         DVBuildLifecycle,
         DVImageVariants,
         dvAndroidPermissionNames,
@@ -43,7 +45,9 @@ import '../build/symbols_bundle.dart';
 import 'symbols_command.dart';
 // dvPurchasesDeclared is the same rule in both bridges; the Apple one is used.
 import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
+import '../build/app_shortcuts.dart';
 import '../build/android_capture_bridge.dart';
+import '../build/android_media_bridge.dart';
 import '../build/file_storage_permissions.dart';
 import 'store_command.dart' show dvWriteDataSafetyFiles;
 import '../build/scene3d_native.dart';
@@ -1143,6 +1147,9 @@ class BuildCommand extends Command<void> {
       if (!_writeAppleFileStorage(_projectRoot, project)) return DVBuildTargetResult.failed;
     }
     if (project == 'ios') _writeIosDeepLinks(_projectRoot);
+    // After the deep links: the quick-action handler stores its route where
+    // that capture does, and both are blocks in the same delegate.
+    if (project == 'ios') _writeIosAppShortcuts(_projectRoot);
     // Before Xcode reads the project: the Swift the iOS DV.Platform
     // bindings call, and the usage descriptions iOS terminates an app
     // without.
@@ -1158,6 +1165,7 @@ class BuildCommand extends Command<void> {
       // the same manifest and the order the blocks appear in is the order
       // they are written.
       _writeAndroidCaptureBridge(_projectRoot);
+      _writeAndroidMedia(_projectRoot);
       // A target riding on this pipeline may leave a step out; what an
       // earlier build wrote for it then comes back out of the shared project.
       final Map<DVPlatformStep, String> leftOut =
@@ -1174,6 +1182,7 @@ class BuildCommand extends Command<void> {
       } else {
         _writeAndroidHomeWidgets(_projectRoot);
       }
+      _writeAndroidAppShortcuts(_projectRoot);
       _writeAndroidDeepLinks(_projectRoot, deepLinks);
       // Before Gradle resolves dependencies: the billing library is one.
       final String? noPurchases = leftOut[DVPlatformStep.purchases];
@@ -1676,6 +1685,76 @@ class BuildCommand extends Command<void> {
       Logger.log('⚠️  $problem');
     }
     Logger.log('   Wrote ${result.written.join(', ')} under the bundle.');
+    _writeLinuxAppShortcuts(root, bundle);
+  }
+
+  /// dartvel.appShortcuts as the desktop entry's actions. A separate step
+  /// over the entry the file-association writer produced, so the two
+  /// declarations stay in their own code.
+  void _writeLinuxAppShortcuts(String root, String bundle) {
+    final List<DVAppShortcut> shortcuts = _appShortcuts(root);
+    final String app = _packageName(root) ?? 'dartvel_app';
+    final File entry = File('$bundle/$app.desktop');
+    if (!entry.existsSync()) return;
+    final String before = entry.readAsStringSync();
+    final RegExpMatch? exec = RegExp(r'^Exec=(.*?)( %U)?$', multiLine: true).firstMatch(before);
+    if (exec == null) return;
+    final String after = dvDesktopShortcutActions(before, shortcuts, exec: exec.group(1)!);
+    if (after != before) entry.writeAsStringSync(after);
+    if (shortcuts.isNotEmpty) Logger.log('   App shortcuts: ${shortcuts.length} desktop action(s).');
+  }
+
+  /// `dartvel.appShortcuts`, its problems logged once per build step.
+  List<DVAppShortcut> _appShortcuts(String root) {
+    final DVAppShortcutsConfig config = dvAppShortcutsOf(_dartvelSection(root));
+    for (final String problem in config.problems) {
+      Logger.log('⚠️  $problem');
+    }
+    if (config.shortcuts.isNotEmpty) {
+      final List<String> routes = _generatedRoutes(root);
+      if (routes.isNotEmpty) {
+        for (final String unknown in dvAppShortcutUnknownRoutes(config.shortcuts, routes)) {
+          Logger.log('⚠️  dartvel.appShortcuts: $unknown is not a page of this application.');
+        }
+      }
+    }
+    return config.shortcuts;
+  }
+
+  List<Map<String, Object?>> _pwaShortcuts(String root) {
+    final List<DVAppShortcut> shortcuts = _appShortcuts(root);
+    final String web = p.join(root, 'build', 'web');
+    return dvPwaShortcuts(shortcuts, iconSizes: <String, int>{
+      for (final DVAppShortcut shortcut in shortcuts)
+        if (shortcut.icon != null && dvPngSize(File(p.join(web, shortcut.icon!))) != null)
+          shortcut.icon!: dvPngSize(File(p.join(web, shortcut.icon!)))!,
+    });
+  }
+
+  void _writeAndroidAppShortcuts(String root) {
+    final File manifest = File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    final String text = manifest.existsSync() ? manifest.readAsStringSync() : '';
+    final List<DVAppShortcut> shortcuts = _appShortcuts(root);
+    final DVAppShortcutsWrite result =
+        dvWriteAndroidAppShortcuts(root, shortcuts, package: _androidPackage(root, text));
+    for (final String problem in result.problems) {
+      Logger.log('⚠️  $problem');
+    }
+    if (shortcuts.isNotEmpty && result.problems.isEmpty) {
+      Logger.log('   App shortcuts: ${shortcuts.length} on the launcher icon.');
+    }
+  }
+
+  void _writeIosAppShortcuts(String root) {
+    final List<DVAppShortcut> shortcuts = _appShortcuts(root);
+    final DVAppShortcutsWrite result =
+        dvWriteIosAppShortcuts(root, shortcuts, launchUrlKey: dvIosLaunchUrlKey);
+    for (final String problem in result.problems) {
+      Logger.log('⚠️  $problem');
+    }
+    if (shortcuts.isNotEmpty) {
+      Logger.log('   App shortcuts: ${shortcuts.length} Home Screen quick action(s).');
+    }
   }
 
   /// The manifest entries and the device-admin component a declared kiosk
@@ -2086,6 +2165,59 @@ class BuildCommand extends Command<void> {
     }
   }
 
+  /// What the code under lib/ uses of Dartvel's media.
+  DVAndroidMediaUsage _androidMediaUsage(String root) {
+    final Directory lib = Directory(p.join(root, 'lib'));
+    if (!lib.existsSync()) return const DVAndroidMediaUsage();
+    return dvAndroidMediaUsage(lib
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((File f) => f.path.endsWith('.dart'))
+        .map((File f) => f.readAsStringSync()));
+  }
+
+  /// ExoPlayer, the media session and CameraX: their Java, Gradle
+  /// dependencies and manifest lines, for an application whose code uses
+  /// them, and none of it -- removed again -- for one that does not.
+  void _writeAndroidMedia(String root) {
+    final DVAndroidMediaUsage usage = _androidMediaUsage(root);
+    final File manifest = File(
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) return;
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidMediaManifest(before, usage);
+    if (after != before) manifest.writeAsStringSync(after);
+
+    for (final String name in <String>['build.gradle.kts', 'build.gradle']) {
+      final File gradle = File(p.join(root, 'android', 'app', name));
+      if (!gradle.existsSync()) continue;
+      final String was = gradle.readAsStringSync();
+      final String now =
+          dvAndroidMediaGradle(was, usage, kotlin: name.endsWith('.kts'));
+      if (now != was) gradle.writeAsStringSync(now);
+      break;
+    }
+
+    final Map<String, String> sources = dvAndroidMediaSources(usage);
+    for (final String path in dvAndroidMediaAllPaths) {
+      final File file = File(p.join(root, path));
+      final String? source = sources[path];
+      if (source == null) {
+        if (file.existsSync()) file.deleteSync();
+        continue;
+      }
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync(source);
+    }
+    if (usage.any) {
+      Logger.log('   Media: ${<String>[
+        if (usage.player) 'ExoPlayer and a media session',
+        if (usage.camera) 'CameraX',
+      ].join(' and ')} for the code under lib/.');
+    }
+  }
+
+  /// Writes the Activity and permissions used by the capture bindings.
   void _writeAndroidCaptureBridge(String root) {
     final File manifest = File(
         p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
@@ -2098,6 +2230,7 @@ class BuildCommand extends Command<void> {
     final DVFileStorageConfig fileStorage =
         DVFileStorageConfig.parse(_dartvelSection(root)['fileStorage']);
     final List<String> requested = <String>[
+      ...dvAndroidMediaPermissions(_androidMediaUsage(root)),
       // dartvel.push.android implies the notifications permission, which
       // Android 13 and later will not show a banner without.
       ...dvAndroidPushPermissions(
@@ -3079,6 +3212,7 @@ class BuildCommand extends Command<void> {
         themeColor: '${settings['themeColor'] ?? '#000000'}',
         backgroundColor: '${settings['backgroundColor'] ?? '#FFFFFF'}',
         description: settings['description'] as String?,
+        shortcuts: _pwaShortcuts(root),
       ),
     );
 

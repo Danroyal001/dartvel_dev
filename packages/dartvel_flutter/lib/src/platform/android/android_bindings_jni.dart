@@ -40,6 +40,8 @@ import 'android_capture_jni.dart';
 import 'android_device.dart';
 import 'android_drag_drop_jni.dart';
 import 'android_kiosk_jni.dart';
+import 'android_media_jni.dart';
+import 'android_push_jni.dart';
 import 'android_radios_jni.dart';
 import 'android_system_jni.dart';
 import 'generated/android/app/Activity.dart';
@@ -267,6 +269,7 @@ class DVAndroidBindings {
     }
 
     DVDeviceRuntime.probes = DVAndroidDeviceProbes(context);
+    DVAndroidMedia.register(directory: '$files/dartvel-media');
     DVDeviceRuntime.stateDirectory = state;
     DVDeviceRuntime.register(DVNativeBridge.register);
 

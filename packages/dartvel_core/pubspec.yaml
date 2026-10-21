@@ -1,7 +1,7 @@
 
 name: dartvel_core
 description: The pure-Dart runtime shared by Dartvel apps, servers and the CLI — records with history, auth, jobs, cache, notifications, privacy and webhooks.
-version: 0.13.11
+version: 0.13.12
 repository: https://github.com/Danroyal001/dartvel_dev
 homepage: https://dartvel.dev
 environment:
@@ -57,6 +57,7 @@ dev_dependencies:
   test: ^1.28.0
   build_runner: ^2.4.0
   drift_dev: ^2.14.0
+  yaml: ^3.1.2
 
 # AWS's own SigV4 documentation test vectors, not a credential. The pair
 # AKIDEXAMPLE / wJalrXUtnFEMI...EXAMPLEKEY is what AWS publishes for verifying

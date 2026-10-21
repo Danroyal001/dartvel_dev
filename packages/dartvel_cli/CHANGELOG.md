@@ -1,3 +1,8 @@
+## 0.13.12 — 2026-10-21
+
+- Generate Media3/CameraX Java, inferred camera permissions and dependencies for Android media call sites; remove unused generated bridges on rebuild.
+- Write `dartvel.appShortcuts` into each target at build time: the web manifest's shortcuts, Android `shortcuts.xml`, iOS `UIApplicationShortcutItems`, Linux desktop actions.
+
 ## 0.13.11 — 2026-10-21
 
 - A server built without Studio (switched off, or compiled out of a release) answers `/_dartvel/pages` with an empty list. 0.13.10 fixed the development server only; the generated server, which a web-server binary runs, still answered 404 on every page load.

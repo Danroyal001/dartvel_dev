@@ -38,3 +38,19 @@ Widget messagePage(
       child: pageContent,
     );
 // docs:end
+
+Widget fileRow(Widget row, ValueChanged<String> onAction) =>
+    // docs:start context-menu
+    DVContextMenu(
+      items: const [
+        DVMenuItem(id: 'open', label: 'Open'),
+        DVMenuItem(id: 'rename', label: 'Rename', shortcut: 'mod+r'),
+        DVMenuItem(id: 'share', label: 'Share', children: [
+          DVMenuItem(id: 'share.link', label: 'Copy link'),
+        ]),
+        DVMenuItem(id: 'delete', label: 'Delete'),
+      ],
+      onSelected: onAction,
+      child: row,
+    );
+// docs:end
