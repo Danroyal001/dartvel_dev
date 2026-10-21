@@ -127,6 +127,7 @@ export 'src/cache/dv_cache.dart'
     show DVCache, DVCacheTag, DVCacheTarget, DVCacheView;
 export 'src/cache/memcached.dart';
 export 'src/cache/redis.dart';
+export 'src/config/app_shortcuts.dart';
 export 'src/content/content_workflow.dart';
 export 'src/crashes/crashes.dart';
 export 'src/crypto/app_key.dart';
@@ -267,6 +268,7 @@ export 'src/notifications/web_push_vapid.dart';
 // src/dv.dart; DVObservability itself stays inside the framework.
 export 'src/observability/observability.dart' hide DVObservability;
 export 'src/platform/android_capture.dart';
+export 'src/platform/android_media.dart';
 export 'src/platform/ios_platform_shim.dart';
 export 'src/platform_config.dart';
 export 'src/preview/preview.dart';

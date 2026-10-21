@@ -1,3 +1,9 @@
+## 0.13.12 — 2026-10-21
+
+- `DVContextMenu`: a per-element menu opened by right-click, long-press, the menu key or Shift+F10, and by screen readers as custom actions. On the web it adds "More" for the browser's menu and leaves Shift+right-click to the browser; it steps aside for selected text so Copy and Select all still open; every item's tooltip is its label.
+- Android media: `dartvel build` writes a Media3 (ExoPlayer) player, media session and CameraX camera bridge behind the existing `DVMediaController` and `DVCameraController` contracts, with device selection, permissions and one native event decoder shared with Apple targets. Built and unit-tested; not yet verified on a device. Apple players and cameras are not implemented yet.
+
+
 ## 0.13.11 — 2026-10-21
 
 - Version aligned with dartvel_core 0.13.11.
@@ -62,6 +68,8 @@
 - Web drag and drop with file bytes; `DV.Platform.media.readCapture`.
 
 ## Unreleased
+
+- Android native media: generated Media3/CameraX bridges and JNI adapters against the current player/camera contracts, with device ids, event decoding and disposal tests. Hardware verification pending. Apple branch contributes event-schema tests only; no AVPlayer/AVFoundation implementation.
 
 - `dartvel.hosts` on the web: `dvUseHosts` installs the table for `Uri.base.host`. On a mounted host `DVRouter` maps the browser's location into the mount (so `foo.apps.example.com/` is the `/apps/foo` page on first load and reload) and shows routes under the mount without it. `DVNavLink`'s href is `dvPublicLocation`: the path without the mount on its own host, or an absolute URL on the host that owns the route, followed in the same tab. Client-side SEO writes the server's canonical. Nothing changes without hosts, on the primary host's routing, or off the web.
 - Drag and drop on the web: `DV.Platform.dragDrop.accept()` now works in a browser. Dropped files arrive in the new `DVDropEvent.files` (`DVDroppedFile`: name, MIME type and bytes), since a page is never given a path; dropped text arrives as `text`. `DV.Platform.dragDrop.draggingOver` reports a drag entering and leaving the window, so a page can show where to drop.

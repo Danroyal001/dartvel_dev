@@ -424,6 +424,13 @@ picture-in-picture is listed under Media Playback and Capture in
 `docs/spec-status.json`; elsewhere the box reports that nothing is bound
 rather than drawing an empty rectangle.
 
+Android builds generate Media3 playback and CameraX capture bridges and bind
+them through JNI to these same controllers. Native event decoding and adapter
+contracts are unit-tested; playback, camera hardware and lock-screen controls
+still need an Android device run. Screen capture, DRM, casting, PiP and widget
+encoding are not exposed by the Android adapter. iOS/macOS have event-schema
+tests only, with no AVPlayer/AVFoundation backend or Apple build verification.
+
 ## The web: SEO and PWA
 
 A page's `title` and `description` on `@DVPage` become its title, meta

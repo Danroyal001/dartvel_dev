@@ -902,6 +902,7 @@ export 'src/table/table.dart';
 export 'src/updates/shorebird_updates.dart'
     show DVShorebirdNative, DVShorebirdUpdates;
 export 'src/widgets/browser_menu.dart' show DVBrowserMenu;
+export 'src/widgets/context_menu.dart';
 export 'src/widgets/home_widgets.dart';
 export 'src/widgets/shortcuts.dart';
 export 'src/windowing/app_launch.dart';
