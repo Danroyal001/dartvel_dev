@@ -406,11 +406,11 @@ DV.Platform.associations.opened.listen((DVOpenedFile file) async {
 await DV.Platform.associations.pick();
 ```
 
-File-association registration is generated for the supported targets, while
-Tizen opened-file delivery remains unwired. The common picker fallback is
-available only when `DV.Platform.associations.canPick` is true. Physical mobile
-opening, installed-PWA opening and desktop installation are not verified by the
-portable runtime tests.
+Run on Linux (opened through the desktop's own launcher, including files
+handed to an already running instance) and on the web (`launchQueue` in
+headless Chrome). Android, iOS, macOS and Windows delivery is unit-tested, not
+yet run on a device; Tizen delivery is not wired. The picker fallback is there
+when `DV.Platform.associations.canPick` is true.
 
 The bindings reach native code through `dart:ffi` (X11, GTK and GDBus on
 Linux, the Win32 API, the Objective-C runtime on Apple platforms),

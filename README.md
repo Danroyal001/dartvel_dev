@@ -1368,11 +1368,17 @@ DV.Platform.associations.opened.listen((DVOpenedFile file) async {
 });
 ```
 
-File-association delivery is implemented through Android JNI, iOS defaults,
-web `launchQueue` and desktop launch arguments. Tizen delivery remains unwired;
-use the picker where `DV.Platform.associations.canPick` is true. Generated
-registration files still need normal OS installation, and physical mobile and
-installed-PWA opening require device verification.
+Verified on Linux (a file opened with `gio open` reaches the built app, and
+files opened while it runs reach the same instance) and on the web (manifest
+handlers, and a `launchQueue` file with its bytes, in headless Chrome). Android,
+iOS, macOS and Windows are generated and unit-tested but not yet run on a
+device; an installed PWA's OS launch has not been exercised; Tizen delivery is
+not wired, so use the picker there. Desktop registration takes effect once the
+generated files are installed, and no MSIX is produced.
+
+Repeat `dartvel build web` and `web-server` runs reuse Flutter's web build and
+each route's capture while their inputs are unchanged (`.dartvel/cache`,
+`--no-cache` to bypass); see the CLI README.
 
 **How this compares to Expo.** People looking for "Expo for Flutter" usually
 want some of these:

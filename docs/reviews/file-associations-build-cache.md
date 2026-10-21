@@ -1,72 +1,42 @@
-# File associations and web build cache verification
+# File associations and the web build cache: verification
 
-This landing ports the missing parts of `feat/file-associations-everywhere`
-and `feat/build-cache` onto Dartvel 0.13.12. Existing desktop registration,
-app shortcuts, deep links, signing and target-extension hooks remain in the
-current build pipeline.
+Lands `feat/file-associations-everywhere` and `feat/build-cache` on 0.13.12.
+Every result below was run on a fresh `dartvel create` app built from this
+branch (Flutter 3.47.5, Linux x64). The app declared two types:
+`application/x-assoc-note` (`*.anote`, SVG icon) and `text/csv` (viewer), and
+printed each file `DV.Platform.associations.opened` delivered.
 
-## Scope
+## File associations
 
-One `dartvel.fileAssociations` declaration feeds Android intent filters,
-iOS/macOS document metadata, installed-web-app file handlers, Linux desktop
-and MIME files, Windows registry scripts and Tizen app controls. Opened files
-use the existing platform surface, `DV.Platform.associations`, through Android
-JNI, iOS defaults, desktop launch arguments and web `launchQueue`. A picker
-feeds that same stream where a picker binding is available. Buffering is
-internal; applications receive `DVOpenedFile`.
+| Target | What was checked | Result |
+|---|---|---|
+| Linux | `dartvel build linux`; the bundle's desktop entry and shared-mime-info package installed into an isolated XDG home; `xdg-mime` and `gio open` under Xvfb | `MimeType=application/x-assoc-note;text/csv;`, `*.anote` resolves to the declared type, its icon is installed under `hicolor/scalable/mimetypes`. `gio open march.anote` started the app and it received the file (11 bytes). Opening `second.csv` and `with space.anote` while it ran started two short-lived launches that handed the files over and exited; all three arrived on the first instance's stream |
+| Web (web-server build) | the built server, own headless Chrome | the served manifest has one `file_handlers` entry per type, the note's icon is served as `image/svg+xml`; a file given to `launchQueue` reached the stream with its name and bytes. An installed PWA's OS launch was not exercised |
+| Android, iOS, macOS, Windows, Tizen | generated-output tests | intent filters and `DartvelOpenActivity`; document types, UTIs and the delegate block; registry script and `.ico` icons; app controls. Not run on a device. Tizen delivery is not wired (picker). No MSIX is produced |
 
-Per-type icons are generated for web/Linux and Windows `.ico` files. Apple
-and Android per-type icons are not generated. Tizen opened-file delivery is
-unwired. Generating registration files does not prove OS installation, physical
-mobile opening or opening an installed PWA; those remain unverified here.
+## Build cache
 
-The build cache reuses raw Flutter web output before post-processing and route
-captures grouped by web build. Entries are verified by file sizes and hashes.
-`--no-cache` bypasses both reads and writes. Native builds and backend binaries
-are not cached. Prerenders that depend on changing external data or the clock
-need `--no-cache`.
+Web-server builds with `SOURCE_DATE_EPOCH` set, compared with `diff -r` over
+`build/web`, `build/server` and `.dart_tool/dartvel_semantics`:
 
-## Verification completed so far
+| Build | Time | Flutter web | Captures (6 routes) | Output vs the cold build |
+|---|---|---|---|---|
+| cold (empty cache) | 263 s | compiled | captured | - |
+| warm (nothing changed) | 73 s | reused | all reused | identical, server binary included |
+| `--no-cache` | 249 s | compiled | captured | only Flutter's own `serviceWorkerVersion` (2 lines of `flutter_bootstrap.js`, and the binary embedding it); the cache directory was not touched |
+| backend function edited | 194 s | compiled | all reused | only `serviceWorkerVersion` |
+| one page edited | 276 s | compiled | captured | that route's capture changed; the other five are identical |
 
-- Association-focused CLI suite: 73 passed, including generated registration,
-  per-type icons, reversible macOS metadata removal, desktop writers, mobile
-  launch wiring and existing app shortcuts.
-- Cache suite: 26 passed. Regression tests first demonstrated omitted font and
-  path-dependency assets, failure to store an empty output, and an unsafe
-  manifest path; all four now pass.
-- Flutter focused suite: 35 passed, including opened-file buffering, initial
-  files, pickers, desktop registrations and shortcut launch behavior.
-- Core configuration suite: 13 passed.
-- Spec-status validation and the no-Python check passed; browser-proof tool
-  analysis reports no issues.
-- A fresh `dartvel create` scratch application built for web with Flutter
-  3.47.5 / Dart 3.13.4, captured all five routes and passed the build's
-  accessibility check.
+Two faults were found by these runs and fixed with tests:
 
-## Full output comparison fixture
+- Flutter writes into `build/web` without clearing it, so the "raw Flutter
+  output" stored in the cache included `dartvel_routes.json` and the prefetch
+  manifest left by the previous build, and those decided the capture keys. The
+  Flutter step now starts from an empty `build/web`.
+- Flutter changes `serviceWorkerVersion` on every compile of unchanged code,
+  so any recompile recaptured every route. The capture key leaves that value
+  out (it only names Flutter's deprecated worker, which Dartvel replaces).
 
-The default scaffold displays `DateTime.now()`. Independent prerenders of that
-label cannot have identical bytes. The parity fixture replaces only that label
-with fixed text, adds a declared SVG file-type icon, and adds an opened-file
-stream display for the browser check. Output files are not normalized.
-
-The comparison sequence is:
-
-1. Build web with caching enabled to seed both caches.
-2. Build web again; require logged hits for Flutter output and every route's
-   capture, then compare every output filename and byte with `diff -qr`.
-3. Build web with `--no-cache`; compare every output filename and byte against
-   the seeded build again.
-4. Build the fixture as web-server and Android, then inspect the APK manifest
-   and check opened-file delivery in an isolated browser.
-
-The portable browser proof tool is
-`packages/dartvel_cli/tool/verify_assoc_cache_browser.dart`. It starts and stops
-its own server and browser, checks server-rendered document text, native find,
-selection, Tab focus and accessibility names, and captures light/dark screens.
-The scratch mode also injects a browser file through `launchQueue` and requires
-the file's name and byte count to reach the application display. This tests the
-browser delivery path; it does not claim an installed-PWA OS launch.
-
-Full suites, output parity, APK inspection, site build and browser results are
-still pending. This report will be updated with their actual results.
+Without `SOURCE_DATE_EPOCH`, Dartvel's service worker cache name is the build
+time, so two builds always differ in that one line; that is deliberate (each
+deploy opens a new cache) and unrelated to the build cache.

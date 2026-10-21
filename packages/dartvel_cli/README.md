@@ -14,19 +14,6 @@ This package is the command. The framework an application imports is
 [`dartvel_flutter`](https://pub.dev/packages/dartvel_flutter), or all of it at
 once through [`dartvel_dev`](https://pub.dev/packages/dartvel_dev).
 
-## Build cache
-
-`dartvel build` reuses the Flutter web build and each route's semantic capture
-when their inputs are byte-for-byte unchanged. The cache lives under `.dartvel/cache`.
-Use `--no-cache` to rebuild everything fresh. See `packages/dartvel_cli/lib/src/build/build_cache.dart`.
-
-## File associations
-
-A single `dartvel.fileAssociations` declaration (in `pubspec.yaml` or a Dart
-config class) is registered on every target at build time: Android intent
-filters, iOS/macOS document types, web PWA file handlers, Linux `.desktop`
-and MIME info, Windows registry scripts. See `packages/dartvel_cli/lib/src/build/file_associations.dart`.
-
 ## Install
 
 Install the CLI from pub.dev, or as a self-contained executable with the Dart
@@ -412,6 +399,30 @@ cleartext refused through a network security config except to
 host), and an R8 rule keeping the `dev.dartvel` classes Dart calls over JNI.
 Debug and profile builds are otherwise unchanged.
 
+### Repeat web builds
+
+`dartvel build web` and `web-server` keep Flutter's web output and each route's
+semantics capture in `.dartvel/cache`, keyed by the contents of everything that
+can change them (sources, assets, path dependencies, flags, Flutter and Dartvel
+versions). An unchanged rebuild reuses both; an edit that leaves the compiled
+app the same (a backend function) recompiles Flutter but reuses the captures.
+`--no-cache` neither reads nor writes the cache; use it when a prerendered page
+reads changing external data or the clock. Native targets and the server binary
+are always built. Set `SOURCE_DATE_EPOCH` to make two builds of the same
+sources byte-identical (it fixes the service worker's build id).
+
+### File types the app opens
+
+`dartvel.fileAssociations` (or the same field of a Dart config class) is
+registered by every build: web manifest `file_handlers`, a Linux and Sony eLinux
+desktop entry with a shared-mime-info package, a per-user Windows registry
+script beside the binary (no MSIX), macOS and iOS document types, Android
+intent filters, Tizen app controls. Per-type `icon`s are written for the web,
+Linux and Windows (`.ico`). On a desktop the files take effect once installed:
+on Linux the `.desktop` file into `applications/` and the bundle's `share/` into
+the data directory, followed by `update-mime-database`; on Windows the `.reg`
+script.
+
 ## Deploying
 
 ```sh
@@ -602,10 +613,3 @@ published identifiers carry a suffix: `dartvel_cli` for this package and
 - [What is built, per spec section](https://github.com/Danroyal001/dartvel_dev/blob/main/docs/spec-status.json)
 - [Releases](https://github.com/Danroyal001/dartvel_dev/releases)
 - [Issues](https://github.com/Danroyal001/dartvel_dev/issues)
-
-The web cache covers raw Flutter output and route captures, with route captures
-retained together per web build. Backend binaries and native builds still run.
-Use `--no-cache` for prerenders that read changing external data or the clock.
-Association registration still needs installation on desktop systems; mobile
-OS and installed-PWA opening have not been verified by this landing. Tizen
-registration is generated, but delivery there remains unwired.

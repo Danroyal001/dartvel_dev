@@ -178,6 +178,12 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
             DocsText('On a desktop a file still also opens the `/open?path=` '
                 'route, as before. `dartvel.desktop.fileAssociations` still '
                 'works and warns that it has moved to `dartvel.fileAssociations`.'),
+            DocsText('Tried so far on Linux, where a file opened from the '
+                'desktop reaches the running app, and in Chrome, where a file '
+                'handed to the web app arrives with its bytes. Android, iOS, '
+                'macOS and Windows are generated and tested in code but not yet '
+                'run on a device, and on Tizen files come in through the picker '
+                'for now.'),
           ],
         ),
         DocsSection(
