@@ -167,8 +167,8 @@ void main() {
       });
       await tester.pumpWidget(MaterialApp(
         home: Center(
-          child: DVBox(const SizedBox(width: 80, height: 80, child: Text('drag me')))
-              .modifier(DVModifier().draggable(const DVDragPayload(text: 'carried'))),
+          child: const DVBox(SizedBox(width: 80, height: 80, child: Text('drag me')))
+              .modifier(const DVModifier().draggable(const DVDragPayload(text: 'carried'))),
         ),
       ));
       final TestGesture gesture = await tester.startGesture(tester.getCenter(find.text('drag me')));
@@ -204,11 +204,11 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: Column(children: <Widget>[
-            DVBox(const SizedBox(width: 80, height: 80, child: Text('drag me')))
-                .modifier(DVModifier().draggable(const DVDragPayload(text: 'moved'))),
+            const DVBox(SizedBox(width: 80, height: 80, child: Text('drag me')))
+                .modifier(const DVModifier().draggable(const DVDragPayload(text: 'moved'))),
             const SizedBox(height: 100),
-            DVBox(const SizedBox(width: 200, height: 120, child: Text('drop here')))
-                .modifier(DVModifier().dropTarget(onDrop: dropped.add)),
+            const DVBox(SizedBox(width: 200, height: 120, child: Text('drop here')))
+                .modifier(const DVModifier().dropTarget(onDrop: dropped.add)),
           ]),
         ),
       ));
@@ -228,8 +228,8 @@ void main() {
         home: Scaffold(
           body: Center(
             // Named: a drop zone says what it takes, like every control.
-            child: DVBox(const SizedBox(width: 100, height: 100))
-                .modifier(DVModifier().tooltip('Drop a file').dropTarget(onDrop: dropped.add)),
+            child: const DVBox(SizedBox(width: 100, height: 100))
+                .modifier(const DVModifier().tooltip('Drop a file').dropTarget(onDrop: dropped.add)),
           ),
         ),
       ));

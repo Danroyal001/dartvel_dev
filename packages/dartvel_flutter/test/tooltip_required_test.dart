@@ -144,7 +144,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(_app(DVBox(
         const Icon(Icons.upload_file),
-        DVModifier().dropTarget(onDrop: ignoreDrop),
+        const DVModifier().dropTarget(onDrop: ignoreDrop),
       )));
       final Object? error = tester.takeException();
       expect(error, isNotNull);
@@ -154,7 +154,7 @@ void main() {
     testWidgets('a draggable with no words and no tooltip is refused', (WidgetTester tester) async {
       await tester.pumpWidget(_app(DVBox(
         const Icon(Icons.drag_indicator),
-        DVModifier().draggable(const DVDragPayload(text: 'row 3')),
+        const DVModifier().draggable(const DVDragPayload(text: 'row 3')),
       )));
       expect(tester.takeException(), isNotNull);
     });
@@ -164,7 +164,7 @@ void main() {
       final SemanticsHandle handle = tester.ensureSemantics();
       await tester.pumpWidget(_app(DVBox(
         const Icon(Icons.upload_file),
-        DVModifier().tooltip('Drop a photo to upload').dropTarget(onDrop: ignoreDrop),
+        const DVModifier().tooltip('Drop a photo to upload').dropTarget(onDrop: ignoreDrop),
       )));
       expect(tester.takeException(), isNull);
       expect(find.bySemanticsLabel('Drop a photo to upload'), findsOneWidget);
@@ -176,7 +176,7 @@ void main() {
     testWidgets('a drop zone with words in it takes its tooltip from them', (WidgetTester tester) async {
       await tester.pumpWidget(_app(DVBox(
         const DVText('Drop files here'),
-        DVModifier().dropTarget(onDrop: ignoreDrop),
+        const DVModifier().dropTarget(onDrop: ignoreDrop),
       )));
       expect(tester.takeException(), isNull);
       await _hover(tester, find.text('Drop files here'));

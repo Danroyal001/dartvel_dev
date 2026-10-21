@@ -147,8 +147,9 @@ class DVDropEvent {
       );
     }
     for (final Object? path in (map['paths'] as List?) ?? const <Object?>[]) {
-      if (path is String && path.isNotEmpty)
+      if (path is String && path.isNotEmpty) {
         files.add(DVIncomingFile.atPath(path));
+      }
     }
     return DVDropEvent(
       files: files,
@@ -368,8 +369,9 @@ class DVDragDrop {
         final handled = await DVNativeBridge.require<bool>('dragDrop.accept', {
           'types': [for (final type in DVDropType.values) type.name],
         });
-        if (!handled)
+        if (!handled) {
           throw StateError('Native drag and drop binding rejected accept.');
+        }
       } catch (_) {
         _nativeActive = false;
         _nativeAllTypes = false;
@@ -389,8 +391,9 @@ class DVDragDrop {
     _nativeActive = false;
     _nativeAllTypes = false;
     final handled = await DVNativeBridge.require<bool>('dragDrop.stop');
-    if (!handled)
+    if (!handled) {
       throw StateError('Native drag and drop binding rejected stop.');
+    }
   }
 
   static void reset() {
@@ -423,8 +426,9 @@ class DVDragDrop {
         ],
       },
     );
-    if (!handled)
+    if (!handled) {
       throw StateError('Native drag and drop binding rejected accept.');
+    }
     _onDrop = onDrop;
     _types = types.toSet();
     _nativeActive = true;

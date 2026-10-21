@@ -1,8 +1,7 @@
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/widgets.dart';
-
 import 'dart:ui' show PointerDeviceKind;
 
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -89,12 +88,12 @@ void main() {
     });
     addTearDown(() => DVNativeBridge.unregister('dragDrop.setPending'));
     await tester.pumpWidget(
-      Directionality(
+      const Directionality(
         textDirection: .ltr,
         child: Center(
           child: DVDraggable(
-            payload: const DVDragPayload(text: 'link'),
-            child: const ColoredBox(
+            payload: DVDragPayload(text: 'link'),
+            child: ColoredBox(
               color: Color(0xff000000),
               child: SizedBox(width: 100, height: 100),
             ),

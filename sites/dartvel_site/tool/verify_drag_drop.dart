@@ -90,8 +90,9 @@ Future<void> main(List<String> args) async {
         if (doc['find'] != true ||
             doc['selection'] != true ||
             doc['overflow'] == true ||
-            names < 3 || focus == 'BODY')
+            names < 3 || focus == 'BODY') {
           throw StateError('Document accessibility failed: $doc, $names nodes');
+        }
       }
     }
     File('${out.path}/checks.json').writeAsStringSync(

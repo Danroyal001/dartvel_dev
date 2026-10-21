@@ -11,8 +11,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Center(
-          child: DVBox(const Text('Drop here')).modifier(
-            DVModifier()
+          child: const DVBox(Text('Drop here')).modifier(
+            const DVModifier()
                 .dropTarget(onDrop: received.add, types: {.text})
                 .width(160)
                 .height(80),
@@ -35,8 +35,8 @@ void main() {
     DVNativeBridge.unregister('dragDrop.setPending');
     await tester.pumpWidget(
       MaterialApp(
-        home: DVBox(const Text('Drag me')).modifier(
-          DVModifier()
+        home: const DVBox(Text('Drag me')).modifier(
+          const DVModifier()
               .draggable(const DVDragPayload(text: 'payload'))
               .padding(8),
         ),

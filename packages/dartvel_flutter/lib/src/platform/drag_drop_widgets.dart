@@ -14,7 +14,6 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 
 import 'drag_drop.dart';
-import '../../dartvel_flutter.dart' show DVNativeBridge;
 import 'incoming_file.dart';
 
 /// What `.dropTarget(...)` was given.
@@ -56,8 +55,9 @@ class _DVDropTargetState extends State<DVDropTarget> {
   Rect? _bounds() {
     if (!mounted) return null;
     final RenderObject? object = context.findRenderObject();
-    if (object is! RenderBox || !object.hasSize || !object.attached)
+    if (object is! RenderBox || !object.hasSize || !object.attached) {
       return null;
+    }
     return object.localToGlobal(Offset.zero) & object.size;
   }
 
@@ -201,9 +201,11 @@ Widget dvWrapDragDrop(
   DVDragPayload? draggable,
 ) {
   Widget result = child;
-  if (draggable != null)
+  if (draggable != null) {
     result = DVDraggable(payload: draggable, child: result);
-  if (dropTarget != null)
+  }
+  if (dropTarget != null) {
     result = DVDropTarget(spec: dropTarget, child: result);
+  }
   return result;
 }
