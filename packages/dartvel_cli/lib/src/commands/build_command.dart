@@ -63,6 +63,7 @@ import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
 import '../build/launcher_identity.dart';
 import '../build/platform_scaffold.dart';
+import '../build/build_cache.dart';
 import '../build/native_splash.dart';
 import '../build/capture_completeness.dart';
 import '../build/home_widget_check.dart';
@@ -421,6 +422,11 @@ class BuildCommand extends Command<void> {
           help: 'Target architecture for embedded builds')
       ..addFlag('split-per-abi',
           defaultsTo: false, help: 'Split APKs per ABI (Android)')
+      ..addFlag('cache',
+          defaultsTo: true,
+          help: 'Reuse a step whose inputs are byte-for-byte unchanged '
+              '(the Flutter web build, each route\'s semantics capture). '
+              'Kept in .dartvel/cache; --no-cache builds everything afresh.')
       ..addOption('build-number', help: 'Build number')
       ..addOption('build-name', help: 'Build name/version')
       ..addFlag('obfuscate',

@@ -14,6 +14,19 @@ This package is the command. The framework an application imports is
 [`dartvel_flutter`](https://pub.dev/packages/dartvel_flutter), or all of it at
 once through [`dartvel_dev`](https://pub.dev/packages/dartvel_dev).
 
+## Build cache
+
+`dartvel build` reuses the Flutter web build and each route's semantic capture
+when their inputs are byte-for-byte unchanged. The cache lives under `.dartvel/cache`.
+Use `--no-cache` to rebuild everything fresh. See `packages/dartvel_cli/lib/src/build/build_cache.dart`.
+
+## File associations
+
+A single `dartvel.fileAssociations` declaration (in `pubspec.yaml` or a Dart
+config class) is registered on every target at build time: Android intent
+filters, iOS/macOS document types, web PWA file handlers, Linux `.desktop`
+and MIME info, Windows registry scripts. See `packages/dartvel_cli/lib/src/build/file_associations.dart`.
+
 ## Install
 
 Install the CLI from pub.dev, or as a self-contained executable with the Dart
