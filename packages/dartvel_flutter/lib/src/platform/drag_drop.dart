@@ -253,6 +253,11 @@ class DVDragDrop {
       DVNativeBridge.isRegistered('dragDrop.startDrag') ||
       DVNativeBridge.isRegistered('dragDrop.setPending');
 
+  /// Whether Dart starts a drag out (`dragDrop.startDrag`). Where only
+  /// `dragDrop.setPending` exists (a browser) the platform starts its own
+  /// drag from the press, and [startDrag] cannot start one.
+  bool get startsDrags => DVNativeBridge.isRegistered('dragDrop.startDrag');
+
   /// For platform bindings: something was dropped at the event's position.
   ///
   /// The smallest widget target under the drop that admits what it carries
@@ -417,14 +422,21 @@ class DVDragDrop {
   /// Starts a drag out of the application carrying [payload].
   ///
   /// Returns false where the platform declined to start one (no pointer
-  /// down, or nothing to carry). Throws naming the binding where the target
-  /// has no drag out at all; check [canDragOut] first to decide what to offer.
+  /// down, or nothing to carry), and where the platform starts drags itself
+  /// from a press and only takes the payload ahead of time (a browser: the
+  /// payload is handed over as [pendingPayload] instead). Throws naming the
+  /// binding where the target has no drag out at all; check [canDragOut]
+  /// first to decide what to offer.
   Future<bool> startDrag(
     DVDragPayload payload, {
     double x = 0,
     double y = 0,
   }) async {
     if (payload.isEmpty) return false;
+    if (!startsDrags && DVNativeBridge.isRegistered('dragDrop.setPending')) {
+      pendingPayload = payload;
+      return false;
+    }
     return DVNativeBridge.require<bool>('dragDrop.startDrag', <String, Object?>{
       ...payload.toJson(),
       'x': x,

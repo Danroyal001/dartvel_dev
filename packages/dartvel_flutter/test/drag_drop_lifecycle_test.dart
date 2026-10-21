@@ -114,6 +114,22 @@ void main() {
     expect(pending.last, isNull);
     expect(tester.takeException(), isNull);
   });
+  test('startDrag where the platform only takes a pending payload hands it over and returns false', () async {
+    DVNativeBridge.unregister('dragDrop.startDrag');
+    final pending = <Object?>[];
+    DVNativeBridge.register('dragDrop.setPending', (value) {
+      pending.add(value);
+      return true;
+    });
+    addTearDown(() => DVNativeBridge.unregister('dragDrop.setPending'));
+    final started = await const DVDragDrop().startDrag(
+      const DVDragPayload(text: 'out'),
+    );
+    expect(started, isFalse);
+    expect(const DVDragDrop().startsDrags, isFalse);
+    expect(DVDragDrop.pendingPayload?.text, 'out');
+    expect((pending.single! as Map)['text'], 'out');
+  });
   testWidgets('rebuilding a drop target updates its accepted types', (
     tester,
   ) async {

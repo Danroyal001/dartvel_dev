@@ -153,6 +153,33 @@ class DVDraggable extends StatelessWidget {
         child: child,
       );
     }
+    // Where the platform starts the drag itself from the press (a browser)
+    // the pending payload is all it needs: there is no startDrag to call.
+    final Widget pressed = !dragDrop.startsDrags
+        ? child
+        : GestureDetector(
+            // A finger holds before it drags, so a scroll stays a scroll; a
+            // mouse drags at once, as it does on a desktop.
+            onLongPressStart: (LongPressStartDetails details) => unawaited(
+              dragDrop.startDrag(
+                payload,
+                x: details.globalPosition.dx,
+                y: details.globalPosition.dy,
+              ),
+            ),
+            onPanStart: (DragStartDetails details) {
+              if (details.kind == PointerDeviceKind.mouse) {
+                unawaited(
+                  dragDrop.startDrag(
+                    payload,
+                    x: details.globalPosition.dx,
+                    y: details.globalPosition.dy,
+                  ),
+                );
+              }
+            },
+            child: child,
+          );
     return Listener(
       // Set before the platform asks: iPadOS and browsers start their own
       // drag from the pointer and ask what it carries at that moment.
@@ -162,29 +189,7 @@ class DVDraggable extends StatelessWidget {
       // already read it by then.
       onPointerUp: (_) => DVDragDrop.pendingPayload = null,
       onPointerCancel: (_) => DVDragDrop.pendingPayload = null,
-      child: GestureDetector(
-        // A finger holds before it drags, so a scroll stays a scroll; a
-        // mouse drags at once, as it does on a desktop.
-        onLongPressStart: (LongPressStartDetails details) => unawaited(
-          dragDrop.startDrag(
-            payload,
-            x: details.globalPosition.dx,
-            y: details.globalPosition.dy,
-          ),
-        ),
-        onPanStart: (DragStartDetails details) {
-          if (details.kind == PointerDeviceKind.mouse) {
-            unawaited(
-              dragDrop.startDrag(
-                payload,
-                x: details.globalPosition.dx,
-                y: details.globalPosition.dy,
-              ),
-            );
-          }
-        },
-        child: child,
-      ),
+      child: pressed,
     );
   }
 }
