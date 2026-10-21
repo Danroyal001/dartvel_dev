@@ -589,3 +589,11 @@ published identifiers carry a suffix: `dartvel_cli` for this package and
 - [What is built, per spec section](https://github.com/Danroyal001/dartvel_dev/blob/main/docs/spec-status.json)
 - [Releases](https://github.com/Danroyal001/dartvel_dev/releases)
 - [Issues](https://github.com/Danroyal001/dartvel_dev/issues)
+
+## Native drag-and-drop generation
+
+Android builds write `DartvelDragDrop.java` beside the capture provider;
+iOS builds write `DartvelDragDrop.swift` and add it to Runner Sources.
+The native folders remain generated output. iOS wiring has generated-output
+tests only, with no Xcode or device verification; mobile device gestures
+remain unverified.

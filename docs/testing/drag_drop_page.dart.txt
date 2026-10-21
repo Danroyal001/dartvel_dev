@@ -1,0 +1,26 @@
+import 'dart:convert';
+import 'package:flutter/widgets.dart';
+import '../dartvel_client/dartvel_client.dart';
+
+@DVPage(title: 'Drag and drop verification')
+Widget _indexPage(BuildContext context) {
+  final report = context.signal('Waiting for a file, link or text');
+  Future<void> receive(DVDropEvent event) async {
+    final files = <Object?>[];
+    for (final file in event.files) {
+      files.add({'name': file.name, 'bytes': await file.readBytes()});
+    }
+    report.value = jsonEncode({'files': files, 'urls': event.urls.map((url) => '$url').toList(), 'text': event.text});
+  }
+  return DVBox.list([
+    const DVText('Drag and drop verification').modifier(DVModifier().semanticHeading(1)),
+    const DVText('Drop a file, link or text here').modifier(
+      DVModifier().height(160).padding(24).dropTarget(onDrop: receive)
+          .tooltip('Drop a file, link or text here')),
+    DVText(report.value),
+    const DVText('Choose files instead').modifier(DVModifier().onTap(() async {
+      final event = await DV.Platform.dragDrop.chooseInstead();
+      if (event != null) await receive(event);
+    })),
+  ]).modifier(DVModifier().padding(24));
+}

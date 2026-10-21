@@ -7974,6 +7974,27 @@ Desktop:
 - printing
 - system dialogs
 
+Drag and drop uses `DV.Platform.dragDrop` for a window, or
+`DVModifier().dropTarget(onDrop: ...)` for one widget. `DVDropEvent` carries
+`files`, `urls`, `text` and logical coordinates; `DVIncomingFile.readBytes()`
+reads a file even when the browser or Android gives no filesystem path.
+Browser drops retain eager bytes for compatibility with existing `.bytes`
+consumers; native URI/path files are read when requested.
+`DVModifier().draggable(DVDragPayload(...))` offers text, links or files to
+the system where a native drag is available, with a Flutter drag between
+widgets otherwise. `chooseInstead()` uses the file picker where dropping
+is unavailable. Provide a named, keyboard-accessible picker action alongside
+any drop target; dragging is an additional input method.
+
+`dartvel build android` generates the Java bridge used through JNI.
+`dartvel build ios` writes the Swift bridge and adds it to Runner's Sources
+phase; the runtime reaches it through FFI and the Objective-C runtime.
+Android and iOS device drag gestures are not verified. iOS is covered by
+generated-output tests only; no Xcode build or device run has been performed.
+Desktop bindings retain their existing incoming-drop support; this change
+adds no desktop system drag-out implementation. Browser system drag-out is
+subject to the browser's DataTransfer rules.
+
 Desktop APIs live under `DV.Platform.*` and generated app services:
 
 ```dart

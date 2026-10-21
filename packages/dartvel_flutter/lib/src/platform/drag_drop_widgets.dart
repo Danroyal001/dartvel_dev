@@ -14,13 +14,18 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 
 import 'drag_drop.dart';
+import '../../dartvel_flutter.dart' show DVNativeBridge;
 import 'incoming_file.dart';
 
 /// What `.dropTarget(...)` was given.
 class DVDropTargetSpec {
   const DVDropTargetSpec({
     required this.onDrop,
-    this.types = const <DVDropType>{DVDropType.files, DVDropType.text, DVDropType.urls},
+    this.types = const <DVDropType>{
+      DVDropType.files,
+      DVDropType.text,
+      DVDropType.urls,
+    },
     this.onHover,
   });
 
@@ -51,7 +56,8 @@ class _DVDropTargetState extends State<DVDropTarget> {
   Rect? _bounds() {
     if (!mounted) return null;
     final RenderObject? object = context.findRenderObject();
-    if (object is! RenderBox || !object.hasSize || !object.attached) return null;
+    if (object is! RenderBox || !object.hasSize || !object.attached)
+      return null;
     return object.localToGlobal(Offset.zero) & object.size;
   }
 
@@ -59,6 +65,12 @@ class _DVDropTargetState extends State<DVDropTarget> {
   void initState() {
     super.initState();
     unawaited(DVDragDrop.addTarget(_registration));
+  }
+
+  @override
+  void didUpdateWidget(covariant DVDropTarget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _registration.types = widget.spec.types;
   }
 
   @override
@@ -73,8 +85,10 @@ class _DVDropTargetState extends State<DVDropTarget> {
     // drag that never left the window, on a target with no system drag.
     return DragTarget<DVDragPayload>(
       onWillAcceptWithDetails: (DragTargetDetails<DVDragPayload> details) {
-        final bool admits = dvDropEventFromPayload(details.data, details.offset)
-            .carriesAnyOf(widget.spec.types);
+        final bool admits = dvDropEventFromPayload(
+          details.data,
+          details.offset,
+        ).carriesAnyOf(widget.spec.types);
         if (admits) widget.spec.onHover?.call(true);
         return admits;
       },
@@ -82,17 +96,24 @@ class _DVDropTargetState extends State<DVDropTarget> {
       onAcceptWithDetails: (DragTargetDetails<DVDragPayload> details) {
         widget.spec.onHover?.call(false);
         widget.spec.onDrop(
-          dvDropEventFromPayload(details.data, details.offset).onlyOf(widget.spec.types),
+          dvDropEventFromPayload(
+            details.data,
+            details.offset,
+          ).onlyOf(widget.spec.types),
         );
       },
-      builder: (BuildContext context, List<DVDragPayload?> candidates, List<dynamic> rejected) =>
-          widget.child,
+      builder: (
+        BuildContext context,
+        List<DVDragPayload?> candidates,
+        List<dynamic> rejected,
+      ) => widget.child,
     );
   }
 }
 
 /// A payload dragged inside the application, as the drop it would be.
-DVDropEvent dvDropEventFromPayload(DVDragPayload payload, Offset at) => DVDropEvent(
+DVDropEvent dvDropEventFromPayload(DVDragPayload payload, Offset at) =>
+    DVDropEvent(
       text: payload.text,
       urls: payload.urls,
       files: <DVIncomingFile>[
@@ -102,7 +123,9 @@ DVDropEvent dvDropEventFromPayload(DVDragPayload payload, Offset at) => DVDropEv
             mimeType: file.mimeType ?? dvMimeTypeFor(file.name),
             path: file.path,
             size: file.bytes?.length,
-            read: file.bytes == null ? null : () async => dvAsUint8List(file.bytes!),
+            read: file.bytes == null
+                ? null
+                : () async => dvAsUint8List(file.bytes!),
           ),
       ],
       x: at.dx,
@@ -143,10 +166,21 @@ class DVDraggable extends StatelessWidget {
         // A finger holds before it drags, so a scroll stays a scroll; a
         // mouse drags at once, as it does on a desktop.
         onLongPressStart: (LongPressStartDetails details) => unawaited(
-            dragDrop.startDrag(payload, x: details.globalPosition.dx, y: details.globalPosition.dy)),
+          dragDrop.startDrag(
+            payload,
+            x: details.globalPosition.dx,
+            y: details.globalPosition.dy,
+          ),
+        ),
         onPanStart: (DragStartDetails details) {
           if (details.kind == PointerDeviceKind.mouse) {
-            unawaited(dragDrop.startDrag(payload, x: details.globalPosition.dx, y: details.globalPosition.dy));
+            unawaited(
+              dragDrop.startDrag(
+                payload,
+                x: details.globalPosition.dx,
+                y: details.globalPosition.dy,
+              ),
+            );
           }
         },
         child: child,
@@ -156,9 +190,15 @@ class DVDraggable extends StatelessWidget {
 }
 
 /// [child] as a drop target and/or a draggable, as the modifier asked.
-Widget dvWrapDragDrop(Widget child, DVDropTargetSpec? dropTarget, DVDragPayload? draggable) {
+Widget dvWrapDragDrop(
+  Widget child,
+  DVDropTargetSpec? dropTarget,
+  DVDragPayload? draggable,
+) {
   Widget result = child;
-  if (draggable != null) result = DVDraggable(payload: draggable, child: result);
-  if (dropTarget != null) result = DVDropTarget(spec: dropTarget, child: result);
+  if (draggable != null)
+    result = DVDraggable(payload: draggable, child: result);
+  if (dropTarget != null)
+    result = DVDropTarget(spec: dropTarget, child: result);
   return result;
 }

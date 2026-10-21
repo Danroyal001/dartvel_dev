@@ -47,17 +47,17 @@ class DVDropEvent {
     this.text,
     this.x = 0,
     this.y = 0,
-  })  : _paths = paths,
-        _files = files;
+  }) : _paths = paths,
+       _files = files;
 
   final List<String> _paths;
   final List<DVIncomingFile> _files;
 
   /// The files dropped, in the order the platform sent them.
   List<DVIncomingFile> get files => <DVIncomingFile>[
-        ..._files,
-        for (final String path in _paths) DVIncomingFile.atPath(path),
-      ];
+    ..._files,
+    for (final String path in _paths) DVIncomingFile.atPath(path),
+  ];
 
   /// The links dropped.
   final List<Uri> urls;
@@ -71,16 +71,19 @@ class DVDropEvent {
 
   /// The filesystem paths of the files dropped, where the platform gave any.
   List<String> get paths => <String>[
-        for (final DVIncomingFile file in _files)
-          if (file.path != null) file.path!,
-        ..._paths,
-      ];
+    for (final DVIncomingFile file in _files)
+      if (file.path != null) file.path!,
+    ..._paths,
+  ];
 
   Offset get position => Offset(x, y);
 
   /// Whether anything was dropped. A drop carrying nothing is not a drop.
   bool get isEmpty =>
-      _files.isEmpty && _paths.isEmpty && urls.isEmpty && (text == null || text!.isEmpty);
+      _files.isEmpty &&
+      _paths.isEmpty &&
+      urls.isEmpty &&
+      (text == null || text!.isEmpty);
 
   /// Whether this drop carries anything [types] admits.
   bool carriesAnyOf(Set<DVDropType> types) =>
@@ -90,12 +93,12 @@ class DVDropEvent {
 
   /// The same drop, with what [types] does not admit left out.
   DVDropEvent onlyOf(Set<DVDropType> types) => DVDropEvent(
-        files: types.contains(DVDropType.files) ? files : const <DVIncomingFile>[],
-        urls: types.contains(DVDropType.urls) ? urls : const <Uri>[],
-        text: types.contains(DVDropType.text) ? text : null,
-        x: x,
-        y: y,
-      );
+    files: types.contains(DVDropType.files) ? files : const <DVIncomingFile>[],
+    urls: types.contains(DVDropType.urls) ? urls : const <Uri>[],
+    text: types.contains(DVDropType.text) ? text : null,
+    x: x,
+    y: y,
+  );
 
   /// The shape every binding hands over: `files` (maps with name, mimeType,
   /// path, uri, size), or bare `paths`, plus `urls`, `text`, `x`, `y`.
@@ -111,28 +114,38 @@ class DVDropEvent {
       if (raw is! Map) continue;
       final String? path = raw['path'] as String?;
       final String? uri = raw['uri'] as String?;
-      final String name = (raw['name'] as String?) ??
-          (path != null ? DVIncomingFile.atPath(path).name : (uri != null ? Uri.parse(uri).pathSegments.lastOrNull ?? uri : 'file'));
+      final String name =
+          (raw['name'] as String?) ??
+          (path != null
+              ? DVIncomingFile.atPath(path).name
+              : (uri != null
+                    ? Uri.parse(uri).pathSegments.lastOrNull ?? uri
+                    : 'file'));
       final int fileIndex = index;
-      files.add(DVIncomingFile(
-        name: name,
-        mimeType: (raw['mimeType'] as String?) ?? dvMimeTypeFor(name),
-        path: path,
-        uri: uri == null ? null : Uri.tryParse(uri),
-        size: raw['size'] is num ? (raw['size']! as num).toInt() : null,
-        read: readers == null || path != null
-            ? null
-            : () async => dvAsUint8List(await readers(fileIndex)),
-      ));
+      files.add(
+        DVIncomingFile(
+          name: name,
+          mimeType: (raw['mimeType'] as String?) ?? dvMimeTypeFor(name),
+          path: path,
+          uri: uri == null ? null : Uri.tryParse(uri),
+          size: raw['size'] is num ? (raw['size']! as num).toInt() : null,
+          read: readers == null || path != null
+              ? null
+              : () async => dvAsUint8List(await readers(fileIndex)),
+        ),
+      );
     }
     for (final Object? path in (map['paths'] as List?) ?? const <Object?>[]) {
-      if (path is String && path.isNotEmpty) files.add(DVIncomingFile.atPath(path));
+      if (path is String && path.isNotEmpty)
+        files.add(DVIncomingFile.atPath(path));
     }
     return DVDropEvent(
       files: files,
       urls: <Uri>[
         for (final Object? url in (map['urls'] as List?) ?? const <Object?>[])
-          if (url is String && Uri.tryParse(url) != null && Uri.parse(url).hasScheme)
+          if (url is String &&
+              Uri.tryParse(url) != null &&
+              Uri.parse(url).hasScheme)
             Uri.parse(url),
       ],
       text: map['text'] as String?,
@@ -162,18 +175,26 @@ class DVDragPayload {
   final List<Uri> urls;
   final List<DVOutgoingFile> files;
 
-  bool get isEmpty => (text == null || text!.isEmpty) && urls.isEmpty && files.isEmpty;
+  bool get isEmpty =>
+      (text == null || text!.isEmpty) && urls.isEmpty && files.isEmpty;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        if (text != null) 'text': text,
-        'urls': <String>[for (final Uri url in urls) url.toString()],
-        'files': <Map<String, Object?>>[for (final DVOutgoingFile file in files) file.toJson()],
-      };
+    if (text != null) 'text': text,
+    'urls': <String>[for (final Uri url in urls) url.toString()],
+    'files': <Map<String, Object?>>[
+      for (final DVOutgoingFile file in files) file.toJson(),
+    ],
+  };
 }
 
 /// A file a drag carries out: its bytes, or a path the binding can read.
 class DVOutgoingFile {
-  const DVOutgoingFile({required this.name, this.mimeType, this.path, this.bytes});
+  const DVOutgoingFile({
+    required this.name,
+    this.mimeType,
+    this.path,
+    this.bytes,
+  });
 
   final String name;
   final String? mimeType;
@@ -181,11 +202,11 @@ class DVOutgoingFile {
   final List<int>? bytes;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'name': name,
-        'mimeType': mimeType ?? dvMimeTypeFor(name) ?? 'application/octet-stream',
-        if (path != null) 'path': path,
-        if (bytes != null) 'bytes': bytes,
-      };
+    'name': name,
+    'mimeType': mimeType ?? dvMimeTypeFor(name) ?? 'application/octet-stream',
+    if (path != null) 'path': path,
+    if (bytes != null) 'bytes': bytes,
+  };
 }
 
 /// One widget's claim on drops that land inside it.
@@ -200,7 +221,7 @@ class DVDropTargetRegistration {
   /// The widget's rectangle in window coordinates, asked at drop time so a
   /// widget that moved or scrolled is found where it is now.
   final Rect? Function() bounds;
-  final Set<DVDropType> types;
+  Set<DVDropType> types;
   final void Function(DVDropEvent event) onDrop;
   final void Function(bool hovering)? onHover;
   bool hovering = false;
@@ -211,9 +232,13 @@ class DVDragDrop {
 
   static void Function(DVDropEvent event)? _onDrop;
   static bool _accepting = false;
+  static bool _nativeActive = false;
+  static bool _nativeAllTypes = false;
+  static Set<DVDropType> _types = DVDropType.values.toSet();
   static final StreamController<DVDropEvent> _dropped =
       StreamController<DVDropEvent>.broadcast();
-  static final List<DVDropTargetRegistration> _targets = <DVDropTargetRegistration>[];
+  static final List<DVDropTargetRegistration> _targets =
+      <DVDropTargetRegistration>[];
   static DVDragPayload? _pending;
 
   /// Every drop the application took, whichever window or widget took it.
@@ -244,9 +269,10 @@ class DVDragDrop {
       _dropped.add(admitted);
       return;
     }
-    if (!_accepting) return;
-    _onDrop?.call(event);
-    _dropped.add(event);
+    if (!_accepting || !event.carriesAnyOf(_types)) return;
+    final admitted = event.onlyOf(_types);
+    _onDrop?.call(admitted);
+    _dropped.add(admitted);
   }
 
   /// For platform bindings: a drag is over the window at ([x], [y]). Lets a
@@ -295,20 +321,46 @@ class DVDragDrop {
   /// Turns on the window's drop handling where the platform needs that.
   static Future<void> addTarget(DVDropTargetRegistration registration) async {
     _targets.add(registration);
-    if (!_accepting && DVNativeBridge.isRegistered('dragDrop.accept')) {
-      await DVNativeBridge.require<bool>('dragDrop.accept', <String, Object?>{
-        'types': <String>[for (final DVDropType type in DVDropType.values) type.name],
-      });
+    if (DVNativeBridge.isRegistered('dragDrop.accept') &&
+        (!_nativeActive || !_nativeAllTypes)) {
+      // Claim before awaiting so widgets mounting together share one listener.
+      _nativeActive = true;
+      _nativeAllTypes = true;
+      try {
+        final handled = await DVNativeBridge.require<bool>('dragDrop.accept', {
+          'types': [for (final type in DVDropType.values) type.name],
+        });
+        if (!handled)
+          throw StateError('Native drag and drop binding rejected accept.');
+      } catch (_) {
+        _nativeActive = false;
+        _nativeAllTypes = false;
+        _targets.remove(registration);
+        rethrow;
+      }
     }
   }
 
   static void removeTarget(DVDropTargetRegistration registration) {
     _targets.remove(registration);
+    if (!_accepting && _targets.isEmpty) unawaited(_stopNative());
+  }
+
+  static Future<void> _stopNative() async {
+    if (!_nativeActive) return;
+    _nativeActive = false;
+    _nativeAllTypes = false;
+    final handled = await DVNativeBridge.require<bool>('dragDrop.stop');
+    if (!handled)
+      throw StateError('Native drag and drop binding rejected stop.');
   }
 
   static void reset() {
     _onDrop = null;
     _accepting = false;
+    _nativeActive = false;
+    _nativeAllTypes = false;
+    _types = DVDropType.values.toSet();
     _targets.clear();
     _pending = null;
   }
@@ -326,19 +378,27 @@ class DVDragDrop {
   }) async {
     final handled = await DVNativeBridge.require<bool>(
       'dragDrop.accept',
-      <String, Object?>{'types': <String>[for (final DVDropType t in types) t.name]},
+      <String, Object?>{
+        'types': <String>[
+          for (final t in _targets.isEmpty ? types : DVDropType.values) t.name,
+        ],
+      },
     );
-    if (!handled) throw StateError('Native drag and drop binding rejected accept.');
+    if (!handled)
+      throw StateError('Native drag and drop binding rejected accept.');
     _onDrop = onDrop;
+    _types = types.toSet();
+    _nativeActive = true;
+    _nativeAllTypes =
+        _targets.isNotEmpty || _types.containsAll(DVDropType.values);
     _accepting = true;
   }
 
   /// Stops taking drops on the window. Widget targets keep theirs.
   Future<void> stop() async {
-    final handled = await DVNativeBridge.require<bool>('dragDrop.stop');
-    if (!handled) throw StateError('Native drag and drop binding rejected stop.');
     _onDrop = null;
     _accepting = false;
+    if (_targets.isEmpty) await _stopNative();
   }
 
   /// What a drag starting now will carry. Set by a draggable widget when a
@@ -348,7 +408,9 @@ class DVDragDrop {
   static set pendingPayload(DVDragPayload? payload) {
     _pending = payload;
     if (DVNativeBridge.isRegistered('dragDrop.setPending')) {
-      unawaited(DVNativeBridge.invoke<bool>('dragDrop.setPending', payload?.toJson()));
+      unawaited(
+        DVNativeBridge.invoke<bool>('dragDrop.setPending', payload?.toJson()),
+      );
     }
   }
 
@@ -357,7 +419,11 @@ class DVDragDrop {
   /// Returns false where the platform declined to start one (no pointer
   /// down, or nothing to carry). Throws naming the binding where the target
   /// has no drag out at all; check [canDragOut] first to decide what to offer.
-  Future<bool> startDrag(DVDragPayload payload, {double x = 0, double y = 0}) async {
+  Future<bool> startDrag(
+    DVDragPayload payload, {
+    double x = 0,
+    double y = 0,
+  }) async {
     if (payload.isEmpty) return false;
     return DVNativeBridge.require<bool>('dragDrop.startDrag', <String, Object?>{
       ...payload.toJson(),
@@ -370,23 +436,32 @@ class DVDragDrop {
   /// them: opens the file picker and delivers the choice as a drop, to the
   /// window handler and the [dropped] stream. Returns the event, or null when
   /// nothing was chosen.
-  Future<DVDropEvent?> chooseInstead({bool multiple = true, String type = 'any'}) async {
+  Future<DVDropEvent?> chooseInstead({
+    bool multiple = true,
+    String type = 'any',
+  }) async {
     Object? chosen;
     if (DVNativeBridge.isRegistered('dialogs.openFile')) {
-      chosen = await DVNativeBridge.require<Object?>('dialogs.openFile', <String, Object?>{
-        'multiple': multiple,
-      });
+      chosen = await DVNativeBridge.require<Object?>(
+        'dialogs.openFile',
+        <String, Object?>{'multiple': multiple},
+      );
     } else {
-      chosen = await DVNativeBridge.require<List<Object?>>('media.pick', <String, Object?>{
-        'type': type,
-        'multiple': multiple,
-      });
+      chosen = await DVNativeBridge.require<List<Object?>>(
+        'media.pick',
+        <String, Object?>{'type': type, 'multiple': multiple},
+      );
     }
-    final List<Object?> items = chosen is List ? chosen : (chosen == null ? const <Object?>[] : <Object?>[chosen]);
+    final List<Object?> items = chosen is List
+        ? chosen
+        : (chosen == null ? const <Object?>[] : <Object?>[chosen]);
     final DVDropEvent event = DVDropEvent.fromMap(<String, Object?>{
       'files': <Object?>[
         for (final Object? item in items)
-          if (item is String) <String, Object?>{'path': item} else if (item is Map) item,
+          if (item is String)
+            <String, Object?>{'path': item}
+          else if (item is Map)
+            item,
       ],
     });
     if (event.isEmpty) return null;

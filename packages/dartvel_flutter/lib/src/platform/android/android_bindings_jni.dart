@@ -292,6 +292,7 @@ class DVAndroidBindings {
     // registration would reuse a class from a JVM the first one was talking
     // to, which is only ever a test.
     DVAndroidCapture.reset();
+    DVAndroidDragDrop.unregister();
     // The two that hold state of their own. Dropping the handler without
     // these would leave a watchdog timer running against a process that has
     // let go of its bindings, and a file root that the next register() would

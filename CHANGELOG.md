@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Native drag-and-drop integration in progress; verification pending.
+- Native drag-and-drop: modifier chain (`.draggable` / `.dropTarget`) integrated into `DVModifier`; `DVDropEvent`, `DVIncomingFile`, `DVDragPayload` surface; Android JNI (`DartvelDragDrop.java`) and iOS Swift (`DartvelDragDrop.swift`) bridge generation wired into `dartvel build`; web `DataTransfer` parsing and browser byte compatibility preserved. Scratch Android APK verified (`build/app/outputs/flutter-apk/app-debug.apk`). Focused Flutter tests: `drag_drop_everywhere_test.dart` 16 passed; `drag_drop_lifecycle_test.dart` 3 passed / 1 regression failure (`pending-only mouse drag` calls unsupported `startDrag` — not waived). Old feature-branch tests (`drag_drop_delivery_test.dart`, `drag_drop_compatibility_test.dart`) reference superseded APIs (`DVDroppedFile`, `draggingOver`, `dispatchDragOver`) and are not restored. Web-server build blocked by pre-existing Studio deferred-library guard; static web build succeeds; browser headless verification (`verify_drag_drop.dart`) requires `puppeteer` (not installed in workspace) — manual server response verified (200). iOS: generated-output tests only; no device or Xcode verification. See `PROGRESS-dv-dragdrop-land.md`.
 
 ## 0.13.12 — 2026-10-21
 

@@ -585,3 +585,45 @@ unrelated package.
 
 - `DVVisibilityToggle.eye` / `.none` / `.custom(builder)` controls the visibility toggle on sensitive fields. `.input(obscureText: true)` gets the eye by default; `.none` turns it off and `.custom(builder)` replaces it with a control of your own. The eye is one button named "Show password" (also its tooltip) with a pressed state (`aria-pressed` on the web), the same on the account pages and in Studio, and present in the server-rendered HTML before Flutter takes over; the app keeps what was typed there.
 - Every `DVForm` is keyboard-accessible with nothing added: Tab walks the fields and controls in draw order, Enter moves to the next field and submits from the last one, and every `.onTap()`/`.onPressed()` control is a focusable button with a visible focus ring and a screen-reader name. A refused save is announced in a live region and puts the focus on the field at fault. `DVFormScope` is the public piece for inputs a form does not draw itself.
+
+## Drag and drop
+
+Drag and drop uses `DV.Platform.dragDrop` for a window, or
+`DVModifier().dropTarget(onDrop: ...)` for one widget. `DVDropEvent` carries
+`files`, `urls`, `text` and logical coordinates; `DVIncomingFile.readBytes()`
+reads a file even when the browser or Android gives no filesystem path.
+Browser drops retain eager bytes for compatibility with existing `.bytes`
+consumers; native URI/path files are read when requested.
+`DVModifier().draggable(DVDragPayload(...))` offers text, links or files to
+the system where a native drag is available, with a Flutter drag between
+widgets otherwise. `chooseInstead()` uses the file picker where dropping
+is unavailable. Provide a named, keyboard-accessible picker action alongside
+any drop target; dragging is an additional input method.
+
+`dartvel build android` generates the Java bridge used through JNI.
+`dartvel build ios` writes the Swift bridge and adds it to Runner's Sources
+phase; the runtime reaches it through FFI and the Objective-C runtime.
+Android and iOS device drag gestures are not verified. iOS is covered by
+generated-output tests only; no Xcode build or device run has been performed.
+Desktop bindings retain their existing incoming-drop support; this change
+adds no desktop system drag-out implementation. Browser system drag-out is
+subject to the browser's DataTransfer rules.
+
+```dart
+Widget fileInbox(BuildContext context) {
+  final message = context.signal('Drop files, links or text');
+  void received(DVDropEvent event) {
+    message.value = event.files.isNotEmpty
+        ? event.files.map((file) => file.name).join(', ')
+        : event.urls.isNotEmpty ? event.urls.join(', ') : event.text ?? '';
+    // File contents are available with: await event.files.first.readBytes().
+  }
+  return DVBox.list([
+    DVText(message.value),
+    const DVText('Choose files instead').modifier(DVModifier().onTap(() async {
+      final event = await DV.Platform.dragDrop.chooseInstead();
+      if (event != null) received(event);
+    })),
+  ]).modifier(DVModifier().dropTarget(onDrop: received));
+}
+```
