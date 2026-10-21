@@ -16,7 +16,7 @@ library dartvel_flutter.accessibility.tooltips;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../../dartvel_flutter.dart' show DVBox, DVModifier, DVText;
+import '../../dartvel_flutter.dart' show DVBox, DVText;
 
 /// The file and line that is calling, for an error that says where to look.
 ///
