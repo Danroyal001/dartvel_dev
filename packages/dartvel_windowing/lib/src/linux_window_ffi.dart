@@ -1,4 +1,4 @@
-part of '../dartvel_windowing.dart';
+part of 'windowing_native.dart';
 
 // GdkRectangle: four ints, logical (unscaled) pixels.
 final class _GdkRectangle extends ffi.Struct {

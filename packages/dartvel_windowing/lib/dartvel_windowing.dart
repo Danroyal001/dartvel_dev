@@ -4,32 +4,10 @@
 /// what flips `DVWindowingCapability.multiWindow` true — see the README for
 /// why this is a separate package from `dartvel_flutter`.
 ///
-/// The library is deliberately one library made of parts rather than several:
-/// the windowing contract says anything beyond `DV.Window` and `DVWindow` is
-/// private, and Dart privacy is per library, so the binding registrar can only
-/// be private if everything that uses it is part of the same one.
+/// In a browser there are no OS windows to open: [DVWindowHost] shows its
+/// home and registers nothing, and `DV.Platform.window.open` navigates to the
+/// route as it does in any app without this package. So an application that
+/// opens a projector window on a desktop builds for the web unchanged.
 library dartvel_windowing;
 
-import 'dart:async';
-import 'dart:ffi' as ffi;
-import 'dart:io' show Platform;
-
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:ffi/ffi.dart' as ffi;
-import 'package:flutter/foundation.dart';
-// ignore: invalid_use_of_internal_member
-import 'package:flutter/src/foundation/_features.dart';
-// ignore: invalid_use_of_internal_member
-import 'package:flutter/src/widgets/_window.dart';
-// ignore: invalid_use_of_internal_member, implementation_imports
-import 'package:flutter/src/widgets/_window_linux.dart' show WindowControllerLinux;
-import 'package:flutter/widgets.dart';
-
-part 'src/linux_displays_ffi.dart';
-part 'src/linux_window_ffi.dart';
-part 'src/macos_displays_ffi.dart';
-part 'src/windows_displays_ffi.dart';
-part 'src/flutter_window_surface.dart';
-part 'src/window_bindings.dart';
-part 'src/window_host.dart';
-part 'src/window_surfaces.dart';
+export 'src/windowing_web.dart' if (dart.library.ffi) 'src/windowing_native.dart';

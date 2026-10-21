@@ -89,13 +89,17 @@ void main(List<String> arguments) async {
   await negotiateDartvelLaunch(arguments);
   runWidget(
     DVWindowHost(
-      home: createDartvelApp(arguments: arguments),
+      home: createDartvelApp(args: arguments),
       routeBuilder: (BuildContext context, DVRouteTarget route) =>
           MaterialApp(home: ProjectorScreen(route: route)),
     ),
   );
 }
 ```
+
+In a browser `DVWindowHost` shows `home` and nothing else, and
+`DV.Platform.window.open` navigates to the route, so the same `main` builds
+for the web.
 
 An opened window is a `View` beside the home window rather than inside it,
 so what `routeBuilder` returns has nothing above it: no `MaterialApp`, no

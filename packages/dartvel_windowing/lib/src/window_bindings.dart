@@ -1,4 +1,4 @@
-part of '../dartvel_windowing.dart';
+part of 'windowing_native.dart';
 
 /// What an application asked for when it opened a window.
 ///

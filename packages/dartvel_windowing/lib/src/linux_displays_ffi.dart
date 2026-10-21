@@ -1,4 +1,4 @@
-part of '../dartvel_windowing.dart';
+part of 'windowing_native.dart';
 
 // XRRMonitorInfo, as XRandR 1.5 lays it out.
 final class _XRRMonitorInfo extends ffi.Struct {

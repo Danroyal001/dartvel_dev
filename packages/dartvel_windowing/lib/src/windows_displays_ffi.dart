@@ -1,4 +1,4 @@
-part of '../dartvel_windowing.dart';
+part of 'windowing_native.dart';
 
 // RECT.
 final class _Rect extends ffi.Struct {
