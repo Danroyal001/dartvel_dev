@@ -463,6 +463,16 @@ class DVWindowOptions {
   /// uninterpreted.
   final Object? space;
 
+  /// Whether the window takes keyboard focus when it opens and when it is
+  /// clicked. False for a secondary output -- a projector, a stage display, a
+  /// confidence monitor -- that shows what the operator's window drives and
+  /// must never take a keystroke meant for it.
+  ///
+  /// Honoured on Linux (the window never accepts input focus and is not
+  /// focused when it is shown). Where the platform cannot promise it, the
+  /// window still opens and `DV-WINDOW-016` is on its `codes`.
+  final bool takesFocus;
+
   const DVWindowOptions({
     this.size,
     this.constraints,
@@ -475,6 +485,7 @@ class DVWindowOptions {
     this.isExternal = false,
     this.kiosk,
     this.space,
+    this.takesFocus = true,
   });
 
   /// An OS-delivered open request.
@@ -1227,6 +1238,27 @@ class DVWindowManager {
             ? DVWindowPresentation.window
             : _presentationFor(options.kind);
 
+    // A window that must not take focus, asked of the platform before the
+    // window is listed (and so before its surface exists). Anything short of
+    // a yes -- no binding, a refusal, a browser popup, which always comes to
+    // the front -- is said on codes (DV-WINDOW-016), never assumed.
+    if (!options.takesFocus && nativeId != null &&
+        presentation == DVWindowPresentation.window) {
+      bool kept = false;
+      if (DVNativeBridge.isRegistered('window.setTakesFocus')) {
+        try {
+          kept = await DVNativeBridge.invoke<bool>(
+                'window.setTakesFocus',
+                <String, Object?>{'id': nativeId, 'takesFocus': false},
+              ) ??
+              false;
+        } catch (_) {
+          kept = false;
+        }
+      }
+      if (!kept) codes.add('DV-WINDOW-016');
+    }
+
     final window = DVWindow(
       route: route,
       kind: options.kind,
@@ -1239,9 +1271,11 @@ class DVWindowManager {
     );
     window.codes.addAll(codes);
     for (final String code in codes) {
-      unawaited(window._logCode(code, code == 'DV-WINDOW-011'
-          ? 'display ${options.display} is kiosk-owned; placed elsewhere'
-          : 'kiosk window presented in place, fullscreen'));
+      unawaited(window._logCode(code, switch (code) {
+        'DV-WINDOW-011' => 'display ${options.display} is kiosk-owned; placed elsewhere',
+        'DV-WINDOW-016' => 'takesFocus: false is not honoured here; the window may take focus',
+        _ => 'kiosk window presented in place, fullscreen',
+      }));
     }
     if (options.kind == DVWindowKind.kiosk) {
       final DVWindowKiosk? spec = options.kiosk;

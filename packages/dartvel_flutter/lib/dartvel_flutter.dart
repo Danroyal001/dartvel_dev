@@ -75,6 +75,7 @@ import 'src/platform/file_associations.dart';
 import 'src/platform/launch_at_login.dart';
 import 'src/platform/network.dart';
 import 'src/platform/printing.dart';
+import 'src/platform/fonts.dart';
 import 'src/platform/display_availability.dart';
 import 'src/platform/display_availability_web.dart'
     if (dart.library.io) 'src/platform/display_availability_io.dart' as display_availability;
@@ -849,6 +850,7 @@ export 'src/platform/macos/macos_bindings.dart';
 // exported: an application reads the signal rather than feeding it.
 export 'src/platform/network.dart';
 export 'src/platform/printing.dart';
+export 'src/platform/fonts.dart';
 export 'src/platform/raster.dart';
 export 'src/platform/display_availability.dart';
 export 'src/platform/web/web_bindings.dart';
@@ -7326,6 +7328,9 @@ class DVPlatform {
   DVPrinting get printing => const DVPrinting();
   @Deprecated('Use DV.Platform.printing instead')
   DVPrinting get Printing => const DVPrinting();
+
+  /// The fonts installed on the machine, and loading one for Flutter text.
+  DVSystemFonts get fonts => const DVSystemFonts();
   /// The lowerCamel name, matching the rest of `DV.*`.
   DVDialogs get dialogs => const DVDialogs();
   @Deprecated('Use DV.Platform.dialogs instead')

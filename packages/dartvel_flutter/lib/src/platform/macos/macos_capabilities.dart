@@ -72,6 +72,11 @@ const Set<String> dvMacosImplementedBindings = <String>{
   'launchAtLogin.isEnabled',
   'launchAtLogin.setEnabled',
 
+  // CoreText's available font URLs, each file's faces read from its own
+  // tables, and one face's bytes for FontLoader.
+  'fonts.faces',
+  'fonts.read',
+
   // CoreGraphics: pictures onto the pages of a PDF. The dialog and the
   // printer are NSPrintOperation's, which needs the application's event
   // loop, so printing.print is not claimed.

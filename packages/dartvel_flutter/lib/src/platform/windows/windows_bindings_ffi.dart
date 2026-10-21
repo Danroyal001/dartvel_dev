@@ -21,6 +21,7 @@ import 'windows_device_ffi.dart';
 import 'windows_dialogs_ffi.dart';
 import 'windows_dnd_ffi.dart';
 import 'windows_kiosk_ffi.dart';
+import 'windows_fonts_ffi.dart';
 import 'windows_launch_at_login_ffi.dart';
 import 'windows_menus_ffi.dart';
 import 'windows_printing_ffi.dart';
@@ -153,6 +154,7 @@ class DVWindowsBindings {
     DVWindowsTray.register(DVNativeBridge.register, user32: _user32);
     DVWindowsWindow.register(DVNativeBridge.register, user32: _user32);
     DVWindowsLaunchAtLogin.register(DVNativeBridge.register);
+    DVWindowsFonts.register(DVNativeBridge.register);
     DVWindowsPrinting.register(DVNativeBridge.register);
     // The serial port, which was the last desktop this was missing from.
     // Its own libraries -- kernel32 for the port, advapi32 for the registry

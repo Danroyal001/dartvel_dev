@@ -49,6 +49,9 @@ void main() {
           // SMAppService's main-app login item.
           'launchAtLogin.isEnabled',
           'launchAtLogin.setEnabled',
+          // CoreText's available font URLs, read from the files.
+          'fonts.faces',
+          'fonts.read',
           // What a desktop grants without asking, and the deep link the app was
           // launched with.
           'permissions.isGranted',

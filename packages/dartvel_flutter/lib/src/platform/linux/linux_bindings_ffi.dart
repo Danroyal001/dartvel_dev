@@ -17,6 +17,7 @@ import 'linux_clipboard_ffi.dart';
 import 'linux_device.dart';
 import 'linux_dialogs_ffi.dart';
 import 'linux_dnd_ffi.dart';
+import 'linux_fonts_ffi.dart';
 import 'linux_kiosk_ffi.dart';
 import 'linux_launch_at_login.dart';
 import 'linux_media_gst.dart';
@@ -239,6 +240,9 @@ class DVLinuxBindings {
     // An XDG autostart entry: a file, like the associations.
     'launchAtLogin.isEnabled',
     'launchAtLogin.setEnabled',
+    // fontconfig: the installed faces, and one face's bytes for FontLoader.
+    'fonts.faces',
+    'fonts.read',
   };
 
 
@@ -262,6 +266,9 @@ class DVLinuxBindings {
     // Playback and recording need GStreamer, not a display: a headless
     // eLinux panel still plays its announcements.
     DVLinuxMedia.register();
+    // fontconfig, which needs no display either: a panel with no X server
+    // still has fonts to list.
+    DVLinuxFonts.register();
     try {
       _x11 = DynamicLibrary.open('libX11.so.6');
       _gtk = DynamicLibrary.open('libgtk-3.so.0');

@@ -66,7 +66,7 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
               'DV.Platform.camera, media, location, bluetooth, nfc, clipboard, share',
               'DV.Platform.sensors, biometrics, deepLinks, haptics, contacts',
               'DV.Platform.notifications, permissions, browserExtension, network',
-              'DV.Platform.install, display, fileStorage, device',
+              'DV.Platform.install, display, fileStorage, device, fonts',
             ]),
             DocsShell(<String>['DV.Platform.associations // opened files and picker fallback']),
             DocsSubheading('Desktop-only'),

@@ -30,6 +30,9 @@ void main() {
           // The per-user Run key.
           'launchAtLogin.isEnabled',
           'launchAtLogin.setEnabled',
+          // The registry's installed-font list, read from the files.
+          'fonts.faces',
+          'fonts.read',
           // RegisterHotKey, ClipCursor and the window style, for a kiosk.
           'kiosk.enforce',
           'kiosk.release',
@@ -175,6 +178,8 @@ void main() {
         'associations.register',
         'associations.unregister',
         'associations.handlerFor',
+        'fonts.faces',
+        'fonts.read',
       };
       expect(DVWindowsBindings.implemented.difference(callable), isEmpty);
     });

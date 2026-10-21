@@ -176,6 +176,11 @@ const Set<String> dvAndroidImplementedBindings = <String>{
   'files.readBytes',
   'files.writeBytes',
   'files.delete',
+
+  // The faces in the system font folders, read from the files in Dart (no
+  // JNI), and one face's bytes for FontLoader.
+  'fonts.faces',
+  'fonts.read',
 };
 
 /// One sample from a motion sensor, or null when the event does not carry

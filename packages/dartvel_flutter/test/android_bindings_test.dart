@@ -98,6 +98,9 @@ void main() {
         'files.readBytes',
         'files.writeBytes',
         'files.delete',
+        // The system font folders, read in Dart.
+        'fonts.faces',
+        'fonts.read',
       });
     });
 

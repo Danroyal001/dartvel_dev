@@ -35,6 +35,11 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   'launchAtLogin.isEnabled',
   'launchAtLogin.setEnabled',
 
+  // The registry's installed-font list, each file's faces read from its own
+  // tables, and one face's bytes for FontLoader.
+  'fonts.faces',
+  'fonts.read',
+
   // RegisterHotKey for the escape combos, ClipCursor for the pointer, the
   // window style for fullscreen. Notifications are never claimed held: Focus
   // Assist has no public API.

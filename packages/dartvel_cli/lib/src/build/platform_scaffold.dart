@@ -89,48 +89,106 @@ Future<bool> dvEnsurePlatformScaffold({
   final String? org = _readOrg(root);
 
   Logger.log('   No $folderName/ scaffold; generating it...');
-  // flutter create also writes files outside the platform folder -- a
-  // counter-app test/widget_test.dart and .metadata -- into a project that
-  // did not ask for them. What was not there before is removed after.
-  final Set<String> before = _projectFiles(root);
   final run = processRun ?? _defaultProcessRun;
-  final ProcessResult result = await run(
-    'flutter',
-    <String>[
-      'create',
-      '--platforms=$flutterPlatform',
-      '--project-name',
-      projectName,
-      if (org != null && org.isNotEmpty) ...<String>['--org', org],
-      '.',
-    ],
-    workingDirectory: root,
-    runInShell: true,
+  late ProcessResult result;
+  await dvGeneratePlatformScaffold(
+    root: root,
+    directory: folderName,
+    create: () async {
+      result = await run(
+        'flutter',
+        <String>[
+          'create',
+          '--platforms=$flutterPlatform',
+          '--project-name',
+          projectName,
+          if (org != null && org.isNotEmpty) ...<String>['--org', org],
+          '.',
+        ],
+        workingDirectory: root,
+        runInShell: true,
+      );
+      return result.exitCode;
+    },
   );
 
   if (result.exitCode != 0) {
     Logger.log('⚠️  Failed to generate $folderName/ scaffold: ${result.stderr}');
     return false;
   }
-  for (final String added in _projectFiles(root).difference(before)) {
-    if (p.split(added).first == folderName) continue;
-    File(p.join(root, added)).deleteSync();
-  }
   return true;
+}
+
+/// Runs [create], a `flutter create` or a vendor embedder's `create`, and
+/// keeps only the platform [directory] it generates.
+///
+/// Every one of those commands also writes files outside the platform folder
+/// into a project that did not ask for them: a counter-app
+/// `test/widget_test.dart` whose `MyApp` does not exist (so the project's own
+/// analysis fails), `.metadata`, an IDE `.iml`, and `lib/main.dart` when the
+/// project has none. Whatever was not there before is removed afterwards,
+/// with the directories it alone filled -- also when [create] fails or throws
+/// part-way, because a failed build must not leave the project changed
+/// either. What the project already had is never touched.
+Future<int> dvGeneratePlatformScaffold({
+  required String root,
+  required String directory,
+  required Future<int> Function() create,
+}) async {
+  final Set<String> filesBefore = _projectFiles(root);
+  final Set<String> directoriesBefore = _projectDirectories(root);
+  try {
+    return await create();
+  } finally {
+    for (final String added in _projectFiles(root).difference(filesBefore)) {
+      if (p.split(added).first == directory) continue;
+      final File file = File(p.join(root, added));
+      if (file.existsSync()) file.deleteSync();
+    }
+    final List<String> addedDirectories =
+        _projectDirectories(root).difference(directoriesBefore).toList()
+          // Deepest first, so a parent is empty by the time it is reached.
+          ..sort((String a, String b) => p.split(b).length.compareTo(p.split(a).length));
+    for (final String added in addedDirectories) {
+      if (p.split(added).first == directory) continue;
+      final Directory dir = Directory(p.join(root, added));
+      if (dir.existsSync() && dir.listSync().isEmpty) dir.deleteSync();
+    }
+  }
+}
+
+/// Names [_projectFiles] and [_projectDirectories] never look inside: build
+/// output, tool state, and the native folders, which are ephemeral.
+const Set<String> _notProjectFiles = <String>{
+  'build', '.dart_tool', '.git', 'android', 'ios', 'linux', 'macos', 'windows', 'web',
+  'tizen', 'elinux', 'webos', 'tvos',
+};
+
+/// The project's own directories, relative to [root], as [_projectFiles]
+/// sees them.
+Set<String> _projectDirectories(String root) {
+  final Set<String> directories = <String>{};
+  final Directory dir = Directory(root);
+  if (!dir.existsSync()) return directories;
+  for (final FileSystemEntity entry in dir.listSync()) {
+    if (entry is! Directory || _notProjectFiles.contains(p.basename(entry.path))) continue;
+    directories.add(p.basename(entry.path));
+    for (final FileSystemEntity inner in entry.listSync(recursive: true, followLinks: false)) {
+      if (inner is Directory) directories.add(p.relative(inner.path, from: root));
+    }
+  }
+  return directories;
 }
 
 /// The project's own files, relative to [root]: everything but build output,
 /// tool state and the native folders, which are ephemeral.
 Set<String> _projectFiles(String root) {
-  const Set<String> skipped = <String>{
-    'build', '.dart_tool', '.git', 'android', 'ios', 'linux', 'macos', 'windows', 'web',
-  };
   final Set<String> files = <String>{};
   final Directory dir = Directory(root);
   if (!dir.existsSync()) return files;
   for (final FileSystemEntity entry in dir.listSync()) {
     final String name = p.basename(entry.path);
-    if (skipped.contains(name)) continue;
+    if (_notProjectFiles.contains(name)) continue;
     if (entry is File) {
       files.add(name);
     } else if (entry is Directory) {
