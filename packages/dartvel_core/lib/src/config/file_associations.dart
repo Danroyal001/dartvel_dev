@@ -60,18 +60,21 @@ class DVFileAssociation {
 
   /// The pubspec object, with defaults left out so a round trip is exact.
   Map<String, Object?> toPubspec() => <String, Object?>{
-        'mimeType': mimeType,
-        if (extensions.isNotEmpty) 'extensions': List<String>.of(extensions),
-        if (description != null) 'description': description,
-        if (icon != null) 'icon': icon,
-        if (role != DVFileAssociationRole.editor) 'role': role.name,
-      };
+    'mimeType': mimeType,
+    if (extensions.isNotEmpty) 'extensions': List<String>.of(extensions),
+    if (description != null) 'description': description,
+    if (icon != null) 'icon': icon,
+    if (role != DVFileAssociationRole.editor) 'role': role.name,
+  };
 
   /// Every association in [raw], the value of `fileAssociations`, and what
   /// is wrong with the ones that could not be read. Never throws: a build
   /// reports these with the rest of its findings, and the entries that are
   /// right still register.
-  static DVFileAssociationsParse fromPubspec(Object? raw, {String key = 'dartvel.fileAssociations'}) {
+  static DVFileAssociationsParse fromPubspec(
+    Object? raw, {
+    String key = 'dartvel.fileAssociations',
+  }) {
     final List<DVFileAssociation> associations = <DVFileAssociation>[];
     final List<String> problems = <String>[];
     if (raw == null) return DVFileAssociationsParse(associations, problems);
@@ -85,21 +88,29 @@ class DVFileAssociation {
         continue;
       }
       final Object? mimeType = entry['mimeType'];
-      if (mimeType is! String || !RegExp(r'^[a-z0-9.+-]+/[A-Za-z0-9.+*-]+$').hasMatch(mimeType)) {
-        problems.add('$key: every file type needs a mimeType such as application/x-shop-order.');
+      if (mimeType is! String ||
+          !RegExp(r'^[a-z0-9.+-]+/[A-Za-z0-9.+*-]+$').hasMatch(mimeType)) {
+        problems.add(
+          '$key: every file type needs a mimeType such as application/x-shop-order.',
+        );
         continue;
       }
       final Object? rawExtensions = entry['extensions'];
       final List<String> extensions = <String>[];
       if (rawExtensions != null && rawExtensions is! List) {
-        problems.add('$key: extensions of $mimeType must be a list, such as [order].');
+        problems.add(
+          '$key: extensions of $mimeType must be a list, such as [order].',
+        );
         continue;
       }
       bool extensionsValid = true;
-      for (final Object? extension in (rawExtensions as List?) ?? const <Object?>[]) {
+      for (final Object? extension
+          in (rawExtensions as List?) ?? const <Object?>[]) {
         final String bare = '$extension'.replaceFirst(RegExp(r'^\.'), '');
         if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9_+-]*$').hasMatch(bare)) {
-          problems.add('$key: "$extension" is not an extension; write it alone, such as order.');
+          problems.add(
+            '$key: "$extension" is not an extension; write it alone, such as order.',
+          );
           extensionsValid = false;
           break;
         }
@@ -107,7 +118,9 @@ class DVFileAssociation {
       }
       if (!extensionsValid) continue;
       final Object? role = entry['role'];
-      final DVFileAssociationRole? parsedRole = role == null ? DVFileAssociationRole.editor : DVFileAssociationRole.parse(role);
+      final DVFileAssociationRole? parsedRole = role == null
+          ? DVFileAssociationRole.editor
+          : DVFileAssociationRole.parse(role);
       if (parsedRole == null) {
         problems.add('$key: role of $mimeType must be editor or viewer.');
         continue;
@@ -122,20 +135,32 @@ class DVFileAssociation {
         problems.add('$key: icon of $mimeType must be a path.');
         continue;
       }
-      final Set<String> known = <String>{'mimeType', 'extensions', 'description', 'icon', 'role'};
-      final Iterable<Object?> unknown = entry.keys.where((Object? name) => !known.contains(name));
+      final Set<String> known = <String>{
+        'mimeType',
+        'extensions',
+        'description',
+        'icon',
+        'role',
+      };
+      final Iterable<Object?> unknown = entry.keys.where(
+        (Object? name) => !known.contains(name),
+      );
       if (unknown.isNotEmpty) {
-        problems.add('$key: $mimeType has ${unknown.map((Object? name) => '"$name"').join(', ')}, '
-            'which a file type does not take; the keys are ${known.join(', ')}.');
+        problems.add(
+          '$key: $mimeType has ${unknown.map((Object? name) => '"$name"').join(', ')}, '
+          'which a file type does not take; the keys are ${known.join(', ')}.',
+        );
         continue;
       }
-      associations.add(DVFileAssociation(
-        mimeType: mimeType,
-        extensions: extensions,
-        description: description as String?,
-        icon: icon as String?,
-        role: parsedRole,
-      ));
+      associations.add(
+        DVFileAssociation(
+          mimeType: mimeType,
+          extensions: extensions,
+          description: description as String?,
+          icon: icon as String?,
+          role: parsedRole,
+        ),
+      );
     }
     return DVFileAssociationsParse(associations, problems);
   }
@@ -148,10 +173,17 @@ class DVFileAssociation {
       other.icon == icon &&
       other.role == role &&
       other.extensions.length == extensions.length &&
-      Iterable<int>.generate(extensions.length).every((int index) => other.extensions[index] == extensions[index]);
+      Iterable<int>.generate(extensions.length)
+          .every((int index) => other.extensions[index] == extensions[index]);
 
   @override
-  int get hashCode => Object.hash(mimeType, description, icon, role, Object.hashAll(extensions));
+  int get hashCode => Object.hash(
+    mimeType,
+    description,
+    icon,
+    role,
+    Object.hashAll(extensions),
+  );
 
   @override
   String toString() => 'DVFileAssociation(${toPubspec()})';
@@ -163,3 +195,15 @@ class DVFileAssociationsParse {
   final List<DVFileAssociation> associations;
   final List<String> problems;
 }
+
+/// The Activity `dartvel build android` writes to receive the files the
+/// application is opened with or shared, in JNI's slash-separated form. The
+/// intent filters are on it rather than on MainActivity, which is the
+/// developer's; it copies each file into the cache, queues it, brings the
+/// application forward and finishes.
+const String dvAndroidOpenActivityClass = 'dev/dartvel/jni/DartvelOpenActivity';
+
+/// Where the iOS app delegate leaves the files it was opened with, as a JSON
+/// list of `{path, name}` copied out of their security scope, until the
+/// Flutter runtime takes them.
+const String dvIosOpenedFilesKey = 'dartvel.openedFiles';

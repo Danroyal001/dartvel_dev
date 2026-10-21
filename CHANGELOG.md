@@ -1,3 +1,8 @@
+## Unreleased
+
+- Register `dartvel.fileAssociations` during builds, with opened-file delivery through `DV.Platform.associations`, a picker fallback, and per-type web/Linux/Windows icons. Device and installed-PWA verification remains pending; Tizen delivery is not wired.
+- Cache raw Flutter web output and route semantics captures by input content. Capture entries are retained together per web build; `--no-cache` bypasses reads and writes.
+
 ## 0.13.12 — 2026-10-21
 
 - App icon quick actions (`dartvel.appShortcuts`, `DVAppShortcut`) declared once and written by the build for every target: the web manifest's shortcuts, Android `shortcuts.xml`, iOS `UIApplicationShortcutItems`, Linux desktop actions. Each opens its route.

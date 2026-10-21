@@ -31,6 +31,7 @@ library dartvel_flutter.platform.ios.capabilities;
 ///   * **`display.enterFullscreen`/`exitFullscreen`**: an iOS app is already
 ///     full screen; the status bar is the app's own Info.plist decision.
 const Set<String> dvIosImplementedBindings = <String>{
+  'associations.opened',
   // UIPasteboard through the Objective-C runtime.
   'clipboard.copy',
   'clipboard.paste',

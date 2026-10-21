@@ -38,6 +38,20 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
       ],
     ),
     DocsSection(
+      id: 'build-cache',
+      title: 'Repeat web builds',
+      children: <Widget>[
+        DocsText('Web and web-server builds reuse raw Flutter web output and '
+            'route captures when their source inputs are unchanged. Captures '
+            'are retained together per web build in .dartvel/cache. '
+            'Backend binaries and native builds still run.'),
+        DocsShell(<String>['dartvel build web --no-cache']),
+        DocsText('Use --no-cache to bypass cache reads and writes, especially '
+            'when prerendered pages read changing external data or the clock. '
+            'Corrupt and incomplete entries are rebuilt automatically.'),
+      ],
+    ),
+    DocsSection(
       id: 'tools',
       title: 'Check tools before you build',
       children: <Widget>[

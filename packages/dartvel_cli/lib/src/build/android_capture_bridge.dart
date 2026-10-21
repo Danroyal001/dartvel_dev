@@ -46,8 +46,9 @@ const String dvAndroidCaptureFilesPath =
 /// permission it can request would put `READ_CONTACTS` on the store listing
 /// of a torch application.
 List<String> dvAndroidRequestedPermissions(Object? dartvelSection) {
-  final Object? android =
-      dartvelSection is Map ? dartvelSection['android'] : null;
+  final Object? android = dartvelSection is Map
+      ? dartvelSection['android']
+      : null;
   final Object? listed = android is Map ? android['permissions'] : null;
   if (listed is! List) return const <String>[];
   final List<String> out = <String>[];
@@ -63,9 +64,9 @@ List<String> dvAndroidRequestedPermissions(Object? dartvelSection) {
 
 /// The names in [requested] that Dartvel has no Android permission for.
 List<String> dvAndroidUnknownPermissions(List<String> requested) => <String>[
-      for (final String name in requested)
-        if (!dvAndroidPermissions.containsKey(name)) name,
-    ];
+  for (final String name in requested)
+    if (!dvAndroidPermissions.containsKey(name)) name,
+];
 
 /// One `<uses-permission>` line per Android permission [requested] needs.
 ///
@@ -86,7 +87,8 @@ List<String> dvAndroidUsesPermissions(List<String> requested) {
     for (final DVAndroidPermission permission in group.permissions) {
       if (permission.maxSdk == null) unbounded.add(permission.name);
       final int? known = maxSdkByName[permission.name];
-      maxSdkByName[permission.name] = known == null || (permission.maxSdk ?? 0) > known
+      maxSdkByName[permission.name] =
+          known == null || (permission.maxSdk ?? 0) > known
           ? permission.maxSdk
           : known;
     }
@@ -169,8 +171,10 @@ String dvAndroidCaptureManifest(String manifest, List<String> requested) {
       ..writeln('         has one. -->')
       ..writeln('    <queries>')
       ..writeln('        <intent>')
-      ..writeln('            <action android:name="android.media.action.'
-          'IMAGE_CAPTURE"/>')
+      ..writeln(
+        '            <action android:name="android.media.action.'
+        'IMAGE_CAPTURE"/>',
+      )
       ..writeln('        </intent>')
       ..writeln('    </queries>')
       ..write(_markEnd);
@@ -187,17 +191,23 @@ String dvAndroidCaptureManifest(String manifest, List<String> requested) {
     ..writeln('             Activity and to nothing else. Transparent, so')
     ..writeln('             the application stays on screen behind it. -->')
     ..writeln('        <activity')
-    ..writeln('            android:name="dev.dartvel.jni.'
-        'DartvelBridgeActivity"')
-    ..writeln('            android:theme="@android:style/'
-        'Theme.Translucent.NoTitleBar"')
+    ..writeln(
+      '            android:name="dev.dartvel.jni.'
+      'DartvelBridgeActivity"',
+    )
+    ..writeln(
+      '            android:theme="@android:style/'
+      'Theme.Translucent.NoTitleBar"',
+    )
     // Nothing outside this application has any business starting it.
     ..writeln('            android:exported="false"')
     ..writeln('            android:excludeFromRecents="true"')
     // Rotating the phone while the camera is open must not restart it and
     // lose the request the Activity is holding.
-    ..writeln('            android:configChanges="orientation|screenSize|'
-        'keyboardHidden"')
+    ..writeln(
+      '            android:configChanges="orientation|screenSize|'
+      'keyboardHidden"',
+    )
     ..writeln('            android:noHistory="false"/>')
     ..writeln('        <!-- Somewhere for a camera application to write a')
     ..writeln('             photo. A file:// URI has thrown')
@@ -205,8 +215,10 @@ String dvAndroidCaptureManifest(String manifest, List<String> requested) {
     ..writeln('             capture has to be handed a content:// one. -->')
     ..writeln('        <provider')
     ..writeln('            android:name="dev.dartvel.jni.DartvelCaptureFiles"')
-    ..writeln(r'            android:authorities="${applicationId}'
-        '$dvAndroidCaptureAuthoritySuffix"')
+    ..writeln(
+      r'            android:authorities="${applicationId}'
+      '$dvAndroidCaptureAuthoritySuffix"',
+    )
     ..writeln('            android:exported="false"')
     // The camera application reaches it through the grant on the Intent,
     // which is why it can stay unexported.
@@ -243,8 +255,10 @@ String _resolveCases() {
       if (guards.isEmpty) {
         out.writeln('        out.add("${permission.name}");');
       } else {
-        out.writeln('        if (${guards.join(" && ")}) '
-            'out.add("${permission.name}");');
+        out.writeln(
+          '        if (${guards.join(" && ")}) '
+          'out.add("${permission.name}");',
+        );
       }
     }
     out.writeln('        break;');
@@ -259,13 +273,12 @@ String _anyOfCases() {
       if (entry.value.anyOf) entry.key,
   ];
   if (names.isEmpty) return '    return false;';
-  return '    return ${names.map((String n) => 'logical.equals("$n")').join(
-        '\n        || ',
-      )};';
+  return '    return ${names.map((String n) => 'logical.equals("$n")').join('\n        || ')};';
 }
 
 /// The bridge itself: what Dart calls, by name, over JNI.
-String dvAndroidCaptureBridgeSource() => '''
+String dvAndroidCaptureBridgeSource() =>
+    '''
 package dev.dartvel.jni;
 
 // GENERATED by dartvel build. The Activity plumbing behind the
@@ -925,6 +938,15 @@ public final class DartvelBridgeActivity extends Activity {
     if (multiple) {
       pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
     }
+    // The types DV.Platform.associations.pick narrows to, when it does.
+    JSONArray accept = options.optJSONArray("accept");
+    if (accept != null && accept.length() > 0) {
+      String[] types = new String[accept.length()];
+      for (int i = 0; i < accept.length(); i++) {
+        types[i] = accept.optString(i, "*/*");
+      }
+      pick.putExtra(Intent.EXTRA_MIME_TYPES, types);
+    }
     startActivityForResult(pick, MEDIA);
   }
 
@@ -1110,7 +1132,8 @@ public final class DartvelBridgeActivity extends Activity {
 ''';
 
 /// The provider that hands a camera application a file to write into.
-String dvAndroidCaptureFilesSource() => '''
+String dvAndroidCaptureFilesSource() =>
+    '''
 package dev.dartvel.jni;
 
 // GENERATED by dartvel build. Somewhere for a camera application to put a

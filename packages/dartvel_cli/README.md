@@ -602,3 +602,10 @@ published identifiers carry a suffix: `dartvel_cli` for this package and
 - [What is built, per spec section](https://github.com/Danroyal001/dartvel_dev/blob/main/docs/spec-status.json)
 - [Releases](https://github.com/Danroyal001/dartvel_dev/releases)
 - [Issues](https://github.com/Danroyal001/dartvel_dev/issues)
+
+The web cache covers raw Flutter output and route captures, with route captures
+retained together per web build. Backend binaries and native builds still run.
+Use `--no-cache` for prerenders that read changing external data or the clock.
+Association registration still needs installation on desktop systems; mobile
+OS and installed-PWA opening have not been verified by this landing. Tizen
+registration is generated, but delivery there remains unwired.

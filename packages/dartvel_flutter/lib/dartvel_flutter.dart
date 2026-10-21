@@ -838,6 +838,7 @@ export 'src/platform/dialogs.dart';
 export 'src/platform/storage/device_storage.dart';
 export 'src/platform/drag_drop.dart';
 export 'src/platform/file_associations.dart';
+export 'src/platform/opened_files.dart' show DVOpenedFile, DVOpenedFiles;
 export 'src/platform/launch_at_login.dart';
 export 'src/platform/file_bindings.dart';
 export 'src/platform/ios/ios_bindings.dart';

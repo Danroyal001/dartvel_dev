@@ -25,6 +25,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
 /// Bumped when the semantics capture changes what it writes, so captures
 /// from an older capture are never reused.
@@ -59,17 +60,27 @@ class DVContentHash {
 
   /// Every file under [directory], in sorted order, named relative to
   /// [relativeTo]. A missing directory is recorded as missing.
-  void addDirectory(String label, Directory directory, {required String relativeTo, bool Function(String relative)? skip}) {
+  void addDirectory(
+    String label,
+    Directory directory, {
+    required String relativeTo,
+    bool Function(String relative)? skip,
+  }) {
     if (!directory.existsSync()) {
       addText('dir:$label', '<missing>');
       return;
     }
     final List<File> files = <File>[
-      for (final FileSystemEntity entity in directory.listSync(recursive: true, followLinks: false))
+      for (final FileSystemEntity entity in directory.listSync(
+        recursive: true,
+        followLinks: false,
+      ))
         if (entity is File) entity,
     ]..sort((File a, File b) => a.path.compareTo(b.path));
     for (final File file in files) {
-      final String relative = p.relative(file.path, from: relativeTo).replaceAll(r'\', '/');
+      final String relative = p
+          .relative(file.path, from: relativeTo)
+          .replaceAll(r'\', '/');
       if (skip != null && skip(relative)) continue;
       addFile(relative, file);
     }
@@ -96,16 +107,35 @@ String dvWebBuildKey({
     ..addText('dartvel', dartvelVersion)
     ..addText('flutter', flutterVersion)
     ..addText('arguments', flutterArguments.join('\u0001'));
-  for (final String name in <String>['pubspec.yaml', 'pubspec.lock', 'analysis_options.yaml', 'build.yaml', 'dartvel.yaml', 'l10n.yaml']) {
+  for (final String name in <String>[
+    'pubspec.yaml',
+    'pubspec.lock',
+    'analysis_options.yaml',
+    'build.yaml',
+    'dartvel.yaml',
+    'l10n.yaml',
+  ]) {
     hash.addFile(name, File(p.join(projectRoot, name)));
   }
   // lib/ holds the generated client too, so generation is covered by it.
-  hash.addDirectory('lib', Directory(p.join(projectRoot, 'lib')), relativeTo: projectRoot);
-  hash.addDirectory('web', Directory(p.join(projectRoot, 'web')), relativeTo: projectRoot);
+  hash.addDirectory(
+    'lib',
+    Directory(p.join(projectRoot, 'lib')),
+    relativeTo: projectRoot,
+  );
+  hash.addDirectory(
+    'web',
+    Directory(p.join(projectRoot, 'web')),
+    relativeTo: projectRoot,
+  );
   for (final String asset in dvDeclaredAssetPaths(projectRoot)) {
     final String path = p.join(projectRoot, asset);
     if (FileSystemEntity.isDirectorySync(path)) {
-      hash.addDirectory('asset:$asset', Directory(path), relativeTo: projectRoot);
+      hash.addDirectory(
+        'asset:$asset',
+        Directory(path),
+        relativeTo: projectRoot,
+      );
     } else {
       hash.addFile('asset:$asset', File(path));
     }
@@ -113,57 +143,66 @@ String dvWebBuildKey({
   // A package depended on by path is source, not a version: its lock entry
   // does not change when its code does. Hosted packages are pinned by the
   // lockfile above.
-  for (final ({String name, String root}) package in dvPathDependencies(projectRoot)) {
-    hash.addDirectory('package:${package.name}', Directory(p.join(package.root, 'lib')), relativeTo: package.root);
-    hash.addFile('package:${package.name}/pubspec.yaml', File(p.join(package.root, 'pubspec.yaml')));
+  for (final ({String name, String root}) package in dvPathDependencies(
+    projectRoot,
+  )) {
+    hash.addDirectory(
+      'package:${package.name}',
+      Directory(p.join(package.root, 'lib')),
+      relativeTo: package.root,
+    );
+    hash.addFile(
+      'package:${package.name}/pubspec.yaml',
+      File(p.join(package.root, 'pubspec.yaml')),
+    );
+    for (final asset in dvDeclaredAssetPaths(package.root)) {
+      final path = p.join(package.root, asset);
+      if (FileSystemEntity.isDirectorySync(path)) {
+        hash.addDirectory('package:${package.name}/asset:$asset', Directory(path), relativeTo: package.root);
+      } else {
+        hash.addFile('package:${package.name}/asset:$asset', File(path));
+      }
+    }
   }
   return hash.digest;
 }
 
 /// The asset paths `flutter: assets:` declares in [projectRoot]'s pubspec, as
-/// written there (a directory ends in `/`). Read line by line: the pubspec
-/// is YAML, but this list is the only part needed and its shape is fixed.
+/// including fonts and both the string and map forms of assets.
 List<String> dvDeclaredAssetPaths(String projectRoot) {
-  final File pubspec = File(p.join(projectRoot, 'pubspec.yaml'));
-  if (!pubspec.existsSync()) return const <String>[];
-  final List<String> assets = <String>[];
-  bool inFlutter = false;
-  bool inAssets = false;
-  int assetsIndent = -1;
-  for (final String line in pubspec.readAsLinesSync()) {
-    if (line.trim().isEmpty || line.trimLeft().startsWith('#')) continue;
-    final int indent = line.length - line.trimLeft().length;
-    if (indent == 0) {
-      inFlutter = line.startsWith('flutter:');
-      inAssets = false;
-      continue;
+  final pubspec = File(p.join(projectRoot, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return const [];
+  final decoded = loadYaml(pubspec.readAsStringSync());
+  final flutter = decoded is Map ? decoded['flutter'] : null;
+  if (flutter is! Map) return const [];
+  final paths = <String>[];
+  final assets = flutter['assets'];
+  if (assets is List) {
+    for (final asset in assets) {
+      final path = asset is Map ? asset['path'] : asset;
+      if (path is String) paths.add(path);
     }
-    if (inFlutter && line.trim() == 'assets:') {
-      inAssets = true;
-      assetsIndent = indent;
-      continue;
-    }
-    if (inAssets) {
-      if (indent <= assetsIndent) {
-        inAssets = false;
-        continue;
-      }
-      final String trimmed = line.trim();
-      if (trimmed.startsWith('- ')) {
-        final String value = trimmed.substring(2).trim();
-        // `- path: x` (the map form) or `- x`.
-        final String path = value.startsWith('path:') ? value.substring(5).trim() : value;
-        assets.add(path.replaceAll(RegExp(r'''^['"]|['"]$'''), ''));
+  }
+  final families = flutter['fonts'];
+  if (families is List) {
+    for (final family in families) {
+      final fonts = family is Map ? family['fonts'] : null;
+      if (fonts is! List) continue;
+      for (final font in fonts) {
+        final path = font is Map ? font['asset'] : null;
+        if (path is String) paths.add(path);
       }
     }
   }
-  return assets;
+  return paths;
 }
 
 /// The packages [projectRoot] resolves to a directory on disk outside any
 /// package cache or SDK: path dependencies, whose source is part of the build.
 List<({String name, String root})> dvPathDependencies(String projectRoot) {
-  final File config = File(p.join(projectRoot, '.dart_tool', 'package_config.json'));
+  final File config = File(
+    p.join(projectRoot, '.dart_tool', 'package_config.json'),
+  );
   if (!config.existsSync()) return const <({String name, String root})>[];
   final Object? decoded;
   try {
@@ -173,7 +212,8 @@ List<({String name, String root})> dvPathDependencies(String projectRoot) {
   }
   final Object? packages = decoded is Map ? decoded['packages'] : null;
   if (packages is! List) return const <({String name, String root})>[];
-  final List<({String name, String root})> found = <({String name, String root})>[];
+  final List<({String name, String root})> found =
+      <({String name, String root})>[];
   for (final Object? package in packages) {
     if (package is! Map) continue;
     final Object? name = package['name'];
@@ -185,8 +225,10 @@ List<({String name, String root})> dvPathDependencies(String projectRoot) {
         : p.normalize(p.join(projectRoot, '.dart_tool', uri.toFilePath()));
     if (root.isEmpty) continue;
     final String normalized = root.replaceAll(r'\', '/');
-    if (normalized.contains('/.pub-cache/') || normalized.contains('/Pub/Cache/') ||
-        normalized.contains('/flutter/packages/') || normalized.contains('/bin/cache/') ||
+    if (normalized.contains('/.pub-cache/') ||
+        normalized.contains('/Pub/Cache/') ||
+        normalized.contains('/flutter/packages/') ||
+        normalized.contains('/bin/cache/') ||
         p.equals(p.normalize(root), p.normalize(projectRoot))) {
       continue;
     }
@@ -231,7 +273,9 @@ class DVBuildCache {
   bool restore(String stage, String key, Directory target) {
     if (!enabled) return false;
     final Directory entry = _entry(stage, key);
-    final Map<String, ({int size, String hash})>? manifest = _validManifest(entry);
+    final Map<String, ({int size, String hash})>? manifest = _validManifest(
+      entry,
+    );
     if (manifest == null) return false;
     if (target.existsSync()) target.deleteSync(recursive: true);
     target.createSync(recursive: true);
@@ -242,38 +286,75 @@ class DVBuildCache {
       source.copySync(destination.path);
     }
     // Touched, so pruning keeps what is in use.
-    File(p.join(entry.path, 'manifest.json')).setLastModifiedSync(DateTime.now());
+    File(p.join(entry.path, 'manifest.json'))
+        .setLastModifiedSync(DateTime.now());
     return true;
   }
 
   /// Copies every file of [source] into entry [key] of [stage]. The manifest
   /// is written last, so an entry interrupted half way has none and is never
   /// read.
-  void store(String stage, String key, Directory source) {
+  ///
+  /// [prune] false leaves pruning to the caller: a stage that holds many
+  /// entries from one build (a capture per route) prunes by group instead,
+  /// with [pruneGroups].
+  void store(String stage, String key, Directory source, {bool prune = true}) {
     if (!enabled || !source.existsSync()) return;
     final Directory entry = _entry(stage, key);
     final Directory staging = Directory('${entry.path}.partial-$pid');
     if (staging.existsSync()) staging.deleteSync(recursive: true);
+    staging.createSync(recursive: true);
     final Map<String, Object?> files = <String, Object?>{};
-    for (final FileSystemEntity entity in source.listSync(recursive: true, followLinks: false)) {
+    for (final FileSystemEntity entity in source.listSync(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File) continue;
-      final String relative = p.relative(entity.path, from: source.path).replaceAll(r'\', '/');
+      final String relative = p
+          .relative(entity.path, from: source.path)
+          .replaceAll(r'\', '/');
       final File copy = File(p.join(staging.path, 'files', relative));
       copy.parent.createSync(recursive: true);
       entity.copySync(copy.path);
       final List<int> bytes = copy.readAsBytesSync();
-      files[relative] = <String, Object?>{'size': bytes.length, 'sha256': sha256.convert(bytes).toString()};
+      files[relative] = <String, Object?>{
+        'size': bytes.length,
+        'sha256': sha256.convert(bytes).toString(),
+      };
     }
     File(p.join(staging.path, 'manifest.json'))
         .writeAsStringSync(jsonEncode(<String, Object?>{'files': files}));
     if (entry.existsSync()) entry.deleteSync(recursive: true);
     entry.parent.createSync(recursive: true);
     staging.renameSync(entry.path);
-    prune(stage);
+    if (prune) this.prune(stage);
+  }
+
+  /// Keeps the newest [keep] stages whose names start with [prefix], each
+  /// stage being one group of entries (every route's capture of one web
+  /// build), then trims the whole cache to [maxBytes].
+  void pruneGroups(String prefix, {int keep = 3}) {
+    final Directory all = Directory(p.join(projectRoot, dvBuildCacheDirectory));
+    if (!all.existsSync()) return;
+    final List<Directory> groups =
+        <Directory>[
+          for (final FileSystemEntity entity in all.listSync())
+            if (entity is Directory &&
+                p.basename(entity.path).startsWith(prefix))
+              entity,
+        ]..sort(
+          (Directory a, Directory b) =>
+              b.statSync().modified.compareTo(a.statSync().modified),
+        );
+    for (final Directory old in groups.skip(keep)) {
+      old.deleteSync(recursive: true);
+    }
+    prune('');
   }
 
   /// Whether entry [key] of [stage] is there and valid.
-  bool has(String stage, String key) => enabled && _validManifest(_entry(stage, key)) != null;
+  bool has(String stage, String key) =>
+      enabled && _validManifest(_entry(stage, key)) != null;
 
   /// The manifest of [entry] when every file it lists is there with the size
   /// and hash it records; otherwise null, and the entry is deleted.
@@ -287,11 +368,18 @@ class DVBuildCache {
       final Object? decoded = jsonDecode(manifestFile.readAsStringSync());
       final Object? files = decoded is Map ? decoded['files'] : null;
       if (files is! Map) throw const FormatException('no files');
-      final Map<String, ({int size, String hash})> manifest = <String, ({int size, String hash})>{};
+      final Map<String, ({int size, String hash})> manifest =
+          <String, ({int size, String hash})>{};
       for (final MapEntry<Object?, Object?> file in files.entries) {
         final Object? details = file.value;
-        if (file.key is! String || details is! Map) throw const FormatException('bad entry');
-        final File stored = File(p.join(entry.path, 'files', file.key! as String));
+        if (file.key is! String || details is! Map)
+          throw const FormatException('bad entry');
+        final relative = file.key! as String;
+        if (p.isAbsolute(relative) || relative.contains('\\') ||
+            relative.split('/').any((part) => part == '..' || part.isEmpty || part == '.')) {
+          throw const FormatException('unsafe path');
+        }
+        final stored = File(p.join(entry.path, 'files', relative));
         if (!stored.existsSync()) throw const FormatException('missing file');
         final List<int> bytes = stored.readAsBytesSync();
         final String hash = sha256.convert(bytes).toString();
@@ -310,8 +398,10 @@ class DVBuildCache {
   /// Keeps the newest [keepPerStage] entries of [stage], then trims the whole
   /// cache to [maxBytes], oldest first.
   void prune(String stage) {
-    final Directory stageDirectory = Directory(p.join(projectRoot, dvBuildCacheDirectory, stage));
-    if (stageDirectory.existsSync()) {
+    final Directory stageDirectory = Directory(
+      p.join(projectRoot, dvBuildCacheDirectory, stage),
+    );
+    if (stage.isNotEmpty && stageDirectory.existsSync()) {
       final List<Directory> entries = _entriesNewestFirst(stageDirectory);
       for (final Directory old in entries.skip(keepPerStage)) {
         old.deleteSync(recursive: true);
@@ -333,18 +423,23 @@ class DVBuildCache {
   }
 
   static List<Directory> _entriesNewestFirst(Directory stage) => <Directory>[
-        for (final FileSystemEntity entity in stage.listSync())
-          if (entity is Directory && !entity.path.contains('.partial-')) entity,
-      ]..sort((Directory a, Directory b) => _touched(b).compareTo(_touched(a)));
+    for (final FileSystemEntity entity in stage.listSync())
+      if (entity is Directory && !entity.path.contains('.partial-')) entity,
+  ]..sort((Directory a, Directory b) => _touched(b).compareTo(_touched(a)));
 
   static DateTime _touched(Directory entry) {
     final File manifest = File(p.join(entry.path, 'manifest.json'));
-    return manifest.existsSync() ? manifest.lastModifiedSync() : DateTime.fromMillisecondsSinceEpoch(0);
+    return manifest.existsSync()
+        ? manifest.lastModifiedSync()
+        : DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   static int _size(Directory entry) {
     int total = 0;
-    for (final FileSystemEntity entity in entry.listSync(recursive: true, followLinks: false)) {
+    for (final FileSystemEntity entity in entry.listSync(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is File) total += entity.lengthSync();
     }
     return total;

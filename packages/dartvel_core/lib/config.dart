@@ -6,8 +6,7 @@
 /// ```dart
 /// import 'package:dartvel_core/config.dart';
 ///
-/// class AppConfig extends DartvelConfig {
-///   const AppConfig();
+/// class const AppConfig() extends DartvelConfig {
 ///
 ///   @override
 ///   List<DVFileAssociation> get fileAssociations => const <DVFileAssociation>[

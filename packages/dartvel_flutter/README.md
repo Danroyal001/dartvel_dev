@@ -379,6 +379,18 @@ final DVNetworkStatus status = DV.Platform.network.watch(context);
 // online, metered, offline or unknown
 ```
 
+A file the application is opened with, or that is shared to it, arrives on
+one stream on every target; the types are declared in
+`dartvel.fileAssociations` and registered by `dartvel build`:
+
+```dart
+DV.Platform.associations.opened.listen((DVOpenedFile file) async {
+  final List<int> bytes = await file.read();
+});
+// Where nothing can open the app with a file, the picker feeds the same stream.
+await DV.Platform.associations.pick();
+```
+
 The bindings reach native code through `dart:ffi` (X11, GTK and GDBus on
 Linux, the Win32 API, the Objective-C runtime on Apple platforms),
 `dart:js_interop` on the web and jnigen on Android. There are no platform
