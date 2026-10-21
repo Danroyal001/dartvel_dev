@@ -362,6 +362,13 @@ you; the build prints what to install instead.
 
 ### Android release builds
 
+Applications using `DVBox.video`, `DVBox.audio` or `DVBox.camera` get generated
+Media3/CameraX Java and dependencies during `dartvel build android`. These live in
+the ephemeral Android scaffold; edit the Dart application instead. The build
+removes unused media classes on subsequent runs. Android adapter contracts
+are unit-tested; hardware and background-control verification is pending.
+Apple native media generation is not implemented.
+
 A release build of `android` or `fireos` (and of the paid `horizon`) is signed with your own
 key and is refused, before anything is generated, when there is none. Dartvel
 never signs a release with the debug key. Keep the key out of the repository

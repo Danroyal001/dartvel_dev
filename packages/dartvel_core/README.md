@@ -237,3 +237,10 @@ dart run example/main.dart
 The framework is Dartvel and the command is `dartvel`. The umbrella package on
 pub.dev is `dartvel_dev` because `dartvel` was taken on 2026-08-06 by an
 unrelated package. The libraries under it keep their plain names.
+
+### Native media verification
+
+Android media adapters implement the existing player/camera contracts, including
+physical camera ids. Controller and event decoding tests run on Linux; Android
+hardware playback/capture remains unverified. iOS/macOS have event-schema tests
+only, with no native player/camera backend. See `docs/spec-status.json`.
