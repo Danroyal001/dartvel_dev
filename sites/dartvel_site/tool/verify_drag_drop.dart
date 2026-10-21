@@ -49,6 +49,23 @@ Future<void> main(List<String> args) async {
   }
 
   try {
+    final client = HttpClient();
+    try {
+      final response = await (await client.getUrl(Uri.parse(args[0]))).close();
+      final html = await utf8.decoder.bind(response).join();
+      check(
+        'server document names the drop zone and its tooltip',
+        response.statusCode == 200 &&
+            html.contains('title="$zoneName" aria-label="$zoneName"'),
+      );
+      check(
+        'server document names the draggable and its tooltip',
+        response.statusCode == 200 &&
+            html.contains('title="$draggableName" aria-label="$draggableName"'),
+      );
+    } finally {
+      client.close(force: true);
+    }
     final Page page = await browser.newPage();
     page.onConsole.listen(
       (ConsoleMessage message) => stdout.writeln('console: ${message.text}'),
@@ -125,11 +142,12 @@ Future<void> main(List<String> args) async {
               'data': payload,
             });
           }
-          if (expectHover)
+          if (expectHover) {
             check(
               '$at: hovering a drag over the zone tells it',
               await bodyHas('Hover: Hovering'),
             );
+          }
           await cdp.send('Input.dispatchDragEvent', <String, Object?>{
             'type': 'drop',
             'x': zone['x'],

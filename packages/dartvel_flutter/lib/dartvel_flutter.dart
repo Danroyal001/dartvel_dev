@@ -2845,21 +2845,25 @@ class DVBox<T> extends StatelessWidget {
       // says what it is. A drop zone or a draggable must: a pointer hovers it
       // with something in hand, and a screen reader has to be told what it
       // takes or carries.
+      final Widget hoverChild = result;
       result = DVTooltipTarget(
-        label: m!.tooltipValue,
+        label: m!.tooltipValue ?? m.semanticLabelValue,
         required: dragDrop,
         site: m.dragDropSite,
-        child: result,
+        child: hoverChild,
+        // A drag surface is named without pretending to be a button. The
+        // capture uses this identifier to retain its title and aria-label
+        // in the server document, including names derived from its text.
+        builder: dragDrop
+            ? (BuildContext context, String? name) => Semantics(
+                container: true,
+                explicitChildNodes: true,
+                identifier: 'dartvel:hoverable',
+                label: name,
+                child: hoverChild,
+              )
+            : null,
       );
-      if (dragDrop && m.tooltipValue != null && m.semanticLabelValue == null) {
-        // The tooltip keeps itself out of the semantics tree, so the zone's
-        // node carries the same words; what is inside stays reachable.
-        result = Semantics(
-          container: true,
-          label: m.tooltipValue,
-          child: result,
-        );
-      }
     }
 
     final minimumTapTarget = m?.minimumTapTargetValue;
