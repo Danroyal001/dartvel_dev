@@ -645,8 +645,8 @@ never the only one: put a named control beside a drop zone that calls
 `DV.Platform.dragDrop.chooseInstead()`, which opens the file picker and
 delivers the choice as the same drop.
 
-Where it is verified: Linux (GTK, under Xvfb), Windows (OLE) and macOS
-(AppKit) take drops in their live suites, and headless Chrome takes a file
+Desktop incoming drops retain the GTK, OLE and AppKit backends. Linux has
+an Xvfb/GTK integration suite; headless Chrome takes a file
 from disk, a link and text through its own drag pipeline and starts a drag
 out of a `.draggable()` (`sites/dartvel_site/tool/verify_drag_drop.dart`).
 `dartvel build android` writes a Java `OnDragListener` bridge reached

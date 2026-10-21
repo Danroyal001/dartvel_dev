@@ -1,0 +1,782 @@
+[
+  {
+    "check": "360 light: hovering a drag over the zone tells it",
+    "ok": true
+  },
+  {
+    "check": "360 light: a file from disk reaches .dropTarget() with its bytes",
+    "ok": true
+  },
+  {
+    "check": "360 light: the zone stops hovering after the drop",
+    "ok": true
+  },
+  {
+    "check": "360 light: a link arrives as a link, not as text",
+    "ok": true
+  },
+  {
+    "check": "360 light: plain text arrives as text",
+    "ok": true
+  },
+  {
+    "check": "360 light: a mouse over the draggable arms it before any press",
+    "ok": true,
+    "detail": {
+      "x": 60,
+      "y": 303
+    }
+  },
+  {
+    "check": "360 light: pressing and moving the draggable starts the browser drag with its link and text",
+    "ok": true,
+    "detail": "[{\"mimeType\":\"text/uri-list\",\"data\":\"https://dartvel.dev/docs/devices\"},{\"mimeType\":\"text/plain\",\"data\":\"Dartvel drag payload\"}]"
+  },
+  {
+    "check": "360 light: what the draggable carried drops onto the zone",
+    "ok": true
+  },
+  {
+    "check": "360 light: find-in-page finds every word, drop zone and draggable included",
+    "ok": true,
+    "detail": {
+      "Drag and drop verification": true,
+      "Drop a file, link or text here": true,
+      "Drag this link out": true,
+      "Choose files instead": true
+    }
+  },
+  {
+    "check": "360 light: no horizontal scroll",
+    "ok": true
+  },
+  {
+    "check": "360 light: mouse selection copies the heading text",
+    "ok": true,
+    "detail": "Drag and drop verification"
+  },
+  {
+    "check": "360 light: the drop zone is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "360 light: the draggable is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "360 light: the heading is a heading",
+    "ok": true
+  },
+  {
+    "check": "360 light: Tab reaches the \"Choose files instead\" control",
+    "ok": true,
+    "detail": [
+      "Choose files instead",
+      "Drop a file, link or text here\nReceived: {\"files\":[],\"urls\":[\"https://dartvel.dev/docs/devices\"],\"text\":\"Dartvel drag payload\"}\nHover: Not hovering\nDrag this link out",
+      "Choose files instead",
+      "Drag and drop verificationChoose files insteadflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}"
+    ]
+  },
+  {
+    "check": "390 light: hovering a drag over the zone tells it",
+    "ok": true
+  },
+  {
+    "check": "390 light: a file from disk reaches .dropTarget() with its bytes",
+    "ok": true
+  },
+  {
+    "check": "390 light: the zone stops hovering after the drop",
+    "ok": true
+  },
+  {
+    "check": "390 light: a link arrives as a link, not as text",
+    "ok": true
+  },
+  {
+    "check": "390 light: plain text arrives as text",
+    "ok": true
+  },
+  {
+    "check": "390 light: a mouse over the draggable arms it before any press",
+    "ok": true,
+    "detail": {
+      "x": 60,
+      "y": 303
+    }
+  },
+  {
+    "check": "390 light: pressing and moving the draggable starts the browser drag with its link and text",
+    "ok": true,
+    "detail": "[{\"mimeType\":\"text/uri-list\",\"data\":\"https://dartvel.dev/docs/devices\"},{\"mimeType\":\"text/plain\",\"data\":\"Dartvel drag payload\"}]"
+  },
+  {
+    "check": "390 light: what the draggable carried drops onto the zone",
+    "ok": true
+  },
+  {
+    "check": "390 light: find-in-page finds every word, drop zone and draggable included",
+    "ok": true,
+    "detail": {
+      "Drag and drop verification": true,
+      "Drop a file, link or text here": true,
+      "Drag this link out": true,
+      "Choose files instead": true
+    }
+  },
+  {
+    "check": "390 light: no horizontal scroll",
+    "ok": true
+  },
+  {
+    "check": "390 light: mouse selection copies the heading text",
+    "ok": true,
+    "detail": "Drag and drop verification"
+  },
+  {
+    "check": "390 light: the drop zone is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "390 light: the draggable is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "390 light: the heading is a heading",
+    "ok": true
+  },
+  {
+    "check": "390 light: Tab reaches the \"Choose files instead\" control",
+    "ok": true,
+    "detail": [
+      "Drag and drop verificationChoose files insteadDrop a file, link or text hereflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}",
+      "Drop a file, link or text here\nReceived: {\"files\":[],\"urls\":[\"https://dartvel.dev/docs/devices\"],\"text\":\"Dartvel drag payload\"}\nHover: Not hovering\nDrag this link out",
+      "Choose files instead",
+      "Drag and drop verificationChoose files insteadflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}"
+    ]
+  },
+  {
+    "check": "1024 light: hovering a drag over the zone tells it",
+    "ok": true
+  },
+  {
+    "check": "1024 light: a file from disk reaches .dropTarget() with its bytes",
+    "ok": true
+  },
+  {
+    "check": "1024 light: the zone stops hovering after the drop",
+    "ok": true
+  },
+  {
+    "check": "1024 light: a link arrives as a link, not as text",
+    "ok": true
+  },
+  {
+    "check": "1024 light: plain text arrives as text",
+    "ok": true
+  },
+  {
+    "check": "1024 light: a mouse over the draggable arms it before any press",
+    "ok": true,
+    "detail": {
+      "x": 60,
+      "y": 279
+    }
+  },
+  {
+    "check": "1024 light: pressing and moving the draggable starts the browser drag with its link and text",
+    "ok": true,
+    "detail": "[{\"mimeType\":\"text/uri-list\",\"data\":\"https://dartvel.dev/docs/devices\"},{\"mimeType\":\"text/plain\",\"data\":\"Dartvel drag payload\"}]"
+  },
+  {
+    "check": "1024 light: what the draggable carried drops onto the zone",
+    "ok": true
+  },
+  {
+    "check": "1024 light: find-in-page finds every word, drop zone and draggable included",
+    "ok": true,
+    "detail": {
+      "Drag and drop verification": true,
+      "Drop a file, link or text here": true,
+      "Drag this link out": true,
+      "Choose files instead": true
+    }
+  },
+  {
+    "check": "1024 light: no horizontal scroll",
+    "ok": true
+  },
+  {
+    "check": "1024 light: mouse selection copies the heading text",
+    "ok": true,
+    "detail": "Drag and drop verification"
+  },
+  {
+    "check": "1024 light: the drop zone is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1024 light: the draggable is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1024 light: the heading is a heading",
+    "ok": true
+  },
+  {
+    "check": "1024 light: Tab reaches the \"Choose files instead\" control",
+    "ok": true,
+    "detail": [
+      "Choose files instead",
+      "Drag and drop verificationChoose files insteadDrop a file, link or text hereflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}",
+      "Drag and drop verificationChoose files insteadflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}",
+      "Drop a file, link or text here\nReceived: {\"files\":[],\"urls\":[\"https://dartvel.dev/docs/devices\"],\"text\":\"Dartvel drag payload\"}\nHover: Not hovering\nDrag this link out"
+    ]
+  },
+  {
+    "check": "1280 light: hovering a drag over the zone tells it",
+    "ok": true
+  },
+  {
+    "check": "1280 light: a file from disk reaches .dropTarget() with its bytes",
+    "ok": true
+  },
+  {
+    "check": "1280 light: the zone stops hovering after the drop",
+    "ok": true
+  },
+  {
+    "check": "1280 light: a link arrives as a link, not as text",
+    "ok": true
+  },
+  {
+    "check": "1280 light: plain text arrives as text",
+    "ok": true
+  },
+  {
+    "check": "1280 light: a mouse over the draggable arms it before any press",
+    "ok": true,
+    "detail": {
+      "x": 60,
+      "y": 279
+    }
+  },
+  {
+    "check": "1280 light: pressing and moving the draggable starts the browser drag with its link and text",
+    "ok": true,
+    "detail": "[{\"mimeType\":\"text/uri-list\",\"data\":\"https://dartvel.dev/docs/devices\"},{\"mimeType\":\"text/plain\",\"data\":\"Dartvel drag payload\"}]"
+  },
+  {
+    "check": "1280 light: what the draggable carried drops onto the zone",
+    "ok": true
+  },
+  {
+    "check": "1280 light: find-in-page finds every word, drop zone and draggable included",
+    "ok": true,
+    "detail": {
+      "Drag and drop verification": true,
+      "Drop a file, link or text here": true,
+      "Drag this link out": true,
+      "Choose files instead": true
+    }
+  },
+  {
+    "check": "1280 light: no horizontal scroll",
+    "ok": true
+  },
+  {
+    "check": "1280 light: mouse selection copies the heading text",
+    "ok": true,
+    "detail": "Drag and drop verification"
+  },
+  {
+    "check": "1280 light: the drop zone is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1280 light: the draggable is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1280 light: the heading is a heading",
+    "ok": true
+  },
+  {
+    "check": "1280 light: Tab reaches the \"Choose files instead\" control",
+    "ok": true,
+    "detail": [
+      "Choose files instead",
+      "Drag and drop verificationChoose files insteadflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}",
+      "Choose files instead",
+      "Drag and drop verificationChoose files insteadflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}"
+    ]
+  },
+  {
+    "check": "1366 light: hovering a drag over the zone tells it",
+    "ok": true
+  },
+  {
+    "check": "1366 light: a file from disk reaches .dropTarget() with its bytes",
+    "ok": true
+  },
+  {
+    "check": "1366 light: the zone stops hovering after the drop",
+    "ok": true
+  },
+  {
+    "check": "1366 light: a link arrives as a link, not as text",
+    "ok": true
+  },
+  {
+    "check": "1366 light: plain text arrives as text",
+    "ok": true
+  },
+  {
+    "check": "1366 light: a mouse over the draggable arms it before any press",
+    "ok": true,
+    "detail": {
+      "x": 60,
+      "y": 279
+    }
+  },
+  {
+    "check": "1366 light: pressing and moving the draggable starts the browser drag with its link and text",
+    "ok": true,
+    "detail": "[{\"mimeType\":\"text/uri-list\",\"data\":\"https://dartvel.dev/docs/devices\"},{\"mimeType\":\"text/plain\",\"data\":\"Dartvel drag payload\"}]"
+  },
+  {
+    "check": "1366 light: what the draggable carried drops onto the zone",
+    "ok": true
+  },
+  {
+    "check": "1366 light: find-in-page finds every word, drop zone and draggable included",
+    "ok": true,
+    "detail": {
+      "Drag and drop verification": true,
+      "Drop a file, link or text here": true,
+      "Drag this link out": true,
+      "Choose files instead": true
+    }
+  },
+  {
+    "check": "1366 light: no horizontal scroll",
+    "ok": true
+  },
+  {
+    "check": "1366 light: mouse selection copies the heading text",
+    "ok": true,
+    "detail": "Drag and drop verification"
+  },
+  {
+    "check": "1366 light: the drop zone is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1366 light: the draggable is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1366 light: the heading is a heading",
+    "ok": true
+  },
+  {
+    "check": "1366 light: Tab reaches the \"Choose files instead\" control",
+    "ok": true,
+    "detail": [
+      "Choose files instead",
+      "Drag and drop verificationChoose files insteadDrop a file, link or text hereflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}",
+      "Choose files instead",
+      "Drop a file, link or text here\nReceived: {\"files\":[],\"urls\":[\"https://dartvel.dev/docs/devices\"],\"text\":\"Dartvel drag payload\"}\nHover: Not hovering\nDrag this link out"
+    ]
+  },
+  {
+    "check": "360 dark: hovering a drag over the zone tells it",
+    "ok": true
+  },
+  {
+    "check": "360 dark: a file from disk reaches .dropTarget() with its bytes",
+    "ok": true
+  },
+  {
+    "check": "360 dark: the zone stops hovering after the drop",
+    "ok": true
+  },
+  {
+    "check": "360 dark: a link arrives as a link, not as text",
+    "ok": true
+  },
+  {
+    "check": "360 dark: plain text arrives as text",
+    "ok": true
+  },
+  {
+    "check": "360 dark: a mouse over the draggable arms it before any press",
+    "ok": true,
+    "detail": {
+      "x": 60,
+      "y": 303
+    }
+  },
+  {
+    "check": "360 dark: pressing and moving the draggable starts the browser drag with its link and text",
+    "ok": true,
+    "detail": "[{\"mimeType\":\"text/uri-list\",\"data\":\"https://dartvel.dev/docs/devices\"},{\"mimeType\":\"text/plain\",\"data\":\"Dartvel drag payload\"}]"
+  },
+  {
+    "check": "360 dark: what the draggable carried drops onto the zone",
+    "ok": true
+  },
+  {
+    "check": "360 dark: find-in-page finds every word, drop zone and draggable included",
+    "ok": true,
+    "detail": {
+      "Drag and drop verification": true,
+      "Drop a file, link or text here": true,
+      "Drag this link out": true,
+      "Choose files instead": true
+    }
+  },
+  {
+    "check": "360 dark: no horizontal scroll",
+    "ok": true
+  },
+  {
+    "check": "360 dark: mouse selection copies the heading text",
+    "ok": true,
+    "detail": "Drag and drop verification"
+  },
+  {
+    "check": "360 dark: the drop zone is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "360 dark: the draggable is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "360 dark: the heading is a heading",
+    "ok": true
+  },
+  {
+    "check": "360 dark: Tab reaches the \"Choose files instead\" control",
+    "ok": true,
+    "detail": [
+      "Choose files instead",
+      "Drag and drop verificationChoose files insteadflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}",
+      "Choose files instead",
+      "Drop a file, link or text here\nReceived: {\"files\":[],\"urls\":[\"https://dartvel.dev/docs/devices\"],\"text\":\"Dartvel drag payload\"}\nHover: Not hovering\nDrag this link out"
+    ]
+  },
+  {
+    "check": "390 dark: hovering a drag over the zone tells it",
+    "ok": true
+  },
+  {
+    "check": "390 dark: a file from disk reaches .dropTarget() with its bytes",
+    "ok": true
+  },
+  {
+    "check": "390 dark: the zone stops hovering after the drop",
+    "ok": true
+  },
+  {
+    "check": "390 dark: a link arrives as a link, not as text",
+    "ok": true
+  },
+  {
+    "check": "390 dark: plain text arrives as text",
+    "ok": true
+  },
+  {
+    "check": "390 dark: a mouse over the draggable arms it before any press",
+    "ok": true,
+    "detail": {
+      "x": 60,
+      "y": 303
+    }
+  },
+  {
+    "check": "390 dark: pressing and moving the draggable starts the browser drag with its link and text",
+    "ok": true,
+    "detail": "[{\"mimeType\":\"text/uri-list\",\"data\":\"https://dartvel.dev/docs/devices\"},{\"mimeType\":\"text/plain\",\"data\":\"Dartvel drag payload\"}]"
+  },
+  {
+    "check": "390 dark: what the draggable carried drops onto the zone",
+    "ok": true
+  },
+  {
+    "check": "390 dark: find-in-page finds every word, drop zone and draggable included",
+    "ok": true,
+    "detail": {
+      "Drag and drop verification": true,
+      "Drop a file, link or text here": true,
+      "Drag this link out": true,
+      "Choose files instead": true
+    }
+  },
+  {
+    "check": "390 dark: no horizontal scroll",
+    "ok": true
+  },
+  {
+    "check": "390 dark: mouse selection copies the heading text",
+    "ok": true,
+    "detail": "Drag and drop verification"
+  },
+  {
+    "check": "390 dark: the drop zone is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "390 dark: the draggable is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "390 dark: the heading is a heading",
+    "ok": true
+  },
+  {
+    "check": "390 dark: Tab reaches the \"Choose files instead\" control",
+    "ok": true,
+    "detail": [
+      "Drag and drop verificationChoose files insteadDrop a file, link or text hereflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}",
+      "Drop a file, link or text here\nReceived: {\"files\":[],\"urls\":[\"https://dartvel.dev/docs/devices\"],\"text\":\"Dartvel drag payload\"}\nHover: Not hovering\nDrag this link out",
+      "Choose files instead",
+      "Drop a file, link or text here\nReceived: {\"files\":[],\"urls\":[\"https://dartvel.dev/docs/devices\"],\"text\":\"Dartvel drag payload\"}\nHover: Not hovering\nDrag this link out"
+    ]
+  },
+  {
+    "check": "1024 dark: hovering a drag over the zone tells it",
+    "ok": true
+  },
+  {
+    "check": "1024 dark: a file from disk reaches .dropTarget() with its bytes",
+    "ok": true
+  },
+  {
+    "check": "1024 dark: the zone stops hovering after the drop",
+    "ok": true
+  },
+  {
+    "check": "1024 dark: a link arrives as a link, not as text",
+    "ok": true
+  },
+  {
+    "check": "1024 dark: plain text arrives as text",
+    "ok": true
+  },
+  {
+    "check": "1024 dark: a mouse over the draggable arms it before any press",
+    "ok": true,
+    "detail": {
+      "x": 60,
+      "y": 279
+    }
+  },
+  {
+    "check": "1024 dark: pressing and moving the draggable starts the browser drag with its link and text",
+    "ok": true,
+    "detail": "[{\"mimeType\":\"text/uri-list\",\"data\":\"https://dartvel.dev/docs/devices\"},{\"mimeType\":\"text/plain\",\"data\":\"Dartvel drag payload\"}]"
+  },
+  {
+    "check": "1024 dark: what the draggable carried drops onto the zone",
+    "ok": true
+  },
+  {
+    "check": "1024 dark: find-in-page finds every word, drop zone and draggable included",
+    "ok": true,
+    "detail": {
+      "Drag and drop verification": true,
+      "Drop a file, link or text here": true,
+      "Drag this link out": true,
+      "Choose files instead": true
+    }
+  },
+  {
+    "check": "1024 dark: no horizontal scroll",
+    "ok": true
+  },
+  {
+    "check": "1024 dark: mouse selection copies the heading text",
+    "ok": true,
+    "detail": "Drag and drop verification"
+  },
+  {
+    "check": "1024 dark: the drop zone is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1024 dark: the draggable is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1024 dark: the heading is a heading",
+    "ok": true
+  },
+  {
+    "check": "1024 dark: Tab reaches the \"Choose files instead\" control",
+    "ok": true,
+    "detail": [
+      "Choose files instead",
+      "Drop a file, link or text hereDrag and drop verificationChoose files insteadChoose files insteadflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}",
+      "Drag and drop verificationChoose files insteadChoose files insteadflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}",
+      "Drop a file, link or text here\nReceived: {\"files\":[],\"urls\":[\"https://dartvel.dev/docs/devices\"],\"text\":\"Dartvel drag payload\"}\nHover: Not hovering\nDrag this link out"
+    ]
+  },
+  {
+    "check": "1280 dark: hovering a drag over the zone tells it",
+    "ok": true
+  },
+  {
+    "check": "1280 dark: a file from disk reaches .dropTarget() with its bytes",
+    "ok": true
+  },
+  {
+    "check": "1280 dark: the zone stops hovering after the drop",
+    "ok": true
+  },
+  {
+    "check": "1280 dark: a link arrives as a link, not as text",
+    "ok": true
+  },
+  {
+    "check": "1280 dark: plain text arrives as text",
+    "ok": true
+  },
+  {
+    "check": "1280 dark: a mouse over the draggable arms it before any press",
+    "ok": true,
+    "detail": {
+      "x": 60,
+      "y": 279
+    }
+  },
+  {
+    "check": "1280 dark: pressing and moving the draggable starts the browser drag with its link and text",
+    "ok": true,
+    "detail": "[{\"mimeType\":\"text/uri-list\",\"data\":\"https://dartvel.dev/docs/devices\"},{\"mimeType\":\"text/plain\",\"data\":\"Dartvel drag payload\"}]"
+  },
+  {
+    "check": "1280 dark: what the draggable carried drops onto the zone",
+    "ok": true
+  },
+  {
+    "check": "1280 dark: find-in-page finds every word, drop zone and draggable included",
+    "ok": true,
+    "detail": {
+      "Drag and drop verification": true,
+      "Drop a file, link or text here": true,
+      "Drag this link out": true,
+      "Choose files instead": true
+    }
+  },
+  {
+    "check": "1280 dark: no horizontal scroll",
+    "ok": true
+  },
+  {
+    "check": "1280 dark: mouse selection copies the heading text",
+    "ok": true,
+    "detail": "Drag and drop verification"
+  },
+  {
+    "check": "1280 dark: the drop zone is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1280 dark: the draggable is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1280 dark: the heading is a heading",
+    "ok": true
+  },
+  {
+    "check": "1280 dark: Tab reaches the \"Choose files instead\" control",
+    "ok": true,
+    "detail": [
+      "Choose files instead",
+      "Drag and drop verificationChoose files insteadflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}",
+      "Choose files instead",
+      "Drag and drop verificationChoose files insteadflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}"
+    ]
+  },
+  {
+    "check": "1366 dark: hovering a drag over the zone tells it",
+    "ok": true
+  },
+  {
+    "check": "1366 dark: a file from disk reaches .dropTarget() with its bytes",
+    "ok": true
+  },
+  {
+    "check": "1366 dark: the zone stops hovering after the drop",
+    "ok": true
+  },
+  {
+    "check": "1366 dark: a link arrives as a link, not as text",
+    "ok": true
+  },
+  {
+    "check": "1366 dark: plain text arrives as text",
+    "ok": true
+  },
+  {
+    "check": "1366 dark: a mouse over the draggable arms it before any press",
+    "ok": true,
+    "detail": {
+      "x": 60,
+      "y": 279
+    }
+  },
+  {
+    "check": "1366 dark: pressing and moving the draggable starts the browser drag with its link and text",
+    "ok": true,
+    "detail": "[{\"mimeType\":\"text/uri-list\",\"data\":\"https://dartvel.dev/docs/devices\"},{\"mimeType\":\"text/plain\",\"data\":\"Dartvel drag payload\"}]"
+  },
+  {
+    "check": "1366 dark: what the draggable carried drops onto the zone",
+    "ok": true
+  },
+  {
+    "check": "1366 dark: find-in-page finds every word, drop zone and draggable included",
+    "ok": true,
+    "detail": {
+      "Drag and drop verification": true,
+      "Drop a file, link or text here": true,
+      "Drag this link out": true,
+      "Choose files instead": true
+    }
+  },
+  {
+    "check": "1366 dark: no horizontal scroll",
+    "ok": true
+  },
+  {
+    "check": "1366 dark: mouse selection copies the heading text",
+    "ok": true,
+    "detail": "Drag and drop verification"
+  },
+  {
+    "check": "1366 dark: the drop zone is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1366 dark: the draggable is named for a screen reader",
+    "ok": true
+  },
+  {
+    "check": "1366 dark: the heading is a heading",
+    "ok": true
+  },
+  {
+    "check": "1366 dark: Tab reaches the \"Choose files instead\" control",
+    "ok": true,
+    "detail": [
+      "Choose files instead",
+      "Drag and drop verificationChoose files insteadflutter-view flt-scene-host {  font: normal normal 14px sans-serif;}flutter-view flt-semantics input[type=range] {  appearance: none;  -webkit-appearance: none;  width: 100%;  position: absolute;  border: none;  top: 0;  right: 0;  bottom: 0;  left: 0;}flutter-view input::selection {  background-color: transparent;}flutter-view textarea::selection {  background-color: transparent;}flutter-view flt-semantics input,flutter-view flt-semantics textarea,flutter-view flt-semantics [contentEditable=\"true\"] {  caret-color: transparent;}flutter-view .flt-text-editing::placeholder {  opacity: 0;}flutter-view:focus { outline: rgb(0, 0, 0) none 0px;}flutter-view .transparentTextEditing:-webkit-autofill,flutter-view .transparentTextEditing:-webkit-autofill:hover,flutter-view .transparentTextEditing:-webkit-autofill:focus,flutter-view .transparentTextEditing:-webkit-autofill:active {  opacity: 0 !important;}",
+      "Choose files instead",
+      "Drop a file, link or text here\nReceived: {\"files\":[],\"urls\":[\"https://dartvel.dev/docs/devices\"],\"text\":\"Dartvel drag payload\"}\nHover: Not hovering\nDrag this link out"
+    ]
+  }
+]

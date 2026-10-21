@@ -31,7 +31,7 @@ project edit as text; it does not compile Swift.
    `dart run tool/verify_drag_drop.dart http://127.0.0.1:<port>/ <output-dir>`.
 
 The verifier launches and closes its own headless Chrome (never the shared one).
-At 390, 1024 and 1366 pixels in light and dark it:
+At 360, 390, 1024, 1280 and 1366 pixels in light and dark it:
 
 - drops a real file from disk, a `text/uri-list` link and plain text through
   Chrome's own drag pipeline (CDP `Input.dispatchDragEvent`), and checks what
@@ -41,7 +41,7 @@ At 390, 1024 and 1366 pixels in light and dark it:
   moves on it, and checks with `Input.setInterceptDrags` that the browser
   started its own drag carrying the link and text, then drops that drag back
   on the drop zone;
-- checks find-in-page, Tab reaching the "Choose files instead" control,
+- checks find-in-page, mouse selection and copying the heading, Tab reaching the "Choose files instead" control,
   screen reader names for the drop zone and the draggable, the heading role
   and no horizontal scroll, and saves a screenshot with the drop zone's
   tooltip showing.
@@ -49,5 +49,23 @@ At 390, 1024 and 1366 pixels in light and dark it:
 It writes `checks.json` and the screenshots to the output directory and
 exits non-zero on any failure.
 
+The clipboard permission is granted only to the local test origin in the
+verifier's own browser. Selection is tested through mouse input and copying:
+Flutter's `SelectionArea` owns it after startup, so a DOM selection range
+does not describe what the reader selected.
+
 What it cannot do is drag from a second operating-system application, and
 nothing here runs on an Android or iOS device.
+
+## Recorded browser run (21 October 2026)
+
+The scratch page built as `web-server` passed 150 checks in its own headless
+Chrome at all five widths in both themes. The run covered file bytes,
+URI-list links, plain text, hover delivery, browser drag-out and dropping
+that payload back, find-in-page, mouse selection and copying, accessible
+names, the heading role, Tab reaching the picker, and horizontal overflow.
+[Results](../screens/drag-drop/checks.json) and
+[screenshots](../screens/drag-drop/) are checked in. The hover screenshots
+show the named drop-zone tooltip; the screenshots are a verification page,
+not an application design. This run does not verify a physical drag from a
+second application or a mobile device.
