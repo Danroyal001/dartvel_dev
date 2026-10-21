@@ -1,3 +1,8 @@
+## Unreleased
+
+- App icon quick actions (`DVAppShortcut` / `DVAppShortcutsConfig`) on every target: PWA manifest shortcuts, Android `shortcuts.xml`, iOS `UIApplicationShortcutItems` with delegate, Linux desktop actions. Every shortcut opens its route through `dartvel:///route`.
+- `DVContextMenu`: per-element context menu (right-click/secondary click, long-press, menu key/Shift+F10, screen-reader actions), with `DVBrowserMenu` rules preserved (web gets "More"; Shift+right-click goes to browser; selected text defers to selection menu; every item has tooltip = label; long-press beats child's tooltip).
+
 ## 0.13.11 — 2026-10-21
 
 - A web-server binary built without Studio answers `/_dartvel/pages` with an empty list instead of a 404 on every page load.
