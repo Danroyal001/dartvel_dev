@@ -1,3 +1,6 @@
+## Unreleased — native drag-and-drop (batch 1)
+- Expanded drag and drop: `DVDragDrop` accepts `files`, `text`, `urls`; widget-level `dropTarget` and `draggable` via `drag_drop_widgets.dart`; `DVIncomingFile` reads file bytes on every target; native Android (`android_drag_drop_jni`) and iOS (`ios_drag_drop_ffi`) bindings; web DataTransfer drops (`web_drag_drop_js`) with file bytes, links and drag-out (`startDrag`, `setPending`); CLI bridge generation (`android_drag_drop_bridge`, `ios_drag_drop_bridge`). Generated-output tests only for iOS; scratch Android build verified; web drop checked in headless Chrome.
+
 ## 0.13.11 — 2026-10-21
 
 - A web-server binary built without Studio answers `/_dartvel/pages` with an empty list instead of a 404 on every page load.
