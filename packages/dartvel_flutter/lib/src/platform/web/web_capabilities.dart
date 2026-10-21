@@ -195,7 +195,9 @@ const Set<String> dvWebUnconditionalBindings = <String>{
 /// name stays out, because a shorter list that is true is worth more than a
 /// longer one that is not.
 const Map<String, String> dvWebUnavailableBindings = <String, String>{
-  'associations.opened': 'Delivered directly through launchQueue.',
+  'associations.opened': 'A browser has no queue of files to collect at start: '
+      'an installed web app is handed each file by launchQueue, which '
+      'delivers it to DV.Platform.associations.opened as it arrives.',
   'push.subscribeToTopic': 'Web Push has no topics: a subscription is one '
       'endpoint belonging to one browser profile, and the push service offers '
       'no way to address a group of them. Topic membership is the '
