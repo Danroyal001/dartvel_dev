@@ -143,7 +143,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
                   'loads the one you pick, so a font picker shows real fonts and '
                   'text renders in them. Built on Linux and in Chromium browsers '
                   '(checked in Chrome); '
-                  'written for Windows, macOS and Android, not yet run there. '
+                  'written for Windows, macOS and Android and still to be run there. '
                   'Where a list is empty, it says why.',
             ]),
             DocsCode('devices-desktop'),
