@@ -13,8 +13,13 @@ ThemeData dartvelDefaultTheme(
     // renders in Roboto, which is Flutter's default and reads as nobody
     // having made a decision. Set on the theme rather than on each widget
     // so a page that styles nothing still gets it.
-    fontFamily: 'Manrope',
-    package: fontPackage,
+    //
+    // Named by its asset path rather than with `package:`. A theme's package
+    // is inherited by every TextStyle merged into it, so a widget that names
+    // an installed font (`DV.Platform.fonts`) asked for
+    // "packages/dartvel_flutter/<that font>", which does not exist, and was
+    // drawn in Manrope instead.
+    fontFamily: fontPackage == null ? 'Manrope' : 'packages/$fontPackage/Manrope',
     scaffoldBackgroundColor: dark
         ? const Color(0xFF0A0D13)
         : const Color(0xFFFFFFFF),
