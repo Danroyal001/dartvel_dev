@@ -13,6 +13,7 @@ import 'dart:io';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/platform/linux/linux_media_gst.dart';
+import 'package:flutter/painting.dart' show Rect;
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> until(bool Function() condition,
@@ -92,6 +93,30 @@ void main() {
         ('/dev/video2', 'USB Capture HDMI', DVCameraLens.external),
       ]);
     });
+
+    test('with two displays, each is a screen of its own, by name and place', () async {
+      final DVGStreamerCamera backend = DVGStreamerCamera(
+        sysfsRoot: '${dir.path}/none',
+        environment: const <String, String>{'DISPLAY': ':0'},
+        displays: () async => const <DVDisplay>[
+          DVDisplay(id: 'a', name: 'eDP-1', bounds: Rect.fromLTWH(0, 0, 1280, 800),
+              devicePixelRatio: 1.5, refreshRate: 60, isPrimary: true, hasLayout: true),
+          DVDisplay(id: 'b', name: 'HDMI-1', bounds: Rect.fromLTWH(1920, 0, 1920, 1080),
+              devicePixelRatio: 1, refreshRate: 60, isPrimary: false, hasLayout: true),
+        ],
+      );
+      addTearDown(backend.dispose);
+      final List<DVCameraDevice> screens = (await backend.devices())
+          .where((DVCameraDevice d) => d.lens == DVCameraLens.screen)
+          .toList();
+      expect(screens.map((DVCameraDevice d) => (d.id, d.name)), <Object>[
+        ('screen:0,0,1920,1200', 'Screen: eDP-1 (main)'),
+        ('screen:1920,0,1920,1080', 'Screen: HDMI-1'),
+      ]);
+      expect(DVGStreamerCamera.screenDescriptionFor('screen:1920,0,1920,1080'),
+          contains('startx=1920 starty=0 endx=3839 endy=1079'));
+      expect(DVGStreamerCamera.screenDescriptionFor('screen:1920,0,x,1080'), isNull);
+    }, skip: available && DVGStreamer.hasElement('ximagesrc') ? null : 'no ximagesrc');
 
     test('offers the screen on an X11 display, not without one', () async {
       final DVGStreamerCamera withDisplay = DVGStreamerCamera(

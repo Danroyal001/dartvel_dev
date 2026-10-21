@@ -23,9 +23,11 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:flutter/widgets.dart' show BuildContext, Widget;
 
+import '../../../dartvel_flutter.dart' show DV;
 import '../../media/media_box.dart';
 import '../../media/video_frame.dart';
 import '../../media/widget_recorder.dart';
+import '../../windowing/displays.dart' show DVDisplay;
 
 typedef _PV = Pointer<Void>;
 
@@ -1160,9 +1162,34 @@ final class DVGStreamerCamera implements DVCameraBackend, DVCameraSurface {
     this.audioSource,
     this.sysfsRoot = '/sys/class/video4linux',
     Map<String, String>? environment,
+    Future<List<DVDisplay>> Function()? displays,
     this.pollInterval = const Duration(milliseconds: 20),
     this.frameInterval = const Duration(milliseconds: 15),
-  }) : environment = environment ?? Platform.environment;
+  })  : environment = environment ?? Platform.environment,
+        _displays = displays ?? _platformDisplays;
+
+  /// The displays, for one screen source each. Where the display list is
+  /// not available, the whole screen is one source.
+  final Future<List<DVDisplay>> Function() _displays;
+
+  static Future<List<DVDisplay>> _platformDisplays() async {
+    try {
+      return await DV.Platform.window.refreshDisplays();
+    } on Object {
+      return const <DVDisplay>[];
+    }
+  }
+
+  /// The `ximagesrc` fragment for a `screen:x,y,width,height` device, in
+  /// physical pixels, or null when [device] is not one.
+  static String? screenDescriptionFor(String device) {
+    final Match? match = RegExp(r'^screen:([0-9]+),([0-9]+),([0-9]+),([0-9]+)$').firstMatch(device);
+    if (match == null) return null;
+    final List<int> at = <int>[for (int i = 1; i <= 4; i++) int.parse(match.group(i)!)];
+    if (at[2] == 0 || at[3] == 0) return null;
+    return 'ximagesrc use-damage=false show-pointer=true startx=${at[0]} starty=${at[1]} '
+        'endx=${at[0] + at[2] - 1} endy=${at[1] + at[3] - 1} ! video/x-raw,framerate=30/1';
+  }
 
   /// A pipeline fragment that replaces every camera device, or null for
   /// `v4l2src`. For tests and for a source a device needs set up a certain
@@ -1282,11 +1309,29 @@ final class DVGStreamerCamera implements DVCameraBackend, DVCameraSurface {
   }
 
   @override
-  Future<List<DVCameraDevice>> devices() async => <DVCameraDevice>[
-        if (DVGStreamer.load() && DVGStreamer.hasElement('v4l2src')) ..._scan(),
-        if (DVGStreamer.load() && _screen != null)
-          const DVCameraDevice(id: 'screen', name: 'Screen', lens: DVCameraLens.screen),
-      ];
+  Future<List<DVCameraDevice>> devices() async {
+    final List<DVCameraDevice> found = <DVCameraDevice>[
+      if (DVGStreamer.load() && DVGStreamer.hasElement('v4l2src')) ..._scan(),
+    ];
+    if (!DVGStreamer.load() || _screen == null) return found;
+    final List<DVDisplay> displays = await _displays();
+    // One source per display, so the operator shares the screen they mean
+    // -- not the projector's, which would show the programme inside itself.
+    if (screenSource == null && displays.length > 1 && displays.every((DVDisplay d) => d.hasLayout)) {
+      for (final DVDisplay display in displays) {
+        final double scale = display.devicePixelRatio;
+        found.add(DVCameraDevice(
+          id: 'screen:${(display.bounds.left * scale).round()},${(display.bounds.top * scale).round()},'
+              '${(display.bounds.width * scale).round()},${(display.bounds.height * scale).round()}',
+          name: 'Screen: ${display.name}${display.isPrimary ? ' (main)' : ''}',
+          lens: DVCameraLens.screen,
+        ));
+      }
+    } else {
+      found.add(const DVCameraDevice(id: 'screen', name: 'Screen', lens: DVCameraLens.screen));
+    }
+    return found;
+  }
 
   @override
   Widget buildPreview(BuildContext context) => DVVideoFrameView(_frame);
@@ -1300,7 +1345,9 @@ final class DVGStreamerCamera implements DVCameraBackend, DVCameraSurface {
     }
     final String? source;
     if (lens == DVCameraLens.screen) {
-      source = _screen;
+      source = screenSource == null && device != null && device != 'screen'
+          ? screenDescriptionFor(device)
+          : _screen;
       if (source == null) {
         _emit(const DVCameraFailed('this display cannot be shared here '
             '(Wayland, or no ximagesrc)'));
