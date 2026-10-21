@@ -146,6 +146,7 @@ final class DVMediaController {
     this.background = DVBackgroundPlayback.none,
     this.session,
     this.captions,
+    this.loop = false,
     DVMediaEnvironment? environment,
   }) : environment = environment ?? DVMediaEnvironment() {
     _own = _DVMediaSession(this);
@@ -164,6 +165,10 @@ final class DVMediaController {
 
   final DVMediaSource source;
   final DVBackgroundPlayback background;
+
+  /// Whether playback starts again from the beginning when it reaches the
+  /// end, rather than completing.
+  final bool loop;
   final DVMediaEnvironment environment;
 
   /// What the lock screen shows while this player holds it. Null keeps the
@@ -260,6 +265,11 @@ final class DVMediaController {
 
   /// Whether this handle drives a session rather than following another's.
   bool get isAttached => identical(_session, _own) && _own.backend != null;
+
+  /// The player this handle's session plays through, or null before one is
+  /// attached. For a second box on the same controller to draw the same
+  /// surface rather than open a second player.
+  DVMediaPlayerBackend? get attachedBackend => _session.backend;
 
   /// Loads [source] into [backend] and starts observing the application.
   ///
@@ -545,6 +555,14 @@ final class _DVMediaSession {
         for (final int g in done) {
           _seeks.remove(g)!.complete();
         }
+      case DVMediaCompleted() when owner.loop:
+        // A motion background, a countdown on repeat: from the start again,
+        // with no completed state in between for a box to draw a replay
+        // button over.
+        // The seek is confirmed by the backend later; playing does not wait
+        // for it, or a backend slow to confirm would sit on the last frame.
+        unawaited(seek(Duration.zero).catchError((Object _) {}));
+        unawaited(play().catchError((Object _) {}));
       case DVMediaCompleted():
         _cancelWatchdog();
         _wantsPlayback = false;

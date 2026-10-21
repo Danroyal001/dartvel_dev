@@ -172,7 +172,27 @@ void main() {
     expect(mine.state.value, isNot(DVPlaybackState.disposed));
   });
 
-  testWidgets('a target with no player bound fails where it can be read',
+  testWidgets('one controller in two boxes is one player, drawn in both',
+      (WidgetTester tester) async {
+    DVMediaBackends.registerPlayer(
+        (DVMediaSource source, DVMediaKind kind) {
+      final _SurfacePlayer backend = _SurfacePlayer();
+      created.add(backend.inner);
+      return backend;
+    });
+    final DVMediaController shared =
+        DVMediaController(launch, environment: DVMediaBackends.environment());
+    addTearDown(shared.dispose);
+    await tester.pumpWidget(host(Column(children: <Widget>[
+      Expanded(child: DVBox.video(launch, controller: shared, controls: .none)),
+      Expanded(child: DVBox.video(launch, controller: shared, controls: .none)),
+    ])));
+    await tester.pump();
+    expect(created, hasLength(1));
+    expect(find.byKey(const ValueKey<String>('surface')), findsNWidgets(2));
+  });
+
+    testWidgets('a target with no player bound fails where it can be read',
       (WidgetTester tester) async {
     DVMediaBackends.reset();
     registerFakes();
@@ -345,4 +365,31 @@ void main() {
       expect(device.starts.single.$2, startsWith(dir.path));
     });
   });
+}
+
+/// A player that draws a surface, as a real video backend does.
+final class _SurfacePlayer implements DVMediaPlayerBackend, DVVideoSurface {
+  final DVFakeMediaPlayerBackend inner = DVFakeMediaPlayerBackend();
+
+  @override
+  DVMediaBackendCapabilities get capabilities => inner.capabilities;
+  @override
+  Stream<DVMediaBackendEvent> get events => inner.events;
+  @override
+  Future<void> open(DVMediaSource source, {Object? license}) =>
+      inner.open(source, license: license);
+  @override
+  Future<void> play() => inner.play();
+  @override
+  Future<void> pause() => inner.pause();
+  @override
+  Future<void> seek(Duration position, int generation) => inner.seek(position, generation);
+  @override
+  Future<void> setVolume(double volume) => inner.setVolume(volume);
+  @override
+  Future<void> dispose() => inner.dispose();
+
+  @override
+  Widget buildSurface(BuildContext context) =>
+      const SizedBox.expand(key: ValueKey<String>('surface'));
 }

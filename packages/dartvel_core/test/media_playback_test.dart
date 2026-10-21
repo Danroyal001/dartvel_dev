@@ -26,10 +26,12 @@ void main() {
     DVBackgroundPlayback background = DVBackgroundPlayback.none,
     bool backgroundAudioDeclared = false,
     List<DVDrmAdapter> drm = const <DVDrmAdapter>[],
+    bool loop = false,
   }) {
     final DVMediaController c = DVMediaController(
       source,
       background: background,
+      loop: loop,
       environment: DVMediaEnvironment(
         lifecycle: app,
         focus: focus,
@@ -554,6 +556,40 @@ void main() {
       await expectLater(reader.play(), throwsStateError);
     });
   });
+
+  group('looping', () {
+    test('a looping player starts again from the start when it ends', () async {
+      final DVMediaController c = controller(
+          const DVMediaSource.url('https://cdn.test/motion-background.mp4'),
+          loop: true);
+      await c.attach(backend);
+      backend.emit(const DVMediaReady(duration: Duration(seconds: 10)));
+      await c.play();
+      backend.emit(const DVMediaPlaying());
+      await pump();
+      backend.calls.clear();
+      backend.emit(const DVMediaCompleted());
+      await pump();
+      await pump();
+      expect(backend.calls, containsAllInOrder(<String>['seek', 'play']));
+      expect(c.state.value, isNot(DVPlaybackState.completed));
+    });
+
+    test('a player that does not loop stays completed', () async {
+      final DVMediaController c =
+          controller(const DVMediaSource.url('https://cdn.test/sermon.mp4'));
+      await c.attach(backend);
+      backend.emit(const DVMediaReady(duration: Duration(seconds: 10)));
+      await c.play();
+      backend.emit(const DVMediaPlaying());
+      await pump();
+      backend.calls.clear();
+      backend.emit(const DVMediaCompleted());
+      await pump();
+      expect(c.state.value, DVPlaybackState.completed);
+      expect(backend.calls, isNot(contains('seek')));
+    });
+  });
 }
 
 /// A lifecycle signal that counts the subscriptions still open on it.
@@ -586,4 +622,5 @@ final class _CountingLifecycle implements DVLifecycleSignal<DVAppLifecycle> {
     });
     return relay.stream.listen(onState);
   }
+
 }

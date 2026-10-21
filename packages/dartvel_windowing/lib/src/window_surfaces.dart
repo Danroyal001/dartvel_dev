@@ -1,4 +1,4 @@
-part of '../dartvel_windowing.dart';
+part of 'windowing_native.dart';
 
 /// One OS surface rendering one window's route.
 abstract class DVWindowSurface {

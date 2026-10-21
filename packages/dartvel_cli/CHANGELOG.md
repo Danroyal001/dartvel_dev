@@ -1,3 +1,13 @@
+## 0.13.10 — 2026-10-21
+
+- `dartvel.startRoutes`: the page an installed target opens on (`{linux: /editor}`); a route that is not a page fails the build.
+- `dartvel build` shows why generating the client failed instead of only that it did.
+- `@DVAppRoot` and `@DVBoot` functions may carry another annotation, such as `@pragma('vm:entry-point')`.
+- Generating a native folder removes what `flutter create` adds besides it (a counter-app `test/widget_test.dart`, `.metadata`).
+- The launcher and window title fall back to `dartvel.seo.siteName` when `dartvel.pwa` has no name.
+- A web-server build without Studio answers `/_dartvel/pages` with an empty list; the web app asks on every page and every visitor's console showed a 404.
+
+
 ## 0.13.9 — 2026-10-20
 
 - Ordinary pages carry request-time data in their first document: export `dartvelRoutePageData` (route pattern -> resolver) from `lib/backend/page_data/index.dart`; `DVPageData.document` holds typed headings, paragraphs and links (`DVDocumentBlock`), escaped, with unsafe link schemes written as text. The file may not import Flutter (`DV-PAGE-010`).

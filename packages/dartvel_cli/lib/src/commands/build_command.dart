@@ -855,6 +855,9 @@ class BuildCommand extends Command<void> {
       // code without saying so leaves the signal on `generating` for whatever
       // reads it next.
       stages.failed();
+      for (final String line in generationFailureDetail(routesResult)) {
+        Logger.log(line);
+      }
       Logger.log('❌ Dartvel artifact generation failed');
       exit(1);
     }
@@ -5176,4 +5179,20 @@ String? dvPackageOutput({
     return codesign ? 'build/ios/ipa' : 'build/ios/archive';
   }
   return null;
+}
+
+/// What a failed `dartvel routes` said, for the build to show before it
+/// stops: all of stderr, and stdout without the convention warnings a
+/// successful run prints too, cut to the last 40 lines, where the error is.
+List<String> generationFailureDetail(ProcessResult result) {
+  List<String> linesOf(Object? output) => '$output'
+      .split('\n')
+      .map((String line) => line.trimRight())
+      .where((String line) => line.isNotEmpty && line != 'Running build hooks...')
+      .toList();
+  final List<String> lines = <String>[
+    ...linesOf(result.stdout).where((String line) => !line.contains('DV-CONV')),
+    ...linesOf(result.stderr),
+  ];
+  return lines.length <= 40 ? lines : lines.sublist(lines.length - 40);
 }

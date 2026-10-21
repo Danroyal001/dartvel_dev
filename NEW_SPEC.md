@@ -1200,6 +1200,14 @@ rather than importing or calling `go_router` directly, so the engine can evolve
 (for example, generating onto `StatefulShellRoute` for nested-stack navigation)
 without breaking application code.
 
+### Start routes
+
+`dartvel.startRoutes` maps an installed target (`linux`, `windows`, `macos`,
+`android`, `ios`, `fuchsia`) to the page it opens on, so one project can be a
+website that opens on its home page and a desktop app that opens on its
+editor. A browser opens where its address says, so the web is not a key. A
+route that is not a page fails the build, naming it.
+
 ## Config routes
 
 Pages are routes by file. Routes can also be declared in code, the way a team
@@ -4716,6 +4724,36 @@ permission through the existing runtime permission flow, a typed refusal when
 the person says no, and a capability report rather than an assumption. What
 comes back is a `DVFile`, so it flows straight into Media Pipeline's upload
 validation and variant generation without an intermediate format.
+
+### Choosing a camera, and the screen
+
+```dart
+final List<DVCameraDevice> found = await DV.Platform.media.cameras();
+DVBox.camera(lens: found.last.lens, device: found.last.id);
+DVBox.camera(lens: .screen); // the display, shared like a camera
+```
+
+A desktop has several cameras of one kind -- two webcams, a capture card -- so
+a lens is not enough to say which. `DVCameraDevice` names each by the id the
+backend opens and the name the system gives it. `DVCameraLens.screen` is the
+display: previewed, photographed and recorded through the same calls, asking
+for the `screen` permission (on the web and Wayland, the system's own share
+prompt). Switching lens never lands on the screen.
+
+### Recording what the application draws
+
+```dart
+final program = DVWidgetRecorder(quality: .hd720);
+DVBox.recorded(recorder: program, child: live);
+await program.start();                       // a private MP4 on stop()
+await program.start(streamTo: rtmpIngestUrl); // or live, over RTMP
+```
+
+The frames are the subtree's own pixels, so a video, a camera and the text
+over them are recorded as composed. Encoding is the target's `DVFrameEncoder`,
+reported in `DV.Platform.media.recordingCapabilities`; a target without one
+refuses with `DVRecordingUnavailable`. Linux encodes through GStreamer
+(`appsrc` into H.264, then MP4 or FLV over RTMP).
 
 ## DRM
 

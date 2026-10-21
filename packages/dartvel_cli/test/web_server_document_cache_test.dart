@@ -93,4 +93,19 @@ void main() {
       expect(await conditional.readAsString(), isEmpty);
     },
   );
+
+  test('with Studio off the published pages list is empty, not a 404', () async {
+    // The web app asks for it on every page; a release built without Studio
+    // answered 404 and every visitor's console showed an error.
+    final Directory root = Directory.systemTemp.createTempSync('studio-off-pages-');
+    addTearDown(() => root.deleteSync(recursive: true));
+    File('${root.path}/index.html')
+        .writeAsStringSync('<html><head><title>App</title></head><body></body></html>');
+    final Handler handler = dvWebServerHandler(webRoot: root.path);
+    final Response response =
+        await handler(Request('GET', Uri.parse('http://localhost$dvPublishedPagesPath')));
+    expect(response.statusCode, 200);
+    expect(response.headers['content-type'], 'application/json; charset=utf-8');
+    expect(jsonDecode(await response.readAsString()), {'pages': <Object?>[]});
+  });
 }

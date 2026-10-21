@@ -45,7 +45,7 @@ List<String> dvWriteAndroidLauncher(String root) {
   final Map<Object?, Object?> pwa = _pwaSettings(root);
   final List<String> changed = <String>[];
 
-  final String? label = _text(pwa['shortName']) ?? _text(pwa['name']);
+  final String? label = dvLauncherLabel(root);
   final File manifest = File(p.join(main.path, 'AndroidManifest.xml'));
   if (label != null && manifest.existsSync()) {
     final String before = manifest.readAsStringSync();
@@ -101,10 +101,25 @@ List<String> dvWriteLauncherIdentity(String root, String platform) =>
       _ => const <String>[],
     };
 
-/// The launcher label `dartvel.pwa` gives, or null.
+/// The launcher label: `dartvel.pwa`'s short name or name, else
+/// `dartvel.seo.siteName` -- the name the project already gave itself --
+/// rather than the package name a window title would otherwise show.
 String? dvLauncherLabel(String root) {
   final Map<Object?, Object?> pwa = _pwaSettings(root);
-  return _text(pwa['shortName']) ?? _text(pwa['name']);
+  return _text(pwa['shortName']) ?? _text(pwa['name']) ?? _siteName(root);
+}
+
+String? _siteName(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return null;
+  try {
+    final Object? document = loadYaml(pubspec.readAsStringSync());
+    final Object? dartvel = document is Map ? document['dartvel'] : null;
+    final Object? seo = dartvel is Map ? dartvel['seo'] : null;
+    return seo is Map ? _text(seo['siteName']) : null;
+  } on Object {
+    return null;
+  }
 }
 
 /// The decoded icon `dartvel.pwa` names (or keeps in a known place), or null.

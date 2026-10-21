@@ -1,7 +1,7 @@
 // The only place that touches Flutter's windowing API, which is @internal,
 // behind a feature flag, and master-channel only.
 // ignore_for_file: invalid_use_of_internal_member
-part of '../dartvel_windowing.dart';
+part of 'windowing_native.dart';
 
 /// Turns a Dartvel window into a real OS window.
 class DVFlutterWindowSurfaceFactory implements DVWindowSurfaceFactory {

@@ -19,6 +19,7 @@ import '../../dartvel_flutter.dart' show DV, DVRenderSurface;
 import 'caption_file.dart';
 import 'image_view.dart';
 import 'web_media_mapping.dart';
+import 'widget_recorder.dart';
 
 /// Whether a box plays video or audio.
 enum DVMediaKind { video, audio }
@@ -115,6 +116,30 @@ abstract final class DVMediaBackends {
     _cameraCapabilities = capabilities;
     if (directory != null) _captureDirectory = directory;
   }
+
+  static DVFrameEncoder Function()? _frameEncoder;
+  static DVFrameEncoderCapabilities _frameEncoderCapabilities =
+      DVFrameEncoderCapabilities.none;
+
+  /// Binds this target's video encoder, which `DVWidgetRecorder` records and
+  /// streams through.
+  static void registerFrameEncoder(DVFrameEncoder Function() factory,
+      {required DVFrameEncoderCapabilities capabilities}) {
+    _frameEncoder = factory;
+    _frameEncoderCapabilities = capabilities;
+  }
+
+  /// Unbinds the encoder.
+  @visibleForTesting
+  static void resetFrameEncoder() {
+    _frameEncoder = null;
+    _frameEncoderCapabilities = DVFrameEncoderCapabilities.none;
+  }
+
+  static DVFrameEncoderCapabilities get frameEncoderCapabilities =>
+      _frameEncoderCapabilities;
+
+  static DVFrameEncoder? createFrameEncoder() => _frameEncoder?.call();
 
   static String? _captureDirectory;
   static DVCaptureFiles? _captureFiles;
@@ -415,6 +440,7 @@ class DVMediaView extends StatefulWidget {
     this.aspectRatio,
     this.session,
     this.captions,
+    bool loop = false,
     DVMediaController? controller,
   })  : ownsController = controller == null,
         controller = controller ??
@@ -423,6 +449,7 @@ class DVMediaView extends StatefulWidget {
               background: background,
               session: session,
               captions: captions,
+              loop: loop,
               environment: DVMediaBackends.environment(),
             );
 
@@ -638,7 +665,9 @@ class _DVMediaViewState extends State<DVMediaView> {
   Widget build(BuildContext context) {
     final DVPlaybackState state = _current.state.value;
     final bool video = widget.kind == DVMediaKind.video;
-    final DVMediaPlayerBackend? backend = _backend;
+    // A box sharing an application's controller draws the player another
+    // box attached.
+    final DVMediaPlayerBackend? backend = _backend ?? _current.attachedBackend;
     final bool failed = state == DVPlaybackState.failed ||
         state == DVPlaybackState.disposed;
     final bool started = state == DVPlaybackState.playing ||

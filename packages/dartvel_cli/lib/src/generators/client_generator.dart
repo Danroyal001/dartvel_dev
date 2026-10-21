@@ -531,6 +531,12 @@ class ClientGenerator {
     for (final e in pageEntries) {
       routeToEntries.putIfAbsent(e.route, () => <_PageEntry>[]).add(e);
     }
+
+    // dartvel.startRoutes: the page each installed target opens on. Refused
+    // naming the problem, because a start page that is not a page is a blank
+    // window on launch.
+    final Map<String, String> startRoutes = _startRoutes(
+        _plain(dv['startRoutes']), routeToEntries.keys.toSet());
     final conflicts = routeToEntries.entries.where((kv) => kv.value.length > 1);
     if (conflicts.isNotEmpty) {
       stderr.writeln('ERROR: Detected route conflicts:');
@@ -2061,6 +2067,14 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
     sbRedirect.writeln('  return null;');
     sbRedirect.writeln('}');
 
+    final String startRoutesSource = <String>[
+      '',
+      '/// The page each installed target opens on (dartvel.startRoutes). A web',
+      "/// page opens where the browser's address says.",
+      'const Map<String, String> _dartvelStartRoutes = <String, String>{'
+          '${startRoutes.entries.map((MapEntry<String, String> e) => "'${e.key}': '${e.value}'").join(', ')}};',
+    ].join('\n');
+
     final String autoRouteSource = autoRoute
         ? r'''
 
@@ -2295,6 +2309,7 @@ RouterConfig<Object> dartvelRouterConfig<T extends Object>({
   return dvRouterConfig<T>(_dartvelHosted(arguments), at: at, existing: existing);
 }
 $autoRouteSource
+$startRoutesSource
 
 GoRouter createDartvelRouter({List<String> arguments = const <String>[]}) {
   _dartvelSetUp(arguments);
@@ -2315,6 +2330,7 @@ GoRouter createDartvelRouter({List<String> arguments = const <String>[]}) {
   // are still deciding, it paints a pending view where go_router paints
   // nothing, so a deep link onto a guarded page is never a blank screen.
   final router = DVRouter(
+    initialLocation: dvStartRoute(_dartvelStartRoutes),
     // Every address no page claims, last: a page made in Studio is a page of
     // the site, with its layouts, its shell and the router state they read.
     routes: <RouteBase>[..._dartvelRouteList(), dvStudioPagesRoute(frame: _dartvelStoredFrame)],
@@ -4085,7 +4101,7 @@ void startDartvelKiosk() {
         final kind = annotation.group(1)!;
         final annotationClose = _matchingParen(source, annotation.end - 1);
         if (annotationClose < 0) throw StateError('Unclosed @$kind in $rel');
-        final declaration = RegExp(r'^\s*(?:Future<void>|void|Widget)\s+(_[A-Za-z]\w*)\s*\(').firstMatch(source.substring(annotationClose + 1));
+        final declaration = RegExp(r'^\s*(?:@[\w.]+(?:\([^()]*\))?\s*)*(?:Future<void>|void|Widget)\s+(_[A-Za-z]\w*)\s*\(').firstMatch(source.substring(annotationClose + 1));
         if (declaration == null) throw StateError('@$kind requires a private function in $rel');
         final open = annotationClose + 1 + declaration.end - 1;
         final close = _matchingParen(source, open);
@@ -4163,7 +4179,7 @@ void startDartvelKiosk() {
       for (final annotation in RegExp(r'@DVBoot\s*\(').allMatches(masked)) {
         final annotationClose = _matchingParen(source, annotation.end - 1);
         if (annotationClose < 0) throw StateError('Unclosed @DVBoot in $rel');
-        final declaration = RegExp(r'^\s*(?:Future<void>|void)\s+(_[A-Za-z]\w*)\s*\(').firstMatch(source.substring(annotationClose + 1));
+        final declaration = RegExp(r'^\s*(?:@[\w.]+(?:\([^()]*\))?\s*)*(?:Future<void>|void)\s+(_[A-Za-z]\w*)\s*\(').firstMatch(source.substring(annotationClose + 1));
         if (declaration == null) throw StateError('@DVBoot requires a private function in $rel');
         final open = annotationClose + 1 + declaration.end - 1;
         final close = _matchingParen(source, open);
@@ -5300,4 +5316,33 @@ class DVBootHook {
 
   /// Whether the entry of this kind runs it.
   bool runsIn(String kind) => entries.isEmpty || entries.contains(kind);
+}
+
+/// The targets `dartvel.startRoutes` may name: each installed platform. The
+/// web is not one, since a browser's address is where a page opens.
+const Set<String> _startRouteTargets = <String>{
+  'linux', 'windows', 'macos', 'android', 'ios', 'fuchsia',
+};
+
+Map<String, String> _startRoutes(Object? section, Set<String> pages) {
+  if (section == null) return const <String, String>{};
+  if (section is! Map) {
+    throw StateError('pubspec.yaml dartvel.startRoutes is a map of target to '
+        'route, such as {linux: /editor}');
+  }
+  final List<String> problems = <String>[];
+  final Map<String, String> routes = <String, String>{};
+  section.forEach((Object? target, Object? route) {
+    if (!_startRouteTargets.contains(target)) {
+      problems.add('$target is not a target (one of ${_startRouteTargets.join(', ')})');
+    } else if (route is! String || !pages.contains(route)) {
+      problems.add('$target: $route is not a page route');
+    } else {
+      routes['$target'] = route;
+    }
+  });
+  if (problems.isNotEmpty) {
+    throw StateError('pubspec.yaml dartvel.startRoutes: ${problems.join('; ')}');
+  }
+  return routes;
 }

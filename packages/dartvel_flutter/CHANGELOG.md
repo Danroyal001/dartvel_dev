@@ -1,3 +1,12 @@
+## 0.13.10 — 2026-10-21
+
+- Linux video is drawn: the GStreamer player sends frames through `appsink` to `DVVideoFrameView` (`DVVideoFrame`, RGBA), shows a paused video's frame, reports `DVMediaVideoSize`, uses the first audio output that opens and plays video silently with none.
+- Linux camera and screen: `DVGStreamerCamera` (v4l2 webcams and capture cards; each X11 display as a screen; JPEG photos; H.264/AAC MP4 recording). Web: cameras by `deviceId`, the screen by `getDisplayMedia`. `DV.Platform.media.cameras()` lists them; `DVBox.camera(device:)`.
+- Record or stream part of the screen: `DVWidgetRecorder` and `DVBox.recorded`; MP4 or RTMP through the target's `DVFrameEncoder` (Linux: GStreamer); `DV.Platform.media.recordingCapabilities`; `DVRecordingUnavailable`.
+- `loop:` on `DVBox.video` and `DVBox.audio`; a box on an application's controller draws the shared player.
+- `dvStartRoute` for `dartvel.startRoutes`. `DVCameraDevice` and `DVVideoQuality` are exported.
+
+
 ## 0.13.9 — 2026-10-20
 
 - Version aligned with dartvel_core 0.13.9.

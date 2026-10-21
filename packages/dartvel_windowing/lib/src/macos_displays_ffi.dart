@@ -1,4 +1,4 @@
-part of '../dartvel_windowing.dart';
+part of 'windowing_native.dart';
 
 // CGRect, by value. Struct returns from plain C are supported by dart:ffi;
 // it is Objective-C's objc_msgSend that needs a different entry point for

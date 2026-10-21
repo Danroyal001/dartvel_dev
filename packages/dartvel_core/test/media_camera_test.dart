@@ -43,10 +43,12 @@ void main() {
     Set<String> granted = const <String>{'camera', 'microphone'},
     DVCameraBackend? using,
     DVCameraLens lens = DVCameraLens.back,
+    String? device,
   }) {
     final DVCameraController c = DVCameraController(
       using ?? backend,
       lens: lens,
+      device: device,
       environment: DVCameraEnvironment(
         permissions: DVFakeCapturePermissions(granted),
         files: files,
@@ -207,5 +209,84 @@ void main() {
     expect(backend.disposed, isTrue);
     await expectLater(recording, throwsA(isA<DVCaptureInterrupted>()));
     expect(c.state.value, DVCameraState.disposed);
+  });
+
+  group('choosing a device', () {
+    test('opens the device it was given, not the first of its lens', () async {
+      backend = DVFakeCameraBackend(
+        capabilities: const DVCameraCapabilities(
+            lenses: <DVCameraLens>{DVCameraLens.external}, preview: true),
+        cameras: const <DVCameraDevice>[
+          DVCameraDevice(id: '/dev/video0', name: 'Built-in', lens: DVCameraLens.external),
+          DVCameraDevice(id: '/dev/video2', name: 'Stage cam', lens: DVCameraLens.external),
+        ],
+      );
+      final DVCameraController c =
+          camera(lens: DVCameraLens.external, device: '/dev/video2');
+      await c.open();
+      expect(backend.calls, contains('open:external@/dev/video2'));
+      expect(c.device, '/dev/video2');
+    });
+
+    test('lists what the backend reports, in its order', () async {
+      backend = DVFakeCameraBackend(cameras: const <DVCameraDevice>[
+        DVCameraDevice(id: 'a', name: 'Front', lens: DVCameraLens.front),
+        DVCameraDevice(id: 's', name: 'Entire screen', lens: DVCameraLens.screen),
+      ]);
+      final DVCameraController c = camera();
+      expect((await c.devices()).map((DVCameraDevice d) => d.name),
+          <String>['Front', 'Entire screen']);
+    });
+
+    test('the screen opens like a camera where the target can share it',
+        () async {
+      backend = DVFakeCameraBackend(
+        capabilities: const DVCameraCapabilities(
+            lenses: <DVCameraLens>{DVCameraLens.screen}, preview: true, video: true),
+      );
+      final DVCameraController c =
+          camera(lens: DVCameraLens.screen, granted: const <String>{'screen'});
+      await c.open();
+      expect(c.state.value, DVCameraState.ready);
+      expect(backend.calls, contains('open:screen'));
+    });
+
+    test('a screen asks for screen permission, not the camera', () async {
+      backend = DVFakeCameraBackend(
+        capabilities: const DVCameraCapabilities(
+            lenses: <DVCameraLens>{DVCameraLens.screen}, preview: true),
+      );
+      final DVCameraController c =
+          camera(lens: DVCameraLens.screen, granted: const <String>{'camera'});
+      await expectLater(c.open(), throwsA(isA<DVCapturePermissionRefused>()));
+      expect(backend.calls.where((String call) => call.startsWith('open')), isEmpty);
+    });
+  
+    test('switching lens never lands on the screen, and drops the device',
+        () async {
+      backend = DVFakeCameraBackend(
+        capabilities: const DVCameraCapabilities(lenses: <DVCameraLens>{
+          DVCameraLens.back,
+          DVCameraLens.screen,
+          DVCameraLens.front,
+        }, preview: true),
+      );
+      final DVCameraController c = camera(device: 'cam-1');
+      await c.open();
+      await c.switchLens();
+      expect(c.lens.value, DVCameraLens.front);
+      expect(c.device, isNull);
+      await c.switchLens();
+      expect(c.lens.value, DVCameraLens.back);
+      expect(backend.calls.where((String call) => call == 'open:screen'), isEmpty);
+    });
+  
+    test('a camera shown in two boxes opens the device once', () async {
+      final DVCameraController c = camera();
+      await c.open();
+      await c.open();
+      expect(backend.calls.where((String call) => call.startsWith('open')).length, 1);
+      expect(c.state.value, DVCameraState.ready);
+    });
   });
 }

@@ -20,7 +20,33 @@ import 'media_controller.dart' show dvLogMediaDiagnostic;
 import 'media_signal.dart';
 
 /// Which camera.
-enum DVCameraLens { back, front, external }
+enum DVCameraLens {
+  back,
+  front,
+
+  /// A camera that is not part of the device: a webcam, a capture card.
+  external,
+
+  /// What is on the display, shared the way a camera's picture is: previewed,
+  /// photographed and recorded through the same calls. Opening it asks for
+  /// the `screen` permission, which on most desktops is the system's own
+  /// "share your screen" prompt.
+  screen,
+}
+
+/// One camera a target can open, as [DVCameraController.devices] lists it.
+final class DVCameraDevice {
+  const DVCameraDevice({required this.id, required this.name, required this.lens});
+
+  /// What [DVCameraController] takes as its `device`: stable for as long as
+  /// the device stays connected.
+  final String id;
+
+  /// The device's own name, for a picker.
+  final String name;
+
+  final DVCameraLens lens;
+}
 
 /// What the flash does when a photo is taken.
 enum DVFlashMode { off, auto, on }
@@ -82,8 +108,13 @@ abstract interface class DVCameraBackend {
 
   Stream<DVCameraEvent> get events;
 
-  /// Opens [lens] and starts the preview. Confirmed by [DVCameraOpened].
-  Future<void> open(DVCameraLens lens);
+  /// The cameras this target can open now, screens included. Empty where
+  /// it cannot tell them apart; [open] then picks by lens.
+  Future<List<DVCameraDevice>> devices();
+
+  /// Opens [lens] -- the [DVCameraDevice] whose id is [device], when given --
+  /// and starts the preview. Confirmed by [DVCameraOpened].
+  Future<void> open(DVCameraLens lens, {String? device});
 
   /// Closes the device. Confirmed by [DVCameraClosed].
   Future<void> close();
@@ -184,11 +215,21 @@ final class DVCameraController {
     required this.environment,
     DVCameraLens lens = DVCameraLens.back,
     DVFlashMode flash = DVFlashMode.off,
-  })  : _lens = DVMutableMediaSignal<DVCameraLens>(lens),
+    String? device,
+  })  : _device = device,
+        _lens = DVMutableMediaSignal<DVCameraLens>(lens),
         _flash = DVMutableMediaSignal<DVFlashMode>(flash);
 
   final DVCameraBackend backend;
   final DVCameraEnvironment environment;
+
+  /// The [DVCameraDevice] id this camera opens, or null for the first device
+  /// of its lens. Cleared by [switchLens], which picks by lens.
+  String? get device => _device;
+  String? _device;
+
+  /// The cameras the backend can open, for a picker.
+  Future<List<DVCameraDevice>> devices() => backend.devices();
 
   final DVMutableMediaSignal<DVCameraState> _state =
       DVMutableMediaSignal<DVCameraState>(DVCameraState.idle);
@@ -228,8 +269,24 @@ final class DVCameraController {
   /// Asks permission and opens the camera. Throws
   /// [DVCapturePermissionRefused] (state [DVCameraState.refused]) or
   /// [DVCameraUnavailable].
+  ///
+  /// Opening a camera that is already open, or opening, does nothing more: a
+  /// controller shown in two boxes -- a preview and a projector -- opens its
+  /// device once.
   Future<void> open() async {
     _check();
+    switch (_state.value) {
+      case DVCameraState.ready ||
+            DVCameraState.takingPhoto ||
+            DVCameraState.recording:
+        return;
+      case DVCameraState.opening || DVCameraState.requestingPermission:
+        final Completer<void>? opened = _opened;
+        if (opened != null) await opened.future;
+        return;
+      default:
+        break;
+    }
     if (!capabilities.available) {
       _state.set(DVCameraState.failed);
       _error.set('this target has no camera');
@@ -242,14 +299,16 @@ final class DVCameraController {
     _events ??= backend.events.listen(_onEvent);
     _lifecycle ??= environment.lifecycle.listen(_onLifecycle);
     _state.set(DVCameraState.requestingPermission);
-    final bool granted = await environment.permissions.request('camera');
+    final String permission =
+        _lens.value == DVCameraLens.screen ? 'screen' : 'camera';
+    final bool granted = await environment.permissions.request(permission);
     if (_disposed) return;
     if (!granted) {
       _wantOpen = false;
       environment.diagnostics(
-          'DV-MEDIA-104', 'camera was refused for a camera preview');
+          'DV-MEDIA-104', '$permission was refused for a camera preview');
       _state.set(DVCameraState.refused);
-      throw const DVCapturePermissionRefused('camera');
+      throw DVCapturePermissionRefused(permission);
     }
     if (_inBackground(environment.lifecycle.value)) {
       _state.set(DVCameraState.paused);
@@ -261,7 +320,7 @@ final class DVCameraController {
   Future<void> _openDevice() async {
     _state.set(DVCameraState.opening);
     final Completer<void> opened = _opened = Completer<void>();
-    await backend.open(_lens.value);
+    await backend.open(_lens.value, device: _device);
     await opened.future;
   }
 
@@ -355,10 +414,14 @@ final class DVCameraController {
     }
   }
 
-  /// Switches to [to], or to the next lens this device has.
+  /// Switches to [to], or to the next camera lens this device has. The
+  /// screen is never the next lens: it is switched to by asking for it.
   Future<void> switchLens([DVCameraLens? to]) async {
     _requireReady('switch lens');
-    final List<DVCameraLens> lenses = capabilities.lenses.toList();
+    final List<DVCameraLens> lenses = capabilities.lenses
+        .where((DVCameraLens lens) => lens != DVCameraLens.screen)
+        .toList();
+    if (to == null && lenses.isEmpty) return;
     final DVCameraLens next = to ??
         lenses[(lenses.indexOf(_lens.value) + 1) % lenses.length];
     if (!capabilities.lenses.contains(next)) {
@@ -366,6 +429,7 @@ final class DVCameraController {
     }
     if (next == _lens.value) return;
     _torch.set(false);
+    _device = null;
     _lens.set(next);
     await _openDevice();
   }
@@ -518,10 +582,17 @@ final class DVFakeCameraBackend implements DVCameraBackend {
       videoQualities: <DVVideoQuality>{DVVideoQuality.hd720},
     ),
     this.autoConfirm = true,
+    this.cameras = const <DVCameraDevice>[],
   });
 
   @override
   final DVCameraCapabilities capabilities;
+
+  /// What [devices] reports.
+  final List<DVCameraDevice> cameras;
+
+  @override
+  Future<List<DVCameraDevice>> devices() async => cameras;
 
   /// Confirms every request at once, as a working device would.
   final bool autoConfirm;
@@ -547,8 +618,8 @@ final class DVFakeCameraBackend implements DVCameraBackend {
   }
 
   @override
-  Future<void> open(DVCameraLens lens) async {
-    calls.add('open:${lens.name}');
+  Future<void> open(DVCameraLens lens, {String? device}) async {
+    calls.add(device == null ? 'open:${lens.name}' : 'open:${lens.name}@$device');
     opened.add(lens);
     isOpen = true;
     _confirm(DVCameraOpened(lens, width: 1280, height: 720));

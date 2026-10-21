@@ -48,6 +48,14 @@ void main() {
     expect(manifest, isNot(contains('android:label="my_app"')));
   });
 
+  test('with no pwa name the site name is the label, not the package name', () {
+    pubspec('  seo:\n    siteName: Media-Bits\n');
+    expect(dvLauncherLabel(root.path), 'Media-Bits');
+    dvWriteAndroidLauncher(root.path);
+    expect(File('${root.path}/android/app/src/main/AndroidManifest.xml').readAsStringSync(),
+        contains('android:label="Media-Bits"'));
+  });
+
   test('the full name is the label when there is no short name', () {
     pubspec('  pwa:\n    name: Elena & Co\n');
     dvWriteAndroidLauncher(root.path);

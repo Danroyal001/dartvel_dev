@@ -373,6 +373,16 @@ Handler dvWebServerHandler({
           await publishedPages.respond(await _coreRequest(request));
       if (pages != null) return _shelfResponse(pages);
     }
+    // Without Studio nothing is published, and the web app still asks on
+    // every page: an empty list, not a 404 in every visitor's console.
+    if (publishedPages == null &&
+        path == core.dvPublishedPagesPath &&
+        request.method == 'GET') {
+      return Response.ok('{"pages":[]}', headers: <String, String>{
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': 'no-store',
+      });
+    }
 
     if (modelData != null &&
         (path == core.dvModelDataPath ||

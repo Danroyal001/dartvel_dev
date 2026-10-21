@@ -23,6 +23,9 @@ class DVDesktopPermissions {
     'files',
     'camera',
     'microphone',
+    // Sharing the display. X11 lets a process read it; Wayland's PipeWire
+    // portal and macOS ask the person themselves when capture starts.
+    'screen',
     'clipboard',
   };
 
