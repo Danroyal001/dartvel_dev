@@ -151,6 +151,9 @@ final class _Gst {
         setBool = gobject.lookupFunction<
             Void Function(_PV, Pointer<Utf8>, VarArgs<(Int32, _PV)>),
             void Function(_PV, Pointer<Utf8>, int, _PV)>('g_object_set'),
+        getPointer = gobject.lookupFunction<
+            Void Function(_PV, Pointer<Utf8>, VarArgs<(Pointer<_PV>, _PV)>),
+            void Function(_PV, Pointer<Utf8>, Pointer<_PV>, _PV)>('g_object_get'),
         setDouble = gobject.lookupFunction<
             Void Function(_PV, Pointer<Utf8>, VarArgs<(Double, _PV)>),
             void Function(_PV, Pointer<Utf8>, double, _PV)>('g_object_set'),
@@ -272,6 +275,15 @@ final class _Gst {
   final void Function(_PV, Pointer<Utf8>, _PV, _PV) setPointer;
   final void Function(_PV, Pointer<Utf8>, int, _PV) setBool;
   final void Function(_PV, Pointer<Utf8>, double, _PV) setDouble;
+  final void Function(_PV, Pointer<Utf8>, Pointer<_PV>, _PV) getPointer;
+
+  /// The sample a sink last rendered or prerolled: what a paused video
+  /// shows. Owned by the caller.
+  _PV lastSample(_PV sink) => using((Arena arena) {
+        final Pointer<_PV> out = arena<_PV>()..value = nullptr;
+        getPointer(sink, 'last-sample'.toNativeUtf8(allocator: arena), out, nullptr);
+        return out.value;
+      });
   final void Function(_PV) errorFree;
   final void Function(_PV) gFree;
   final _PV Function(Pointer<Utf8>, int, Pointer<_PV>) parseBin;
@@ -618,6 +630,7 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend, DVVideoSurface {
 
   _PV _frameSink = nullptr;
   Timer? _frameTimer;
+  bool _prerollShown = false;
   final ValueNotifier<DVVideoFrame?> _frame = ValueNotifier<DVVideoFrame?>(null);
 
   /// The newest decoded frame; null before the first and after [dispose].
@@ -749,7 +762,15 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend, DVVideoSurface {
 
   void _pullFrame() {
     if (_released || _frameSink == nullptr) return;
-    final DVVideoFrame? next = _pullNewestFrame(_frameSink);
+    DVVideoFrame? next = _pullNewestFrame(_frameSink);
+    // Paused -- loaded and not yet played, or after a seek -- the pipeline
+    // holds one frame as its preroll and sends no samples. Without it a
+    // cued video is a black box until it plays.
+    if (next == null && !_prerollShown && _lastState != _statePlaying) {
+      next = _pullNewestFrame(_frameSink, preroll: true);
+
+      if (next != null) _prerollShown = true;
+    }
     if (next == null) return;
     final DVVideoFrame? previous = _frame.value;
     if (previous == null ||
@@ -859,6 +880,8 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend, DVVideoSurface {
     _require();
     final _Gst gst = DVGStreamer._api;
     _pendingSeek = generation;
+    // A seek while paused prerolls the frame at the new position.
+    _prerollShown = false;
     final bool accepted = gst.seekSimple(_playbin, _formatTime,
             _seekFlush | _seekAccurate, position.inMicroseconds * 1000) !=
         0;
@@ -1133,8 +1156,18 @@ final class DVGStreamerCapture implements DVCaptureBackend {
 
 /// The newest frame waiting in [appsink], or null when none has arrived
 /// since the last pull.
-DVVideoFrame? _pullNewestFrame(_PV appsink) {
-  final _PV sample = DVGStreamer._pullSample!(appsink, 0);
+DVVideoFrame? _pullNewestFrame(_PV appsink, {bool preroll = false}) {
+  final _PV sample;
+  if (preroll) {
+    // What the sink holds while paused: its last sample, which a prerolled
+    // sink has even though it sends no new ones.
+    sample = DVGStreamer._api.lastSample(appsink);
+  } else {
+    final _PV Function(_PV, int)? pull = DVGStreamer._pullSample;
+    if (pull == null) return null;
+    sample = pull(appsink, 0);
+  }
+
   if (sample == nullptr) return null;
   final _Gst gst = DVGStreamer._api;
   try {

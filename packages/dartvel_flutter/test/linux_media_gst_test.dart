@@ -344,6 +344,18 @@ void main() {
       expect(backend.frame.value, isNull);
     }, skip: noFrames);
 
+    test('a loaded, paused video shows its first frame', () async {
+      final DVGStreamerPlayer backend = DVGStreamerPlayer(audioSink: 'fakesink');
+      final DVMediaController c = controllerFor(DVMediaSource.file(redVideo));
+      await c.attach(backend);
+      await until(() => c.state.value == DVPlaybackState.paused);
+      await until(() => backend.frame.value != null);
+      final DVVideoFrame frame = backend.frame.value!;
+      expect((frame.width, frame.height), (320, 240));
+      expect(frame.rgba[(120 * 320 + 160) * 4], greaterThan(230));
+      await c.dispose();
+    }, skip: noFrames);
+
     test('the player is a video surface that draws the frames', () async {
       final DVGStreamerPlayer backend = DVGStreamerPlayer(audioSink: 'fakesink');
       expect(backend, isA<DVVideoSurface>());
