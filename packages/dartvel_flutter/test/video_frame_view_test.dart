@@ -11,6 +11,21 @@ DVVideoFrame solid(int width, int height, List<int> rgba) => DVVideoFrame(
     rgba: Uint8List.fromList(
         List<int>.generate(width * height * 4, (int i) => rgba[i % 4])));
 
+/// Decoding happens off the test's fake clock; wait, in real time, until
+/// the image of [width] by [height] is drawn.
+Future<RawImage> drawn(WidgetTester tester, int width, int height) async {
+  for (int attempt = 0; attempt < 100; attempt++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await tester.pump();
+    final Finder found = find.byType(RawImage);
+    if (found.evaluate().isNotEmpty) {
+      final RawImage image = tester.widget<RawImage>(found);
+      if (image.image?.width == width && image.image?.height == height) return image;
+    }
+  }
+  fail('no ${width}x$height image was drawn');
+}
+
 void main() {
   testWidgets('draws each frame as an image of the frame size', (WidgetTester tester) async {
     final ValueNotifier<DVVideoFrame?> frames = ValueNotifier<DVVideoFrame?>(null);
@@ -18,17 +33,11 @@ void main() {
     expect(find.byType(RawImage), findsNothing);
 
     frames.value = solid(4, 2, <int>[255, 0, 0, 255]);
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-    await tester.pump();
-    final RawImage drawn = tester.widget<RawImage>(find.byType(RawImage));
-    expect((drawn.image!.width, drawn.image!.height), (4, 2));
-    expect(drawn.fit, BoxFit.contain);
+    final RawImage first = await drawn(tester, 4, 2);
+    expect(first.fit, BoxFit.contain);
 
     frames.value = solid(8, 6, <int>[0, 0, 255, 255]);
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-    await tester.pump();
-    final RawImage next = tester.widget<RawImage>(find.byType(RawImage));
-    expect((next.image!.width, next.image!.height), (8, 6));
+    await drawn(tester, 8, 6);
 
     frames.value = null;
     await tester.pump();
