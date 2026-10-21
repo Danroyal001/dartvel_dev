@@ -15,6 +15,11 @@ class DVWindowHost extends StatelessWidget {
   /// Unused in a browser, where no route gets a window of its own.
   final Widget Function(BuildContext context, DVRouteTarget route) routeBuilder;
 
+  /// The page's one view, as `runApp` would give it: under `runWidget` the
+  /// root provides its own `View`, and a bare home has nowhere to render.
   @override
-  Widget build(BuildContext context) => home;
+  Widget build(BuildContext context) => View(
+        view: WidgetsBinding.instance.platformDispatcher.implicitView!,
+        child: home,
+      );
 }
