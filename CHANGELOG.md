@@ -1,3 +1,10 @@
+## 0.13.10 — 2026-10-21
+
+- Linux video, cameras and screens through GStreamer: frames drawn into Flutter, webcams and capture cards (`DVCameraDevice`, `DVBox.camera(device:)`), each display as a screen (`DVCameraLens.screen`; also the web's `getDisplayMedia`), JPEG photos and MP4 recording; the first audio output or microphone that opens.
+- `DVWidgetRecorder` and `DVBox.recorded`: record part of the screen to MP4 or stream it over RTMP. `loop:` on media boxes; one camera or player shared by several boxes.
+- `dartvel.startRoutes` (the page an installed target opens on); the build shows the generator's error; `dartvel_windowing` builds for the web, with `showInWindowDialog`.
+
+
 ## 0.13.9 — 2026-10-20
 
 - Ordinary pages carry request-time data in their first document: export `dartvelRoutePageData` (route pattern -> resolver) from `lib/backend/page_data/index.dart`; `DVPageData.document` holds typed headings, paragraphs and links (`DVDocumentBlock`), escaped, with unsafe link schemes written as text. The file may not import Flutter (`DV-PAGE-010`).
