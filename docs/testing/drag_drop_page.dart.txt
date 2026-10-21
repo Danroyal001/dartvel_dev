@@ -1,26 +1,55 @@
 import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import '../dartvel_client/dartvel_client.dart';
 
 @DVPage(title: 'Drag and drop verification')
 Widget _indexPage(BuildContext context) {
   final report = context.signal('Waiting for a file, link or text');
+  final hovering = context.signal('Not hovering');
   Future<void> receive(DVDropEvent event) async {
     final files = <Object?>[];
     for (final file in event.files) {
-      files.add({'name': file.name, 'bytes': await file.readBytes()});
+      files.add({
+        'name': file.name,
+        'type': file.mimeType,
+        'bytes': utf8.decode(await file.readBytes(), allowMalformed: true),
+      });
     }
-    report.value = jsonEncode({'files': files, 'urls': event.urls.map((url) => '$url').toList(), 'text': event.text});
+    report.value = jsonEncode({
+      'files': files,
+      'urls': event.urls.map((url) => '$url').toList(),
+      'text': event.text,
+    });
   }
+
   return DVBox.list([
-    const DVText('Drag and drop verification').modifier(DVModifier().semanticHeading(1)),
+    const DVText('Drag and drop verification')
+        .modifier(const DVModifier().semanticHeading(1)),
     const DVText('Drop a file, link or text here').modifier(
-      DVModifier().height(160).padding(24).dropTarget(onDrop: receive)
-          .tooltip('Drop a file, link or text here')),
-    DVText(report.value),
-    const DVText('Choose files instead').modifier(DVModifier().onTap(() async {
+      DVModifier()
+          .height(160)
+          .padding(24)
+          .tooltip('Drop a file, link or text here')
+          .dropTarget(
+            onDrop: receive,
+            onHover: (over) => hovering.value = over ? 'Hovering' : 'Not hovering',
+          ),
+    ),
+    DVText('Received: ${report.value}'),
+    DVText('Hover: ${hovering.value}'),
+    const DVText('Drag this link out').modifier(
+      const DVModifier()
+          .padding(16)
+          .tooltip('Drag this link out')
+          .draggable(DVDragPayload(
+            text: 'Dartvel drag payload',
+            urls: [Uri.parse('https://dartvel.dev/docs/devices')],
+          )),
+    ),
+    DVText('Choose files instead').modifier(DVModifier().onTap(() async {
       final event = await DV.Platform.dragDrop.chooseInstead();
       if (event != null) await receive(event);
     })),
-  ]).modifier(DVModifier().padding(24));
+  ]).modifier(const DVModifier().padding(24));
 }
