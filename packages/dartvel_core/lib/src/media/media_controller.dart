@@ -713,6 +713,11 @@ final class _DVMediaSession {
     if (isDisposed) return;
     _wantsPlayback = true;
     await _claimNowPlaying();
+    // Played after its end, it starts again from the start, as a browser's
+    // video does; a backend left at its end would otherwise show the last
+    // frame and stay there. Not waiting for the seek to be confirmed, as the
+    // loop does not: a backend slow to confirm would sit on the last frame.
+    if (state.value == DVPlaybackState.completed) unawaited(seek(Duration.zero).catchError((Object _) {}));
     await b.play();
   }
 

@@ -589,6 +589,41 @@ void main() {
       expect(c.state.value, DVPlaybackState.completed);
       expect(backend.calls, isNot(contains('seek')));
     });
+
+    test('play after the end starts again from the start, as a browser video does', () async {
+      final DVMediaController c =
+          controller(const DVMediaSource.url('https://cdn.test/clip.mp4'));
+      await c.attach(backend);
+      backend.emit(const DVMediaReady(duration: Duration(seconds: 6)));
+      await c.play();
+      backend.emit(const DVMediaPlaying());
+      await pump();
+      backend.emit(const DVMediaCompleted());
+      await pump();
+      backend.calls.clear();
+      backend.seeks.clear();
+
+      await c.play();
+      expect(backend.calls, containsAllInOrder(<String>['seek', 'play']));
+      expect(backend.seeks.single.$1, Duration.zero);
+    });
+
+    test('play while paused part-way carries on from there', () async {
+      final DVMediaController c =
+          controller(const DVMediaSource.url('https://cdn.test/clip.mp4'));
+      await c.attach(backend);
+      backend.emit(const DVMediaReady(duration: Duration(seconds: 6)));
+      await c.play();
+      backend.emit(const DVMediaPlaying());
+      await pump();
+      await c.pause();
+      backend.emit(const DVMediaPaused());
+      await pump();
+      backend.calls.clear();
+
+      await c.play();
+      expect(backend.calls, isNot(contains('seek')));
+    });
   });
 }
 
