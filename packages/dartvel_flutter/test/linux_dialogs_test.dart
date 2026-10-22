@@ -6,10 +6,12 @@
 // and presses the button. What that verifies is everything but the person:
 // filters applied, the selection read back, cancel meaning none, a save
 // name suggested, a directory chosen, a message shown and dismissed.
+import 'dart:ffi';
 import 'dart:io';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/platform/linux/linux_dialogs_ffi.dart';
+import 'package:ffi/ffi.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -67,6 +69,48 @@ void main() {
       expect(seen.title, 'Pick a note');
       expect(seen.filterLabels, <String>['Text']);
       expect(seen.currentFolder, dir.path);
+    });
+
+    test('a dialog belongs to the window the person is using, never to a projector-style window', () async {
+      // An operator window, and a projector that never takes focus (as
+      // DVWindowOptions(takesFocus: false) makes it), both on screen. A
+      // dialog with no owner is placed wherever the window manager likes:
+      // with a projector filling another display, that was behind it.
+      final DynamicLibrary gtk = DynamicLibrary.open('libgtk-3.so.0');
+      final Pointer<Void> Function(int) newWindow =
+          gtk.lookupFunction<Pointer<Void> Function(Int32), Pointer<Void> Function(int)>('gtk_window_new');
+      final void Function(Pointer<Void>, Pointer<Utf8>) setTitle = gtk.lookupFunction<
+          Void Function(Pointer<Void>, Pointer<Utf8>), void Function(Pointer<Void>, Pointer<Utf8>)>('gtk_window_set_title');
+      final void Function(Pointer<Void>, int) setAcceptFocus = gtk.lookupFunction<Void Function(Pointer<Void>, Int32),
+          void Function(Pointer<Void>, int)>('gtk_window_set_accept_focus');
+      final void Function(Pointer<Void>) show =
+          gtk.lookupFunction<Void Function(Pointer<Void>), void Function(Pointer<Void>)>('gtk_widget_show');
+      final void Function(Pointer<Void>) destroy =
+          gtk.lookupFunction<Void Function(Pointer<Void>), void Function(Pointer<Void>)>('gtk_widget_destroy');
+      Pointer<Void> window(String title, {required bool focusable}) {
+        final Pointer<Void> w = newWindow(0);
+        final Pointer<Utf8> t = title.toNativeUtf8();
+        setTitle(w, t);
+        calloc.free(t);
+        setAcceptFocus(w, focusable ? 1 : 0);
+        show(w);
+        return w;
+      }
+
+      final Pointer<Void> projector = window('Projector', focusable: false);
+      final Pointer<Void> operator = window('Operator', focusable: true);
+      addTearDown(() {
+        destroy(projector);
+        destroy(operator);
+      });
+
+      late DVLinuxDialogSeen seen;
+      DVLinuxDialogs.automate((DVLinuxDialog dialog) {
+        seen = dialog.inspect();
+        dialog.cancel();
+      });
+      await DV.Platform.dialogs.openFile(title: 'Add video', initialDirectory: dir.path);
+      expect(seen.ownerTitle, 'Operator');
     });
 
     test('open: cancel is no files, not an error', () async {

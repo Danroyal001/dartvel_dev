@@ -1,3 +1,7 @@
+## Unreleased
+
+- Linux file and message dialogs belong to the window the person is using (transient for it, modal, centred on it), never to a window opened with `takesFocus: false`. With no owner the window manager placed them where it liked; with a projector filling another display that was behind the projector, and nothing seemed to happen. Found in Media-Bits on a two-display desk.
+
 ## 0.13.14 — 2026-10-22
 
 - Native scaffold cleanup retains Flutter's resolved plugin metadata, so a fresh development build can name the JNI and other native plugins in its shell manifest. Counter-app tests and IDE artifacts are still removed.
