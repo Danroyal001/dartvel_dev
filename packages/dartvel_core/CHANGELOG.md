@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVMediaController.play()` after the end starts again from the start, as a browser's video does. On Linux a finished video stayed on its last frame and Play did nothing. Found in Media-Bits' transport.
+
 ## 0.13.14 — 2026-10-22
 
 - `dvAndroidDragDropClass` and `dvIosDragDropClass`: the generated drag and drop bridges' class names, shared by the build and the runtime.
