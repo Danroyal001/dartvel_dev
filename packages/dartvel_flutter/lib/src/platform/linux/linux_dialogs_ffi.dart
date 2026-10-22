@@ -74,6 +74,10 @@ class DVLinuxDialogSeen {
   final String? messageText;
   final bool multiple;
 
+  /// The title of the window the dialog belongs to (is transient for), or
+  /// null when it belongs to none.
+  final String? ownerTitle;
+
   const DVLinuxDialogSeen({
     this.title,
     this.filterLabels = const <String>[],
@@ -81,6 +85,7 @@ class DVLinuxDialogSeen {
     this.currentName,
     this.messageText,
     this.multiple = false,
+    this.ownerTitle,
   });
 }
 
@@ -296,9 +301,43 @@ class DVLinuxDialogs {
     return object;
   }
 
+  /// Makes [dialog] belong to the window the person is using: the active
+  /// toplevel, or failing that the first visible one that takes focus (a
+  /// projector-style window, opened not to take the keyboard, never does).
+  /// With no owner the window manager placed it where it liked; with a
+  /// projector filling another display, that was behind the projector, and
+  /// the person saw nothing happen.
+  static void _attachToOwner(Pointer<Void> dialog) {
+    final DynamicLibrary gtk = _gtk!;
+    final DynamicLibrary glib = _glib!;
+    final Pointer<Void> windows = gtk.lookupFunction<_NewN, _NewD>('gtk_window_list_toplevels')();
+    final int count = glib.lookupFunction<_SListLenN, _SListLenD>('g_list_length')(windows);
+    final int Function(Pointer<Void>) visible = gtk.lookupFunction<_P_IN, _P_ID>('gtk_widget_get_visible');
+    final int Function(Pointer<Void>) active = gtk.lookupFunction<_P_IN, _P_ID>('gtk_window_is_active');
+    final int Function(Pointer<Void>) takesFocus = gtk.lookupFunction<_P_IN, _P_ID>('gtk_window_get_accept_focus');
+    Pointer<Void> owner = nullptr;
+    Pointer<Void> fallback = nullptr;
+    for (int i = 0; i < count; i++) {
+      final Pointer<Void> window = glib.lookupFunction<_SListNthN, _SListNthD>('g_list_nth_data')(windows, i);
+      if (window == dialog || visible(window) == 0 || takesFocus(window) == 0) continue;
+      if (active(window) != 0) {
+        owner = window;
+        break;
+      }
+      if (fallback == nullptr) fallback = window;
+    }
+    glib.lookupFunction<_PN, _PD>('g_list_free')(windows);
+    if (owner == nullptr) owner = fallback;
+    if (owner == nullptr) return;
+    gtk.lookupFunction<_P_P_VN, _P_P_VD>('gtk_window_set_transient_for')(dialog, owner);
+    gtk.lookupFunction<_P_I_VN, _P_I_VD>('gtk_window_set_modal')(dialog, 1);
+    gtk.lookupFunction<_P_I_VN, _P_I_VD>('gtk_window_set_position')(dialog, 4); // GTK_WIN_POS_CENTER_ON_PARENT
+  }
+
   static int _run(Pointer<Void> dialog, {required bool chooser}) {
     final DynamicLibrary gtk = _gtk!;
     final DynamicLibrary glib = _glib!;
+    _attachToOwner(dialog);
     _current = dialog;
     _currentIsChooser = chooser;
     if (_automation != null) {
@@ -384,6 +423,7 @@ class DVLinuxDialogs {
   static int _runReading(Pointer<Void> dialog, void Function() read) {
     final DynamicLibrary gtk = _gtk!;
     final DynamicLibrary glib = _glib!;
+    _attachToOwner(dialog);
     _current = dialog;
     _currentIsChooser = true;
     if (_automation != null) {
@@ -424,6 +464,10 @@ class DVLinuxDialogs {
     final DynamicLibrary gtk = _gtk!;
     final DynamicLibrary glib = _glib!;
     final Pointer<Utf8> title = gtk.lookupFunction<_P_SN, _P_SD>('gtk_window_get_title')(dialog);
+    final Pointer<Void> owner = gtk.lookupFunction<_P_PN, _P_PD>('gtk_window_get_transient_for')(dialog);
+    final Pointer<Utf8> ownerTitle =
+        owner == nullptr ? nullptr : gtk.lookupFunction<_P_SN, _P_SD>('gtk_window_get_title')(owner);
+    final String? ownedBy = ownerTitle == nullptr ? null : ownerTitle.toDartString();
     if (!chooser) {
       final Pointer<Void> v = _gvalue(_gTypeString);
       _withUtf8('text', (Pointer<Utf8> s) =>
@@ -432,6 +476,7 @@ class DVLinuxDialogs {
       final DVLinuxDialogSeen seen = DVLinuxDialogSeen(
         title: title == nullptr ? null : title.toDartString(),
         messageText: text == nullptr ? null : text.toDartString(),
+        ownerTitle: ownedBy,
       );
       _freeValue(v);
       return seen;
@@ -456,6 +501,7 @@ class DVLinuxDialogs {
       filterLabels: labels,
       currentFolder: folder == nullptr ? null : folder.toDartString(),
       currentName: name == nullptr ? null : name.toDartString(),
+      ownerTitle: ownedBy,
     );
     if (folder != nullptr) glib.lookupFunction<_PN, _PD>('g_free')(folder.cast<Void>());
     if (name != nullptr) glib.lookupFunction<_PN, _PD>('g_free')(name.cast<Void>());

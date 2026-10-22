@@ -1,3 +1,7 @@
+## Unreleased
+
+- Linux file and message dialogs belong to the window the person is using (transient for it, modal, centred on it), never to a window opened with `takesFocus: false`. With no owner the window manager placed them where it liked; with a projector filling another display that was behind the projector, and nothing seemed to happen. Found in Media-Bits on a two-display desk.
+
 ## 0.13.14 — 2026-10-22
 
 - `DVModifier().dropTarget(onDrop:, types:, onHover:)` and `.draggable(DVDragPayload)` (`DVDropTarget`, `DVDraggable`): drops routed to the smallest widget under them, a Flutter drag between widgets where the platform has no drag out, and the browser's own drag out of a page. `DVDragDrop.startsDrags`; `startDrag` returns false and hands the payload over as pending where the platform starts drags itself.
