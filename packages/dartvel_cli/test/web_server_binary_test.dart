@@ -35,7 +35,9 @@ import 'package:dartvel_core/dartvel.dart'
         DVIssuedSession,
         DVSessions,
         DVTenants;
+import 'package:dartvel_cli/src/build/chrome_launch.dart';
 import 'package:path/path.dart' as p;
+import 'package:puppeteer/puppeteer.dart';
 import 'package:test/test.dart';
 
 Future<int> _freePort() async {
@@ -157,6 +159,26 @@ Future<List<String>> _notes() async => <String>[
           in await const DVDatabase().query('SELECT text FROM notes'))
         '\${row['text']}',
     ];
+''');
+    // A page that calls a backend function through the generated client and
+    // shows the answer: the browser-to-store path the conformance test drives.
+    write('lib/pages/notes.dart', '''
+import 'package:flutter/widgets.dart';
+import '../dartvel_client/dartvel_client.dart';
+
+@DVPage(title: 'Notes', showAppBar: true)
+Widget _notesPage(BuildContext context) {
+  final saved = context.signal('Nothing saved yet');
+  return DVBox.list([
+    DVText(saved.value),
+    DVText('Save a note').modifier(
+      DVModifier().padding(12).onPressed(() async {
+        final int count = await addNote(text: 'from the browser');
+        saved.value = 'Saved, \$count in all';
+      }),
+    ),
+  ]);
+}
 ''');
     // The admin, asked for. This is a release build, which carries a
     // dashboard only when the project says so.
@@ -320,6 +342,57 @@ Future<List<String>> _notes() async => <String>[
       await second.process.exitCode;
     }
   }, skip: skip);
+
+  test('a browser on the copied binary renders the page, calls a backend '
+      'function through the generated client, and the write survives a restart',
+      () async {
+    final run = await start();
+    final Browser browser = await puppeteer.launch(
+      executablePath: await dvChromeExecutable(),
+      args: dvChromeLaunchArgs,
+    );
+    try {
+      final served = await request(run.port, 'GET', '/notes');
+      expect(served.status, 200, reason: served.body);
+      expect(served.body, contains('Nothing saved yet'),
+          reason: 'the page is rendered on the server, before any script');
+
+      final Page page = await browser.newPage();
+      await page.setViewport(const DeviceViewport(width: 1024, height: 768));
+      await page.evaluateOnNewDocument(
+          'addEventListener("flutter-first-frame", () => { window.dvFirstFrame = true })');
+      await page.goto('http://127.0.0.1:${run.port}/notes', wait: Until.load);
+      await page.waitForFunction('() => window.dvFirstFrame === true',
+          timeout: const Duration(minutes: 1));
+
+      // The semantics tree is on by default: the button is a real element a
+      // person (or a screen reader) presses.
+      final ElementHandle button = await page.waitForSelector(
+          'flt-semantics[role=button]',
+          timeout: const Duration(seconds: 30)) as ElementHandle;
+      expect(await button.evaluate<String>('(e) => e.textContent.trim()'), 'Save a note');
+      await button.click();
+      // What the page says now, as a screen reader reads it.
+      await page.waitForFunction('''() => [...document.querySelectorAll("flt-semantics")]
+          .some((e) => /^Saved, [1-9][0-9]* in all\$/.test(e.getAttribute("aria-label") || ""))''',
+          timeout: const Duration(seconds: 30));
+    } finally {
+      await browser.close();
+      run.process.kill();
+      await run.process.exitCode;
+    }
+
+    final again = await start();
+    try {
+      final notes = await request(again.port, 'GET', '/api/notes');
+      expect(notes.status, 200, reason: notes.body);
+      expect(notes.body, contains('from the browser'),
+          reason: 'what the browser wrote is in the store after a restart');
+    } finally {
+      again.process.kill();
+      await again.process.exitCode;
+    }
+  }, skip: skip, timeout: const Timeout(Duration(minutes: 5)));
 
   test('the copied binary returns 404 for every Studio data endpoint without a grant',
       () async {
