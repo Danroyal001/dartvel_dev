@@ -1,3 +1,7 @@
+## 0.13.15 — 2026-10-22
+
+- Version aligned with dartvel_core 0.13.15.
+
 ## 0.13.14 — 2026-10-22
 
 - `dartvel build android` writes `DartvelDragDrop.java` and `dartvel build ios` writes `DartvelDragDrop.swift` and adds it to Runner's Sources (`android_drag_drop_bridge.dart`, `ios_drag_drop_bridge.dart`).
