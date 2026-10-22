@@ -1,5 +1,7 @@
-## Unreleased
+## 0.13.16 — 2026-10-22
 
+- A backend now compiles when the app has a data model with its own pages (the default). The pages' static-path lookup named `DV.Database`, which a backend compiled without Flutter does not have, so `dartvel build web-server` failed for any such app. Found by the new browser conformance test.
+- `dartvel_documents` compiles for the web: PDFium sits behind a conditional import, and on the web `DVDocuments.open` answers `DVDocumentUnavailable` with the reason. Its first version imported `dart:ffi` from the public library, which broke Media-Bits' web build.
 - New package `dartvel_documents`: PDFs drawn by a bundled, sha256-pinned PDFium (every desktop and mobile target), presentations converted with LibreOffice where installed; `DVDocuments.open`, `renderPage`, `DVDocumentPage`. Verified on Linux x64; other targets bundle it but are not yet run. Built for Media-Bits' PowerPoint and PDF items.
 
 ## 0.13.15 — 2026-10-22

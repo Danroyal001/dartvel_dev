@@ -11,7 +11,7 @@ environment:
   sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
-  dartvel_core: ^0.13.15
+  dartvel_core: ^0.13.16
   slugify: {path: ../../vendor/slugify}
 
 dartvel:
