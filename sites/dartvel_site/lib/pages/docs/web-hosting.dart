@@ -41,6 +41,8 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
                   'description, Open Graph tags and splash'],
               <String>['<route>/index.html', 'One page per route, so a deep '
                   'link and a crawler get real HTML'],
+              <String>['dv-first-frame/', 'A picture of each page\'s first '
+                  'screen, shown until the app has loaded'],
               <String>['manifest.json, icons/', 'The installable PWA'],
               <String>['flutter_service_worker.js', 'Offline caching, '
                   'replaced by Dartvel\'s worker'],
@@ -64,6 +66,18 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'Routes with parameters get pages for the paths your models list.',
               'Set pwa.enabled: false to leave out the manifest and worker.',
+            ]),
+            DocsText('Before the app has loaded, a visitor sees the page '
+                'itself: the build takes a picture of each page\'s first screen '
+                'at common window widths, light and dark, with its words laid '
+                'over it to select, find and follow. The app then replaces it '
+                'with the same pixels. Other widths see the splash.'),
+            DocsShell(<String>[
+              '# pubspec.yaml',
+              'dartvel:',
+              '  web:',
+              '    firstFrame:',
+              '      widths: [390, 1366, 1920]   # or firstFrame: false',
             ]),
           ],
         ),

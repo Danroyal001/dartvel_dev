@@ -334,6 +334,7 @@ export 'src/web/host_routing.dart';
 export 'src/web/page_data.dart' hide dvPageResolverIsStatic;
 export 'src/web/page_text.dart';
 export 'src/web/minify.dart';
+export 'src/web/first_frame.dart';
 export 'src/web/route_page.dart';
 export 'src/web/site_pages.dart';
 export 'src/web/structured_data.dart';
