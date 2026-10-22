@@ -1,5 +1,6 @@
 ## 0.13.15 — 2026-10-22
 
+- A backend now compiles when the app has a data model with its own pages (the default). The pages' static-path lookup named `DV.Database`, which a backend compiled without Flutter does not have, so `dartvel build web-server` failed for any such app. Found by the new browser conformance test.
 - Version aligned with dartvel_core 0.13.15.
 
 ## 0.13.14 — 2026-10-22

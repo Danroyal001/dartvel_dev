@@ -11,7 +11,7 @@ import 'package:test/test.dart';
 
 final String corePath = p.normalize(p.absolute('..', 'dartvel_core'));
 
-Future<Directory> project() async {
+Future<Directory> project({String? model}) async {
   final Directory root =
       await Directory.systemTemp.createTemp('dartvel_server_models_');
   addTearDown(() => root.deleteSync(recursive: true));
@@ -26,7 +26,7 @@ dependencies:
   dartvel_core:
     path: $corePath
 ''');
-  File(p.join(root.path, 'lib', 'models', 'note.dart')).writeAsStringSync('''
+  File(p.join(root.path, 'lib', 'models', 'note.dart')).writeAsStringSync(model ?? '''
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel(searchable: true, semantic: true, generatePages: false)
@@ -109,5 +109,41 @@ Future<void> main() async {
     expect('${run.stdout}', contains('all 2'));
     expect('${run.stdout}', contains('embedded 2'));
     expect('${run.stdout}', contains('hybrid n1'));
+  }, timeout: const Timeout(Duration(minutes: 5)));
+
+  test('a data model with its own pages still compiles without Flutter', () async {
+    // Every data model gets a page per record by default, and the page's
+    // static paths read the table on the server. That read named DV, which a
+    // server only has from dartvel_flutter, so the backend of any app with a
+    // data model and default pages failed to compile.
+    final Directory root = await project(model: '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class const _Note({required final String id, required final String text});
+''');
+    File(p.join(root.path, 'bin', 'main.dart'))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+import 'package:server_models_app/dartvel_client/dartvel_server.dart';
+
+Future<void> main() async {
+  registerDartvelModels();
+  const DVDatabase().configure(SqliteDVDatabaseAdapter.memory());
+  await const DVDatabase().execute('CREATE TABLE IF NOT EXISTS notes (id TEXT, text TEXT, _dv_version INTEGER NOT NULL DEFAULT 1, _dv_deleted_at TEXT)');
+  await const Note(id: 'n1', text: 'hello').save();
+  print('paths \${await Note.publicStaticPaths()}');
+}
+''');
+    final ProcessResult get = await Process.run(
+        Platform.resolvedExecutable, <String>['pub', 'get'],
+        workingDirectory: root.path);
+    expect(get.exitCode, 0, reason: '${get.stdout}${get.stderr}');
+    final ProcessResult run = await Process.run(
+        Platform.resolvedExecutable, <String>['run', 'bin/main.dart'],
+        workingDirectory: root.path);
+    expect(run.exitCode, 0, reason: '${run.stdout}${run.stderr}');
+    expect('${run.stdout}', contains('paths [n1]'));
   }, timeout: const Timeout(Duration(minutes: 5)));
 }
