@@ -919,10 +919,11 @@ class ModelGenerator {
             sb.writeln('    return const <String>[];');
           } else {
             sb.writeln(
-              // DV.Database for an application, unchanged: it is const
-              // DVDatabase() by another name, and this feature has no reason
-              // to rewrite output it does not change the meaning of.
-              "    final rows = await ${ownModuleId == null ? 'DV.Database' : '_dvModule.database'}.query('select * from $tableRef');",
+              // const DVDatabase(), which DV.Database returns on a device: a
+              // backend is compiled without dartvel_flutter, where DV comes
+              // from, so DV.Database here failed every backend with a model
+              // that has pages.
+              "    final rows = await ${ownModuleId == null ? 'const DVDatabase()' : '_dvModule.database'}.query('select * from $tableRef');",
             );
             sb.writeln('    final paths = <String>[];');
             sb.writeln('    for (final row in rows) {');
