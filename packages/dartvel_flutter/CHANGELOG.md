@@ -1,3 +1,7 @@
+## 0.13.16 — 2026-10-22
+
+- Version aligned with dartvel_core 0.13.16.
+
 ## 0.13.15 — 2026-10-22
 
 - Linux file and message dialogs belong to the window the person is using (transient for it, modal, centred on it), never to a window opened with `takesFocus: false`. With no owner the window manager placed them where it liked; with a projector filling another display that was behind the projector, and nothing seemed to happen. Found in Media-Bits on a two-display desk.

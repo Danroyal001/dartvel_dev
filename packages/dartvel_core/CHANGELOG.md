@@ -1,3 +1,7 @@
+## 0.13.16 — 2026-10-22
+
+- Version aligned with dartvel_core 0.13.16.
+
 ## 0.13.15 — 2026-10-22
 
 - `DVMediaController.play()` after the end starts again from the start, as a browser's video does. On Linux a finished video stayed on its last frame and Play did nothing. Found in Media-Bits' transport.
