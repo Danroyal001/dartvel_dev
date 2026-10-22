@@ -14,6 +14,7 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_static/shelf_static.dart';
 
+import 'first_frame_capture.dart';
 import 'page_shots.dart' show DVInFlight, DVTextSettle;
 
 import '../utils/logger.dart';
@@ -132,6 +133,11 @@ List<String> dvForgetGuardedCaptures(String projectRoot, Iterable<String> guarde
         removed.add(p.relative(path, from: projectRoot));
       }
     }
+    // Its first-frame pictures too: they are pictures of that old screen.
+    if (File(dvFirstFramePathFor(projectRoot, route)).existsSync()) {
+      removed.add(p.relative(dvFirstFramePathFor(projectRoot, route), from: projectRoot));
+    }
+    dvForgetFirstFrames(projectRoot, route);
   }
   return removed;
 }
@@ -188,6 +194,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
   required String webRoot,
   required List<String> routes,
   Duration settle = const Duration(seconds: 20),
+  List<int> firstFrameWidths = const <int>[],
 }) async {
   if (routes.isEmpty) {
     return const DVCaptureRun(captured: 0, browserAvailable: true);
@@ -321,6 +328,21 @@ Future<DVCaptureRun> dvCaptureSemantics({
         );
         final int nodes = (jsonDecode(tree) as List<Object?>).length;
         if (nodes > 0) captured++;
+        // The picture of the first screen, at each width, once the page has
+        // rendered all it renders: shown by the page before the app loads.
+        if (nodes > 0 && firstFrameWidths.isNotEmpty) {
+          try {
+            await dvCaptureFirstFrames(page,
+                projectRoot: projectRoot, route: route, widths: firstFrameWidths);
+          } on Object catch (error) {
+            // Without a picture the page shows the splash, as it always did;
+            // a build is not lost over it, and it is said.
+            dvForgetFirstFrames(projectRoot, route);
+            Logger.log('   ⚠ $route: no first-frame picture ($error); it shows the splash.');
+          }
+        } else {
+          dvForgetFirstFrames(projectRoot, route);
+        }
       } finally {
         await watching.cancel();
         for (final StreamSubscription<Object?> subscription in counting) {
@@ -346,6 +368,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
       // page that no longer shows those images.
       final File images = File(dvCapturedImagesPathFor(projectRoot, route));
       if (images.existsSync()) images.deleteSync();
+      dvForgetFirstFrames(projectRoot, route);
     }
   }
 
