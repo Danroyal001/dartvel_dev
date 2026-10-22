@@ -29,7 +29,7 @@ Ordered by dependencies unblocked, rather than claimed implementation size. “V
 12. **Studio and generated UI end-to-end.** Verify generic projects, their own URLs, edit/publish/review, forms/tables, real assistive technology and keyboard/selection behavior before and after takeover.
 13. **Provider-backed product workflows.** Verify search/semantic indexing, AI budgets/tools, mail/push, checkout/entitlements/tax and media capture with genuine adapters or controlled sandbox services, through the built app.
 14. **Production operations and module lifecycle.** Complete/verify telemetry export, release health, SLO incidents, privacy erasure, preview isolation and release drain/rollback. Module Health is missing; module source/trust and carrier coverage are partial.
-15. **Tooling reliability and reproducible delivery.** Complete source-glob/build/watch/generation conformance, whole-artifact reproducibility and managed Cloud web-server proof. Lead-reported `dartvel --version | head -1` closes stdout and crashes with a stack trace; retain as an open CLI gap.
+15. **Tooling reliability and reproducible delivery.** Complete source-glob/build/watch/generation conformance, whole-artifact reproducibility and managed Cloud web-server proof. `dartvel --version | head -1` crashing on a closed pipe is fixed (`broken_pipe_test.dart`).
 
 ## Evidence rules and boundaries
 

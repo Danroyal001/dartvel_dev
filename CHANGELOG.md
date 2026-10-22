@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel --version | head -1` (or any command piped into a reader that stops early) ends quietly instead of printing an unhandled broken-pipe exception and exiting 255.
+
 ## 0.13.16 — 2026-10-22
 
 - A backend now compiles when the app has a data model with its own pages (the default). The pages' static-path lookup named `DV.Database`, which a backend compiled without Flutter does not have, so `dartvel build web-server` failed for any such app. Found by the new browser conformance test.
