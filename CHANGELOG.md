@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.15 — 2026-10-22
 
 - `DVMediaController.play()` after the end starts again from the start, as a browser's video does. On Linux a finished video stayed on its last frame and Play did nothing. Found in Media-Bits' transport.
 - Linux file and message dialogs belong to the window the person is using (transient for it, modal, centred on it), never to a window opened with `takesFocus: false`. With no owner the window manager placed them where it liked; with a projector filling another display that was behind the projector, and nothing seemed to happen. Found in Media-Bits on a two-display desk.
