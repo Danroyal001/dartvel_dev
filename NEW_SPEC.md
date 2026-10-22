@@ -4638,6 +4638,21 @@ job, so a list of attachments shows what they are. The renderer is an adapter
 a file type with no adapter is stored and listed by name, which is the honest
 degradation rather than a broken thumbnail.
 
+## Documents on screen
+
+`package:dartvel_documents` opens a document and draws its pages: a PDF
+through PDFium, which its build hook bundles for each target (pinned by
+release and sha256, downloaded once and cached), and a presentation or office
+file by converting it to PDF with LibreOffice where the machine has it.
+`DVDocuments.open(path)` answers with a `DVDocument` -- `pageCount`,
+`pageSize(i)`, `renderPage(i, width:)` -- and `DVDocumentPage(document:, page:)`
+draws a page at the pixel size it is shown at. Where a document cannot open
+(no PDFium build for the target, the web for now, a presentation with no
+LibreOffice) it throws `DVDocumentUnavailable` with the reason, never a blank
+page. It is a package an application opts into, so an app that shows no
+documents carries no PDF engine. Verified on Linux x64; the other targets
+bundle PDFium and are not yet run.
+
 ## Deliberately absent
 
 - **A bundled encoder.** Covered above.

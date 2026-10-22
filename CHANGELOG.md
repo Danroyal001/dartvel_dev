@@ -1,3 +1,7 @@
+## Unreleased
+
+- New package `dartvel_documents`: PDFs drawn by a bundled, sha256-pinned PDFium (every desktop and mobile target), presentations converted with LibreOffice where installed; `DVDocuments.open`, `renderPage`, `DVDocumentPage`. Verified on Linux x64; other targets bundle it but are not yet run. Built for Media-Bits' PowerPoint and PDF items.
+
 ## 0.13.15 — 2026-10-22
 
 - `DVMediaController.play()` after the end starts again from the start, as a browser's video does. On Linux a finished video stayed on its last frame and Play did nothing. Found in Media-Bits' transport.
