@@ -23,8 +23,11 @@ Future<Response> get(Router router, String path) => router(Request(
     ));
 
 Future<String> read(Response response) async {
+  // A response with no body reads as nothing, not as a crash.
+  final body = response.body;
+  if (body == null) return '';
   final List<int> bytes = <int>[];
-  await for (final List<int> chunk in response.body!.stream) {
+  await for (final List<int> chunk in body.stream) {
     bytes.addAll(chunk);
   }
   return utf8.decode(bytes);

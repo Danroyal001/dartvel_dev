@@ -1931,6 +1931,96 @@ final class DVDiagnostics {
       reason: 'touchPages enabled on a mobile/embedded target.',
       level: 'warning',
     ),
+    DVDiagnostic(
+      code: 'DV-MCU-001',
+      reason: 'code reachable from a page or @DVBoot function cannot be lowered to firmware (the call is named)',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MCU-002',
+      reason: 'the board profile lacks a capability the application uses (display, touch, storage)',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MCU-003',
+      reason: 'the firmware does not fit the board\'s flash or RAM; the largest screens are listed',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MCU-004',
+      reason: 'a page uses a widget that is not a Dartvel primitive and cannot be drawn with LVGL',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-RUN-001',
+      reason: 'the app started with Flutter\'s runApp; features that need work before the first frame are inactive (listed)',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-RUN-002',
+      reason: 'DV.run was called again in an isolate that already ran it, or inside a test binding',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-RUN-003',
+      reason: 'boot exceeded its budget; the slowest phase and @DVBoot function are named',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-RUN-004',
+      reason: 'a boot phase failed; the lifecycle is failed and the phase is named',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-RUN-005',
+      reason: 'an entry was requested that this target has no surface for',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-RUN-006',
+      reason: 'an @DVAppRoot does not use parts.router',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-RUN-007',
+      reason: 'a @DVBoot function awaits the network before the first frame',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-RUN-008',
+      reason: 'a headless entry exceeded the platform\'s time limit and was stopped',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-WIDGET-001',
+      reason: 'a home widget uses a widget that cannot be lowered; it is shown as a snapshot',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-WIDGET-002',
+      reason: 'the requested refresh is finer than the target allows; coalesced',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-WIDGET-003',
+      reason: 'a frame could not be produced within the headless budget; the previous frame stays',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-WIDGET-004',
+      reason: 'a widget reads a shared key outside the app-group scope',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-WIDGET-005',
+      reason: 'a target has no home-widget surface; the widget is excluded from its build',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-WIDGET-006',
+      reason: 'an action needs a session and none is available in the shared secure store',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
