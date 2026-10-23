@@ -9,6 +9,7 @@ import 'package:flutter_web_plugins/url_strategy.dart' as web;
 import 'package:web/web.dart' as web_dom;
 
 import 'link_interception.dart';
+import 'semantics_focus_web.dart';
 
 /// Switch the browser off the default hash strategy.
 ///
@@ -54,6 +55,9 @@ void dvEnsureSemantics() {
   // had zero semantics nodes.
   WidgetsFlutterBinding.ensureInitialized();
   _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
+  // The tree's elements are focusable; keep the browser's ring for the
+  // keyboard only (see dvInstallSemanticsFocusStyle).
+  dvInstallSemanticsFocusStyle();
 }
 
 /// Route in-app links instead of letting the browser reload the document.
