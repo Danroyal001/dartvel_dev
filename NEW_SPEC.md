@@ -2041,6 +2041,11 @@ screens — is a keyboard form by construction:
   the name it was given, and it draws a focus ring while it holds the focus.
   The ring is drawn by the control rather than taken from a theme, so it is
   there in an application that never installed Material widgets.
+- On the web the semantics tree is built on every page, so its elements are
+  focusable DOM. The browser's own focus ring and tap highlight on them are
+  hidden after a pointer or touch and shown again while the user moves with
+  the keyboard: a click never draws a box around a button's text, and a Tab
+  always shows where focus is.
 - A save the model refuses is shown on the form in a live region, written
   under the field it names, and given the focus. A person who pressed Enter
   and was refused is looking at a form that otherwise looks unchanged.
