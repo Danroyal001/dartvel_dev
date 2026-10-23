@@ -12,6 +12,8 @@ library;
 
 import 'package:dartvel_flutter/src/routing/semantics_focus_web.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:js_interop';
+
 import 'package:web/web.dart' as web;
 
 web.HTMLElement semanticsButton() {
@@ -60,6 +62,21 @@ void main() {
         web.KeyboardEventInit(key: 'Tab')));
     button.focus();
     expect(outlineOf(button), isNot('none'));
+    button.remove();
+  });
+
+  test('keyboard mode survives a handler that stops the key event', () {
+    // Flutter's keyboard handling stops keydown on the window before it
+    // reaches the document; a document listener never saw a real Tab.
+    final JSFunction stop = ((web.Event event) => event.stopPropagation()).toJS;
+    web.window.addEventListener('keydown', stop, true.toJS);
+    final web.HTMLElement button = semanticsButton();
+    web.document.dispatchEvent(web.PointerEvent('pointerdown'));
+    web.document.body!.dispatchEvent(web.KeyboardEvent('keydown',
+        web.KeyboardEventInit(key: 'Tab', bubbles: true)));
+    button.focus();
+    expect(outlineOf(button), isNot('none'));
+    web.window.removeEventListener('keydown', stop, true.toJS);
     button.remove();
   });
 }

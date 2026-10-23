@@ -31,8 +31,11 @@ void dvInstallSemanticsFocusStyle() {
             '{outline:none}';
   (document.head ?? document.documentElement!).append(style);
 
+  // On the window, in the capture phase: Flutter's own keyboard handling stops
+  // the event before it reaches the document, so a document listener never
+  // saw a Tab on a real page.
   final web.Element root = document.documentElement!;
-  document.addEventListener(
+  web.window.addEventListener(
     'keydown',
     ((web.KeyboardEvent event) {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -41,7 +44,7 @@ void dvInstallSemanticsFocusStyle() {
     true.toJS,
   );
   for (final String type in const <String>['pointerdown', 'mousedown', 'touchstart']) {
-    document.addEventListener(
+    web.window.addEventListener(
       type,
       ((web.Event _) => root.removeAttribute('data-dv-keyboard')).toJS,
       true.toJS,
