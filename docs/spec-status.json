@@ -2279,6 +2279,11 @@
       "kind": "narrative"
     },
     {
+      "section": "Side Effort: The Dart and Flutter Stack in Rust",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Mental Model",
       "kind": "narrative"
     },

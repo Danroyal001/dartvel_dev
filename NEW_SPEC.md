@@ -16746,6 +16746,44 @@ same PR, no over-claiming). Background: ~/dartvel-proposals/2026-10-01-competiti
 ## Order
 A and B first (they make every later PR faster and better). C and D after, one PR per numbered item.
 
+# Side Effort: The Dart and Flutter Stack in Rust
+
+Stability: `Draft` · Status: `Designed`
+
+A side effort, run beside the Roadmap and never ahead of it: a 1:1 port of the
+Dart and Flutter implementation stack to Rust. The full programme is
+`docs/proposals/2026-10-29-dart-flutter-rust-stack.md`; this section states only
+what binds the rest of the specification.
+
+- **What is ported.** Implementation only: the Dart VM, the `dart:io`
+  embedder, the compiler front end and kernel, the analyzer and its server,
+  the linter and formatter, dart2js, dart2wasm, DDC, `dartdev`, DDS, pub, the
+  Flutter engine and `flutter_tools`, about 2.52 million lines measured on
+  29 October 2026. The `dart:*` library sources, the Flutter framework and the
+  web engine are API surface and stay Dart, byte for byte upstream's.
+- **The bar.** A component replaces its upstream counterpart in a Dartvel
+  release only when it is compatible (upstream's own test suites unmodified,
+  plus differential runs against upstream as the oracle), faster and no larger
+  in peak memory on published benchmarks, and memory-safe outside a counted,
+  verified `unsafe` core. A claim without its proof is not made.
+- **Where the code lives.** Each ported component is its own repository, like
+  the embedder forks, so the One Language Rule for this monorepo is unchanged.
+  Dart tooling for the effort, such as measurement and oracle harnesses,
+  lives in `experiments/` here, outside the pub workspace and every published
+  package.
+- **How it reaches applications.** Through the existing `dartvel` commands.
+  `dartvel doctor` reports which implementation runs each step, and upstream
+  stays selectable per component until that component meets its bar.
+- **Order.** Phase 0 first: measure every component, build each oracle
+  harness, commit speed and memory baselines, and measure how much of a
+  Flutter app's memory the partitioned-memory track could take away from the
+  GC. Its numbers replace the proposal's estimates before any port starts.
+
+Deliberately absent: subsets or look-alikes of Dart, rewriting the
+`dart:*` sources or the Flutter framework, removing the GC for programs that
+need one, and optional semicolons in `.dart` files (the dialect is `.dv` only,
+always converted to standard Dart before any other tool sees it).
+
 # Mental Model
 
 ```text
