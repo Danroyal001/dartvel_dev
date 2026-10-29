@@ -105,6 +105,48 @@ void main() {
         'class A {\n  A(this.x)\n      : y = 1;\n  final int x;\n  final int y;\n}\n',
       ),
       ('a statement ending in a type argument', 'typedef L = List<int>;\n'),
+      // Found by the corpus run over packages/: the parser's error recovery
+      // on dialect input rewrote this token stream, so the scan has to come
+      // from the scanner, not the parser.
+      (
+        'identifiers with \$ in them, as jnigen writes',
+        r'void f() {'
+            '\n'
+            r'  late final jni$_.RawReceivePort $p;'
+            '\n'
+            r'  $p = jni$_.RawReceivePort(($m) {});'
+            '\n'
+            '}\n',
+      ),
+      (
+        'a show list wrapped onto the next lines',
+        "export 'a.dart'\n    show\n        A,\n        b;\n",
+      ),
+      (
+        'a conditional import',
+        "import 'a.dart'\n    if (dart.library.io) 'b.dart';\n",
+      ),
+      (
+        'implements wrapped onto its own line',
+        'class A\n    implements\n        B,\n        C {}\n',
+      ),
+      (
+        'a function-typed field wrapped before its name',
+        'class A {\n  final void Function(int a, int b)\n  _f;\n  A(this._f);\n}\n',
+      ),
+      (
+        'return wrapped before a long expression',
+        'int f() {\n  return\n      g(1);\n}\n',
+      ),
+      (
+        'an annotation with type arguments',
+        "@Native<Void Function()>(symbol: 'x')\nexternal void f();\n",
+      ),
+      (
+        'a generator body is a block, not a set literal',
+        'Iterable<int> f() sync* {\n  yield 1;\n}\n\n'
+            'Stream<int> g() async* {\n  yield 2;\n}\n\nint x = 1;\n',
+      ),
     ]) {
       test(name, () => roundTrips(source));
     }

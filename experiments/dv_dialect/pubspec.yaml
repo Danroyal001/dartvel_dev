@@ -8,6 +8,7 @@ publish_to: 'none'
 environment:
   sdk: ">=3.13.0 <4.0.0"
 dependencies:
+  _fe_analyzer_shared: any
   analyzer: ^14.7.0
 dev_dependencies:
   lints: ^6.1.0

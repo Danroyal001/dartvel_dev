@@ -11,9 +11,24 @@
 /// comment or an operator is standard Dart's decision, not this file's.
 library;
 
+// The raw scanner. The parser's token stream will not do: on dialect input,
+// which is missing its semicolons, error recovery rewrites the stream, and
+// the corpus run over packages/ found it dropping real tokens.
+// ignore: implementation_imports
+import 'package:_fe_analyzer_shared/src/scanner/scanner.dart' as scanner;
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/source/line_info.dart';
+
+Token _scan(String source) => scanner
+    .scanString(
+      source,
+      configuration: const scanner.ScannerConfiguration(
+        enableTripleShift: true,
+        enableAugmentations: false,
+      ),
+    )
+    .tokens;
 
 /// Standard Dart to the dialect: every statement-ending semicolon that
 /// insertion would restore is removed. Throws [FormatException] when
@@ -29,8 +44,8 @@ String toDialect(String dartSource) {
 
   final removals = <int>[];
   _walk(
-    parsed.unit.beginToken,
-    parsed.lineInfo,
+    _scan(dartSource),
+    LineInfo.fromContent(dartSource),
     onSemicolon: (semicolon, before, after, scan) {
       if (!scan.lineBreakBetween(semicolon, after)) return;
       if (_wouldInsert(before, after, scan)) removals.add(semicolon.offset);
@@ -66,13 +81,12 @@ final class DialectResult {
 /// The dialect to standard Dart: a semicolon is inserted at every line break
 /// [_wouldInsert] accepts.
 DialectResult toDart(String dialectSource) {
-  final parsed = parseString(content: dialectSource, throwIfDiagnostics: false);
   final insertions = <int>[];
   final warnings = <DialectWarning>[];
 
   _walk(
-    parsed.unit.beginToken,
-    parsed.lineInfo,
+    _scan(dialectSource),
+    LineInfo.fromContent(dialectSource),
     onBoundary: (before, after, scan) {
       if (before.type == TokenType.SEMICOLON) return;
       if (!scan.lineBreakBetween(before, after)) return;
@@ -125,6 +139,9 @@ enum _Kind {
 
   /// The arguments of an annotation.
   annotation,
+
+  /// The parameters of a function type: `void Function(int a)`.
+  functionType,
   bracket,
   interpolation,
 }
@@ -228,7 +245,14 @@ _Kind _parenKind(Token? before) {
       before.isKeyword) {
     return _Kind.header;
   }
+  if (before.lexeme == 'Function') return _Kind.functionType;
   if (_isAnnotationName(before)) return _Kind.annotation;
+  // `@Native<Void Function()>(...)`: an annotation with type arguments.
+  if (before.lexeme == '>' || before.lexeme == '>>') {
+    final opener = _matchingAngle(before);
+    final name = opener?.previous;
+    if (name != null && _isAnnotationName(name)) return _Kind.annotation;
+  }
   return _Kind.paren;
 }
 
@@ -284,7 +308,14 @@ _Kind _braceKind(Token? before, _Scan scan) {
   if (before.type == TokenType.OPEN_CURLY_BRACKET) {
     return enclosing == _Kind.collection ? _Kind.collection : _Kind.statements;
   }
-  if (_expressionPosition.contains(lexeme)) return _Kind.collection;
+  // `sync* {` and `async* {` open a generator's body. The `*` is not a
+  // multiplication, so it must not reach the expression-position check.
+  final generatorStar =
+      lexeme == '*' &&
+      (before.previous?.lexeme == 'sync' || before.previous?.lexeme == 'async');
+  if (!generatorStar && _expressionPosition.contains(lexeme)) {
+    return _Kind.collection;
+  }
 
   if (before.type == TokenType.CLOSE_PAREN) return _afterParen(before, scan);
   if (lexeme == 'async' || lexeme == 'sync' || lexeme == '*') {
@@ -400,6 +431,13 @@ bool _wouldInsert(Token before, Token after, _Scan scan) {
   if (!scan.insertable) return false;
   if (!_canEnd(before, scan)) return false;
   if (after.type == TokenType.EOF) return true;
+  // The formatter wraps a long returned expression onto the next line, so a
+  // bare `return` ends a statement only where the block ends.
+  if (before.isKeyword &&
+      before.lexeme == 'return' &&
+      after.type != TokenType.CLOSE_CURLY_BRACKET) {
+    return false;
+  }
   return !_continues(before, after);
 }
 
@@ -441,6 +479,13 @@ bool _canEnd(Token token, _Scan scan) {
   }
   if (_literalTypes.contains(token.type.name)) return true;
   if (token.isKeyword && _endingKeywords.contains(token.lexeme)) return true;
+  // A class header wrapped after `extends`, `with` or `implements`.
+  if (_headerKeywords.contains(token.lexeme) && token.isKeyword) return false;
+  // `show` and `hide` wrapped onto their own line start a name list.
+  if ((token.lexeme == 'show' || token.lexeme == 'hide') &&
+      _inDirective(token)) {
+    return false;
+  }
   if (token.isIdentifier) return !_isAnnotationName(token);
   return false;
 }
@@ -509,5 +554,31 @@ bool _continues(Token before, Token after) {
   if (before.type == TokenType.STRING && after.type == TokenType.STRING) {
     return true;
   }
+  // A conditional import's `if (dart.library.io) 'b.dart'` continues it.
+  if (after.lexeme == 'if' && _inDirective(before)) return true;
   return _continuations.contains(after.lexeme);
 }
+
+const _directiveKeywords = {'import', 'export', 'part', 'library'};
+
+/// Whether [token] is inside an `import`, `export`, `part` or `library`
+/// directive, read back to the directive's keyword. In the dialect the
+/// directives above have no semicolons either, so the nearest keyword is
+/// this directive's own.
+bool _inDirective(Token token) {
+  for (Token? current = token; current != null; current = current.previous) {
+    if (current.type == TokenType.SEMICOLON ||
+        current.type == TokenType.OPEN_CURLY_BRACKET ||
+        current.type == TokenType.CLOSE_CURLY_BRACKET ||
+        current.lexeme == '=') {
+      return false;
+    }
+    if (current.isKeyword && _directiveKeywords.contains(current.lexeme)) {
+      return true;
+    }
+    if (current.previous == current) break;
+  }
+  return false;
+}
+
+const _headerKeywords = {'extends', 'with', 'implements'};
