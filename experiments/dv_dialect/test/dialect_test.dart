@@ -127,6 +127,11 @@ void main() {
         "import 'a.dart'\n    if (dart.library.io) 'b.dart';\n",
       ),
       (
+        'an extension on a nullable type',
+        'extension on String? {\n  int get n => 1;\n}\n\n'
+            'extension E on List<int>? {\n  int get m => 2;\n}\n\nint x = 1;\n',
+      ),
+      (
         'a type on its own line, its name on the next',
         'class S {\n  late int\n  _next; // why\n  final Widget\n  child;\n}\n',
       ),

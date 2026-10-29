@@ -315,6 +315,8 @@ _Kind _braceKind(Token? before, _Scan scan) {
       (before.previous?.lexeme == 'sync' || before.previous?.lexeme == 'async');
   // `case 1: {` and `default: {` open a block in a switch statement.
   if (lexeme == ':' && _endsCaseLabel(before)) return _Kind.statements;
+  // `extension on String? {`: a nullable type ending a declaration header.
+  if (lexeme == '?' && _inDeclarationHeader(before)) return _Kind.statements;
   if (!generatorStar && _expressionPosition.contains(lexeme)) {
     return _Kind.collection;
   }
@@ -710,4 +712,26 @@ bool _isBareTypeLine(Token last, _Scan scan) {
     token = token.previous;
   }
   return record || modifiers > 0;
+}
+
+const _headerStarts = {'extension', 'class', 'mixin', 'enum'};
+
+/// Whether [token] is in the header of an extension, class, mixin or enum
+/// declaration, read back to the keyword that starts it.
+bool _inDeclarationHeader(Token token) {
+  for (Token? current = token; current != null; current = current.previous) {
+    final type = current.type;
+    if (type == TokenType.SEMICOLON ||
+        type == TokenType.OPEN_CURLY_BRACKET ||
+        type == TokenType.CLOSE_CURLY_BRACKET ||
+        type == TokenType.EOF ||
+        current.lexeme == '=') {
+      return false;
+    }
+    if (current.isKeyword && _headerStarts.contains(current.lexeme)) {
+      return true;
+    }
+    if (current.previous == current) break;
+  }
+  return false;
 }
