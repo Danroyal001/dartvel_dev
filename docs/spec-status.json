@@ -2281,7 +2281,14 @@
     {
       "section": "Side Effort: The Dart and Flutter Stack in Rust",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "experiments/rust_stack/test/line_count_test.dart",
+        "experiments/rust_stack/baselines/sizes-2026-10-29.json",
+        "experiments/dv_dialect/README.md",
+        "experiments/dv_dialect/test/dialect_test.dart"
+      ],
+      "absent": "Absent: every Rust port (Tracks A-H), the oracle harnesses, the speed and memory baselines, and the Track D partition measurement. Built: the Phase 0 size measurement and a first cut of the Track I .dv converter, at 99.62% byte-for-byte round trip over 9,941 files of the Dart SDK, Flutter and Dartvel; the rules are not frozen, which needs all of pub.dev."
     },
     {
       "section": "Mental Model",

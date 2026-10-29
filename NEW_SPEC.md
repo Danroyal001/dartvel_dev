@@ -16748,7 +16748,12 @@ A and B first (they make every later PR faster and better). C and D after, one P
 
 # Side Effort: The Dart and Flutter Stack in Rust
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
+
+Built so far: the Phase 0 size measurement (`experiments/rust_stack`) and a
+first cut of the `.dv` dialect converter (`experiments/dv_dialect`), which
+round-trips 99.62% of 9,941 files from the Dart SDK, Flutter and Dartvel byte
+for byte. No component has been ported to Rust yet.
 
 A side effort, run beside the Roadmap and never ahead of it: a 1:1 port of the
 Dart and Flutter implementation stack to Rust. The full programme is
