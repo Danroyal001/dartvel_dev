@@ -127,6 +127,31 @@ void main() {
         "import 'a.dart'\n    if (dart.library.io) 'b.dart';\n",
       ),
       (
+        'a type on its own line, its name on the next',
+        'class S {\n  late int\n  _next; // why\n  final Widget\n  child;\n}\n',
+      ),
+      (
+        'a record type on its own line, the name on the next',
+        '(bool, int)\n_f() => (true, 1);\n\nvoid g() {\n'
+            '  final ({bool a, int b})\n  d = (a: true, b: 1);\n}\n',
+      ),
+      (
+        'mixin on wrapped onto its own line',
+        'mixin M\n    on\n        B,\n        C {}\n',
+      ),
+      (
+        'a switch statement right after a case label',
+        'int f(int a, int b) {\n  switch (a) {\n    case 1:\n'
+            '      switch (b) {\n        case 2:\n          return 3;\n      }\n'
+            '    case 4:\n      return 5;\n  }\n  return 0;\n}\n',
+      ),
+      (
+        'a constructor body after an initializer ending in a grouped '
+            'expression',
+        'class A {\n  A(double a)\n      : x = 2 *\n            (a / 3) {\n'
+            '    g();\n  }\n  final double x;\n}\n',
+      ),
+      (
         'a block after a case label is a block, not a map',
         'void f(int x) {\n  switch (x) {\n    case 1: {\n      g();\n    }\n'
             '    case Point(x: 0, y: 0): {\n      g();\n    }\n'

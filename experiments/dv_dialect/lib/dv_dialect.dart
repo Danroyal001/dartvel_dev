@@ -360,7 +360,7 @@ _Kind _afterParen(Token closeParen, _Scan scan) {
   // `operator ==(Object other) {` declares a method; the `==` is its name.
   if (before?.previous?.lexeme == 'operator') return _Kind.statements;
   if (before == null ||
-      _expressionPosition.contains(before.lexeme) ||
+      _closurePosition.contains(before.lexeme) ||
       before.type == TokenType.OPEN_CURLY_BRACKET) {
     return _Kind.closure;
   }
@@ -369,8 +369,33 @@ _Kind _afterParen(Token closeParen, _Scan scan) {
 
 bool _inExpression(Token keyword) {
   final before = keyword.previous;
-  return before != null && _expressionPosition.contains(before.lexeme);
+  if (before == null) return false;
+  if (before.lexeme == ':' && _endsCaseLabel(before)) return false;
+  return _expressionPosition.contains(before.lexeme);
 }
+
+/// Tokens after which `(...) {` is a closure. Narrower than
+/// [_expressionPosition]: a closure is never an operand of `*` or `+`, so
+/// `x * (a / b) {` is a grouped expression ending before a body.
+const _closurePosition = {
+  '=',
+  '(',
+  ',',
+  '[',
+  ':',
+  '=>',
+  '?',
+  '??',
+  '...',
+  '...?',
+  'return',
+  'yield',
+  'await',
+  '{',
+  '&&',
+  '||',
+  '??=',
+};
 
 /// The `<` matching a closing `>`, `>>` or `>>>`, scanning back.
 Token? _matchingAngle(Token close) {
@@ -435,6 +460,8 @@ bool _wouldInsert(Token before, Token after, _Scan scan) {
   if (!scan.insertable) return false;
   if (!_canEnd(before, scan)) return false;
   if (after.type == TokenType.EOF) return true;
+  // A declaration's type alone on its line, its name on the next.
+  if (after.isIdentifier && _isBareTypeLine(before, scan)) return false;
   // The formatter wraps a long returned expression onto the next line, so a
   // bare `return` ends a statement only where the block ends.
   if (before.isKeyword &&
@@ -585,7 +612,7 @@ bool _inDirective(Token token) {
   return false;
 }
 
-const _headerKeywords = {'extends', 'with', 'implements'};
+const _headerKeywords = {'extends', 'with', 'implements', 'on'};
 
 /// Whether [colon] ends a `case ...:` or `default:` label, read back over
 /// the pattern with its brackets skipped, so `case Point(x: 0, y: 0):` is a
@@ -618,4 +645,69 @@ bool _endsCaseLabel(Token colon) {
     if (token.previous == token || type == TokenType.EOF) break;
   }
   return false;
+}
+
+const _declarationModifiers = {
+  'late',
+  'final',
+  'const',
+  'static',
+  'external',
+  'covariant',
+  'abstract',
+};
+
+/// Whether the line ending in [last] holds nothing but a declaration's type:
+/// modifiers, then one type (`int`, `List<int>?`, `ui.Size`, a record type),
+/// and no name. The formatter wraps a long declaration that way, so the name
+/// on the next line belongs to it. A plain type needs a modifier before it,
+/// because `foo` alone on a line is a statement; a record type at the start
+/// of a line cannot be one.
+bool _isBareTypeLine(Token last, _Scan scan) {
+  final line = scan.line(last);
+  Token? token = last;
+  bool onLine(Token? t) =>
+      t != null &&
+      t.type != TokenType.EOF &&
+      t.offset >= 0 &&
+      scan.line(t) == line;
+
+  if (token.lexeme == '?') token = token.previous;
+  if (token == null) return false;
+  var record = false;
+  if (token.lexeme == '>' || token.lexeme == '>>') {
+    final opener = _matchingAngle(token);
+    if (opener == null) return false;
+    token = opener.previous;
+  } else if (token.type == TokenType.CLOSE_PAREN) {
+    var depth = 0;
+    for (Token? t = token; t != null; t = t.previous) {
+      if (t.type == TokenType.CLOSE_PAREN) depth++;
+      if (t.type == TokenType.OPEN_PAREN && --depth == 0) {
+        token = t.previous;
+        record = true;
+        break;
+      }
+      if (!onLine(t)) return false;
+    }
+    if (!record) return false;
+  }
+  if (!record) {
+    if (token == null || !token.isIdentifier) return false;
+    token = token.previous;
+    while (token != null && token.type == TokenType.PERIOD) {
+      token = token.previous;
+      if (token == null || !token.isIdentifier) return false;
+      token = token.previous;
+    }
+  }
+  var modifiers = 0;
+  while (onLine(token)) {
+    if (!token!.isKeyword || !_declarationModifiers.contains(token.lexeme)) {
+      return false;
+    }
+    modifiers++;
+    token = token.previous;
+  }
+  return record || modifiers > 0;
 }
