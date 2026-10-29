@@ -16766,11 +16766,14 @@ what binds the rest of the specification.
   plus differential runs against upstream as the oracle), faster and no larger
   in peak memory on published benchmarks, and memory-safe outside a counted,
   verified `unsafe` core. A claim without its proof is not made.
-- **Where the code lives.** Each ported component is its own repository, like
-  the embedder forks, so the One Language Rule for this monorepo is unchanged.
-  Dart tooling for the effort, such as measurement and oracle harnesses,
-  lives in `experiments/` here, outside the pub workspace and every published
-  package.
+- **Where the code lives.** Everything is in this repository, under
+  `experiments/`: the Rust ports, the pinned upstream Dart SDK and Flutter
+  sources they port from (git submodules under `experiments/upstream/`), and
+  the Dart tooling (measurement, oracle harnesses, the `.dv` dialect). No
+  component gets a repository of its own. `experiments/` sits outside the pub
+  workspace and every published package, nothing in `packages/` depends on it,
+  and it is the One Language Rule's single exception: Rust is allowed there
+  and nowhere else.
 - **How it reaches applications.** Through the existing `dartvel` commands.
   `dartvel doctor` reports which implementation runs each step, and upstream
   stays selectable per component until that component meets its bar.

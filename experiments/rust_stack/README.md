@@ -7,16 +7,22 @@ compared with this one.
 
 ## Running it
 
-Check out the upstream repositories (a blobless, sparse checkout of only the
-directories in `lib/components.dart` is enough, about 1 GB), then:
+The upstream sources are the submodules under `experiments/upstream/`,
+pinned to the commits this baseline was measured at. Fetch them from the
+repository root (blobless; about 1 GB once checked out), then measure:
 
 ```sh
+git submodule update --init --filter=blob:none experiments/upstream
+cd experiments/rust_stack
 dart pub get
 dart run bin/measure.dart \
-  --sdk ~/src/dart-sdk --flutter ~/src/flutter \
-  --pub ~/src/pub --dart_style ~/src/dart_style \
+  --sdk ../upstream/sdk --flutter ../upstream/flutter \
+  --pub ../upstream/pub --dart_style ../upstream/dart_style \
   --json baselines/sizes-$(date +%F).json
 ```
+
+To measure a newer upstream, move the submodules to the new commits first,
+so the pins and the numbers always agree.
 
 It prints the proposal's Part 2 table and writes exact numbers, with the
 commit of each checkout, to the JSON file. A checkout you leave out is listed

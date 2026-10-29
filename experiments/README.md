@@ -3,10 +3,28 @@
 Work for side efforts that are not part of any Dartvel package yet. Nothing
 here is published, nothing here is in the pub workspace, and nothing in
 `packages/` may import from here. An experiment either graduates into a
-package or its own repository, or is deleted.
+package or is deleted.
 
-Each experiment is its own Dart package with its own `pubspec.yaml`, so it
-resolves and tests on its own:
+Everything a side effort needs lives here, in this repository: its code in
+any language the effort calls for, the upstream sources it works against, and
+its tooling. A side effort does not get repositories of its own.
+
+## The One Language Rule here
+
+`experiments/` is the rule's single exception: Rust is allowed here, because
+the Rust stack side effort ports the Dart and Flutter implementation to Rust.
+Python still is not, and Dart tooling is still Dart. Rust anywhere outside
+`experiments/` is still refused.
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| [`rust_stack/`](rust_stack/) | Phase 0: measuring what has to be ported, reproducibly |
+| [`dv_dialect/`](dv_dialect/) | Track I: the optional-semicolon `.dv` dialect, converted losslessly to and from Dart |
+| [`upstream/`](upstream/) | The upstream sources the ports start from and are compared against, as git submodules at pinned commits |
+
+Every Dart experiment is its own package with its own `pubspec.yaml`:
 
 ```sh
 cd experiments/<name>
@@ -14,14 +32,15 @@ dart pub get
 dart test
 ```
 
-The One Language Rule applies here as everywhere else in this repository:
-experiments are Dart. Work that has to be in another language (the Rust ports
-of the side effort below, for example) lives in its own repository, like the
-embedder forks.
+The upstream sources are large, so they are not fetched by a normal clone:
+
+```sh
+git submodule update --init --filter=blob:none experiments/upstream/sdk
+```
 
 `.github/workflows/experiments.yml` analyzes, format-checks and tests every
-experiment with a `test/` directory on each push that touches this folder.
+Dart experiment with a `test/` directory on each push that touches this
+folder. Rust workspaces get their job when the first one lands.
 
-| Experiment | Side effort | What it is |
-|---|---|---|
-| [`rust_stack`](rust_stack/) | *Side Effort: The Dart and Flutter Stack in Rust* in `NEW_SPEC.md`; [the proposal](../docs/proposals/2026-10-29-dart-flutter-rust-stack.md) | Phase 0: measuring what has to be ported, reproducibly |
+Side effort: *Side Effort: The Dart and Flutter Stack in Rust* in
+`NEW_SPEC.md`, and [the proposal](../docs/proposals/2026-10-29-dart-flutter-rust-stack.md).
