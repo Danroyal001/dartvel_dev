@@ -1,0 +1,305 @@
+{
+  "pins": {
+    "sdk": "ceea75dd2b82221350529215d00af67db123347b",
+    "flutter": "c3f5b027df2b95b1fef01dc73113120a2e7641be",
+    "pub": "1df594373b77e68ca4edee7211ef2105ae6908c4",
+    "dart_style": "81042caf2e54ac6d080e2b0c70669b52703c0b24"
+  },
+  "components": [
+    {
+      "name": "Dart VM",
+      "checkout": "sdk",
+      "roots": [
+        "runtime/vm"
+      ],
+      "ported": true,
+      "implementation": 483425,
+      "tests": 93136,
+      "byLanguage": {
+        "cpp": 576561
+      }
+    },
+    {
+      "name": "VM compiler back ends",
+      "checkout": "sdk",
+      "roots": [
+        "runtime/vm/compiler"
+      ],
+      "ported": true,
+      "partOf": "Dart VM",
+      "implementation": 235258,
+      "tests": 43976,
+      "byLanguage": {
+        "cpp": 279234
+      }
+    },
+    {
+      "name": "dart:io embedder and natives",
+      "checkout": "sdk",
+      "roots": [
+        "runtime/bin",
+        "runtime/lib",
+        "runtime/platform"
+      ],
+      "ported": true,
+      "implementation": 63324,
+      "tests": 29647,
+      "byLanguage": {
+        "cpp": 92971
+      }
+    },
+    {
+      "name": "Compiler front end",
+      "checkout": "sdk",
+      "roots": [
+        "pkg/front_end"
+      ],
+      "ported": true,
+      "implementation": 217575,
+      "tests": 221119,
+      "byLanguage": {
+        "dart": 438694
+      }
+    },
+    {
+      "name": "Kernel and VM transforms",
+      "checkout": "sdk",
+      "roots": [
+        "pkg/kernel",
+        "pkg/vm"
+      ],
+      "ported": true,
+      "implementation": 115604,
+      "tests": 25470,
+      "byLanguage": {
+        "dart": 141074
+      }
+    },
+    {
+      "name": "Shared front-end layer",
+      "checkout": "sdk",
+      "roots": [
+        "pkg/_fe_analyzer_shared"
+      ],
+      "ported": true,
+      "implementation": 70372,
+      "tests": 66978,
+      "byLanguage": {
+        "dart": 137350
+      }
+    },
+    {
+      "name": "frontend_server",
+      "checkout": "sdk",
+      "roots": [
+        "pkg/frontend_server"
+      ],
+      "ported": true,
+      "implementation": 4262,
+      "tests": 8496,
+      "byLanguage": {
+        "dart": 12758
+      }
+    },
+    {
+      "name": "Analyzer",
+      "checkout": "sdk",
+      "roots": [
+        "pkg/analyzer"
+      ],
+      "ported": true,
+      "implementation": 296178,
+      "tests": 1107691,
+      "byLanguage": {
+        "dart": 1403869
+      }
+    },
+    {
+      "name": "Analysis server",
+      "checkout": "sdk",
+      "roots": [
+        "pkg/analysis_server"
+      ],
+      "ported": true,
+      "implementation": 204968,
+      "tests": 370849,
+      "byLanguage": {
+        "dart": 575817
+      }
+    },
+    {
+      "name": "Linter",
+      "checkout": "sdk",
+      "roots": [
+        "pkg/linter"
+      ],
+      "ported": true,
+      "implementation": 35012,
+      "tests": 61541,
+      "byLanguage": {
+        "dart": 96553
+      }
+    },
+    {
+      "name": "Formatter",
+      "checkout": "dart_style",
+      "roots": [
+        "."
+      ],
+      "ported": true,
+      "implementation": 22197,
+      "tests": 3147,
+      "byLanguage": {
+        "dart": 25344
+      }
+    },
+    {
+      "name": "dart2js",
+      "checkout": "sdk",
+      "roots": [
+        "pkg/compiler"
+      ],
+      "ported": true,
+      "implementation": 147097,
+      "tests": 102458,
+      "byLanguage": {
+        "dart": 249555
+      }
+    },
+    {
+      "name": "dart2wasm",
+      "checkout": "sdk",
+      "roots": [
+        "pkg/dart2wasm"
+      ],
+      "ported": true,
+      "implementation": 42094,
+      "tests": 5302,
+      "byLanguage": {
+        "dart": 47396
+      }
+    },
+    {
+      "name": "DDC",
+      "checkout": "sdk",
+      "roots": [
+        "pkg/dev_compiler"
+      ],
+      "ported": true,
+      "implementation": 39322,
+      "tests": 16911,
+      "byLanguage": {
+        "dart": 56233
+      }
+    },
+    {
+      "name": "dart CLI, DDS and vm_service",
+      "checkout": "sdk",
+      "roots": [
+        "pkg/dartdev",
+        "pkg/dds",
+        "pkg/vm_service"
+      ],
+      "ported": true,
+      "implementation": 31664,
+      "tests": 54016,
+      "byLanguage": {
+        "dart": 85680
+      }
+    },
+    {
+      "name": "pub",
+      "checkout": "pub",
+      "roots": [
+        "."
+      ],
+      "ported": true,
+      "implementation": 32887,
+      "tests": 43630,
+      "byLanguage": {
+        "dart": 76517
+      }
+    },
+    {
+      "name": "Flutter engine",
+      "checkout": "flutter",
+      "roots": [
+        "engine/src/flutter/fml",
+        "engine/src/flutter/runtime",
+        "engine/src/flutter/shell",
+        "engine/src/flutter/lib/ui",
+        "engine/src/flutter/flow",
+        "engine/src/flutter/display_list",
+        "engine/src/flutter/impeller",
+        "engine/src/flutter/txt",
+        "engine/src/flutter/vulkan",
+        "engine/src/flutter/skwasm",
+        "engine/src/flutter/third_party/tonic",
+        "engine/src/flutter/third_party/accessibility"
+      ],
+      "ported": true,
+      "implementation": 386558,
+      "tests": 227814,
+      "byLanguage": {
+        "cpp": 542999,
+        "objc": 71373
+      }
+    },
+    {
+      "name": "flutter CLI",
+      "checkout": "flutter",
+      "roots": [
+        "packages/flutter_tools"
+      ],
+      "ported": true,
+      "implementation": 188965,
+      "tests": 264956,
+      "byLanguage": {
+        "dart": 453921
+      }
+    },
+    {
+      "name": "dart:* library sources",
+      "checkout": "sdk",
+      "roots": [
+        "sdk/lib"
+      ],
+      "ported": false,
+      "implementation": 232243,
+      "tests": 0,
+      "byLanguage": {
+        "dart": 232243
+      }
+    },
+    {
+      "name": "Flutter framework",
+      "checkout": "flutter",
+      "roots": [
+        "packages/flutter"
+      ],
+      "ported": false,
+      "implementation": 572119,
+      "tests": 689356,
+      "byLanguage": {
+        "dart": 1261475
+      }
+    },
+    {
+      "name": "Flutter web engine",
+      "checkout": "flutter",
+      "roots": [
+        "engine/src/flutter/lib/web_ui"
+      ],
+      "ported": false,
+      "implementation": 120295,
+      "tests": 55262,
+      "byLanguage": {
+        "dart": 175557
+      }
+    }
+  ],
+  "totalPorted": {
+    "implementation": 2381504,
+    "tests": 2703161
+  }
+}
