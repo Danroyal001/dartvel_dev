@@ -48,6 +48,14 @@ String toDialect(String dartSource) {
     LineInfo.fromContent(dartSource),
     onSemicolon: (semicolon, before, after, scan) {
       if (!scan.lineBreakBetween(semicolon, after)) return;
+      // Insertion puts a semicolon right after the token it ends, so one
+      // with a comment in between would come back in another place.
+      if (dartSource
+          .substring(before.end, semicolon.offset)
+          .trim()
+          .isNotEmpty) {
+        return;
+      }
       if (_wouldInsert(before, after, scan)) removals.add(semicolon.offset);
     },
   );
@@ -662,11 +670,11 @@ const _declarationModifiers = {
 /// Whether the line ending in [last] holds nothing but a declaration's type:
 /// modifiers, then one type (`int`, `List<int>?`, `ui.Size`, a record type),
 /// and no name. The formatter wraps a long declaration that way, so the name
-/// on the next line belongs to it. A plain type needs a modifier before it,
-/// because `foo` alone on a line is a statement; a record type at the start
-/// of a line cannot be one.
+/// on the next line belongs to it. A type alone on a line is never a useful
+/// statement, so the dialect reads `foo` followed by a name on the next line
+/// as a declaration.
 bool _isBareTypeLine(Token last, _Scan scan) {
-  final line = scan.line(last);
+  var line = scan.line(last);
   Token? token = last;
   bool onLine(Token? t) =>
       t != null &&
@@ -682,15 +690,18 @@ bool _isBareTypeLine(Token last, _Scan scan) {
     if (opener == null) return false;
     token = opener.previous;
   } else if (token.type == TokenType.CLOSE_PAREN) {
+    // A record type, possibly over several lines; what stands before it on
+    // its first line must be modifiers or nothing.
     var depth = 0;
     for (Token? t = token; t != null; t = t.previous) {
       if (t.type == TokenType.CLOSE_PAREN) depth++;
       if (t.type == TokenType.OPEN_PAREN && --depth == 0) {
         token = t.previous;
+        line = scan.line(t);
         record = true;
         break;
       }
-      if (!onLine(t)) return false;
+      if (t.type == TokenType.EOF || t.previous == t) return false;
     }
     if (!record) return false;
   }
@@ -703,15 +714,13 @@ bool _isBareTypeLine(Token last, _Scan scan) {
       token = token.previous;
     }
   }
-  var modifiers = 0;
   while (onLine(token)) {
     if (!token!.isKeyword || !_declarationModifiers.contains(token.lexeme)) {
       return false;
     }
-    modifiers++;
     token = token.previous;
   }
-  return record || modifiers > 0;
+  return true;
 }
 
 const _headerStarts = {'extension', 'class', 'mixin', 'enum'};

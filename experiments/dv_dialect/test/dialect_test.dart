@@ -127,6 +127,19 @@ void main() {
         "import 'a.dart'\n    if (dart.library.io) 'b.dart';\n",
       ),
       (
+        'a long return type on its own line, the function on the next',
+        'class A {\n  @override\n  VeryLongReturnTypeName\n  compute(int a) {\n'
+            '    return g();\n  }\n\n  VeryLongReturnTypeName\n  get value => g();\n}\n',
+      ),
+      (
+        'a multi-line record return type',
+        '({\n  int a,\n  int b,\n})\nf() => (a: 1, b: 2);\n',
+      ),
+      (
+        'a comment between the last token and its semicolon',
+        'void f() {\n  const m = 1024 * 1024 /* 1 MiB */;\n  g();\n}\n',
+      ),
+      (
         'an extension on a nullable type',
         'extension on String? {\n  int get n => 1;\n}\n\n'
             'extension E on List<int>? {\n  int get m => 2;\n}\n\nint x = 1;\n',
