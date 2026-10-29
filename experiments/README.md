@@ -24,6 +24,15 @@ Python still is not, and Dart tooling is still Dart. Rust anywhere outside
 | [`dv_dialect/`](dv_dialect/) | Track I: the optional-semicolon `.dv` dialect, converted losslessly to and from Dart |
 | [`upstream/`](upstream/) | The upstream sources the ports start from and are compared against, as git submodules at pinned commits |
 
+Dartvel's public forks are here too, as git submodules on each repository's
+default branch, so a checkout of this repository reaches every public part of
+Dartvel from one place: the embedder and package forks (`dartvel_tizen`,
+`dartvel_elinux`, `dartvel_webos`, `dartvel_fuchsia`, `dartvel_tvos`,
+`dartvel_vscode`, `dartvel_cli_flt`, `dartvel_mix`, `dartvel-passepartout`)
+and `homebrew-dartvel_dev`. They are pointers, not copies: each keeps its own
+history, issues and releases, and the build still uses the forks as
+`NEW_SPEC.md` describes. Private repositories are never added here.
+
 Every Dart experiment is its own package with its own `pubspec.yaml`:
 
 ```sh
