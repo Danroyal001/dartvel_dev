@@ -355,6 +355,8 @@ _Kind _afterParen(Token closeParen, _Scan scan) {
     }
     return _Kind.statements;
   }
+  // `operator ==(Object other) {` declares a method; the `==` is its name.
+  if (before?.previous?.lexeme == 'operator') return _Kind.statements;
   if (before == null ||
       _expressionPosition.contains(before.lexeme) ||
       before.type == TokenType.OPEN_CURLY_BRACKET) {

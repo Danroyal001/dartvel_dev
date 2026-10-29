@@ -127,6 +127,12 @@ void main() {
         "import 'a.dart'\n    if (dart.library.io) 'b.dart';\n",
       ),
       (
+        'an operator declaration body is a block, not a closure',
+        'class A {\n  @override\n  bool operator ==(Object other) {\n'
+            '    return true;\n  }\n\n  int operator +(int b) {\n'
+            '    return b;\n  }\n}\n\nint x = 1;\n',
+      ),
+      (
         'implements wrapped onto its own line',
         'class A\n    implements\n        B,\n        C {}\n',
       ),
