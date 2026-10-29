@@ -313,6 +313,8 @@ _Kind _braceKind(Token? before, _Scan scan) {
   final generatorStar =
       lexeme == '*' &&
       (before.previous?.lexeme == 'sync' || before.previous?.lexeme == 'async');
+  // `case 1: {` and `default: {` open a block in a switch statement.
+  if (lexeme == ':' && _endsCaseLabel(before)) return _Kind.statements;
   if (!generatorStar && _expressionPosition.contains(lexeme)) {
     return _Kind.collection;
   }
@@ -584,3 +586,36 @@ bool _inDirective(Token token) {
 }
 
 const _headerKeywords = {'extends', 'with', 'implements'};
+
+/// Whether [colon] ends a `case ...:` or `default:` label, read back over
+/// the pattern with its brackets skipped, so `case Point(x: 0, y: 0):` is a
+/// label while `{'a': {` and `x ? a : {` are not.
+bool _endsCaseLabel(Token colon) {
+  var depth = 0;
+  for (Token? token = colon.previous; token != null; token = token.previous) {
+    final type = token.type;
+    if (type == TokenType.CLOSE_PAREN ||
+        type == TokenType.CLOSE_SQUARE_BRACKET ||
+        type == TokenType.CLOSE_CURLY_BRACKET) {
+      depth++;
+    } else if (type == TokenType.OPEN_PAREN ||
+        type == TokenType.OPEN_SQUARE_BRACKET ||
+        type == TokenType.OPEN_CURLY_BRACKET) {
+      if (depth == 0) return false;
+      depth--;
+    } else if (depth == 0) {
+      if (token.isKeyword &&
+          (token.lexeme == 'case' || token.lexeme == 'default')) {
+        return true;
+      }
+      if (type == TokenType.SEMICOLON ||
+          type == TokenType.COMMA ||
+          token.lexeme == '?' ||
+          token.lexeme == '=>') {
+        return false;
+      }
+    }
+    if (token.previous == token || type == TokenType.EOF) break;
+  }
+  return false;
+}

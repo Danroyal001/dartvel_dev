@@ -127,6 +127,12 @@ void main() {
         "import 'a.dart'\n    if (dart.library.io) 'b.dart';\n",
       ),
       (
+        'a block after a case label is a block, not a map',
+        'void f(int x) {\n  switch (x) {\n    case 1: {\n      g();\n    }\n'
+            '    case Point(x: 0, y: 0): {\n      g();\n    }\n'
+            '    default: {\n      g();\n    }\n  }\n}\n',
+      ),
+      (
         'an operator declaration body is a block, not a closure',
         'class A {\n  @override\n  bool operator ==(Object other) {\n'
             '    return true;\n  }\n\n  int operator +(int b) {\n'
