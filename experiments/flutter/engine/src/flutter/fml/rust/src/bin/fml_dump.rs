@@ -6,6 +6,16 @@
 //   fml_dump bench <name> <iterations>  name: queues time strings hash dispatch
 
 use std::io::Write;
+use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
+
+use fml::ascii_trie::AsciiTrie;
+use fml::base32::{base32_decode, base32_encode};
+use fml::endianness::{big_endian_to_arch, byte_swap, little_endian_to_arch};
+use fml::hash_combine::ByteString;
+use fml::hex_codec::hex_encode;
+use fml::string_conversion::{join, path_to_utf8, try_utf16_to_utf8, try_utf8_to_utf16};
+use fml::{hash_combine, hash_combine_seed};
 
 use fml::time::time_delta::{
     TimeDelta, kDefaultFrameBudget, refresh_rate_to_frame_budget, timespec,
@@ -186,6 +196,349 @@ fn suite_time(r: &mut Rng, cases: i32) {
     );
 }
 
+// ------------------------------------------------------------ strings ------
+
+fn gen_utf16(r: &mut Rng) -> Vec<u16> {
+    let mut s = Vec::new();
+    let n = r.below(13) as i32;
+    for _ in 0..n {
+        match r.below(10) {
+            0 => s.push((1 + r.below(127)) as u16),
+            1 => s.push((0x80 + r.below(0xD800 - 0x80)) as u16),
+            2 => s.push((0xE000 + r.below(0x2000)) as u16),
+            3 => {
+                let mut cp = 0x10000 + r.below(0x100000) as u32;
+                cp -= 0x10000;
+                s.push((0xD800 + (cp >> 10)) as u16);
+                s.push((0xDC00 + (cp & 0x3FF)) as u16);
+            }
+            4 => {
+                if r.chance(4) {
+                    s.push((0xD800 + r.below(0x400)) as u16)
+                }
+            }
+            5 => {
+                if r.chance(4) {
+                    s.push((0xDC00 + r.below(0x400)) as u16)
+                }
+            }
+            6 => {
+                if r.chance(6) {
+                    s.push(0)
+                }
+            }
+            7 => {
+                const K_SPECIAL: [u16; 7] = [0xFFFE, 0xFFFF, 0xFEFF, 0x7FF, 0x800, 0xD7FF, 0xE000];
+                s.push(K_SPECIAL[r.below(7) as usize]);
+            }
+            _ => s.push((b'a' as u64 + r.below(26)) as u16),
+        }
+    }
+    s
+}
+
+fn push_utf8(s: &mut Vec<u8>, cp: u32) {
+    if cp < 0x80 {
+        s.push(cp as u8);
+    } else if cp < 0x800 {
+        s.push((0xC0 | (cp >> 6)) as u8);
+        s.push((0x80 | (cp & 0x3F)) as u8);
+    } else if cp < 0x10000 {
+        s.push((0xE0 | (cp >> 12)) as u8);
+        s.push((0x80 | ((cp >> 6) & 0x3F)) as u8);
+        s.push((0x80 | (cp & 0x3F)) as u8);
+    } else {
+        s.push((0xF0 | (cp >> 18)) as u8);
+        s.push((0x80 | ((cp >> 12) & 0x3F)) as u8);
+        s.push((0x80 | ((cp >> 6) & 0x3F)) as u8);
+        s.push((0x80 | (cp & 0x3F)) as u8);
+    }
+}
+
+fn gen_utf8(r: &mut Rng) -> Vec<u8> {
+    let mut s = Vec::new();
+    let n = r.below(10) as i32;
+    for _ in 0..n {
+        match r.below(14) {
+            0 => push_utf8(&mut s, 1 + r.below(127) as u32),
+            1 => push_utf8(&mut s, 0x80 + r.below(0x780) as u32),
+            2 => push_utf8(&mut s, 0x800 + r.below(0xD000) as u32),
+            3 => push_utf8(&mut s, 0xE000 + r.below(0x2000) as u32),
+            4 => push_utf8(&mut s, 0x10000 + r.below(0x100000) as u32),
+            5 => {
+                if r.chance(3) {
+                    s.push(r.below(256) as u8)
+                }
+            }
+            6 => {
+                if r.chance(3) {
+                    let cp = 0xD800 + r.below(0x800) as u32;
+                    push_utf8(&mut s, cp);
+                }
+            }
+            7 => {
+                if r.chance(3) {
+                    const K_OVERLONG: [&[u8]; 6] = [
+                        b"\xC0\x80",
+                        b"\xC1\xBF",
+                        b"\xE0\x80\x80",
+                        b"\xE0\x9F\xBF",
+                        b"\xF0\x80\x80\x80",
+                        b"\xF0\x8F\xBF\xBF",
+                    ];
+                    s.extend_from_slice(K_OVERLONG[r.below(6) as usize]);
+                }
+            }
+            8 => {
+                if r.chance(3) {
+                    const K_BEYOND: [&[u8]; 6] = [
+                        b"\xF4\x90\x80\x80",
+                        b"\xF5\x80\x80\x80",
+                        b"\xF7\xBF\xBF\xBF",
+                        b"\xF8\x88\x80\x80\x80",
+                        b"\xFF",
+                        b"\xFE",
+                    ];
+                    s.extend_from_slice(K_BEYOND[r.below(6) as usize]);
+                }
+            }
+            9 => {
+                if r.chance(3) {
+                    let mut full = Vec::new();
+                    push_utf8(&mut full, 0x80 + r.below(0x10FF80) as u32);
+                    let keep = 1 + r.below(full.len() as u64 - 1) as usize;
+                    s.extend_from_slice(&full[..keep]);
+                }
+            }
+            10 => {
+                if r.chance(6) {
+                    s.push(0)
+                }
+            }
+            11 => s.extend_from_slice(b"\xEF\xBB\xBF"),
+            _ => s.push(b'a' + r.below(26) as u8),
+        }
+    }
+    s
+}
+
+fn gen_bytes(r: &mut Rng, max_len: i32) -> Vec<u8> {
+    let n = r.below(max_len as u64 + 1) as i32;
+    (0..n).map(|_| r.below(256) as u8).collect()
+}
+
+fn suite_strings(r: &mut Rng, cases: i32) {
+    for i in 0..cases {
+        p!("case {i}");
+        let u16s = gen_utf16(r);
+        w!("u16 ");
+        hex16(&u16s);
+        w!(" -> ");
+        match try_utf16_to_utf8(&u16s) {
+            Ok(s) => hex(s.as_bytes()),
+            Err(_) => w!("ERR"),
+        }
+        w!("\n");
+
+        let u8s = gen_utf8(r);
+        w!("u8 ");
+        hex(&u8s);
+        w!(" -> ");
+        match try_utf8_to_utf16(&u8s) {
+            Ok(s) => hex16(&s),
+            Err(_) => w!("ERR"),
+        }
+        w!("\n");
+
+        let mut parts = Vec::new();
+        let n = r.below(5) as i32;
+        for _ in 0..n {
+            let mut part = String::new();
+            let len = r.below(4) as i32;
+            for _ in 0..len {
+                part.push((b'a' + r.below(26) as u8) as char);
+            }
+            parts.push(part);
+        }
+        const K_DELIMS: [&str; 4] = [",", ", ", "", "--"];
+        let delim = K_DELIMS[r.below(4) as usize];
+        w!("join ");
+        hex(join(&parts, delim).as_bytes());
+        w!("\n");
+
+        let path_bytes = gen_bytes(r, 8);
+        w!("path ");
+        hex(&path_to_utf8(Path::new(std::ffi::OsStr::from_bytes(&path_bytes))));
+        w!("\n");
+    }
+}
+
+// -------------------------------------------------------------- codec ------
+
+fn gen_base32_text(r: &mut Rng) -> Vec<u8> {
+    const K_ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    const K_INVALID: [u8; 12] = [b'=', b'a', b'1', b'8', b'0', b'9', b':', b'@', b'[', b' ', 0x80, 0xff];
+    let mut s = Vec::new();
+    let n = r.below(17) as i32;
+    for _ in 0..n {
+        if r.chance(25) {
+            s.push(K_INVALID[r.below(K_INVALID.len() as u64) as usize]);
+        } else {
+            s.push(K_ALPHABET[r.below(32) as usize]);
+        }
+    }
+    s
+}
+
+fn suite_codec(r: &mut Rng, cases: i32) {
+    for i in 0..cases {
+        p!("case {i}");
+        let bytes = gen_bytes(r, 20);
+        let enc = base32_encode(&bytes);
+        w!("b32e ");
+        hex(&bytes);
+        w!(" -> {} ", enc.0 as i32);
+        hex(enc.1.as_bytes());
+        let round = base32_decode(&enc.1);
+        w!(" rt {} ", round.0 as i32);
+        hex(&round.1);
+        w!("\n");
+
+        let text = gen_base32_text(r);
+        let dec = base32_decode(&text);
+        w!("b32d ");
+        hex(&text);
+        w!(" -> {} ", dec.0 as i32);
+        hex(&dec.1);
+        w!("\n");
+
+        w!("hex ");
+        hex(hex_encode(&bytes).as_bytes());
+        w!("\n");
+    }
+}
+
+// --------------------------------------------------------------- hash ------
+
+fn gen_hash_string(r: &mut Rng) -> String {
+    let mut s = Vec::new();
+    let n = match r.below(4) {
+        0 => r.below(17) as i32,
+        1 => 17 + r.below(16) as i32,
+        2 => 33 + r.below(32) as i32,
+        _ => 65 + r.below(200) as i32,
+    };
+    for _ in 0..n {
+        if r.chance(8) {
+            push_utf8(&mut s, 0x80 + r.below(0x700) as u32);
+        } else {
+            s.push(b' ' + r.below(95) as u8);
+        }
+    }
+    String::from_utf8(s).unwrap()
+}
+
+fn gen_f32(r: &mut Rng) -> f32 {
+    match r.below(4) {
+        0 => 0.0,
+        1 => -0.0,
+        _ => f32::from_bits(r.next() as u32),
+    }
+}
+
+fn gen_f64(r: &mut Rng) -> f64 {
+    match r.below(4) {
+        0 => 0.0,
+        1 => -0.0,
+        _ => f64::from_bits(r.next()),
+    }
+}
+
+fn suite_hash(r: &mut Rng, cases: i32) {
+    p!("empty {:016x}", hash_combine!());
+    for i in 0..cases {
+        p!("case {i}");
+        let a = r.next() as i32;
+        let b = edge_i64(r);
+        let c = r.next() as u32;
+        let d = r.chance(2);
+        let s = gen_hash_string(r);
+        let t = gen_bytes(r, 80);
+        let t = ByteString(&t);
+        let f = gen_f32(r);
+        let g = gen_f64(r);
+        let grade = r.below(3) as i32;
+        let u8v = r.next() as u8;
+        let i16v = r.next() as i16;
+        let ch = r.next() as i8;
+        let u64v = r.next();
+        let mut seed = r.next() as usize;
+        p!("h1 {:016x}", hash_combine!(a));
+        p!("h2 {:016x}", hash_combine!(b, c, d));
+        p!("h3 {:016x}", hash_combine!(s));
+        p!("h4 {:016x}", hash_combine!(t));
+        p!("h5 {:016x}", hash_combine!(s, a, f, g));
+        p!("h6 {:016x}", hash_combine!(grade, u8v, i16v, ch, u64v));
+        hash_combine_seed!(&mut seed, a, s);
+        p!("h7 {:016x}", seed);
+    }
+}
+
+// ------------------------------------------------------------- endian ------
+
+fn suite_endian(r: &mut Rng, cases: i32) {
+    for _ in 0..cases {
+        let x = r.next();
+        p!(
+            "x {:016x} {:02x} {:04x} {:08x} {:016x}",
+            x,
+            byte_swap(x as u8),
+            byte_swap(x as u16),
+            byte_swap(x as u32),
+            byte_swap(x)
+        );
+        p!("s {} {} {}", byte_swap(x as i16), byte_swap(x as i32), byte_swap(x as i64));
+        p!(
+            "be {:08x} {:016x} le {:08x} {:016x}",
+            big_endian_to_arch(x as u32),
+            big_endian_to_arch(x),
+            little_endian_to_arch(x as u32),
+            little_endian_to_arch(x)
+        );
+    }
+}
+
+// --------------------------------------------------------------- trie ------
+
+fn gen_trie_word(r: &mut Rng, alphabet: &[u8], max_len: i32) -> String {
+    let n = r.below(max_len as u64 + 1) as i32;
+    (0..n).map(|_| alphabet[r.below(alphabet.len() as u64) as usize] as char).collect()
+}
+
+fn suite_trie(r: &mut Rng, cases: i32) {
+    for i in 0..cases {
+        p!("case {i}");
+        let mut trie = AsciiTrie::new();
+        if !r.chance(8) {
+            let mut entries = Vec::new();
+            let n = r.below(6) as i32;
+            for _ in 0..n {
+                entries.push(gen_trie_word(r, b"abc", 4));
+            }
+            w!("fill");
+            for e in &entries {
+                w!(" '{e}'");
+            }
+            w!("\n");
+            trie.fill(&entries);
+        }
+        for _ in 0..8 {
+            let q = gen_trie_word(r, b"abcd", 5);
+            p!("q '{q}' {}", trie.query(&q) as i32);
+        }
+    }
+}
+
 // -------------------------------------------------------------- main -------
 
 fn run_suite(suite: &str, r: &mut Rng, cases: i32) -> bool {
@@ -194,6 +547,26 @@ fn run_suite(suite: &str, r: &mut Rng, cases: i32) -> bool {
     if all || suite == "time" {
         known = true;
         suite_time(r, cases);
+    }
+    if all || suite == "strings" {
+        known = true;
+        suite_strings(r, cases);
+    }
+    if all || suite == "codec" {
+        known = true;
+        suite_codec(r, cases);
+    }
+    if all || suite == "hash" {
+        known = true;
+        suite_hash(r, cases);
+    }
+    if all || suite == "endian" {
+        known = true;
+        suite_endian(r, cases);
+    }
+    if all || suite == "trie" {
+        known = true;
+        suite_trie(r, cases);
     }
     known
 }
