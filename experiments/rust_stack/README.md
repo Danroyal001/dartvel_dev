@@ -126,3 +126,22 @@ The cold runs are the comparison for a port: a warm `dart analyze` mostly
 reads its previous results back from `~/.dartServer`, which is a test of the
 cache, not of analysis. Each cold run gets a fresh, empty `HOME`, so nothing
 is deleted to make it cold.
+
+## dartr against Dart: 30 October 2026
+
+`baselines/dartr-vs-dart-2026-10-30.json`, the same method against the Dart
+`dartr` ports, 3.13.3, on the same container, with `dartr` from
+`experiments/dartr` at `10fd666` (release build). Both tools give identical
+output on these inputs (`../dartr/VENDORED.md`).
+
+| Tool and corpus | Dart 3.13.3 | dartr | Faster | Memory |
+|---|---|---|---|---|
+| format, Flutter `packages/flutter/lib` (695 files) | 6.73 s, 207 MB | 0.86 s, 127 MB | 7.8× | 61% |
+| format, SDK `pkg/analyzer/lib` | 4.10 s, 262 MB | 0.53 s, 182 MB | 7.7× | 69% |
+| analyze, `dart_style`, cold | 7.49 s, 633 MB | 1.38 s, 399 MB | 5.4× | 63% |
+| analyze, `pub`, cold | 10.29 s, 600 MB | 1.65 s, 461 MB | 6.2× | 77% |
+
+Memory is `dartr`'s median peak as a share of Dart's. On these four corpora
+`dartr` passes Part 8's gate for Track A (wall time and peak memory no more
+than Dart's). The gate is every corpus and the language server too, and
+neither has been measured yet, so this is not yet a pass.
