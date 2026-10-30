@@ -885,6 +885,7 @@ export 'src/scene3d/model_viewer.dart';
 export 'src/scene3d/scene_nodes.dart';
 export 'src/scene3d/scene_viewport.dart';
 export 'src/state/empty_state.dart';
+export 'src/state/skeleton.dart';
 export 'src/studio/functions/function_editor.dart';
 export 'src/studio/functions/function_section.dart'
     show dvFunctionStudioSections, dvWorkflowStudioSection;
@@ -11884,6 +11885,10 @@ abstract final class DVFrameworkStrings {
   static const DVTranslationKey status503Body =
       DVTranslationKey('dv.status.503.body');
 
+  /// What a card list or grid announces while its records are on their way.
+  static const DVTranslationKey collectionLoading =
+      DVTranslationKey('dv.collection.loading');
+
   /// The catalogue default for each framework key, by key.
   static const Map<String, String> defaults = <String, String>{
     'dv.table.empty': 'No rows',
@@ -11895,6 +11900,7 @@ abstract final class DVFrameworkStrings {
     'dv.empty.nothingMatching': 'No results',
     'dv.empty.nothingVisible': 'Nothing here is visible to you',
     'dv.action.clearFilters': 'Clear filters',
+    'dv.collection.loading': 'Loading',
     'dv.status.403.title': 'You cannot open this page',
     'dv.status.403.body': 'This page is not available to your account.',
     'dv.status.429.title': 'Too many requests',
