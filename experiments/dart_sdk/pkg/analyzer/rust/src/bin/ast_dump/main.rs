@@ -10,6 +10,8 @@
 // `--api` writes the API dump instead of the tree (see api.rs); with
 // `--bench=N` it times `toSource` of every unit instead of parsing.
 
+#![forbid(unsafe_code)]
+
 mod api;
 mod recorders;
 

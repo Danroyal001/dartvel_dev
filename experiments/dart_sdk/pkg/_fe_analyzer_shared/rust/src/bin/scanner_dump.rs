@@ -6,6 +6,8 @@
 //
 // Usage: scanner_dump [--scanner=utf8|string] [--bench=N] --out <dir> <root>...
 
+#![forbid(unsafe_code)]
+
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};

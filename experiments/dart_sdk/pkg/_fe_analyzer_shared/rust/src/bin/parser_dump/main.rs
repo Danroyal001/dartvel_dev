@@ -7,6 +7,8 @@
 //
 // Usage: parser_dump [--bench=N] --out <dir> <root>...
 
+#![forbid(unsafe_code)]
+
 // Generated (see oracle/generate_parser_trace.dart), so not reformatted.
 #[rustfmt::skip]
 mod trace_listener;

@@ -7,6 +7,7 @@
 // The port keeps upstream's control flow and comparisons as written
 // (`$0 <= next && next <= $9`, branches that repeat a body) so that it can
 // be read against the Dart line by line.
+#![forbid(unsafe_code)]
 #![allow(
     clippy::manual_range_contains,
     clippy::if_same_then_else,
