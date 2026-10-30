@@ -222,8 +222,16 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'Testing',
     '`dartvel test`',
     'Present: fakes for auth, queues, mail, storage and AI, plus generated '
-        'model factories. Absent: running only the tests a diff can reach, '
-        'and scored AI evals.',
+        'model factories, --impacted for the tests a diff can reach and '
+        '--evals for scored AI evals. Absent: generated tests for a '
+        'generated module.',
+  ),
+  (
+    'Application Entry',
+    'DV.run(args)',
+    'Present: a generated Flutter entry with boot hooks in a stable order and '
+        'a themed root. Absent: backend and headless entry wiring, boot '
+        'budgets and generated shutdown.',
   ),
   (
     'Project Structure',
@@ -609,8 +617,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Error, Empty, and Loading States',
     'page.loading.dart',
-    'Present: loading and error companions for each page. Absent: '
-        'page-level error boundaries and generated status pages.',
+    'Present: loading and error companions, an error boundary and an offline '
+        'banner on every page, table skeletons and three kinds of empty. '
+        'Absent: generated status pages per code and a background-task tray.',
   ),
   (
     'Sensitive Model Fields',

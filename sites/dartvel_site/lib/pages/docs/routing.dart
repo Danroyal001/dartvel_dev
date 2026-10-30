@@ -218,10 +218,19 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             DocsCode('routing-error'),
             DocsText('A page without them gets a default spinner and error '
                 'message.'),
+            DocsText('Every page also carries an error boundary and an '
+                'offline banner, with nothing to add. A widget that throws '
+                'while the page builds replaces that page with a sentence and '
+                'a Try again button, and the detail goes to the log as '
+                'DV-STATE-002. The banner shows while the device reports it '
+                'is offline. A generated table given null rows shows a '
+                'skeleton of its columns, and a DVEmpty says which kind of '
+                'empty a collection is: nothing yet, nothing matching, or '
+                'nothing visible to you.'),
             DocsStatus('Error, Empty, and Loading States', missing: <String>[
-              'No page-level error boundary for errors thrown while the page '
-                  'builds.',
-              'No per-status-code pages, offline banner or model skeletons.',
+              'No per-status-code pages beyond the 404 and offline pages.',
+              'No skeleton for the generated list and grid, and no '
+                  'background-task tray.',
             ]),
           ],
         ),
