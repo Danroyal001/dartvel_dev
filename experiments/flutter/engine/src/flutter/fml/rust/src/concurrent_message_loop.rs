@@ -25,6 +25,8 @@ struct State {
     worker_thread_ids_: Vec<ThreadId>,
     thread_tasks_: HashMap<ThreadId, Vec<closure>>,
     shutdown_: bool,
+    // Not upstream's: workers blocked in the wait (see post_task).
+    waiting_workers_: usize,
 }
 
 struct Shared {
@@ -78,6 +80,7 @@ impl ConcurrentMessageLoop {
                 worker_thread_ids_: Vec::new(),
                 thread_tasks_: HashMap::new(),
                 shutdown_: false,
+                waiting_workers_: 0,
             }),
             tasks_condition_: Condvar::new(),
         });
@@ -147,20 +150,25 @@ impl ConcurrentMessageLoop {
                 "Tried to post a task to shutdown concurrent message loop. The task will be executed on the callers thread."
             );
             drop(state);
-
-        crate::trace_event0!("flutter", "ConcurrentWorkerWake");
             execute_task(&task);
             return;
         }
 
         state.tasks_.push_back(task);
+        // pthread_cond_signal returns without a system call when no thread
+        // waits; std's Condvar always makes one, so the port skips the
+        // notification itself when no worker is waiting (a worker about to
+        // wait checks for tasks under this lock first, so none is missed).
+        let wake = state.waiting_workers_ > 0;
 
         // Unlock the mutex before notifying the condition variable because that
         // mutex has to be acquired on the other thread anyway. Waiting in this
         // scope till it is acquired there is a pessimization.
         drop(state);
 
-        self.shared_.tasks_condition_.notify_one();
+        if wake {
+            self.shared_.tasks_condition_.notify_one();
+        }
     }
 }
 
@@ -175,25 +183,31 @@ impl Drop for ConcurrentMessageLoop {
 }
 
 fn worker_main(shared: &Shared) {
+    // std::this_thread::get_id(), read once: std::thread::current() clones
+    // the thread's handle on every call.
+    let me = std::thread::current().id();
     loop {
-        let lock = shared.lock();
-        let mut state = shared
-            .tasks_condition_
-            .wait_while(lock, |s| s.tasks_.is_empty() && !s.shutdown_ && !has_thread_tasks_locked(s))
-            .unwrap_or_else(|e| e.into_inner());
+        let mut state = shared.lock();
+        while state.tasks_.is_empty() && !state.shutdown_ && !has_thread_tasks_locked(&state, me) {
+            state.waiting_workers_ += 1;
+            state = shared.tasks_condition_.wait(state).unwrap_or_else(|e| e.into_inner());
+            state.waiting_workers_ -= 1;
+        }
 
         // Shutdown cannot be read with the task mutex unlocked.
         let shutdown_now = state.shutdown_;
         let task = state.tasks_.pop_front();
         let mut thread_tasks = Vec::new();
 
-        if has_thread_tasks_locked(&state) {
-            thread_tasks = get_thread_tasks_locked(&mut state);
+        if has_thread_tasks_locked(&state, me) {
+            thread_tasks = get_thread_tasks_locked(&mut state, me);
         }
 
         // Don't hold onto the mutex while tasks are being executed as they
         // could themselves try to post more tasks to the message loop.
         drop(state);
+
+        crate::trace_event0!("flutter", "ConcurrentWorkerWake");
 
         if let Some(task) = task {
             execute_task(&task);
@@ -213,12 +227,13 @@ fn execute_task(task: &closure) {
     task();
 }
 
-fn has_thread_tasks_locked(state: &State) -> bool {
-    state.thread_tasks_.contains_key(&std::thread::current().id())
+fn has_thread_tasks_locked(state: &State, me: ThreadId) -> bool {
+    // The map is empty except after PostTaskToAllWorkers.
+    !state.thread_tasks_.is_empty() && state.thread_tasks_.contains_key(&me)
 }
 
-fn get_thread_tasks_locked(state: &mut State) -> Vec<closure> {
-    state.thread_tasks_.remove(&std::thread::current().id()).unwrap_or_default()
+fn get_thread_tasks_locked(state: &mut State, me: ThreadId) -> Vec<closure> {
+    state.thread_tasks_.remove(&me).unwrap_or_default()
 }
 
 pub struct ConcurrentTaskRunner {
