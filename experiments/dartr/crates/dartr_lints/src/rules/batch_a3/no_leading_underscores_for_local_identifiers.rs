@@ -57,11 +57,22 @@ fn check(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
             out,
         ),
         NodeKind::DeclaredVariablePattern => {
-            if ctx
-                .ast
-                .parent(node)
+            // `node.parent.isFieldNameShortcut` (linter `extensions.dart`):
+            // through a null-check or null-assert pattern, a `PatternField`
+            // whose `name` is present with its own name omitted
+            // (`:final x`), so the variable name is the getter name.
+            let mut parent = ctx.ast.parent(node);
+            for kind in [NodeKind::NullCheckPattern, NodeKind::NullAssertPattern] {
+                if let Some(p) = parent
+                    && ctx.ast.kind(p) == kind
+                {
+                    parent = ctx.ast.parent(p);
+                }
+            }
+            if parent
                 .and_then(|parent| ctx.ast.cast::<PatternField>(parent))
-                .is_some_and(|field| ctx.ast[field].name.is_none())
+                .and_then(|field| ctx.ast[field].name)
+                .is_some_and(|name| ctx.ast[name].name.is_none())
             {
                 return;
             }
