@@ -174,4 +174,23 @@ Widget a() => x;
       expect(out, contains('no framework string is a literal'));
     });
   });
+
+  group("dartvel_flutter's own widgets", () {
+    // The developer tools -- Studio, the admin screens, the dev client and the
+    // docs viewer -- are read by the person building the application, not by
+    // its readers, and are English by design. Everything else a Dartvel widget
+    // shows reaches an application's readers, so it is held to zero.
+    test('say nothing as a literal outside the developer tools', () {
+      final String flutter = p.normalize(
+        p.join(Directory.current.path, '..', 'dartvel_flutter'),
+      );
+      final List<DVFrameworkStringFinding> found =
+          dvScanForLiteralFrameworkStrings(
+        flutter,
+        exclude: dvDeveloperToolDirectories,
+      );
+      expect(found.map((DVFrameworkStringFinding f) => f.toString()).toList(),
+          isEmpty);
+    });
+  });
 }

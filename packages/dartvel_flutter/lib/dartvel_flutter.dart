@@ -4574,7 +4574,7 @@ class _DVFormState<T> extends State<DVForm<T>> {
         );
       });
     } else {
-      fields.add(DVText('No generated form controls registered for $T.'));
+      fields.add(DVText(DV.I18n.t(DVFrameworkStrings.formNoControls, args: <String, String>{'type': '$T'})));
     }
 
     // The refusal, where a reader meets it and where a screen reader announces
@@ -4608,7 +4608,7 @@ class _DVFormState<T> extends State<DVForm<T>> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               )
-            : const DVText('Save').modifier(
+            : DVText(DV.I18n.t(DVFrameworkStrings.save)).modifier(
           const DVModifier()
               .semanticButton()
               .onTap(_submit)
@@ -4616,7 +4616,7 @@ class _DVFormState<T> extends State<DVForm<T>> {
         ),
       );
       fields.add(
-        const DVText('Reset').modifier(
+        DVText(DV.I18n.t(DVFrameworkStrings.reset)).modifier(
           const DVModifier()
               .semanticButton()
               .onTap(_reset)
@@ -8324,14 +8324,14 @@ class _OAuthConsentPageState extends State<_OAuthConsentPage> {
         child: Material(
           type: .transparency,
           child: DVBox.list(<Widget>[
-            if (_loading) const DVText('Loading the request...'),
+            if (_loading) DVText(DV.I18n.t(DVFrameworkStrings.oauthLoading)),
             if (error != null)
               KeyedSubtree(
                 key: const ValueKey<String>('dv-oauth-consent-error'),
                 child: DVText(error),
               ),
             if (client != null) ...<Widget>[
-              DVText('$client would like to:'),
+              DVText(DV.I18n.t(DVFrameworkStrings.oauthAsks, args: <String, String>{'client': client})),
               for (final String description in _descriptions)
                 DVText(description),
               _button(
@@ -8605,7 +8605,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
               TextField(
                 key: const ValueKey<String>('dv-auth-email'),
                 controller: _email,
-                decoration: const InputDecoration(labelText: 'Email'),
+                decoration: InputDecoration(labelText: DV.I18n.t(DVFrameworkStrings.authEmail)),
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: .next,
               autocorrect: false,
@@ -8617,7 +8617,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
               _DVPasswordField(
                 fieldKey: const ValueKey<String>('dv-auth-password'),
                 controller: _password,
-                label: 'Password',
+                label: DV.I18n.t(DVFrameworkStrings.authPassword),
               errorText: error == null ? null : 'Password: $error',
               autofillHints: const [AutofillHints.password],
                 textInputAction: .done,
@@ -8628,14 +8628,14 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
               if (DVAuth._forgotPasswordTarget case final forgot?)
                 Align(
                   alignment: AlignmentDirectional.centerEnd,
-                  child: DVNavLink(to: forgot, child: const Text('Forgot your password?')),
+                  child: DVNavLink(to: forgot, child: Text(DV.I18n.t(DVFrameworkStrings.authForgotPassword))),
                 ),
             ] else
               TextField(
                 key: const ValueKey<String>('dv-auth-code'),
                 controller: _code,
               decoration: InputDecoration(
-                labelText: 'Authenticator code',
+                labelText: DV.I18n.t(DVFrameworkStrings.authCode),
                 errorText: error == null ? null : 'Code: $error',
                 ),
                 keyboardType: TextInputType.number,
@@ -8646,9 +8646,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
             if (_deletionCancelled)
             _dvAccountKeyed(
               'dv-auth-deletion-cancelled',
-              const Text(
-                'Your account is no longer being deleted: signing in cancelled it.',
-              ),
+              Text(DV.I18n.t(DVFrameworkStrings.authDeletionCancelled)),
               ),
           if (error != null)
             _dvAccountKeyed(
@@ -8877,7 +8875,7 @@ Widget _dvAccountButton(String key, String label, VoidCallback onPressed,
     KeyedSubtree(
       key: ValueKey<String>(key),
       child: FilledButton(onPressed: busy ? null : onPressed,
-        child: busy ? Semantics(label: 'Please wait', liveRegion: true,
+        child: busy ? Semantics(label: DV.I18n.t(DVFrameworkStrings.pleaseWait), liveRegion: true,
           child: const SizedBox.square(dimension: 20,
             child: CircularProgressIndicator(strokeWidth: 2))) : Text(label)),
     );
@@ -9113,33 +9111,32 @@ class _SecurityPageState extends State<_SecurityPage> {
     final String? error = _error;
     return _dvAccountFrame(<Widget>[
       _dvAccountHeading('Security'),
-      const DVText('Authenticator app'),
-      if (status == null && error == null) const DVText('Loading...'),
+      DVText(DV.I18n.t(DVFrameworkStrings.accountAuthenticatorApp)),
+      if (status == null && error == null) DVText(DV.I18n.t(DVFrameworkStrings.loadingEllipsis)),
       if (status != null)
         status.totp
-            ? _dvAccountKeyed('dv-security-totp-on', const DVText('On'))
-            : _dvAccountKeyed('dv-security-totp-off', const DVText('Off')),
+            ? _dvAccountKeyed('dv-security-totp-on', DVText(DV.I18n.t(DVFrameworkStrings.accountOn)))
+            : _dvAccountKeyed('dv-security-totp-off', DVText(DV.I18n.t(DVFrameworkStrings.accountOff))),
       if (status != null && !status.totp && enrollment == null)
         _dvAccountButton('dv-security-enroll', 'Set up an authenticator app',
             () => unawaited(_enroll()), busy: _busy),
       if (enrollment != null) ...<Widget>[
-        const DVText(
-            'Scan this code with your authenticator app, or enter the key by hand.'),
+        DVText(DV.I18n.t(DVFrameworkStrings.accountScanCode)),
         Center(child: DVQrImage(data: enrollment.uri.toString(), size: 220)),
         DVText(enrollment.secret),
         TextField(
           key: const ValueKey<String>('dv-security-code'),
           controller: _code,
-          decoration: const InputDecoration(labelText: 'Code from the app'),
+          decoration: InputDecoration(labelText: DV.I18n.t(DVFrameworkStrings.accountCodeFromApp)),
           keyboardType: TextInputType.number,
           autofillHints: const <String>[AutofillHints.oneTimeCode],
         ),
         _dvAccountButton('dv-security-confirm', 'Turn on', () => unawaited(_confirm()), busy: _busy),
       ],
       if (status != null && status.totp) ...<Widget>[
-        const DVText('Recovery codes'),
+        DVText(DV.I18n.t(DVFrameworkStrings.accountRecoveryCodes)),
         _dvAccountKeyed('dv-security-recovery-remaining',
-            DVText('Unused recovery codes: ${status.recoveryCodes}')),
+            DVText(DV.I18n.t(DVFrameworkStrings.accountUnusedRecoveryCodes, args: <String, String>{'count': '${status.recoveryCodes}'}))),
         if (codes == null)
           _dvAccountButton('dv-security-recovery-generate',
               'Generate new recovery codes', () => unawaited(_generate()), busy: _busy),
@@ -9147,16 +9144,14 @@ class _SecurityPageState extends State<_SecurityPage> {
           TextField(
             key: const ValueKey<String>('dv-security-stepup-code'),
             controller: _stepUpCode,
-            decoration: const InputDecoration(labelText: 'Code from the app'),
+            decoration: InputDecoration(labelText: DV.I18n.t(DVFrameworkStrings.accountCodeFromApp)),
             keyboardType: TextInputType.number,
           ),
           _dvAccountButton(
               'dv-security-stepup', 'Continue', () => unawaited(_stepUp()), busy: _busy),
         ],
         if (codes != null) ...<Widget>[
-          const DVText(
-              'Save these codes somewhere safe. Each works once, and they will '
-              'not be shown again. Generating new ones replaces them.'),
+          DVText(DV.I18n.t(DVFrameworkStrings.accountSaveRecoveryCodes)),
           for (final String code in codes) DVText(code),
           _dvAccountButton('dv-security-recovery-copy', 'Copy', () {
             // Through the platform binding, as every clipboard use is. A copy
@@ -9177,28 +9172,28 @@ class _SecurityPageState extends State<_SecurityPage> {
             unawaited(_load());
           }, busy: _busy),
         ],
-        const DVText('Remove the authenticator app'),
+        DVText(DV.I18n.t(DVFrameworkStrings.accountRemoveAuthenticator)),
         TextField(
           key: const ValueKey<String>('dv-security-remove-code'),
           controller: _removeCode,
           decoration:
-              const InputDecoration(labelText: 'Code from the app or a recovery code'),
+              InputDecoration(labelText: DV.I18n.t(DVFrameworkStrings.accountCodeOrRecovery)),
           autocorrect: false,
         ),
         _dvAccountButton(
             'dv-security-remove', 'Remove', () => unawaited(_remove()), busy: _busy),
       ],
-      const DVText('Password'),
+      DVText(DV.I18n.t(DVFrameworkStrings.authPassword)),
       _DVPasswordField(
         fieldKey: const ValueKey<String>('dv-security-password-current'),
         controller: _currentPassword,
-        label: 'Current password',
+        label: DV.I18n.t(DVFrameworkStrings.accountCurrentPassword),
         autofillHints: const <String>[AutofillHints.password],
       ),
       _DVPasswordField(
         fieldKey: const ValueKey<String>('dv-security-password-new'),
         controller: _newPassword,
-        label: 'New password',
+        label: DV.I18n.t(DVFrameworkStrings.accountNewPassword),
         autofillHints: const <String>[AutofillHints.newPassword],
         // The last field of the password form, unless a second factor is on --
         // in which case the code below it is the last, and it submits.
@@ -9211,8 +9206,8 @@ class _SecurityPageState extends State<_SecurityPage> {
         TextField(
           key: const ValueKey<String>('dv-security-password-code'),
           controller: _passwordCode,
-          decoration: const InputDecoration(
-              labelText: 'Code from the app or a recovery code'),
+          decoration: InputDecoration(
+              labelText: DV.I18n.t(DVFrameworkStrings.accountCodeOrRecovery)),
           autocorrect: false,
           autofillHints: const <String>[AutofillHints.oneTimeCode],
           // With a second factor in the way this is the last field of the
@@ -9220,7 +9215,7 @@ class _SecurityPageState extends State<_SecurityPage> {
           textInputAction: .done,
           onSubmitted: (_) => unawaited(_changePassword()),
         ),
-      const DVText('Changing your password signs out every other device.'),
+      DVText(DV.I18n.t(DVFrameworkStrings.accountPasswordSignsOut)),
       _dvAccountButton('dv-security-password-submit', 'Change password',
           () => unawaited(_changePassword()), busy: _busy),
       if (_passwordDone != null)
@@ -9288,16 +9283,16 @@ class _SessionsPageState extends State<_SessionsPage> {
     final String? error = _error;
     return _dvAccountFrame(<Widget>[
       _dvAccountHeading('Devices'),
-      const DVText('Where you are signed in'),
-      if (sessions == null && error == null) const DVText('Loading...'),
+      DVText(DV.I18n.t(DVFrameworkStrings.accountSignedInWhere)),
+      if (sessions == null && error == null) DVText(DV.I18n.t(DVFrameworkStrings.loadingEllipsis)),
       if (sessions != null)
         for (final DVSession session in sessions)
           DVBox.list(<Widget>[
             DVText(session.device ?? 'Unknown device'),
-            DVText('Last active ${_dvAccountTime(session.lastSeenAt)}'),
+            DVText(DV.I18n.t(DVFrameworkStrings.accountLastActive, args: <String, String>{'time': _dvAccountTime(session.lastSeenAt)})),
             if (session.isCurrent)
               _dvAccountKeyed(
-                  'dv-sessions-current-${session.id}', const DVText('This device'))
+                  'dv-sessions-current-${session.id}', DVText(DV.I18n.t(DVFrameworkStrings.accountThisDevice)))
             else
               _dvAccountButton('dv-sessions-revoke-${session.id}', 'Sign out',
                   () => unawaited(_run(() => widget.auth.revoke(session.id))), busy: _busy),
@@ -9404,7 +9399,7 @@ class _SignUpPageState extends State<_SignUpPage> {
       return _dvAccountFrame(<Widget>[
         _dvAccountKeyed(
           'dv-signup-done',
-          const DVText('Your account is ready.'),
+          DVText(DV.I18n.t(DVFrameworkStrings.accountReady)),
         ),
       ]);
     }
@@ -9417,7 +9412,7 @@ class _SignUpPageState extends State<_SignUpPage> {
       TextField(
         key: const ValueKey<String>('dv-signup-name'),
         controller: _name,
-        decoration: const InputDecoration(labelText: 'Name (optional)'),
+        decoration: InputDecoration(labelText: DV.I18n.t(DVFrameworkStrings.accountNameOptional)),
             textInputAction: .next,
             textCapitalization: .words,
         autofillHints: const <String>[AutofillHints.name],
@@ -9425,7 +9420,7 @@ class _SignUpPageState extends State<_SignUpPage> {
       TextField(
         key: const ValueKey<String>('dv-signup-email'),
         controller: _email,
-        decoration: InputDecoration(labelText: 'Email',
+        decoration: InputDecoration(labelText: DV.I18n.t(DVFrameworkStrings.authEmail),
           errorText: error?.contains('e-mail') == true ? 'Email: $error' : null),
         autocorrect: false,
         keyboardType: TextInputType.emailAddress,
@@ -9438,7 +9433,7 @@ class _SignUpPageState extends State<_SignUpPage> {
       _DVPasswordField(
         fieldKey: const ValueKey<String>('dv-signup-password'),
         controller: _password,
-        label: 'Password',
+        label: DV.I18n.t(DVFrameworkStrings.authPassword),
         errorText: error == null || error.contains('e-mail') ? null : 'Password: $error',
         autofillHints: const <String>[AutofillHints.newPassword],
         textInputAction: .done,
@@ -9535,21 +9530,20 @@ class _ProfilePageState extends State<_ProfilePage> {
     final String? pending = account?.pendingEmail;
     return _dvAccountFrame(<Widget>[
       _dvAccountHeading('Profile'),
-      if (account == null && error == null) const DVText('Loading...'),
+      if (account == null && error == null) DVText(DV.I18n.t(DVFrameworkStrings.loadingEllipsis)),
       if (account != null) ...<Widget>[
         if (account.name != null) DVText(account.name!),
-        const DVText('Email'),
+        DVText(DV.I18n.t(DVFrameworkStrings.authEmail)),
         _dvAccountKeyed('dv-profile-email', DVText(account.email ?? '')),
         if (pending != null) ...<Widget>[
           _dvAccountKeyed(
             'dv-profile-pending',
-            DVText('We sent a code to $pending. Your address changes once you '
-                'enter it.'),
+            DVText(DV.I18n.t(DVFrameworkStrings.accountEmailCodeSent, args: <String, String>{'email': pending})),
           ),
           TextField(
           key: const ValueKey<String>('dv-profile-email-code'),
           controller: _code,
-          decoration: const InputDecoration(labelText: 'Code from the e-mail'),
+          decoration: InputDecoration(labelText: DV.I18n.t(DVFrameworkStrings.accountCodeFromEmail)),
           keyboardType: TextInputType.number,
           autofillHints: const <String>[AutofillHints.oneTimeCode],
           textInputAction: .done,
@@ -9567,7 +9561,7 @@ class _ProfilePageState extends State<_ProfilePage> {
         TextField(
           key: const ValueKey<String>('dv-profile-new-email'),
           controller: _newEmail,
-          decoration: const InputDecoration(labelText: 'New email'),
+          decoration: InputDecoration(labelText: DV.I18n.t(DVFrameworkStrings.accountNewEmail)),
           keyboardType: TextInputType.emailAddress,
           // The last field of the page, so Enter asks for the change instead of
           // leaving the keyboard user to find the button behind the field.
@@ -9691,33 +9685,29 @@ class _DeletePageState extends State<_DeletePage> {
         return _dvAccountFrame(<Widget>[
           _dvAccountKeyed(
             'dv-delete-scheduled',
-            DVText('Your account will be deleted on ${_dvAccountTime(erasesAt)}, '
-                'with the data held about you, and you have been signed out '
-                'everywhere. Sign in before then to keep it.'),
+            DVText(DV.I18n.t(DVFrameworkStrings.accountDeletionScheduled, args: <String, String>{'date': _dvAccountTime(erasesAt)})),
           ),
         ]);
       }
       return _dvAccountFrame(<Widget>[
         _dvAccountKeyed(
-            'dv-delete-done', const DVText('Your account has been deleted.')),
+            'dv-delete-done', DVText(DV.I18n.t(DVFrameworkStrings.accountDeleted))),
       ]);
     }
     return _dvAccountFrame(<Widget>[
       _dvAccountHeading('Delete your account'),
-      const DVText(
-          'This deletes your account and the data held about you, and signs '
-          'you out everywhere. It cannot be undone.'),
+      DVText(DV.I18n.t(DVFrameworkStrings.accountDeleteWarning)),
       TextField(
         key: const ValueKey<String>('dv-delete-confirm-text'),
         controller: _confirm,
-        decoration: const InputDecoration(labelText: 'Type $_phrase to confirm'),
+        decoration: InputDecoration(labelText: DV.I18n.t(DVFrameworkStrings.accountTypeToConfirm, args: <String, String>{'phrase': _phrase})),
         autocorrect: false,
         textInputAction: .next,
       ),
       _DVPasswordField(
         fieldKey: const ValueKey<String>('dv-delete-password'),
         controller: _password,
-        label: 'Password',
+        label: DV.I18n.t(DVFrameworkStrings.authPassword),
         autofillHints: const <String>[AutofillHints.password],
         // The code below is the last field when there is one, so Enter there.
         textInputAction: _hasFactor ? .next : .done,
@@ -9728,7 +9718,7 @@ class _DeletePageState extends State<_DeletePage> {
           key: const ValueKey<String>('dv-delete-code'),
           controller: _code,
           decoration:
-              const InputDecoration(labelText: 'Code from the app or a recovery code'),
+              InputDecoration(labelText: DV.I18n.t(DVFrameworkStrings.accountCodeOrRecovery)),
           autocorrect: false,
           textInputAction: .done,
           onSubmitted: (_) => unawaited(_submit()),
@@ -9748,7 +9738,7 @@ class _ProviderAuthPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: DVText('Continue with $provider').modifier(
+        child: DVText(DV.I18n.t(DVFrameworkStrings.authContinueWith, args: <String, String>{'provider': provider})).modifier(
           const DVModifier()
               .padding(12)
               .rounded(8)
@@ -10981,7 +10971,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
               item,
           if (DVBrowserMenu.isWeb)
             ContextMenuButtonItem(
-              label: 'More',
+              label: DV.I18n.t(DVFrameworkStrings.more),
               onPressed: () {
                 selection.hideToolbar();
                 DVBrowserMenu.openNextNative();
@@ -11513,6 +11503,354 @@ abstract final class DVFrameworkStrings {
   static const DVTranslationKey clearFilters =
       DVTranslationKey('dv.action.clearFilters');
 
+  /// The control that saves a form.
+  static const DVTranslationKey save =
+      DVTranslationKey('dv.action.save');
+
+  /// The control that puts a form back as it was.
+  static const DVTranslationKey reset =
+      DVTranslationKey('dv.action.reset');
+
+  /// The control that abandons what was being asked.
+  static const DVTranslationKey cancel =
+      DVTranslationKey('dv.action.cancel');
+
+  /// The control that closes a dialog.
+  static const DVTranslationKey close =
+      DVTranslationKey('dv.action.close');
+
+  /// The control that opens the rest of a menu.
+  static const DVTranslationKey more =
+      DVTranslationKey('dv.action.more');
+
+  /// The way out of a page that cannot be shown.
+  static const DVTranslationKey goHome =
+      DVTranslationKey('dv.action.goHome');
+
+  /// What a progress indicator announces.
+  static const DVTranslationKey loading =
+      DVTranslationKey('dv.status.loading');
+
+  /// A line of text standing in for content on its way.
+  static const DVTranslationKey loadingEllipsis =
+      DVTranslationKey('dv.status.loadingInline');
+
+  /// What a busy button announces.
+  static const DVTranslationKey pleaseWait =
+      DVTranslationKey('dv.status.pleaseWait');
+
+  /// What an application that failed to boot shows.
+  static const DVTranslationKey startFailed =
+      DVTranslationKey('dv.app.startFailed');
+
+  /// A form for a type with no generated controls; {type} is the type.
+  static const DVTranslationKey formNoControls =
+      DVTranslationKey('dv.form.noControls');
+
+  /// The heading of the page for a path with nothing at it.
+  static const DVTranslationKey notFoundTitle =
+      DVTranslationKey('dv.page.notFound');
+
+  /// Which path was asked for; {route} is the path.
+  static const DVTranslationKey notFoundAt =
+      DVTranslationKey('dv.page.notFoundAt');
+
+  /// Why a path may have nothing at it.
+  static const DVTranslationKey notFoundHint =
+      DVTranslationKey('dv.page.notFoundHint');
+
+  /// The heading of the page shown when a navigation fails offline.
+  static const DVTranslationKey offlineTitle =
+      DVTranslationKey('dv.page.offline');
+
+  /// Why the offline page can be shown at all.
+  static const DVTranslationKey offlineCached =
+      DVTranslationKey('dv.page.offlineCached');
+
+  /// The path that failed; {route} is the path.
+  static const DVTranslationKey offlineCouldNotOpen =
+      DVTranslationKey('dv.page.offlineCouldNotOpen');
+
+  /// What to do about being offline.
+  static const DVTranslationKey offlineCheck =
+      DVTranslationKey('dv.page.offlineCheck');
+
+  /// What a link to a guarded page says to a reader who is signed out.
+  static const DVTranslationKey signInToView =
+      DVTranslationKey('dv.link.signInToView');
+
+  /// The link menu entry that opens a link in a new tab.
+  static const DVTranslationKey openInNewTab =
+      DVTranslationKey('dv.link.openInNewTab');
+
+  /// The link menu entry that copies a link.
+  static const DVTranslationKey copyLinkAddress =
+      DVTranslationKey('dv.link.copyAddress');
+
+  /// The first breadcrumb.
+  static const DVTranslationKey breadcrumbHome =
+      DVTranslationKey('dv.breadcrumb.home');
+
+  /// A column header sorted ascending; {label} is the column.
+  static const DVTranslationKey tableSortedAscending =
+      DVTranslationKey('dv.table.sortedAscending');
+
+  /// A column header sorted descending; {label} is the column.
+  static const DVTranslationKey tableSortedDescending =
+      DVTranslationKey('dv.table.sortedDescending');
+
+  /// What a table cell announces.
+  static const DVTranslationKey tableCell =
+      DVTranslationKey('dv.table.cell');
+
+  /// The heading of the keyboard shortcuts dialog.
+  static const DVTranslationKey shortcutsTitle =
+      DVTranslationKey('dv.shortcuts.title');
+
+  /// The shortcut that opens the keyboard shortcuts dialog.
+  static const DVTranslationKey shortcutsShow =
+      DVTranslationKey('dv.shortcuts.show');
+
+  /// A tab workspace with no tabs.
+  static const DVTranslationKey noTabs =
+      DVTranslationKey('dv.tabs.none');
+
+  /// The switch control toggle.
+  static const DVTranslationKey switchControl =
+      DVTranslationKey('dv.switchControl.name');
+
+  /// The switch control toggle while on.
+  static const DVTranslationKey switchControlOn =
+      DVTranslationKey('dv.switchControl.on');
+
+  /// The switch control toggle while off.
+  static const DVTranslationKey switchControlOff =
+      DVTranslationKey('dv.switchControl.off');
+
+  /// What a QR code image is called.
+  static const DVTranslationKey qrCode =
+      DVTranslationKey('dv.qr.name');
+
+  /// The idle warning; {seconds} is the countdown.
+  static const DVTranslationKey kioskIdle =
+      DVTranslationKey('dv.kiosk.idle');
+
+  /// The heading of the restart-loop screen.
+  static const DVTranslationKey kioskRestartLoop =
+      DVTranslationKey('dv.kiosk.restartLoop');
+
+  /// What the restart-loop screen asks of an operator.
+  static const DVTranslationKey kioskRestartLoopHeld =
+      DVTranslationKey('dv.kiosk.restartLoopHeld');
+
+  /// The control that clears the restart-loop screen.
+  static const DVTranslationKey kioskRestartLoopClear =
+      DVTranslationKey('dv.kiosk.restartLoopClear');
+
+  /// What a camera view is called.
+  static const DVTranslationKey camera =
+      DVTranslationKey('dv.camera.name');
+
+  /// The shutter control.
+  static const DVTranslationKey cameraTakePhoto =
+      DVTranslationKey('dv.camera.takePhoto');
+
+  /// The control that switches lens; {lens} is the current one.
+  static const DVTranslationKey cameraSwitch =
+      DVTranslationKey('dv.camera.switch');
+
+  /// The flash control; {mode} is the current mode.
+  static const DVTranslationKey cameraFlash =
+      DVTranslationKey('dv.camera.flash');
+
+  /// The heading of the consent banner.
+  static const DVTranslationKey consentTitle =
+      DVTranslationKey('dv.consent.title');
+
+  /// What the consent banner asks; {categories} lists them.
+  static const DVTranslationKey consentAsk =
+      DVTranslationKey('dv.consent.ask');
+
+  /// A banner answer the database refused.
+  static const DVTranslationKey consentNotSavedOne =
+      DVTranslationKey('dv.consent.notSaved');
+
+  /// The banner control that grants every category asked.
+  static const DVTranslationKey consentAcceptAll =
+      DVTranslationKey('dv.consent.acceptAll');
+
+  /// The banner control that denies every category asked.
+  static const DVTranslationKey consentRejectAll =
+      DVTranslationKey('dv.consent.rejectAll');
+
+  /// The banner control that opens the settings.
+  static const DVTranslationKey consentChoose =
+      DVTranslationKey('dv.consent.choose');
+
+  /// The banner control that closes it without answering.
+  static const DVTranslationKey consentNotNow =
+      DVTranslationKey('dv.consent.notNow');
+
+  /// The heading of the consent settings page.
+  static const DVTranslationKey consentSettingsTitle =
+      DVTranslationKey('dv.consent.settingsTitle');
+
+  /// The consent settings of an application with no analytics.
+  static const DVTranslationKey consentNone =
+      DVTranslationKey('dv.consent.none');
+
+  /// The consent settings while the stored choices are read.
+  static const DVTranslationKey consentLoading =
+      DVTranslationKey('dv.consent.loading');
+
+  /// The consent settings introduction.
+  static const DVTranslationKey consentIntro =
+      DVTranslationKey('dv.consent.intro');
+
+  /// A required category; {category} is its name.
+  static const DVTranslationKey consentAlwaysOn =
+      DVTranslationKey('dv.consent.alwaysOn');
+
+  /// Settings the database refused.
+  static const DVTranslationKey consentNotSaved =
+      DVTranslationKey('dv.consent.notSavedMany');
+
+  /// Settings that were saved.
+  static const DVTranslationKey consentSaved =
+      DVTranslationKey('dv.consent.saved');
+
+  /// The consent screen while the request is read.
+  static const DVTranslationKey oauthLoading =
+      DVTranslationKey('dv.oauth.loading');
+
+  /// What the consent screen asks; {client} is the application asking.
+  static const DVTranslationKey oauthAsks =
+      DVTranslationKey('dv.oauth.asks');
+
+  /// The e-mail address field.
+  static const DVTranslationKey authEmail =
+      DVTranslationKey('dv.auth.email');
+
+  /// The password field.
+  static const DVTranslationKey authPassword =
+      DVTranslationKey('dv.auth.password');
+
+  /// The link to password recovery.
+  static const DVTranslationKey authForgotPassword =
+      DVTranslationKey('dv.auth.forgotPassword');
+
+  /// The second-factor code field at sign-in.
+  static const DVTranslationKey authCode =
+      DVTranslationKey('dv.auth.code');
+
+  /// Sign-in that cancelled a scheduled deletion.
+  static const DVTranslationKey authDeletionCancelled =
+      DVTranslationKey('dv.auth.deletionCancelled');
+
+  /// A social sign-in control; {provider} is the provider.
+  static const DVTranslationKey authContinueWith =
+      DVTranslationKey('dv.auth.continueWith');
+
+  /// The authenticator app heading.
+  static const DVTranslationKey accountAuthenticatorApp =
+      DVTranslationKey('dv.account.authenticatorApp');
+
+  /// A security setting that is on.
+  static const DVTranslationKey accountOn =
+      DVTranslationKey('dv.account.on');
+
+  /// A security setting that is off.
+  static const DVTranslationKey accountOff =
+      DVTranslationKey('dv.account.off');
+
+  /// Authenticator enrolment instructions.
+  static const DVTranslationKey accountScanCode =
+      DVTranslationKey('dv.account.scanCode');
+
+  /// The authenticator code field.
+  static const DVTranslationKey accountCodeFromApp =
+      DVTranslationKey('dv.account.codeFromApp');
+
+  /// The recovery codes heading.
+  static const DVTranslationKey accountRecoveryCodes =
+      DVTranslationKey('dv.account.recoveryCodes');
+
+  /// How many recovery codes are left; {count} is the number.
+  static const DVTranslationKey accountUnusedRecoveryCodes =
+      DVTranslationKey('dv.account.unusedRecoveryCodes');
+
+  /// What to do with new recovery codes.
+  static const DVTranslationKey accountSaveRecoveryCodes =
+      DVTranslationKey('dv.account.saveRecoveryCodes');
+
+  /// The heading for removing the second factor.
+  static const DVTranslationKey accountRemoveAuthenticator =
+      DVTranslationKey('dv.account.removeAuthenticator');
+
+  /// A field taking either kind of code.
+  static const DVTranslationKey accountCodeOrRecovery =
+      DVTranslationKey('dv.account.codeOrRecovery');
+
+  /// The current password field.
+  static const DVTranslationKey accountCurrentPassword =
+      DVTranslationKey('dv.account.currentPassword');
+
+  /// The new password field.
+  static const DVTranslationKey accountNewPassword =
+      DVTranslationKey('dv.account.newPassword');
+
+  /// What changing a password does.
+  static const DVTranslationKey accountPasswordSignsOut =
+      DVTranslationKey('dv.account.passwordSignsOut');
+
+  /// The devices heading.
+  static const DVTranslationKey accountSignedInWhere =
+      DVTranslationKey('dv.account.signedInWhere');
+
+  /// When a session was last used; {time} is when.
+  static const DVTranslationKey accountLastActive =
+      DVTranslationKey('dv.account.lastActive');
+
+  /// The session on the device being used.
+  static const DVTranslationKey accountThisDevice =
+      DVTranslationKey('dv.account.thisDevice');
+
+  /// A sign-up that succeeded.
+  static const DVTranslationKey accountReady =
+      DVTranslationKey('dv.account.ready');
+
+  /// The name field at sign-up.
+  static const DVTranslationKey accountNameOptional =
+      DVTranslationKey('dv.account.nameOptional');
+
+  /// A pending e-mail change; {email} is the new address.
+  static const DVTranslationKey accountEmailCodeSent =
+      DVTranslationKey('dv.account.emailCodeSent');
+
+  /// The e-mail confirmation code field.
+  static const DVTranslationKey accountCodeFromEmail =
+      DVTranslationKey('dv.account.codeFromEmail');
+
+  /// The new e-mail address field.
+  static const DVTranslationKey accountNewEmail =
+      DVTranslationKey('dv.account.newEmail');
+
+  /// A scheduled deletion; {date} is when.
+  static const DVTranslationKey accountDeletionScheduled =
+      DVTranslationKey('dv.account.deletionScheduled');
+
+  /// A deletion that is done.
+  static const DVTranslationKey accountDeleted =
+      DVTranslationKey('dv.account.deleted');
+
+  /// What deleting an account does.
+  static const DVTranslationKey accountDeleteWarning =
+      DVTranslationKey('dv.account.deleteWarning');
+
+  /// The confirmation field; {phrase} is what to type.
+  static const DVTranslationKey accountTypeToConfirm =
+      DVTranslationKey('dv.account.typeToConfirm');
+
   /// The catalogue default for each framework key, by key.
   static const Map<String, String> defaults = <String, String>{
     'dv.table.empty': 'No rows',
@@ -11524,6 +11862,93 @@ abstract final class DVFrameworkStrings {
     'dv.empty.nothingMatching': 'No results',
     'dv.empty.nothingVisible': 'Nothing here is visible to you',
     'dv.action.clearFilters': 'Clear filters',
+    'dv.action.save': 'Save',
+    'dv.action.reset': 'Reset',
+    'dv.action.cancel': 'Cancel',
+    'dv.action.close': 'Close',
+    'dv.action.more': 'More',
+    'dv.action.goHome': 'Go to the home page',
+    'dv.status.loading': 'Loading',
+    'dv.status.loadingInline': 'Loading...',
+    'dv.status.pleaseWait': 'Please wait',
+    'dv.app.startFailed': 'Unable to start the application.',
+    'dv.form.noControls': 'No generated form controls registered for {type}.',
+    'dv.page.notFound': 'Page not found',
+    'dv.page.notFoundAt': 'Nothing is at {route}.',
+    'dv.page.notFoundHint': 'The link may be wrong, or the page may have moved.',
+    'dv.page.offline': 'You are offline',
+    'dv.page.offlineCached': 'This page is on this device, so it works without a network.',
+    'dv.page.offlineCouldNotOpen': '{route} could not be opened.',
+    'dv.page.offlineCheck': 'Check the connection, then try again.',
+    'dv.link.signInToView': 'Sign in to view this page.',
+    'dv.link.openInNewTab': 'Open in a new tab',
+    'dv.link.copyAddress': 'Copy link address',
+    'dv.breadcrumb.home': 'Home',
+    'dv.table.sortedAscending': '{label}, sorted ascending',
+    'dv.table.sortedDescending': '{label}, sorted descending',
+    'dv.table.cell': '{column}, {value}, row {row} of {total}',
+    'dv.shortcuts.title': 'Keyboard shortcuts',
+    'dv.shortcuts.show': 'Show keyboard shortcuts',
+    'dv.tabs.none': 'No tabs open.',
+    'dv.switchControl.name': 'Switch control',
+    'dv.switchControl.on': 'Switch control: on',
+    'dv.switchControl.off': 'Switch control: off',
+    'dv.qr.name': 'QR code',
+    'dv.kiosk.idle': 'Still there? Starting over in {seconds} s.',
+    'dv.kiosk.restartLoop': 'This kiosk keeps restarting',
+    'dv.kiosk.restartLoopHeld': 'The application is being held here rather than restarted again. Check the device diagnostics, fix the cause, then clear this screen.',
+    'dv.kiosk.restartLoopClear': 'Cleared, start again',
+    'dv.camera.name': 'Camera',
+    'dv.camera.takePhoto': 'Take photo',
+    'dv.camera.switch': 'Switch camera (now {lens})',
+    'dv.camera.flash': 'Flash: {mode}',
+    'dv.consent.title': 'Your privacy choices',
+    'dv.consent.ask': 'This application would like your permission for: {categories}. Nothing is collected for these until you choose.',
+    'dv.consent.notSaved': 'Your choice could not be saved, so nothing was turned on. Please try again.',
+    'dv.consent.acceptAll': 'Accept all',
+    'dv.consent.rejectAll': 'Reject all',
+    'dv.consent.choose': 'Choose',
+    'dv.consent.notNow': 'Not now',
+    'dv.consent.settingsTitle': 'Privacy choices',
+    'dv.consent.none': 'This application does not collect analytics, so there is nothing to choose.',
+    'dv.consent.loading': 'Loading your privacy choices…',
+    'dv.consent.intro': 'Choose what this application may collect. Nothing changes until you save.',
+    'dv.consent.alwaysOn': '{category} (always on)',
+    'dv.consent.notSavedMany': 'Your choices could not be saved, so nothing new was turned on. Please try again.',
+    'dv.consent.saved': 'Saved.',
+    'dv.oauth.loading': 'Loading the request...',
+    'dv.oauth.asks': '{client} would like to:',
+    'dv.auth.email': 'Email',
+    'dv.auth.password': 'Password',
+    'dv.auth.forgotPassword': 'Forgot your password?',
+    'dv.auth.code': 'Authenticator code',
+    'dv.auth.deletionCancelled': 'Your account is no longer being deleted: signing in cancelled it.',
+    'dv.auth.continueWith': 'Continue with {provider}',
+    'dv.account.authenticatorApp': 'Authenticator app',
+    'dv.account.on': 'On',
+    'dv.account.off': 'Off',
+    'dv.account.scanCode': 'Scan this code with your authenticator app, or enter the key by hand.',
+    'dv.account.codeFromApp': 'Code from the app',
+    'dv.account.recoveryCodes': 'Recovery codes',
+    'dv.account.unusedRecoveryCodes': 'Unused recovery codes: {count}',
+    'dv.account.saveRecoveryCodes': 'Save these codes somewhere safe. Each works once, and they will not be shown again. Generating new ones replaces them.',
+    'dv.account.removeAuthenticator': 'Remove the authenticator app',
+    'dv.account.codeOrRecovery': 'Code from the app or a recovery code',
+    'dv.account.currentPassword': 'Current password',
+    'dv.account.newPassword': 'New password',
+    'dv.account.passwordSignsOut': 'Changing your password signs out every other device.',
+    'dv.account.signedInWhere': 'Where you are signed in',
+    'dv.account.lastActive': 'Last active {time}',
+    'dv.account.thisDevice': 'This device',
+    'dv.account.ready': 'Your account is ready.',
+    'dv.account.nameOptional': 'Name (optional)',
+    'dv.account.emailCodeSent': 'We sent a code to {email}. Your address changes once you enter it.',
+    'dv.account.codeFromEmail': 'Code from the e-mail',
+    'dv.account.newEmail': 'New email',
+    'dv.account.deletionScheduled': 'Your account will be deleted on {date}, with the data held about you, and you have been signed out everywhere. Sign in before then to keep it.',
+    'dv.account.deleted': 'Your account has been deleted.',
+    'dv.account.deleteWarning': 'This deletes your account and the data held about you, and signs you out everywhere. It cannot be undone.',
+    'dv.account.typeToConfirm': 'Type {phrase} to confirm',
   };
 }
 

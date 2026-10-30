@@ -13,7 +13,7 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../dartvel_flutter.dart' show DV;
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings;
 
 class DVKioskHost extends StatefulWidget {
   final DVKioskRuntime runtime;
@@ -192,7 +192,7 @@ class _DVKioskCountdown extends StatelessWidget {
       child: Padding(
         padding: const .all(16),
         child: Text(
-          'Still there? Starting over in $seconds s.',
+          DV.I18n.t(DVFrameworkStrings.kioskIdle, args: <String, String>{'seconds': '$seconds'}),
           textAlign: .center,
           style: TextStyle(color: Theme.of(context).colorScheme.onInverseSurface, fontSize: 18),
         ),
@@ -217,17 +217,16 @@ class DVKioskDiagnosticsScreen extends StatelessWidget {
             crossAxisAlignment: .start,
             mainAxisAlignment: .center,
             children: <Widget>[
-              Text('This kiosk keeps restarting', style: Theme.of(context).textTheme.headlineSmall),
+              Text(DV.I18n.t(DVFrameworkStrings.kioskRestartLoop), style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 12),
               Text(finding),
               const SizedBox(height: 12),
-              const Text('The application is being held here rather than restarted again. '
-                  'Check the device diagnostics, fix the cause, then clear this screen.'),
+              Text(DV.I18n.t(DVFrameworkStrings.kioskRestartLoopHeld)),
               const SizedBox(height: 24),
-              const FilledButton(
-                key: ValueKey<String>('dv-kiosk-diagnostics-clear'),
+              FilledButton(
+                key: const ValueKey<String>('dv-kiosk-diagnostics-clear'),
                 onPressed: DVKioskHost.clearRestartLoop,
-                child: Text('Cleared, start again'),
+                child: Text(DV.I18n.t(DVFrameworkStrings.kioskRestartLoopClear)),
               ),
             ],
           ),

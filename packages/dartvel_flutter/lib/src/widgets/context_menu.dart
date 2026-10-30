@@ -27,7 +27,7 @@ import 'package:flutter/rendering.dart' show SelectionStatus;
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter/services.dart';
 
-import '../../dartvel_flutter.dart' show DVMenuItem;
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings, DVMenuItem;
 import 'browser_menu.dart' show DVBrowserMenu;
 
 /// A context menu of [items] for [child]; [onSelected] gets the chosen
@@ -137,7 +137,7 @@ class _DVContextMenuState extends State<DVContextMenu> {
               DVBrowserMenu.showHint(context, box.localToGlobal(.zero));
             }
           },
-          child: const Text('More'),
+          child: Text(DV.I18n.t(DVFrameworkStrings.more)),
         ),
       );
 

@@ -11,6 +11,7 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings;
 import 'media_box.dart';
 import 'web_media_mapping.dart';
 
@@ -216,7 +217,7 @@ class _DVCameraViewState extends State<DVCameraView> {
               children: <Widget>[
                 if (can.photo)
                   IconButton.filled(
-                    tooltip: 'Take photo',
+                    tooltip: DV.I18n.t(DVFrameworkStrings.cameraTakePhoto),
                     icon: const Icon(Icons.camera_alt),
                     onPressed: state == DVCameraState.ready ? _shutter : null,
                   ),
@@ -233,7 +234,7 @@ class _DVCameraViewState extends State<DVCameraView> {
                         .length >
                     1)
                   IconButton(
-                    tooltip: 'Switch camera (now ${_camera.lens.value.name})',
+                    tooltip: DV.I18n.t(DVFrameworkStrings.cameraSwitch, args: <String, String>{'lens': _camera.lens.value.name}),
                     icon: const Icon(Icons.cameraswitch),
                     onPressed: state == DVCameraState.ready
                         ? () => unawaited(
@@ -242,7 +243,7 @@ class _DVCameraViewState extends State<DVCameraView> {
                   ),
                 if (can.flash)
                   IconButton(
-                    tooltip: 'Flash: ${_camera.flash.value.name}',
+                    tooltip: DV.I18n.t(DVFrameworkStrings.cameraFlash, args: <String, String>{'mode': _camera.flash.value.name}),
                     icon: Icon(switch (_camera.flash.value) {
                       DVFlashMode.off => Icons.flash_off,
                       DVFlashMode.auto => Icons.flash_auto,
@@ -269,7 +270,7 @@ class _DVCameraViewState extends State<DVCameraView> {
 
     return Semantics(
       identifier: dvCameraSemanticsIdentifier,
-      label: 'Camera',
+      label: DV.I18n.t(DVFrameworkStrings.camera),
       value: _message ?? _stateText(state),
       child: Stack(
         children: <Widget>[

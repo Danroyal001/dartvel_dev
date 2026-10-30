@@ -77,7 +77,12 @@ class DVTableHeaderCell extends StatelessWidget {
     // a screen reader user has no idea the data was reordered under them.
     final String announcement = sortDirection == null
         ? label
-        : '$label, sorted ${sortDirection! ? 'ascending' : 'descending'}';
+        : DV.I18n.t(
+            sortDirection!
+                ? DVFrameworkStrings.tableSortedAscending
+                : DVFrameworkStrings.tableSortedDescending,
+            args: <String, String>{'label': label},
+          );
 
     final Widget content = Semantics(
       // A column header, not a document heading. `header: true` is the
@@ -398,7 +403,7 @@ class DVTableState<T> extends State<DVTable<T>> {
     // which row of how many, is the whole content of a table cell.
     final Widget cell = Semantics(
       role: SemanticsRole.cell,
-      label: '${column.label}, $text, row ${r + 1} of $total',
+      label: DV.I18n.t(DVFrameworkStrings.tableCell, args: <String, String>{'column': column.label, 'value': text, 'row': '${r + 1}', 'total': '$total'}),
       excludeSemantics: true,
       child: GestureDetector(
         onTap: () => _focus(r, c),

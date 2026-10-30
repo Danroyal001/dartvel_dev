@@ -17,7 +17,7 @@ library dartvel_flutter.routing.page_errors;
 import 'package:dartvel_core/dartvel.dart' show dvOfflineReturn;
 import 'package:flutter/material.dart';
 
-import '../../dartvel_flutter.dart' show DVNavLink, DVRouteTarget;
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings, DVNavLink, DVRouteTarget;
 
 /// A path with nothing at it.
 ///
@@ -33,15 +33,15 @@ class DVNotFoundPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _DVErrorPage(
-    title: 'Page not found',
+    title: DV.I18n.t(DVFrameworkStrings.notFoundTitle),
     // A path is a person's own input echoed back, and it is inside a text
     // node, so the capture escapes it like any other text.
     body: <String>[
-      'Nothing is at $route.',
-      'The link may be wrong, or the page may have moved.',
+      DV.I18n.t(DVFrameworkStrings.notFoundAt, args: <String, String>{'route': route}),
+      DV.I18n.t(DVFrameworkStrings.notFoundHint),
     ],
-    children: const <Widget>[
-      _DVLinkButton(to: DVRouteTarget('/'), label: 'Go to the home page'),
+    children: <Widget>[
+      _DVLinkButton(to: const DVRouteTarget('/'), label: DV.I18n.t(DVFrameworkStrings.goHome)),
     ],
   );
 }
@@ -66,15 +66,15 @@ class DVOfflinePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final String target = dvOfflineReturn(from);
     return _DVErrorPage(
-      title: 'You are offline',
+      title: DV.I18n.t(DVFrameworkStrings.offlineTitle),
       body: <String>[
-        'This page is on this device, so it works without a network.',
+        DV.I18n.t(DVFrameworkStrings.offlineCached),
         if (from != null && from!.isNotEmpty)
-          '$from could not be opened.',
-        'Check the connection, then try again.',
+          DV.I18n.t(DVFrameworkStrings.offlineCouldNotOpen, args: <String, String>{'route': from!}),
+        DV.I18n.t(DVFrameworkStrings.offlineCheck),
       ],
       children: <Widget>[
-        _DVLinkButton(to: DVRouteTarget(target), label: 'Try again'),
+        _DVLinkButton(to: DVRouteTarget(target), label: DV.I18n.t(DVFrameworkStrings.retry)),
       ],
     );
   }

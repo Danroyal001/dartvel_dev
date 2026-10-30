@@ -10,6 +10,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings;
+
 /// Checks a code. Returns null when it is right, or what to tell the person
 /// when it is not.
 typedef DVCodeCheck = Future<String?> Function(String code);
@@ -111,7 +113,7 @@ class _DVCodeEntryState extends State<DVCodeEntry> {
           child: Text(widget.confirmLabel),
         ),
         if (widget.onCancel != null)
-          TextButton(onPressed: widget.onCancel, child: const Text('Cancel')),
+          TextButton(onPressed: widget.onCancel, child: Text(DV.I18n.t(DVFrameworkStrings.cancel))),
       ],
     );
   }

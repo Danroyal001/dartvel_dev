@@ -75,7 +75,7 @@ Future<void> dvRunApplication(
           MaterialApp(
             theme: dartvelDefaultTheme(.light),
             darkTheme: dartvelDefaultTheme(.dark),
-            home: DVBox(DVText('Unable to start the application.')),
+            home: DVBox(DVText(DV.I18n.t(DVFrameworkStrings.startFailed))),
           ),
         );
         completed.completeError(error, stack);

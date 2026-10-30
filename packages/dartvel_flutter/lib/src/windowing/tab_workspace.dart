@@ -393,7 +393,7 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
             _ => _strip(),
           },
           if (active == null)
-            const DVText('No tabs open.')
+            DVText(DV.I18n.t(DVFrameworkStrings.noTabs))
           else
             Expanded(
               // Keyed by the tab, not by this workspace and not by the route.

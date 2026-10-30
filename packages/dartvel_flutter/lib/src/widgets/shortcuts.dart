@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings;
+
 /// A serializable shortcut. [command] refers to a callback supplied by the app;
 /// loading data never evaluates code or invokes the callback.
 class const DVShortcut({
@@ -197,7 +199,7 @@ class _DVShortcutScopeState extends State<DVShortcutScope> {
             DialogRoute<void>(
               context: context,
               builder: (dialogContext) => AlertDialog(
-                title: const Text('Keyboard shortcuts'),
+                title: Text(DV.I18n.t(DVFrameworkStrings.shortcutsTitle)),
                 content: SizedBox(
                   width: 420,
                   child: SingleChildScrollView(
@@ -211,9 +213,9 @@ class _DVShortcutScopeState extends State<DVShortcutScope> {
                               _display(binding.definition.keys, platform),
                             ),
                           ),
-                        const ListTile(
-                          title: Text('Show keyboard shortcuts'),
-                          subtitle: Text('?'),
+                        ListTile(
+                          title: Text(DV.I18n.t(DVFrameworkStrings.shortcutsShow)),
+                          subtitle: const Text('?'),
                         ),
                       ],
                     ),
@@ -222,7 +224,7 @@ class _DVShortcutScopeState extends State<DVShortcutScope> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Close'),
+                    child: Text(DV.I18n.t(DVFrameworkStrings.close)),
                   ),
                 ],
               ),

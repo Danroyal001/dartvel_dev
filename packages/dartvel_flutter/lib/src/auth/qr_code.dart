@@ -16,6 +16,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings;
+
 /// A QR code symbol: a square of modules, true for dark.
 class DVQrCode {
   DVQrCode._(this.version, this.mask, this.modules);
@@ -436,7 +438,7 @@ class DVQrImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-        label: 'QR code',
+        label: DV.I18n.t(DVFrameworkStrings.qrCode),
         image: true,
         child: SizedBox.square(
           dimension: size,

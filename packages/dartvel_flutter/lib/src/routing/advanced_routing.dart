@@ -151,7 +151,7 @@ class RouteHelpers {
   static List<Breadcrumb> getBreadcrumbs(String path) {
     final segments = path.split('/').where((s) => s.isNotEmpty).toList();
     final breadcrumbs = <Breadcrumb>[
-      const Breadcrumb(label: 'Home', path: '/'),
+      Breadcrumb(label: DV.I18n.t(DVFrameworkStrings.breadcrumbHome), path: '/'),
     ];
 
     var currentPath = '';

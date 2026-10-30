@@ -16,6 +16,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings;
 import 'editing_focus.dart';
 
 /// Whether switch control is on. One per application, so the generated
@@ -291,14 +292,14 @@ class DVAccessibilityToggle extends StatelessWidget {
           return Semantics(
             button: true,
             toggled: on,
-            label: 'Switch control',
+            label: DV.I18n.t(DVFrameworkStrings.switchControl),
             child: GestureDetector(
               key: const ValueKey<String>('dv-accessibility-toggle'),
               behavior: .opaque,
               onTap: DVAccessibilitySwitchControl.state.toggle,
               child: Padding(
                 padding: const .all(12),
-                child: Text('Switch control: ${on ? 'on' : 'off'}'),
+                child: Text(on ? DV.I18n.t(DVFrameworkStrings.switchControlOn) : DV.I18n.t(DVFrameworkStrings.switchControlOff)),
               ),
             ),
           );

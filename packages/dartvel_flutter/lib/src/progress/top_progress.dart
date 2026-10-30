@@ -8,6 +8,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings;
+
 /// The loads an application is waiting on, for the bar at the top of the
 /// page. Reached as `DV.progress`.
 class DVTopProgress extends ChangeNotifier {
@@ -81,14 +83,14 @@ class DVTopProgressBar extends StatelessWidget {
           // lasts, which is the motion reduced motion asks to be spared.
           ? Semantics(
               container: true,
-              label: 'Loading',
+              label: DV.I18n.t(DVFrameworkStrings.loading),
               child: ColoredBox(color: color.withValues(alpha: 0.6)),
             )
           : LinearProgressIndicator(
               minHeight: height,
               color: color,
               backgroundColor: color.withValues(alpha: 0.15),
-              semanticsLabel: 'Loading',
+              semanticsLabel: DV.I18n.t(DVFrameworkStrings.loading),
             ),
     );
   }

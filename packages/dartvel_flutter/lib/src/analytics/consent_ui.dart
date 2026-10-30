@@ -12,7 +12,7 @@ import 'dart:async';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:flutter/material.dart';
 
-import '../../dartvel_flutter.dart' show DVBox, DVModifier, DVText;
+import '../../dartvel_flutter.dart' show DV, DVBox, DVFrameworkStrings, DVModifier, DVText;
 import 'app_tracking_transparency.dart';
 
 /// Records [answers] as a choice made through [prompt], and returns whether
@@ -214,33 +214,30 @@ class _DVConsentBannerState extends State<DVConsentBanner> {
         child: Padding(
           padding: const .all(16),
           child: DVBox.list(<Widget>[
-            const DVText('Your privacy choices'),
-            DVText('This application would like your permission for: '
-                '${asked.join(', ')}. Nothing is collected for these until '
-                'you choose.'),
+            DVText(DV.I18n.t(DVFrameworkStrings.consentTitle)),
+            DVText(DV.I18n.t(DVFrameworkStrings.consentAsk, args: <String, String>{'categories': asked.join(', ')})),
             if (_notSaved)
-              const KeyedSubtree(
-                key: ValueKey<String>('dv-consent-not-saved'),
-                child: DVText('Your choice could not be saved, so nothing '
-                    'was turned on. Please try again.'),
+              KeyedSubtree(
+                key: const ValueKey<String>('dv-consent-not-saved'),
+                child: DVText(DV.I18n.t(DVFrameworkStrings.consentNotSavedOne)),
               ),
             DVBox.wrapLine(
               <Widget>[
-                _action('dv-consent-accept-all', 'Accept all',
+                _action('dv-consent-accept-all', DV.I18n.t(DVFrameworkStrings.consentAcceptAll),
                     _saving ? null : () => unawaited(_answer(runtime, consent, grant: true))),
-                _action('dv-consent-reject-all', 'Reject all',
+                _action('dv-consent-reject-all', DV.I18n.t(DVFrameworkStrings.consentRejectAll),
                     _saving ? null : () => unawaited(_answer(runtime, consent, grant: false))),
-                _action('dv-consent-choose', 'Choose', () {
+                _action('dv-consent-choose', DV.I18n.t(DVFrameworkStrings.consentChoose), () {
                   unawaited(Navigator.of(context).push(MaterialPageRoute<void>(
                     builder: (BuildContext _) => Scaffold(
-                      appBar: AppBar(title: const Text('Privacy choices')),
+                      appBar: AppBar(title: Text(DV.I18n.t(DVFrameworkStrings.consentSettingsTitle))),
                       body: DVConsentSettingsPage(analytics: runtime),
                     ),
                   )).then((_) {
                     if (mounted) setState(() {});
                   }));
                 }),
-                _action('dv-consent-dismiss', 'Not now', () {
+                _action('dv-consent-dismiss', DV.I18n.t(DVFrameworkStrings.consentNotNow), () {
                   // Closed, not answered: nothing is recorded and every
                   // category stays at its declared default.
                   DVConsentBanner._closed[runtime] = true;
@@ -326,15 +323,12 @@ class _DVConsentSettingsPageState extends State<DVConsentSettingsPage> {
   Widget build(BuildContext context) {
     final DVAnalyticsRuntime? runtime = _runtime;
     if (runtime == null) {
-      return const Center(
-        child: DVText('This application does not collect analytics, so there '
-            'is nothing to choose.'),
-      );
+      return Center(child: DVText(DV.I18n.t(DVFrameworkStrings.consentNone)));
     }
     final DVConsent? consent = runtime.loadedConsent;
     final Map<String, bool>? choices = _choices;
     if (consent == null || choices == null) {
-      return const Center(child: DVText('Loading your privacy choices…'));
+      return Center(child: DVText(DV.I18n.t(DVFrameworkStrings.consentLoading)));
     }
     return Material(
       type: .transparency,
@@ -342,8 +336,7 @@ class _DVConsentSettingsPageState extends State<DVConsentSettingsPage> {
         padding: const .all(16),
         children: <Widget>[
           DVBox.list(<Widget>[
-            const DVText('Choose what this application may collect. Nothing '
-                'changes until you save.'),
+            DVText(DV.I18n.t(DVFrameworkStrings.consentIntro)),
             for (final DVConsentDeclaration d in consent.policy.categories)
               DVBox.row(<Widget>[
                 Switch(
@@ -357,21 +350,20 @@ class _DVConsentSettingsPageState extends State<DVConsentSettingsPage> {
                           }),
                 ),
                 DVText(d.required
-                    ? '${_label(d.category.name)} (always on)'
+                    ? DV.I18n.t(DVFrameworkStrings.consentAlwaysOn, args: <String, String>{'category': _label(d.category.name)})
                     : _label(d.category.name)),
               ]),
             if (_notSaved)
-              const KeyedSubtree(
-                key: ValueKey<String>('dv-consent-not-saved'),
-                child: DVText('Your choices could not be saved, so nothing '
-                    'new was turned on. Please try again.'),
+              KeyedSubtree(
+                key: const ValueKey<String>('dv-consent-not-saved'),
+                child: DVText(DV.I18n.t(DVFrameworkStrings.consentNotSaved)),
               ),
             if (_saved)
-              const KeyedSubtree(
-                key: ValueKey<String>('dv-consent-saved'),
-                child: DVText('Saved.'),
+              KeyedSubtree(
+                key: const ValueKey<String>('dv-consent-saved'),
+                child: DVText(DV.I18n.t(DVFrameworkStrings.consentSaved)),
               ),
-            _action('dv-consent-save', 'Save',
+            _action('dv-consent-save', DV.I18n.t(DVFrameworkStrings.save),
                 _saving ? null : () => unawaited(_save(runtime, consent))),
           ]),
         ],

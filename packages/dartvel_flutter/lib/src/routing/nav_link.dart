@@ -24,7 +24,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart' show GoRouter;
 
 import '../../dartvel_flutter.dart'
-    show DV, DVNavigation, DVRouteTarget, DartvelRouteState;
+    show DV, DVFrameworkStrings, DVNavigation, DVRouteTarget, DartvelRouteState;
 import '../widgets/browser_menu.dart' show DVBrowserMenu;
 import 'client_hosts.dart' show dvIsOtherOrigin, dvPublicLocation;
 import 'link_interception.dart' show DVPressedLink;
@@ -1099,7 +1099,7 @@ class DVGuardedRoutePreview extends StatelessWidget {
               Icon(Icons.lock_outline, size: 16, color: theme.hintColor),
               const SizedBox(width: 6),
               Text(
-                'Sign in to view this page.',
+                DV.I18n.t(DVFrameworkStrings.signInToView),
                 style: theme.textTheme.bodySmall,
               ),
             ],

@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings;
 import '../widgets/browser_menu.dart' show DVBrowserMenu;
 import 'nav_link.dart' show DVLinkOpener, DVPressedLinkTarget;
 
@@ -38,7 +39,7 @@ List<ContextMenuButtonItem> dvLinkMenuItems(
   required VoidCallback close,
 }) => <ContextMenuButtonItem>[
   ContextMenuButtonItem(
-    label: 'Open in a new tab',
+    label: DV.I18n.t(DVFrameworkStrings.openInNewTab),
     onPressed: () {
       close();
       DVPressedLinkTarget.clear();
@@ -46,7 +47,7 @@ List<ContextMenuButtonItem> dvLinkMenuItems(
     },
   ),
   ContextMenuButtonItem(
-    label: 'Copy link address',
+    label: DV.I18n.t(DVFrameworkStrings.copyLinkAddress),
     onPressed: () {
       close();
       DVPressedLinkTarget.clear();
@@ -75,7 +76,7 @@ void dvShowLinkMenu(BuildContext context, String link, Offset at) {
             ...dvLinkMenuItems(link, close: dvHideLinkMenu),
             if (DVBrowserMenu.isWeb)
               ContextMenuButtonItem(
-                label: 'More',
+                label: DV.I18n.t(DVFrameworkStrings.more),
                 onPressed: () {
                   dvHideLinkMenu();
                   DVBrowserMenu.openNextNative();
