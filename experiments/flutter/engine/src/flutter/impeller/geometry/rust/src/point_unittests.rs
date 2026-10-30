@@ -316,3 +316,11 @@ fn cross_product_three_points() {
   expect_float_eq!(Point::cross3(&Point::new(3.0, -4.0), &Point::new(0.0, 0.0), &Point::new(1.0, 2.0)), -10);
 }
 
+
+// Not upstream's: a zero vector normalizes to the X axis (no upstream test
+// covers the zero-length branch; see README.md, Deliberate failures).
+#[test]
+fn normalize_of_zero_is_the_x_axis() {
+  expect_eq!(Point::new(0.0, 0.0).normalize(), Point::new(1.0, 0.0));
+  expect_eq!(Point::new(-0.0, 0.0).normalize(), Point::new(1.0, 0.0));
+}

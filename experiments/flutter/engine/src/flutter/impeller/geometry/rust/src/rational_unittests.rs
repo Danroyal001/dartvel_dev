@@ -62,3 +62,11 @@ fn different_hashes() {
   expect_ne!(Rational::new(2, 2).get_hash(), Rational::new(2, 4).get_hash());
 }
 
+
+// Not upstream's: values of opposite sign over different denominators are
+// unequal (upstream's NegationNotEquals uses equal denominators only).
+#[test]
+fn negation_not_equals_different_den() {
+  expect_false!(Rational::new(1, 2) == Rational::new(-2, 4));
+  expect_false!(Rational::new(-3, 4) == Rational::new(6, 8));
+}

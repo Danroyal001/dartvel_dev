@@ -859,3 +859,13 @@ fn path_for_long_rse_should_be_correct() {
   rr.dispatch(&mut receiver);
 }
 
+
+// Not upstream's: a corner with no rounding contains its top and left edges
+// but not its right and bottom ones, as Rect::Contains does.
+#[test]
+fn rectangular_corner_excludes_right_edge() {
+  let bounds = Rect::make_ltrb(0.0, 0.0, 10.0, 10.0);
+  let param = RoundSuperellipseParam::make_bounds_radius(&bounds, 0.0);
+  expect_false!(param.contains(&Point::new(10.0, 5.0)));
+  expect_true!(param.contains(&Point::new(9.99, 5.0)));
+}
