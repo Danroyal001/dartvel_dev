@@ -158,12 +158,33 @@ names the oracle does not compare).
 directory. The test fails on the first differing line of any run and prints
 it.
 
-Benchmarks: `fml_dump bench <name> <rounds>` with either binary; `loop`,
-`thread` and `concurrent` post 10000 tasks to a Linux loop, an `fml::Thread`
-and a four-worker `ConcurrentMessageLoop`; `queues` is
-upstream's `message_loop_task_queues_benchmark.cc` (`BM_RegisterAndGetTasks`),
-the others run a suite with its output discarded (`file`, `mapping`,
-`paths`, `cmdline` and `trace` included).
+Benchmarks: `fml_dump bench <name> <rounds>` with either binary prints the
+fastest, median and slowest round, the peak RSS and a check value the two
+drivers must agree on. Only the ported code runs while a round's stopwatch
+runs, on both sides alike:
+
+- `loop`, `thread` and `concurrent` post 10000 tasks to a Linux loop, an
+  `fml::Thread` and a four-worker `ConcurrentMessageLoop` (the tasks share
+  no reference count: the C++ captures by reference, the Rust a static or a
+  leaked latch); `queues` is upstream's
+  `message_loop_task_queues_benchmark.cc` (`BM_RegisterAndGetTasks`). Only
+  the loop's own thread is timed in `loop`, not spawning it.
+- `time`, `strings`, `hash`, `paths` and `cmdline` are kernels: a chunk of
+  1000 inputs is drawn with the clock stopped, then the suite's calls run on
+  them with each result folded into a checksum (the check value), so
+  neither compiler can drop the work and neither side formats anything.
+- `dispatch` (the queues suite), `merger`, `file`, `mapping` and `trace` run
+  the suite with output off (the print macros do not evaluate their
+  arguments: `QPRINTF` in C++, `p!`/`w!` in Rust), the random stream read
+  from a tape refilled with the clock stopped, and the input generators and
+  the driver's own threads (the merger's parked loops and case thread)
+  outside the clock; the check value is the number of random draws taken,
+  which pins the path both sides took.
+
+Before these changes each round timed a whole suite, which included the
+input generation and the formatting of every value (`format!` per escaped
+byte in the Rust driver), so the drivers rather than the ports were
+compared.
 
 ## Porting conventions
 
@@ -195,7 +216,12 @@ the others run a suite with its output discarded (`file`, `mapping`,
   `Vec<u8>` out), handed to the C library up to the first NUL as a
   `const char*` is. C++ overloads that take a base directory get an `_at`
   suffix after the POSIX calls they wrap (`OpenFile(base, path, …)` is
-  `open_file_at`); `CommandLine` arguments are `String`s.
+  `open_file_at`); `CommandLine` arguments are `SmallString`s (see below).
+- Where libc++'s short-string optimisation decides upstream's cost (a
+  command line's options and arguments, trace argument values), the port
+  holds `SmallString`s (`small_string.rs`, not an upstream file): up to 22
+  bytes inline as libc++ keeps them, read as a `str`, compared equal to
+  `str` and `String`.
 - `Mapping` is an `unsafe trait`: its pointer is null or covers `GetSize()`
   bytes while the mapping is borrowed. Reading through it is the caller's
   `unsafe`, as upstream leaves it to the caller; `NonOwnedMapping::new` is
@@ -211,9 +237,13 @@ the others run a suite with its output discarded (`file`, `mapping`,
   `mkdirat`, `fstat`, `stat`, `ftruncate`, `unlinkat`, `faccessat`, `dup`,
   `write`, `fsync`, `renameat`, `fdopendir`/`readdir`/`rewinddir`,
   `mkdtemp`, `strerror`), `mmap`/`munmap`, `dlopen`/`dlsym`/`dlclose`/
-  `dlerror`, `backtrace`, `signal`/`raise`, and `pthread_setname_np` on
-  Apple. Each block has a SAFETY
-  comment. Thread names on Linux are written to `/proc/thread-self/comm`,
+  `dlerror`, `backtrace`, `signal`/`raise`, `getcwd` and `readlink` (into
+  PATH_MAX buffers, as upstream), and `pthread_setname_np` on Apple; besides
+  those, loading the trace handler and micros source from their atomics (a
+  function pointer kept as a data pointer, as upstream's
+  `std::atomic<fn*>`) and reading `SmallString`'s inline bytes as `str`.
+  Each block has a SAFETY comment, and `tests/unsafe_audit.rs` fails when
+  one does not (see *Safety*). Thread names on Linux are written to `/proc/thread-self/comm`,
   safely, with the effect of `pthread_setname_np`. The tests add a few pthread
   calls (stack size, scheduling) as upstream's do.
 
@@ -224,7 +254,11 @@ None on the oracle's corpus. Where the port knowingly differs from the C++:
 - Signed overflow in `TimeDelta`/`TimePoint` is undefined behaviour upstream;
   the port wraps (as every engine target does in practice, and as the oracle
   pins with `-fwrapv`). Out-of-range `double`→`int64` in `FromSecondsF` is
-  undefined upstream and saturates here; the oracle does not feed it.
+  undefined upstream; the port converts as the compiled C++ does
+  (`cvttsd2si` on x86-64, giving `INT64_MIN`; Rust's saturating `as`, as
+  AArch64's `fcvtzs`, elsewhere), pinned by
+  `out_of_range_doubles_convert_as_upstreams_code_does`; the oracle does not
+  feed it.
 - `Utf8ToUtf16`/`Utf16ToUtf8` stop at the first NUL as upstream does, but a
   slice that is not NUL-terminated ends at its end rather than reading past
   it.
@@ -250,8 +284,11 @@ None on the oracle's corpus. Where the port knowingly differs from the C++:
   real clock; the oracle's fake clock stays positive.
 - `TaskRunner` is a struct: upstream's virtual methods (for embedder task
   runners) wait for the shell's port. `ConcurrentMessageLoop::ExecuteTask`
-  is not virtual (its "ConcurrentWorkerWake" trace event is emitted, as
-  upstream's). A `closure` cannot be empty, so the null-task checks and the
+  is not virtual (its "ConcurrentWorkerWake" trace event is emitted after
+  each wake in WorkerMain, as upstream's). The loop counts the workers
+  blocked in its wait and skips `notify_one` when there are none, where
+  `pthread_cond_signal` returns without a system call and std's `Condvar`
+  would make one. A `closure` cannot be empty, so the null-task checks and the
   "Tried to add a null TaskObserver." path do not exist.
 - `fml::UniqueFD{AT_FDCWD}`, which the overloads without a base directory
   build, holds -100, which is not the invalid value (-1): destroying it calls
@@ -260,9 +297,10 @@ None on the oracle's corpus. Where the port knowingly differs from the C++:
 - Upstream's `TRACE_EVENT_ASYNC_END1` macro passes a flow id count and flow
   ids that `TraceEventAsyncEnd1` does not take, and does not compile;
   `trace_event_async_end1!` calls the function with what it takes. The
-  oracle calls the function. The trace globals are behind locks (upstream's
-  allowlist is unsynchronized); flow ids and arguments reach the handler as
-  slices; `FLUTTER_TIMELINE_ENABLED` is the `flutter_release` feature
+  oracle calls the function. The handler and micros source are atomics as
+  upstream's; the allowlist is behind a lock (upstream's is unsynchronized);
+  flow ids and arguments reach the handler as slices (up to eight on the
+  stack, where upstream fills vectors); `FLUTTER_TIMELINE_ENABLED` is the `flutter_release` feature
   (off: every tracing function does nothing, as upstream's release build).
 - `backtrace` names frames from `.symtab`/`.dynsym` of the object mapped at
   each address, as absl::Symbolize does, but does not demangle (Rust frames
@@ -273,10 +311,16 @@ None on the oracle's corpus. Where the port knowingly differs from the C++:
   `Release` returns it; `posix_wrappers`' `strdup` returns a `CString`;
   `ReadIntFromFile` reads the whole file and parses it as libc++'s
   `ifstream >> int64_t` does (white space, sign, digits, saturation);
-  `GetExecutablePath` and `AbsolutePath` call std's `read_link` and
-  `current_dir`, which call readlink and getcwd. A null `const char*`
+  `GetExecutablePath` and `AbsolutePath` call readlink and getcwd into
+  PATH_MAX buffers as upstream does (so a working directory longer than
+  PATH_MAX fails the check, as upstream's does). A null `const char*`
   (path, symbol, file name) cannot be passed. `CommandLine` takes UTF-8;
   `CommandLineFromWideArgv` (Windows) is not ported.
+- `CommandLine` keeps no `option_index_`: upstream's unordered_map from each
+  name to its last index is never iterated, so `HasOption` searches the
+  options from the back instead, with the same answers. `TaskSource::PopTask`
+  returns the popped task, so that `GetNextTaskToRun` moves the closure out
+  where upstream copies it.
 - `erase_if` takes the entry rather than an iterator (the same visit order
   for ordered maps).
 - Logged non-UTF-8 file names ("Can't open sub-directory") are written
@@ -340,50 +384,219 @@ change was restored.
 | Frames print "frame" | `can_gather_backtrace`, `frames_are_symbolized` |
 | Frames are not symbolized | `frames_are_symbolized` (added); **not caught by the upstream test or the oracle**, which check only the shape |
 | The crash handler does not reset the handlers before re-raising | oracle `backtrace` (the child re-enters the handler forever; killed after the timeout) |
+| ConcurrentWorkerWake traced when posting to a terminated loop instead of after each worker wake (the port shipped this way until the benchmark work found it) | `tests/concurrent_worker_wake.rs` (added; one event, from the posting thread); **not caught by the oracle**, whose thread suite runs without a trace handler |
+| `BacktraceHere` keeps its caller's frame (its helper out of line) | `frames_are_symbolized` (rewritten to look past two out-of-line frames); before, the frames left out depended on whether LLVM inlined the helper |
 | The Linux loop does not drain the timer | **not caught**: epoll is level-triggered, so the loop wakes once per flush either way; the cost is CPU, not behaviour |
 
-## Baseline
+## Benchmarks
 
-Measured 2026-10-30 on a 4-core Intel Xeon at 2.10 GHz (shared, so medians
-are noisy), clang 18.1.3 with libc++ 18 at `-O2 -DNDEBUG`, rustc 1.97.0
-release. Peak RSS is the whole process (`VmHWM`). `queues` is 500 rounds of
-upstream's benchmark; the others are 30 rounds of a suite, which includes
-the driver's input generation and formatting, not only the ported code.
+Measured 2026-10-30 on a shared 4-core Intel Xeon at 2.10 GHz whose load
+average stood at 7–9 from other builds throughout, clang 18.1.3 with libc++
+18 at `-O2 -DNDEBUG`, rustc 1.97.0 with the workspace's release profile.
+Each benchmark ran 4–8 times, alternating the C++ and the Rust binary, each
+run a number of rounds (below); *fastest* is the fastest round of all runs,
+*median* the median of the runs' medians. Peak RSS is the whole process
+(`VmHWM`), the largest of the runs. Every run's check value agreed between
+the two sides. On a machine this loaded the system-call-bound benchmarks
+(`loop`, `thread`, `concurrent`, `merger`, `file`, `mapping`) move by tens
+of percent from run to run, so for those the deterministic measures follow
+the table.
 
-| Benchmark | C++ fastest | C++ median | Rust fastest | Rust median | C++ RSS | Rust RSS |
+| Benchmark (rounds per run) | C++ fastest | C++ median | Rust fastest | Rust median | C++ RSS | Rust RSS |
 |---|---|---|---|---|---|---|
-| `queues` (BM_RegisterAndGetTasks) | 1.38 ms | 1.82 ms | 0.72 ms | 1.13 ms | 5.0 MiB | 3.9 MiB |
-| `dispatch` (queues suite, 2000 cases) | 39.4 ms | 68.0 ms | 42.3 ms | 50.6 ms | 3.3 MiB | 2.4 MiB |
-| `time` (20000 cases) | 27.6 ms | 31.9 ms | 20.7 ms | 28.3 ms | 3.2 MiB | 2.3 MiB |
-| `strings` (20000 cases) | 126.6 ms | 146.4 ms | 27.9 ms | 31.4 ms | 3.2 MiB | 2.3 MiB |
-| `hash` (20000 cases) | 20.2 ms | 23.7 ms | 22.8 ms | 25.5 ms | 3.2 MiB | 2.4 MiB |
-| `loop` (10000 tasks, Linux loop) | 444 ms | 509 ms | 445 ms | 496 ms | 4.0 MiB | 3.6 MiB |
-| `thread` (10000 tasks, `fml::Thread`) | 514 ms | 651 ms | 559 ms | 630 ms | 3.9 MiB | 3.3 MiB |
-| `concurrent` (10000 tasks, 4 workers, 200 rounds) | 1.5 ms | 106–118 ms | 4.0 ms | 33–77 ms | 3.6 MiB | 3.0 MiB |
-| `merger` (200 cases, 10 rounds) | 157 ms | 181 ms | 136 ms | 180 ms | 3.5 MiB | 2.9 MiB |
-| `file` (250 operations, 10 rounds) | 5.7 ms | 10.0 ms | 3.1 ms | 5.6 ms | 3.5 MiB | 2.9 MiB |
-| `mapping` (2000 cases, 10 rounds) | 375 ms | 427 ms | 395 ms | 471 ms | 3.6 MiB | 2.9 MiB |
-| `paths` (20000 cases, 10 rounds) | 18.4 ms | 19.4 ms | 21.8 ms | 26.0 ms | 3.5 MiB | 3.2 MiB |
-| `cmdline` (20000 cases, 10 rounds) | 52.5 ms | 60.3 ms | 94.5 ms | 102.0 ms | 3.5 MiB | 2.8 MiB |
-| `trace` (20000 cases, 10 rounds) | 8.4 ms | 8.6 ms | 10.0 ms | 11.9 ms | 3.6 MiB | 2.8 MiB |
+| `queues` (300) | 502 µs | 3935 µs | **355 µs** | **3881 µs** | 4.8 MiB | **4.0 MiB** |
+| `dispatch` (20) | 18.3 ms | 23.8 ms | **16.4 ms** | **23.5 ms** | 3.7 MiB | **2.9 MiB** |
+| `time` (300) | 388 µs | 435 µs | 394 µs | **434 µs** | 3.3 MiB | **2.9 MiB** |
+| `strings` (20) | 98.4 ms | 111.0 ms | **4.0 ms** | **4.3 ms** | 3.6 MiB | **3.2 MiB** |
+| `hash` (100) | 1037 µs | 1169 µs | **963 µs** | 1176 µs | 3.6 MiB | **3.3 MiB** |
+| `loop` (10) | 459 ms | 544 ms | **448 ms** | 566 ms | 4.3 MiB | **4.0 MiB** |
+| `thread` (10) | 438 ms | 573 ms | 450 ms | **499 ms** | 4.1 MiB | **3.4 MiB** |
+| `concurrent` (200) | 0.78 ms | 4.10 ms | 1.11 ms | 5.02 ms | 4.2 MiB | **3.7 MiB** |
+| `merger` (3) | 89.7 ms | 102.3 ms | **88.0 ms** | **99.8 ms** | 3.8 MiB | **3.1 MiB** |
+| `file` (20) | 1.96 ms | 6.73 ms | 2.65 ms | 7.31 ms | 3.7 MiB | **2.9 MiB** |
+| `mapping` (5) | 230 ms | 434 ms | 239 ms | **390 ms** | 3.7 MiB | **3.0 MiB** |
+| `paths` (50) | 8.72 ms | 9.70 ms | **7.92 ms** | **9.36 ms** | 3.7 MiB | **3.2 MiB** |
+| `cmdline` (50) | 22.0 ms | 24.4 ms | **13.3 ms** | **15.0 ms** | 3.7 MiB | **3.2 MiB** |
+| `trace` (50) | 2.80 ms | 3.50 ms | **2.42 ms** | **3.02 ms** | 3.7 MiB | **2.8 MiB** |
 
-The loop benchmarks are dominated by system calls (each post rearms the
-timerfd; each flush reads the clock and rearms it), which are slow in this
-sandbox and identical on both sides. `concurrent` is contention-bound and
-very noisy: C++ has the faster best rounds, Rust the faster medians (its
-`Mutex`/`Condvar` are futexes; libc++'s are pthread's).
+Bold where Rust is ahead. Before this work (the old harness, which timed the
+drivers' formatting with the ports, at 30 or 10 rounds) Rust trailed on
+`cmdline` (94.5/102.0 ms against 52.5/60.3), `paths`, `trace`, `mapping`
+and on the fastest rounds of `hash`, `dispatch`, `thread` and
+`concurrent`. What changed:
 
-The `strings` gap is libc++'s `wstring_convert`, which allocates a converter
-per call and throws on bad input; `hash` and `dispatch` are slower in Rust
-at the fastest round, within noise at the median.
+- **Fair benchmarks** (see *Running it*): the drivers no longer time their
+  own input generation and formatting.
+- `cmdline`: libc++ keeps strings of up to 22 bytes inline and a Rust
+  `String` always allocates, which made copies of a command line twice as
+  slow; command lines now hold `SmallString`s, drop upstream's never
+  iterated index map (lookups search the options from the back), and move
+  rather than copy what the builder made.
+- `hash`: CityHash's words are read at constant offsets from fixed-size
+  arrays, without bounds checks.
+- `dispatch`/`queues`/`thread`: the popped task's closure is moved out
+  instead of cloned (an atomic increment and decrement per task).
+- `paths`: `getcwd`/`readlink` into PATH_MAX stack buffers, one copy out.
+- `trace`: the handler and micros source are atomics (they were behind
+  read-write locks), argument and flow-id lists live on the stack, values are
+  `SmallString`s formatted through a stack buffer.
+- `concurrent`: std's `Condvar` makes a futex call on every `notify_one`,
+  where `pthread_cond_signal` makes none without a waiter. The loop now
+  notifies only when a worker waits that no earlier notification will wake:
+  futex calls in 20 rounds fell from about 550 000 to 60 000–100 000, which
+  is upstream's range (74 000–101 000).
+- `time`: `FromSecondsF` converts with `cvttsd2si`, as upstream's compiled
+  code does, instead of Rust's saturating cast; the per-case instruction
+  count is now upstream's to 0.4% (3.42 M against 3.41 M for 20000 cases).
 
-The file-system benchmarks are system calls (each `WriteAtomically` is an
-fsync, `mapping` writes up to 9000 bytes and maps them); the port makes the
-same calls, and is faster at `file` where upstream builds strings through
-`std::stringstream`. `paths`, `cmdline` and `trace` are dominated by the
-drivers' formatting of every byte as it is printed, which is slower in
-the Rust driver (`format!` per escaped byte); `cmdline` also hashes option
-names with SipHash where libc++ uses CityHash.
+Where Rust is not ahead in the table:
+
+- `time` fastest (+1.5%) and `hash` median (+0.6%): within the run-to-run
+  spread on this machine; Callgrind counts the same work as upstream's
+  (`time`) or less (`hash`). With the recommended profile below `hash` is
+  ahead on both (902/1070 µs against 1038/1195) and `time` stays level
+  within the spread (369/430 µs against 326/428: that fastest C++ round is
+  25% under its median, an outlier of the load rather than of the code,
+  whose instruction counts match).
+- `loop` median, `thread` fastest, `file`, `mapping` fastest: these make the
+  same system calls as upstream (`strace -c`: 20 001 `timerfd_settime` in
+  both for `loop`; 20 004 against 20 031 and 3 344 against 35 900 futex
+  calls for `thread`; the same `openat`/`fsync`/`mmap` counts for `file`
+  and `mapping`) and fewer user-space instructions (`thread`: 19.0 M against
+  37.6 M), and they are ahead in other runs (`file` 3.8/9.0 ms against
+  3.4/12.1, `mapping` 263/373 ms against 369/406 earlier the same day). The
+  difference is the scheduler and the disk.
+- `concurrent`: every task the benchmark posts is an `Arc` closure (the
+  port's `closure` type), allocated on the posting thread and freed on a
+  worker. glibc's allocator pays for that cross-thread traffic (malloc,
+  free and `malloc_consolidate` are 40% of the Rust benchmark's
+  instructions), where libc++'s `std::function` keeps a small capture inline
+  and allocates nothing. The loop's own work is now upstream's; matching
+  the rest needs a closure type with inline storage, which means
+  type-erasing captures with `unsafe` and touches every API that takes a
+  closure.
+
+### Binary size
+
+The driver binary (`fml_dump`, the oracle and benchmarks over each side) and
+the ported code alone, in bytes:
+
+| | C++ as the oracle builds it (libc++ shared) | C++, libc++ linked in | Rust, workspace profile | Rust, recommended profile |
+|---|---|---|---|---|
+| `fml_dump` unstripped | 634 056 | 1 749 072 | 1 432 816 | **1 034 600** |
+| `fml_dump` stripped | 454 400 | 1 262 264 | 1 103 848 | **876 328** |
+| ported code: text + data + bss | 168 824 (42 objects) | | 202 911 | **162 511** |
+| ported code: object file(s) | 604 560 (667 082 as `.a`) | | 571 248 | **424 456** |
+
+The C++ driver as the oracle builds it is smaller only because libc++
+(`libc++.so.1`, `libc++abi.so.1`, `libunwind.so.1`) stays outside it; Rust
+links its standard library in. Linked the same way, with libc++ inside, the
+C++ binary is larger than either Rust one, unstripped and stripped. The
+ported code is measured as the 42 upstream sources compiled to objects at
+`-O2` against the crate compiled to one object (`cargo rustc --lib --
+--emit=obj`). The workspace profile (`opt-level = 3`, 16 codegen units,
+unwinding) makes more code than `-O2`. The **recommended profile**, which
+matches `-O2`, is
+
+```toml
+[profile.release]
+opt-level = 2
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+```
+
+in the workspace's `Cargo.toml` (`experiments/flutter/Cargo.toml`, shared
+with the other crates there); the oracle passes under it (nothing in the
+port catches a panic; FATAL and failed checks abort either way), and its
+run of the table above is no slower: ahead on `queues`, `dispatch`,
+`strings`, `hash`, `thread` fastest, `merger` median, `file` fastest,
+`paths`, `cmdline` and `trace`; behind on `time` (above), `loop`,
+`concurrent` and the fastest `mapping` round, for the reasons above. The
+driver also writes all output through one function (`emit`) instead of
+expanding the lock and the write at each of its several hundred call sites,
+which took 190 KB off it.
+
+## Safety
+
+Every `.rs` file names the upstream file it ports in its first line, or says
+that it is not a port (`lib.rs`, the `mod.rs` files, `small_string.rs`, the
+driver and the tests).
+
+### Unsafe code
+
+`unsafe` appears only where the C library has to be called or a raw pointer
+crosses the API, never to skip a check in the ported logic. Every site has a
+`SAFETY:` comment (or a `# Safety` section) saying which invariant makes it
+sound; `tests/unsafe_audit.rs` fails the build of the test suite when one
+does not, and tests its own checker on a failing sample. The library's sites
+(line numbers as of this table; the unit tests add pthread calls and reads of
+mapped bytes, the driver `errno`, `dlopen` and `raise`):
+
+| File | Lines | What | Why it is needed | Verified by |
+|---|---|---|---|---|
+| `platform/posix/libc.rs` | 73, 135, 188 | a zeroed `struct stat`; the C library declarations; `strerror` | the POSIX calls upstream makes, which `std` has no form of (`openat` relative to a descriptor, `mkdirat`, `fdopendir`, …) | oracle `file`, `mapping`, `native`, `paths`; ASan |
+| `platform/posix/file_posix.rs` | 28 … 337 (18 calls) | `mkdtemp`, `openat`, `mkdirat`, `dup`, `fstat`, `stat`, `ftruncate`, `unlinkat`, `faccessat`, `write`, `fsync`, `renameat`, `fdopendir`/`rewinddir`/`readdir` | upstream's file calls, in upstream's order, so that `errno` and the results match | oracle `file` (errno printed after every call); `file_unittest`; ASan |
+| `platform/posix/mapping_posix.rs` | 46, 60, 95 | `fstat`, `mmap`, `munmap` | `FileMapping` | oracle `mapping` (contents read back, writes through the mapping re-read); `mapping_unittests` under Miri (in-memory mappings); ASan |
+| `mapping.rs` | 25 … 345 | the `unsafe trait Mapping` (pointer covers `get_size()` bytes), its impls, `Send`/`Sync` for mappings that own their bytes, `NonOwnedMapping::new` | upstream hands out raw pointers; the trait states the contract a reader relies on | `mapping_unittests` under Miri; oracle `mapping`; ASan |
+| `platform/posix/native_library_posix.rs`, `native_library.rs` | 18 … 93; 28 … 51 | `dlopen`, `dlsym`, `dlclose`, `dlerror`; `resolve_function` transmuting a symbol to the caller's function type | `NativeLibrary`; the caller names the type, as upstream's template does | oracle `native` (calls `strlen` through it); ASan |
+| `platform/linux/message_loop_linux.rs`, `platform/linux/timerfd.rs` | 46 … 138; 37 … 90 | `epoll_create`/`epoll_ctl`/`epoll_wait`, `timerfd_create`/`timerfd_settime`, `read` | the Linux message loop | oracle `loop`, `merger`, `thread`; TSan and ASan |
+| `unique_fd.rs` | 15, 38, 62 | `close`, `closedir` | `UniqueFD`/`UniqueDir` ownership | oracle `file` (the AT_FDCWD close's EBADF is printed); ASan |
+| `platform/posix/paths_posix.rs`, `platform/linux/paths_linux.rs` | 19; 14 | `getcwd`, `readlink` into PATH_MAX buffers | upstream's calls and limits | `paths_unittests` under Miri; oracle `paths` |
+| `time/time_point.rs` | 125 … 150 | `clock_gettime(CLOCK_MONOTONIC)` (`clock_gettime_nsec_np` on Apple) | the clock libc++'s `steady_clock` reads, which the engine compares with platform timestamps | `time` tests under Miri |
+| `time/time_delta.rs` | 29 | `_mm_cvttsd_si64` (x86-64 only) | `FromSecondsF`/`FromMillisecondsF` convert as upstream's compiled code (`cvttsd2si`) does; the intrinsic needs only SSE2, which the cfg requires | `out_of_range_doubles_convert_as_upstreams_code_does`; `time` tests under Miri |
+| `thread.rs` | 112, 118 | `pthread_setname_np` (Apple only) | thread names; Linux writes `/proc/thread-self/comm` safely | `thread_unittests` |
+| `backtrace.rs` | 34 … 279 | `backtrace`, `signal` | `BacktraceHere` and `InstallCrashHandler` | `backtrace_unittests`; oracle `backtrace` (children killed by each signal) |
+| `trace_event.rs` | 92, 103 | a function pointer loaded back from an `AtomicPtr<()>` | upstream's `std::atomic<TimelineEventHandler>`; a function pointer cannot sit in an atomic otherwise (sizes asserted at compile time; only function pointers are ever stored) | `tests/concurrent_worker_wake.rs` under Miri; oracle `trace` |
+| `small_string.rs` | 68 | `from_utf8_unchecked` on the inline bytes | the inline bytes are always whole copies of `str`s (checked again under `debug_assertions`) | `small_string` tests and `command_line_unittest` under Miri; oracle `cmdline`, `trace` |
+
+### Checks
+
+Run 2026-10-30 with rustc 1.101.0-nightly (2026-10-29) for Miri, the
+sanitizers and coverage:
+
+- **Miri** (`cargo +nightly miri test -p fml --lib -- <module>`,
+  `MIRIFLAGS=-Zmiri-disable-isolation`): 144 unit tests in 22 modules pass
+  with no undefined behaviour reported — `ascii_trie`, `base32`, `closure`,
+  `command_line`, `container`, `cpu_affinity` (all but `file_parsing`),
+  `endianness`, `hash_combine`, `hex_codec`, `math`, the task queues and
+  their merge/unmerge tests, `memory::ref_counted`, `memory::weak_ptr` (all
+  but the task-runner-affine test), `safe_math`, `small_string`,
+  `string_conversion`, the `synchronization` tests (threads, condition
+  variables, semaphores), `task_source`, the `time` tests, `paths`
+  (`getcwd`, `readlink`) and `mapping` — and `tests/concurrent_worker_wake.rs`
+  (the worker threads and the trace handler loaded from its atomic). Miri
+  cannot run the rest: they call `epoll_create` (every message loop, so the
+  loop, thread, merger, task-runner and checker tests), `mkdtemp` (the file
+  tests), `backtrace`, or spawn a process (the logging death tests). Those
+  run under the sanitizers instead.
+- **AddressSanitizer** (`RUSTFLAGS=-Zsanitizer=address cargo +nightly test
+  -Zbuild-std`, debug): all 211 unit tests pass, and the oracle's suites
+  (16 seeds for every suite) match except `native`, where ASan's own
+  `strlen` interceptor makes the driver's `strlen` and the one `dlsym`
+  returns differ ("same-strlen 0"): an artefact of the instrumentation, not
+  of the port. No ASan report.
+- **ThreadSanitizer** (`-Zsanitizer=thread`, std rebuilt, `halt_on_error=1`):
+  all 211 unit tests, `tests/concurrent_worker_wake.rs`, and the oracle's
+  threaded suites (`queues`, `loop`, `merger`, `thread`, `trace`, `logging`;
+  2 seeds × 100 cases, whose stderr would carry any report) pass with no
+  data race reported.
+- **Coverage** (`-C instrument-coverage -Zcoverage-options=branch`, the unit
+  tests, the two test binaries and the full oracle, merged; the ported files
+  only, not the tests or the driver): **87.6% of lines** (3816 of 4355),
+  **86.4% of branches** (603 of 698), 85.0% of functions, 85.7% of regions.
+  Fully covered: `ascii_trie`, `container`, `cpu_affinity` (lines),
+  `hex_codec`, `log_settings`, `paths_posix`, `task_runner_util`,
+  `task_source`, `time_delta`, `unique_fd`, `count_down_latch`. The least
+  covered are code the engine reaches and the oracle does not drive:
+  `make_copyable` (0 of 17), `atomic_object` (0 of 11), `thread_checker`
+  (8 of 26), `task_queue_id` (9 of 18), `eintr_wrapper` (10 of 19),
+  `unique_object` (33 of 55), `sync_switch` (33 of 54), `safe_math` (22 of
+  32), `weak_ptr` (82 of 113), `ref_ptr` (47 of 63), `backtrace` (129 of
+  168). (That run found `frames_are_symbolized` failing: whether the port's
+  `Backtrace` helper was inlined, and so which frames `BacktraceHere` left
+  out, depended on the build. It is now always inlined, as upstream's is at
+  `-O2`.)
 
 ## Not ported yet
 
