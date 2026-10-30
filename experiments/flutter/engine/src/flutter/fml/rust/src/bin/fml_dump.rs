@@ -100,10 +100,16 @@ static QUIET: AtomicBool = AtomicBool::new(false);
 static SW_DEPTH: AtomicUsize = AtomicUsize::new(1);
 static SW_TOTAL_NS: AtomicU64 = AtomicU64::new(0);
 static SW_START_NS: AtomicU64 = AtomicU64::new(0);
-static SW_BASE: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
 
+/// `std::chrono::steady_clock::now()` as libc++ reads it: one
+/// clock_gettime(CLOCK_MONOTONIC), in nanoseconds.
 fn sw_now_ns() -> u64 {
-    SW_BASE.get_or_init(std::time::Instant::now).elapsed().as_nanos() as u64
+    let mut ts = fml::time::time_delta::timespec::default();
+    // SAFETY: clock_gettime writes one `struct timespec`, which `ts` is
+    // (`#[repr(C)]`, two 64-bit fields on the targets this driver builds
+    // for); CLOCK_MONOTONIC (1) is always available on Linux.
+    unsafe { c_clock_gettime(1, &mut ts) };
+    (ts.tv_sec as u64).wrapping_mul(1_000_000_000).wrapping_add(ts.tv_nsec as u64)
 }
 
 fn sw_reset() {
@@ -987,14 +993,16 @@ fn bench(name: &str, iterations: i32) {
         rounds.push(SW_TOTAL_NS.load(Relaxed) as f64 / 1e3);
     }
     rounds.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    eprintln!(
-        "bench {name} fastest {:.1} us median {:.1} us slowest {:.1} us peak_rss {} KiB check {:016x}",
+    // One write, as the C++ driver's fprintf makes (stderr is unbuffered).
+    let report = format!(
+        "bench {name} fastest {:.1} us median {:.1} us slowest {:.1} us peak_rss {} KiB check {:016x}\n",
         rounds[0],
         rounds[rounds.len() / 2],
         rounds[rounds.len() - 1],
         peak_rss_kib(),
         check
     );
+    let _ = std::io::stderr().write_all(report.as_bytes());
 }
 
 // The suites that call cheap functions (time, strings, hash, paths,
@@ -2573,7 +2581,7 @@ use fml::file::{FilePermission, ScopedTemporaryDirectory};
 use fml::mapping::{DataMapping, FileMapping, MallocMapping, Mapping, NonOwnedMapping, Protection};
 use fml::unique_fd::UniqueFD;
 
-// SAFETY: declarations only, each matching its prototype in <errno.h>, <dlfcn.h> and <signal.h>
+// SAFETY: declarations only, each matching its prototype in <errno.h>, <dlfcn.h>, <signal.h>, <sys/stat.h> and <time.h>
 // for the LP64 Linux/Apple targets this crate builds for; every call
 // below is in its own unsafe block that says why it is sound.
 unsafe extern "C" {
@@ -2582,6 +2590,10 @@ unsafe extern "C" {
     fn dlclose(handle: *mut std::ffi::c_void) -> i32;
     #[link_name = "raise"]
     fn c_raise(sig: i32) -> i32;
+    #[link_name = "chmod"]
+    fn c_chmod(path: *const std::os::raw::c_char, mode: u32) -> i32;
+    #[link_name = "clock_gettime"]
+    fn c_clock_gettime(clock: i32, ts: *mut fml::time::time_delta::timespec) -> i32;
 }
 
 /// `errno = value`, as the C++ driver clears it before a call.
@@ -2650,26 +2662,82 @@ const K_FILE_NAMES: [&[u8]; 12] = [
     b"a.temp",
 ];
 
-fn gen_rel_path(r: &mut Rng) -> Vec<u8> {
+/// A path as the C++ driver's `std::string` holds it: up to 22 bytes inline
+/// (libc++'s short-string capacity), longer ones on the heap. The suite
+/// drops each generated path with the clock running, as the C++ one
+/// destroys its strings, so a `Vec` here would add a free per path that the
+/// C++ driver does not make.
+enum ShortBytes {
+    Inline(u8, [u8; 22]),
+    Heap(Vec<u8>),
+}
+
+impl ShortBytes {
+    fn new() -> ShortBytes {
+        ShortBytes::Inline(0, [0; 22])
+    }
+
+    fn from_slice(s: &[u8]) -> ShortBytes {
+        let mut out = ShortBytes::new();
+        out.extend_from_slice(s);
+        out
+    }
+
+    fn extend_from_slice(&mut self, s: &[u8]) {
+        match self {
+            ShortBytes::Inline(len, buf) => {
+                let n = *len as usize;
+                if n + s.len() <= buf.len() {
+                    buf[n..n + s.len()].copy_from_slice(s);
+                    *len += s.len() as u8;
+                } else {
+                    let mut v = Vec::with_capacity(n + s.len());
+                    v.extend_from_slice(&buf[..n]);
+                    v.extend_from_slice(s);
+                    *self = ShortBytes::Heap(v);
+                }
+            }
+            ShortBytes::Heap(v) => v.extend_from_slice(s),
+        }
+    }
+}
+
+impl std::ops::Deref for ShortBytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        match self {
+            ShortBytes::Inline(len, buf) => &buf[..*len as usize],
+            ShortBytes::Heap(v) => v,
+        }
+    }
+}
+
+impl AsRef<[u8]> for ShortBytes {
+    fn as_ref(&self) -> &[u8] {
+        self
+    }
+}
+
+fn gen_rel_path(r: &mut Rng) -> ShortBytes {
     untimed(|| gen_rel_path_untimed(r))
 }
 
-fn gen_rel_path_untimed(r: &mut Rng) -> Vec<u8> {
+fn gen_rel_path_untimed(r: &mut Rng) -> ShortBytes {
     match r.below(12) {
-        0 => vec![b'n'; 256],
+        0 => ShortBytes::Heap(vec![b'n'; 256]),
         1 | 2 => {
-            let mut p = Vec::new();
+            let mut p = ShortBytes::new();
             let n = 2 + r.below(2);
             for i in 0..n {
                 if i != 0 {
-                    p.push(b'/');
+                    p.extend_from_slice(b"/");
                 }
                 p.extend_from_slice(K_FILE_NAMES[r.below(4) as usize]);
             }
             p
         }
-        3 => b"a/./b".to_vec(),
-        _ => K_FILE_NAMES[r.below(12) as usize].to_vec(),
+        3 => ShortBytes::from_slice(b"a/./b"),
+        _ => ShortBytes::from_slice(K_FILE_NAMES[r.below(12) as usize]),
     }
 }
 
@@ -2704,7 +2772,11 @@ fn base(c: &FileCtx, b: usize) -> &UniqueFD {
 }
 
 fn abs_path(c: &FileCtx, rel: &[u8]) -> Vec<u8> {
-    let mut p = c.dir.path().as_bytes().to_vec();
+    // One allocation of the final size, as `path() + "/" + rel` makes in
+    // libc++ (whose temporary is moved into, and reserves).
+    let dir = c.dir.path().as_bytes();
+    let mut p = Vec::with_capacity(dir.len() + 1 + rel.len());
+    p.extend_from_slice(dir);
     p.push(b'/');
     p.extend_from_slice(rel);
     p
@@ -2722,19 +2794,43 @@ fn printing_visit(dir: &UniqueFD, recursive: bool, stop: bool, stop_at: &[u8]) -
     }
 }
 
-fn os_path(p: &[u8]) -> &std::path::Path {
-    use std::os::unix::ffi::OsStrExt;
-    std::path::Path::new(std::ffi::OsStr::from_bytes(p))
+/// Runs `f` on `path` up to its first NUL as a C string, in a stack buffer
+/// as `std::string::c_str()` gives the C++ driver one without copying.
+fn with_c_path<T>(path: &[u8], f: impl FnOnce(*const std::os::raw::c_char) -> T) -> T {
+    let end = path.iter().position(|&b| b == 0).unwrap_or(path.len());
+    let mut buf = [0u8; 1024];
+    if end < buf.len() {
+        buf[..end].copy_from_slice(&path[..end]);
+        f(buf.as_ptr().cast())
+    } else {
+        let c = std::ffi::CString::new(&path[..end]).unwrap();
+        f(c.as_ptr())
+    }
 }
 
 /// `::chmod(path, mode)`: the return code and errno.
 fn chmod(path: &[u8], mode: u32) -> (i32, i32) {
-    use std::os::unix::fs::PermissionsExt;
-    let end = path.iter().position(|&b| b == 0).unwrap_or(path.len());
-    match std::fs::set_permissions(os_path(&path[..end]), std::fs::Permissions::from_mode(mode)) {
-        Ok(()) => (0, errno()),
-        Err(e) => (-1, e.raw_os_error().unwrap_or(0)),
-    }
+    // SAFETY: `with_c_path` passes a NUL-terminated string that outlives the
+    // call.
+    let rc = with_c_path(path, |p| unsafe { c_chmod(p, mode) });
+    (rc, errno())
+}
+
+/// `::stat(path, &st) == 0 && S_ISDIR(st.st_mode)`.
+fn stat_is_dir(path: &[u8]) -> bool {
+    use fml::platform::posix::libc;
+    let mut st = libc::stat::zeroed();
+    // SAFETY: a NUL-terminated path that outlives the call, and a `struct
+    // stat` laid out as the C library's for `stat` to fill.
+    let rc = with_c_path(path, |p| unsafe { libc::stat_path(p, &mut st) });
+    rc == 0 && libc::s_isdir(st.st_mode as u32)
+}
+
+/// `::access(path, F_OK)`.
+fn access_f_ok(path: &[u8]) -> i32 {
+    use fml::platform::posix::libc;
+    // SAFETY: a NUL-terminated path that outlives the call.
+    with_c_path(path, |p| unsafe { libc::faccessat(libc::AT_FDCWD, p, libc::F_OK, 0) })
 }
 
 fn file_op(c: &mut FileCtx, r: &mut Rng, depth: i32) {
@@ -2932,7 +3028,7 @@ fn file_op(c: &mut FileCtx, r: &mut Rng, depth: i32) {
             let abs = abs_path(c, &path);
             set_errno(0);
             let (rc, e) = chmod(&abs, mode);
-            let dir = rc == 0 && std::fs::metadata(os_path(&abs)).map(|m| m.is_dir()).unwrap_or(false);
+            let dir = rc == 0 && stat_is_dir(&abs);
             p!("  chmod {} {:o} -> {} errno {} dir {}", quoted(&path), mode, rc, e, dir as i32);
             if dir {
                 if depth == 0 {
@@ -2979,7 +3075,7 @@ fn suite_file(r: &mut Rng, cases: i32) {
     p!("");
     make_tree_writable(c.dir.fd());
     drop(c);
-    p!("removed {}", !std::path::Path::new(&root).exists() as i32);
+    p!("removed {}", (access_f_ok(root.as_bytes()) != 0) as i32);
 }
 
 // ----------------------------------------------------------- mapping ------
