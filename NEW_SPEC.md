@@ -4435,7 +4435,10 @@ final bytes = await DV.FileStorage.get("avatar.png");
 await DV.FileStorage.delete("avatar.png");
 ```
 
-Streams, designed and not built:
+Streams, all or nothing: a stream that fails part way leaves what the key held
+before, and `getStream` refuses a missing key before any byte is sent. The
+local adapter streams through a partial file renamed over the target; the
+bucket adapters do not stream yet, and collect the object before putting it.
 ```dart
 await DV.FileStorage.putStream("avatar.png", bytesStream);
 final bytesStream = await DV.FileStorage.getStream("avatar.png");

@@ -145,7 +145,9 @@ Widget _docsStoragePage(BuildContext context) => const DocsArticle(
           title: 'Status',
           children: <Widget>[
             DocsStatus('File Storage', missing: <String>[
-              'No putStream or getStream, so a file is read and written whole.',
+              'putStream and getStream stream on the device disk and the '
+                  'local adapter; the S3, Azure, GCS and browser adapters '
+                  'still hold the whole object in memory.',
             ]),
           ],
         ),
