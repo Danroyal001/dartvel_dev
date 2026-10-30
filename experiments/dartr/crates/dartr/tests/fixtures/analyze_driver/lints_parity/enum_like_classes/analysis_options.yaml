@@ -1,0 +1,4 @@
+linter:
+  rules:
+    - no_default_cases
+    - exhaustive_cases

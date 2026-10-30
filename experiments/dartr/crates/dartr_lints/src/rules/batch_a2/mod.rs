@@ -32,7 +32,7 @@ mod diagnostic_describe_all_properties;
 pub(crate) mod discarded_futures;
 mod do_not_use_environment;
 mod erase_dart_type_extension_types;
-mod exhaustive_cases;
+pub(crate) mod exhaustive_cases;
 mod hash_and_equals;
 mod helpers;
 mod implementation_imports;
