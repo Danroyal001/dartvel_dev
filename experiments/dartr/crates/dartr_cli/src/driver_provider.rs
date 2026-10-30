@@ -1677,6 +1677,8 @@ where
     // The requested files of each library (defining unit).
     let mut libraries: IndexMap<FileId, Vec<FileId>> = IndexMap::new();
     let mut requested: HashMap<FileId, &AnalyzedFile> = HashMap::new();
+    // The part files without a library (Dart `kind.library == null`).
+    let mut orphan_parts: Vec<(&AnalyzedFile, FileId)> = Vec::new();
     for (file, &id) in files.iter().zip(&ids) {
         if !driver.fs.file(id).exists() {
             // Like the parse-only provider: no result for a file that
@@ -1688,93 +1690,125 @@ where
                 libraries.entry(library).or_default().push(id);
                 requested.insert(id, file);
             }
-            None => outcomes.push(Outcome::Fallback(file.clone())),
+            None => orphan_parts.push((file, id)),
         }
     }
-    let library_ids: Vec<FileId> = libraries.keys().copied().collect();
-    let t_before_link = t0.elapsed();
-    driver.link_libraries(&library_ids);
-    let t_link = t0.elapsed() - t_before_link;
-
-    // The unignorable codes of each library: the library analyzer keeps
-    // them in its ignore filtering, like `finish_file` does.
-    let unignorable: Vec<Vec<String>> = library_ids
-        .iter()
-        .map(|&l| {
-            let mut names: Vec<String> = options
-                .for_path(&driver.fs.file(l).path)
-                .0
-                .unignorable_names
-                .iter()
-                .cloned()
-                .collect();
-            names.sort();
-            names
-        })
-        .collect();
-    // The rules that need resolution run on the resolved units (Dart
-    // `_computeLints`); the parse-only rules keep running on the parsed units.
-    let parsed_rules = dartr_lints::rules::parsed_rules();
-    let jobs: Vec<dartr_driver::analysis::LintJob<'_>> = library_ids
-        .iter()
-        .zip(&unignorable)
-        .map(|(&l, names)| {
-            let path = &driver.fs.file(l).path;
-            let resolved_rules = options
-                .for_path(path)
-                .0
-                .lint_rules
-                .iter()
-                .filter(|rule| !parsed_rules.contains(rule))
-                .map(|rule| rule.to_string())
-                .collect();
-            (l, options.for_path(path).1, &names[..], resolved_rules)
-        })
-        .collect();
-    let mut pkg_cache = dartr_lints::LintPackageCache::default();
-    let pkg_infos: HashMap<FileId, Arc<dartr_lints::LintPackageInfo>> = library_ids
-        .iter()
-        .map(|&l| {
-            let path = &driver.fs.file(l).path;
-            (l, pkg_cache.for_defining_path(path))
-        })
-        .collect();
-    let world_and_tp = if index_fn.is_some() || !priority_files.is_empty() {
-        let world = driver.state.world.clone();
-        let tp = dartr_link::types_builder::world_type_provider(&world);
-        Some((world, tp))
-    } else {
-        None
-    };
-    let requested = &requested;
-    let libraries = &libraries;
-    let pkg_infos = &pkg_infos;
-    let world_and_tp = world_and_tp.as_ref();
-    let t_before_resolve = t0.elapsed();
-    let analyzed = driver.analyze_libraries_with_lints(&jobs, |library, units, result, lints| {
-        library_outcomes(
-            context,
-            options,
-            &libraries[&library],
-            requested,
-            units,
-            result,
-            lints,
-            pkg_infos.get(&library).map(|p| &**p),
-            priority_files,
-            world_and_tp,
-            index_fn,
-        )
-    });
-    let t_resolve = t0.elapsed() - t_before_resolve;
     let mut priority_resolved = Vec::new();
     let mut indexed = Vec::new();
-    for (lib_outcomes, prio_lib, unit_indexes) in analyzed {
-        outcomes.extend(lib_outcomes);
-        if let Some(p) = prio_lib {
-            priority_resolved.push(p);
+    let mut t_link = std::time::Duration::ZERO;
+    let mut t_resolve = std::time::Duration::ZERO;
+    let mut parts_as_libraries: Vec<FileId> = Vec::new();
+    // Dart `AnalysisDriver._analyzeFile` analyzes a part file without a
+    // library as a library of its own (`kind.library ?? kind.asLibrary`).
+    // `library_or_as_library` makes the part a library in place, where Dart
+    // creates a separate `LibraryFileKind` and keeps the part's kind, so the
+    // orphan parts run in a second phase, after the libraries that may import
+    // or include them (and see a part) are analyzed.
+    for phase in 0..2 {
+        if phase == 1 {
+            if orphan_parts.is_empty() {
+                break;
+            }
+            libraries.clear();
+            requested.clear();
+            for (file, id) in orphan_parts.drain(..) {
+                let library = driver.fs.library_or_as_library(id);
+                parts_as_libraries.push(id);
+                libraries.entry(library).or_default().push(id);
+                requested.insert(id, file);
+            }
+            driver.fs.discover();
         }
-        indexed.extend(unit_indexes);
+        let library_ids: Vec<FileId> = libraries.keys().copied().collect();
+        let t_before_link = t0.elapsed();
+        driver.link_libraries(&library_ids);
+        t_link += t0.elapsed() - t_before_link;
+
+        // The unignorable codes of each library: the library analyzer keeps
+        // them in its ignore filtering, like `finish_file` does.
+        let unignorable: Vec<Vec<String>> = library_ids
+            .iter()
+            .map(|&l| {
+                let mut names: Vec<String> = options
+                    .for_path(&driver.fs.file(l).path)
+                    .0
+                    .unignorable_names
+                    .iter()
+                    .cloned()
+                    .collect();
+                names.sort();
+                names
+            })
+            .collect();
+        // The rules that need resolution run on the resolved units (Dart
+        // `_computeLints`); the parse-only rules keep running on the parsed units.
+        let parsed_rules = dartr_lints::rules::parsed_rules();
+        let jobs: Vec<dartr_driver::analysis::LintJob<'_>> = library_ids
+            .iter()
+            .zip(&unignorable)
+            .map(|(&l, names)| {
+                let path = &driver.fs.file(l).path;
+                let resolved_rules = options
+                    .for_path(path)
+                    .0
+                    .lint_rules
+                    .iter()
+                    .filter(|rule| !parsed_rules.contains(rule))
+                    .map(|rule| rule.to_string())
+                    .collect();
+                (l, options.for_path(path).1, &names[..], resolved_rules)
+            })
+            .collect();
+        let mut pkg_cache = dartr_lints::LintPackageCache::default();
+        let pkg_infos: HashMap<FileId, Arc<dartr_lints::LintPackageInfo>> = library_ids
+            .iter()
+            .map(|&l| {
+                let path = &driver.fs.file(l).path;
+                (l, pkg_cache.for_defining_path(path))
+            })
+            .collect();
+        let world_and_tp = if index_fn.is_some() || !priority_files.is_empty() {
+            let world = driver.state.world.clone();
+            let tp = dartr_link::types_builder::world_type_provider(&world);
+            Some((world, tp))
+        } else {
+            None
+        };
+        let requested = &requested;
+        let libraries = &libraries;
+        let pkg_infos = &pkg_infos;
+        let world_and_tp = world_and_tp.as_ref();
+        let t_before_resolve = t0.elapsed();
+        let analyzed =
+            driver.analyze_libraries_with_lints(&jobs, |library, units, result, lints| {
+                library_outcomes(
+                    context,
+                    options,
+                    &libraries[&library],
+                    requested,
+                    units,
+                    result,
+                    lints,
+                    pkg_infos.get(&library).map(|p| &**p),
+                    priority_files,
+                    world_and_tp,
+                    index_fn,
+                )
+            });
+        t_resolve += t0.elapsed() - t_before_resolve;
+        for (lib_outcomes, prio_lib, unit_indexes) in analyzed {
+            outcomes.extend(lib_outcomes);
+            if let Some(p) = prio_lib {
+                priority_resolved.push(p);
+            }
+            indexed.extend(unit_indexes);
+        }
+    }
+    // Give the parts their own kind back (Dart `FileState.refresh`), so that a
+    // driver that lives on (the language server) sees them as parts again,
+    // as Dart's file states do.
+    for id in parts_as_libraries {
+        driver.fs.change_file(id);
     }
     (
         outcomes,
