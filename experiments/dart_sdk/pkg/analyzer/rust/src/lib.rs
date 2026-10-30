@@ -90,6 +90,7 @@ pub mod src {
             pub mod greatest_lower_bound;
             pub mod least_upper_bound;
             pub mod type_constraint_gatherer;
+            pub mod generic_inferrer;
         }
         pub mod resolver {
             pub mod scope;
