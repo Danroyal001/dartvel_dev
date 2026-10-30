@@ -1152,7 +1152,8 @@ impl AstVisitor for Contributor<'_, '_> {
     }
 
     fn visit_prefixed_identifier(&mut self, ast: &Ast, node: Id<PrefixedIdentifier>) {
-        let element = self.element(node);
+        // Dart `PrefixedIdentifier.element` is `identifier.element`.
+        let element = self.element(ast[node].identifier);
         let prefix = self.element(ast[node].prefix);
         if let Some(e) = element
             && prefix.is_some_and(|p| p.tag() == Tag::Prefix)
