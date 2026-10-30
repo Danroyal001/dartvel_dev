@@ -67,12 +67,14 @@ impl<T: ?Sized> StdHash for *const T {
 }
 
 impl StdHash for str {
+    #[inline]
     fn std_hash(&self) -> usize {
         murmur2_or_cityhash(self.as_bytes())
     }
 }
 
 impl StdHash for String {
+    #[inline]
     fn std_hash(&self) -> usize {
         murmur2_or_cityhash(self.as_bytes())
     }
@@ -83,6 +85,7 @@ impl StdHash for String {
 pub struct ByteString<'a>(pub &'a [u8]);
 
 impl StdHash for ByteString<'_> {
+    #[inline]
     fn std_hash(&self) -> usize {
         murmur2_or_cityhash(self.0)
     }
@@ -95,28 +98,38 @@ const K1: u64 = 0xb492b66fbe98f273;
 const K2: u64 = 0x9ae16a3b2f90404f;
 const K3: u64 = 0xc949d7c7509e6557;
 
-fn loadword(s: &[u8], at: usize) -> u64 {
-    u64::from_ne_bytes(s[at..at + 8].try_into().unwrap())
+// Words are read from fixed-size arrays at constant offsets (the head and
+// tail of the string, and each 64-byte block), so that no read needs a bounds
+// check: the length class a function serves already guarantees the bytes.
+
+#[inline(always)]
+fn word<const N: usize>(b: &[u8; N], at: usize) -> u64 {
+    u64::from_ne_bytes(*b[at..].first_chunk::<8>().unwrap())
 }
 
-fn loadword32(s: &[u8], at: usize) -> u32 {
-    u32::from_ne_bytes(s[at..at + 4].try_into().unwrap())
+#[inline(always)]
+fn word32<const N: usize>(b: &[u8; N], at: usize) -> u32 {
+    u32::from_ne_bytes(*b[at..].first_chunk::<4>().unwrap())
 }
 
+#[inline(always)]
 fn rotate(val: u64, shift: u32) -> u64 {
     if shift == 0 { val } else { val.rotate_right(shift) }
 }
 
+#[inline(always)]
 fn rotate_by_at_least_1(val: u64, shift: u32) -> u64 {
     // libc++ shifts a 64-bit value by `shift` and `64 - shift`; callers pass
     // 9..=16, so this is a rotation.
     val.rotate_right(shift)
 }
 
+#[inline(always)]
 fn shift_mix(val: u64) -> u64 {
     val ^ (val >> 47)
 }
 
+#[inline(always)]
 fn hash_len_16(u: u64, v: u64) -> u64 {
     const MUL: u64 = 0x9ddfea08eb382d69;
     let mut a = (u ^ v).wrapping_mul(MUL);
@@ -127,24 +140,23 @@ fn hash_len_16(u: u64, v: u64) -> u64 {
     b
 }
 
+#[inline(always)]
 fn hash_len_0_to_16(s: &[u8]) -> u64 {
     let len = s.len() as u64;
-    if len > 8 {
-        let a = loadword(s, 0);
-        let b = loadword(s, s.len() - 8);
+    if let (Some(head), Some(tail), true) = (s.first_chunk::<8>(), s.last_chunk::<8>(), len > 8) {
+        let a = word(head, 0);
+        let b = word(tail, 0);
         return hash_len_16(a, rotate_by_at_least_1(b.wrapping_add(len), len as u32)) ^ b;
     }
-    if len >= 4 {
-        let a = loadword32(s, 0);
-        let b = loadword32(s, s.len() - 4);
+    if let (Some(head), Some(tail)) = (s.first_chunk::<4>(), s.last_chunk::<4>()) {
+        let a = word32(head, 0);
+        let b = word32(tail, 0);
         // Without _LIBCPP_ABI_FIX_CITYHASH_IMPLEMENTATION (the default ABI),
         // `__a << 3` is a 32-bit shift that drops a's top three bits.
         return hash_len_16(len.wrapping_add(a.wrapping_shl(3) as u64), b as u64);
     }
-    if len > 0 {
-        let a = s[0];
+    if let (Some(&a), Some(&c)) = (s.first(), s.last()) {
         let b = s[s.len() >> 1];
-        let c = s[s.len() - 1];
         let y: u32 = (a as u32).wrapping_add((b as u32) << 8);
         let z: u32 = (len as u32).wrapping_add((c as u32) << 2);
         return shift_mix((y as u64).wrapping_mul(K2) ^ (z as u64).wrapping_mul(K3))
@@ -153,18 +165,20 @@ fn hash_len_0_to_16(s: &[u8]) -> u64 {
     K2
 }
 
-fn hash_len_17_to_32(s: &[u8]) -> u64 {
-    let len = s.len() as u64;
-    let a = loadword(s, 0).wrapping_mul(K1);
-    let b = loadword(s, 8);
-    let c = loadword(s, s.len() - 8).wrapping_mul(K2);
-    let d = loadword(s, s.len() - 16).wrapping_mul(K0);
+/// 17 to 32 bytes: `head` and `tail` are the first and last 16.
+#[inline(always)]
+fn hash_len_17_to_32(len: u64, head: &[u8; 16], tail: &[u8; 16]) -> u64 {
+    let a = word(head, 0).wrapping_mul(K1);
+    let b = word(head, 8);
+    let c = word(tail, 8).wrapping_mul(K2);
+    let d = word(tail, 0).wrapping_mul(K0);
     hash_len_16(
         rotate(a.wrapping_sub(b), 43).wrapping_add(rotate(c, 30)).wrapping_add(d),
         a.wrapping_add(rotate(b ^ K3, 20)).wrapping_sub(c).wrapping_add(len),
     )
 }
 
+#[inline(always)]
 fn weak_hash_len_32_with_seeds_words(w: u64, x: u64, y: u64, z: u64, mut a: u64, mut b: u64) -> (u64, u64) {
     a = a.wrapping_add(w);
     b = rotate(b.wrapping_add(a).wrapping_add(z), 21);
@@ -175,37 +189,32 @@ fn weak_hash_len_32_with_seeds_words(w: u64, x: u64, y: u64, z: u64, mut a: u64,
     (a.wrapping_add(z), b.wrapping_add(c))
 }
 
-fn weak_hash_len_32_with_seeds(s: &[u8], at: usize, a: u64, b: u64) -> (u64, u64) {
-    weak_hash_len_32_with_seeds_words(
-        loadword(s, at),
-        loadword(s, at + 8),
-        loadword(s, at + 16),
-        loadword(s, at + 24),
-        a,
-        b,
-    )
+/// The 32 bytes of `b` from `at`.
+#[inline(always)]
+fn weak_hash_len_32_with_seeds<const N: usize>(b: &[u8; N], at: usize, x: u64, y: u64) -> (u64, u64) {
+    weak_hash_len_32_with_seeds_words(word(b, at), word(b, at + 8), word(b, at + 16), word(b, at + 24), x, y)
 }
 
-fn hash_len_33_to_64(s: &[u8]) -> u64 {
-    let n = s.len();
-    let len = n as u64;
-    let mut z = loadword(s, 24);
-    let mut a = loadword(s, 0)
-        .wrapping_add(len.wrapping_add(loadword(s, n - 16)).wrapping_mul(K0));
+/// 33 to 64 bytes: `head` and `tail` are the first and last 32.
+#[inline(always)]
+fn hash_len_33_to_64(len: u64, head: &[u8; 32], tail: &[u8; 32]) -> u64 {
+    // In upstream's offsets, s + len - k is tail + 32 - k.
+    let mut z = word(head, 24);
+    let mut a = word(head, 0).wrapping_add(len.wrapping_add(word(tail, 16)).wrapping_mul(K0));
     let mut b = rotate(a.wrapping_add(z), 52);
     let mut c = rotate(a, 37);
-    a = a.wrapping_add(loadword(s, 8));
+    a = a.wrapping_add(word(head, 8));
     c = c.wrapping_add(rotate(a, 7));
-    a = a.wrapping_add(loadword(s, 16));
+    a = a.wrapping_add(word(head, 16));
     let vf = a.wrapping_add(z);
     let vs = b.wrapping_add(rotate(a, 31)).wrapping_add(c);
-    a = loadword(s, 16).wrapping_add(loadword(s, n - 32));
-    z = z.wrapping_add(loadword(s, n - 8));
+    a = word(head, 16).wrapping_add(word(tail, 0));
+    z = z.wrapping_add(word(tail, 24));
     b = rotate(a.wrapping_add(z), 52);
     c = rotate(a, 37);
-    a = a.wrapping_add(loadword(s, n - 24));
+    a = a.wrapping_add(word(tail, 8));
     c = c.wrapping_add(rotate(a, 7));
-    a = a.wrapping_add(loadword(s, n - 16));
+    a = a.wrapping_add(word(tail, 16));
     let wf = a.wrapping_add(z);
     let ws = b.wrapping_add(rotate(a, 31)).wrapping_add(c);
     let r = shift_mix(
@@ -215,53 +224,54 @@ fn hash_len_33_to_64(s: &[u8]) -> u64 {
 }
 
 /// libc++'s `__murmur2_or_cityhash<size_t, 64>`, the string hash.
+#[inline]
 pub fn murmur2_or_cityhash(s: &[u8]) -> usize {
     let n = s.len();
-    if n <= 32 {
-        if n <= 16 {
-            return hash_len_0_to_16(s) as usize;
-        } else {
-            return hash_len_17_to_32(s) as usize;
-        }
-    } else if n <= 64 {
-        return hash_len_33_to_64(s) as usize;
+    let len = n as u64;
+    if n <= 16 {
+        return hash_len_0_to_16(s) as usize;
     }
+    if n <= 32 {
+        let (head, tail) = (s.first_chunk::<16>().unwrap(), s.last_chunk::<16>().unwrap());
+        return hash_len_17_to_32(len, head, tail) as usize;
+    }
+    if n <= 64 {
+        let (head, tail) = (s.first_chunk::<32>().unwrap(), s.last_chunk::<32>().unwrap());
+        return hash_len_33_to_64(len, head, tail) as usize;
+    }
+    murmur2_or_cityhash_long(s) as usize
+}
 
+/// More than 64 bytes. In upstream's offsets, s + len - k is tail + 64 - k.
+#[inline(never)]
+fn murmur2_or_cityhash_long(s: &[u8]) -> u64 {
+    let n = s.len();
+    let tail = s.last_chunk::<64>().unwrap();
     let mut len = n as u64;
-    let mut x = loadword(s, n - 40);
-    let mut y = loadword(s, n - 16).wrapping_add(loadword(s, n - 56));
-    let mut z = hash_len_16(loadword(s, n - 48).wrapping_add(len), loadword(s, n - 24));
-    let mut v = weak_hash_len_32_with_seeds(s, n - 64, len, z);
-    let mut w = weak_hash_len_32_with_seeds(s, n - 32, y.wrapping_add(K1), x);
-    x = x.wrapping_mul(K1).wrapping_add(loadword(s, 0));
+    let mut x = word(tail, 24);
+    let mut y = word(tail, 48).wrapping_add(word(tail, 8));
+    let mut z = hash_len_16(word(tail, 16).wrapping_add(len), word(tail, 40));
+    let mut v = weak_hash_len_32_with_seeds(tail, 0, len, z);
+    let mut w = weak_hash_len_32_with_seeds(tail, 32, y.wrapping_add(K1), x);
+    x = x.wrapping_mul(K1).wrapping_add(word(s.first_chunk::<8>().unwrap(), 0));
 
     len = (len - 1) & !63u64;
-    let mut at = 0usize;
-    loop {
-        x = rotate(x.wrapping_add(y).wrapping_add(v.0).wrapping_add(loadword(s, at + 8)), 37)
+    for block in s[..len as usize].chunks_exact(64) {
+        let block: &[u8; 64] = block.try_into().unwrap();
+        x = rotate(x.wrapping_add(y).wrapping_add(v.0).wrapping_add(word(block, 8)), 37)
             .wrapping_mul(K1);
-        y = rotate(y.wrapping_add(v.1).wrapping_add(loadword(s, at + 48)), 42).wrapping_mul(K1);
+        y = rotate(y.wrapping_add(v.1).wrapping_add(word(block, 48)), 42).wrapping_mul(K1);
         x ^= w.1;
-        y = y.wrapping_add(v.0.wrapping_add(loadword(s, at + 40)));
+        y = y.wrapping_add(v.0.wrapping_add(word(block, 40)));
         z = rotate(z.wrapping_add(w.0), 33).wrapping_mul(K1);
-        v = weak_hash_len_32_with_seeds(s, at, v.1.wrapping_mul(K1), x.wrapping_add(w.0));
-        w = weak_hash_len_32_with_seeds(
-            s,
-            at + 32,
-            z.wrapping_add(w.1),
-            y.wrapping_add(loadword(s, at + 16)),
-        );
+        v = weak_hash_len_32_with_seeds(block, 0, v.1.wrapping_mul(K1), x.wrapping_add(w.0));
+        w = weak_hash_len_32_with_seeds(block, 32, z.wrapping_add(w.1), y.wrapping_add(word(block, 16)));
         std::mem::swap(&mut z, &mut x);
-        at += 64;
-        len -= 64;
-        if len == 0 {
-            break;
-        }
     }
     hash_len_16(
         hash_len_16(v.0, w.0).wrapping_add(shift_mix(y).wrapping_mul(K1)).wrapping_add(z),
         hash_len_16(v.1, w.1).wrapping_add(x),
-    ) as usize
+    )
 }
 
 // --------------------------------------------------------- HashCombine ------
