@@ -16918,12 +16918,19 @@ import cpp 'third_party/engine.cpp'; // compiled into this library
 `.dv` sees the source's `extern "C"` functions and nothing else, under the
 same rules as `import c`: usable only inside `unsafe` or through a safe
 wrapper, reported separately by `dartvel compile`, and outside every safety
-claim. The rest of the C++ is not hidden or dropped: it is compiled and
-linked, and runs as the implementation behind those functions; `.dv` just
-cannot call it. Two mistakes are compile errors, each suggesting an
-`extern "C"` shim: a `.cpp` import that declares no `extern "C"` function at
-all, since nothing in it could be called, and a `.dv` reference to a class,
-template, overload or other non-`extern "C"` name from one. A C++ exception
+claim. `.dv` is the entry point: C++ runs only when a `.dv` call reaches an
+`extern "C"` function, which then uses whatever C++ it is written with.
+C++ that no `extern "C"` function can reach is dropped at link time. The one
+thing that runs without a call is C++ static initialization (constructors of
+global objects, at library load), which C++ libraries rely on; it is allowed,
+and `dartvel compile` lists every static initializer it links.
+
+Names that are not `extern "C"` do not exist for `.dv` tooling: they never
+appear in completion, go-to-definition, hover or lints. Two mistakes are
+compile errors, each suggesting an `extern "C"` shim: a `.cpp` import that
+declares no `extern "C"` function at all, since nothing in it could be
+called, and a `.dv` reference to a class, template, overload or other
+non-`extern "C"` name from one. A C++ exception
 that reaches that boundary aborts with a diagnostic naming the function; it
 never unwinds into `.dv` frames. A C++ library with a
 C API, or with a thin C shim written over it, needs nothing more.
