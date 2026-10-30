@@ -11462,6 +11462,22 @@ class DVTranslationKey {
   String toString() => value;
 }
 
+/// The words Dartvel's own widgets say, as i18n keys.
+///
+/// Framework strings localise and rebrand like everything else an
+/// application says: a catalogue that names one of these keys replaces the
+/// framework's text, and with no catalogue entry [DVI18n.t] reads the English
+/// default in [defaults] rather than the key's name.
+abstract final class DVFrameworkStrings {
+  /// What an empty [DVTable] announces.
+  static const DVTranslationKey tableEmpty = DVTranslationKey('dv.table.empty');
+
+  /// The catalogue default for each framework key, by key.
+  static const Map<String, String> defaults = <String, String>{
+    'dv.table.empty': 'No rows',
+  };
+}
+
 class DVTranslationCatalog {
   final LocaleTag locale;
   final Map<DVTranslationKey, String> messages;
@@ -11734,7 +11750,10 @@ class DVI18n {
     bool strict = false,
   }) {
     final selected = locale ?? _currentLocale;
-    final template = _messages[selected.value]?[key.value];
+    // A framework key falls back to its catalogue default, so a widget that
+    // says something on Dartvel's behalf never renders its key's name.
+    final template = _messages[selected.value]?[key.value] ??
+        DVFrameworkStrings.defaults[key.value];
     if (template == null) {
       if (strict) {
         throw StateError(

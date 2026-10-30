@@ -10,6 +10,8 @@
 /// rendered pixels: what a screen reader is told, and where focus goes.
 library dartvel_flutter.table;
 
+import 'package:dartvel_flutter/dartvel_flutter.dart'
+    show DV, DVFrameworkStrings;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -130,7 +132,7 @@ class DVTable<T> extends StatefulWidget {
     this.rows, {
     super.key,
     required this.columns,
-    this.emptyLabel = 'No rows',
+    this.emptyLabel,
   });
 
   final List<T> rows;
@@ -139,7 +141,11 @@ class DVTable<T> extends StatefulWidget {
   /// Shown instead of an empty rectangle, which is indistinguishable from a
   /// table that failed to load -- for a sighted reader and a screen reader
   /// alike.
-  final String emptyLabel;
+  ///
+  /// Null reads [DVFrameworkStrings.tableEmpty] through `DV.I18n`, so the
+  /// default localises and rebrands from the application's catalogue rather
+  /// than saying "No rows" in every language.
+  final String? emptyLabel;
 
   @override
   State<DVTable<T>> createState() => DVTableState<T>();
@@ -227,6 +233,8 @@ class DVTableState<T> extends State<DVTable<T>> {
   Widget build(BuildContext context) {
     final List<T> rows = _sorted;
     final ThemeData theme = Theme.of(context);
+    final String emptyLabel =
+        widget.emptyLabel ?? DV.I18n.t(DVFrameworkStrings.tableEmpty);
 
     return Focus(
       focusNode: _keyboard,
@@ -294,8 +302,8 @@ class DVTableState<T> extends State<DVTable<T>> {
                 // here and once from the Text under it -- and a screen
                 // reader announces "no rows" twice.
                 excludeSemantics: true,
-                label: widget.emptyLabel,
-                child: Text(widget.emptyLabel),
+                label: emptyLabel,
+                child: Text(emptyLabel),
               ),
             ),
         ],

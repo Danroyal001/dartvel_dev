@@ -15037,13 +15037,13 @@ lib/pages/index.error.dart
 ```
 
 `DVTable` takes an `emptyLabel`, and an empty table announces it once. That
-much is built. What is missing is everything below, and one thing about what
-is built: the default label is the literal string `'No rows'`, so a Dartvel
-application localised into six languages still says `No rows` in all of them.
-Framework strings — `Save`, `Retry`, `No results` — are i18n keys with catalog
-defaults, so they localise and rebrand like everything else the application
-says. A hardcoded English default is a hole in the i18n section's promise, not
-a small nicety.
+much is built. Framework strings — `Save`, `Retry`, `No results` — are i18n
+keys with catalog defaults, so they localise and rebrand like everything else
+the application says. A hardcoded English default is a hole in the i18n
+section's promise, not a small nicety, and the table's default label is no
+longer one: with no `emptyLabel` it reads `DVFrameworkStrings.tableEmpty`
+(`dv.table.empty`) through `DV.I18n`, whose catalog default is `No rows`, so a
+catalog that names the key replaces it in any locale.
 
 ## Errors
 
@@ -15089,8 +15089,8 @@ nobody.
 | `DV-STATE-002` | a page threw and its error boundary caught it | `error` |
 | `DV-STATE-003` | a framework string is a literal rather than an i18n key | `warning` (analyze) |
 
-`DV-STATE-003` is the one with work behind it today, and `emptyLabel` is its
-first finding.
+`DV-STATE-003` is the one with work behind it today; `emptyLabel` was its
+first finding, and is fixed.
 
 ## Deliberately absent
 

@@ -2096,10 +2096,11 @@
       "evidence": [
         "packages/dartvel_cli/lib/src/generators/client_generator.dart",
         "packages/dartvel_flutter/lib/src/table/table.dart",
+        "packages/dartvel_flutter/test/framework_strings_test.dart",
         "sites/dartvel_site/lib/pages/index.loading.dart",
         "sites/dartvel_site/lib/pages/index.error.dart"
       ],
-      "absent": "Built: a page may sit beside <page>.loading.dart and <page>.error.dart companions, which the client generator recognises and wires to the route, and DVTable takes an emptyLabel that an empty table announces once rather than twice. Everything else is designed. There is no page-level error boundary, no generated status pages per code, no skeleton derived from a model's field layout, no offline banner bound to a connectivity signal -- Offline-First Models, which would define that signal, is itself Designed -- and no background-task tray over the typed progress events. The three empty states the section distinguishes (nothing yet, nothing matching, nothing visible to you) are one state in the code, and generated collections take no typed call-to-action slot. DVTable's emptyLabel defaults to the literal 'No rows' rather than an i18n key, so DV-STATE-003 has a finding in the framework's own widget before it has an implementation."
+      "absent": "Built: a page may sit beside <page>.loading.dart and <page>.error.dart companions, which the client generator recognises and wires to the route, and DVTable takes an emptyLabel that an empty table announces once rather than twice. Everything else is designed. There is no page-level error boundary, no generated status pages per code, no skeleton derived from a model's field layout, no offline banner bound to a connectivity signal -- Offline-First Models, which would define that signal, is itself Designed -- and no background-task tray over the typed progress events. The three empty states the section distinguishes (nothing yet, nothing matching, nothing visible to you) are one state in the code, and generated collections take no typed call-to-action slot. DVTable's empty label is the framework string DVFrameworkStrings.tableEmpty, an i18n key whose catalogue default is English, so it localises and rebrands from the application's catalogue; DV-STATE-003, the analyze check for a framework string written as a literal, is unbuilt."
     },
     {
       "section": "Reversible Transactions",
