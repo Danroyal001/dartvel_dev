@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:watcher/watcher.dart';
+import 'package:yaml/yaml.dart';
 
 import '../testing/impacted_tests.dart';
 import '../utils/logger.dart';
@@ -145,6 +146,15 @@ class TestCommand extends Command<void> {
       root: root,
     );
     DartvelTestInvocation run = invocation;
+    // A module's tests are the parent's tests: the whole unit suite runs
+    // every mounted module's own suite after the parent's, under its id. A
+    // narrower run -- another mode, files named, the impacted subset -- is
+    // about the parent's tests and leaves them out.
+    final bool narrowed = forwarded.any((String a) => !a.startsWith('-'));
+    final List<DartvelModuleSuite> modules =
+        mode == 'unit' && !narrowed && argResults?['impacted'] != true
+            ? DartvelModuleSuite.find(root)
+            : const <DartvelModuleSuite>[];
     if (argResults?['impacted'] == true) {
       final List<String> stale = await _impact.staleGenerated(root.path);
       if (stale.isNotEmpty) {
@@ -170,6 +180,9 @@ class TestCommand extends Command<void> {
     }
     if (argResults?['dry-run'] == true) {
       stdout.writeln(run.printable);
+      for (final DartvelModuleSuite suite in modules) {
+        stdout.writeln(suite.describe(root.path));
+      }
       return;
     }
     if (argResults?['watch'] == true) {
@@ -189,6 +202,22 @@ class TestCommand extends Command<void> {
     final code = await process.exitCode;
     if (code != 0) {
       exitCode = code;
+    }
+    for (final DartvelModuleSuite suite in modules) {
+      stdout.writeln('[dartvel] ${suite.describe(root.path)}');
+      final Process moduleRun = await Process.start(
+        suite.executable,
+        <String>['test', ...suite.arguments(run)],
+        workingDirectory: suite.directory,
+      );
+      await stdout.addStream(moduleRun.stdout);
+      await stderr.addStream(moduleRun.stderr);
+      final int moduleCode = await moduleRun.exitCode;
+      if (moduleCode != 0) {
+        // Named, so a failure in a parent with three modules says which.
+        stderr.writeln('[dartvel] module ${suite.id} failed (exit $moduleCode).');
+        exitCode = moduleCode;
+      }
     }
   }
 
@@ -252,6 +281,91 @@ class TestCommand extends Command<void> {
   }
 }
 
+
+/// A mounted module's own test suite, which runs in its parent's.
+///
+/// Read from `dartvel.modules` in the parent's pubspec: a module whose
+/// source is a path on disk with tests under its `test/`. A module fetched
+/// from git or a registry is somebody else's package, tested where it is
+/// published, and a module with no tests has nothing to run.
+class DartvelModuleSuite {
+  const DartvelModuleSuite({
+    required this.id,
+    required this.directory,
+    required this.executable,
+  });
+
+  /// The module's id in the parent, which names its suite.
+  final String id;
+
+  /// The module's package directory.
+  final String directory;
+
+  /// `flutter` for a module that depends on Flutter, `dart` otherwise.
+  final String executable;
+
+  /// What `dartvel test --dry-run` prints, and what a run announces.
+  String describe(String root) =>
+      'module $id: $executable test (in ${p.relative(directory, from: root).replaceAll(r'\', '/')})';
+
+  /// The options of the parent's run that apply to a module's: the
+  /// reporter and per-file isolation, not the parent's paths or shards.
+  List<String> arguments(DartvelTestInvocation parent) {
+    final List<String> out = <String>[];
+    final List<String> args = parent.arguments;
+    for (var i = 0; i < args.length; i++) {
+      if (args[i] == '--reporter' && i + 1 < args.length) {
+        out.addAll(<String>['--reporter', args[i + 1]]);
+      }
+      if (args[i] == '--concurrency' && i + 1 < args.length) {
+        out.addAll(<String>['--concurrency', args[i + 1]]);
+      }
+    }
+    return out;
+  }
+
+  /// The parent at [root]'s module suites, by id.
+  static List<DartvelModuleSuite> find(Directory root) {
+    final Object? doc = _yaml(File(p.join(root.path, 'pubspec.yaml')));
+    final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+    final Object? modules = dartvel is Map ? dartvel['modules'] : null;
+    if (modules is! Map) return const <DartvelModuleSuite>[];
+    final List<DartvelModuleSuite> suites = <DartvelModuleSuite>[];
+    for (final MapEntry<Object?, Object?> entry in modules.entries) {
+      final Object? body = entry.value;
+      final Object? source = body is Map ? body['source'] : null;
+      final Object? path = source is Map ? source['path'] : null;
+      if (path is! String || path.isEmpty) continue;
+      final String directory = p.normalize(p.join(root.path, path));
+      final Directory tests = Directory(p.join(directory, 'test'));
+      if (!tests.existsSync() ||
+          !tests
+              .listSync(recursive: true)
+              .any((FileSystemEntity f) => f is File && f.path.endsWith('_test.dart'))) {
+        continue;
+      }
+      final Object? pubspec = _yaml(File(p.join(directory, 'pubspec.yaml')));
+      final Object? deps = pubspec is Map ? pubspec['dependencies'] : null;
+      final bool flutter = deps is Map && deps.containsKey('flutter');
+      suites.add(DartvelModuleSuite(
+        id: '${entry.key}',
+        directory: directory,
+        executable: flutter ? 'flutter' : 'dart',
+      ));
+    }
+    suites.sort((DartvelModuleSuite a, DartvelModuleSuite b) => a.id.compareTo(b.id));
+    return suites;
+  }
+
+  static Object? _yaml(File file) {
+    if (!file.existsSync()) return null;
+    try {
+      return loadYaml(file.readAsStringSync());
+    } on Object {
+      return null;
+    }
+  }
+}
 
 /// Where a test mode's tests live, and whether there are any.
 ///
