@@ -188,13 +188,21 @@ fn get_symbol_name(symbol: *mut c_void) -> String {
     symbolize(symbol as usize).unwrap_or_else(|| K_K_UNKNOWN_FRAME_NAME.to_string())
 }
 
+// Upstream's `Backtrace` is a static helper that clang inlines into
+// BacktraceHere at -O2, so BacktraceHere's `offset += 2` leaves out
+// BacktraceHere's frame and its caller's. Inlined always here, so that the
+// port leaves out the same frames whatever the build (a separate frame here
+// made the count depend on whether LLVM inlined it: it did with LTO, not
+// without).
+#[inline(always)]
 fn backtrace(symbols: &mut [*mut c_void]) -> c_int {
     // SAFETY: backtrace writes at most `len` pointers into the buffer.
     unsafe { c_backtrace(symbols.as_mut_ptr(), symbols.len() as c_int) }
 }
 
 /// The current thread's stack, one "Frame <i>: <address> <name>" line per
-/// frame, leaving out this function's own frames and `offset` more.
+/// frame, leaving out this function's frame, its caller's (as upstream's
+/// compiled code does, see `backtrace`) and `offset` more.
 #[inline(never)]
 pub fn backtrace_here(mut offset: usize) -> String {
     const K_MAX_FRAMES: usize = 256;

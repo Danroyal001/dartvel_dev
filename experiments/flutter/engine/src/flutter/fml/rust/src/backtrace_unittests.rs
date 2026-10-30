@@ -26,13 +26,27 @@ fn can_gather_backtrace() {
     }
 }
 
-// Not upstream's: frames are named from the symbol tables, so this test's
-// own function shows up by (mangled) name, and every frame's line has
-// upstream's shape.
+// Not upstream's: frames are named from the symbol tables, so a function on
+// the stack shows up by (mangled) name, and every frame's line has
+// upstream's shape. BacktraceHere leaves out its caller's frame (as
+// upstream's compiled code does), so the name looked for is the caller's
+// caller, and both are kept out of line so that the frames exist in every
+// build.
+#[inline(never)]
+fn calls_backtrace_here() -> String {
+    std::hint::black_box(backtrace_here(0))
+}
+
+#[inline(never)]
+fn named_frame_for_the_backtrace() -> String {
+    std::hint::black_box(calls_backtrace_here())
+}
+
 #[test]
 fn frames_are_symbolized() {
-    let trace = backtrace_here(0);
-    assert!(trace.contains("frames_are_symbolized"), "{trace}");
+    let trace = named_frame_for_the_backtrace();
+    assert!(trace.contains("named_frame_for_the_backtrace"), "{trace}");
+    assert!(!trace.contains("calls_backtrace_here"), "{trace}");
     for (i, line) in trace.lines().enumerate() {
         let prefix = format!("Frame {i}: 0x");
         assert!(line.starts_with(&prefix), "{line}");
