@@ -304,8 +304,10 @@ String snake(String name) {
   };
 }
 
-/// The fields of concrete class [c]: its constructor parameters.
+/// The fields of concrete class [c]: its constructor parameters (the
+/// fields it declares, for a class only in the V1 view).
 List<Field> fieldsOf(ClassInfo c) {
+  if (isV1Only(c)) return fieldsOfV1(c);
   List<Field> result = [];
   void addParams(ClassInfo owner, ConstructorDeclaration ctor) {
     for (FormalParameter p in ctor.parameters.parameters) {
@@ -653,8 +655,7 @@ void main(List<String> args) {
       if (!c.isAbstract &&
           c.name.endsWith('Impl') &&
           isAstNode(c) &&
-          !isV1Only(c) &&
-          built.contains(c.name))
+          (isV1Only(c) || built.contains(c.name)))
         c,
   ]..sort((a, b) => a.name.compareTo(b.name));
 
@@ -674,9 +675,10 @@ void main(List<String> args) {
     out.writeln();
 
     impls.writeln('impl ${c.name} {');
+    bool v1Only = isV1Only(c);
     for (var (String getter, String rust) in [
-      ('beginToken', 'begin_token'),
-      ('endToken', 'end_token'),
+      ('beginToken', v1Only ? 'begin_token1' : 'begin_token'),
+      ('endToken', v1Only ? 'end_token1' : 'end_token'),
       ('firstTokenAfterCommentAndMetadata',
           'first_token_after_comment_and_metadata'),
     ]) {
@@ -696,15 +698,59 @@ void main(List<String> args) {
           getter,
         );
         impls.writeln(
-          '    pub fn $rust(&self, ast: &AstStore, tokens: &TokenStore) '
-          '-> TokenId {',
+          rust.endsWith('1')
+              ? '    pub fn $rust(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) '
+                    '-> TokenId {\n        let _ = id;'
+              : '    pub fn $rust(&self, ast: &AstStore, tokens: &TokenStore) '
+                    '-> TokenId {',
         );
         impls.writeln('        $body');
         impls.writeln('    }');
         impls.writeln();
       } on StateError catch (e) {
-        errors.add(e.message);
+        if (!v1Only) {
+          errors.add(e.message);
+        } else if (rust == 'first_token_after_comment_and_metadata') {
+          handGetters.add('${c.name}.$getter');
+          impls.writeln(
+            '    pub fn $rust(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {',
+          );
+          impls.writeln('        self.${rust}_hand(Ast::new(ast, tokens))');
+          impls.writeln('    }');
+          impls.writeln();
+        } else {
+          handGetters.add('${c.name}.$getter');
+          impls.writeln(
+            '    pub fn $rust(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {',
+          );
+          impls.writeln('        self.${rust}_hand(Ast::new(ast, tokens), id)');
+          impls.writeln('    }');
+          impls.writeln();
+        }
       }
+    }
+    if (v1Only) {
+      String bare = c.name.substring(0, c.name.length - 4);
+      impls.writeln(
+        "    pub fn child_entities2<'a>(&'a self, "
+        "ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {",
+      );
+      impls.writeln('        panic!("StateError: $bare is not in the V2 AST view.");');
+      impls.writeln('    }');
+      impls.writeln();
+      impls.writeln(
+        "    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {",
+      );
+      impls.writeln('        panic!("StateError: $bare is not in the V2 AST view.");');
+      impls.writeln('    }');
+      impls.writeln();
+      impls.writeln('    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {');
+      impls.writeln('        let _ = f;');
+      impls.writeln('    }');
+      writeV1Members(c, byName, impls, errors);
+      impls.writeln('}');
+      impls.writeln();
+      continue;
     }
     var children = c.lookupGetter('_childEntities2');
     try {
@@ -726,6 +772,7 @@ void main(List<String> args) {
       errors.add(e.message);
     }
     writeV2Members(c, byName, impls, errors);
+    writeV1Members(c, byName, impls, errors);
     impls.writeln('}');
     impls.writeln();
   }
@@ -773,7 +820,23 @@ void main(List<String> args) {
     out.writeln('        match self {');
     for (ClassInfo c in concrete) {
       out.writeln(
-        '            AstNodeImpl::${c.name}(n) => n.$rust(ast, tokens),',
+        isV1Only(c)
+            ? '            AstNodeImpl::${c.name}(_) => panic!("${c.name}: a V1 projection needs its id"),'
+            : '            AstNodeImpl::${c.name}(n) => n.$rust(ast, tokens),',
+      );
+    }
+    out.writeln('        }');
+    out.writeln('    }');
+    out.writeln();
+    out.writeln('    /// `$rust` of the node [id].');
+    out.writeln('    #[inline]');
+    out.writeln('    pub fn ${rust}_of(&self, $args, id: NodeId) -> $ret {');
+    out.writeln('        match self {');
+    for (ClassInfo c in concrete) {
+      out.writeln(
+        isV1Only(c)
+            ? '            AstNodeImpl::${c.name}(n) => n.${rust}1(ast, tokens, id),'
+            : '            AstNodeImpl::${c.name}(n) => n.$rust(ast, tokens),',
       );
     }
     out.writeln('        }');
@@ -796,6 +859,7 @@ void main(List<String> args) {
   out.writeln();
 
   writeV2Dispatch(concrete, out);
+  writeV1Dispatch(concrete, out);
 
   // Accessors that stand for `as XImpl` casts.
   for (ClassInfo c in concrete) {
@@ -822,7 +886,7 @@ void main(List<String> args) {
   // Type tests for every class and mixin with node subclasses: `is XImpl`.
   List<ClassInfo> tested = [
     for (ClassInfo c in classes.values)
-      if (c.name.endsWith('Impl') && isAstNode(c) && !isV1Only(c)) c,
+      if (c.name.endsWith('Impl') && isAstNode(c)) c,
   ]..sort((a, b) => a.name.compareTo(b.name));
   for (ClassInfo t in tested) {
     List<ClassInfo> subtypes = [
@@ -849,6 +913,9 @@ void main(List<String> args) {
   out.writeln();
   out.write(impls);
 
+  File('${args[1]}.hand.txt').writeAsStringSync(
+    '${(handGetters.toList()..sort()).join('\n')}\n',
+  );
   if (unknownTypes.isNotEmpty) errors.add("unknown types: $unknownTypes");
   if (errors.isNotEmpty) {
     stderr.writeln(errors.join('\n'));
@@ -885,16 +952,19 @@ const String header = '''
 // `beginToken`, `endToken`, `_childEntities2`, `accept2`, `visitChildren2`
 // and `precedence` are translated from upstream's bodies, and the children
 // a constructor makes this node the parent of are its node fields; `is XImpl` and `as XImpl` are `is_x_impl` and `as_x_impl`.
-// Classes that exist only in the V1 view of the AST, which upstream projects
-// from these, are not ported.
+// The classes that exist only in the V1 view of the AST, which upstream
+// projects from these, are structs holding the fields they declare; the V1
+// members (`_childEntities`, `visitChildren`, `accept`,
+// `_childContainingRange`) of every class are translated as the V2 ones are,
+// and the getters they read that upstream writes by hand are in ast_v1.rs.
 #![allow(clippy::all)]
 #![allow(non_snake_case, non_camel_case_types, unused_variables)]
 
 use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId, TokenStore};
 
 use crate::dart::ast::precedence::Precedence;
-use crate::src::dart::ast::ast_g::AstVisitor2;
-use crate::src::dart::ast::ast_store::{Ast, AstStore, ChildEntities, NO_NODE, NodeId, NodeListImpl};
+use crate::src::dart::ast::ast_g::{AstVisitor, AstVisitor2};
+use crate::src::dart::ast::ast_store::{Ast, AstNodeApi, AstStore, ChildEntities, ChildEntities1, NO_NODE, NodeId, NodeListImpl, V1_BASE};
 use crate::dart::analysis::features::FeatureSet;
 use crate::dart::ast::doc_comment::{DocDirective, DocImport, MdCodeBlock};
 use crate::dart::element::element::LibraryLanguageVersion;
@@ -1219,7 +1289,13 @@ void writeV2Dispatch(List<ClassInfo> concrete, StringBuffer out) {
   out.writeln('        match self {');
   for (ClassInfo c in concrete) {
     String? visit = acceptMethods[c.name];
-    if (visit == null) continue;
+    if (visit == null) {
+      String bare = c.name.substring(0, c.name.length - 4);
+      out.writeln(
+        '            AstNodeImpl::${c.name}(_) => panic!("StateError: $bare is not in the V2 AST view."),',
+      );
+      continue;
+    }
     out.writeln(
       '            AstNodeImpl::${c.name}(_) => visitor.${snakeVisit(visit)}(ast, id),',
     );
@@ -1347,4 +1423,875 @@ List<String> parentedFields(ClassInfo c, ClassInfo owner) {
     }
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// The V1 view.
+//
+// Upstream generates, for every node class, the members that walk the V1 view
+// (`_childEntities`, `visitChildren`, `accept`, `_childContainingRange`) as
+// it does the V2 ones, from the same `@GenerateNodeImpl` annotation; a V1
+// child is a V2 field, or a V2 field projected by `V1Projection`
+// (`_becomeParentOf1(V1Projection.toV1Expression(expression2))`), or a getter
+// written by hand. These are translated as the V2 members are, and a getter
+// written by hand becomes a call of the method of the same name, which
+// ast_v1.rs ports by hand. The classes that exist only in the V1 view (the
+// projections) are structs too, holding the fields they declare.
+// ---------------------------------------------------------------------------
+
+/// The fields of a class that exists only in the V1 view: the node and
+/// token fields it and its superclasses declare (not those of `AstNodeImpl`,
+/// and not the `late` caches, which ast_v1.rs keeps in the store).
+List<Field> fieldsOfV1(ClassInfo c) {
+  List<Field> result = [];
+  Set<String> seen = {};
+  for (ClassInfo owner in c.lookupChain) {
+    if (owner.name == 'AstNodeImpl') continue;
+    for (ClassMember m in owner.members) {
+      if (m is! FieldDeclaration || m.isStatic) continue;
+      String? type = m.fields.type?.toSource();
+      if (type == null) continue;
+      for (VariableDeclaration v in m.fields.variables) {
+        if (m.fields.isLate && v.initializer != null) continue;
+        if (v.initializer != null && !type.startsWith('NodeListImpl')) {
+          continue;
+        }
+        String name = v.name.lexeme;
+        if (name.startsWith('_')) name = name.substring(1);
+        if (name == 'parent' || name == 'parent2') continue;
+        if (!seen.add(name)) continue;
+        Kind kind = type.startsWith('_ConstructorReferenceV2Origin')
+            ? Kind.node
+            : kindOf(type);
+        if (kind == Kind.other) continue;
+        // A field typed by an interface (`_ConstructorReferenceV2Origin`)
+        // holds a node too.
+        result.add(Field(name, type, kind, type.endsWith('?')));
+      }
+    }
+  }
+  return result;
+}
+
+/// A constructor call `C(args)` (unresolved, it parses as a method
+/// invocation) as its class name and arguments.
+(String, List<Expression>)? invocation(Expression e) {
+  if (e is InstanceCreationExpression) {
+    return (
+      e.constructorName.type.name.lexeme,
+      [for (var a in e.argumentList.arguments) a as Expression],
+    );
+  }
+  if (e is MethodInvocation && e.target == null) {
+    return (
+      e.methodName.name,
+      [for (var a in e.argumentList.arguments) a as Expression],
+    );
+  }
+  return null;
+}
+
+/// The member [name] as Dart looks it up from [c]: a getter, or a field.
+(ClassInfo, ClassMember, VariableDeclaration?)? lookupMember(
+  ClassInfo c,
+  String name, {
+  bool skipSelf = false,
+}) {
+  bool first = true;
+  for (ClassInfo owner in c.lookupChain) {
+    if (first && skipSelf) {
+      first = false;
+      continue;
+    }
+    first = false;
+    for (ClassMember m in owner.members) {
+      if (m is MethodDeclaration &&
+          m.isGetter &&
+          m.name.lexeme == name &&
+          m.body is! EmptyFunctionBody) {
+        return (owner, m, null);
+      }
+      if (m is FieldDeclaration && !m.isStatic) {
+        for (VariableDeclaration v in m.fields.variables) {
+          if (v.name.lexeme == name) return (owner, m, v);
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/// `V1Projection.toV1X` as the `Ast` method that ports it.
+String projectionMethod(String name) => switch (name) {
+  'toV1Expression' => 'to_v1_expression',
+  'toV1Argument' => 'to_v1_argument',
+  'toV1CollectionElement' => 'to_v1_collection_element',
+  'toV1CombinatorName' => 'to_v1_combinator_name',
+  'toV1LocalVariables' => 'to_v1_local_variables',
+  'toV1RecordLiteralField' => 'to_v1_record_literal_field',
+  'toV1Statement' => 'to_v1_statement',
+  'toV1ClassMember' => 'to_v1_class_member',
+  'toV1CompilationUnitMember' => 'to_v1_compilation_unit_member',
+  'toV1ClassBody' => 'to_v1_class_body',
+  'toV1NamedReceiver' => 'to_v1_named_receiver',
+  _ => throw StateError('unknown projection $name'),
+};
+
+/// A child of a node in the V1 view, as Rust: an expression of type
+/// `NodeId` (or `TokenId`), or of type `Vec<NodeId>` for a list.
+class V1Child {
+  final Kind kind;
+  final String rust;
+
+  /// Whether the child may be null (`NO_NODE`).
+  final bool nullable;
+
+  /// For a list: the Rust expression of the slice, when no projection is
+  /// needed (`&self.x`).
+  final String? slice;
+
+  new(this.kind, this.rust, {this.nullable = false, this.slice});
+}
+
+/// The hand-written getters ast_v1.rs must define, `Class.getter`.
+final Set<String> handGetters = {};
+
+class V1Translator {
+  final ClassInfo c;
+  final Map<String, Field> fields;
+  final String member;
+
+  new(this.c, this.fields, this.member);
+
+  Never fail(Object what) =>
+      throw StateError('${c.name}.$member: cannot translate $what');
+
+  /// The V2 field [expression] reads (`expression2`, `_expression2`).
+  Field? v2Field(Expression expression) {
+    if (expression is! SimpleIdentifier) return null;
+    return resolveField(c, fields, expression.name);
+  }
+
+  /// The child [name] of the V1 view, read with [kind] (from the
+  /// ChildEntities method or the visit statement).
+  V1Child child(String name, Kind kind) {
+    var found = lookupMember(c, name);
+    if (found != null) {
+      var (owner, m, v) = found;
+      if (m is MethodDeclaration) {
+        var r = getterBody(owner, m, kind);
+        if (r != null) return r;
+      } else if (v != null) {
+        // A field.
+        var init = v.initializer;
+        if (init != null && init.toSource() == 'NodeListImpl._()') {
+          String bare = name.startsWith('_') ? name.substring(1) : name;
+          Field? f = fields[bare];
+          if (f != null) return fieldChild(f);
+        } else if (init != null) {
+          var call = invocation(init);
+          if (call != null && call.$1 == '_V1ProjectedNodeListImpl') {
+            var args = call.$2;
+            Field? base = v2Field(args[0]);
+            var project = args[1];
+            if (base != null &&
+                base.kind == Kind.nodeList &&
+                project is PrefixedIdentifier &&
+                project.prefix.name == 'V1Projection') {
+              return V1Child(
+                Kind.nodeList,
+                'ast.v1_projected_list(id, &self.${base.rustName}, '
+                'Ast::${projectionMethod(project.identifier.name)})',
+              );
+            }
+          }
+        } else {
+          String bare = name.startsWith('_') ? name.substring(1) : name;
+          Field? f = fields[bare];
+          if (f != null) return fieldChild(f);
+        }
+      }
+    }
+    String bare = name.startsWith('_') ? name.substring(1) : name;
+    if (found == null && fields[bare] != null) return fieldChild(fields[bare]!);
+    return hand(name, kind);
+  }
+
+  V1Child fieldChild(Field f) => switch (f.kind) {
+    Kind.node => V1Child(Kind.node, 'self.${f.rustName}', nullable: f.nullable),
+    Kind.token => V1Child(Kind.token, 'self.${f.rustName}'),
+    Kind.nodeList => V1Child(
+      Kind.nodeList,
+      'self.${f.rustName}.clone()',
+      slice: '&self.${f.rustName}',
+    ),
+    Kind.tokenList => V1Child(Kind.tokenList, 'self.${f.rustName}.clone()'),
+    Kind.other => fail(f.dartName),
+  };
+
+  V1Child hand(String name, Kind kind) {
+    String bare = name.startsWith('_') ? 'v1_${name.substring(1)}' : name;
+    handGetters.add('${c.name}.$name');
+    return V1Child(kind, 'self.${snake(bare)}(ast, id)', nullable: true);
+  }
+
+  /// The child a generated getter returns, or null when the getter is
+  /// written by hand.
+  V1Child? getterBody(ClassInfo owner, MethodDeclaration m, Kind kind) {
+    bool generated = m.metadata.any((a) => a.name.name == 'generated');
+    var body = m.body;
+    if (body is! ExpressionFunctionBody) return null;
+    Expression e = body.expression;
+    if (e is SimpleIdentifier) {
+      Field? f = resolveField(c, fields, e.name);
+      if (f != null) return fieldChild(f);
+      return null;
+    }
+    bool parent = false;
+    if (e is MethodInvocation &&
+        e.target == null &&
+        e.methodName.name == '_becomeParentOf1') {
+      parent = true;
+      e = e.argumentList.arguments.single as Expression;
+    }
+    String wrap(String projected) =>
+        parent ? 'ast.become_parent_of1(id, $projected)' : projected;
+    if (e is MethodInvocation &&
+        e.target is SimpleIdentifier &&
+        (e.target as SimpleIdentifier).name == 'V1Projection') {
+      Field? f = v2Field(e.argumentList.arguments.single as Expression);
+      if (f == null || f.kind != Kind.node) return null;
+      return V1Child(
+        Kind.node,
+        wrap('ast.${projectionMethod(e.methodName.name)}(self.${f.rustName})'),
+      );
+    }
+    if (e is SwitchExpression && e.cases.length == 2) {
+      // switch (x) { var node? => V1Projection.toV1X(node), _ => null }
+      Field? f = v2Field(e.expression);
+      var first = e.cases[0].expression;
+      if (f != null &&
+          first is MethodInvocation &&
+          first.target is SimpleIdentifier &&
+          (first.target as SimpleIdentifier).name == 'V1Projection') {
+        String method = projectionMethod(first.methodName.name);
+        return V1Child(
+          Kind.node,
+          wrap(
+            'if self.${f.rustName} != NO_NODE { '
+            'ast.$method(self.${f.rustName}) } else { NO_NODE }',
+          ),
+          nullable: true,
+        );
+      }
+    }
+    return null;
+  }
+
+  /// `_childEntities`: statements adding to `entities`.
+  List<String> childEntities(ClassInfo owner, FunctionBody body) {
+    Expression? e;
+    if (body is ExpressionFunctionBody) {
+      e = body.expression;
+    } else if (body is BlockFunctionBody) {
+      var statements = body.block.statements;
+      if (statements.isNotEmpty) {
+        var last = statements.last;
+        if (last is ReturnStatement && statements.length == 1) {
+          e = last.expression;
+        } else if (last is ExpressionStatement &&
+            last.expression is ThrowExpression) {
+          return [throwStatement(last.expression as ThrowExpression)];
+        }
+      }
+    }
+    if (e == null) fail(body);
+    if (e is! CascadeExpression) {
+      if (e is InstanceCreationExpression || e is MethodInvocation) return [];
+      if (e is PropertyAccess && e.target is SuperExpression) {
+        var found = owner.lookupGetter('_childEntities', skipSelf: true);
+        if (found == null) return [];
+        return childEntities(found.$1, found.$2);
+      }
+      fail(e);
+    }
+    List<String> result = [];
+    Expression target = e.target;
+    if (target is PropertyAccess && target.target is SuperExpression) {
+      var found = owner.lookupGetter('_childEntities', skipSelf: true);
+      if (found != null) result.addAll(childEntities(found.$1, found.$2));
+    } else if (target is! MethodInvocation &&
+        target is! InstanceCreationExpression) {
+      fail(target);
+    }
+    for (Expression section in e.cascadeSections) {
+      var call = section as MethodInvocation;
+      var args = call.argumentList.arguments;
+      String name = (args[0] as SimpleStringLiteral).value;
+      var value = args[1];
+      if (value is! SimpleIdentifier) fail(section);
+      String method = call.methodName.name;
+      Kind kind = switch (method) {
+        'addToken' => Kind.token,
+        'addNode' => Kind.node,
+        'addNodeList' => Kind.nodeList,
+        'addTokenList' => Kind.tokenList,
+        _ => fail(section),
+      };
+      V1Child child = this.child(value.name, kind);
+      if (child.kind != kind) fail(section);
+      result.add('entities.${snake(method)}("$name", ${child.rust});');
+    }
+    return result;
+  }
+
+  String throwStatement(ThrowExpression t) {
+    var call = t.expression;
+    String kind;
+    String message;
+    if (call is MethodInvocation) {
+      kind = call.methodName.name;
+      message = (call.argumentList.arguments.first as StringLiteral)
+          .toSource();
+    } else if (call is InstanceCreationExpression) {
+      kind = call.constructorName.type.name.lexeme;
+      message = (call.argumentList.arguments.first as StringLiteral)
+          .toSource();
+    } else {
+      fail(t);
+    }
+    message = message.substring(1, message.length - 1);
+    message = message.replaceAll(r"\'", "'").replaceAll('"', r'\"');
+    return 'panic!("$kind: $message");';
+  }
+
+  /// `visitChildren`: statements visiting the children.
+  List<String> visitChildren(ClassInfo owner, FunctionBody body) {
+    if (body is EmptyFunctionBody) return [];
+    if (body is! BlockFunctionBody) fail(body);
+    List<String> out = [];
+    for (Statement s in body.block.statements) {
+      if (s is ExpressionStatement && s.expression is ThrowExpression) {
+        out.add(throwStatement(s.expression as ThrowExpression));
+        continue;
+      }
+      if (s is! ExpressionStatement || s.expression is! MethodInvocation) {
+        fail(s);
+      }
+      var call = s.expression as MethodInvocation;
+      var target = call.target;
+      String method = call.methodName.name;
+      if (target is SuperExpression && method == 'visitChildren') {
+        var found = owner.lookupMethod('visitChildren', skipSelf: true);
+        if (found != null) out.addAll(visitChildren(found.$1, found.$2));
+        continue;
+      }
+      if (target == null && method == '_visitCommentAndAnnotations') {
+        out.add(
+          'ast.visit_comment_and_annotations('
+          'self.documentation_comment, &self.metadata, visitor);',
+        );
+        continue;
+      }
+      if (method != 'accept' || target is! SimpleIdentifier) fail(s);
+      // The V1 child; its kind is that of a node unless it is a list.
+      V1Child child = this.child(target.name, Kind.node);
+      if (child.kind == Kind.nodeList ||
+          lookupListKind(target.name)) {
+        V1Child list = this.child(target.name, Kind.nodeList);
+        String iter = list.slice ?? list.rust;
+        out.add(
+          'for element in $iter {\n'
+          '            ast.accept(${list.slice != null ? '*element' : 'element'}, visitor);\n'
+          '        }',
+        );
+      } else if (child.nullable || call.operator?.lexeme == '?.') {
+        out.add(
+          '{\n'
+          '            let child = ${child.rust};\n'
+          '            if child != NO_NODE {\n'
+          '                ast.accept(child, visitor);\n'
+          '            }\n'
+          '        }',
+        );
+      } else {
+        out.add('ast.accept(${child.rust}, visitor);');
+      }
+    }
+    return out;
+  }
+
+  /// Whether [name] names a node list in the V1 view.
+  bool lookupListKind(String name) {
+    var found = lookupMember(c, name);
+    if (found == null) {
+      String bare = name.startsWith('_') ? name.substring(1) : name;
+      return fields[bare]?.kind == Kind.nodeList;
+    }
+    var (_, m, v) = found;
+    TypeAnnotation? type;
+    if (m is MethodDeclaration) type = m.returnType;
+    if (m is FieldDeclaration) type = m.fields.type;
+    String source = type?.toSource() ?? '';
+    return source.startsWith('NodeListImpl') || source.startsWith('List<');
+  }
+
+  /// `_childContainingRange` (or `_childContainingRange2` when [v2]):
+  /// statements returning the child.
+  List<String> childContainingRange(
+    ClassInfo owner,
+    FunctionBody body, {
+    required bool v2,
+  }) {
+    String method = v2 ? '_childContainingRange2' : '_childContainingRange';
+    if (body is ExpressionFunctionBody && body.expression is ThrowExpression) {
+      return [throwStatement(body.expression as ThrowExpression)];
+    }
+    if (body is! BlockFunctionBody) fail(body);
+    List<String> out = [];
+    String node(String name) {
+      if (v2) {
+        Field? f = resolveField(c, fields, name);
+        if (f == null || f.kind != Kind.node) {
+          handGetters.add('${c.name}.$name#2');
+          return 'self.${snake(name.startsWith('_') ? 'v2_${name.substring(1)}' : name)}(ast, id)';
+        }
+        return 'self.${f.rustName}';
+      }
+      return child(name, Kind.node).rust;
+    }
+
+    String list(String name) {
+      if (v2) {
+        Field? f = resolveField(c, fields, name);
+        if (f == null || f.kind != Kind.nodeList) fail(name);
+        return 'ast.element_containing_range(&self.${f.rustName}, range_offset, range_end)';
+      }
+      V1Child l = child(name, Kind.nodeList);
+      if (l.slice != null) {
+        return 'ast.element_containing_range(${l.slice}, range_offset, range_end)';
+      }
+      // A projected list searches its base, then projects what it finds.
+      var found = lookupMember(c, name);
+      var call = found?.$3?.initializer == null
+          ? null
+          : invocation(found!.$3!.initializer!);
+      if (call != null &&
+          call.$1 == '_V1ProjectedNodeListImpl' &&
+          call.$2[1] is PrefixedIdentifier) {
+        var args = call.$2;
+        Field base = v2Field(args[0])!;
+        var project = args[1] as PrefixedIdentifier;
+        return 'ast.v1_projected_element_containing_range(id, &self.${base.rustName}, '
+            'Ast::${projectionMethod(project.identifier.name)}, range_offset, range_end)';
+      }
+      handGetters.add('${c.name}.$name#range');
+      return 'self.${snake(name.startsWith('_') ? 'v1_${name.substring(1)}' : name)}_element_containing_range(ast, id, range_offset, range_end)';
+    }
+
+    for (Statement s in body.block.statements) {
+      String source = s.toSource();
+      if (s is ReturnStatement) {
+        var e = s.expression;
+        if (e is NullLiteral) {
+          out.add('NO_NODE');
+          continue;
+        }
+        if (e is MethodInvocation &&
+            e.methodName.name == '_elementContainingRange' &&
+            e.target is SimpleIdentifier) {
+          out.add(list((e.target as SimpleIdentifier).name));
+          continue;
+        }
+        fail(source);
+      }
+      if (s is ExpressionStatement && s.expression is ThrowExpression) {
+        out.add(throwStatement(s.expression as ThrowExpression));
+        continue;
+      }
+      if (s is VariableDeclarationStatement &&
+          s.variables.variables.single.name.lexeme == 'childFromSuper') {
+        // var childFromSuper = super._childContainingRange(a, b);
+        // if (childFromSuper != null) return childFromSuper;
+        var found = owner.lookupMethod(method, skipSelf: true);
+        if (found == null) fail(source);
+        var inner = childContainingRange(found.$1, found.$2, v2: v2);
+        out.add(
+          '{\n'
+          '            let result = (|| -> NodeId {\n'
+          '                ${inner.join('\n                ')}\n'
+          '            })();\n'
+          '            if result != NO_NODE {\n'
+          '                return result;\n'
+          '            }\n'
+          '        }',
+        );
+        continue;
+      }
+      if (s is IfStatement &&
+          s.expression.toSource() == 'childFromSuper != null') {
+        continue;
+      }
+      if (s is IfStatement &&
+          s.expression is BinaryExpression &&
+          (s.expression as BinaryExpression).operator.lexeme == '!=' &&
+          (s.expression as BinaryExpression).leftOperand.toSource().contains(
+            'Origin',
+          )) {
+        // if (_v1ProjectionOrigin != null) throw ...: only a projection
+        // object has an origin.
+        Statement then = s.thenStatement;
+        if (then is Block) then = then.statements.single;
+        out.add(
+          'if id >= V1_BASE {\n'
+          '            ${throwStatement((then as ExpressionStatement).expression as ThrowExpression)}\n'
+          '        }',
+        );
+        continue;
+      }
+      if (s is IfStatement &&
+          s.caseClause == null &&
+          s.expression is BinaryExpression &&
+          (s.expression as BinaryExpression).operator.lexeme == '??') {
+        // if (x?._containsOffset(a, b) ?? false) return x;
+        var left = (s.expression as BinaryExpression).leftOperand;
+        if (left is MethodInvocation &&
+            left.methodName.name == '_containsOffset' &&
+            left.target is SimpleIdentifier) {
+          String x = node((left.target as SimpleIdentifier).name);
+          out.add(
+            '{\n'
+            '            let child = $x;\n'
+            '            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {\n'
+            '                return child;\n'
+            '            }\n'
+            '        }',
+          );
+          continue;
+        }
+      }
+      if (s is IfStatement) {
+        var cond = s.expression;
+        var caseClause = s.caseClause;
+        Statement then = s.thenStatement;
+        if (then is Block && then.statements.length == 1) {
+          then = then.statements.single;
+        }
+        if (caseClause == null &&
+            cond is MethodInvocation &&
+            cond.methodName.name == '_containsOffset' &&
+            cond.target is SimpleIdentifier) {
+          // if (x._containsOffset(a, b)) return x;
+          String x = node((cond.target as SimpleIdentifier).name);
+          out.add(
+            '{\n'
+            '            let child = $x;\n'
+            '            if ast.contains_offset(child, range_offset, range_end) {\n'
+            '                return child;\n'
+            '            }\n'
+            '        }',
+          );
+          continue;
+        }
+        if (caseClause != null) {
+          var pattern = caseClause.guardedPattern.pattern;
+          if (cond is MethodInvocation &&
+              cond.target is SuperExpression &&
+              cond.methodName.name == method) {
+            // if (super._childContainingRange(a, b) case var result?) ...
+            var found = owner.lookupMethod(method, skipSelf: true);
+            if (found == null) fail(source);
+            var inner = childContainingRange(found.$1, found.$2, v2: v2);
+            out.add(
+              '{\n'
+              '            let result = (|| -> NodeId {\n'
+              '                ${inner.join('\n                ')}\n'
+              '            })();\n'
+              '            if result != NO_NODE {\n'
+              '                return result;\n'
+              '            }\n'
+              '        }',
+            );
+            continue;
+          }
+          if (cond is MethodInvocation &&
+              cond.methodName.name == '_elementContainingRange' &&
+              cond.target is SimpleIdentifier) {
+            String l = list((cond.target as SimpleIdentifier).name);
+            out.add(
+              '{\n'
+              '            let result = $l;\n'
+              '            if result != NO_NODE {\n'
+              '                return result;\n'
+              '            }\n'
+              '        }',
+            );
+            continue;
+          }
+          if (cond is SimpleIdentifier && pattern is NullCheckPattern) {
+            // if (x case var x?) { if (x._containsOffset(a, b)) return x; }
+            String x = node(cond.name);
+            out.add(
+              '{\n'
+              '            let child = $x;\n'
+              '            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {\n'
+              '                return child;\n'
+              '            }\n'
+              '        }',
+            );
+            continue;
+          }
+        }
+      }
+      fail(source);
+    }
+    if (out.isEmpty || !out.last.startsWith('NO_NODE') && !out.last.startsWith('panic') && !out.last.startsWith('ast.')) {
+      if (out.isEmpty || !out.last.startsWith('NO_NODE')) {
+        // Falls off the end only after a return in every path upstream.
+      }
+    }
+    return out;
+  }
+}
+
+/// Hand translations of V1 members, keyed by `Class.member`: Rust
+/// statements (for `_childEntities`, `visitChildren`,
+/// `_childContainingRange`) that the translator cannot produce.
+const Map<String, String> handV1 = {};
+
+/// The value of `_astNodeApi` of [c], as Rust.
+String apiOf(ClassInfo c) {
+  var found = c.lookupGetter('_astNodeApi');
+  if (found == null) return 'AstNodeApi::shared';
+  var body = found.$2;
+  if (body is ExpressionFunctionBody) {
+    var e = body.expression;
+    if (e is PrefixedIdentifier && e.prefix.name == 'AstNodeApi') {
+      return 'AstNodeApi::${e.identifier.name}';
+    }
+    if (e is BinaryExpression &&
+        e.operator.lexeme == '??' &&
+        e.rightOperand.toSource() == 'AstNodeApi.shared') {
+      // `_astNodeApiOverride ?? AstNodeApi.shared`: the override is in the
+      // store.
+      return 'AstNodeApi::shared';
+    }
+    if (c.name == 'FunctionExpressionImpl') {
+      // `_v1ProjectionOrigin == null ? AstNodeApi.shared : AstNodeApi.v1`.
+      return 'if id >= V1_BASE { AstNodeApi::v1 } else { AstNodeApi::shared }';
+    }
+  }
+  throw StateError('${c.name}._astNodeApi: cannot translate $body');
+}
+
+/// The visit method `accept` calls, or null when it throws.
+String? acceptMethod1(ClassInfo c) {
+  var accept = c.lookupMethod('accept');
+  if (accept == null) return null;
+  var body = accept.$2;
+  if (body is ExpressionFunctionBody) {
+    var e = body.expression;
+    if (e is MethodInvocation &&
+        e.target is SimpleIdentifier &&
+        (e.target as SimpleIdentifier).name == 'visitor') {
+      return e.methodName.name;
+    }
+  }
+  return null;
+}
+
+/// Writes the V1 members of [c] into [impls].
+void writeV1Members(
+  ClassInfo c,
+  Map<String, Field> fields,
+  StringBuffer impls,
+  List<String> errors,
+) {
+  // _childEntities
+  try {
+    List<String> calls;
+    if (handV1.containsKey('${c.name}._childEntities')) {
+      calls = [handV1['${c.name}._childEntities']!];
+    } else {
+      var found = c.lookupGetter('_childEntities');
+      calls = found == null
+          ? []
+          : V1Translator(c, fields, '_childEntities').childEntities(
+              found.$1,
+              found.$2,
+            );
+    }
+    impls.writeln();
+    impls.writeln(
+      "    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {",
+    );
+    impls.writeln('        let _ = (ast, id, &entities);');
+    for (String call in calls) {
+      impls.writeln('        $call');
+    }
+    impls.writeln('    }');
+  } on StateError catch (_) {
+    handGetters.add('${c.name}._childEntities');
+    impls.writeln();
+    impls.writeln(
+      "    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {",
+    );
+    impls.writeln('        self.child_entities1_hand(ast, id, entities)');
+    impls.writeln('    }');
+  }
+
+  // visitChildren
+  try {
+    List<String> statements;
+    if (handV1.containsKey('${c.name}.visitChildren')) {
+      statements = [handV1['${c.name}.visitChildren']!];
+    } else {
+      var found = c.lookupMethod('visitChildren');
+      statements = found == null
+          ? []
+          : V1Translator(c, fields, 'visitChildren').visitChildren(
+              found.$1,
+              found.$2,
+            );
+    }
+    impls.writeln();
+    impls.writeln(
+      "    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {",
+    );
+    impls.writeln('        let _ = (ast, id, &visitor);');
+    for (String s in statements) {
+      impls.writeln('        $s');
+    }
+    impls.writeln('    }');
+  } on StateError catch (_) {
+    handGetters.add('${c.name}.visitChildren');
+    impls.writeln();
+    impls.writeln(
+      "    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {",
+    );
+    impls.writeln('        self.visit_children1_hand(ast, id, visitor)');
+    impls.writeln('    }');
+  }
+
+  // _childContainingRange and _childContainingRange2
+  for (var (String method, String rust, bool v2) in [
+    ('_childContainingRange', 'child_containing_range1', false),
+    ('_childContainingRange2', 'child_containing_range2', true),
+  ]) {
+    try {
+      List<String> statements;
+      if (handV1.containsKey('${c.name}.$method')) {
+        statements = [handV1['${c.name}.$method']!];
+      } else {
+        var found = c.lookupMethod(method);
+        statements = found == null
+            ? ['NO_NODE']
+            : V1Translator(c, fields, method).childContainingRange(
+                found.$1,
+                found.$2,
+                v2: v2,
+              );
+      }
+      impls.writeln();
+      impls.writeln(
+        "    pub fn $rust(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {",
+      );
+      impls.writeln('        let _ = (ast, id, range_offset, range_end);');
+      for (String s in statements) {
+        impls.writeln('        $s');
+      }
+      impls.writeln('    }');
+    } on StateError catch (_) {
+      handGetters.add('${c.name}.$method');
+      impls.writeln();
+      impls.writeln(
+        "    pub fn $rust(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {",
+      );
+      impls.writeln('        self.${rust}_hand(ast, id, range_offset, range_end)');
+      impls.writeln('    }');
+    }
+  }
+
+  try {
+    apiMethods[c.name] = apiOf(c);
+  } on StateError catch (e) {
+    errors.add(e.message);
+  }
+  acceptMethods1[c.name] = acceptMethod1(c);
+}
+
+final Map<String, String> apiMethods = {};
+final Map<String, String?> acceptMethods1 = {};
+
+void writeV1Dispatch(List<ClassInfo> concrete, StringBuffer out) {
+  out.writeln('    /// `_astNodeApi`, without the overrides the store keeps.');
+  out.writeln(
+    "    pub fn ast_node_api(&self, ast: Ast<'_>, id: NodeId) -> AstNodeApi {",
+  );
+  out.writeln('        let _ = (ast, id);');
+  out.writeln('        match self {');
+  for (ClassInfo c in concrete) {
+    out.writeln(
+      '            AstNodeImpl::${c.name}(_) => ${apiMethods[c.name] ?? 'AstNodeApi::shared'},',
+    );
+  }
+  out.writeln('        }');
+  out.writeln('    }');
+  out.writeln();
+  out.writeln('    /// `accept(visitor)`: the V1 visitor\'s method for this class.');
+  out.writeln(
+    "    pub fn accept1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) -> Option<V::R> {",
+  );
+  out.writeln('        match self {');
+  for (ClassInfo c in concrete) {
+    String? visit = acceptMethods1[c.name];
+    if (visit == null) {
+      String bare = c.name.substring(0, c.name.length - 4);
+      out.writeln(
+        '            AstNodeImpl::${c.name}(_) => panic!("StateError: $bare is not in the V1 AST view."),',
+      );
+    } else {
+      out.writeln(
+        '            AstNodeImpl::${c.name}(_) => visitor.${snakeVisit(visit)}(ast, id),',
+      );
+    }
+  }
+  out.writeln('        }');
+  out.writeln('    }');
+  out.writeln();
+  for (var (String rust, String params, String args, String ret) in [
+    (
+      'visit_children1',
+      "<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V)",
+      'ast, id, visitor',
+      '',
+    ),
+    (
+      'child_entities1',
+      "(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1)",
+      'ast, id, entities',
+      '',
+    ),
+    (
+      'child_containing_range1',
+      "(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32)",
+      'ast, id, range_offset, range_end',
+      ' -> NodeId',
+    ),
+    (
+      'child_containing_range2',
+      "(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32)",
+      'ast, id, range_offset, range_end',
+      ' -> NodeId',
+    ),
+  ]) {
+    out.writeln('    pub fn $rust$params$ret {');
+    out.writeln('        match self {');
+    for (ClassInfo c in concrete) {
+      out.writeln('            AstNodeImpl::${c.name}(n) => n.$rust($args),');
+    }
+    out.writeln('        }');
+    out.writeln('    }');
+    out.writeln();
+  }
 }

@@ -27,11 +27,32 @@ import 'package:analyzer/dart/ast/ast.dart';
 
 /// The visitor classes of visitor.g.dart that are ported.
 const List<String> portedClasses = [
+  'GeneralizingAstVisitor',
+  'RecursiveAstVisitor',
   'RecursiveAstVisitor2',
+  'SimpleAstVisitor',
   'SimpleAstVisitor2',
+  'ThrowingAstVisitor',
   'ThrowingAstVisitor2',
+  'UnifyingAstVisitor',
   'UnifyingAstVisitor2',
 ];
+
+/// Hand translations of the bodies that are not one of the generated
+/// shapes: Rust, with `v` the visitor.
+const Map<String, String> handBodies = {
+  'GeneralizingAstVisitor.visitFunctionDeclaration': '''
+let parent = ast.parent(node);
+        if parent != crate::src::dart::ast::ast_store::NO_NODE
+            && matches!(
+                ast.node(parent),
+                crate::src::dart::ast::ast::AstNodeImpl::FunctionDeclarationStatementImpl(_)
+            )
+        {
+            return <V as GeneralizingAstVisitor>::visit_node(v, ast, node);
+        }
+        <V as GeneralizingAstVisitor>::visit_compilation_unit_member(v, ast, node)''',
+};
 
 String snake(String name) {
   StringBuffer sb = StringBuffer();
@@ -77,10 +98,14 @@ Method translate(String className, MethodDeclaration m) {
   var params = m.parameters!.parameters;
   if (params.length != 1 || params.single.name?.lexeme != 'node') fail();
   var body = m.body;
+  if (handBodies.containsKey('$className.$name')) {
+    return Method(name, 'hand');
+  }
   if (body is BlockFunctionBody) {
     var s = body.block.statements;
     if (s.length == 2 &&
-        s[0].toSource() == 'node.visitChildren2(this);' &&
+        (s[0].toSource() == 'node.visitChildren2(this);' ||
+            s[0].toSource() == 'node.visitChildren(this);') &&
         s[1].toSource() == 'return null;') {
       return Method(name, 'visitChildren');
     }
@@ -117,7 +142,7 @@ void main(List<String> args) {
   ).unit;
 
   // AstVisitor2: every method, in order.
-  List<String> visits = [
+  List<String> visits2 = [
     for (var m in methodsOf(classNamed(astG, 'AstVisitor2'))) m.name.lexeme,
   ];
 
@@ -133,33 +158,41 @@ void main(List<String> args) {
       if (!m.name.lexeme.startsWith('_')) m,
   ];
 
+  List<String> visits1 = [for (var m in visitor1Methods) m.name.lexeme];
+
   StringBuffer a = StringBuffer();
-  a.writeln('// Port of lib/src/dart/ast/ast.g.dart (`AstVisitor2`).');
+  a.writeln('// Port of lib/src/dart/ast/ast.g.dart (`AstVisitor`, `AstVisitor2`).');
   a.writeln('//');
   a.writeln(rustHeaderNote.replaceAll('../../../../', '../../../../../'));
   a.writeln('//');
   a.writeln('// A visit method takes the tree (`Ast`) and the node\'s id, as');
   a.writeln('// upstream\'s takes the node. `R? visitX(X node)` returns');
-  a.writeln('// `Option<Self::R>`.');
+  a.writeln('// `Option<Self::R>`. `AstVisitor` visits the V1 view of the tree,');
+  a.writeln('// `AstVisitor2` the V2 view.');
   a.writeln('#![allow(clippy::all)]');
   a.writeln();
   a.writeln('use crate::src::dart::ast::ast_store::{Ast, NodeId};');
-  a.writeln();
-  a.writeln('/// `abstract class AstVisitor2<R>`.');
-  a.writeln('pub trait AstVisitor2 {');
-  a.writeln('    type R;');
-  for (String v in visits) {
+  for (var (String trait, List<String> list) in [
+    ('AstVisitor', visits1),
+    ('AstVisitor2', visits2),
+  ]) {
     a.writeln();
-    a.writeln('    /// `$v`.');
-    a.writeln(
-      "    fn ${snake(v)}(&mut self, ast: Ast<'_>, node: NodeId) -> Option<Self::R>;",
-    );
+    a.writeln('/// `abstract class $trait<R>`.');
+    a.writeln('pub trait $trait {');
+    a.writeln('    type R;');
+    for (String v in list) {
+      a.writeln();
+      a.writeln('    /// `$v`.');
+      a.writeln(
+        "    fn ${snake(v)}(&mut self, ast: Ast<'_>, node: NodeId) -> Option<Self::R>;",
+      );
+    }
+    a.writeln('}');
   }
-  a.writeln('}');
   File('$root/rust/src/src/dart/ast/ast_g.rs').writeAsStringSync(a.toString());
 
   StringBuffer v = StringBuffer();
-  v.writeln('// Port of lib/dart/ast/visitor.g.dart (the V2 visitors).');
+  v.writeln('// Port of lib/dart/ast/visitor.g.dart.');
   v.writeln('//');
   v.writeln(rustHeaderNote);
   v.writeln('//');
@@ -174,12 +207,15 @@ void main(List<String> args) {
   v.writeln('//     recursive_ast_visitor2!(Counter, ());');
   v.writeln('//');
   v.writeln('// The V1 visitors (`GeneralizingAstVisitor`, `RecursiveAstVisitor`,');
-  v.writeln('// ...) visit the V1 view of the tree, which is not ported.');
+  v.writeln('// ...) are the same over `AstVisitor` and the V1 view.');
   v.writeln('#![allow(clippy::all)]');
   v.writeln();
-  v.writeln('use crate::src::dart::ast::ast_g::AstVisitor2;');
+  v.writeln('use crate::src::dart::ast::ast_g::{AstVisitor, AstVisitor2};');
   v.writeln('use crate::src::dart::ast::ast_store::{Ast, NodeId};');
   for (String className in portedClasses) {
+    bool v2 = className.endsWith('2');
+    String base = v2 ? 'AstVisitor2' : 'AstVisitor';
+    List<String> visits = v2 ? visits2 : visits1;
     var c = classNamed(visitorG, className);
     List<Method> methods = [
       for (var m in methodsOf(c))
@@ -193,7 +229,9 @@ void main(List<String> args) {
     }
     String module = snake(className);
     String body(Method m, String self) => switch (m.body) {
-      'visitChildren' => 'ast.visit_children2(node, $self);\n        None',
+      'visitChildren' =>
+        'ast.${v2 ? 'visit_children2' : 'visit_children'}(node, $self);\n        None',
+      'hand' => handBodies['$className.${m.name}']!,
       'null' => 'let _ = ($self, ast, node);\n        None',
       'throw' => 'let _ = $self;\n        throw_(ast, node)',
       String other =>
@@ -227,8 +265,8 @@ void main(List<String> args) {
     }
     v.writeln('}');
     v.writeln();
-    v.writeln('/// `class $className<R> implements AstVisitor2<R>`.');
-    v.writeln('pub trait $className: AstVisitor2 {');
+    v.writeln('/// `class $className<R> implements $base<R>`.');
+    v.writeln('pub trait $className: $base {');
     for (Method m in methods) {
       v.writeln(
         "    fn ${snake(m.name)}(&mut self, ast: Ast<'_>, node: NodeId) -> Option<Self::R> {",
@@ -239,7 +277,7 @@ void main(List<String> args) {
     }
     v.writeln('}');
     v.writeln();
-    v.writeln('/// Implements `AstVisitor2` for a type that implements');
+    v.writeln('/// Implements `$base` for a type that implements');
     v.writeln('/// `$className`: `$module!(Type, R)`, or');
     v.writeln("/// `$module!(['a, T] Type<'a, T>, R)` for a generic type.");
     v.writeln('#[macro_export]');
@@ -250,7 +288,7 @@ void main(List<String> args) {
     ]) {
     v.writeln('    $pattern => {');
     v.writeln(
-      '        impl$generics \$crate::src::dart::ast::ast_g::AstVisitor2 for \$t {',
+      '        impl$generics \$crate::src::dart::ast::ast_g::$base for \$t {',
     );
     v.writeln(r'            type R = $r;');
     for (String visit in visits) {
@@ -323,13 +361,21 @@ void main(List<String> args) {
   r.writeln('// Generated by oracle/generate_visitors.dart: do not edit.');
   r.writeln();
   r.writeln('use analyzer::dart::ast::visitor_g::{');
-  r.writeln('    RecursiveAstVisitor2, SimpleAstVisitor2, recursive_ast_visitor2,');
+  r.writeln('    GeneralizingAstVisitor, RecursiveAstVisitor, RecursiveAstVisitor2, SimpleAstVisitor,');
+  r.writeln('    SimpleAstVisitor2, generalizing_ast_visitor, recursive_ast_visitor, recursive_ast_visitor2,');
   r.writeln('};');
   r.writeln('use analyzer::src::dart::ast::ast_store::{Ast, NodeId};');
-  r.writeln('use analyzer::{recursive_ast_visitor2, simple_ast_visitor2};');
-  for (var (String name, String base, bool callSuper) in [
-    ('RecursiveRecorder', 'RecursiveAstVisitor2', true),
-    ('SimpleRecorder', 'SimpleAstVisitor2', false),
+  r.writeln('use analyzer::{');
+  r.writeln('    generalizing_ast_visitor, recursive_ast_visitor, recursive_ast_visitor2, simple_ast_visitor,');
+  r.writeln('    simple_ast_visitor2,');
+  r.writeln('};');
+  List<String> generalizing = [for (var m in generalizingMethods) m.name.lexeme];
+  for (var (String name, String base, bool callSuper, List<String> list) in [
+    ('RecursiveRecorder', 'RecursiveAstVisitor2', true, visits2),
+    ('SimpleRecorder', 'SimpleAstVisitor2', false, visits2),
+    ('RecursiveRecorder1', 'RecursiveAstVisitor', true, visits1),
+    ('SimpleRecorder1', 'SimpleAstVisitor', false, visits1),
+    ('GeneralizingRecorder', 'GeneralizingAstVisitor', true, generalizing),
   ]) {
     r.writeln();
     r.writeln("pub struct $name<'l> {");
@@ -337,7 +383,7 @@ void main(List<String> args) {
     r.writeln('}');
     r.writeln();
     r.writeln("impl $base for $name<'_> {");
-    for (String visit in visits) {
+    for (String visit in list) {
       r.writeln(
         "    fn ${snake(visit)}(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {",
       );
@@ -358,5 +404,5 @@ void main(List<String> args) {
   File('$root/rust/src/bin/ast_dump/recorders.rs').writeAsStringSync(
     r.toString(),
   );
-  stdout.writeln('${visits.length} visit methods');
+  stdout.writeln('${visits2.length} visit methods');
 }

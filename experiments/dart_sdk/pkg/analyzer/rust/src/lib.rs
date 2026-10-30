@@ -53,6 +53,7 @@ pub mod src {
             #[rustfmt::skip]
             pub mod ast_g;
             pub mod ast_store;
+            pub mod ast_v1;
             pub mod to_source_visitor;
             pub mod utilities;
         }

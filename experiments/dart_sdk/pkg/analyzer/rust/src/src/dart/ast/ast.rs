@@ -13,16 +13,19 @@
 // `beginToken`, `endToken`, `_childEntities2`, `accept2`, `visitChildren2`
 // and `precedence` are translated from upstream's bodies, and the children
 // a constructor makes this node the parent of are its node fields; `is XImpl` and `as XImpl` are `is_x_impl` and `as_x_impl`.
-// Classes that exist only in the V1 view of the AST, which upstream projects
-// from these, are not ported.
+// The classes that exist only in the V1 view of the AST, which upstream
+// projects from these, are structs holding the fields they declare; the V1
+// members (`_childEntities`, `visitChildren`, `accept`,
+// `_childContainingRange`) of every class are translated as the V2 ones are,
+// and the getters they read that upstream writes by hand are in ast_v1.rs.
 #![allow(clippy::all)]
 #![allow(non_snake_case, non_camel_case_types, unused_variables)]
 
 use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId, TokenStore};
 
 use crate::dart::ast::precedence::Precedence;
-use crate::src::dart::ast::ast_g::AstVisitor2;
-use crate::src::dart::ast::ast_store::{Ast, AstStore, ChildEntities, NO_NODE, NodeId, NodeListImpl};
+use crate::src::dart::ast::ast_g::{AstVisitor, AstVisitor2};
+use crate::src::dart::ast::ast_store::{Ast, AstNodeApi, AstStore, ChildEntities, ChildEntities1, NO_NODE, NodeId, NodeListImpl, V1_BASE};
 use crate::dart::analysis::features::FeatureSet;
 use crate::dart::ast::doc_comment::{DocDirective, DocImport, MdCodeBlock};
 use crate::dart::element::element::LibraryLanguageVersion;
@@ -107,9 +110,20 @@ pub struct AssignedVariablePatternImpl {
 }
 
 #[derive(Clone, Debug)]
+pub struct AssignmentExpressionImpl {
+    pub operator_: TokenId,
+    pub v1_projection_origin: NodeId,
+}
+
+#[derive(Clone, Debug)]
 pub struct AwaitExpressionImpl {
     pub await_keyword: TokenId,
     pub expression2: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct BinaryExpressionImpl {
+    pub origin: NodeId,
 }
 
 #[derive(Clone, Debug)]
@@ -117,6 +131,24 @@ pub struct BinaryOperatorInvocationImpl {
     pub left_operand: NodeId,
     pub operator_: TokenId,
     pub right_operand: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct BlockClassBodyImpl {
+    pub left_bracket: TokenId,
+    pub members: NodeListImpl,
+    pub right_bracket: TokenId,
+    pub v1_projection_origin: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct BlockEnumBodyImpl {
+    pub left_bracket: TokenId,
+    pub constants: NodeListImpl,
+    pub semicolon: TokenId,
+    pub members: NodeListImpl,
+    pub right_bracket: TokenId,
+    pub v1_projection_origin: NodeId,
 }
 
 #[derive(Clone, Debug)]
@@ -257,6 +289,21 @@ pub struct ClassDeclaration2Impl {
 }
 
 #[derive(Clone, Debug)]
+pub struct ClassDeclarationImpl {
+    pub augment_keyword: TokenId,
+    pub abstract_keyword: TokenId,
+    pub sealed_keyword: TokenId,
+    pub base_keyword: TokenId,
+    pub interface_keyword: TokenId,
+    pub final_keyword: TokenId,
+    pub mixin_keyword: TokenId,
+    pub class_keyword: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
+}
+
+#[derive(Clone, Debug)]
 pub struct ClassTypeAlias2Impl {
     pub documentation_comment: NodeId,
     pub metadata: NodeListImpl,
@@ -275,6 +322,24 @@ pub struct ClassTypeAlias2Impl {
     pub with_clause: NodeId,
     pub implements_clause: NodeId,
     pub body: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct ClassTypeAliasImpl {
+    pub abstract_keyword: TokenId,
+    pub sealed_keyword: TokenId,
+    pub base_keyword: TokenId,
+    pub interface_keyword: TokenId,
+    pub final_keyword: TokenId,
+    pub mixin_keyword: TokenId,
+    pub equals: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub augment_keyword: TokenId,
+    pub typedef_keyword: TokenId,
+    pub name: TokenId,
+    pub semicolon: TokenId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
 }
 
 #[derive(Clone, Debug)]
@@ -371,6 +436,21 @@ pub struct ConstructorDeclaration2Impl {
 }
 
 #[derive(Clone, Debug)]
+pub struct ConstructorDeclarationImpl {
+    pub augment_keyword: TokenId,
+    pub external_keyword: TokenId,
+    pub factory_keyword: TokenId,
+    pub new_keyword: TokenId,
+    pub period: TokenId,
+    pub name: TokenId,
+    pub separator: TokenId,
+    pub initializers: NodeListImpl,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
+}
+
+#[derive(Clone, Debug)]
 pub struct ConstructorFieldInitializerImpl {
     pub this_keyword: TokenId,
     pub period: TokenId,
@@ -388,9 +468,22 @@ pub struct ConstructorInvocationImpl {
 }
 
 #[derive(Clone, Debug)]
+pub struct ConstructorNameImpl {
+    pub origin: NodeId,
+    pub parsed_type: NodeId,
+    pub parsed_period: TokenId,
+    pub parsed_name: NodeId,
+}
+
+#[derive(Clone, Debug)]
 pub struct ConstructorReference2Impl {
     pub type_reference: NodeId,
     pub selector: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct ConstructorReferenceImpl {
+    pub origin: NodeId,
 }
 
 #[derive(Clone, Debug)]
@@ -464,9 +557,36 @@ pub struct DotShorthandConstructorInvocation2Impl {
 }
 
 #[derive(Clone, Debug)]
+pub struct DotShorthandConstructorInvocationImpl {
+    pub period: TokenId,
+    pub constructor_name: NodeId,
+    pub v1_projection_origin: NodeId,
+    pub argument_list: NodeId,
+    pub type_arguments: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct DotShorthandInvocationImpl {
+    pub period: TokenId,
+    pub member_name: NodeId,
+    pub v1_projection_origin: NodeId,
+    pub parsed_expression_origin: NodeId,
+    pub argument_list: NodeId,
+    pub type_arguments: NodeId,
+}
+
+#[derive(Clone, Debug)]
 pub struct DotShorthandNameExpressionImpl {
     pub period: TokenId,
     pub name: TokenId,
+}
+
+#[derive(Clone, Debug)]
+pub struct DotShorthandPropertyAccessImpl {
+    pub period: TokenId,
+    pub property_name: NodeId,
+    pub v1_projection_origin: NodeId,
+    pub parsed_expression_origin: NodeId,
 }
 
 #[derive(Clone, Debug)]
@@ -478,6 +598,18 @@ pub struct DottedNameImpl {
 pub struct DoubleLiteralImpl {
     pub literal: TokenId,
     pub value: f64,
+}
+
+#[derive(Clone, Debug)]
+pub struct EmptyClassBodyImpl {
+    pub semicolon: TokenId,
+    pub v1_projection_origin: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct EmptyEnumBodyImpl {
+    pub semicolon: TokenId,
+    pub v1_projection_origin: NodeId,
 }
 
 #[derive(Clone, Debug)]
@@ -507,6 +639,15 @@ pub struct EnumConstantDeclaration2Impl {
 }
 
 #[derive(Clone, Debug)]
+pub struct EnumConstantDeclarationImpl {
+    pub augment_keyword: TokenId,
+    pub name: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
+}
+
+#[derive(Clone, Debug)]
 pub struct EnumDeclaration2Impl {
     pub documentation_comment: NodeId,
     pub metadata: NodeListImpl,
@@ -516,6 +657,15 @@ pub struct EnumDeclaration2Impl {
     pub with_clause: NodeId,
     pub implements_clause: NodeId,
     pub body: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct EnumDeclarationImpl {
+    pub augment_keyword: TokenId,
+    pub enum_keyword: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
 }
 
 #[derive(Clone, Debug)]
@@ -564,9 +714,25 @@ pub struct ExtensionDeclaration2Impl {
 }
 
 #[derive(Clone, Debug)]
+pub struct ExtensionDeclarationImpl {
+    pub augment_keyword: TokenId,
+    pub extension_keyword: TokenId,
+    pub type_keyword: TokenId,
+    pub name: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
+}
+
+#[derive(Clone, Debug)]
 pub struct ExtensionOnClauseImpl {
     pub on_keyword: TokenId,
     pub extended_type: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExtensionOverrideImpl {
+    pub origin: NodeId,
 }
 
 #[derive(Clone, Debug)]
@@ -582,10 +748,34 @@ pub struct ExtensionTypeDeclaration2Impl {
 }
 
 #[derive(Clone, Debug)]
+pub struct ExtensionTypeDeclarationImpl {
+    pub augment_keyword: TokenId,
+    pub extension_keyword: TokenId,
+    pub type_keyword: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
+}
+
+#[derive(Clone, Debug)]
 pub struct Field2Impl {
     pub name: TokenId,
     pub equals: TokenId,
     pub initializer: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct FieldDeclarationImpl {
+    pub augment_keyword: TokenId,
+    pub external_keyword: TokenId,
+    pub static_keyword: TokenId,
+    pub abstract_keyword: TokenId,
+    pub covariant_keyword: TokenId,
+    pub fields: NodeId,
+    pub semicolon: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
 }
 
 #[derive(Clone, Debug)]
@@ -705,10 +895,42 @@ pub struct FormalParameterListImpl {
 }
 
 #[derive(Clone, Debug)]
+pub struct FunctionDeclarationImpl {
+    pub augment_keyword: TokenId,
+    pub external_keyword: TokenId,
+    pub property_keyword: TokenId,
+    pub name: TokenId,
+    pub function_expression: NodeId,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
+}
+
+#[derive(Clone, Debug)]
+pub struct FunctionDeclarationStatementImpl {
+    pub function_declaration: NodeId,
+    pub v1_projection_origin: NodeId,
+}
+
+#[derive(Clone, Debug)]
 pub struct FunctionExpressionImpl {
     pub type_parameters: NodeId,
     pub parameters: NodeId,
     pub body: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct FunctionExpressionInvocationImpl {
+    pub origin: NodeId,
+    pub argument_list: NodeId,
+    pub type_arguments: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct FunctionReferenceImpl {
+    pub type_arguments: NodeId,
+    pub function2: NodeId,
+    pub v1_projection_origin: NodeId,
 }
 
 #[derive(Clone, Debug)]
@@ -722,6 +944,17 @@ pub struct FunctionTypeAlias2Impl {
     pub type_parameters: NodeId,
     pub parameters: NodeId,
     pub semicolon: TokenId,
+}
+
+#[derive(Clone, Debug)]
+pub struct FunctionTypeAliasImpl {
+    pub v1_projection_origin: NodeId,
+    pub augment_keyword: TokenId,
+    pub typedef_keyword: TokenId,
+    pub name: TokenId,
+    pub semicolon: TokenId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
 }
 
 #[derive(Clone, Debug)]
@@ -751,6 +984,18 @@ pub struct GenericTypeAlias2Impl {
     pub equals: TokenId,
     pub type_: NodeId,
     pub semicolon: TokenId,
+}
+
+#[derive(Clone, Debug)]
+pub struct GenericTypeAliasImpl {
+    pub equals: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub augment_keyword: TokenId,
+    pub typedef_keyword: TokenId,
+    pub name: TokenId,
+    pub semicolon: TokenId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
 }
 
 #[derive(Clone, Debug)]
@@ -824,6 +1069,13 @@ pub struct ImplementsClauseImpl {
 }
 
 #[derive(Clone, Debug)]
+pub struct ImplicitCallReferenceImpl {
+    pub type_arguments: NodeId,
+    pub expression2: NodeId,
+    pub v1_projection_origin: NodeId,
+}
+
+#[derive(Clone, Debug)]
 pub struct ImportDirectiveImpl {
     pub documentation_comment: NodeId,
     pub metadata: NodeListImpl,
@@ -848,6 +1100,22 @@ pub struct IncrementOrDecrementExpressionImpl {
     pub position: IncrementOrDecrementPosition,
     pub operator_: TokenId,
     pub target: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct IndexExpressionImpl {
+    pub question: TokenId,
+    pub left_bracket: TokenId,
+    pub right_bracket: TokenId,
+    pub v1_projection_origin: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct InstanceCreationExpressionImpl {
+    pub origin: NodeId,
+    pub parsed_origin: NodeId,
+    pub parsed_constructor_name: NodeId,
+    pub parsed_argument_list: NodeId,
 }
 
 #[derive(Clone, Debug)]
@@ -1042,6 +1310,30 @@ pub struct MethodDeclaration2Impl {
 }
 
 #[derive(Clone, Debug)]
+pub struct MethodDeclarationImpl {
+    pub augment_keyword: TokenId,
+    pub external_keyword: TokenId,
+    pub modifier_keyword: TokenId,
+    pub property_keyword: TokenId,
+    pub operator_keyword: TokenId,
+    pub name: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
+}
+
+#[derive(Clone, Debug)]
+pub struct MethodInvocationImpl {
+    pub target2: NodeId,
+    pub operator_: TokenId,
+    pub method_name: NodeId,
+    pub v1_projection_origin: NodeId,
+    pub parsed_expression_origin: NodeId,
+    pub argument_list: NodeId,
+    pub type_arguments: NodeId,
+}
+
+#[derive(Clone, Debug)]
 pub struct MixinDeclaration2Impl {
     pub documentation_comment: NodeId,
     pub metadata: NodeListImpl,
@@ -1053,6 +1345,17 @@ pub struct MixinDeclaration2Impl {
     pub on_clause: NodeId,
     pub implements_clause: NodeId,
     pub body: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct MixinDeclarationImpl {
+    pub augment_keyword: TokenId,
+    pub base_keyword: TokenId,
+    pub mixin_keyword: TokenId,
+    pub name: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
 }
 
 #[derive(Clone, Debug)]
@@ -1263,6 +1566,24 @@ pub struct PatternVariableDeclarationStatementImpl {
 }
 
 #[derive(Clone, Debug)]
+pub struct PostfixExpressionImpl {
+    pub origin: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct PrefixExpressionImpl {
+    pub origin: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct PrefixedIdentifierImpl {
+    pub prefix: NodeId,
+    pub period: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub identifier: NodeId,
+}
+
+#[derive(Clone, Debug)]
 pub struct PrimaryConstructorBody2Impl {
     pub documentation_comment: NodeId,
     pub metadata: NodeListImpl,
@@ -1271,6 +1592,17 @@ pub struct PrimaryConstructorBody2Impl {
     pub colon: TokenId,
     pub initializers: NodeListImpl,
     pub body: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct PrimaryConstructorBodyImpl {
+    pub augment_keyword: TokenId,
+    pub this_keyword: TokenId,
+    pub colon: TokenId,
+    pub initializers: NodeListImpl,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
 }
 
 #[derive(Clone, Debug)]
@@ -1286,6 +1618,14 @@ pub struct PrimaryConstructorDeclarationImpl {
 pub struct PrimaryConstructorNameImpl {
     pub period: TokenId,
     pub name: TokenId,
+}
+
+#[derive(Clone, Debug)]
+pub struct PropertyAccessImpl {
+    pub operator_: TokenId,
+    pub target2: NodeId,
+    pub property_name: NodeId,
+    pub v1_projection_origin: NodeId,
 }
 
 #[derive(Clone, Debug)]
@@ -1462,6 +1802,12 @@ pub struct ShowCombinatorImpl {
 }
 
 #[derive(Clone, Debug)]
+pub struct SimpleIdentifierImpl {
+    pub token: TokenId,
+    pub v1_projection_origin: NodeId,
+}
+
+#[derive(Clone, Debug)]
 pub struct SimpleStringLiteralImpl {
     pub literal: TokenId,
     pub value: Vec<u16>,
@@ -1483,6 +1829,12 @@ pub struct SuperConstructorInvocationImpl {
     pub super_keyword: TokenId,
     pub constructor_selector: NodeId,
     pub argument_list: NodeId,
+}
+
+#[derive(Clone, Debug)]
+pub struct SuperExpressionImpl {
+    pub super_keyword: TokenId,
+    pub origin: NodeId,
 }
 
 #[derive(Clone, Debug)]
@@ -1625,6 +1977,18 @@ pub struct TopLevelVariable2Impl {
 }
 
 #[derive(Clone, Debug)]
+pub struct TopLevelVariableDeclarationImpl {
+    pub augment_keyword: TokenId,
+    pub external_keyword: TokenId,
+    pub abstract_keyword: TokenId,
+    pub variables: NodeId,
+    pub semicolon: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
+}
+
+#[derive(Clone, Debug)]
 pub struct TopLevelVariablesDeclarationImpl {
     pub documentation_comment: NodeId,
     pub metadata: NodeListImpl,
@@ -1683,6 +2047,32 @@ pub struct UnqualifiedNameAssignmentTargetImpl {
 }
 
 #[derive(Clone, Debug)]
+pub struct VariableDeclarationImpl {
+    pub name: TokenId,
+    pub equals: TokenId,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
+}
+
+#[derive(Clone, Debug)]
+pub struct VariableDeclarationListImpl {
+    pub late_keyword: TokenId,
+    pub keyword: TokenId,
+    pub variables: NodeListImpl,
+    pub v1_projection_origin: NodeId,
+    pub documentation_comment: NodeId,
+    pub metadata: NodeListImpl,
+}
+
+#[derive(Clone, Debug)]
+pub struct VariableDeclarationStatementImpl {
+    pub variables: NodeId,
+    pub semicolon: TokenId,
+    pub v1_projection_origin: NodeId,
+}
+
+#[derive(Clone, Debug)]
 pub struct WhenClauseImpl {
     pub when_keyword: TokenId,
     pub expression2: NodeId,
@@ -1731,8 +2121,12 @@ pub enum AstNodeImpl {
     AssertInitializerImpl(AssertInitializerImpl),
     AssertStatementImpl(Box<AssertStatementImpl>),
     AssignedVariablePatternImpl(AssignedVariablePatternImpl),
+    AssignmentExpressionImpl(AssignmentExpressionImpl),
     AwaitExpressionImpl(AwaitExpressionImpl),
+    BinaryExpressionImpl(BinaryExpressionImpl),
     BinaryOperatorInvocationImpl(BinaryOperatorInvocationImpl),
+    BlockClassBodyImpl(Box<BlockClassBodyImpl>),
+    BlockEnumBodyImpl(Box<BlockEnumBodyImpl>),
     BlockEnumDeclarationBodyImpl(Box<BlockEnumDeclarationBodyImpl>),
     BlockFunctionBodyImpl(BlockFunctionBodyImpl),
     BlockImpl(Box<BlockImpl>),
@@ -1751,7 +2145,9 @@ pub enum AstNodeImpl {
     CatchClauseImpl(Box<CatchClauseImpl>),
     CatchClauseParameterImpl(CatchClauseParameterImpl),
     ClassDeclaration2Impl(Box<ClassDeclaration2Impl>),
+    ClassDeclarationImpl(Box<ClassDeclarationImpl>),
     ClassTypeAlias2Impl(Box<ClassTypeAlias2Impl>),
+    ClassTypeAliasImpl(Box<ClassTypeAliasImpl>),
     CombinatorNameImpl(CombinatorNameImpl),
     CommentImpl(Box<CommentImpl>),
     CommentReferenceComponentImpl(CommentReferenceComponentImpl),
@@ -1762,9 +2158,12 @@ pub enum AstNodeImpl {
     ConfigurationImpl(Box<ConfigurationImpl>),
     ConstantPatternImpl(ConstantPatternImpl),
     ConstructorDeclaration2Impl(Box<ConstructorDeclaration2Impl>),
+    ConstructorDeclarationImpl(Box<ConstructorDeclarationImpl>),
     ConstructorFieldInitializerImpl(ConstructorFieldInitializerImpl),
     ConstructorInvocationImpl(ConstructorInvocationImpl),
+    ConstructorNameImpl(ConstructorNameImpl),
     ConstructorReference2Impl(ConstructorReference2Impl),
+    ConstructorReferenceImpl(ConstructorReferenceImpl),
     ConstructorSelectorImpl(ConstructorSelectorImpl),
     ConstructorTypeReferenceImpl(ConstructorTypeReferenceImpl),
     ContinueStatementImpl(ContinueStatementImpl),
@@ -1774,22 +2173,33 @@ pub enum AstNodeImpl {
     DirectAssignmentImpl(DirectAssignmentImpl),
     DoStatementImpl(Box<DoStatementImpl>),
     DotShorthandConstructorInvocation2Impl(DotShorthandConstructorInvocation2Impl),
+    DotShorthandConstructorInvocationImpl(DotShorthandConstructorInvocationImpl),
+    DotShorthandInvocationImpl(DotShorthandInvocationImpl),
     DotShorthandNameExpressionImpl(DotShorthandNameExpressionImpl),
+    DotShorthandPropertyAccessImpl(DotShorthandPropertyAccessImpl),
     DottedNameImpl(DottedNameImpl),
     DoubleLiteralImpl(DoubleLiteralImpl),
+    EmptyClassBodyImpl(EmptyClassBodyImpl),
+    EmptyEnumBodyImpl(EmptyEnumBodyImpl),
     EmptyFunctionBodyImpl(EmptyFunctionBodyImpl),
     EmptyStatementImpl(EmptyStatementImpl),
     EnumConstantArgumentsImpl(EnumConstantArgumentsImpl),
     EnumConstantDeclaration2Impl(Box<EnumConstantDeclaration2Impl>),
+    EnumConstantDeclarationImpl(Box<EnumConstantDeclarationImpl>),
     EnumDeclaration2Impl(Box<EnumDeclaration2Impl>),
+    EnumDeclarationImpl(Box<EnumDeclarationImpl>),
     ExportDirectiveImpl(Box<ExportDirectiveImpl>),
     ExpressionFunctionBodyImpl(ExpressionFunctionBodyImpl),
     ExpressionStatementImpl(ExpressionStatementImpl),
     ExtendsClauseImpl(ExtendsClauseImpl),
     ExtensionDeclaration2Impl(Box<ExtensionDeclaration2Impl>),
+    ExtensionDeclarationImpl(Box<ExtensionDeclarationImpl>),
     ExtensionOnClauseImpl(ExtensionOnClauseImpl),
+    ExtensionOverrideImpl(ExtensionOverrideImpl),
     ExtensionTypeDeclaration2Impl(Box<ExtensionTypeDeclaration2Impl>),
+    ExtensionTypeDeclarationImpl(Box<ExtensionTypeDeclarationImpl>),
     Field2Impl(Field2Impl),
+    FieldDeclarationImpl(Box<FieldDeclarationImpl>),
     FieldFormalParameterImpl(Box<FieldFormalParameterImpl>),
     FieldsDeclarationImpl(Box<FieldsDeclarationImpl>),
     ForEachPartsWithDeclarationImpl(ForEachPartsWithDeclarationImpl),
@@ -1802,11 +2212,17 @@ pub enum AstNodeImpl {
     ForStatementImpl(ForStatementImpl),
     FormalParameterDefaultClauseImpl(FormalParameterDefaultClauseImpl),
     FormalParameterListImpl(Box<FormalParameterListImpl>),
+    FunctionDeclarationImpl(Box<FunctionDeclarationImpl>),
+    FunctionDeclarationStatementImpl(FunctionDeclarationStatementImpl),
     FunctionExpressionImpl(FunctionExpressionImpl),
+    FunctionExpressionInvocationImpl(FunctionExpressionInvocationImpl),
+    FunctionReferenceImpl(FunctionReferenceImpl),
     FunctionTypeAlias2Impl(Box<FunctionTypeAlias2Impl>),
+    FunctionTypeAliasImpl(Box<FunctionTypeAliasImpl>),
     FunctionTypedFormalParameterSuffixImpl(FunctionTypedFormalParameterSuffixImpl),
     GenericFunctionTypeImpl(GenericFunctionTypeImpl),
     GenericTypeAlias2Impl(Box<GenericTypeAlias2Impl>),
+    GenericTypeAliasImpl(Box<GenericTypeAliasImpl>),
     GetterDeclarationImpl(Box<GetterDeclarationImpl>),
     GuardedPatternImpl(GuardedPatternImpl),
     HideCombinatorImpl(Box<HideCombinatorImpl>),
@@ -1815,9 +2231,12 @@ pub enum AstNodeImpl {
     IfNullImpl(IfNullImpl),
     IfStatementImpl(Box<IfStatementImpl>),
     ImplementsClauseImpl(Box<ImplementsClauseImpl>),
+    ImplicitCallReferenceImpl(ImplicitCallReferenceImpl),
     ImportDirectiveImpl(Box<ImportDirectiveImpl>),
     ImportPrefixReferenceImpl(ImportPrefixReferenceImpl),
     IncrementOrDecrementExpressionImpl(IncrementOrDecrementExpressionImpl),
+    IndexExpressionImpl(IndexExpressionImpl),
+    InstanceCreationExpressionImpl(InstanceCreationExpressionImpl),
     IntegerLiteralImpl(IntegerLiteralImpl),
     InterpolationExpressionImpl(InterpolationExpressionImpl),
     InterpolationStringImpl(Box<InterpolationStringImpl>),
@@ -1844,7 +2263,10 @@ pub enum AstNodeImpl {
     MapPatternEntryImpl(MapPatternEntryImpl),
     MapPatternImpl(Box<MapPatternImpl>),
     MethodDeclaration2Impl(Box<MethodDeclaration2Impl>),
+    MethodDeclarationImpl(Box<MethodDeclarationImpl>),
+    MethodInvocationImpl(Box<MethodInvocationImpl>),
     MixinDeclaration2Impl(Box<MixinDeclaration2Impl>),
+    MixinDeclarationImpl(Box<MixinDeclarationImpl>),
     MixinOnClauseImpl(Box<MixinOnClauseImpl>),
     NameWithTypeParametersImpl(NameWithTypeParametersImpl),
     NamedArgumentImpl(NamedArgumentImpl),
@@ -1875,9 +2297,14 @@ pub enum AstNodeImpl {
     PatternFieldNameImpl(PatternFieldNameImpl),
     PatternVariableDeclarationImpl(Box<PatternVariableDeclarationImpl>),
     PatternVariableDeclarationStatementImpl(PatternVariableDeclarationStatementImpl),
+    PostfixExpressionImpl(PostfixExpressionImpl),
+    PrefixExpressionImpl(PrefixExpressionImpl),
+    PrefixedIdentifierImpl(PrefixedIdentifierImpl),
     PrimaryConstructorBody2Impl(Box<PrimaryConstructorBody2Impl>),
+    PrimaryConstructorBodyImpl(Box<PrimaryConstructorBodyImpl>),
     PrimaryConstructorDeclarationImpl(PrimaryConstructorDeclarationImpl),
     PrimaryConstructorNameImpl(PrimaryConstructorNameImpl),
+    PropertyAccessImpl(PropertyAccessImpl),
     ReceiverIndexAssignmentTargetImpl(ReceiverIndexAssignmentTargetImpl),
     ReceiverIndexExpressionImpl(ReceiverIndexExpressionImpl),
     ReceiverPropertyAssignmentTargetImpl(ReceiverPropertyAssignmentTargetImpl),
@@ -1901,10 +2328,12 @@ pub enum AstNodeImpl {
     SetOrMapLiteralImpl(Box<SetOrMapLiteralImpl>),
     SetterDeclarationImpl(Box<SetterDeclarationImpl>),
     ShowCombinatorImpl(Box<ShowCombinatorImpl>),
+    SimpleIdentifierImpl(SimpleIdentifierImpl),
     SimpleStringLiteralImpl(Box<SimpleStringLiteralImpl>),
     SpreadElementImpl(SpreadElementImpl),
     StringInterpolationImpl(StringInterpolationImpl),
     SuperConstructorInvocationImpl(SuperConstructorInvocationImpl),
+    SuperExpressionImpl(SuperExpressionImpl),
     SuperFormalParameterImpl(Box<SuperFormalParameterImpl>),
     SuperReferenceImpl(SuperReferenceImpl),
     SwitchCaseImpl(Box<SwitchCaseImpl>),
@@ -1920,6 +2349,7 @@ pub enum AstNodeImpl {
     TopLevelGetterDeclarationImpl(Box<TopLevelGetterDeclarationImpl>),
     TopLevelSetterDeclarationImpl(Box<TopLevelSetterDeclarationImpl>),
     TopLevelVariable2Impl(TopLevelVariable2Impl),
+    TopLevelVariableDeclarationImpl(Box<TopLevelVariableDeclarationImpl>),
     TopLevelVariablesDeclarationImpl(Box<TopLevelVariablesDeclarationImpl>),
     TryStatementImpl(Box<TryStatementImpl>),
     TypeArgumentListImpl(Box<TypeArgumentListImpl>),
@@ -1927,6 +2357,9 @@ pub enum AstNodeImpl {
     TypeParameterListImpl(Box<TypeParameterListImpl>),
     UnaryOperatorInvocationImpl(UnaryOperatorInvocationImpl),
     UnqualifiedNameAssignmentTargetImpl(UnqualifiedNameAssignmentTargetImpl),
+    VariableDeclarationImpl(Box<VariableDeclarationImpl>),
+    VariableDeclarationListImpl(Box<VariableDeclarationListImpl>),
+    VariableDeclarationStatementImpl(VariableDeclarationStatementImpl),
     WhenClauseImpl(WhenClauseImpl),
     WhileStatementImpl(WhileStatementImpl),
     WildcardPatternImpl(WildcardPatternImpl),
@@ -1994,15 +2427,39 @@ impl From<AssignedVariablePatternImpl> for AstNodeImpl {
     }
 }
 
+impl From<AssignmentExpressionImpl> for AstNodeImpl {
+    fn from(node: AssignmentExpressionImpl) -> AstNodeImpl {
+        AstNodeImpl::AssignmentExpressionImpl(node)
+    }
+}
+
 impl From<AwaitExpressionImpl> for AstNodeImpl {
     fn from(node: AwaitExpressionImpl) -> AstNodeImpl {
         AstNodeImpl::AwaitExpressionImpl(node)
     }
 }
 
+impl From<BinaryExpressionImpl> for AstNodeImpl {
+    fn from(node: BinaryExpressionImpl) -> AstNodeImpl {
+        AstNodeImpl::BinaryExpressionImpl(node)
+    }
+}
+
 impl From<BinaryOperatorInvocationImpl> for AstNodeImpl {
     fn from(node: BinaryOperatorInvocationImpl) -> AstNodeImpl {
         AstNodeImpl::BinaryOperatorInvocationImpl(node)
+    }
+}
+
+impl From<BlockClassBodyImpl> for AstNodeImpl {
+    fn from(node: BlockClassBodyImpl) -> AstNodeImpl {
+        AstNodeImpl::BlockClassBodyImpl(Box::new(node))
+    }
+}
+
+impl From<BlockEnumBodyImpl> for AstNodeImpl {
+    fn from(node: BlockEnumBodyImpl) -> AstNodeImpl {
+        AstNodeImpl::BlockEnumBodyImpl(Box::new(node))
     }
 }
 
@@ -2114,9 +2571,21 @@ impl From<ClassDeclaration2Impl> for AstNodeImpl {
     }
 }
 
+impl From<ClassDeclarationImpl> for AstNodeImpl {
+    fn from(node: ClassDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::ClassDeclarationImpl(Box::new(node))
+    }
+}
+
 impl From<ClassTypeAlias2Impl> for AstNodeImpl {
     fn from(node: ClassTypeAlias2Impl) -> AstNodeImpl {
         AstNodeImpl::ClassTypeAlias2Impl(Box::new(node))
+    }
+}
+
+impl From<ClassTypeAliasImpl> for AstNodeImpl {
+    fn from(node: ClassTypeAliasImpl) -> AstNodeImpl {
+        AstNodeImpl::ClassTypeAliasImpl(Box::new(node))
     }
 }
 
@@ -2180,6 +2649,12 @@ impl From<ConstructorDeclaration2Impl> for AstNodeImpl {
     }
 }
 
+impl From<ConstructorDeclarationImpl> for AstNodeImpl {
+    fn from(node: ConstructorDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::ConstructorDeclarationImpl(Box::new(node))
+    }
+}
+
 impl From<ConstructorFieldInitializerImpl> for AstNodeImpl {
     fn from(node: ConstructorFieldInitializerImpl) -> AstNodeImpl {
         AstNodeImpl::ConstructorFieldInitializerImpl(node)
@@ -2192,9 +2667,21 @@ impl From<ConstructorInvocationImpl> for AstNodeImpl {
     }
 }
 
+impl From<ConstructorNameImpl> for AstNodeImpl {
+    fn from(node: ConstructorNameImpl) -> AstNodeImpl {
+        AstNodeImpl::ConstructorNameImpl(node)
+    }
+}
+
 impl From<ConstructorReference2Impl> for AstNodeImpl {
     fn from(node: ConstructorReference2Impl) -> AstNodeImpl {
         AstNodeImpl::ConstructorReference2Impl(node)
+    }
+}
+
+impl From<ConstructorReferenceImpl> for AstNodeImpl {
+    fn from(node: ConstructorReferenceImpl) -> AstNodeImpl {
+        AstNodeImpl::ConstructorReferenceImpl(node)
     }
 }
 
@@ -2252,9 +2739,27 @@ impl From<DotShorthandConstructorInvocation2Impl> for AstNodeImpl {
     }
 }
 
+impl From<DotShorthandConstructorInvocationImpl> for AstNodeImpl {
+    fn from(node: DotShorthandConstructorInvocationImpl) -> AstNodeImpl {
+        AstNodeImpl::DotShorthandConstructorInvocationImpl(node)
+    }
+}
+
+impl From<DotShorthandInvocationImpl> for AstNodeImpl {
+    fn from(node: DotShorthandInvocationImpl) -> AstNodeImpl {
+        AstNodeImpl::DotShorthandInvocationImpl(node)
+    }
+}
+
 impl From<DotShorthandNameExpressionImpl> for AstNodeImpl {
     fn from(node: DotShorthandNameExpressionImpl) -> AstNodeImpl {
         AstNodeImpl::DotShorthandNameExpressionImpl(node)
+    }
+}
+
+impl From<DotShorthandPropertyAccessImpl> for AstNodeImpl {
+    fn from(node: DotShorthandPropertyAccessImpl) -> AstNodeImpl {
+        AstNodeImpl::DotShorthandPropertyAccessImpl(node)
     }
 }
 
@@ -2267,6 +2772,18 @@ impl From<DottedNameImpl> for AstNodeImpl {
 impl From<DoubleLiteralImpl> for AstNodeImpl {
     fn from(node: DoubleLiteralImpl) -> AstNodeImpl {
         AstNodeImpl::DoubleLiteralImpl(node)
+    }
+}
+
+impl From<EmptyClassBodyImpl> for AstNodeImpl {
+    fn from(node: EmptyClassBodyImpl) -> AstNodeImpl {
+        AstNodeImpl::EmptyClassBodyImpl(node)
+    }
+}
+
+impl From<EmptyEnumBodyImpl> for AstNodeImpl {
+    fn from(node: EmptyEnumBodyImpl) -> AstNodeImpl {
+        AstNodeImpl::EmptyEnumBodyImpl(node)
     }
 }
 
@@ -2294,9 +2811,21 @@ impl From<EnumConstantDeclaration2Impl> for AstNodeImpl {
     }
 }
 
+impl From<EnumConstantDeclarationImpl> for AstNodeImpl {
+    fn from(node: EnumConstantDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::EnumConstantDeclarationImpl(Box::new(node))
+    }
+}
+
 impl From<EnumDeclaration2Impl> for AstNodeImpl {
     fn from(node: EnumDeclaration2Impl) -> AstNodeImpl {
         AstNodeImpl::EnumDeclaration2Impl(Box::new(node))
+    }
+}
+
+impl From<EnumDeclarationImpl> for AstNodeImpl {
+    fn from(node: EnumDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::EnumDeclarationImpl(Box::new(node))
     }
 }
 
@@ -2330,9 +2859,21 @@ impl From<ExtensionDeclaration2Impl> for AstNodeImpl {
     }
 }
 
+impl From<ExtensionDeclarationImpl> for AstNodeImpl {
+    fn from(node: ExtensionDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::ExtensionDeclarationImpl(Box::new(node))
+    }
+}
+
 impl From<ExtensionOnClauseImpl> for AstNodeImpl {
     fn from(node: ExtensionOnClauseImpl) -> AstNodeImpl {
         AstNodeImpl::ExtensionOnClauseImpl(node)
+    }
+}
+
+impl From<ExtensionOverrideImpl> for AstNodeImpl {
+    fn from(node: ExtensionOverrideImpl) -> AstNodeImpl {
+        AstNodeImpl::ExtensionOverrideImpl(node)
     }
 }
 
@@ -2342,9 +2883,21 @@ impl From<ExtensionTypeDeclaration2Impl> for AstNodeImpl {
     }
 }
 
+impl From<ExtensionTypeDeclarationImpl> for AstNodeImpl {
+    fn from(node: ExtensionTypeDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::ExtensionTypeDeclarationImpl(Box::new(node))
+    }
+}
+
 impl From<Field2Impl> for AstNodeImpl {
     fn from(node: Field2Impl) -> AstNodeImpl {
         AstNodeImpl::Field2Impl(node)
+    }
+}
+
+impl From<FieldDeclarationImpl> for AstNodeImpl {
+    fn from(node: FieldDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::FieldDeclarationImpl(Box::new(node))
     }
 }
 
@@ -2420,15 +2973,45 @@ impl From<FormalParameterListImpl> for AstNodeImpl {
     }
 }
 
+impl From<FunctionDeclarationImpl> for AstNodeImpl {
+    fn from(node: FunctionDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::FunctionDeclarationImpl(Box::new(node))
+    }
+}
+
+impl From<FunctionDeclarationStatementImpl> for AstNodeImpl {
+    fn from(node: FunctionDeclarationStatementImpl) -> AstNodeImpl {
+        AstNodeImpl::FunctionDeclarationStatementImpl(node)
+    }
+}
+
 impl From<FunctionExpressionImpl> for AstNodeImpl {
     fn from(node: FunctionExpressionImpl) -> AstNodeImpl {
         AstNodeImpl::FunctionExpressionImpl(node)
     }
 }
 
+impl From<FunctionExpressionInvocationImpl> for AstNodeImpl {
+    fn from(node: FunctionExpressionInvocationImpl) -> AstNodeImpl {
+        AstNodeImpl::FunctionExpressionInvocationImpl(node)
+    }
+}
+
+impl From<FunctionReferenceImpl> for AstNodeImpl {
+    fn from(node: FunctionReferenceImpl) -> AstNodeImpl {
+        AstNodeImpl::FunctionReferenceImpl(node)
+    }
+}
+
 impl From<FunctionTypeAlias2Impl> for AstNodeImpl {
     fn from(node: FunctionTypeAlias2Impl) -> AstNodeImpl {
         AstNodeImpl::FunctionTypeAlias2Impl(Box::new(node))
+    }
+}
+
+impl From<FunctionTypeAliasImpl> for AstNodeImpl {
+    fn from(node: FunctionTypeAliasImpl) -> AstNodeImpl {
+        AstNodeImpl::FunctionTypeAliasImpl(Box::new(node))
     }
 }
 
@@ -2447,6 +3030,12 @@ impl From<GenericFunctionTypeImpl> for AstNodeImpl {
 impl From<GenericTypeAlias2Impl> for AstNodeImpl {
     fn from(node: GenericTypeAlias2Impl) -> AstNodeImpl {
         AstNodeImpl::GenericTypeAlias2Impl(Box::new(node))
+    }
+}
+
+impl From<GenericTypeAliasImpl> for AstNodeImpl {
+    fn from(node: GenericTypeAliasImpl) -> AstNodeImpl {
+        AstNodeImpl::GenericTypeAliasImpl(Box::new(node))
     }
 }
 
@@ -2498,6 +3087,12 @@ impl From<ImplementsClauseImpl> for AstNodeImpl {
     }
 }
 
+impl From<ImplicitCallReferenceImpl> for AstNodeImpl {
+    fn from(node: ImplicitCallReferenceImpl) -> AstNodeImpl {
+        AstNodeImpl::ImplicitCallReferenceImpl(node)
+    }
+}
+
 impl From<ImportDirectiveImpl> for AstNodeImpl {
     fn from(node: ImportDirectiveImpl) -> AstNodeImpl {
         AstNodeImpl::ImportDirectiveImpl(Box::new(node))
@@ -2513,6 +3108,18 @@ impl From<ImportPrefixReferenceImpl> for AstNodeImpl {
 impl From<IncrementOrDecrementExpressionImpl> for AstNodeImpl {
     fn from(node: IncrementOrDecrementExpressionImpl) -> AstNodeImpl {
         AstNodeImpl::IncrementOrDecrementExpressionImpl(node)
+    }
+}
+
+impl From<IndexExpressionImpl> for AstNodeImpl {
+    fn from(node: IndexExpressionImpl) -> AstNodeImpl {
+        AstNodeImpl::IndexExpressionImpl(node)
+    }
+}
+
+impl From<InstanceCreationExpressionImpl> for AstNodeImpl {
+    fn from(node: InstanceCreationExpressionImpl) -> AstNodeImpl {
+        AstNodeImpl::InstanceCreationExpressionImpl(node)
     }
 }
 
@@ -2672,9 +3279,27 @@ impl From<MethodDeclaration2Impl> for AstNodeImpl {
     }
 }
 
+impl From<MethodDeclarationImpl> for AstNodeImpl {
+    fn from(node: MethodDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::MethodDeclarationImpl(Box::new(node))
+    }
+}
+
+impl From<MethodInvocationImpl> for AstNodeImpl {
+    fn from(node: MethodInvocationImpl) -> AstNodeImpl {
+        AstNodeImpl::MethodInvocationImpl(Box::new(node))
+    }
+}
+
 impl From<MixinDeclaration2Impl> for AstNodeImpl {
     fn from(node: MixinDeclaration2Impl) -> AstNodeImpl {
         AstNodeImpl::MixinDeclaration2Impl(Box::new(node))
+    }
+}
+
+impl From<MixinDeclarationImpl> for AstNodeImpl {
+    fn from(node: MixinDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::MixinDeclarationImpl(Box::new(node))
     }
 }
 
@@ -2858,9 +3483,33 @@ impl From<PatternVariableDeclarationStatementImpl> for AstNodeImpl {
     }
 }
 
+impl From<PostfixExpressionImpl> for AstNodeImpl {
+    fn from(node: PostfixExpressionImpl) -> AstNodeImpl {
+        AstNodeImpl::PostfixExpressionImpl(node)
+    }
+}
+
+impl From<PrefixExpressionImpl> for AstNodeImpl {
+    fn from(node: PrefixExpressionImpl) -> AstNodeImpl {
+        AstNodeImpl::PrefixExpressionImpl(node)
+    }
+}
+
+impl From<PrefixedIdentifierImpl> for AstNodeImpl {
+    fn from(node: PrefixedIdentifierImpl) -> AstNodeImpl {
+        AstNodeImpl::PrefixedIdentifierImpl(node)
+    }
+}
+
 impl From<PrimaryConstructorBody2Impl> for AstNodeImpl {
     fn from(node: PrimaryConstructorBody2Impl) -> AstNodeImpl {
         AstNodeImpl::PrimaryConstructorBody2Impl(Box::new(node))
+    }
+}
+
+impl From<PrimaryConstructorBodyImpl> for AstNodeImpl {
+    fn from(node: PrimaryConstructorBodyImpl) -> AstNodeImpl {
+        AstNodeImpl::PrimaryConstructorBodyImpl(Box::new(node))
     }
 }
 
@@ -2873,6 +3522,12 @@ impl From<PrimaryConstructorDeclarationImpl> for AstNodeImpl {
 impl From<PrimaryConstructorNameImpl> for AstNodeImpl {
     fn from(node: PrimaryConstructorNameImpl) -> AstNodeImpl {
         AstNodeImpl::PrimaryConstructorNameImpl(node)
+    }
+}
+
+impl From<PropertyAccessImpl> for AstNodeImpl {
+    fn from(node: PropertyAccessImpl) -> AstNodeImpl {
+        AstNodeImpl::PropertyAccessImpl(node)
     }
 }
 
@@ -3014,6 +3669,12 @@ impl From<ShowCombinatorImpl> for AstNodeImpl {
     }
 }
 
+impl From<SimpleIdentifierImpl> for AstNodeImpl {
+    fn from(node: SimpleIdentifierImpl) -> AstNodeImpl {
+        AstNodeImpl::SimpleIdentifierImpl(node)
+    }
+}
+
 impl From<SimpleStringLiteralImpl> for AstNodeImpl {
     fn from(node: SimpleStringLiteralImpl) -> AstNodeImpl {
         AstNodeImpl::SimpleStringLiteralImpl(Box::new(node))
@@ -3035,6 +3696,12 @@ impl From<StringInterpolationImpl> for AstNodeImpl {
 impl From<SuperConstructorInvocationImpl> for AstNodeImpl {
     fn from(node: SuperConstructorInvocationImpl) -> AstNodeImpl {
         AstNodeImpl::SuperConstructorInvocationImpl(node)
+    }
+}
+
+impl From<SuperExpressionImpl> for AstNodeImpl {
+    fn from(node: SuperExpressionImpl) -> AstNodeImpl {
+        AstNodeImpl::SuperExpressionImpl(node)
     }
 }
 
@@ -3128,6 +3795,12 @@ impl From<TopLevelVariable2Impl> for AstNodeImpl {
     }
 }
 
+impl From<TopLevelVariableDeclarationImpl> for AstNodeImpl {
+    fn from(node: TopLevelVariableDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::TopLevelVariableDeclarationImpl(Box::new(node))
+    }
+}
+
 impl From<TopLevelVariablesDeclarationImpl> for AstNodeImpl {
     fn from(node: TopLevelVariablesDeclarationImpl) -> AstNodeImpl {
         AstNodeImpl::TopLevelVariablesDeclarationImpl(Box::new(node))
@@ -3167,6 +3840,24 @@ impl From<UnaryOperatorInvocationImpl> for AstNodeImpl {
 impl From<UnqualifiedNameAssignmentTargetImpl> for AstNodeImpl {
     fn from(node: UnqualifiedNameAssignmentTargetImpl) -> AstNodeImpl {
         AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(node)
+    }
+}
+
+impl From<VariableDeclarationImpl> for AstNodeImpl {
+    fn from(node: VariableDeclarationImpl) -> AstNodeImpl {
+        AstNodeImpl::VariableDeclarationImpl(Box::new(node))
+    }
+}
+
+impl From<VariableDeclarationListImpl> for AstNodeImpl {
+    fn from(node: VariableDeclarationListImpl) -> AstNodeImpl {
+        AstNodeImpl::VariableDeclarationListImpl(Box::new(node))
+    }
+}
+
+impl From<VariableDeclarationStatementImpl> for AstNodeImpl {
+    fn from(node: VariableDeclarationStatementImpl) -> AstNodeImpl {
+        AstNodeImpl::VariableDeclarationStatementImpl(node)
     }
 }
 
@@ -3214,8 +3905,12 @@ impl AstNodeImpl {
             AstNodeImpl::AssertInitializerImpl(_) => "AssertInitializerImpl",
             AstNodeImpl::AssertStatementImpl(_) => "AssertStatementImpl",
             AstNodeImpl::AssignedVariablePatternImpl(_) => "AssignedVariablePatternImpl",
+            AstNodeImpl::AssignmentExpressionImpl(_) => "AssignmentExpressionImpl",
             AstNodeImpl::AwaitExpressionImpl(_) => "AwaitExpressionImpl",
+            AstNodeImpl::BinaryExpressionImpl(_) => "BinaryExpressionImpl",
             AstNodeImpl::BinaryOperatorInvocationImpl(_) => "BinaryOperatorInvocationImpl",
+            AstNodeImpl::BlockClassBodyImpl(_) => "BlockClassBodyImpl",
+            AstNodeImpl::BlockEnumBodyImpl(_) => "BlockEnumBodyImpl",
             AstNodeImpl::BlockEnumDeclarationBodyImpl(_) => "BlockEnumDeclarationBodyImpl",
             AstNodeImpl::BlockFunctionBodyImpl(_) => "BlockFunctionBodyImpl",
             AstNodeImpl::BlockImpl(_) => "BlockImpl",
@@ -3234,7 +3929,9 @@ impl AstNodeImpl {
             AstNodeImpl::CatchClauseImpl(_) => "CatchClauseImpl",
             AstNodeImpl::CatchClauseParameterImpl(_) => "CatchClauseParameterImpl",
             AstNodeImpl::ClassDeclaration2Impl(_) => "ClassDeclaration2Impl",
+            AstNodeImpl::ClassDeclarationImpl(_) => "ClassDeclarationImpl",
             AstNodeImpl::ClassTypeAlias2Impl(_) => "ClassTypeAlias2Impl",
+            AstNodeImpl::ClassTypeAliasImpl(_) => "ClassTypeAliasImpl",
             AstNodeImpl::CombinatorNameImpl(_) => "CombinatorNameImpl",
             AstNodeImpl::CommentImpl(_) => "CommentImpl",
             AstNodeImpl::CommentReferenceComponentImpl(_) => "CommentReferenceComponentImpl",
@@ -3245,9 +3942,12 @@ impl AstNodeImpl {
             AstNodeImpl::ConfigurationImpl(_) => "ConfigurationImpl",
             AstNodeImpl::ConstantPatternImpl(_) => "ConstantPatternImpl",
             AstNodeImpl::ConstructorDeclaration2Impl(_) => "ConstructorDeclaration2Impl",
+            AstNodeImpl::ConstructorDeclarationImpl(_) => "ConstructorDeclarationImpl",
             AstNodeImpl::ConstructorFieldInitializerImpl(_) => "ConstructorFieldInitializerImpl",
             AstNodeImpl::ConstructorInvocationImpl(_) => "ConstructorInvocationImpl",
+            AstNodeImpl::ConstructorNameImpl(_) => "ConstructorNameImpl",
             AstNodeImpl::ConstructorReference2Impl(_) => "ConstructorReference2Impl",
+            AstNodeImpl::ConstructorReferenceImpl(_) => "ConstructorReferenceImpl",
             AstNodeImpl::ConstructorSelectorImpl(_) => "ConstructorSelectorImpl",
             AstNodeImpl::ConstructorTypeReferenceImpl(_) => "ConstructorTypeReferenceImpl",
             AstNodeImpl::ContinueStatementImpl(_) => "ContinueStatementImpl",
@@ -3257,22 +3957,33 @@ impl AstNodeImpl {
             AstNodeImpl::DirectAssignmentImpl(_) => "DirectAssignmentImpl",
             AstNodeImpl::DoStatementImpl(_) => "DoStatementImpl",
             AstNodeImpl::DotShorthandConstructorInvocation2Impl(_) => "DotShorthandConstructorInvocation2Impl",
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(_) => "DotShorthandConstructorInvocationImpl",
+            AstNodeImpl::DotShorthandInvocationImpl(_) => "DotShorthandInvocationImpl",
             AstNodeImpl::DotShorthandNameExpressionImpl(_) => "DotShorthandNameExpressionImpl",
+            AstNodeImpl::DotShorthandPropertyAccessImpl(_) => "DotShorthandPropertyAccessImpl",
             AstNodeImpl::DottedNameImpl(_) => "DottedNameImpl",
             AstNodeImpl::DoubleLiteralImpl(_) => "DoubleLiteralImpl",
+            AstNodeImpl::EmptyClassBodyImpl(_) => "EmptyClassBodyImpl",
+            AstNodeImpl::EmptyEnumBodyImpl(_) => "EmptyEnumBodyImpl",
             AstNodeImpl::EmptyFunctionBodyImpl(_) => "EmptyFunctionBodyImpl",
             AstNodeImpl::EmptyStatementImpl(_) => "EmptyStatementImpl",
             AstNodeImpl::EnumConstantArgumentsImpl(_) => "EnumConstantArgumentsImpl",
             AstNodeImpl::EnumConstantDeclaration2Impl(_) => "EnumConstantDeclaration2Impl",
+            AstNodeImpl::EnumConstantDeclarationImpl(_) => "EnumConstantDeclarationImpl",
             AstNodeImpl::EnumDeclaration2Impl(_) => "EnumDeclaration2Impl",
+            AstNodeImpl::EnumDeclarationImpl(_) => "EnumDeclarationImpl",
             AstNodeImpl::ExportDirectiveImpl(_) => "ExportDirectiveImpl",
             AstNodeImpl::ExpressionFunctionBodyImpl(_) => "ExpressionFunctionBodyImpl",
             AstNodeImpl::ExpressionStatementImpl(_) => "ExpressionStatementImpl",
             AstNodeImpl::ExtendsClauseImpl(_) => "ExtendsClauseImpl",
             AstNodeImpl::ExtensionDeclaration2Impl(_) => "ExtensionDeclaration2Impl",
+            AstNodeImpl::ExtensionDeclarationImpl(_) => "ExtensionDeclarationImpl",
             AstNodeImpl::ExtensionOnClauseImpl(_) => "ExtensionOnClauseImpl",
+            AstNodeImpl::ExtensionOverrideImpl(_) => "ExtensionOverrideImpl",
             AstNodeImpl::ExtensionTypeDeclaration2Impl(_) => "ExtensionTypeDeclaration2Impl",
+            AstNodeImpl::ExtensionTypeDeclarationImpl(_) => "ExtensionTypeDeclarationImpl",
             AstNodeImpl::Field2Impl(_) => "Field2Impl",
+            AstNodeImpl::FieldDeclarationImpl(_) => "FieldDeclarationImpl",
             AstNodeImpl::FieldFormalParameterImpl(_) => "FieldFormalParameterImpl",
             AstNodeImpl::FieldsDeclarationImpl(_) => "FieldsDeclarationImpl",
             AstNodeImpl::ForEachPartsWithDeclarationImpl(_) => "ForEachPartsWithDeclarationImpl",
@@ -3285,11 +3996,17 @@ impl AstNodeImpl {
             AstNodeImpl::ForStatementImpl(_) => "ForStatementImpl",
             AstNodeImpl::FormalParameterDefaultClauseImpl(_) => "FormalParameterDefaultClauseImpl",
             AstNodeImpl::FormalParameterListImpl(_) => "FormalParameterListImpl",
+            AstNodeImpl::FunctionDeclarationImpl(_) => "FunctionDeclarationImpl",
+            AstNodeImpl::FunctionDeclarationStatementImpl(_) => "FunctionDeclarationStatementImpl",
             AstNodeImpl::FunctionExpressionImpl(_) => "FunctionExpressionImpl",
+            AstNodeImpl::FunctionExpressionInvocationImpl(_) => "FunctionExpressionInvocationImpl",
+            AstNodeImpl::FunctionReferenceImpl(_) => "FunctionReferenceImpl",
             AstNodeImpl::FunctionTypeAlias2Impl(_) => "FunctionTypeAlias2Impl",
+            AstNodeImpl::FunctionTypeAliasImpl(_) => "FunctionTypeAliasImpl",
             AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(_) => "FunctionTypedFormalParameterSuffixImpl",
             AstNodeImpl::GenericFunctionTypeImpl(_) => "GenericFunctionTypeImpl",
             AstNodeImpl::GenericTypeAlias2Impl(_) => "GenericTypeAlias2Impl",
+            AstNodeImpl::GenericTypeAliasImpl(_) => "GenericTypeAliasImpl",
             AstNodeImpl::GetterDeclarationImpl(_) => "GetterDeclarationImpl",
             AstNodeImpl::GuardedPatternImpl(_) => "GuardedPatternImpl",
             AstNodeImpl::HideCombinatorImpl(_) => "HideCombinatorImpl",
@@ -3298,9 +4015,12 @@ impl AstNodeImpl {
             AstNodeImpl::IfNullImpl(_) => "IfNullImpl",
             AstNodeImpl::IfStatementImpl(_) => "IfStatementImpl",
             AstNodeImpl::ImplementsClauseImpl(_) => "ImplementsClauseImpl",
+            AstNodeImpl::ImplicitCallReferenceImpl(_) => "ImplicitCallReferenceImpl",
             AstNodeImpl::ImportDirectiveImpl(_) => "ImportDirectiveImpl",
             AstNodeImpl::ImportPrefixReferenceImpl(_) => "ImportPrefixReferenceImpl",
             AstNodeImpl::IncrementOrDecrementExpressionImpl(_) => "IncrementOrDecrementExpressionImpl",
+            AstNodeImpl::IndexExpressionImpl(_) => "IndexExpressionImpl",
+            AstNodeImpl::InstanceCreationExpressionImpl(_) => "InstanceCreationExpressionImpl",
             AstNodeImpl::IntegerLiteralImpl(_) => "IntegerLiteralImpl",
             AstNodeImpl::InterpolationExpressionImpl(_) => "InterpolationExpressionImpl",
             AstNodeImpl::InterpolationStringImpl(_) => "InterpolationStringImpl",
@@ -3327,7 +4047,10 @@ impl AstNodeImpl {
             AstNodeImpl::MapPatternEntryImpl(_) => "MapPatternEntryImpl",
             AstNodeImpl::MapPatternImpl(_) => "MapPatternImpl",
             AstNodeImpl::MethodDeclaration2Impl(_) => "MethodDeclaration2Impl",
+            AstNodeImpl::MethodDeclarationImpl(_) => "MethodDeclarationImpl",
+            AstNodeImpl::MethodInvocationImpl(_) => "MethodInvocationImpl",
             AstNodeImpl::MixinDeclaration2Impl(_) => "MixinDeclaration2Impl",
+            AstNodeImpl::MixinDeclarationImpl(_) => "MixinDeclarationImpl",
             AstNodeImpl::MixinOnClauseImpl(_) => "MixinOnClauseImpl",
             AstNodeImpl::NameWithTypeParametersImpl(_) => "NameWithTypeParametersImpl",
             AstNodeImpl::NamedArgumentImpl(_) => "NamedArgumentImpl",
@@ -3358,9 +4081,14 @@ impl AstNodeImpl {
             AstNodeImpl::PatternFieldNameImpl(_) => "PatternFieldNameImpl",
             AstNodeImpl::PatternVariableDeclarationImpl(_) => "PatternVariableDeclarationImpl",
             AstNodeImpl::PatternVariableDeclarationStatementImpl(_) => "PatternVariableDeclarationStatementImpl",
+            AstNodeImpl::PostfixExpressionImpl(_) => "PostfixExpressionImpl",
+            AstNodeImpl::PrefixExpressionImpl(_) => "PrefixExpressionImpl",
+            AstNodeImpl::PrefixedIdentifierImpl(_) => "PrefixedIdentifierImpl",
             AstNodeImpl::PrimaryConstructorBody2Impl(_) => "PrimaryConstructorBody2Impl",
+            AstNodeImpl::PrimaryConstructorBodyImpl(_) => "PrimaryConstructorBodyImpl",
             AstNodeImpl::PrimaryConstructorDeclarationImpl(_) => "PrimaryConstructorDeclarationImpl",
             AstNodeImpl::PrimaryConstructorNameImpl(_) => "PrimaryConstructorNameImpl",
+            AstNodeImpl::PropertyAccessImpl(_) => "PropertyAccessImpl",
             AstNodeImpl::ReceiverIndexAssignmentTargetImpl(_) => "ReceiverIndexAssignmentTargetImpl",
             AstNodeImpl::ReceiverIndexExpressionImpl(_) => "ReceiverIndexExpressionImpl",
             AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(_) => "ReceiverPropertyAssignmentTargetImpl",
@@ -3384,10 +4112,12 @@ impl AstNodeImpl {
             AstNodeImpl::SetOrMapLiteralImpl(_) => "SetOrMapLiteralImpl",
             AstNodeImpl::SetterDeclarationImpl(_) => "SetterDeclarationImpl",
             AstNodeImpl::ShowCombinatorImpl(_) => "ShowCombinatorImpl",
+            AstNodeImpl::SimpleIdentifierImpl(_) => "SimpleIdentifierImpl",
             AstNodeImpl::SimpleStringLiteralImpl(_) => "SimpleStringLiteralImpl",
             AstNodeImpl::SpreadElementImpl(_) => "SpreadElementImpl",
             AstNodeImpl::StringInterpolationImpl(_) => "StringInterpolationImpl",
             AstNodeImpl::SuperConstructorInvocationImpl(_) => "SuperConstructorInvocationImpl",
+            AstNodeImpl::SuperExpressionImpl(_) => "SuperExpressionImpl",
             AstNodeImpl::SuperFormalParameterImpl(_) => "SuperFormalParameterImpl",
             AstNodeImpl::SuperReferenceImpl(_) => "SuperReferenceImpl",
             AstNodeImpl::SwitchCaseImpl(_) => "SwitchCaseImpl",
@@ -3403,6 +4133,7 @@ impl AstNodeImpl {
             AstNodeImpl::TopLevelGetterDeclarationImpl(_) => "TopLevelGetterDeclarationImpl",
             AstNodeImpl::TopLevelSetterDeclarationImpl(_) => "TopLevelSetterDeclarationImpl",
             AstNodeImpl::TopLevelVariable2Impl(_) => "TopLevelVariable2Impl",
+            AstNodeImpl::TopLevelVariableDeclarationImpl(_) => "TopLevelVariableDeclarationImpl",
             AstNodeImpl::TopLevelVariablesDeclarationImpl(_) => "TopLevelVariablesDeclarationImpl",
             AstNodeImpl::TryStatementImpl(_) => "TryStatementImpl",
             AstNodeImpl::TypeArgumentListImpl(_) => "TypeArgumentListImpl",
@@ -3410,6 +4141,9 @@ impl AstNodeImpl {
             AstNodeImpl::TypeParameterListImpl(_) => "TypeParameterListImpl",
             AstNodeImpl::UnaryOperatorInvocationImpl(_) => "UnaryOperatorInvocationImpl",
             AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(_) => "UnqualifiedNameAssignmentTargetImpl",
+            AstNodeImpl::VariableDeclarationImpl(_) => "VariableDeclarationImpl",
+            AstNodeImpl::VariableDeclarationListImpl(_) => "VariableDeclarationListImpl",
+            AstNodeImpl::VariableDeclarationStatementImpl(_) => "VariableDeclarationStatementImpl",
             AstNodeImpl::WhenClauseImpl(_) => "WhenClauseImpl",
             AstNodeImpl::WhileStatementImpl(_) => "WhileStatementImpl",
             AstNodeImpl::WildcardPatternImpl(_) => "WildcardPatternImpl",
@@ -3430,8 +4164,12 @@ impl AstNodeImpl {
             AstNodeImpl::AssertInitializerImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::AssertStatementImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::AssignedVariablePatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::AssignmentExpressionImpl(_) => panic!("AssignmentExpressionImpl: a V1 projection needs its id"),
             AstNodeImpl::AwaitExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::BinaryExpressionImpl(_) => panic!("BinaryExpressionImpl: a V1 projection needs its id"),
             AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::BlockClassBodyImpl(_) => panic!("BlockClassBodyImpl: a V1 projection needs its id"),
+            AstNodeImpl::BlockEnumBodyImpl(_) => panic!("BlockEnumBodyImpl: a V1 projection needs its id"),
             AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::BlockFunctionBodyImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::BlockImpl(n) => n.begin_token(ast, tokens),
@@ -3450,7 +4188,9 @@ impl AstNodeImpl {
             AstNodeImpl::CatchClauseImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::CatchClauseParameterImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ClassDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ClassDeclarationImpl(_) => panic!("ClassDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::ClassTypeAlias2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ClassTypeAliasImpl(_) => panic!("ClassTypeAliasImpl: a V1 projection needs its id"),
             AstNodeImpl::CombinatorNameImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::CommentImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::CommentReferenceComponentImpl(n) => n.begin_token(ast, tokens),
@@ -3461,9 +4201,12 @@ impl AstNodeImpl {
             AstNodeImpl::ConfigurationImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ConstantPatternImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ConstructorDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConstructorDeclarationImpl(_) => panic!("ConstructorDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ConstructorInvocationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConstructorNameImpl(_) => panic!("ConstructorNameImpl: a V1 projection needs its id"),
             AstNodeImpl::ConstructorReference2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConstructorReferenceImpl(_) => panic!("ConstructorReferenceImpl: a V1 projection needs its id"),
             AstNodeImpl::ConstructorSelectorImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ContinueStatementImpl(n) => n.begin_token(ast, tokens),
@@ -3473,22 +4216,33 @@ impl AstNodeImpl {
             AstNodeImpl::DirectAssignmentImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::DoStatementImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(_) => panic!("DotShorthandConstructorInvocationImpl: a V1 projection needs its id"),
+            AstNodeImpl::DotShorthandInvocationImpl(_) => panic!("DotShorthandInvocationImpl: a V1 projection needs its id"),
             AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(_) => panic!("DotShorthandPropertyAccessImpl: a V1 projection needs its id"),
             AstNodeImpl::DottedNameImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::DoubleLiteralImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::EmptyClassBodyImpl(_) => panic!("EmptyClassBodyImpl: a V1 projection needs its id"),
+            AstNodeImpl::EmptyEnumBodyImpl(_) => panic!("EmptyEnumBodyImpl: a V1 projection needs its id"),
             AstNodeImpl::EmptyFunctionBodyImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::EmptyStatementImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::EnumConstantArgumentsImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::EnumConstantDeclarationImpl(_) => panic!("EnumConstantDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::EnumDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::EnumDeclarationImpl(_) => panic!("EnumDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::ExportDirectiveImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ExpressionStatementImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ExtendsClauseImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ExtensionDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ExtensionDeclarationImpl(_) => panic!("ExtensionDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::ExtensionOnClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ExtensionOverrideImpl(_) => panic!("ExtensionOverrideImpl: a V1 projection needs its id"),
             AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(_) => panic!("ExtensionTypeDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::Field2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::FieldDeclarationImpl(_) => panic!("FieldDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::FieldFormalParameterImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::FieldsDeclarationImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.begin_token(ast, tokens),
@@ -3501,11 +4255,17 @@ impl AstNodeImpl {
             AstNodeImpl::ForStatementImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::FormalParameterListImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::FunctionDeclarationImpl(_) => panic!("FunctionDeclarationImpl: a V1 projection needs its id"),
+            AstNodeImpl::FunctionDeclarationStatementImpl(_) => panic!("FunctionDeclarationStatementImpl: a V1 projection needs its id"),
             AstNodeImpl::FunctionExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::FunctionExpressionInvocationImpl(_) => panic!("FunctionExpressionInvocationImpl: a V1 projection needs its id"),
+            AstNodeImpl::FunctionReferenceImpl(_) => panic!("FunctionReferenceImpl: a V1 projection needs its id"),
             AstNodeImpl::FunctionTypeAlias2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::FunctionTypeAliasImpl(_) => panic!("FunctionTypeAliasImpl: a V1 projection needs its id"),
             AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::GenericFunctionTypeImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::GenericTypeAlias2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::GenericTypeAliasImpl(_) => panic!("GenericTypeAliasImpl: a V1 projection needs its id"),
             AstNodeImpl::GetterDeclarationImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::GuardedPatternImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::HideCombinatorImpl(n) => n.begin_token(ast, tokens),
@@ -3514,9 +4274,12 @@ impl AstNodeImpl {
             AstNodeImpl::IfNullImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::IfStatementImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ImplementsClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ImplicitCallReferenceImpl(_) => panic!("ImplicitCallReferenceImpl: a V1 projection needs its id"),
             AstNodeImpl::ImportDirectiveImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ImportPrefixReferenceImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::IndexExpressionImpl(_) => panic!("IndexExpressionImpl: a V1 projection needs its id"),
+            AstNodeImpl::InstanceCreationExpressionImpl(_) => panic!("InstanceCreationExpressionImpl: a V1 projection needs its id"),
             AstNodeImpl::IntegerLiteralImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::InterpolationExpressionImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::InterpolationStringImpl(n) => n.begin_token(ast, tokens),
@@ -3543,7 +4306,10 @@ impl AstNodeImpl {
             AstNodeImpl::MapPatternEntryImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::MapPatternImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::MethodDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::MethodDeclarationImpl(_) => panic!("MethodDeclarationImpl: a V1 projection needs its id"),
+            AstNodeImpl::MethodInvocationImpl(_) => panic!("MethodInvocationImpl: a V1 projection needs its id"),
             AstNodeImpl::MixinDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::MixinDeclarationImpl(_) => panic!("MixinDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::MixinOnClauseImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::NameWithTypeParametersImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::NamedArgumentImpl(n) => n.begin_token(ast, tokens),
@@ -3574,9 +4340,14 @@ impl AstNodeImpl {
             AstNodeImpl::PatternFieldNameImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::PatternVariableDeclarationImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PostfixExpressionImpl(_) => panic!("PostfixExpressionImpl: a V1 projection needs its id"),
+            AstNodeImpl::PrefixExpressionImpl(_) => panic!("PrefixExpressionImpl: a V1 projection needs its id"),
+            AstNodeImpl::PrefixedIdentifierImpl(_) => panic!("PrefixedIdentifierImpl: a V1 projection needs its id"),
             AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PrimaryConstructorBodyImpl(_) => panic!("PrimaryConstructorBodyImpl: a V1 projection needs its id"),
             AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::PrimaryConstructorNameImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PropertyAccessImpl(_) => panic!("PropertyAccessImpl: a V1 projection needs its id"),
             AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.begin_token(ast, tokens),
@@ -3600,10 +4371,12 @@ impl AstNodeImpl {
             AstNodeImpl::SetOrMapLiteralImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::SetterDeclarationImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::ShowCombinatorImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SimpleIdentifierImpl(_) => panic!("SimpleIdentifierImpl: a V1 projection needs its id"),
             AstNodeImpl::SimpleStringLiteralImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::SpreadElementImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::StringInterpolationImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::SuperConstructorInvocationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SuperExpressionImpl(_) => panic!("SuperExpressionImpl: a V1 projection needs its id"),
             AstNodeImpl::SuperFormalParameterImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::SuperReferenceImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::SwitchCaseImpl(n) => n.begin_token(ast, tokens),
@@ -3619,6 +4392,7 @@ impl AstNodeImpl {
             AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::TopLevelVariable2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(_) => panic!("TopLevelVariableDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::TryStatementImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::TypeArgumentListImpl(n) => n.begin_token(ast, tokens),
@@ -3626,6 +4400,270 @@ impl AstNodeImpl {
             AstNodeImpl::TypeParameterListImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::VariableDeclarationImpl(_) => panic!("VariableDeclarationImpl: a V1 projection needs its id"),
+            AstNodeImpl::VariableDeclarationListImpl(_) => panic!("VariableDeclarationListImpl: a V1 projection needs its id"),
+            AstNodeImpl::VariableDeclarationStatementImpl(_) => panic!("VariableDeclarationStatementImpl: a V1 projection needs its id"),
+            AstNodeImpl::WhenClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::WhileStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::WildcardPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::WithClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::YieldStatementImpl(n) => n.begin_token(ast, tokens),
+        }
+    }
+
+    /// `begin_token` of the node [id].
+    #[inline]
+    pub fn begin_token_of(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::AnnotationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::AnonymousBlockBodyImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::AnonymousExpressionBodyImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::AnonymousMethodInvocationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ArgumentListImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::AsExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::AssertInitializerImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::AssertStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::AssignedVariablePatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::AssignmentExpressionImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::AwaitExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::BinaryExpressionImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::BlockClassBodyImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::BlockEnumBodyImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::BlockFunctionBodyImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::BlockImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::BooleanLiteralImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::BreakStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CallInvocationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CascadeExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CascadeIndexExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CascadePropertyExtractionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CascadeSectionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CaseClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CastPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CatchClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CatchClauseParameterImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ClassDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ClassDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::ClassTypeAlias2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ClassTypeAliasImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::CombinatorNameImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CommentImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CommentReferenceComponentImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CommentReferenceImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CompilationUnitImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::CompoundAssignmentImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConditionalExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConfigurationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConstantPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConstructorDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConstructorDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConstructorInvocationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConstructorNameImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::ConstructorReference2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConstructorReferenceImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::ConstructorSelectorImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ContinueStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::DeclaredIdentifierImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::DeclaredVariablePatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::DelimitedFormalParametersImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::DirectAssignmentImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::DoStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::DotShorthandInvocationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::DottedNameImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::DoubleLiteralImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::EmptyClassBodyImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::EmptyEnumBodyImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::EmptyFunctionBodyImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::EmptyStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::EnumConstantArgumentsImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::EnumConstantDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::EnumDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::EnumDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::ExportDirectiveImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ExpressionStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ExtendsClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ExtensionDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ExtensionDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::ExtensionOnClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ExtensionOverrideImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::Field2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::FieldDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::FieldFormalParameterImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::FieldsDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ForEachPartsWithPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ForElementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ForPartsWithExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ForPartsWithPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ForStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::FormalParameterListImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::FunctionDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::FunctionDeclarationStatementImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::FunctionExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::FunctionExpressionInvocationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::FunctionReferenceImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::FunctionTypeAlias2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::FunctionTypeAliasImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::GenericFunctionTypeImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::GenericTypeAlias2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::GenericTypeAliasImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::GetterDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::GuardedPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::HideCombinatorImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::IfElementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::IfNullAssignmentImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::IfNullImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::IfStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ImplementsClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ImplicitCallReferenceImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::ImportDirectiveImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ImportPrefixReferenceImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::IndexExpressionImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::InstanceCreationExpressionImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::IntegerLiteralImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::InterpolationExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::InterpolationStringImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::InvalidSuperExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::IsExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LabelImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LabelReferenceImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LabeledStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LibraryDirectiveImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ListLiteralImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ListPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LocalFunctionDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LocalVariableImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LocalVariablesDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LogicalAndImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LogicalAndPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LogicalNotImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LogicalOrImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::LogicalOrPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::MapLiteralEntryImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::MapPatternEntryImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::MapPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::MethodDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::MethodDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::MethodInvocationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::MixinDeclaration2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::MixinDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::MixinOnClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::NameWithTypeParametersImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::NamedArgumentImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::NamedTypeImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::NativeClauseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::NativeFunctionBodyImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::NullAssertPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::NullAssertionExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::NullAwareElementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::NullCheckPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::NullLiteralImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ObjectPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::OperatorDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ParenthesizedExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ParenthesizedPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ParsedCascadeNameImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ParsedDotShorthandNameImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ParsedNameAccessImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ParsedTypeArgumentsImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ParsedValueArgumentsImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PartDirectiveImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PartOfDirectiveImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PatternAssignmentImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PatternFieldImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PatternFieldNameImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PatternVariableDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PostfixExpressionImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::PrefixExpressionImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::PrefixedIdentifierImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PrimaryConstructorBodyImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PrimaryConstructorNameImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::PropertyAccessImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RecordLiteralImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RecordPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RecordTypeAnnotationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RegularFormalParameterImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RelationalPatternImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RestPatternElementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::RethrowExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ReturnStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ScriptTagImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SetOrMapLiteralImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SetterDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ShowCombinatorImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SimpleIdentifierImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::SimpleStringLiteralImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SpreadElementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::StringInterpolationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SuperConstructorInvocationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SuperExpressionImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::SuperFormalParameterImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SuperReferenceImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SwitchCaseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SwitchDefaultImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SwitchExpressionCaseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SwitchExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SwitchPatternCaseImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SwitchStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::SymbolLiteralImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ThisExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::ThrowExpressionImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::TopLevelVariable2Impl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::TryStatementImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::TypeArgumentListImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::TypeParameterImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::TypeParameterListImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.begin_token(ast, tokens),
+            AstNodeImpl::VariableDeclarationImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::VariableDeclarationListImpl(n) => n.begin_token1(ast, tokens, id),
+            AstNodeImpl::VariableDeclarationStatementImpl(n) => n.begin_token1(ast, tokens, id),
             AstNodeImpl::WhenClauseImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::WhileStatementImpl(n) => n.begin_token(ast, tokens),
             AstNodeImpl::WildcardPatternImpl(n) => n.begin_token(ast, tokens),
@@ -3646,8 +4684,12 @@ impl AstNodeImpl {
             AstNodeImpl::AssertInitializerImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::AssertStatementImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::AssignedVariablePatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::AssignmentExpressionImpl(_) => panic!("AssignmentExpressionImpl: a V1 projection needs its id"),
             AstNodeImpl::AwaitExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::BinaryExpressionImpl(_) => panic!("BinaryExpressionImpl: a V1 projection needs its id"),
             AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::BlockClassBodyImpl(_) => panic!("BlockClassBodyImpl: a V1 projection needs its id"),
+            AstNodeImpl::BlockEnumBodyImpl(_) => panic!("BlockEnumBodyImpl: a V1 projection needs its id"),
             AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::BlockFunctionBodyImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::BlockImpl(n) => n.end_token(ast, tokens),
@@ -3666,7 +4708,9 @@ impl AstNodeImpl {
             AstNodeImpl::CatchClauseImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::CatchClauseParameterImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ClassDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ClassDeclarationImpl(_) => panic!("ClassDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::ClassTypeAlias2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ClassTypeAliasImpl(_) => panic!("ClassTypeAliasImpl: a V1 projection needs its id"),
             AstNodeImpl::CombinatorNameImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::CommentImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::CommentReferenceComponentImpl(n) => n.end_token(ast, tokens),
@@ -3677,9 +4721,12 @@ impl AstNodeImpl {
             AstNodeImpl::ConfigurationImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ConstantPatternImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ConstructorDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConstructorDeclarationImpl(_) => panic!("ConstructorDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ConstructorInvocationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConstructorNameImpl(_) => panic!("ConstructorNameImpl: a V1 projection needs its id"),
             AstNodeImpl::ConstructorReference2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConstructorReferenceImpl(_) => panic!("ConstructorReferenceImpl: a V1 projection needs its id"),
             AstNodeImpl::ConstructorSelectorImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ContinueStatementImpl(n) => n.end_token(ast, tokens),
@@ -3689,22 +4736,33 @@ impl AstNodeImpl {
             AstNodeImpl::DirectAssignmentImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::DoStatementImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(_) => panic!("DotShorthandConstructorInvocationImpl: a V1 projection needs its id"),
+            AstNodeImpl::DotShorthandInvocationImpl(_) => panic!("DotShorthandInvocationImpl: a V1 projection needs its id"),
             AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(_) => panic!("DotShorthandPropertyAccessImpl: a V1 projection needs its id"),
             AstNodeImpl::DottedNameImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::DoubleLiteralImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::EmptyClassBodyImpl(_) => panic!("EmptyClassBodyImpl: a V1 projection needs its id"),
+            AstNodeImpl::EmptyEnumBodyImpl(_) => panic!("EmptyEnumBodyImpl: a V1 projection needs its id"),
             AstNodeImpl::EmptyFunctionBodyImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::EmptyStatementImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::EnumConstantArgumentsImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::EnumConstantDeclarationImpl(_) => panic!("EnumConstantDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::EnumDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::EnumDeclarationImpl(_) => panic!("EnumDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::ExportDirectiveImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ExpressionStatementImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ExtendsClauseImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ExtensionDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ExtensionDeclarationImpl(_) => panic!("ExtensionDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::ExtensionOnClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ExtensionOverrideImpl(_) => panic!("ExtensionOverrideImpl: a V1 projection needs its id"),
             AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(_) => panic!("ExtensionTypeDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::Field2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::FieldDeclarationImpl(_) => panic!("FieldDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::FieldFormalParameterImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::FieldsDeclarationImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.end_token(ast, tokens),
@@ -3717,11 +4775,17 @@ impl AstNodeImpl {
             AstNodeImpl::ForStatementImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::FormalParameterListImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::FunctionDeclarationImpl(_) => panic!("FunctionDeclarationImpl: a V1 projection needs its id"),
+            AstNodeImpl::FunctionDeclarationStatementImpl(_) => panic!("FunctionDeclarationStatementImpl: a V1 projection needs its id"),
             AstNodeImpl::FunctionExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::FunctionExpressionInvocationImpl(_) => panic!("FunctionExpressionInvocationImpl: a V1 projection needs its id"),
+            AstNodeImpl::FunctionReferenceImpl(_) => panic!("FunctionReferenceImpl: a V1 projection needs its id"),
             AstNodeImpl::FunctionTypeAlias2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::FunctionTypeAliasImpl(_) => panic!("FunctionTypeAliasImpl: a V1 projection needs its id"),
             AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::GenericFunctionTypeImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::GenericTypeAlias2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::GenericTypeAliasImpl(_) => panic!("GenericTypeAliasImpl: a V1 projection needs its id"),
             AstNodeImpl::GetterDeclarationImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::GuardedPatternImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::HideCombinatorImpl(n) => n.end_token(ast, tokens),
@@ -3730,9 +4794,12 @@ impl AstNodeImpl {
             AstNodeImpl::IfNullImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::IfStatementImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ImplementsClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ImplicitCallReferenceImpl(_) => panic!("ImplicitCallReferenceImpl: a V1 projection needs its id"),
             AstNodeImpl::ImportDirectiveImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ImportPrefixReferenceImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::IndexExpressionImpl(_) => panic!("IndexExpressionImpl: a V1 projection needs its id"),
+            AstNodeImpl::InstanceCreationExpressionImpl(_) => panic!("InstanceCreationExpressionImpl: a V1 projection needs its id"),
             AstNodeImpl::IntegerLiteralImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::InterpolationExpressionImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::InterpolationStringImpl(n) => n.end_token(ast, tokens),
@@ -3759,7 +4826,10 @@ impl AstNodeImpl {
             AstNodeImpl::MapPatternEntryImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::MapPatternImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::MethodDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::MethodDeclarationImpl(_) => panic!("MethodDeclarationImpl: a V1 projection needs its id"),
+            AstNodeImpl::MethodInvocationImpl(_) => panic!("MethodInvocationImpl: a V1 projection needs its id"),
             AstNodeImpl::MixinDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::MixinDeclarationImpl(_) => panic!("MixinDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::MixinOnClauseImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::NameWithTypeParametersImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::NamedArgumentImpl(n) => n.end_token(ast, tokens),
@@ -3790,9 +4860,14 @@ impl AstNodeImpl {
             AstNodeImpl::PatternFieldNameImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::PatternVariableDeclarationImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PostfixExpressionImpl(_) => panic!("PostfixExpressionImpl: a V1 projection needs its id"),
+            AstNodeImpl::PrefixExpressionImpl(_) => panic!("PrefixExpressionImpl: a V1 projection needs its id"),
+            AstNodeImpl::PrefixedIdentifierImpl(_) => panic!("PrefixedIdentifierImpl: a V1 projection needs its id"),
             AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PrimaryConstructorBodyImpl(_) => panic!("PrimaryConstructorBodyImpl: a V1 projection needs its id"),
             AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::PrimaryConstructorNameImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PropertyAccessImpl(_) => panic!("PropertyAccessImpl: a V1 projection needs its id"),
             AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.end_token(ast, tokens),
@@ -3816,10 +4891,12 @@ impl AstNodeImpl {
             AstNodeImpl::SetOrMapLiteralImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::SetterDeclarationImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::ShowCombinatorImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SimpleIdentifierImpl(_) => panic!("SimpleIdentifierImpl: a V1 projection needs its id"),
             AstNodeImpl::SimpleStringLiteralImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::SpreadElementImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::StringInterpolationImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::SuperConstructorInvocationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SuperExpressionImpl(_) => panic!("SuperExpressionImpl: a V1 projection needs its id"),
             AstNodeImpl::SuperFormalParameterImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::SuperReferenceImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::SwitchCaseImpl(n) => n.end_token(ast, tokens),
@@ -3835,6 +4912,7 @@ impl AstNodeImpl {
             AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::TopLevelVariable2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(_) => panic!("TopLevelVariableDeclarationImpl: a V1 projection needs its id"),
             AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::TryStatementImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::TypeArgumentListImpl(n) => n.end_token(ast, tokens),
@@ -3842,6 +4920,270 @@ impl AstNodeImpl {
             AstNodeImpl::TypeParameterListImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::VariableDeclarationImpl(_) => panic!("VariableDeclarationImpl: a V1 projection needs its id"),
+            AstNodeImpl::VariableDeclarationListImpl(_) => panic!("VariableDeclarationListImpl: a V1 projection needs its id"),
+            AstNodeImpl::VariableDeclarationStatementImpl(_) => panic!("VariableDeclarationStatementImpl: a V1 projection needs its id"),
+            AstNodeImpl::WhenClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::WhileStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::WildcardPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::WithClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::YieldStatementImpl(n) => n.end_token(ast, tokens),
+        }
+    }
+
+    /// `end_token` of the node [id].
+    #[inline]
+    pub fn end_token_of(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::AnnotationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::AnonymousBlockBodyImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::AnonymousExpressionBodyImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::AnonymousMethodInvocationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ArgumentListImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::AsExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::AssertInitializerImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::AssertStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::AssignedVariablePatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::AssignmentExpressionImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::AwaitExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::BinaryExpressionImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::BlockClassBodyImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::BlockEnumBodyImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::BlockFunctionBodyImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::BlockImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::BooleanLiteralImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::BreakStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CallInvocationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CascadeExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CascadeIndexExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CascadePropertyExtractionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CascadeSectionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CaseClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CastPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CatchClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CatchClauseParameterImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ClassDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ClassDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::ClassTypeAlias2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ClassTypeAliasImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::CombinatorNameImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CommentImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CommentReferenceComponentImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CommentReferenceImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CompilationUnitImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::CompoundAssignmentImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConditionalExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConfigurationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConstantPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConstructorDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConstructorDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConstructorInvocationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConstructorNameImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::ConstructorReference2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConstructorReferenceImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::ConstructorSelectorImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ContinueStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::DeclaredIdentifierImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::DeclaredVariablePatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::DelimitedFormalParametersImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::DirectAssignmentImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::DoStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::DotShorthandInvocationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::DottedNameImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::DoubleLiteralImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::EmptyClassBodyImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::EmptyEnumBodyImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::EmptyFunctionBodyImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::EmptyStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::EnumConstantArgumentsImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::EnumConstantDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::EnumDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::EnumDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::ExportDirectiveImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ExpressionStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ExtendsClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ExtensionDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ExtensionDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::ExtensionOnClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ExtensionOverrideImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::Field2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::FieldDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::FieldFormalParameterImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::FieldsDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ForEachPartsWithPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ForElementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ForPartsWithExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ForPartsWithPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ForStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::FormalParameterListImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::FunctionDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::FunctionDeclarationStatementImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::FunctionExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::FunctionExpressionInvocationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::FunctionReferenceImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::FunctionTypeAlias2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::FunctionTypeAliasImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::GenericFunctionTypeImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::GenericTypeAlias2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::GenericTypeAliasImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::GetterDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::GuardedPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::HideCombinatorImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::IfElementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::IfNullAssignmentImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::IfNullImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::IfStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ImplementsClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ImplicitCallReferenceImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::ImportDirectiveImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ImportPrefixReferenceImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::IndexExpressionImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::InstanceCreationExpressionImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::IntegerLiteralImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::InterpolationExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::InterpolationStringImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::InvalidSuperExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::IsExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LabelImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LabelReferenceImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LabeledStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LibraryDirectiveImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ListLiteralImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ListPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LocalFunctionDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LocalVariableImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LocalVariablesDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LogicalAndImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LogicalAndPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LogicalNotImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LogicalOrImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::LogicalOrPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::MapLiteralEntryImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::MapPatternEntryImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::MapPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::MethodDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::MethodDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::MethodInvocationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::MixinDeclaration2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::MixinDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::MixinOnClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::NameWithTypeParametersImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::NamedArgumentImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::NamedTypeImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::NativeClauseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::NativeFunctionBodyImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::NullAssertPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::NullAssertionExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::NullAwareElementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::NullCheckPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::NullLiteralImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ObjectPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::OperatorDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ParenthesizedExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ParenthesizedPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ParsedCascadeNameImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ParsedDotShorthandNameImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ParsedNameAccessImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ParsedTypeArgumentsImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ParsedValueArgumentsImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PartDirectiveImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PartOfDirectiveImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PatternAssignmentImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PatternFieldImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PatternFieldNameImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PatternVariableDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PostfixExpressionImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::PrefixExpressionImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::PrefixedIdentifierImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PrimaryConstructorBodyImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PrimaryConstructorNameImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::PropertyAccessImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RecordLiteralImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RecordPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RecordTypeAnnotationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RegularFormalParameterImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RelationalPatternImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RestPatternElementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::RethrowExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ReturnStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ScriptTagImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SetOrMapLiteralImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SetterDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ShowCombinatorImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SimpleIdentifierImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::SimpleStringLiteralImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SpreadElementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::StringInterpolationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SuperConstructorInvocationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SuperExpressionImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::SuperFormalParameterImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SuperReferenceImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SwitchCaseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SwitchDefaultImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SwitchExpressionCaseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SwitchExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SwitchPatternCaseImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SwitchStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::SymbolLiteralImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ThisExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::ThrowExpressionImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::TopLevelVariable2Impl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::TryStatementImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::TypeArgumentListImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::TypeParameterImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::TypeParameterListImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.end_token(ast, tokens),
+            AstNodeImpl::VariableDeclarationImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::VariableDeclarationListImpl(n) => n.end_token1(ast, tokens, id),
+            AstNodeImpl::VariableDeclarationStatementImpl(n) => n.end_token1(ast, tokens, id),
             AstNodeImpl::WhenClauseImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::WhileStatementImpl(n) => n.end_token(ast, tokens),
             AstNodeImpl::WildcardPatternImpl(n) => n.end_token(ast, tokens),
@@ -3863,8 +5205,12 @@ impl AstNodeImpl {
             AstNodeImpl::AssertInitializerImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::AssertStatementImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::AssignedVariablePatternImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::AssignmentExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::AwaitExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::BinaryExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::BlockClassBodyImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::BlockEnumBodyImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::BlockFunctionBodyImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::BlockImpl(n) => n.child_entities2(ast, tokens, entities),
@@ -3883,7 +5229,9 @@ impl AstNodeImpl {
             AstNodeImpl::CatchClauseImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::CatchClauseParameterImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ClassDeclaration2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::ClassDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ClassTypeAlias2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::ClassTypeAliasImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::CombinatorNameImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::CommentImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::CommentReferenceComponentImpl(n) => n.child_entities2(ast, tokens, entities),
@@ -3894,9 +5242,12 @@ impl AstNodeImpl {
             AstNodeImpl::ConfigurationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ConstantPatternImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ConstructorDeclaration2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::ConstructorDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ConstructorInvocationImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::ConstructorNameImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ConstructorReference2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::ConstructorReferenceImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ConstructorSelectorImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ContinueStatementImpl(n) => n.child_entities2(ast, tokens, entities),
@@ -3906,22 +5257,33 @@ impl AstNodeImpl {
             AstNodeImpl::DirectAssignmentImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::DoStatementImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::DotShorthandInvocationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::DottedNameImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::DoubleLiteralImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::EmptyClassBodyImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::EmptyEnumBodyImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::EmptyFunctionBodyImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::EmptyStatementImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::EnumConstantArgumentsImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::EnumConstantDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::EnumDeclaration2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::EnumDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ExportDirectiveImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ExpressionStatementImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ExtendsClauseImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ExtensionDeclaration2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::ExtensionDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ExtensionOnClauseImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::ExtensionOverrideImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::Field2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::FieldDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::FieldFormalParameterImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::FieldsDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
@@ -3934,11 +5296,17 @@ impl AstNodeImpl {
             AstNodeImpl::ForStatementImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::FormalParameterListImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::FunctionDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::FunctionDeclarationStatementImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::FunctionExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::FunctionExpressionInvocationImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::FunctionReferenceImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::FunctionTypeAlias2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::FunctionTypeAliasImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::GenericFunctionTypeImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::GenericTypeAlias2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::GenericTypeAliasImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::GetterDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::GuardedPatternImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::HideCombinatorImpl(n) => n.child_entities2(ast, tokens, entities),
@@ -3947,9 +5315,12 @@ impl AstNodeImpl {
             AstNodeImpl::IfNullImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::IfStatementImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ImplementsClauseImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::ImplicitCallReferenceImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ImportDirectiveImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ImportPrefixReferenceImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::IndexExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::InstanceCreationExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::IntegerLiteralImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::InterpolationExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::InterpolationStringImpl(n) => n.child_entities2(ast, tokens, entities),
@@ -3976,7 +5347,10 @@ impl AstNodeImpl {
             AstNodeImpl::MapPatternEntryImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::MapPatternImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::MethodDeclaration2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::MethodDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::MethodInvocationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::MixinDeclaration2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::MixinDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::MixinOnClauseImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::NameWithTypeParametersImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::NamedArgumentImpl(n) => n.child_entities2(ast, tokens, entities),
@@ -4007,9 +5381,14 @@ impl AstNodeImpl {
             AstNodeImpl::PatternFieldNameImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::PatternVariableDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::PostfixExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::PrefixExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::PrefixedIdentifierImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::PrimaryConstructorBodyImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::PrimaryConstructorNameImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::PropertyAccessImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.child_entities2(ast, tokens, entities),
@@ -4033,10 +5412,12 @@ impl AstNodeImpl {
             AstNodeImpl::SetOrMapLiteralImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::SetterDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::ShowCombinatorImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::SimpleIdentifierImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::SimpleStringLiteralImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::SpreadElementImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::StringInterpolationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::SuperConstructorInvocationImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::SuperExpressionImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::SuperFormalParameterImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::SuperReferenceImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::SwitchCaseImpl(n) => n.child_entities2(ast, tokens, entities),
@@ -4052,6 +5433,7 @@ impl AstNodeImpl {
             AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::TopLevelVariable2Impl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::TryStatementImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::TypeArgumentListImpl(n) => n.child_entities2(ast, tokens, entities),
@@ -4059,6 +5441,9 @@ impl AstNodeImpl {
             AstNodeImpl::TypeParameterListImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::VariableDeclarationImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::VariableDeclarationListImpl(n) => n.child_entities2(ast, tokens, entities),
+            AstNodeImpl::VariableDeclarationStatementImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::WhenClauseImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::WhileStatementImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::WildcardPatternImpl(n) => n.child_entities2(ast, tokens, entities),
@@ -4080,8 +5465,12 @@ impl AstNodeImpl {
             AstNodeImpl::AssertInitializerImpl(_) => visitor.visit_assert_initializer(ast, id),
             AstNodeImpl::AssertStatementImpl(_) => visitor.visit_assert_statement(ast, id),
             AstNodeImpl::AssignedVariablePatternImpl(_) => visitor.visit_assigned_variable_pattern(ast, id),
+            AstNodeImpl::AssignmentExpressionImpl(_) => panic!("StateError: AssignmentExpression is not in the V2 AST view."),
             AstNodeImpl::AwaitExpressionImpl(_) => visitor.visit_await_expression(ast, id),
+            AstNodeImpl::BinaryExpressionImpl(_) => panic!("StateError: BinaryExpression is not in the V2 AST view."),
             AstNodeImpl::BinaryOperatorInvocationImpl(_) => visitor.visit_binary_operator_invocation(ast, id),
+            AstNodeImpl::BlockClassBodyImpl(_) => panic!("StateError: BlockClassBody is not in the V2 AST view."),
+            AstNodeImpl::BlockEnumBodyImpl(_) => panic!("StateError: BlockEnumBody is not in the V2 AST view."),
             AstNodeImpl::BlockEnumDeclarationBodyImpl(_) => visitor.visit_block_enum_declaration_body(ast, id),
             AstNodeImpl::BlockFunctionBodyImpl(_) => visitor.visit_block_function_body(ast, id),
             AstNodeImpl::BlockImpl(_) => visitor.visit_block(ast, id),
@@ -4100,7 +5489,9 @@ impl AstNodeImpl {
             AstNodeImpl::CatchClauseImpl(_) => visitor.visit_catch_clause(ast, id),
             AstNodeImpl::CatchClauseParameterImpl(_) => visitor.visit_catch_clause_parameter(ast, id),
             AstNodeImpl::ClassDeclaration2Impl(_) => visitor.visit_class_declaration2(ast, id),
+            AstNodeImpl::ClassDeclarationImpl(_) => panic!("StateError: ClassDeclaration is not in the V2 AST view."),
             AstNodeImpl::ClassTypeAlias2Impl(_) => visitor.visit_class_type_alias2(ast, id),
+            AstNodeImpl::ClassTypeAliasImpl(_) => panic!("StateError: ClassTypeAlias is not in the V2 AST view."),
             AstNodeImpl::CombinatorNameImpl(_) => visitor.visit_combinator_name(ast, id),
             AstNodeImpl::CommentImpl(_) => visitor.visit_comment(ast, id),
             AstNodeImpl::CommentReferenceComponentImpl(_) => visitor.visit_comment_reference_component(ast, id),
@@ -4111,9 +5502,12 @@ impl AstNodeImpl {
             AstNodeImpl::ConfigurationImpl(_) => visitor.visit_configuration(ast, id),
             AstNodeImpl::ConstantPatternImpl(_) => visitor.visit_constant_pattern(ast, id),
             AstNodeImpl::ConstructorDeclaration2Impl(_) => visitor.visit_constructor_declaration2(ast, id),
+            AstNodeImpl::ConstructorDeclarationImpl(_) => panic!("StateError: ConstructorDeclaration is not in the V2 AST view."),
             AstNodeImpl::ConstructorFieldInitializerImpl(_) => visitor.visit_constructor_field_initializer(ast, id),
             AstNodeImpl::ConstructorInvocationImpl(_) => visitor.visit_constructor_invocation(ast, id),
+            AstNodeImpl::ConstructorNameImpl(_) => panic!("StateError: ConstructorName is not in the V2 AST view."),
             AstNodeImpl::ConstructorReference2Impl(_) => visitor.visit_constructor_reference2(ast, id),
+            AstNodeImpl::ConstructorReferenceImpl(_) => panic!("StateError: ConstructorReference is not in the V2 AST view."),
             AstNodeImpl::ConstructorSelectorImpl(_) => visitor.visit_constructor_selector(ast, id),
             AstNodeImpl::ConstructorTypeReferenceImpl(_) => visitor.visit_constructor_type_reference(ast, id),
             AstNodeImpl::ContinueStatementImpl(_) => visitor.visit_continue_statement(ast, id),
@@ -4123,22 +5517,33 @@ impl AstNodeImpl {
             AstNodeImpl::DirectAssignmentImpl(_) => visitor.visit_direct_assignment(ast, id),
             AstNodeImpl::DoStatementImpl(_) => visitor.visit_do_statement(ast, id),
             AstNodeImpl::DotShorthandConstructorInvocation2Impl(_) => visitor.visit_dot_shorthand_constructor_invocation2(ast, id),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(_) => panic!("StateError: DotShorthandConstructorInvocation is not in the V2 AST view."),
+            AstNodeImpl::DotShorthandInvocationImpl(_) => panic!("StateError: DotShorthandInvocation is not in the V2 AST view."),
             AstNodeImpl::DotShorthandNameExpressionImpl(_) => visitor.visit_dot_shorthand_name_expression(ast, id),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(_) => panic!("StateError: DotShorthandPropertyAccess is not in the V2 AST view."),
             AstNodeImpl::DottedNameImpl(_) => visitor.visit_dotted_name(ast, id),
             AstNodeImpl::DoubleLiteralImpl(_) => visitor.visit_double_literal(ast, id),
+            AstNodeImpl::EmptyClassBodyImpl(_) => panic!("StateError: EmptyClassBody is not in the V2 AST view."),
+            AstNodeImpl::EmptyEnumBodyImpl(_) => panic!("StateError: EmptyEnumBody is not in the V2 AST view."),
             AstNodeImpl::EmptyFunctionBodyImpl(_) => visitor.visit_empty_function_body(ast, id),
             AstNodeImpl::EmptyStatementImpl(_) => visitor.visit_empty_statement(ast, id),
             AstNodeImpl::EnumConstantArgumentsImpl(_) => visitor.visit_enum_constant_arguments(ast, id),
             AstNodeImpl::EnumConstantDeclaration2Impl(_) => visitor.visit_enum_constant_declaration2(ast, id),
+            AstNodeImpl::EnumConstantDeclarationImpl(_) => panic!("StateError: EnumConstantDeclaration is not in the V2 AST view."),
             AstNodeImpl::EnumDeclaration2Impl(_) => visitor.visit_enum_declaration2(ast, id),
+            AstNodeImpl::EnumDeclarationImpl(_) => panic!("StateError: EnumDeclaration is not in the V2 AST view."),
             AstNodeImpl::ExportDirectiveImpl(_) => visitor.visit_export_directive(ast, id),
             AstNodeImpl::ExpressionFunctionBodyImpl(_) => visitor.visit_expression_function_body(ast, id),
             AstNodeImpl::ExpressionStatementImpl(_) => visitor.visit_expression_statement(ast, id),
             AstNodeImpl::ExtendsClauseImpl(_) => visitor.visit_extends_clause(ast, id),
             AstNodeImpl::ExtensionDeclaration2Impl(_) => visitor.visit_extension_declaration2(ast, id),
+            AstNodeImpl::ExtensionDeclarationImpl(_) => panic!("StateError: ExtensionDeclaration is not in the V2 AST view."),
             AstNodeImpl::ExtensionOnClauseImpl(_) => visitor.visit_extension_on_clause(ast, id),
+            AstNodeImpl::ExtensionOverrideImpl(_) => panic!("StateError: ExtensionOverride is not in the V2 AST view."),
             AstNodeImpl::ExtensionTypeDeclaration2Impl(_) => visitor.visit_extension_type_declaration2(ast, id),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(_) => panic!("StateError: ExtensionTypeDeclaration is not in the V2 AST view."),
             AstNodeImpl::Field2Impl(_) => visitor.visit_field2(ast, id),
+            AstNodeImpl::FieldDeclarationImpl(_) => panic!("StateError: FieldDeclaration is not in the V2 AST view."),
             AstNodeImpl::FieldFormalParameterImpl(_) => visitor.visit_field_formal_parameter(ast, id),
             AstNodeImpl::FieldsDeclarationImpl(_) => visitor.visit_fields_declaration(ast, id),
             AstNodeImpl::ForEachPartsWithDeclarationImpl(_) => visitor.visit_for_each_parts_with_declaration(ast, id),
@@ -4151,11 +5556,17 @@ impl AstNodeImpl {
             AstNodeImpl::ForStatementImpl(_) => visitor.visit_for_statement(ast, id),
             AstNodeImpl::FormalParameterDefaultClauseImpl(_) => visitor.visit_formal_parameter_default_clause(ast, id),
             AstNodeImpl::FormalParameterListImpl(_) => visitor.visit_formal_parameter_list(ast, id),
+            AstNodeImpl::FunctionDeclarationImpl(_) => panic!("StateError: FunctionDeclaration is not in the V2 AST view."),
+            AstNodeImpl::FunctionDeclarationStatementImpl(_) => panic!("StateError: FunctionDeclarationStatement is not in the V2 AST view."),
             AstNodeImpl::FunctionExpressionImpl(_) => visitor.visit_function_expression(ast, id),
+            AstNodeImpl::FunctionExpressionInvocationImpl(_) => panic!("StateError: FunctionExpressionInvocation is not in the V2 AST view."),
+            AstNodeImpl::FunctionReferenceImpl(_) => panic!("StateError: FunctionReference is not in the V2 AST view."),
             AstNodeImpl::FunctionTypeAlias2Impl(_) => visitor.visit_function_type_alias2(ast, id),
+            AstNodeImpl::FunctionTypeAliasImpl(_) => panic!("StateError: FunctionTypeAlias is not in the V2 AST view."),
             AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(_) => visitor.visit_function_typed_formal_parameter_suffix(ast, id),
             AstNodeImpl::GenericFunctionTypeImpl(_) => visitor.visit_generic_function_type(ast, id),
             AstNodeImpl::GenericTypeAlias2Impl(_) => visitor.visit_generic_type_alias2(ast, id),
+            AstNodeImpl::GenericTypeAliasImpl(_) => panic!("StateError: GenericTypeAlias is not in the V2 AST view."),
             AstNodeImpl::GetterDeclarationImpl(_) => visitor.visit_getter_declaration(ast, id),
             AstNodeImpl::GuardedPatternImpl(_) => visitor.visit_guarded_pattern(ast, id),
             AstNodeImpl::HideCombinatorImpl(_) => visitor.visit_hide_combinator(ast, id),
@@ -4164,9 +5575,12 @@ impl AstNodeImpl {
             AstNodeImpl::IfNullImpl(_) => visitor.visit_if_null(ast, id),
             AstNodeImpl::IfStatementImpl(_) => visitor.visit_if_statement(ast, id),
             AstNodeImpl::ImplementsClauseImpl(_) => visitor.visit_implements_clause(ast, id),
+            AstNodeImpl::ImplicitCallReferenceImpl(_) => panic!("StateError: ImplicitCallReference is not in the V2 AST view."),
             AstNodeImpl::ImportDirectiveImpl(_) => visitor.visit_import_directive(ast, id),
             AstNodeImpl::ImportPrefixReferenceImpl(_) => visitor.visit_import_prefix_reference(ast, id),
             AstNodeImpl::IncrementOrDecrementExpressionImpl(_) => visitor.visit_increment_or_decrement_expression(ast, id),
+            AstNodeImpl::IndexExpressionImpl(_) => panic!("StateError: IndexExpression is not in the V2 AST view."),
+            AstNodeImpl::InstanceCreationExpressionImpl(_) => panic!("StateError: InstanceCreationExpression is not in the V2 AST view."),
             AstNodeImpl::IntegerLiteralImpl(_) => visitor.visit_integer_literal(ast, id),
             AstNodeImpl::InterpolationExpressionImpl(_) => visitor.visit_interpolation_expression(ast, id),
             AstNodeImpl::InterpolationStringImpl(_) => visitor.visit_interpolation_string(ast, id),
@@ -4193,7 +5607,10 @@ impl AstNodeImpl {
             AstNodeImpl::MapPatternEntryImpl(_) => visitor.visit_map_pattern_entry(ast, id),
             AstNodeImpl::MapPatternImpl(_) => visitor.visit_map_pattern(ast, id),
             AstNodeImpl::MethodDeclaration2Impl(_) => visitor.visit_method_declaration2(ast, id),
+            AstNodeImpl::MethodDeclarationImpl(_) => panic!("StateError: MethodDeclaration is not in the V2 AST view."),
+            AstNodeImpl::MethodInvocationImpl(_) => panic!("StateError: MethodInvocation is not in the V2 AST view."),
             AstNodeImpl::MixinDeclaration2Impl(_) => visitor.visit_mixin_declaration2(ast, id),
+            AstNodeImpl::MixinDeclarationImpl(_) => panic!("StateError: MixinDeclaration is not in the V2 AST view."),
             AstNodeImpl::MixinOnClauseImpl(_) => visitor.visit_mixin_on_clause(ast, id),
             AstNodeImpl::NameWithTypeParametersImpl(_) => visitor.visit_name_with_type_parameters(ast, id),
             AstNodeImpl::NamedArgumentImpl(_) => visitor.visit_named_argument(ast, id),
@@ -4224,9 +5641,14 @@ impl AstNodeImpl {
             AstNodeImpl::PatternFieldNameImpl(_) => visitor.visit_pattern_field_name(ast, id),
             AstNodeImpl::PatternVariableDeclarationImpl(_) => visitor.visit_pattern_variable_declaration(ast, id),
             AstNodeImpl::PatternVariableDeclarationStatementImpl(_) => visitor.visit_pattern_variable_declaration_statement(ast, id),
+            AstNodeImpl::PostfixExpressionImpl(_) => panic!("StateError: PostfixExpression is not in the V2 AST view."),
+            AstNodeImpl::PrefixExpressionImpl(_) => panic!("StateError: PrefixExpression is not in the V2 AST view."),
+            AstNodeImpl::PrefixedIdentifierImpl(_) => panic!("StateError: PrefixedIdentifier is not in the V2 AST view."),
             AstNodeImpl::PrimaryConstructorBody2Impl(_) => visitor.visit_primary_constructor_body2(ast, id),
+            AstNodeImpl::PrimaryConstructorBodyImpl(_) => panic!("StateError: PrimaryConstructorBody is not in the V2 AST view."),
             AstNodeImpl::PrimaryConstructorDeclarationImpl(_) => visitor.visit_primary_constructor_declaration(ast, id),
             AstNodeImpl::PrimaryConstructorNameImpl(_) => visitor.visit_primary_constructor_name(ast, id),
+            AstNodeImpl::PropertyAccessImpl(_) => panic!("StateError: PropertyAccess is not in the V2 AST view."),
             AstNodeImpl::ReceiverIndexAssignmentTargetImpl(_) => visitor.visit_receiver_index_assignment_target(ast, id),
             AstNodeImpl::ReceiverIndexExpressionImpl(_) => visitor.visit_receiver_index_expression(ast, id),
             AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(_) => visitor.visit_receiver_property_assignment_target(ast, id),
@@ -4250,10 +5672,12 @@ impl AstNodeImpl {
             AstNodeImpl::SetOrMapLiteralImpl(_) => visitor.visit_set_or_map_literal(ast, id),
             AstNodeImpl::SetterDeclarationImpl(_) => visitor.visit_setter_declaration(ast, id),
             AstNodeImpl::ShowCombinatorImpl(_) => visitor.visit_show_combinator(ast, id),
+            AstNodeImpl::SimpleIdentifierImpl(_) => panic!("StateError: SimpleIdentifier is not in the V2 AST view."),
             AstNodeImpl::SimpleStringLiteralImpl(_) => visitor.visit_simple_string_literal(ast, id),
             AstNodeImpl::SpreadElementImpl(_) => visitor.visit_spread_element(ast, id),
             AstNodeImpl::StringInterpolationImpl(_) => visitor.visit_string_interpolation(ast, id),
             AstNodeImpl::SuperConstructorInvocationImpl(_) => visitor.visit_super_constructor_invocation(ast, id),
+            AstNodeImpl::SuperExpressionImpl(_) => panic!("StateError: SuperExpression is not in the V2 AST view."),
             AstNodeImpl::SuperFormalParameterImpl(_) => visitor.visit_super_formal_parameter(ast, id),
             AstNodeImpl::SuperReferenceImpl(_) => visitor.visit_super_reference(ast, id),
             AstNodeImpl::SwitchCaseImpl(_) => visitor.visit_switch_case(ast, id),
@@ -4269,6 +5693,7 @@ impl AstNodeImpl {
             AstNodeImpl::TopLevelGetterDeclarationImpl(_) => visitor.visit_top_level_getter_declaration(ast, id),
             AstNodeImpl::TopLevelSetterDeclarationImpl(_) => visitor.visit_top_level_setter_declaration(ast, id),
             AstNodeImpl::TopLevelVariable2Impl(_) => visitor.visit_top_level_variable2(ast, id),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(_) => panic!("StateError: TopLevelVariableDeclaration is not in the V2 AST view."),
             AstNodeImpl::TopLevelVariablesDeclarationImpl(_) => visitor.visit_top_level_variables_declaration(ast, id),
             AstNodeImpl::TryStatementImpl(_) => visitor.visit_try_statement(ast, id),
             AstNodeImpl::TypeArgumentListImpl(_) => visitor.visit_type_argument_list(ast, id),
@@ -4276,6 +5701,9 @@ impl AstNodeImpl {
             AstNodeImpl::TypeParameterListImpl(_) => visitor.visit_type_parameter_list(ast, id),
             AstNodeImpl::UnaryOperatorInvocationImpl(_) => visitor.visit_unary_operator_invocation(ast, id),
             AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(_) => visitor.visit_unqualified_name_assignment_target(ast, id),
+            AstNodeImpl::VariableDeclarationImpl(_) => panic!("StateError: VariableDeclaration is not in the V2 AST view."),
+            AstNodeImpl::VariableDeclarationListImpl(_) => panic!("StateError: VariableDeclarationList is not in the V2 AST view."),
+            AstNodeImpl::VariableDeclarationStatementImpl(_) => panic!("StateError: VariableDeclarationStatement is not in the V2 AST view."),
             AstNodeImpl::WhenClauseImpl(_) => visitor.visit_when_clause(ast, id),
             AstNodeImpl::WhileStatementImpl(_) => visitor.visit_while_statement(ast, id),
             AstNodeImpl::WildcardPatternImpl(_) => visitor.visit_wildcard_pattern(ast, id),
@@ -4297,8 +5725,12 @@ impl AstNodeImpl {
             AstNodeImpl::AssertInitializerImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::AssertStatementImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::AssignedVariablePatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::AssignmentExpressionImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::AwaitExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::BinaryExpressionImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::BlockClassBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::BlockEnumBodyImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::BlockFunctionBodyImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::BlockImpl(n) => n.visit_children2(ast, visitor),
@@ -4317,7 +5749,9 @@ impl AstNodeImpl {
             AstNodeImpl::CatchClauseImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::CatchClauseParameterImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ClassDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ClassDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ClassTypeAlias2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ClassTypeAliasImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::CombinatorNameImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::CommentImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::CommentReferenceComponentImpl(n) => n.visit_children2(ast, visitor),
@@ -4328,9 +5762,12 @@ impl AstNodeImpl {
             AstNodeImpl::ConfigurationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ConstantPatternImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ConstructorDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConstructorDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ConstructorInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConstructorNameImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ConstructorReference2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConstructorReferenceImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ConstructorSelectorImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ContinueStatementImpl(n) => n.visit_children2(ast, visitor),
@@ -4340,22 +5777,33 @@ impl AstNodeImpl {
             AstNodeImpl::DirectAssignmentImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::DoStatementImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DotShorthandInvocationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::DottedNameImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::DoubleLiteralImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::EmptyClassBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::EmptyEnumBodyImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::EmptyFunctionBodyImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::EmptyStatementImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::EnumConstantArgumentsImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::EnumConstantDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::EnumDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::EnumDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ExportDirectiveImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ExpressionStatementImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ExtendsClauseImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ExtensionDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ExtensionDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ExtensionOnClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ExtensionOverrideImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::Field2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FieldDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::FieldFormalParameterImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::FieldsDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.visit_children2(ast, visitor),
@@ -4368,11 +5816,17 @@ impl AstNodeImpl {
             AstNodeImpl::ForStatementImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::FormalParameterListImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FunctionDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FunctionDeclarationStatementImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::FunctionExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FunctionExpressionInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FunctionReferenceImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::FunctionTypeAlias2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FunctionTypeAliasImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::GenericFunctionTypeImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::GenericTypeAlias2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::GenericTypeAliasImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::GetterDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::GuardedPatternImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::HideCombinatorImpl(n) => n.visit_children2(ast, visitor),
@@ -4381,9 +5835,12 @@ impl AstNodeImpl {
             AstNodeImpl::IfNullImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::IfStatementImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ImplementsClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ImplicitCallReferenceImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ImportDirectiveImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ImportPrefixReferenceImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::IndexExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::InstanceCreationExpressionImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::IntegerLiteralImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::InterpolationExpressionImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::InterpolationStringImpl(n) => n.visit_children2(ast, visitor),
@@ -4410,7 +5867,10 @@ impl AstNodeImpl {
             AstNodeImpl::MapPatternEntryImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::MapPatternImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::MethodDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::MethodDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::MethodInvocationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::MixinDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::MixinDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::MixinOnClauseImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::NameWithTypeParametersImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::NamedArgumentImpl(n) => n.visit_children2(ast, visitor),
@@ -4441,9 +5901,14 @@ impl AstNodeImpl {
             AstNodeImpl::PatternFieldNameImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::PatternVariableDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PostfixExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PrefixExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PrefixedIdentifierImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PrimaryConstructorBodyImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::PrimaryConstructorNameImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PropertyAccessImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.visit_children2(ast, visitor),
@@ -4467,10 +5932,12 @@ impl AstNodeImpl {
             AstNodeImpl::SetOrMapLiteralImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::SetterDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::ShowCombinatorImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SimpleIdentifierImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::SimpleStringLiteralImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::SpreadElementImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::StringInterpolationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::SuperConstructorInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SuperExpressionImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::SuperFormalParameterImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::SuperReferenceImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::SwitchCaseImpl(n) => n.visit_children2(ast, visitor),
@@ -4486,6 +5953,7 @@ impl AstNodeImpl {
             AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::TopLevelVariable2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::TryStatementImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::TypeArgumentListImpl(n) => n.visit_children2(ast, visitor),
@@ -4493,6 +5961,9 @@ impl AstNodeImpl {
             AstNodeImpl::TypeParameterListImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::VariableDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::VariableDeclarationListImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::VariableDeclarationStatementImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::WhenClauseImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::WhileStatementImpl(n) => n.visit_children2(ast, visitor),
             AstNodeImpl::WildcardPatternImpl(n) => n.visit_children2(ast, visitor),
@@ -4514,8 +5985,12 @@ impl AstNodeImpl {
             AstNodeImpl::AssertInitializerImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::AssertStatementImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::AssignedVariablePatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::AssignmentExpressionImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::AwaitExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::BinaryExpressionImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::BlockClassBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::BlockEnumBodyImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::BlockFunctionBodyImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::BlockImpl(n) => n.for_each_child_node(f),
@@ -4534,7 +6009,9 @@ impl AstNodeImpl {
             AstNodeImpl::CatchClauseImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::CatchClauseParameterImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ClassDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ClassDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ClassTypeAlias2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ClassTypeAliasImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::CombinatorNameImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::CommentImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::CommentReferenceComponentImpl(n) => n.for_each_child_node(f),
@@ -4545,9 +6022,12 @@ impl AstNodeImpl {
             AstNodeImpl::ConfigurationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ConstantPatternImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ConstructorDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConstructorDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ConstructorInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConstructorNameImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ConstructorReference2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConstructorReferenceImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ConstructorSelectorImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ContinueStatementImpl(n) => n.for_each_child_node(f),
@@ -4557,22 +6037,33 @@ impl AstNodeImpl {
             AstNodeImpl::DirectAssignmentImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::DoStatementImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DotShorthandInvocationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::DottedNameImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::DoubleLiteralImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::EmptyClassBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::EmptyEnumBodyImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::EmptyFunctionBodyImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::EmptyStatementImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::EnumConstantArgumentsImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::EnumConstantDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::EnumDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::EnumDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ExportDirectiveImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ExpressionStatementImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ExtendsClauseImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ExtensionDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ExtensionDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ExtensionOnClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ExtensionOverrideImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::Field2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FieldDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::FieldFormalParameterImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::FieldsDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.for_each_child_node(f),
@@ -4585,11 +6076,17 @@ impl AstNodeImpl {
             AstNodeImpl::ForStatementImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::FormalParameterListImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FunctionDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FunctionDeclarationStatementImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::FunctionExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FunctionExpressionInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FunctionReferenceImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::FunctionTypeAlias2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FunctionTypeAliasImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::GenericFunctionTypeImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::GenericTypeAlias2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::GenericTypeAliasImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::GetterDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::GuardedPatternImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::HideCombinatorImpl(n) => n.for_each_child_node(f),
@@ -4598,9 +6095,12 @@ impl AstNodeImpl {
             AstNodeImpl::IfNullImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::IfStatementImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ImplementsClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ImplicitCallReferenceImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ImportDirectiveImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ImportPrefixReferenceImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::IndexExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::InstanceCreationExpressionImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::IntegerLiteralImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::InterpolationExpressionImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::InterpolationStringImpl(n) => n.for_each_child_node(f),
@@ -4627,7 +6127,10 @@ impl AstNodeImpl {
             AstNodeImpl::MapPatternEntryImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::MapPatternImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::MethodDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::MethodDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::MethodInvocationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::MixinDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::MixinDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::MixinOnClauseImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::NameWithTypeParametersImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::NamedArgumentImpl(n) => n.for_each_child_node(f),
@@ -4658,9 +6161,14 @@ impl AstNodeImpl {
             AstNodeImpl::PatternFieldNameImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::PatternVariableDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PostfixExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PrefixExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PrefixedIdentifierImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PrimaryConstructorBodyImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::PrimaryConstructorNameImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PropertyAccessImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.for_each_child_node(f),
@@ -4684,10 +6192,12 @@ impl AstNodeImpl {
             AstNodeImpl::SetOrMapLiteralImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::SetterDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::ShowCombinatorImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SimpleIdentifierImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::SimpleStringLiteralImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::SpreadElementImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::StringInterpolationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::SuperConstructorInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SuperExpressionImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::SuperFormalParameterImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::SuperReferenceImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::SwitchCaseImpl(n) => n.for_each_child_node(f),
@@ -4703,6 +6213,7 @@ impl AstNodeImpl {
             AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::TopLevelVariable2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::TryStatementImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::TypeArgumentListImpl(n) => n.for_each_child_node(f),
@@ -4710,6 +6221,9 @@ impl AstNodeImpl {
             AstNodeImpl::TypeParameterListImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::VariableDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::VariableDeclarationListImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::VariableDeclarationStatementImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::WhenClauseImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::WhileStatementImpl(n) => n.for_each_child_node(f),
             AstNodeImpl::WildcardPatternImpl(n) => n.for_each_child_node(f),
@@ -4773,6 +6287,1563 @@ impl AstNodeImpl {
             AstNodeImpl::ThrowExpressionImpl(n) => n.precedence(ast),
             AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.precedence(ast),
             _ => panic!("{} has no precedence", self.runtime_type()),
+        }
+    }
+
+    /// `_astNodeApi`, without the overrides the store keeps.
+    pub fn ast_node_api(&self, ast: Ast<'_>, id: NodeId) -> AstNodeApi {
+        let _ = (ast, id);
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::AnnotationImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::AnonymousBlockBodyImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::AnonymousExpressionBodyImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::AnonymousMethodInvocationImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ArgumentListImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::AsExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::AssertInitializerImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::AssertStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::AssignedVariablePatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::AssignmentExpressionImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::AwaitExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::BinaryExpressionImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::BinaryOperatorInvocationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::BlockClassBodyImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::BlockEnumBodyImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::BlockFunctionBodyImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::BlockImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::BooleanLiteralImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::BreakStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::CallInvocationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::CascadeExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::CascadeIndexExpressionImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::CascadePropertyExtractionImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::CascadeSectionImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::CaseClauseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::CastPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::CatchClauseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::CatchClauseParameterImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ClassDeclaration2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::ClassDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::ClassTypeAlias2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::ClassTypeAliasImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::CombinatorNameImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::CommentImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::CommentReferenceComponentImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::CommentReferenceImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::CompilationUnitImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::CompoundAssignmentImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ConditionalExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ConfigurationImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ConstantPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ConstructorDeclaration2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::ConstructorDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::ConstructorFieldInitializerImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ConstructorInvocationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ConstructorNameImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::ConstructorReference2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::ConstructorReferenceImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::ConstructorSelectorImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ConstructorTypeReferenceImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ContinueStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::DeclaredIdentifierImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::DeclaredVariablePatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::DelimitedFormalParametersImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::DirectAssignmentImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::DoStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::DotShorthandInvocationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::DotShorthandNameExpressionImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::DotShorthandPropertyAccessImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::DottedNameImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::DoubleLiteralImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::EmptyClassBodyImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::EmptyEnumBodyImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::EmptyFunctionBodyImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::EmptyStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::EnumConstantArgumentsImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::EnumConstantDeclaration2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::EnumConstantDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::EnumDeclaration2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::EnumDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::ExportDirectiveImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ExpressionFunctionBodyImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ExpressionStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ExtendsClauseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ExtensionDeclaration2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::ExtensionDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::ExtensionOnClauseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ExtensionOverrideImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::ExtensionTypeDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::Field2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::FieldDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::FieldFormalParameterImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::FieldsDeclarationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ForEachPartsWithPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ForElementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ForPartsWithDeclarationsImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ForPartsWithExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ForPartsWithPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ForStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::FormalParameterDefaultClauseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::FormalParameterListImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::FunctionDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::FunctionDeclarationStatementImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::FunctionExpressionImpl(_) => if id >= V1_BASE { AstNodeApi::v1 } else { AstNodeApi::shared },
+            AstNodeImpl::FunctionExpressionInvocationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::FunctionReferenceImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::FunctionTypeAlias2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::FunctionTypeAliasImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::GenericFunctionTypeImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::GenericTypeAlias2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::GenericTypeAliasImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::GetterDeclarationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::GuardedPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::HideCombinatorImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::IfElementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::IfNullAssignmentImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::IfNullImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::IfStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ImplementsClauseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ImplicitCallReferenceImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::ImportDirectiveImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ImportPrefixReferenceImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::IndexExpressionImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::InstanceCreationExpressionImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::IntegerLiteralImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::InterpolationExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::InterpolationStringImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::InvalidSuperExpressionImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::IsExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::LabelImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::LabelReferenceImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::LabeledStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::LibraryDirectiveImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ListLiteralImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ListPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::LocalFunctionDeclarationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::LocalVariableImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::LocalVariablesDeclarationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::LogicalAndImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::LogicalAndPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::LogicalNotImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::LogicalOrImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::LogicalOrPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::MapLiteralEntryImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::MapPatternEntryImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::MapPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::MethodDeclaration2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::MethodDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::MethodInvocationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::MixinDeclaration2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::MixinDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::MixinOnClauseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::NameWithTypeParametersImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::NamedArgumentImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::NamedTypeImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::NativeClauseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::NativeFunctionBodyImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::NullAssertPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::NullAssertionExpressionImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::NullAwareElementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::NullCheckPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::NullLiteralImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ObjectPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::OperatorDeclarationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ParenthesizedExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ParenthesizedPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ParsedCascadeNameImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ParsedDotShorthandNameImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ParsedNameAccessImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ParsedTypeArgumentsImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ParsedUnqualifiedNameImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ParsedValueArgumentsImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::PartDirectiveImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::PartOfDirectiveImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::PatternAssignmentImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::PatternFieldImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::PatternFieldNameImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::PatternVariableDeclarationImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::PostfixExpressionImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::PrefixExpressionImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::PrefixedIdentifierImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::PrimaryConstructorBody2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::PrimaryConstructorBodyImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::PrimaryConstructorNameImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::PropertyAccessImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ReceiverIndexExpressionImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ReceiverPropertyExtractionImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::RecordLiteralImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::RecordLiteralNamedFieldImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::RecordPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::RecordTypeAnnotationImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::RedirectingConstructorInvocationImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::RegularFormalParameterImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::RelationalPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::RestPatternElementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::RethrowExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ReturnStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ScriptTagImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::SetOrMapLiteralImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SetterDeclarationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::ShowCombinatorImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SimpleIdentifierImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::SimpleStringLiteralImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SpreadElementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::StringInterpolationImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SuperConstructorInvocationImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SuperExpressionImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::SuperFormalParameterImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SuperReferenceImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::SwitchCaseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SwitchDefaultImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SwitchExpressionCaseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SwitchExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SwitchPatternCaseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SwitchStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::SymbolLiteralImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ThisExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ThrowExpressionImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::TopLevelGetterDeclarationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::TopLevelSetterDeclarationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::TopLevelVariable2Impl(_) => AstNodeApi::v2,
+            AstNodeImpl::TopLevelVariableDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::TryStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::TypeArgumentListImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::TypeParameterImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::TypeParameterListImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::UnaryOperatorInvocationImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(_) => AstNodeApi::v2,
+            AstNodeImpl::VariableDeclarationImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::VariableDeclarationListImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::VariableDeclarationStatementImpl(_) => AstNodeApi::v1,
+            AstNodeImpl::WhenClauseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::WhileStatementImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::WildcardPatternImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::WithClauseImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::YieldStatementImpl(_) => AstNodeApi::shared,
+        }
+    }
+
+    /// `accept(visitor)`: the V1 visitor's method for this class.
+    pub fn accept1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) -> Option<V::R> {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(_) => visitor.visit_adjacent_strings(ast, id),
+            AstNodeImpl::AnnotationImpl(_) => visitor.visit_annotation(ast, id),
+            AstNodeImpl::AnonymousBlockBodyImpl(_) => visitor.visit_anonymous_block_body(ast, id),
+            AstNodeImpl::AnonymousExpressionBodyImpl(_) => visitor.visit_anonymous_expression_body(ast, id),
+            AstNodeImpl::AnonymousMethodInvocationImpl(_) => visitor.visit_anonymous_method_invocation(ast, id),
+            AstNodeImpl::ArgumentListImpl(_) => visitor.visit_argument_list(ast, id),
+            AstNodeImpl::AsExpressionImpl(_) => visitor.visit_as_expression(ast, id),
+            AstNodeImpl::AssertInitializerImpl(_) => visitor.visit_assert_initializer(ast, id),
+            AstNodeImpl::AssertStatementImpl(_) => visitor.visit_assert_statement(ast, id),
+            AstNodeImpl::AssignedVariablePatternImpl(_) => visitor.visit_assigned_variable_pattern(ast, id),
+            AstNodeImpl::AssignmentExpressionImpl(_) => visitor.visit_assignment_expression(ast, id),
+            AstNodeImpl::AwaitExpressionImpl(_) => visitor.visit_await_expression(ast, id),
+            AstNodeImpl::BinaryExpressionImpl(_) => visitor.visit_binary_expression(ast, id),
+            AstNodeImpl::BinaryOperatorInvocationImpl(_) => panic!("StateError: BinaryOperatorInvocation is not in the V1 AST view."),
+            AstNodeImpl::BlockClassBodyImpl(_) => visitor.visit_block_class_body(ast, id),
+            AstNodeImpl::BlockEnumBodyImpl(_) => visitor.visit_block_enum_body(ast, id),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(_) => panic!("StateError: BlockEnumDeclarationBody is not in the V1 AST view."),
+            AstNodeImpl::BlockFunctionBodyImpl(_) => visitor.visit_block_function_body(ast, id),
+            AstNodeImpl::BlockImpl(_) => visitor.visit_block(ast, id),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(_) => panic!("StateError: BlockInstanceDeclarationBody is not in the V1 AST view."),
+            AstNodeImpl::BooleanLiteralImpl(_) => visitor.visit_boolean_literal(ast, id),
+            AstNodeImpl::BreakStatementImpl(_) => visitor.visit_break_statement(ast, id),
+            AstNodeImpl::CallInvocationImpl(_) => panic!("StateError: CallInvocation is not in the V1 AST view."),
+            AstNodeImpl::CascadeExpressionImpl(_) => visitor.visit_cascade_expression(ast, id),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(_) => panic!("StateError: CascadeIndexAssignmentTarget is not in the V1 AST view."),
+            AstNodeImpl::CascadeIndexExpressionImpl(_) => panic!("StateError: CascadeIndexExpression is not in the V1 AST view."),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(_) => panic!("StateError: CascadePropertyAssignmentTarget is not in the V1 AST view."),
+            AstNodeImpl::CascadePropertyExtractionImpl(_) => panic!("StateError: CascadePropertyExtraction is not in the V1 AST view."),
+            AstNodeImpl::CascadeSectionImpl(_) => panic!("StateError: CascadeSection is not in the V1 AST view."),
+            AstNodeImpl::CaseClauseImpl(_) => visitor.visit_case_clause(ast, id),
+            AstNodeImpl::CastPatternImpl(_) => visitor.visit_cast_pattern(ast, id),
+            AstNodeImpl::CatchClauseImpl(_) => visitor.visit_catch_clause(ast, id),
+            AstNodeImpl::CatchClauseParameterImpl(_) => visitor.visit_catch_clause_parameter(ast, id),
+            AstNodeImpl::ClassDeclaration2Impl(_) => panic!("StateError: ClassDeclaration2 is not in the V1 AST view."),
+            AstNodeImpl::ClassDeclarationImpl(_) => visitor.visit_class_declaration(ast, id),
+            AstNodeImpl::ClassTypeAlias2Impl(_) => panic!("StateError: ClassTypeAlias2 is not in the V1 AST view."),
+            AstNodeImpl::ClassTypeAliasImpl(_) => visitor.visit_class_type_alias(ast, id),
+            AstNodeImpl::CombinatorNameImpl(_) => panic!("StateError: CombinatorName is not in the V1 AST view."),
+            AstNodeImpl::CommentImpl(_) => visitor.visit_comment(ast, id),
+            AstNodeImpl::CommentReferenceComponentImpl(_) => panic!("StateError: CommentReferenceComponent is not in the V1 AST view."),
+            AstNodeImpl::CommentReferenceImpl(_) => visitor.visit_comment_reference(ast, id),
+            AstNodeImpl::CompilationUnitImpl(_) => visitor.visit_compilation_unit(ast, id),
+            AstNodeImpl::CompoundAssignmentImpl(_) => panic!("StateError: CompoundAssignment is not in the V1 AST view."),
+            AstNodeImpl::ConditionalExpressionImpl(_) => visitor.visit_conditional_expression(ast, id),
+            AstNodeImpl::ConfigurationImpl(_) => visitor.visit_configuration(ast, id),
+            AstNodeImpl::ConstantPatternImpl(_) => visitor.visit_constant_pattern(ast, id),
+            AstNodeImpl::ConstructorDeclaration2Impl(_) => panic!("StateError: ConstructorDeclaration2 is not in the V1 AST view."),
+            AstNodeImpl::ConstructorDeclarationImpl(_) => visitor.visit_constructor_declaration(ast, id),
+            AstNodeImpl::ConstructorFieldInitializerImpl(_) => visitor.visit_constructor_field_initializer(ast, id),
+            AstNodeImpl::ConstructorInvocationImpl(_) => panic!("StateError: ConstructorInvocation is not in the V1 AST view."),
+            AstNodeImpl::ConstructorNameImpl(_) => visitor.visit_constructor_name(ast, id),
+            AstNodeImpl::ConstructorReference2Impl(_) => panic!("StateError: ConstructorReference2 is not in the V1 AST view."),
+            AstNodeImpl::ConstructorReferenceImpl(_) => visitor.visit_constructor_reference(ast, id),
+            AstNodeImpl::ConstructorSelectorImpl(_) => visitor.visit_constructor_selector(ast, id),
+            AstNodeImpl::ConstructorTypeReferenceImpl(_) => panic!("StateError: ConstructorTypeReference is not in the V1 AST view."),
+            AstNodeImpl::ContinueStatementImpl(_) => visitor.visit_continue_statement(ast, id),
+            AstNodeImpl::DeclaredIdentifierImpl(_) => visitor.visit_declared_identifier(ast, id),
+            AstNodeImpl::DeclaredVariablePatternImpl(_) => visitor.visit_declared_variable_pattern(ast, id),
+            AstNodeImpl::DelimitedFormalParametersImpl(_) => panic!("StateError: DelimitedFormalParameters is not in the V1 AST view."),
+            AstNodeImpl::DirectAssignmentImpl(_) => panic!("StateError: DirectAssignment is not in the V1 AST view."),
+            AstNodeImpl::DoStatementImpl(_) => visitor.visit_do_statement(ast, id),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(_) => panic!("StateError: DotShorthandConstructorInvocation2 is not in the V1 AST view."),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(_) => visitor.visit_dot_shorthand_constructor_invocation(ast, id),
+            AstNodeImpl::DotShorthandInvocationImpl(_) => visitor.visit_dot_shorthand_invocation(ast, id),
+            AstNodeImpl::DotShorthandNameExpressionImpl(_) => panic!("StateError: DotShorthandNameExpression is not in the V1 AST view."),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(_) => visitor.visit_dot_shorthand_property_access(ast, id),
+            AstNodeImpl::DottedNameImpl(_) => visitor.visit_dotted_name(ast, id),
+            AstNodeImpl::DoubleLiteralImpl(_) => visitor.visit_double_literal(ast, id),
+            AstNodeImpl::EmptyClassBodyImpl(_) => visitor.visit_empty_class_body(ast, id),
+            AstNodeImpl::EmptyEnumBodyImpl(_) => visitor.visit_empty_enum_body(ast, id),
+            AstNodeImpl::EmptyFunctionBodyImpl(_) => visitor.visit_empty_function_body(ast, id),
+            AstNodeImpl::EmptyStatementImpl(_) => visitor.visit_empty_statement(ast, id),
+            AstNodeImpl::EnumConstantArgumentsImpl(_) => visitor.visit_enum_constant_arguments(ast, id),
+            AstNodeImpl::EnumConstantDeclaration2Impl(_) => panic!("StateError: EnumConstantDeclaration2 is not in the V1 AST view."),
+            AstNodeImpl::EnumConstantDeclarationImpl(_) => visitor.visit_enum_constant_declaration(ast, id),
+            AstNodeImpl::EnumDeclaration2Impl(_) => panic!("StateError: EnumDeclaration2 is not in the V1 AST view."),
+            AstNodeImpl::EnumDeclarationImpl(_) => visitor.visit_enum_declaration(ast, id),
+            AstNodeImpl::ExportDirectiveImpl(_) => visitor.visit_export_directive(ast, id),
+            AstNodeImpl::ExpressionFunctionBodyImpl(_) => visitor.visit_expression_function_body(ast, id),
+            AstNodeImpl::ExpressionStatementImpl(_) => visitor.visit_expression_statement(ast, id),
+            AstNodeImpl::ExtendsClauseImpl(_) => visitor.visit_extends_clause(ast, id),
+            AstNodeImpl::ExtensionDeclaration2Impl(_) => panic!("StateError: ExtensionDeclaration2 is not in the V1 AST view."),
+            AstNodeImpl::ExtensionDeclarationImpl(_) => visitor.visit_extension_declaration(ast, id),
+            AstNodeImpl::ExtensionOnClauseImpl(_) => visitor.visit_extension_on_clause(ast, id),
+            AstNodeImpl::ExtensionOverrideImpl(_) => visitor.visit_extension_override(ast, id),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(_) => panic!("StateError: ExtensionTypeDeclaration2 is not in the V1 AST view."),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(_) => visitor.visit_extension_type_declaration(ast, id),
+            AstNodeImpl::Field2Impl(_) => panic!("StateError: Field2 is not in the V1 AST view."),
+            AstNodeImpl::FieldDeclarationImpl(_) => visitor.visit_field_declaration(ast, id),
+            AstNodeImpl::FieldFormalParameterImpl(_) => visitor.visit_field_formal_parameter(ast, id),
+            AstNodeImpl::FieldsDeclarationImpl(_) => panic!("StateError: FieldsDeclaration is not in the V1 AST view."),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(_) => visitor.visit_for_each_parts_with_declaration(ast, id),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(_) => visitor.visit_for_each_parts_with_identifier(ast, id),
+            AstNodeImpl::ForEachPartsWithPatternImpl(_) => visitor.visit_for_each_parts_with_pattern(ast, id),
+            AstNodeImpl::ForElementImpl(_) => visitor.visit_for_element(ast, id),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(_) => visitor.visit_for_parts_with_declarations(ast, id),
+            AstNodeImpl::ForPartsWithExpressionImpl(_) => visitor.visit_for_parts_with_expression(ast, id),
+            AstNodeImpl::ForPartsWithPatternImpl(_) => visitor.visit_for_parts_with_pattern(ast, id),
+            AstNodeImpl::ForStatementImpl(_) => visitor.visit_for_statement(ast, id),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(_) => visitor.visit_formal_parameter_default_clause(ast, id),
+            AstNodeImpl::FormalParameterListImpl(_) => visitor.visit_formal_parameter_list(ast, id),
+            AstNodeImpl::FunctionDeclarationImpl(_) => visitor.visit_function_declaration(ast, id),
+            AstNodeImpl::FunctionDeclarationStatementImpl(_) => visitor.visit_function_declaration_statement(ast, id),
+            AstNodeImpl::FunctionExpressionImpl(_) => visitor.visit_function_expression(ast, id),
+            AstNodeImpl::FunctionExpressionInvocationImpl(_) => visitor.visit_function_expression_invocation(ast, id),
+            AstNodeImpl::FunctionReferenceImpl(_) => visitor.visit_function_reference(ast, id),
+            AstNodeImpl::FunctionTypeAlias2Impl(_) => panic!("StateError: FunctionTypeAlias2 is not in the V1 AST view."),
+            AstNodeImpl::FunctionTypeAliasImpl(_) => visitor.visit_function_type_alias(ast, id),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(_) => visitor.visit_function_typed_formal_parameter_suffix(ast, id),
+            AstNodeImpl::GenericFunctionTypeImpl(_) => visitor.visit_generic_function_type(ast, id),
+            AstNodeImpl::GenericTypeAlias2Impl(_) => panic!("StateError: GenericTypeAlias2 is not in the V1 AST view."),
+            AstNodeImpl::GenericTypeAliasImpl(_) => visitor.visit_generic_type_alias(ast, id),
+            AstNodeImpl::GetterDeclarationImpl(_) => panic!("StateError: GetterDeclaration is not in the V1 AST view."),
+            AstNodeImpl::GuardedPatternImpl(_) => visitor.visit_guarded_pattern(ast, id),
+            AstNodeImpl::HideCombinatorImpl(_) => visitor.visit_hide_combinator(ast, id),
+            AstNodeImpl::IfElementImpl(_) => visitor.visit_if_element(ast, id),
+            AstNodeImpl::IfNullAssignmentImpl(_) => panic!("StateError: IfNullAssignment is not in the V1 AST view."),
+            AstNodeImpl::IfNullImpl(_) => panic!("StateError: IfNull is not in the V1 AST view."),
+            AstNodeImpl::IfStatementImpl(_) => visitor.visit_if_statement(ast, id),
+            AstNodeImpl::ImplementsClauseImpl(_) => visitor.visit_implements_clause(ast, id),
+            AstNodeImpl::ImplicitCallReferenceImpl(_) => visitor.visit_implicit_call_reference(ast, id),
+            AstNodeImpl::ImportDirectiveImpl(_) => visitor.visit_import_directive(ast, id),
+            AstNodeImpl::ImportPrefixReferenceImpl(_) => visitor.visit_import_prefix_reference(ast, id),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(_) => panic!("StateError: IncrementOrDecrementExpression is not in the V1 AST view."),
+            AstNodeImpl::IndexExpressionImpl(_) => visitor.visit_index_expression(ast, id),
+            AstNodeImpl::InstanceCreationExpressionImpl(_) => visitor.visit_instance_creation_expression(ast, id),
+            AstNodeImpl::IntegerLiteralImpl(_) => visitor.visit_integer_literal(ast, id),
+            AstNodeImpl::InterpolationExpressionImpl(_) => visitor.visit_interpolation_expression(ast, id),
+            AstNodeImpl::InterpolationStringImpl(_) => visitor.visit_interpolation_string(ast, id),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(_) => panic!("StateError: InvalidExpressionAssignmentTarget is not in the V1 AST view."),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(_) => panic!("StateError: InvalidSuperAssignmentTarget is not in the V1 AST view."),
+            AstNodeImpl::InvalidSuperExpressionImpl(_) => panic!("StateError: InvalidSuperExpression is not in the V1 AST view."),
+            AstNodeImpl::IsExpressionImpl(_) => visitor.visit_is_expression(ast, id),
+            AstNodeImpl::LabelImpl(_) => visitor.visit_label(ast, id),
+            AstNodeImpl::LabelReferenceImpl(_) => visitor.visit_label_reference(ast, id),
+            AstNodeImpl::LabeledStatementImpl(_) => visitor.visit_labeled_statement(ast, id),
+            AstNodeImpl::LibraryDirectiveImpl(_) => visitor.visit_library_directive(ast, id),
+            AstNodeImpl::ListLiteralImpl(_) => visitor.visit_list_literal(ast, id),
+            AstNodeImpl::ListPatternImpl(_) => visitor.visit_list_pattern(ast, id),
+            AstNodeImpl::LocalFunctionDeclarationImpl(_) => panic!("StateError: LocalFunctionDeclaration is not in the V1 AST view."),
+            AstNodeImpl::LocalVariableImpl(_) => panic!("StateError: LocalVariable is not in the V1 AST view."),
+            AstNodeImpl::LocalVariablesDeclarationImpl(_) => panic!("StateError: LocalVariablesDeclaration is not in the V1 AST view."),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(_) => panic!("StateError: LocalVariablesDeclarationStatement is not in the V1 AST view."),
+            AstNodeImpl::LogicalAndImpl(_) => panic!("StateError: LogicalAnd is not in the V1 AST view."),
+            AstNodeImpl::LogicalAndPatternImpl(_) => visitor.visit_logical_and_pattern(ast, id),
+            AstNodeImpl::LogicalNotImpl(_) => panic!("StateError: LogicalNot is not in the V1 AST view."),
+            AstNodeImpl::LogicalOrImpl(_) => panic!("StateError: LogicalOr is not in the V1 AST view."),
+            AstNodeImpl::LogicalOrPatternImpl(_) => visitor.visit_logical_or_pattern(ast, id),
+            AstNodeImpl::MapLiteralEntryImpl(_) => visitor.visit_map_literal_entry(ast, id),
+            AstNodeImpl::MapPatternEntryImpl(_) => visitor.visit_map_pattern_entry(ast, id),
+            AstNodeImpl::MapPatternImpl(_) => visitor.visit_map_pattern(ast, id),
+            AstNodeImpl::MethodDeclaration2Impl(_) => panic!("StateError: MethodDeclaration2 is not in the V1 AST view."),
+            AstNodeImpl::MethodDeclarationImpl(_) => visitor.visit_method_declaration(ast, id),
+            AstNodeImpl::MethodInvocationImpl(_) => visitor.visit_method_invocation(ast, id),
+            AstNodeImpl::MixinDeclaration2Impl(_) => panic!("StateError: MixinDeclaration2 is not in the V1 AST view."),
+            AstNodeImpl::MixinDeclarationImpl(_) => visitor.visit_mixin_declaration(ast, id),
+            AstNodeImpl::MixinOnClauseImpl(_) => visitor.visit_mixin_on_clause(ast, id),
+            AstNodeImpl::NameWithTypeParametersImpl(_) => visitor.visit_name_with_type_parameters(ast, id),
+            AstNodeImpl::NamedArgumentImpl(_) => visitor.visit_named_argument(ast, id),
+            AstNodeImpl::NamedTypeImpl(_) => visitor.visit_named_type(ast, id),
+            AstNodeImpl::NativeClauseImpl(_) => visitor.visit_native_clause(ast, id),
+            AstNodeImpl::NativeFunctionBodyImpl(_) => visitor.visit_native_function_body(ast, id),
+            AstNodeImpl::NullAssertPatternImpl(_) => visitor.visit_null_assert_pattern(ast, id),
+            AstNodeImpl::NullAssertionExpressionImpl(_) => panic!("StateError: NullAssertionExpression is not in the V1 AST view."),
+            AstNodeImpl::NullAwareElementImpl(_) => visitor.visit_null_aware_element(ast, id),
+            AstNodeImpl::NullCheckPatternImpl(_) => visitor.visit_null_check_pattern(ast, id),
+            AstNodeImpl::NullLiteralImpl(_) => visitor.visit_null_literal(ast, id),
+            AstNodeImpl::ObjectPatternImpl(_) => visitor.visit_object_pattern(ast, id),
+            AstNodeImpl::OperatorDeclarationImpl(_) => panic!("StateError: OperatorDeclaration is not in the V1 AST view."),
+            AstNodeImpl::ParenthesizedExpressionImpl(_) => visitor.visit_parenthesized_expression(ast, id),
+            AstNodeImpl::ParenthesizedPatternImpl(_) => visitor.visit_parenthesized_pattern(ast, id),
+            AstNodeImpl::ParsedCascadeNameImpl(_) => panic!("StateError: ParsedCascadeName is not in the V1 AST view."),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(_) => panic!("StateError: ParsedDotShorthandExpression is not in the V1 AST view."),
+            AstNodeImpl::ParsedDotShorthandNameImpl(_) => panic!("StateError: ParsedDotShorthandName is not in the V1 AST view."),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(_) => panic!("StateError: ParsedNameAccessAssignmentTarget is not in the V1 AST view."),
+            AstNodeImpl::ParsedNameAccessImpl(_) => panic!("StateError: ParsedNameAccess is not in the V1 AST view."),
+            AstNodeImpl::ParsedTypeArgumentsImpl(_) => panic!("StateError: ParsedTypeArguments is not in the V1 AST view."),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(_) => panic!("StateError: ParsedUnqualifiedName is not in the V1 AST view."),
+            AstNodeImpl::ParsedValueArgumentsImpl(_) => panic!("StateError: ParsedValueArguments is not in the V1 AST view."),
+            AstNodeImpl::PartDirectiveImpl(_) => visitor.visit_part_directive(ast, id),
+            AstNodeImpl::PartOfDirectiveImpl(_) => visitor.visit_part_of_directive(ast, id),
+            AstNodeImpl::PatternAssignmentImpl(_) => visitor.visit_pattern_assignment(ast, id),
+            AstNodeImpl::PatternFieldImpl(_) => visitor.visit_pattern_field(ast, id),
+            AstNodeImpl::PatternFieldNameImpl(_) => visitor.visit_pattern_field_name(ast, id),
+            AstNodeImpl::PatternVariableDeclarationImpl(_) => visitor.visit_pattern_variable_declaration(ast, id),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(_) => visitor.visit_pattern_variable_declaration_statement(ast, id),
+            AstNodeImpl::PostfixExpressionImpl(_) => visitor.visit_postfix_expression(ast, id),
+            AstNodeImpl::PrefixExpressionImpl(_) => visitor.visit_prefix_expression(ast, id),
+            AstNodeImpl::PrefixedIdentifierImpl(_) => visitor.visit_prefixed_identifier(ast, id),
+            AstNodeImpl::PrimaryConstructorBody2Impl(_) => panic!("StateError: PrimaryConstructorBody2 is not in the V1 AST view."),
+            AstNodeImpl::PrimaryConstructorBodyImpl(_) => visitor.visit_primary_constructor_body(ast, id),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(_) => visitor.visit_primary_constructor_declaration(ast, id),
+            AstNodeImpl::PrimaryConstructorNameImpl(_) => visitor.visit_primary_constructor_name(ast, id),
+            AstNodeImpl::PropertyAccessImpl(_) => visitor.visit_property_access(ast, id),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(_) => panic!("StateError: ReceiverIndexAssignmentTarget is not in the V1 AST view."),
+            AstNodeImpl::ReceiverIndexExpressionImpl(_) => panic!("StateError: ReceiverIndexExpression is not in the V1 AST view."),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(_) => panic!("StateError: ReceiverPropertyAssignmentTarget is not in the V1 AST view."),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(_) => panic!("StateError: ReceiverPropertyExtraction is not in the V1 AST view."),
+            AstNodeImpl::RecordLiteralImpl(_) => visitor.visit_record_literal(ast, id),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(_) => visitor.visit_record_literal_named_field(ast, id),
+            AstNodeImpl::RecordPatternImpl(_) => visitor.visit_record_pattern(ast, id),
+            AstNodeImpl::RecordTypeAnnotationImpl(_) => visitor.visit_record_type_annotation(ast, id),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(_) => visitor.visit_record_type_annotation_named_field(ast, id),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(_) => visitor.visit_record_type_annotation_named_fields(ast, id),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(_) => visitor.visit_record_type_annotation_positional_field(ast, id),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(_) => visitor.visit_redirecting_constructor_invocation(ast, id),
+            AstNodeImpl::RegularFormalParameterImpl(_) => visitor.visit_regular_formal_parameter(ast, id),
+            AstNodeImpl::RelationalPatternImpl(_) => visitor.visit_relational_pattern(ast, id),
+            AstNodeImpl::RestPatternElementImpl(_) => visitor.visit_rest_pattern_element(ast, id),
+            AstNodeImpl::RethrowExpressionImpl(_) => visitor.visit_rethrow_expression(ast, id),
+            AstNodeImpl::ReturnStatementImpl(_) => visitor.visit_return_statement(ast, id),
+            AstNodeImpl::ScriptTagImpl(_) => visitor.visit_script_tag(ast, id),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(_) => panic!("StateError: SemicolonEnumDeclarationBody is not in the V1 AST view."),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(_) => panic!("StateError: SemicolonInstanceDeclarationBody is not in the V1 AST view."),
+            AstNodeImpl::SetOrMapLiteralImpl(_) => visitor.visit_set_or_map_literal(ast, id),
+            AstNodeImpl::SetterDeclarationImpl(_) => panic!("StateError: SetterDeclaration is not in the V1 AST view."),
+            AstNodeImpl::ShowCombinatorImpl(_) => visitor.visit_show_combinator(ast, id),
+            AstNodeImpl::SimpleIdentifierImpl(_) => visitor.visit_simple_identifier(ast, id),
+            AstNodeImpl::SimpleStringLiteralImpl(_) => visitor.visit_simple_string_literal(ast, id),
+            AstNodeImpl::SpreadElementImpl(_) => visitor.visit_spread_element(ast, id),
+            AstNodeImpl::StringInterpolationImpl(_) => visitor.visit_string_interpolation(ast, id),
+            AstNodeImpl::SuperConstructorInvocationImpl(_) => visitor.visit_super_constructor_invocation(ast, id),
+            AstNodeImpl::SuperExpressionImpl(_) => visitor.visit_super_expression(ast, id),
+            AstNodeImpl::SuperFormalParameterImpl(_) => visitor.visit_super_formal_parameter(ast, id),
+            AstNodeImpl::SuperReferenceImpl(_) => panic!("StateError: SuperReference is not in the V1 AST view."),
+            AstNodeImpl::SwitchCaseImpl(_) => visitor.visit_switch_case(ast, id),
+            AstNodeImpl::SwitchDefaultImpl(_) => visitor.visit_switch_default(ast, id),
+            AstNodeImpl::SwitchExpressionCaseImpl(_) => visitor.visit_switch_expression_case(ast, id),
+            AstNodeImpl::SwitchExpressionImpl(_) => visitor.visit_switch_expression(ast, id),
+            AstNodeImpl::SwitchPatternCaseImpl(_) => visitor.visit_switch_pattern_case(ast, id),
+            AstNodeImpl::SwitchStatementImpl(_) => visitor.visit_switch_statement(ast, id),
+            AstNodeImpl::SymbolLiteralImpl(_) => visitor.visit_symbol_literal(ast, id),
+            AstNodeImpl::ThisExpressionImpl(_) => visitor.visit_this_expression(ast, id),
+            AstNodeImpl::ThrowExpressionImpl(_) => visitor.visit_throw_expression(ast, id),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(_) => panic!("StateError: TopLevelFunctionDeclaration is not in the V1 AST view."),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(_) => panic!("StateError: TopLevelGetterDeclaration is not in the V1 AST view."),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(_) => panic!("StateError: TopLevelSetterDeclaration is not in the V1 AST view."),
+            AstNodeImpl::TopLevelVariable2Impl(_) => panic!("StateError: TopLevelVariable2 is not in the V1 AST view."),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(_) => visitor.visit_top_level_variable_declaration(ast, id),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(_) => panic!("StateError: TopLevelVariablesDeclaration is not in the V1 AST view."),
+            AstNodeImpl::TryStatementImpl(_) => visitor.visit_try_statement(ast, id),
+            AstNodeImpl::TypeArgumentListImpl(_) => visitor.visit_type_argument_list(ast, id),
+            AstNodeImpl::TypeParameterImpl(_) => visitor.visit_type_parameter(ast, id),
+            AstNodeImpl::TypeParameterListImpl(_) => visitor.visit_type_parameter_list(ast, id),
+            AstNodeImpl::UnaryOperatorInvocationImpl(_) => panic!("StateError: UnaryOperatorInvocation is not in the V1 AST view."),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(_) => panic!("StateError: UnqualifiedNameAssignmentTarget is not in the V1 AST view."),
+            AstNodeImpl::VariableDeclarationImpl(_) => visitor.visit_variable_declaration(ast, id),
+            AstNodeImpl::VariableDeclarationListImpl(_) => visitor.visit_variable_declaration_list(ast, id),
+            AstNodeImpl::VariableDeclarationStatementImpl(_) => visitor.visit_variable_declaration_statement(ast, id),
+            AstNodeImpl::WhenClauseImpl(_) => visitor.visit_when_clause(ast, id),
+            AstNodeImpl::WhileStatementImpl(_) => visitor.visit_while_statement(ast, id),
+            AstNodeImpl::WildcardPatternImpl(_) => visitor.visit_wildcard_pattern(ast, id),
+            AstNodeImpl::WithClauseImpl(_) => visitor.visit_with_clause(ast, id),
+            AstNodeImpl::YieldStatementImpl(_) => visitor.visit_yield_statement(ast, id),
+        }
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::AnnotationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::AnonymousBlockBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::AnonymousExpressionBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::AnonymousMethodInvocationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ArgumentListImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::AsExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::AssertInitializerImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::AssertStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::AssignedVariablePatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::AssignmentExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::AwaitExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::BinaryExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::BlockClassBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::BlockEnumBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::BlockFunctionBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::BlockImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::BooleanLiteralImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::BreakStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CallInvocationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CascadeExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CascadeIndexExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CascadePropertyExtractionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CascadeSectionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CaseClauseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CastPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CatchClauseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CatchClauseParameterImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ClassDeclaration2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ClassDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ClassTypeAlias2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ClassTypeAliasImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CombinatorNameImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CommentImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CommentReferenceComponentImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CommentReferenceImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CompilationUnitImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::CompoundAssignmentImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConditionalExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConfigurationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConstantPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConstructorDeclaration2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConstructorDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConstructorInvocationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConstructorNameImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConstructorReference2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConstructorReferenceImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConstructorSelectorImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ContinueStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DeclaredIdentifierImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DeclaredVariablePatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DelimitedFormalParametersImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DirectAssignmentImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DoStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DotShorthandInvocationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DottedNameImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::DoubleLiteralImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::EmptyClassBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::EmptyEnumBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::EmptyFunctionBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::EmptyStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::EnumConstantArgumentsImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::EnumConstantDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::EnumDeclaration2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::EnumDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ExportDirectiveImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ExpressionStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ExtendsClauseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ExtensionDeclaration2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ExtensionDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ExtensionOnClauseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ExtensionOverrideImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::Field2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FieldDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FieldFormalParameterImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FieldsDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ForEachPartsWithPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ForElementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ForPartsWithExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ForPartsWithPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ForStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FormalParameterListImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FunctionDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FunctionDeclarationStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FunctionExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FunctionExpressionInvocationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FunctionReferenceImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FunctionTypeAlias2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FunctionTypeAliasImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::GenericFunctionTypeImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::GenericTypeAlias2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::GenericTypeAliasImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::GetterDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::GuardedPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::HideCombinatorImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::IfElementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::IfNullAssignmentImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::IfNullImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::IfStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ImplementsClauseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ImplicitCallReferenceImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ImportDirectiveImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ImportPrefixReferenceImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::IndexExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::InstanceCreationExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::IntegerLiteralImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::InterpolationExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::InterpolationStringImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::InvalidSuperExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::IsExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LabelImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LabelReferenceImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LabeledStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LibraryDirectiveImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ListLiteralImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ListPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LocalFunctionDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LocalVariableImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LocalVariablesDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LogicalAndImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LogicalAndPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LogicalNotImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LogicalOrImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::LogicalOrPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::MapLiteralEntryImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::MapPatternEntryImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::MapPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::MethodDeclaration2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::MethodDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::MethodInvocationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::MixinDeclaration2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::MixinDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::MixinOnClauseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::NameWithTypeParametersImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::NamedArgumentImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::NamedTypeImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::NativeClauseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::NativeFunctionBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::NullAssertPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::NullAssertionExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::NullAwareElementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::NullCheckPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::NullLiteralImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ObjectPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::OperatorDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ParenthesizedExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ParenthesizedPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ParsedCascadeNameImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ParsedDotShorthandNameImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ParsedNameAccessImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ParsedTypeArgumentsImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ParsedValueArgumentsImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PartDirectiveImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PartOfDirectiveImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PatternAssignmentImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PatternFieldImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PatternFieldNameImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PatternVariableDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PostfixExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PrefixExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PrefixedIdentifierImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PrimaryConstructorBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PrimaryConstructorNameImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::PropertyAccessImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RecordLiteralImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RecordPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RecordTypeAnnotationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RegularFormalParameterImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RelationalPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RestPatternElementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::RethrowExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ReturnStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ScriptTagImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SetOrMapLiteralImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SetterDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ShowCombinatorImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SimpleIdentifierImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SimpleStringLiteralImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SpreadElementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::StringInterpolationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SuperConstructorInvocationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SuperExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SuperFormalParameterImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SuperReferenceImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SwitchCaseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SwitchDefaultImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SwitchExpressionCaseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SwitchExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SwitchPatternCaseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SwitchStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::SymbolLiteralImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ThisExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::ThrowExpressionImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::TopLevelVariable2Impl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::TryStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::TypeArgumentListImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::TypeParameterImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::TypeParameterListImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::VariableDeclarationImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::VariableDeclarationListImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::VariableDeclarationStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::WhenClauseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::WhileStatementImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::WildcardPatternImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::WithClauseImpl(n) => n.visit_children1(ast, id, visitor),
+            AstNodeImpl::YieldStatementImpl(n) => n.visit_children1(ast, id, visitor),
+        }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::AnnotationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::AnonymousBlockBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::AnonymousExpressionBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::AnonymousMethodInvocationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ArgumentListImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::AsExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::AssertInitializerImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::AssertStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::AssignedVariablePatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::AssignmentExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::AwaitExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::BinaryExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::BlockClassBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::BlockEnumBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::BlockFunctionBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::BlockImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::BooleanLiteralImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::BreakStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CallInvocationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CascadeExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CascadeIndexExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CascadePropertyExtractionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CascadeSectionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CaseClauseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CastPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CatchClauseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CatchClauseParameterImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ClassDeclaration2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ClassDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ClassTypeAlias2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ClassTypeAliasImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CombinatorNameImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CommentImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CommentReferenceComponentImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CommentReferenceImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CompilationUnitImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::CompoundAssignmentImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConditionalExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConfigurationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConstantPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConstructorDeclaration2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConstructorDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConstructorInvocationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConstructorNameImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConstructorReference2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConstructorReferenceImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConstructorSelectorImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ContinueStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DeclaredIdentifierImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DeclaredVariablePatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DelimitedFormalParametersImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DirectAssignmentImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DoStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DotShorthandInvocationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DottedNameImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::DoubleLiteralImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::EmptyClassBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::EmptyEnumBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::EmptyFunctionBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::EmptyStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::EnumConstantArgumentsImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::EnumConstantDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::EnumDeclaration2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::EnumDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ExportDirectiveImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ExpressionStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ExtendsClauseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ExtensionDeclaration2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ExtensionDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ExtensionOnClauseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ExtensionOverrideImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::Field2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FieldDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FieldFormalParameterImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FieldsDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ForEachPartsWithPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ForElementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ForPartsWithExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ForPartsWithPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ForStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FormalParameterListImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FunctionDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FunctionDeclarationStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FunctionExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FunctionExpressionInvocationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FunctionReferenceImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FunctionTypeAlias2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FunctionTypeAliasImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::GenericFunctionTypeImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::GenericTypeAlias2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::GenericTypeAliasImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::GetterDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::GuardedPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::HideCombinatorImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::IfElementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::IfNullAssignmentImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::IfNullImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::IfStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ImplementsClauseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ImplicitCallReferenceImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ImportDirectiveImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ImportPrefixReferenceImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::IndexExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::InstanceCreationExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::IntegerLiteralImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::InterpolationExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::InterpolationStringImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::InvalidSuperExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::IsExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LabelImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LabelReferenceImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LabeledStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LibraryDirectiveImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ListLiteralImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ListPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LocalFunctionDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LocalVariableImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LocalVariablesDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LogicalAndImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LogicalAndPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LogicalNotImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LogicalOrImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::LogicalOrPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::MapLiteralEntryImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::MapPatternEntryImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::MapPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::MethodDeclaration2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::MethodDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::MethodInvocationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::MixinDeclaration2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::MixinDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::MixinOnClauseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::NameWithTypeParametersImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::NamedArgumentImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::NamedTypeImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::NativeClauseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::NativeFunctionBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::NullAssertPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::NullAssertionExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::NullAwareElementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::NullCheckPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::NullLiteralImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ObjectPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::OperatorDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ParenthesizedExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ParenthesizedPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ParsedCascadeNameImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ParsedDotShorthandNameImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ParsedNameAccessImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ParsedTypeArgumentsImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ParsedValueArgumentsImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PartDirectiveImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PartOfDirectiveImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PatternAssignmentImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PatternFieldImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PatternFieldNameImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PatternVariableDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PostfixExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PrefixExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PrefixedIdentifierImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PrimaryConstructorBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PrimaryConstructorNameImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::PropertyAccessImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RecordLiteralImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RecordPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RecordTypeAnnotationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RegularFormalParameterImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RelationalPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RestPatternElementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::RethrowExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ReturnStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ScriptTagImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SetOrMapLiteralImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SetterDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ShowCombinatorImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SimpleIdentifierImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SimpleStringLiteralImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SpreadElementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::StringInterpolationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SuperConstructorInvocationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SuperExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SuperFormalParameterImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SuperReferenceImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SwitchCaseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SwitchDefaultImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SwitchExpressionCaseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SwitchExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SwitchPatternCaseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SwitchStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::SymbolLiteralImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ThisExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::ThrowExpressionImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::TopLevelVariable2Impl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::TryStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::TypeArgumentListImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::TypeParameterImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::TypeParameterListImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::VariableDeclarationImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::VariableDeclarationListImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::VariableDeclarationStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::WhenClauseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::WhileStatementImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::WildcardPatternImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::WithClauseImpl(n) => n.child_entities1(ast, id, entities),
+            AstNodeImpl::YieldStatementImpl(n) => n.child_entities1(ast, id, entities),
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::AnnotationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::AnonymousBlockBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::AnonymousExpressionBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::AnonymousMethodInvocationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ArgumentListImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::AsExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::AssertInitializerImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::AssertStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::AssignedVariablePatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::AssignmentExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::AwaitExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::BinaryExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockClassBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockEnumBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockFunctionBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::BooleanLiteralImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::BreakStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CallInvocationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadeExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadeIndexExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadePropertyExtractionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadeSectionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CaseClauseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CastPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CatchClauseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CatchClauseParameterImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ClassDeclaration2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ClassDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ClassTypeAlias2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ClassTypeAliasImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CombinatorNameImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CommentImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CommentReferenceComponentImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CommentReferenceImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CompilationUnitImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::CompoundAssignmentImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConditionalExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConfigurationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstantPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorDeclaration2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorInvocationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorNameImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorReference2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorReferenceImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorSelectorImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ContinueStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DeclaredIdentifierImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DeclaredVariablePatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DelimitedFormalParametersImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DirectAssignmentImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DoStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DotShorthandInvocationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DottedNameImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::DoubleLiteralImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::EmptyClassBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::EmptyEnumBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::EmptyFunctionBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::EmptyStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::EnumConstantArgumentsImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::EnumConstantDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::EnumDeclaration2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::EnumDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ExportDirectiveImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ExpressionStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtendsClauseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionDeclaration2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionOnClauseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionOverrideImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::Field2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FieldDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FieldFormalParameterImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FieldsDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ForEachPartsWithPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ForElementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ForPartsWithExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ForPartsWithPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ForStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FormalParameterListImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionDeclarationStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionExpressionInvocationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionReferenceImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionTypeAlias2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionTypeAliasImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::GenericFunctionTypeImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::GenericTypeAlias2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::GenericTypeAliasImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::GetterDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::GuardedPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::HideCombinatorImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::IfElementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::IfNullAssignmentImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::IfNullImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::IfStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ImplementsClauseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ImplicitCallReferenceImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ImportDirectiveImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ImportPrefixReferenceImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::IndexExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::InstanceCreationExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::IntegerLiteralImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::InterpolationExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::InterpolationStringImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::InvalidSuperExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::IsExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LabelImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LabelReferenceImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LabeledStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LibraryDirectiveImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ListLiteralImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ListPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LocalFunctionDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LocalVariableImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LocalVariablesDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LogicalAndImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LogicalAndPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LogicalNotImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LogicalOrImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::LogicalOrPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::MapLiteralEntryImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::MapPatternEntryImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::MapPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::MethodDeclaration2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::MethodDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::MethodInvocationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::MixinDeclaration2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::MixinDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::MixinOnClauseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::NameWithTypeParametersImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::NamedArgumentImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::NamedTypeImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::NativeClauseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::NativeFunctionBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::NullAssertPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::NullAssertionExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::NullAwareElementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::NullCheckPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::NullLiteralImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ObjectPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::OperatorDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ParenthesizedExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ParenthesizedPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedCascadeNameImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedDotShorthandNameImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedNameAccessImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedTypeArgumentsImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedValueArgumentsImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PartDirectiveImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PartOfDirectiveImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PatternAssignmentImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PatternFieldImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PatternFieldNameImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PatternVariableDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PostfixExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PrefixExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PrefixedIdentifierImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PrimaryConstructorBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PrimaryConstructorNameImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::PropertyAccessImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordLiteralImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordTypeAnnotationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RegularFormalParameterImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RelationalPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RestPatternElementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::RethrowExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ReturnStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ScriptTagImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SetOrMapLiteralImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SetterDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ShowCombinatorImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SimpleIdentifierImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SimpleStringLiteralImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SpreadElementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::StringInterpolationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SuperConstructorInvocationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SuperExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SuperFormalParameterImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SuperReferenceImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchCaseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchDefaultImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchExpressionCaseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchPatternCaseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::SymbolLiteralImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ThisExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::ThrowExpressionImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelVariable2Impl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::TryStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::TypeArgumentListImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::TypeParameterImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::TypeParameterListImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::VariableDeclarationImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::VariableDeclarationListImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::VariableDeclarationStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::WhenClauseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::WhileStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::WildcardPatternImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::WithClauseImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+            AstNodeImpl::YieldStatementImpl(n) => n.child_containing_range1(ast, id, range_offset, range_end),
+        }
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::AnnotationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::AnonymousBlockBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::AnonymousExpressionBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::AnonymousMethodInvocationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ArgumentListImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::AsExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::AssertInitializerImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::AssertStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::AssignedVariablePatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::AssignmentExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::AwaitExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::BinaryExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockClassBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockEnumBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockFunctionBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::BooleanLiteralImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::BreakStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CallInvocationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadeExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadeIndexExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadePropertyExtractionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CascadeSectionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CaseClauseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CastPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CatchClauseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CatchClauseParameterImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ClassDeclaration2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ClassDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ClassTypeAlias2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ClassTypeAliasImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CombinatorNameImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CommentImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CommentReferenceComponentImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CommentReferenceImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CompilationUnitImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::CompoundAssignmentImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConditionalExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConfigurationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstantPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorDeclaration2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorInvocationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorNameImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorReference2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorReferenceImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorSelectorImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ContinueStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DeclaredIdentifierImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DeclaredVariablePatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DelimitedFormalParametersImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DirectAssignmentImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DoStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DotShorthandInvocationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DottedNameImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::DoubleLiteralImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::EmptyClassBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::EmptyEnumBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::EmptyFunctionBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::EmptyStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::EnumConstantArgumentsImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::EnumConstantDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::EnumDeclaration2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::EnumDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ExportDirectiveImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ExpressionStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtendsClauseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionDeclaration2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionOnClauseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionOverrideImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::Field2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FieldDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FieldFormalParameterImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FieldsDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ForEachPartsWithPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ForElementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ForPartsWithExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ForPartsWithPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ForStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FormalParameterListImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionDeclarationStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionExpressionInvocationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionReferenceImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionTypeAlias2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionTypeAliasImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::GenericFunctionTypeImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::GenericTypeAlias2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::GenericTypeAliasImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::GetterDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::GuardedPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::HideCombinatorImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::IfElementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::IfNullAssignmentImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::IfNullImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::IfStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ImplementsClauseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ImplicitCallReferenceImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ImportDirectiveImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ImportPrefixReferenceImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::IndexExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::InstanceCreationExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::IntegerLiteralImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::InterpolationExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::InterpolationStringImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::InvalidSuperExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::IsExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LabelImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LabelReferenceImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LabeledStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LibraryDirectiveImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ListLiteralImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ListPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LocalFunctionDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LocalVariableImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LocalVariablesDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LogicalAndImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LogicalAndPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LogicalNotImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LogicalOrImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::LogicalOrPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::MapLiteralEntryImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::MapPatternEntryImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::MapPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::MethodDeclaration2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::MethodDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::MethodInvocationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::MixinDeclaration2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::MixinDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::MixinOnClauseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::NameWithTypeParametersImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::NamedArgumentImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::NamedTypeImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::NativeClauseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::NativeFunctionBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::NullAssertPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::NullAssertionExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::NullAwareElementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::NullCheckPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::NullLiteralImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ObjectPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::OperatorDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ParenthesizedExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ParenthesizedPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedCascadeNameImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedDotShorthandNameImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedNameAccessImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedTypeArgumentsImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ParsedValueArgumentsImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PartDirectiveImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PartOfDirectiveImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PatternAssignmentImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PatternFieldImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PatternFieldNameImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PatternVariableDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PostfixExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PrefixExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PrefixedIdentifierImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PrimaryConstructorBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PrimaryConstructorNameImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::PropertyAccessImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordLiteralImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordTypeAnnotationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RegularFormalParameterImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RelationalPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RestPatternElementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::RethrowExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ReturnStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ScriptTagImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SetOrMapLiteralImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SetterDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ShowCombinatorImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SimpleIdentifierImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SimpleStringLiteralImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SpreadElementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::StringInterpolationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SuperConstructorInvocationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SuperExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SuperFormalParameterImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SuperReferenceImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchCaseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchDefaultImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchExpressionCaseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchPatternCaseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SwitchStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::SymbolLiteralImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ThisExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::ThrowExpressionImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelVariable2Impl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::TryStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::TypeArgumentListImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::TypeParameterImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::TypeParameterListImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::VariableDeclarationImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::VariableDeclarationListImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::VariableDeclarationStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::WhenClauseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::WhileStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::WildcardPatternImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::WithClauseImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
+            AstNodeImpl::YieldStatementImpl(n) => n.child_containing_range2(ast, id, range_offset, range_end),
         }
     }
 
@@ -4926,6 +7997,21 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as AssignmentExpressionImpl`.
+    pub fn as_assignment_expression_impl(&self) -> &AssignmentExpressionImpl {
+        match self {
+            AstNodeImpl::AssignmentExpressionImpl(n) => n,
+            _ => panic!("{} is not a AssignmentExpressionImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_assignment_expression_impl_mut(&mut self) -> &mut AssignmentExpressionImpl {
+        match self {
+            AstNodeImpl::AssignmentExpressionImpl(n) => n,
+            _ => panic!("not a AssignmentExpressionImpl"),
+        }
+    }
+
     /// `this as AwaitExpressionImpl`.
     pub fn as_await_expression_impl(&self) -> &AwaitExpressionImpl {
         match self {
@@ -4941,6 +8027,21 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as BinaryExpressionImpl`.
+    pub fn as_binary_expression_impl(&self) -> &BinaryExpressionImpl {
+        match self {
+            AstNodeImpl::BinaryExpressionImpl(n) => n,
+            _ => panic!("{} is not a BinaryExpressionImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_binary_expression_impl_mut(&mut self) -> &mut BinaryExpressionImpl {
+        match self {
+            AstNodeImpl::BinaryExpressionImpl(n) => n,
+            _ => panic!("not a BinaryExpressionImpl"),
+        }
+    }
+
     /// `this as BinaryOperatorInvocationImpl`.
     pub fn as_binary_operator_invocation_impl(&self) -> &BinaryOperatorInvocationImpl {
         match self {
@@ -4953,6 +8054,36 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::BinaryOperatorInvocationImpl(n) => n,
             _ => panic!("not a BinaryOperatorInvocationImpl"),
+        }
+    }
+
+    /// `this as BlockClassBodyImpl`.
+    pub fn as_block_class_body_impl(&self) -> &BlockClassBodyImpl {
+        match self {
+            AstNodeImpl::BlockClassBodyImpl(n) => n,
+            _ => panic!("{} is not a BlockClassBodyImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_block_class_body_impl_mut(&mut self) -> &mut BlockClassBodyImpl {
+        match self {
+            AstNodeImpl::BlockClassBodyImpl(n) => n,
+            _ => panic!("not a BlockClassBodyImpl"),
+        }
+    }
+
+    /// `this as BlockEnumBodyImpl`.
+    pub fn as_block_enum_body_impl(&self) -> &BlockEnumBodyImpl {
+        match self {
+            AstNodeImpl::BlockEnumBodyImpl(n) => n,
+            _ => panic!("{} is not a BlockEnumBodyImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_block_enum_body_impl_mut(&mut self) -> &mut BlockEnumBodyImpl {
+        match self {
+            AstNodeImpl::BlockEnumBodyImpl(n) => n,
+            _ => panic!("not a BlockEnumBodyImpl"),
         }
     }
 
@@ -5226,6 +8357,21 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as ClassDeclarationImpl`.
+    pub fn as_class_declaration_impl(&self) -> &ClassDeclarationImpl {
+        match self {
+            AstNodeImpl::ClassDeclarationImpl(n) => n,
+            _ => panic!("{} is not a ClassDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_class_declaration_impl_mut(&mut self) -> &mut ClassDeclarationImpl {
+        match self {
+            AstNodeImpl::ClassDeclarationImpl(n) => n,
+            _ => panic!("not a ClassDeclarationImpl"),
+        }
+    }
+
     /// `this as ClassTypeAlias2Impl`.
     pub fn as_class_type_alias2_impl(&self) -> &ClassTypeAlias2Impl {
         match self {
@@ -5238,6 +8384,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::ClassTypeAlias2Impl(n) => n,
             _ => panic!("not a ClassTypeAlias2Impl"),
+        }
+    }
+
+    /// `this as ClassTypeAliasImpl`.
+    pub fn as_class_type_alias_impl(&self) -> &ClassTypeAliasImpl {
+        match self {
+            AstNodeImpl::ClassTypeAliasImpl(n) => n,
+            _ => panic!("{} is not a ClassTypeAliasImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_class_type_alias_impl_mut(&mut self) -> &mut ClassTypeAliasImpl {
+        match self {
+            AstNodeImpl::ClassTypeAliasImpl(n) => n,
+            _ => panic!("not a ClassTypeAliasImpl"),
         }
     }
 
@@ -5391,6 +8552,21 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as ConstructorDeclarationImpl`.
+    pub fn as_constructor_declaration_impl(&self) -> &ConstructorDeclarationImpl {
+        match self {
+            AstNodeImpl::ConstructorDeclarationImpl(n) => n,
+            _ => panic!("{} is not a ConstructorDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_constructor_declaration_impl_mut(&mut self) -> &mut ConstructorDeclarationImpl {
+        match self {
+            AstNodeImpl::ConstructorDeclarationImpl(n) => n,
+            _ => panic!("not a ConstructorDeclarationImpl"),
+        }
+    }
+
     /// `this as ConstructorFieldInitializerImpl`.
     pub fn as_constructor_field_initializer_impl(&self) -> &ConstructorFieldInitializerImpl {
         match self {
@@ -5421,6 +8597,21 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as ConstructorNameImpl`.
+    pub fn as_constructor_name_impl(&self) -> &ConstructorNameImpl {
+        match self {
+            AstNodeImpl::ConstructorNameImpl(n) => n,
+            _ => panic!("{} is not a ConstructorNameImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_constructor_name_impl_mut(&mut self) -> &mut ConstructorNameImpl {
+        match self {
+            AstNodeImpl::ConstructorNameImpl(n) => n,
+            _ => panic!("not a ConstructorNameImpl"),
+        }
+    }
+
     /// `this as ConstructorReference2Impl`.
     pub fn as_constructor_reference2_impl(&self) -> &ConstructorReference2Impl {
         match self {
@@ -5433,6 +8624,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::ConstructorReference2Impl(n) => n,
             _ => panic!("not a ConstructorReference2Impl"),
+        }
+    }
+
+    /// `this as ConstructorReferenceImpl`.
+    pub fn as_constructor_reference_impl(&self) -> &ConstructorReferenceImpl {
+        match self {
+            AstNodeImpl::ConstructorReferenceImpl(n) => n,
+            _ => panic!("{} is not a ConstructorReferenceImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_constructor_reference_impl_mut(&mut self) -> &mut ConstructorReferenceImpl {
+        match self {
+            AstNodeImpl::ConstructorReferenceImpl(n) => n,
+            _ => panic!("not a ConstructorReferenceImpl"),
         }
     }
 
@@ -5571,6 +8777,36 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as DotShorthandConstructorInvocationImpl`.
+    pub fn as_dot_shorthand_constructor_invocation_impl(&self) -> &DotShorthandConstructorInvocationImpl {
+        match self {
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(n) => n,
+            _ => panic!("{} is not a DotShorthandConstructorInvocationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_dot_shorthand_constructor_invocation_impl_mut(&mut self) -> &mut DotShorthandConstructorInvocationImpl {
+        match self {
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(n) => n,
+            _ => panic!("not a DotShorthandConstructorInvocationImpl"),
+        }
+    }
+
+    /// `this as DotShorthandInvocationImpl`.
+    pub fn as_dot_shorthand_invocation_impl(&self) -> &DotShorthandInvocationImpl {
+        match self {
+            AstNodeImpl::DotShorthandInvocationImpl(n) => n,
+            _ => panic!("{} is not a DotShorthandInvocationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_dot_shorthand_invocation_impl_mut(&mut self) -> &mut DotShorthandInvocationImpl {
+        match self {
+            AstNodeImpl::DotShorthandInvocationImpl(n) => n,
+            _ => panic!("not a DotShorthandInvocationImpl"),
+        }
+    }
+
     /// `this as DotShorthandNameExpressionImpl`.
     pub fn as_dot_shorthand_name_expression_impl(&self) -> &DotShorthandNameExpressionImpl {
         match self {
@@ -5583,6 +8819,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::DotShorthandNameExpressionImpl(n) => n,
             _ => panic!("not a DotShorthandNameExpressionImpl"),
+        }
+    }
+
+    /// `this as DotShorthandPropertyAccessImpl`.
+    pub fn as_dot_shorthand_property_access_impl(&self) -> &DotShorthandPropertyAccessImpl {
+        match self {
+            AstNodeImpl::DotShorthandPropertyAccessImpl(n) => n,
+            _ => panic!("{} is not a DotShorthandPropertyAccessImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_dot_shorthand_property_access_impl_mut(&mut self) -> &mut DotShorthandPropertyAccessImpl {
+        match self {
+            AstNodeImpl::DotShorthandPropertyAccessImpl(n) => n,
+            _ => panic!("not a DotShorthandPropertyAccessImpl"),
         }
     }
 
@@ -5613,6 +8864,36 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::DoubleLiteralImpl(n) => n,
             _ => panic!("not a DoubleLiteralImpl"),
+        }
+    }
+
+    /// `this as EmptyClassBodyImpl`.
+    pub fn as_empty_class_body_impl(&self) -> &EmptyClassBodyImpl {
+        match self {
+            AstNodeImpl::EmptyClassBodyImpl(n) => n,
+            _ => panic!("{} is not a EmptyClassBodyImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_empty_class_body_impl_mut(&mut self) -> &mut EmptyClassBodyImpl {
+        match self {
+            AstNodeImpl::EmptyClassBodyImpl(n) => n,
+            _ => panic!("not a EmptyClassBodyImpl"),
+        }
+    }
+
+    /// `this as EmptyEnumBodyImpl`.
+    pub fn as_empty_enum_body_impl(&self) -> &EmptyEnumBodyImpl {
+        match self {
+            AstNodeImpl::EmptyEnumBodyImpl(n) => n,
+            _ => panic!("{} is not a EmptyEnumBodyImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_empty_enum_body_impl_mut(&mut self) -> &mut EmptyEnumBodyImpl {
+        match self {
+            AstNodeImpl::EmptyEnumBodyImpl(n) => n,
+            _ => panic!("not a EmptyEnumBodyImpl"),
         }
     }
 
@@ -5676,6 +8957,21 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as EnumConstantDeclarationImpl`.
+    pub fn as_enum_constant_declaration_impl(&self) -> &EnumConstantDeclarationImpl {
+        match self {
+            AstNodeImpl::EnumConstantDeclarationImpl(n) => n,
+            _ => panic!("{} is not a EnumConstantDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_enum_constant_declaration_impl_mut(&mut self) -> &mut EnumConstantDeclarationImpl {
+        match self {
+            AstNodeImpl::EnumConstantDeclarationImpl(n) => n,
+            _ => panic!("not a EnumConstantDeclarationImpl"),
+        }
+    }
+
     /// `this as EnumDeclaration2Impl`.
     pub fn as_enum_declaration2_impl(&self) -> &EnumDeclaration2Impl {
         match self {
@@ -5688,6 +8984,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::EnumDeclaration2Impl(n) => n,
             _ => panic!("not a EnumDeclaration2Impl"),
+        }
+    }
+
+    /// `this as EnumDeclarationImpl`.
+    pub fn as_enum_declaration_impl(&self) -> &EnumDeclarationImpl {
+        match self {
+            AstNodeImpl::EnumDeclarationImpl(n) => n,
+            _ => panic!("{} is not a EnumDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_enum_declaration_impl_mut(&mut self) -> &mut EnumDeclarationImpl {
+        match self {
+            AstNodeImpl::EnumDeclarationImpl(n) => n,
+            _ => panic!("not a EnumDeclarationImpl"),
         }
     }
 
@@ -5766,6 +9077,21 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as ExtensionDeclarationImpl`.
+    pub fn as_extension_declaration_impl(&self) -> &ExtensionDeclarationImpl {
+        match self {
+            AstNodeImpl::ExtensionDeclarationImpl(n) => n,
+            _ => panic!("{} is not a ExtensionDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_extension_declaration_impl_mut(&mut self) -> &mut ExtensionDeclarationImpl {
+        match self {
+            AstNodeImpl::ExtensionDeclarationImpl(n) => n,
+            _ => panic!("not a ExtensionDeclarationImpl"),
+        }
+    }
+
     /// `this as ExtensionOnClauseImpl`.
     pub fn as_extension_on_clause_impl(&self) -> &ExtensionOnClauseImpl {
         match self {
@@ -5778,6 +9104,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::ExtensionOnClauseImpl(n) => n,
             _ => panic!("not a ExtensionOnClauseImpl"),
+        }
+    }
+
+    /// `this as ExtensionOverrideImpl`.
+    pub fn as_extension_override_impl(&self) -> &ExtensionOverrideImpl {
+        match self {
+            AstNodeImpl::ExtensionOverrideImpl(n) => n,
+            _ => panic!("{} is not a ExtensionOverrideImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_extension_override_impl_mut(&mut self) -> &mut ExtensionOverrideImpl {
+        match self {
+            AstNodeImpl::ExtensionOverrideImpl(n) => n,
+            _ => panic!("not a ExtensionOverrideImpl"),
         }
     }
 
@@ -5796,6 +9137,21 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as ExtensionTypeDeclarationImpl`.
+    pub fn as_extension_type_declaration_impl(&self) -> &ExtensionTypeDeclarationImpl {
+        match self {
+            AstNodeImpl::ExtensionTypeDeclarationImpl(n) => n,
+            _ => panic!("{} is not a ExtensionTypeDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_extension_type_declaration_impl_mut(&mut self) -> &mut ExtensionTypeDeclarationImpl {
+        match self {
+            AstNodeImpl::ExtensionTypeDeclarationImpl(n) => n,
+            _ => panic!("not a ExtensionTypeDeclarationImpl"),
+        }
+    }
+
     /// `this as Field2Impl`.
     pub fn as_field2_impl(&self) -> &Field2Impl {
         match self {
@@ -5808,6 +9164,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::Field2Impl(n) => n,
             _ => panic!("not a Field2Impl"),
+        }
+    }
+
+    /// `this as FieldDeclarationImpl`.
+    pub fn as_field_declaration_impl(&self) -> &FieldDeclarationImpl {
+        match self {
+            AstNodeImpl::FieldDeclarationImpl(n) => n,
+            _ => panic!("{} is not a FieldDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_field_declaration_impl_mut(&mut self) -> &mut FieldDeclarationImpl {
+        match self {
+            AstNodeImpl::FieldDeclarationImpl(n) => n,
+            _ => panic!("not a FieldDeclarationImpl"),
         }
     }
 
@@ -5991,6 +9362,36 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as FunctionDeclarationImpl`.
+    pub fn as_function_declaration_impl(&self) -> &FunctionDeclarationImpl {
+        match self {
+            AstNodeImpl::FunctionDeclarationImpl(n) => n,
+            _ => panic!("{} is not a FunctionDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_function_declaration_impl_mut(&mut self) -> &mut FunctionDeclarationImpl {
+        match self {
+            AstNodeImpl::FunctionDeclarationImpl(n) => n,
+            _ => panic!("not a FunctionDeclarationImpl"),
+        }
+    }
+
+    /// `this as FunctionDeclarationStatementImpl`.
+    pub fn as_function_declaration_statement_impl(&self) -> &FunctionDeclarationStatementImpl {
+        match self {
+            AstNodeImpl::FunctionDeclarationStatementImpl(n) => n,
+            _ => panic!("{} is not a FunctionDeclarationStatementImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_function_declaration_statement_impl_mut(&mut self) -> &mut FunctionDeclarationStatementImpl {
+        match self {
+            AstNodeImpl::FunctionDeclarationStatementImpl(n) => n,
+            _ => panic!("not a FunctionDeclarationStatementImpl"),
+        }
+    }
+
     /// `this as FunctionExpressionImpl`.
     pub fn as_function_expression_impl(&self) -> &FunctionExpressionImpl {
         match self {
@@ -6006,6 +9407,36 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as FunctionExpressionInvocationImpl`.
+    pub fn as_function_expression_invocation_impl(&self) -> &FunctionExpressionInvocationImpl {
+        match self {
+            AstNodeImpl::FunctionExpressionInvocationImpl(n) => n,
+            _ => panic!("{} is not a FunctionExpressionInvocationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_function_expression_invocation_impl_mut(&mut self) -> &mut FunctionExpressionInvocationImpl {
+        match self {
+            AstNodeImpl::FunctionExpressionInvocationImpl(n) => n,
+            _ => panic!("not a FunctionExpressionInvocationImpl"),
+        }
+    }
+
+    /// `this as FunctionReferenceImpl`.
+    pub fn as_function_reference_impl(&self) -> &FunctionReferenceImpl {
+        match self {
+            AstNodeImpl::FunctionReferenceImpl(n) => n,
+            _ => panic!("{} is not a FunctionReferenceImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_function_reference_impl_mut(&mut self) -> &mut FunctionReferenceImpl {
+        match self {
+            AstNodeImpl::FunctionReferenceImpl(n) => n,
+            _ => panic!("not a FunctionReferenceImpl"),
+        }
+    }
+
     /// `this as FunctionTypeAlias2Impl`.
     pub fn as_function_type_alias2_impl(&self) -> &FunctionTypeAlias2Impl {
         match self {
@@ -6018,6 +9449,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::FunctionTypeAlias2Impl(n) => n,
             _ => panic!("not a FunctionTypeAlias2Impl"),
+        }
+    }
+
+    /// `this as FunctionTypeAliasImpl`.
+    pub fn as_function_type_alias_impl(&self) -> &FunctionTypeAliasImpl {
+        match self {
+            AstNodeImpl::FunctionTypeAliasImpl(n) => n,
+            _ => panic!("{} is not a FunctionTypeAliasImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_function_type_alias_impl_mut(&mut self) -> &mut FunctionTypeAliasImpl {
+        match self {
+            AstNodeImpl::FunctionTypeAliasImpl(n) => n,
+            _ => panic!("not a FunctionTypeAliasImpl"),
         }
     }
 
@@ -6063,6 +9509,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::GenericTypeAlias2Impl(n) => n,
             _ => panic!("not a GenericTypeAlias2Impl"),
+        }
+    }
+
+    /// `this as GenericTypeAliasImpl`.
+    pub fn as_generic_type_alias_impl(&self) -> &GenericTypeAliasImpl {
+        match self {
+            AstNodeImpl::GenericTypeAliasImpl(n) => n,
+            _ => panic!("{} is not a GenericTypeAliasImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_generic_type_alias_impl_mut(&mut self) -> &mut GenericTypeAliasImpl {
+        match self {
+            AstNodeImpl::GenericTypeAliasImpl(n) => n,
+            _ => panic!("not a GenericTypeAliasImpl"),
         }
     }
 
@@ -6186,6 +9647,21 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as ImplicitCallReferenceImpl`.
+    pub fn as_implicit_call_reference_impl(&self) -> &ImplicitCallReferenceImpl {
+        match self {
+            AstNodeImpl::ImplicitCallReferenceImpl(n) => n,
+            _ => panic!("{} is not a ImplicitCallReferenceImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_implicit_call_reference_impl_mut(&mut self) -> &mut ImplicitCallReferenceImpl {
+        match self {
+            AstNodeImpl::ImplicitCallReferenceImpl(n) => n,
+            _ => panic!("not a ImplicitCallReferenceImpl"),
+        }
+    }
+
     /// `this as ImportDirectiveImpl`.
     pub fn as_import_directive_impl(&self) -> &ImportDirectiveImpl {
         match self {
@@ -6228,6 +9704,36 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n,
             _ => panic!("not a IncrementOrDecrementExpressionImpl"),
+        }
+    }
+
+    /// `this as IndexExpressionImpl`.
+    pub fn as_index_expression_impl(&self) -> &IndexExpressionImpl {
+        match self {
+            AstNodeImpl::IndexExpressionImpl(n) => n,
+            _ => panic!("{} is not a IndexExpressionImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_index_expression_impl_mut(&mut self) -> &mut IndexExpressionImpl {
+        match self {
+            AstNodeImpl::IndexExpressionImpl(n) => n,
+            _ => panic!("not a IndexExpressionImpl"),
+        }
+    }
+
+    /// `this as InstanceCreationExpressionImpl`.
+    pub fn as_instance_creation_expression_impl(&self) -> &InstanceCreationExpressionImpl {
+        match self {
+            AstNodeImpl::InstanceCreationExpressionImpl(n) => n,
+            _ => panic!("{} is not a InstanceCreationExpressionImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_instance_creation_expression_impl_mut(&mut self) -> &mut InstanceCreationExpressionImpl {
+        match self {
+            AstNodeImpl::InstanceCreationExpressionImpl(n) => n,
+            _ => panic!("not a InstanceCreationExpressionImpl"),
         }
     }
 
@@ -6621,6 +10127,36 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as MethodDeclarationImpl`.
+    pub fn as_method_declaration_impl(&self) -> &MethodDeclarationImpl {
+        match self {
+            AstNodeImpl::MethodDeclarationImpl(n) => n,
+            _ => panic!("{} is not a MethodDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_method_declaration_impl_mut(&mut self) -> &mut MethodDeclarationImpl {
+        match self {
+            AstNodeImpl::MethodDeclarationImpl(n) => n,
+            _ => panic!("not a MethodDeclarationImpl"),
+        }
+    }
+
+    /// `this as MethodInvocationImpl`.
+    pub fn as_method_invocation_impl(&self) -> &MethodInvocationImpl {
+        match self {
+            AstNodeImpl::MethodInvocationImpl(n) => n,
+            _ => panic!("{} is not a MethodInvocationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_method_invocation_impl_mut(&mut self) -> &mut MethodInvocationImpl {
+        match self {
+            AstNodeImpl::MethodInvocationImpl(n) => n,
+            _ => panic!("not a MethodInvocationImpl"),
+        }
+    }
+
     /// `this as MixinDeclaration2Impl`.
     pub fn as_mixin_declaration2_impl(&self) -> &MixinDeclaration2Impl {
         match self {
@@ -6633,6 +10169,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::MixinDeclaration2Impl(n) => n,
             _ => panic!("not a MixinDeclaration2Impl"),
+        }
+    }
+
+    /// `this as MixinDeclarationImpl`.
+    pub fn as_mixin_declaration_impl(&self) -> &MixinDeclarationImpl {
+        match self {
+            AstNodeImpl::MixinDeclarationImpl(n) => n,
+            _ => panic!("{} is not a MixinDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_mixin_declaration_impl_mut(&mut self) -> &mut MixinDeclarationImpl {
+        match self {
+            AstNodeImpl::MixinDeclarationImpl(n) => n,
+            _ => panic!("not a MixinDeclarationImpl"),
         }
     }
 
@@ -7086,6 +10637,51 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as PostfixExpressionImpl`.
+    pub fn as_postfix_expression_impl(&self) -> &PostfixExpressionImpl {
+        match self {
+            AstNodeImpl::PostfixExpressionImpl(n) => n,
+            _ => panic!("{} is not a PostfixExpressionImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_postfix_expression_impl_mut(&mut self) -> &mut PostfixExpressionImpl {
+        match self {
+            AstNodeImpl::PostfixExpressionImpl(n) => n,
+            _ => panic!("not a PostfixExpressionImpl"),
+        }
+    }
+
+    /// `this as PrefixExpressionImpl`.
+    pub fn as_prefix_expression_impl(&self) -> &PrefixExpressionImpl {
+        match self {
+            AstNodeImpl::PrefixExpressionImpl(n) => n,
+            _ => panic!("{} is not a PrefixExpressionImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_prefix_expression_impl_mut(&mut self) -> &mut PrefixExpressionImpl {
+        match self {
+            AstNodeImpl::PrefixExpressionImpl(n) => n,
+            _ => panic!("not a PrefixExpressionImpl"),
+        }
+    }
+
+    /// `this as PrefixedIdentifierImpl`.
+    pub fn as_prefixed_identifier_impl(&self) -> &PrefixedIdentifierImpl {
+        match self {
+            AstNodeImpl::PrefixedIdentifierImpl(n) => n,
+            _ => panic!("{} is not a PrefixedIdentifierImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_prefixed_identifier_impl_mut(&mut self) -> &mut PrefixedIdentifierImpl {
+        match self {
+            AstNodeImpl::PrefixedIdentifierImpl(n) => n,
+            _ => panic!("not a PrefixedIdentifierImpl"),
+        }
+    }
+
     /// `this as PrimaryConstructorBody2Impl`.
     pub fn as_primary_constructor_body2_impl(&self) -> &PrimaryConstructorBody2Impl {
         match self {
@@ -7098,6 +10694,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::PrimaryConstructorBody2Impl(n) => n,
             _ => panic!("not a PrimaryConstructorBody2Impl"),
+        }
+    }
+
+    /// `this as PrimaryConstructorBodyImpl`.
+    pub fn as_primary_constructor_body_impl(&self) -> &PrimaryConstructorBodyImpl {
+        match self {
+            AstNodeImpl::PrimaryConstructorBodyImpl(n) => n,
+            _ => panic!("{} is not a PrimaryConstructorBodyImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_primary_constructor_body_impl_mut(&mut self) -> &mut PrimaryConstructorBodyImpl {
+        match self {
+            AstNodeImpl::PrimaryConstructorBodyImpl(n) => n,
+            _ => panic!("not a PrimaryConstructorBodyImpl"),
         }
     }
 
@@ -7128,6 +10739,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::PrimaryConstructorNameImpl(n) => n,
             _ => panic!("not a PrimaryConstructorNameImpl"),
+        }
+    }
+
+    /// `this as PropertyAccessImpl`.
+    pub fn as_property_access_impl(&self) -> &PropertyAccessImpl {
+        match self {
+            AstNodeImpl::PropertyAccessImpl(n) => n,
+            _ => panic!("{} is not a PropertyAccessImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_property_access_impl_mut(&mut self) -> &mut PropertyAccessImpl {
+        match self {
+            AstNodeImpl::PropertyAccessImpl(n) => n,
+            _ => panic!("not a PropertyAccessImpl"),
         }
     }
 
@@ -7476,6 +11102,21 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as SimpleIdentifierImpl`.
+    pub fn as_simple_identifier_impl(&self) -> &SimpleIdentifierImpl {
+        match self {
+            AstNodeImpl::SimpleIdentifierImpl(n) => n,
+            _ => panic!("{} is not a SimpleIdentifierImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_simple_identifier_impl_mut(&mut self) -> &mut SimpleIdentifierImpl {
+        match self {
+            AstNodeImpl::SimpleIdentifierImpl(n) => n,
+            _ => panic!("not a SimpleIdentifierImpl"),
+        }
+    }
+
     /// `this as SimpleStringLiteralImpl`.
     pub fn as_simple_string_literal_impl(&self) -> &SimpleStringLiteralImpl {
         match self {
@@ -7533,6 +11174,21 @@ impl AstNodeImpl {
         match self {
             AstNodeImpl::SuperConstructorInvocationImpl(n) => n,
             _ => panic!("not a SuperConstructorInvocationImpl"),
+        }
+    }
+
+    /// `this as SuperExpressionImpl`.
+    pub fn as_super_expression_impl(&self) -> &SuperExpressionImpl {
+        match self {
+            AstNodeImpl::SuperExpressionImpl(n) => n,
+            _ => panic!("{} is not a SuperExpressionImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_super_expression_impl_mut(&mut self) -> &mut SuperExpressionImpl {
+        match self {
+            AstNodeImpl::SuperExpressionImpl(n) => n,
+            _ => panic!("not a SuperExpressionImpl"),
         }
     }
 
@@ -7761,6 +11417,21 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as TopLevelVariableDeclarationImpl`.
+    pub fn as_top_level_variable_declaration_impl(&self) -> &TopLevelVariableDeclarationImpl {
+        match self {
+            AstNodeImpl::TopLevelVariableDeclarationImpl(n) => n,
+            _ => panic!("{} is not a TopLevelVariableDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_top_level_variable_declaration_impl_mut(&mut self) -> &mut TopLevelVariableDeclarationImpl {
+        match self {
+            AstNodeImpl::TopLevelVariableDeclarationImpl(n) => n,
+            _ => panic!("not a TopLevelVariableDeclarationImpl"),
+        }
+    }
+
     /// `this as TopLevelVariablesDeclarationImpl`.
     pub fn as_top_level_variables_declaration_impl(&self) -> &TopLevelVariablesDeclarationImpl {
         match self {
@@ -7866,6 +11537,51 @@ impl AstNodeImpl {
         }
     }
 
+    /// `this as VariableDeclarationImpl`.
+    pub fn as_variable_declaration_impl(&self) -> &VariableDeclarationImpl {
+        match self {
+            AstNodeImpl::VariableDeclarationImpl(n) => n,
+            _ => panic!("{} is not a VariableDeclarationImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_variable_declaration_impl_mut(&mut self) -> &mut VariableDeclarationImpl {
+        match self {
+            AstNodeImpl::VariableDeclarationImpl(n) => n,
+            _ => panic!("not a VariableDeclarationImpl"),
+        }
+    }
+
+    /// `this as VariableDeclarationListImpl`.
+    pub fn as_variable_declaration_list_impl(&self) -> &VariableDeclarationListImpl {
+        match self {
+            AstNodeImpl::VariableDeclarationListImpl(n) => n,
+            _ => panic!("{} is not a VariableDeclarationListImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_variable_declaration_list_impl_mut(&mut self) -> &mut VariableDeclarationListImpl {
+        match self {
+            AstNodeImpl::VariableDeclarationListImpl(n) => n,
+            _ => panic!("not a VariableDeclarationListImpl"),
+        }
+    }
+
+    /// `this as VariableDeclarationStatementImpl`.
+    pub fn as_variable_declaration_statement_impl(&self) -> &VariableDeclarationStatementImpl {
+        match self {
+            AstNodeImpl::VariableDeclarationStatementImpl(n) => n,
+            _ => panic!("{} is not a VariableDeclarationStatementImpl", self.runtime_type()),
+        }
+    }
+
+    pub fn as_variable_declaration_statement_impl_mut(&mut self) -> &mut VariableDeclarationStatementImpl {
+        match self {
+            AstNodeImpl::VariableDeclarationStatementImpl(n) => n,
+            _ => panic!("not a VariableDeclarationStatementImpl"),
+        }
+    }
+
     /// `this as WhenClauseImpl`.
     pub fn as_when_clause_impl(&self) -> &WhenClauseImpl {
         match self {
@@ -7954,34 +11670,51 @@ impl AstNodeImpl {
         matches!(
             self,
             AstNodeImpl::ClassDeclaration2Impl(_)
+                | AstNodeImpl::ClassDeclarationImpl(_)
                 | AstNodeImpl::ClassTypeAlias2Impl(_)
+                | AstNodeImpl::ClassTypeAliasImpl(_)
                 | AstNodeImpl::ConstructorDeclaration2Impl(_)
+                | AstNodeImpl::ConstructorDeclarationImpl(_)
                 | AstNodeImpl::DeclaredIdentifierImpl(_)
                 | AstNodeImpl::EnumConstantDeclaration2Impl(_)
+                | AstNodeImpl::EnumConstantDeclarationImpl(_)
                 | AstNodeImpl::EnumDeclaration2Impl(_)
+                | AstNodeImpl::EnumDeclarationImpl(_)
                 | AstNodeImpl::ExportDirectiveImpl(_)
                 | AstNodeImpl::ExtensionDeclaration2Impl(_)
+                | AstNodeImpl::ExtensionDeclarationImpl(_)
                 | AstNodeImpl::ExtensionTypeDeclaration2Impl(_)
+                | AstNodeImpl::ExtensionTypeDeclarationImpl(_)
+                | AstNodeImpl::FieldDeclarationImpl(_)
                 | AstNodeImpl::FieldsDeclarationImpl(_)
+                | AstNodeImpl::FunctionDeclarationImpl(_)
                 | AstNodeImpl::FunctionTypeAlias2Impl(_)
+                | AstNodeImpl::FunctionTypeAliasImpl(_)
                 | AstNodeImpl::GenericTypeAlias2Impl(_)
+                | AstNodeImpl::GenericTypeAliasImpl(_)
                 | AstNodeImpl::GetterDeclarationImpl(_)
                 | AstNodeImpl::ImportDirectiveImpl(_)
                 | AstNodeImpl::LibraryDirectiveImpl(_)
                 | AstNodeImpl::LocalVariablesDeclarationImpl(_)
                 | AstNodeImpl::MethodDeclaration2Impl(_)
+                | AstNodeImpl::MethodDeclarationImpl(_)
                 | AstNodeImpl::MixinDeclaration2Impl(_)
+                | AstNodeImpl::MixinDeclarationImpl(_)
                 | AstNodeImpl::OperatorDeclarationImpl(_)
                 | AstNodeImpl::PartDirectiveImpl(_)
                 | AstNodeImpl::PartOfDirectiveImpl(_)
                 | AstNodeImpl::PatternVariableDeclarationImpl(_)
                 | AstNodeImpl::PrimaryConstructorBody2Impl(_)
+                | AstNodeImpl::PrimaryConstructorBodyImpl(_)
                 | AstNodeImpl::SetterDeclarationImpl(_)
                 | AstNodeImpl::TopLevelFunctionDeclarationImpl(_)
                 | AstNodeImpl::TopLevelGetterDeclarationImpl(_)
                 | AstNodeImpl::TopLevelSetterDeclarationImpl(_)
+                | AstNodeImpl::TopLevelVariableDeclarationImpl(_)
                 | AstNodeImpl::TopLevelVariablesDeclarationImpl(_)
                 | AstNodeImpl::TypeParameterImpl(_)
+                | AstNodeImpl::VariableDeclarationImpl(_)
+                | AstNodeImpl::VariableDeclarationListImpl(_)
         )
     }
 
@@ -8033,7 +11766,9 @@ impl AstNodeImpl {
             AstNodeImpl::AdjacentStringsImpl(_)
                 | AstNodeImpl::AnonymousMethodInvocationImpl(_)
                 | AstNodeImpl::AsExpressionImpl(_)
+                | AstNodeImpl::AssignmentExpressionImpl(_)
                 | AstNodeImpl::AwaitExpressionImpl(_)
+                | AstNodeImpl::BinaryExpressionImpl(_)
                 | AstNodeImpl::BinaryOperatorInvocationImpl(_)
                 | AstNodeImpl::BooleanLiteralImpl(_)
                 | AstNodeImpl::CallInvocationImpl(_)
@@ -8043,14 +11778,24 @@ impl AstNodeImpl {
                 | AstNodeImpl::CompoundAssignmentImpl(_)
                 | AstNodeImpl::ConditionalExpressionImpl(_)
                 | AstNodeImpl::ConstructorInvocationImpl(_)
+                | AstNodeImpl::ConstructorReferenceImpl(_)
                 | AstNodeImpl::DirectAssignmentImpl(_)
                 | AstNodeImpl::DotShorthandConstructorInvocation2Impl(_)
+                | AstNodeImpl::DotShorthandConstructorInvocationImpl(_)
+                | AstNodeImpl::DotShorthandInvocationImpl(_)
                 | AstNodeImpl::DotShorthandNameExpressionImpl(_)
+                | AstNodeImpl::DotShorthandPropertyAccessImpl(_)
                 | AstNodeImpl::DoubleLiteralImpl(_)
+                | AstNodeImpl::ExtensionOverrideImpl(_)
                 | AstNodeImpl::FunctionExpressionImpl(_)
+                | AstNodeImpl::FunctionExpressionInvocationImpl(_)
+                | AstNodeImpl::FunctionReferenceImpl(_)
                 | AstNodeImpl::IfNullAssignmentImpl(_)
                 | AstNodeImpl::IfNullImpl(_)
+                | AstNodeImpl::ImplicitCallReferenceImpl(_)
                 | AstNodeImpl::IncrementOrDecrementExpressionImpl(_)
+                | AstNodeImpl::IndexExpressionImpl(_)
+                | AstNodeImpl::InstanceCreationExpressionImpl(_)
                 | AstNodeImpl::IntegerLiteralImpl(_)
                 | AstNodeImpl::InvalidSuperExpressionImpl(_)
                 | AstNodeImpl::IsExpressionImpl(_)
@@ -8058,6 +11803,7 @@ impl AstNodeImpl {
                 | AstNodeImpl::LogicalAndImpl(_)
                 | AstNodeImpl::LogicalNotImpl(_)
                 | AstNodeImpl::LogicalOrImpl(_)
+                | AstNodeImpl::MethodInvocationImpl(_)
                 | AstNodeImpl::NamedArgumentImpl(_)
                 | AstNodeImpl::NullAssertionExpressionImpl(_)
                 | AstNodeImpl::NullLiteralImpl(_)
@@ -8070,13 +11816,19 @@ impl AstNodeImpl {
                 | AstNodeImpl::ParsedUnqualifiedNameImpl(_)
                 | AstNodeImpl::ParsedValueArgumentsImpl(_)
                 | AstNodeImpl::PatternAssignmentImpl(_)
+                | AstNodeImpl::PostfixExpressionImpl(_)
+                | AstNodeImpl::PrefixExpressionImpl(_)
+                | AstNodeImpl::PrefixedIdentifierImpl(_)
+                | AstNodeImpl::PropertyAccessImpl(_)
                 | AstNodeImpl::ReceiverIndexExpressionImpl(_)
                 | AstNodeImpl::ReceiverPropertyExtractionImpl(_)
                 | AstNodeImpl::RecordLiteralImpl(_)
                 | AstNodeImpl::RethrowExpressionImpl(_)
                 | AstNodeImpl::SetOrMapLiteralImpl(_)
+                | AstNodeImpl::SimpleIdentifierImpl(_)
                 | AstNodeImpl::SimpleStringLiteralImpl(_)
                 | AstNodeImpl::StringInterpolationImpl(_)
+                | AstNodeImpl::SuperExpressionImpl(_)
                 | AstNodeImpl::SwitchExpressionImpl(_)
                 | AstNodeImpl::SymbolLiteralImpl(_)
                 | AstNodeImpl::ThisExpressionImpl(_)
@@ -8135,6 +11887,14 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is AssignmentExpressionImpl`.
+    pub fn is_assignment_expression_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::AssignmentExpressionImpl(_)
+        )
+    }
+
     /// `this is AssignmentTargetImpl`.
     pub fn is_assignment_target_impl(&self) -> bool {
         matches!(
@@ -8164,8 +11924,12 @@ impl AstNodeImpl {
                 | AstNodeImpl::AssertInitializerImpl(_)
                 | AstNodeImpl::AssertStatementImpl(_)
                 | AstNodeImpl::AssignedVariablePatternImpl(_)
+                | AstNodeImpl::AssignmentExpressionImpl(_)
                 | AstNodeImpl::AwaitExpressionImpl(_)
+                | AstNodeImpl::BinaryExpressionImpl(_)
                 | AstNodeImpl::BinaryOperatorInvocationImpl(_)
+                | AstNodeImpl::BlockClassBodyImpl(_)
+                | AstNodeImpl::BlockEnumBodyImpl(_)
                 | AstNodeImpl::BlockEnumDeclarationBodyImpl(_)
                 | AstNodeImpl::BlockFunctionBodyImpl(_)
                 | AstNodeImpl::BlockImpl(_)
@@ -8184,7 +11948,9 @@ impl AstNodeImpl {
                 | AstNodeImpl::CatchClauseImpl(_)
                 | AstNodeImpl::CatchClauseParameterImpl(_)
                 | AstNodeImpl::ClassDeclaration2Impl(_)
+                | AstNodeImpl::ClassDeclarationImpl(_)
                 | AstNodeImpl::ClassTypeAlias2Impl(_)
+                | AstNodeImpl::ClassTypeAliasImpl(_)
                 | AstNodeImpl::CombinatorNameImpl(_)
                 | AstNodeImpl::CommentImpl(_)
                 | AstNodeImpl::CommentReferenceComponentImpl(_)
@@ -8195,9 +11961,12 @@ impl AstNodeImpl {
                 | AstNodeImpl::ConfigurationImpl(_)
                 | AstNodeImpl::ConstantPatternImpl(_)
                 | AstNodeImpl::ConstructorDeclaration2Impl(_)
+                | AstNodeImpl::ConstructorDeclarationImpl(_)
                 | AstNodeImpl::ConstructorFieldInitializerImpl(_)
                 | AstNodeImpl::ConstructorInvocationImpl(_)
+                | AstNodeImpl::ConstructorNameImpl(_)
                 | AstNodeImpl::ConstructorReference2Impl(_)
+                | AstNodeImpl::ConstructorReferenceImpl(_)
                 | AstNodeImpl::ConstructorSelectorImpl(_)
                 | AstNodeImpl::ConstructorTypeReferenceImpl(_)
                 | AstNodeImpl::ContinueStatementImpl(_)
@@ -8207,22 +11976,33 @@ impl AstNodeImpl {
                 | AstNodeImpl::DirectAssignmentImpl(_)
                 | AstNodeImpl::DoStatementImpl(_)
                 | AstNodeImpl::DotShorthandConstructorInvocation2Impl(_)
+                | AstNodeImpl::DotShorthandConstructorInvocationImpl(_)
+                | AstNodeImpl::DotShorthandInvocationImpl(_)
                 | AstNodeImpl::DotShorthandNameExpressionImpl(_)
+                | AstNodeImpl::DotShorthandPropertyAccessImpl(_)
                 | AstNodeImpl::DottedNameImpl(_)
                 | AstNodeImpl::DoubleLiteralImpl(_)
+                | AstNodeImpl::EmptyClassBodyImpl(_)
+                | AstNodeImpl::EmptyEnumBodyImpl(_)
                 | AstNodeImpl::EmptyFunctionBodyImpl(_)
                 | AstNodeImpl::EmptyStatementImpl(_)
                 | AstNodeImpl::EnumConstantArgumentsImpl(_)
                 | AstNodeImpl::EnumConstantDeclaration2Impl(_)
+                | AstNodeImpl::EnumConstantDeclarationImpl(_)
                 | AstNodeImpl::EnumDeclaration2Impl(_)
+                | AstNodeImpl::EnumDeclarationImpl(_)
                 | AstNodeImpl::ExportDirectiveImpl(_)
                 | AstNodeImpl::ExpressionFunctionBodyImpl(_)
                 | AstNodeImpl::ExpressionStatementImpl(_)
                 | AstNodeImpl::ExtendsClauseImpl(_)
                 | AstNodeImpl::ExtensionDeclaration2Impl(_)
+                | AstNodeImpl::ExtensionDeclarationImpl(_)
                 | AstNodeImpl::ExtensionOnClauseImpl(_)
+                | AstNodeImpl::ExtensionOverrideImpl(_)
                 | AstNodeImpl::ExtensionTypeDeclaration2Impl(_)
+                | AstNodeImpl::ExtensionTypeDeclarationImpl(_)
                 | AstNodeImpl::Field2Impl(_)
+                | AstNodeImpl::FieldDeclarationImpl(_)
                 | AstNodeImpl::FieldFormalParameterImpl(_)
                 | AstNodeImpl::FieldsDeclarationImpl(_)
                 | AstNodeImpl::ForEachPartsWithDeclarationImpl(_)
@@ -8235,11 +12015,17 @@ impl AstNodeImpl {
                 | AstNodeImpl::ForStatementImpl(_)
                 | AstNodeImpl::FormalParameterDefaultClauseImpl(_)
                 | AstNodeImpl::FormalParameterListImpl(_)
+                | AstNodeImpl::FunctionDeclarationImpl(_)
+                | AstNodeImpl::FunctionDeclarationStatementImpl(_)
                 | AstNodeImpl::FunctionExpressionImpl(_)
+                | AstNodeImpl::FunctionExpressionInvocationImpl(_)
+                | AstNodeImpl::FunctionReferenceImpl(_)
                 | AstNodeImpl::FunctionTypeAlias2Impl(_)
+                | AstNodeImpl::FunctionTypeAliasImpl(_)
                 | AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(_)
                 | AstNodeImpl::GenericFunctionTypeImpl(_)
                 | AstNodeImpl::GenericTypeAlias2Impl(_)
+                | AstNodeImpl::GenericTypeAliasImpl(_)
                 | AstNodeImpl::GetterDeclarationImpl(_)
                 | AstNodeImpl::GuardedPatternImpl(_)
                 | AstNodeImpl::HideCombinatorImpl(_)
@@ -8248,9 +12034,12 @@ impl AstNodeImpl {
                 | AstNodeImpl::IfNullImpl(_)
                 | AstNodeImpl::IfStatementImpl(_)
                 | AstNodeImpl::ImplementsClauseImpl(_)
+                | AstNodeImpl::ImplicitCallReferenceImpl(_)
                 | AstNodeImpl::ImportDirectiveImpl(_)
                 | AstNodeImpl::ImportPrefixReferenceImpl(_)
                 | AstNodeImpl::IncrementOrDecrementExpressionImpl(_)
+                | AstNodeImpl::IndexExpressionImpl(_)
+                | AstNodeImpl::InstanceCreationExpressionImpl(_)
                 | AstNodeImpl::IntegerLiteralImpl(_)
                 | AstNodeImpl::InterpolationExpressionImpl(_)
                 | AstNodeImpl::InterpolationStringImpl(_)
@@ -8277,7 +12066,10 @@ impl AstNodeImpl {
                 | AstNodeImpl::MapPatternEntryImpl(_)
                 | AstNodeImpl::MapPatternImpl(_)
                 | AstNodeImpl::MethodDeclaration2Impl(_)
+                | AstNodeImpl::MethodDeclarationImpl(_)
+                | AstNodeImpl::MethodInvocationImpl(_)
                 | AstNodeImpl::MixinDeclaration2Impl(_)
+                | AstNodeImpl::MixinDeclarationImpl(_)
                 | AstNodeImpl::MixinOnClauseImpl(_)
                 | AstNodeImpl::NameWithTypeParametersImpl(_)
                 | AstNodeImpl::NamedArgumentImpl(_)
@@ -8308,9 +12100,14 @@ impl AstNodeImpl {
                 | AstNodeImpl::PatternFieldNameImpl(_)
                 | AstNodeImpl::PatternVariableDeclarationImpl(_)
                 | AstNodeImpl::PatternVariableDeclarationStatementImpl(_)
+                | AstNodeImpl::PostfixExpressionImpl(_)
+                | AstNodeImpl::PrefixExpressionImpl(_)
+                | AstNodeImpl::PrefixedIdentifierImpl(_)
                 | AstNodeImpl::PrimaryConstructorBody2Impl(_)
+                | AstNodeImpl::PrimaryConstructorBodyImpl(_)
                 | AstNodeImpl::PrimaryConstructorDeclarationImpl(_)
                 | AstNodeImpl::PrimaryConstructorNameImpl(_)
+                | AstNodeImpl::PropertyAccessImpl(_)
                 | AstNodeImpl::ReceiverIndexAssignmentTargetImpl(_)
                 | AstNodeImpl::ReceiverIndexExpressionImpl(_)
                 | AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(_)
@@ -8334,10 +12131,12 @@ impl AstNodeImpl {
                 | AstNodeImpl::SetOrMapLiteralImpl(_)
                 | AstNodeImpl::SetterDeclarationImpl(_)
                 | AstNodeImpl::ShowCombinatorImpl(_)
+                | AstNodeImpl::SimpleIdentifierImpl(_)
                 | AstNodeImpl::SimpleStringLiteralImpl(_)
                 | AstNodeImpl::SpreadElementImpl(_)
                 | AstNodeImpl::StringInterpolationImpl(_)
                 | AstNodeImpl::SuperConstructorInvocationImpl(_)
+                | AstNodeImpl::SuperExpressionImpl(_)
                 | AstNodeImpl::SuperFormalParameterImpl(_)
                 | AstNodeImpl::SuperReferenceImpl(_)
                 | AstNodeImpl::SwitchCaseImpl(_)
@@ -8353,6 +12152,7 @@ impl AstNodeImpl {
                 | AstNodeImpl::TopLevelGetterDeclarationImpl(_)
                 | AstNodeImpl::TopLevelSetterDeclarationImpl(_)
                 | AstNodeImpl::TopLevelVariable2Impl(_)
+                | AstNodeImpl::TopLevelVariableDeclarationImpl(_)
                 | AstNodeImpl::TopLevelVariablesDeclarationImpl(_)
                 | AstNodeImpl::TryStatementImpl(_)
                 | AstNodeImpl::TypeArgumentListImpl(_)
@@ -8360,6 +12160,9 @@ impl AstNodeImpl {
                 | AstNodeImpl::TypeParameterListImpl(_)
                 | AstNodeImpl::UnaryOperatorInvocationImpl(_)
                 | AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(_)
+                | AstNodeImpl::VariableDeclarationImpl(_)
+                | AstNodeImpl::VariableDeclarationListImpl(_)
+                | AstNodeImpl::VariableDeclarationStatementImpl(_)
                 | AstNodeImpl::WhenClauseImpl(_)
                 | AstNodeImpl::WhileStatementImpl(_)
                 | AstNodeImpl::WildcardPatternImpl(_)
@@ -8376,11 +12179,35 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is BinaryExpressionImpl`.
+    pub fn is_binary_expression_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::BinaryExpressionImpl(_)
+        )
+    }
+
     /// `this is BinaryOperatorInvocationImpl`.
     pub fn is_binary_operator_invocation_impl(&self) -> bool {
         matches!(
             self,
             AstNodeImpl::BinaryOperatorInvocationImpl(_)
+        )
+    }
+
+    /// `this is BlockClassBodyImpl`.
+    pub fn is_block_class_body_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::BlockClassBodyImpl(_)
+        )
+    }
+
+    /// `this is BlockEnumBodyImpl`.
+    pub fn is_block_enum_body_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::BlockEnumBodyImpl(_)
         )
     }
 
@@ -8520,11 +12347,39 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is ClassBodyImpl`.
+    pub fn is_class_body_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::BlockClassBodyImpl(_)
+                | AstNodeImpl::EmptyClassBodyImpl(_)
+        )
+    }
+
     /// `this is ClassDeclaration2Impl`.
     pub fn is_class_declaration2_impl(&self) -> bool {
         matches!(
             self,
             AstNodeImpl::ClassDeclaration2Impl(_)
+        )
+    }
+
+    /// `this is ClassDeclarationImpl`.
+    pub fn is_class_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ClassDeclarationImpl(_)
+        )
+    }
+
+    /// `this is ClassMemberImpl`.
+    pub fn is_class_member_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ConstructorDeclarationImpl(_)
+                | AstNodeImpl::FieldDeclarationImpl(_)
+                | AstNodeImpl::MethodDeclarationImpl(_)
+                | AstNodeImpl::PrimaryConstructorBodyImpl(_)
         )
     }
 
@@ -8545,6 +12400,14 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is ClassTypeAliasImpl`.
+    pub fn is_class_type_alias_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ClassTypeAliasImpl(_)
+        )
+    }
+
     /// `this is CollectionElementImpl`.
     pub fn is_collection_element_impl(&self) -> bool {
         matches!(
@@ -8552,7 +12415,9 @@ impl AstNodeImpl {
             AstNodeImpl::AdjacentStringsImpl(_)
                 | AstNodeImpl::AnonymousMethodInvocationImpl(_)
                 | AstNodeImpl::AsExpressionImpl(_)
+                | AstNodeImpl::AssignmentExpressionImpl(_)
                 | AstNodeImpl::AwaitExpressionImpl(_)
+                | AstNodeImpl::BinaryExpressionImpl(_)
                 | AstNodeImpl::BinaryOperatorInvocationImpl(_)
                 | AstNodeImpl::BooleanLiteralImpl(_)
                 | AstNodeImpl::CallInvocationImpl(_)
@@ -8562,16 +12427,26 @@ impl AstNodeImpl {
                 | AstNodeImpl::CompoundAssignmentImpl(_)
                 | AstNodeImpl::ConditionalExpressionImpl(_)
                 | AstNodeImpl::ConstructorInvocationImpl(_)
+                | AstNodeImpl::ConstructorReferenceImpl(_)
                 | AstNodeImpl::DirectAssignmentImpl(_)
                 | AstNodeImpl::DotShorthandConstructorInvocation2Impl(_)
+                | AstNodeImpl::DotShorthandConstructorInvocationImpl(_)
+                | AstNodeImpl::DotShorthandInvocationImpl(_)
                 | AstNodeImpl::DotShorthandNameExpressionImpl(_)
+                | AstNodeImpl::DotShorthandPropertyAccessImpl(_)
                 | AstNodeImpl::DoubleLiteralImpl(_)
+                | AstNodeImpl::ExtensionOverrideImpl(_)
                 | AstNodeImpl::ForElementImpl(_)
                 | AstNodeImpl::FunctionExpressionImpl(_)
+                | AstNodeImpl::FunctionExpressionInvocationImpl(_)
+                | AstNodeImpl::FunctionReferenceImpl(_)
                 | AstNodeImpl::IfElementImpl(_)
                 | AstNodeImpl::IfNullAssignmentImpl(_)
                 | AstNodeImpl::IfNullImpl(_)
+                | AstNodeImpl::ImplicitCallReferenceImpl(_)
                 | AstNodeImpl::IncrementOrDecrementExpressionImpl(_)
+                | AstNodeImpl::IndexExpressionImpl(_)
+                | AstNodeImpl::InstanceCreationExpressionImpl(_)
                 | AstNodeImpl::IntegerLiteralImpl(_)
                 | AstNodeImpl::InvalidSuperExpressionImpl(_)
                 | AstNodeImpl::IsExpressionImpl(_)
@@ -8580,6 +12455,7 @@ impl AstNodeImpl {
                 | AstNodeImpl::LogicalNotImpl(_)
                 | AstNodeImpl::LogicalOrImpl(_)
                 | AstNodeImpl::MapLiteralEntryImpl(_)
+                | AstNodeImpl::MethodInvocationImpl(_)
                 | AstNodeImpl::NullAssertionExpressionImpl(_)
                 | AstNodeImpl::NullAwareElementImpl(_)
                 | AstNodeImpl::NullLiteralImpl(_)
@@ -8592,14 +12468,20 @@ impl AstNodeImpl {
                 | AstNodeImpl::ParsedUnqualifiedNameImpl(_)
                 | AstNodeImpl::ParsedValueArgumentsImpl(_)
                 | AstNodeImpl::PatternAssignmentImpl(_)
+                | AstNodeImpl::PostfixExpressionImpl(_)
+                | AstNodeImpl::PrefixExpressionImpl(_)
+                | AstNodeImpl::PrefixedIdentifierImpl(_)
+                | AstNodeImpl::PropertyAccessImpl(_)
                 | AstNodeImpl::ReceiverIndexExpressionImpl(_)
                 | AstNodeImpl::ReceiverPropertyExtractionImpl(_)
                 | AstNodeImpl::RecordLiteralImpl(_)
                 | AstNodeImpl::RethrowExpressionImpl(_)
                 | AstNodeImpl::SetOrMapLiteralImpl(_)
+                | AstNodeImpl::SimpleIdentifierImpl(_)
                 | AstNodeImpl::SimpleStringLiteralImpl(_)
                 | AstNodeImpl::SpreadElementImpl(_)
                 | AstNodeImpl::StringInterpolationImpl(_)
+                | AstNodeImpl::SuperExpressionImpl(_)
                 | AstNodeImpl::SwitchExpressionImpl(_)
                 | AstNodeImpl::SymbolLiteralImpl(_)
                 | AstNodeImpl::ThisExpressionImpl(_)
@@ -8633,6 +12515,18 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is CommentReferableExpressionImpl`.
+    pub fn is_comment_referable_expression_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ConstructorReferenceImpl(_)
+                | AstNodeImpl::FunctionReferenceImpl(_)
+                | AstNodeImpl::PrefixedIdentifierImpl(_)
+                | AstNodeImpl::PropertyAccessImpl(_)
+                | AstNodeImpl::SimpleIdentifierImpl(_)
+        )
+    }
+
     /// `this is CommentReferenceComponentImpl`.
     pub fn is_comment_reference_component_impl(&self) -> bool {
         matches!(
@@ -8654,6 +12548,23 @@ impl AstNodeImpl {
         matches!(
             self,
             AstNodeImpl::CompilationUnitImpl(_)
+        )
+    }
+
+    /// `this is CompilationUnitMemberImpl`.
+    pub fn is_compilation_unit_member_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ClassDeclarationImpl(_)
+                | AstNodeImpl::ClassTypeAliasImpl(_)
+                | AstNodeImpl::EnumDeclarationImpl(_)
+                | AstNodeImpl::ExtensionDeclarationImpl(_)
+                | AstNodeImpl::ExtensionTypeDeclarationImpl(_)
+                | AstNodeImpl::FunctionDeclarationImpl(_)
+                | AstNodeImpl::FunctionTypeAliasImpl(_)
+                | AstNodeImpl::GenericTypeAliasImpl(_)
+                | AstNodeImpl::MixinDeclarationImpl(_)
+                | AstNodeImpl::TopLevelVariableDeclarationImpl(_)
         )
     }
 
@@ -8697,6 +12608,14 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is ConstructorDeclarationImpl`.
+    pub fn is_constructor_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ConstructorDeclarationImpl(_)
+        )
+    }
+
     /// `this is ConstructorFieldInitializerImpl`.
     pub fn is_constructor_field_initializer_impl(&self) -> bool {
         matches!(
@@ -8724,11 +12643,27 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is ConstructorNameImpl`.
+    pub fn is_constructor_name_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ConstructorNameImpl(_)
+        )
+    }
+
     /// `this is ConstructorReference2Impl`.
     pub fn is_constructor_reference2_impl(&self) -> bool {
         matches!(
             self,
             AstNodeImpl::ConstructorReference2Impl(_)
+        )
+    }
+
+    /// `this is ConstructorReferenceImpl`.
+    pub fn is_constructor_reference_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ConstructorReferenceImpl(_)
         )
     }
 
@@ -8782,8 +12717,24 @@ impl AstNodeImpl {
     pub fn is_declaration_impl(&self) -> bool {
         matches!(
             self,
-            AstNodeImpl::DeclaredIdentifierImpl(_)
+            AstNodeImpl::ClassDeclarationImpl(_)
+                | AstNodeImpl::ClassTypeAliasImpl(_)
+                | AstNodeImpl::ConstructorDeclarationImpl(_)
+                | AstNodeImpl::DeclaredIdentifierImpl(_)
+                | AstNodeImpl::EnumConstantDeclarationImpl(_)
+                | AstNodeImpl::EnumDeclarationImpl(_)
+                | AstNodeImpl::ExtensionDeclarationImpl(_)
+                | AstNodeImpl::ExtensionTypeDeclarationImpl(_)
+                | AstNodeImpl::FieldDeclarationImpl(_)
+                | AstNodeImpl::FunctionDeclarationImpl(_)
+                | AstNodeImpl::FunctionTypeAliasImpl(_)
+                | AstNodeImpl::GenericTypeAliasImpl(_)
+                | AstNodeImpl::MethodDeclarationImpl(_)
+                | AstNodeImpl::MixinDeclarationImpl(_)
+                | AstNodeImpl::PrimaryConstructorBodyImpl(_)
+                | AstNodeImpl::TopLevelVariableDeclarationImpl(_)
                 | AstNodeImpl::TypeParameterImpl(_)
+                | AstNodeImpl::VariableDeclarationImpl(_)
         )
     }
 
@@ -8847,11 +12798,35 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is DotShorthandConstructorInvocationImpl`.
+    pub fn is_dot_shorthand_constructor_invocation_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(_)
+        )
+    }
+
+    /// `this is DotShorthandInvocationImpl`.
+    pub fn is_dot_shorthand_invocation_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::DotShorthandInvocationImpl(_)
+        )
+    }
+
     /// `this is DotShorthandNameExpressionImpl`.
     pub fn is_dot_shorthand_name_expression_impl(&self) -> bool {
         matches!(
             self,
             AstNodeImpl::DotShorthandNameExpressionImpl(_)
+        )
+    }
+
+    /// `this is DotShorthandPropertyAccessImpl`.
+    pub fn is_dot_shorthand_property_access_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::DotShorthandPropertyAccessImpl(_)
         )
     }
 
@@ -8871,6 +12846,22 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is EmptyClassBodyImpl`.
+    pub fn is_empty_class_body_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::EmptyClassBodyImpl(_)
+        )
+    }
+
+    /// `this is EmptyEnumBodyImpl`.
+    pub fn is_empty_enum_body_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::EmptyEnumBodyImpl(_)
+        )
+    }
+
     /// `this is EmptyFunctionBodyImpl`.
     pub fn is_empty_function_body_impl(&self) -> bool {
         matches!(
@@ -8884,6 +12875,15 @@ impl AstNodeImpl {
         matches!(
             self,
             AstNodeImpl::EmptyStatementImpl(_)
+        )
+    }
+
+    /// `this is EnumBodyImpl`.
+    pub fn is_enum_body_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::BlockEnumBodyImpl(_)
+                | AstNodeImpl::EmptyEnumBodyImpl(_)
         )
     }
 
@@ -8903,6 +12903,14 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is EnumConstantDeclarationImpl`.
+    pub fn is_enum_constant_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::EnumConstantDeclarationImpl(_)
+        )
+    }
+
     /// `this is EnumDeclaration2Impl`.
     pub fn is_enum_declaration2_impl(&self) -> bool {
         matches!(
@@ -8917,6 +12925,14 @@ impl AstNodeImpl {
             self,
             AstNodeImpl::BlockEnumDeclarationBodyImpl(_)
                 | AstNodeImpl::SemicolonEnumDeclarationBodyImpl(_)
+        )
+    }
+
+    /// `this is EnumDeclarationImpl`.
+    pub fn is_enum_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::EnumDeclarationImpl(_)
         )
     }
 
@@ -8943,7 +12959,9 @@ impl AstNodeImpl {
             AstNodeImpl::AdjacentStringsImpl(_)
                 | AstNodeImpl::AnonymousMethodInvocationImpl(_)
                 | AstNodeImpl::AsExpressionImpl(_)
+                | AstNodeImpl::AssignmentExpressionImpl(_)
                 | AstNodeImpl::AwaitExpressionImpl(_)
+                | AstNodeImpl::BinaryExpressionImpl(_)
                 | AstNodeImpl::BinaryOperatorInvocationImpl(_)
                 | AstNodeImpl::BooleanLiteralImpl(_)
                 | AstNodeImpl::CallInvocationImpl(_)
@@ -8953,14 +12971,24 @@ impl AstNodeImpl {
                 | AstNodeImpl::CompoundAssignmentImpl(_)
                 | AstNodeImpl::ConditionalExpressionImpl(_)
                 | AstNodeImpl::ConstructorInvocationImpl(_)
+                | AstNodeImpl::ConstructorReferenceImpl(_)
                 | AstNodeImpl::DirectAssignmentImpl(_)
                 | AstNodeImpl::DotShorthandConstructorInvocation2Impl(_)
+                | AstNodeImpl::DotShorthandConstructorInvocationImpl(_)
+                | AstNodeImpl::DotShorthandInvocationImpl(_)
                 | AstNodeImpl::DotShorthandNameExpressionImpl(_)
+                | AstNodeImpl::DotShorthandPropertyAccessImpl(_)
                 | AstNodeImpl::DoubleLiteralImpl(_)
+                | AstNodeImpl::ExtensionOverrideImpl(_)
                 | AstNodeImpl::FunctionExpressionImpl(_)
+                | AstNodeImpl::FunctionExpressionInvocationImpl(_)
+                | AstNodeImpl::FunctionReferenceImpl(_)
                 | AstNodeImpl::IfNullAssignmentImpl(_)
                 | AstNodeImpl::IfNullImpl(_)
+                | AstNodeImpl::ImplicitCallReferenceImpl(_)
                 | AstNodeImpl::IncrementOrDecrementExpressionImpl(_)
+                | AstNodeImpl::IndexExpressionImpl(_)
+                | AstNodeImpl::InstanceCreationExpressionImpl(_)
                 | AstNodeImpl::IntegerLiteralImpl(_)
                 | AstNodeImpl::InvalidSuperExpressionImpl(_)
                 | AstNodeImpl::IsExpressionImpl(_)
@@ -8968,6 +12996,7 @@ impl AstNodeImpl {
                 | AstNodeImpl::LogicalAndImpl(_)
                 | AstNodeImpl::LogicalNotImpl(_)
                 | AstNodeImpl::LogicalOrImpl(_)
+                | AstNodeImpl::MethodInvocationImpl(_)
                 | AstNodeImpl::NullAssertionExpressionImpl(_)
                 | AstNodeImpl::NullLiteralImpl(_)
                 | AstNodeImpl::ParenthesizedExpressionImpl(_)
@@ -8979,13 +13008,19 @@ impl AstNodeImpl {
                 | AstNodeImpl::ParsedUnqualifiedNameImpl(_)
                 | AstNodeImpl::ParsedValueArgumentsImpl(_)
                 | AstNodeImpl::PatternAssignmentImpl(_)
+                | AstNodeImpl::PostfixExpressionImpl(_)
+                | AstNodeImpl::PrefixExpressionImpl(_)
+                | AstNodeImpl::PrefixedIdentifierImpl(_)
+                | AstNodeImpl::PropertyAccessImpl(_)
                 | AstNodeImpl::ReceiverIndexExpressionImpl(_)
                 | AstNodeImpl::ReceiverPropertyExtractionImpl(_)
                 | AstNodeImpl::RecordLiteralImpl(_)
                 | AstNodeImpl::RethrowExpressionImpl(_)
                 | AstNodeImpl::SetOrMapLiteralImpl(_)
+                | AstNodeImpl::SimpleIdentifierImpl(_)
                 | AstNodeImpl::SimpleStringLiteralImpl(_)
                 | AstNodeImpl::StringInterpolationImpl(_)
+                | AstNodeImpl::SuperExpressionImpl(_)
                 | AstNodeImpl::SwitchExpressionImpl(_)
                 | AstNodeImpl::SymbolLiteralImpl(_)
                 | AstNodeImpl::ThisExpressionImpl(_)
@@ -9018,11 +13053,27 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is ExtensionDeclarationImpl`.
+    pub fn is_extension_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ExtensionDeclarationImpl(_)
+        )
+    }
+
     /// `this is ExtensionOnClauseImpl`.
     pub fn is_extension_on_clause_impl(&self) -> bool {
         matches!(
             self,
             AstNodeImpl::ExtensionOnClauseImpl(_)
+        )
+    }
+
+    /// `this is ExtensionOverrideImpl`.
+    pub fn is_extension_override_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ExtensionOverrideImpl(_)
         )
     }
 
@@ -9034,11 +13085,27 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is ExtensionTypeDeclarationImpl`.
+    pub fn is_extension_type_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ExtensionTypeDeclarationImpl(_)
+        )
+    }
+
     /// `this is Field2Impl`.
     pub fn is_field2_impl(&self) -> bool {
         matches!(
             self,
             AstNodeImpl::Field2Impl(_)
+        )
+    }
+
+    /// `this is FieldDeclarationImpl`.
+    pub fn is_field_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::FieldDeclarationImpl(_)
         )
     }
 
@@ -9224,6 +13291,22 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is FunctionDeclarationImpl`.
+    pub fn is_function_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::FunctionDeclarationImpl(_)
+        )
+    }
+
+    /// `this is FunctionDeclarationStatementImpl`.
+    pub fn is_function_declaration_statement_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::FunctionDeclarationStatementImpl(_)
+        )
+    }
+
     /// `this is FunctionDeclarationV1OriginImpl`.
     pub fn is_function_declaration_v1_origin_impl(&self) -> bool {
         matches!(
@@ -9243,6 +13326,14 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is FunctionExpressionInvocationImpl`.
+    pub fn is_function_expression_invocation_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::FunctionExpressionInvocationImpl(_)
+        )
+    }
+
     /// `this is FunctionInvocationImpl`.
     pub fn is_function_invocation_impl(&self) -> bool {
         matches!(
@@ -9251,11 +13342,27 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is FunctionReferenceImpl`.
+    pub fn is_function_reference_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::FunctionReferenceImpl(_)
+        )
+    }
+
     /// `this is FunctionTypeAlias2Impl`.
     pub fn is_function_type_alias2_impl(&self) -> bool {
         matches!(
             self,
             AstNodeImpl::FunctionTypeAlias2Impl(_)
+        )
+    }
+
+    /// `this is FunctionTypeAliasImpl`.
+    pub fn is_function_type_alias_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::FunctionTypeAliasImpl(_)
         )
     }
 
@@ -9283,6 +13390,14 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is GenericTypeAliasImpl`.
+    pub fn is_generic_type_alias_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::GenericTypeAliasImpl(_)
+        )
+    }
+
     /// `this is GetterDeclarationImpl`.
     pub fn is_getter_declaration_impl(&self) -> bool {
         matches!(
@@ -9304,6 +13419,15 @@ impl AstNodeImpl {
         matches!(
             self,
             AstNodeImpl::HideCombinatorImpl(_)
+        )
+    }
+
+    /// `this is IdentifierImpl`.
+    pub fn is_identifier_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::PrefixedIdentifierImpl(_)
+                | AstNodeImpl::SimpleIdentifierImpl(_)
         )
     }
 
@@ -9356,6 +13480,14 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is ImplicitCallReferenceImpl`.
+    pub fn is_implicit_call_reference_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ImplicitCallReferenceImpl(_)
+        )
+    }
+
     /// `this is ImportDirectiveImpl`.
     pub fn is_import_directive_impl(&self) -> bool {
         matches!(
@@ -9398,6 +13530,22 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is IndexExpressionImpl`.
+    pub fn is_index_expression_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::IndexExpressionImpl(_)
+        )
+    }
+
+    /// `this is InstanceCreationExpressionImpl`.
+    pub fn is_instance_creation_expression_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::InstanceCreationExpressionImpl(_)
+        )
+    }
+
     /// `this is InstanceDeclarationBodyImpl`.
     pub fn is_instance_declaration_body_impl(&self) -> bool {
         matches!(
@@ -9416,7 +13564,9 @@ impl AstNodeImpl {
             AstNodeImpl::AdjacentStringsImpl(_)
                 | AstNodeImpl::AnonymousMethodInvocationImpl(_)
                 | AstNodeImpl::AsExpressionImpl(_)
+                | AstNodeImpl::AssignmentExpressionImpl(_)
                 | AstNodeImpl::AwaitExpressionImpl(_)
+                | AstNodeImpl::BinaryExpressionImpl(_)
                 | AstNodeImpl::BinaryOperatorInvocationImpl(_)
                 | AstNodeImpl::BooleanLiteralImpl(_)
                 | AstNodeImpl::CallInvocationImpl(_)
@@ -9426,14 +13576,24 @@ impl AstNodeImpl {
                 | AstNodeImpl::CompoundAssignmentImpl(_)
                 | AstNodeImpl::ConditionalExpressionImpl(_)
                 | AstNodeImpl::ConstructorInvocationImpl(_)
+                | AstNodeImpl::ConstructorReferenceImpl(_)
                 | AstNodeImpl::DirectAssignmentImpl(_)
                 | AstNodeImpl::DotShorthandConstructorInvocation2Impl(_)
+                | AstNodeImpl::DotShorthandConstructorInvocationImpl(_)
+                | AstNodeImpl::DotShorthandInvocationImpl(_)
                 | AstNodeImpl::DotShorthandNameExpressionImpl(_)
+                | AstNodeImpl::DotShorthandPropertyAccessImpl(_)
                 | AstNodeImpl::DoubleLiteralImpl(_)
+                | AstNodeImpl::ExtensionOverrideImpl(_)
                 | AstNodeImpl::FunctionExpressionImpl(_)
+                | AstNodeImpl::FunctionExpressionInvocationImpl(_)
+                | AstNodeImpl::FunctionReferenceImpl(_)
                 | AstNodeImpl::IfNullAssignmentImpl(_)
                 | AstNodeImpl::IfNullImpl(_)
+                | AstNodeImpl::ImplicitCallReferenceImpl(_)
                 | AstNodeImpl::IncrementOrDecrementExpressionImpl(_)
+                | AstNodeImpl::IndexExpressionImpl(_)
+                | AstNodeImpl::InstanceCreationExpressionImpl(_)
                 | AstNodeImpl::IntegerLiteralImpl(_)
                 | AstNodeImpl::InvalidSuperExpressionImpl(_)
                 | AstNodeImpl::IsExpressionImpl(_)
@@ -9441,6 +13601,7 @@ impl AstNodeImpl {
                 | AstNodeImpl::LogicalAndImpl(_)
                 | AstNodeImpl::LogicalNotImpl(_)
                 | AstNodeImpl::LogicalOrImpl(_)
+                | AstNodeImpl::MethodInvocationImpl(_)
                 | AstNodeImpl::NullAssertionExpressionImpl(_)
                 | AstNodeImpl::NullLiteralImpl(_)
                 | AstNodeImpl::ParenthesizedExpressionImpl(_)
@@ -9452,13 +13613,19 @@ impl AstNodeImpl {
                 | AstNodeImpl::ParsedUnqualifiedNameImpl(_)
                 | AstNodeImpl::ParsedValueArgumentsImpl(_)
                 | AstNodeImpl::PatternAssignmentImpl(_)
+                | AstNodeImpl::PostfixExpressionImpl(_)
+                | AstNodeImpl::PrefixExpressionImpl(_)
+                | AstNodeImpl::PrefixedIdentifierImpl(_)
+                | AstNodeImpl::PropertyAccessImpl(_)
                 | AstNodeImpl::ReceiverIndexExpressionImpl(_)
                 | AstNodeImpl::ReceiverPropertyExtractionImpl(_)
                 | AstNodeImpl::RecordLiteralImpl(_)
                 | AstNodeImpl::RethrowExpressionImpl(_)
                 | AstNodeImpl::SetOrMapLiteralImpl(_)
+                | AstNodeImpl::SimpleIdentifierImpl(_)
                 | AstNodeImpl::SimpleStringLiteralImpl(_)
                 | AstNodeImpl::StringInterpolationImpl(_)
+                | AstNodeImpl::SuperExpressionImpl(_)
                 | AstNodeImpl::SuperReferenceImpl(_)
                 | AstNodeImpl::SwitchExpressionImpl(_)
                 | AstNodeImpl::SymbolLiteralImpl(_)
@@ -9522,6 +13689,17 @@ impl AstNodeImpl {
         matches!(
             self,
             AstNodeImpl::InvalidSuperExpressionImpl(_)
+        )
+    }
+
+    /// `this is InvocationExpressionImpl`.
+    pub fn is_invocation_expression_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(_)
+                | AstNodeImpl::DotShorthandInvocationImpl(_)
+                | AstNodeImpl::FunctionExpressionInvocationImpl(_)
+                | AstNodeImpl::MethodInvocationImpl(_)
         )
     }
 
@@ -9749,6 +13927,14 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is MethodDeclarationImpl`.
+    pub fn is_method_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::MethodDeclarationImpl(_)
+        )
+    }
+
     /// `this is MethodDeclarationV1OriginImpl`.
     pub fn is_method_declaration_v1_origin_impl(&self) -> bool {
         matches!(
@@ -9760,11 +13946,27 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is MethodInvocationImpl`.
+    pub fn is_method_invocation_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::MethodInvocationImpl(_)
+        )
+    }
+
     /// `this is MixinDeclaration2Impl`.
     pub fn is_mixin_declaration2_impl(&self) -> bool {
         matches!(
             self,
             AstNodeImpl::MixinDeclaration2Impl(_)
+        )
+    }
+
+    /// `this is MixinDeclarationImpl`.
+    pub fn is_mixin_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::MixinDeclarationImpl(_)
         )
     }
 
@@ -9809,7 +14011,9 @@ impl AstNodeImpl {
             AstNodeImpl::AdjacentStringsImpl(_)
                 | AstNodeImpl::AnonymousMethodInvocationImpl(_)
                 | AstNodeImpl::AsExpressionImpl(_)
+                | AstNodeImpl::AssignmentExpressionImpl(_)
                 | AstNodeImpl::AwaitExpressionImpl(_)
+                | AstNodeImpl::BinaryExpressionImpl(_)
                 | AstNodeImpl::BinaryOperatorInvocationImpl(_)
                 | AstNodeImpl::BooleanLiteralImpl(_)
                 | AstNodeImpl::CallInvocationImpl(_)
@@ -9819,14 +14023,24 @@ impl AstNodeImpl {
                 | AstNodeImpl::CompoundAssignmentImpl(_)
                 | AstNodeImpl::ConditionalExpressionImpl(_)
                 | AstNodeImpl::ConstructorInvocationImpl(_)
+                | AstNodeImpl::ConstructorReferenceImpl(_)
                 | AstNodeImpl::DirectAssignmentImpl(_)
                 | AstNodeImpl::DotShorthandConstructorInvocation2Impl(_)
+                | AstNodeImpl::DotShorthandConstructorInvocationImpl(_)
+                | AstNodeImpl::DotShorthandInvocationImpl(_)
                 | AstNodeImpl::DotShorthandNameExpressionImpl(_)
+                | AstNodeImpl::DotShorthandPropertyAccessImpl(_)
                 | AstNodeImpl::DoubleLiteralImpl(_)
+                | AstNodeImpl::ExtensionOverrideImpl(_)
                 | AstNodeImpl::FunctionExpressionImpl(_)
+                | AstNodeImpl::FunctionExpressionInvocationImpl(_)
+                | AstNodeImpl::FunctionReferenceImpl(_)
                 | AstNodeImpl::IfNullAssignmentImpl(_)
                 | AstNodeImpl::IfNullImpl(_)
+                | AstNodeImpl::ImplicitCallReferenceImpl(_)
                 | AstNodeImpl::IncrementOrDecrementExpressionImpl(_)
+                | AstNodeImpl::IndexExpressionImpl(_)
+                | AstNodeImpl::InstanceCreationExpressionImpl(_)
                 | AstNodeImpl::IntegerLiteralImpl(_)
                 | AstNodeImpl::InvalidSuperExpressionImpl(_)
                 | AstNodeImpl::IsExpressionImpl(_)
@@ -9834,6 +14048,7 @@ impl AstNodeImpl {
                 | AstNodeImpl::LogicalAndImpl(_)
                 | AstNodeImpl::LogicalNotImpl(_)
                 | AstNodeImpl::LogicalOrImpl(_)
+                | AstNodeImpl::MethodInvocationImpl(_)
                 | AstNodeImpl::NullAssertionExpressionImpl(_)
                 | AstNodeImpl::NullLiteralImpl(_)
                 | AstNodeImpl::ParenthesizedExpressionImpl(_)
@@ -9845,13 +14060,19 @@ impl AstNodeImpl {
                 | AstNodeImpl::ParsedUnqualifiedNameImpl(_)
                 | AstNodeImpl::ParsedValueArgumentsImpl(_)
                 | AstNodeImpl::PatternAssignmentImpl(_)
+                | AstNodeImpl::PostfixExpressionImpl(_)
+                | AstNodeImpl::PrefixExpressionImpl(_)
+                | AstNodeImpl::PrefixedIdentifierImpl(_)
+                | AstNodeImpl::PropertyAccessImpl(_)
                 | AstNodeImpl::ReceiverIndexExpressionImpl(_)
                 | AstNodeImpl::ReceiverPropertyExtractionImpl(_)
                 | AstNodeImpl::RecordLiteralImpl(_)
                 | AstNodeImpl::RethrowExpressionImpl(_)
                 | AstNodeImpl::SetOrMapLiteralImpl(_)
+                | AstNodeImpl::SimpleIdentifierImpl(_)
                 | AstNodeImpl::SimpleStringLiteralImpl(_)
                 | AstNodeImpl::StringInterpolationImpl(_)
+                | AstNodeImpl::SuperExpressionImpl(_)
                 | AstNodeImpl::SuperReferenceImpl(_)
                 | AstNodeImpl::SwitchExpressionImpl(_)
                 | AstNodeImpl::SymbolLiteralImpl(_)
@@ -10107,11 +14328,43 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is PostfixExpressionImpl`.
+    pub fn is_postfix_expression_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::PostfixExpressionImpl(_)
+        )
+    }
+
+    /// `this is PrefixExpressionImpl`.
+    pub fn is_prefix_expression_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::PrefixExpressionImpl(_)
+        )
+    }
+
+    /// `this is PrefixedIdentifierImpl`.
+    pub fn is_prefixed_identifier_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::PrefixedIdentifierImpl(_)
+        )
+    }
+
     /// `this is PrimaryConstructorBody2Impl`.
     pub fn is_primary_constructor_body2_impl(&self) -> bool {
         matches!(
             self,
             AstNodeImpl::PrimaryConstructorBody2Impl(_)
+        )
+    }
+
+    /// `this is PrimaryConstructorBodyImpl`.
+    pub fn is_primary_constructor_body_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::PrimaryConstructorBodyImpl(_)
         )
     }
 
@@ -10128,6 +14381,14 @@ impl AstNodeImpl {
         matches!(
             self,
             AstNodeImpl::PrimaryConstructorNameImpl(_)
+        )
+    }
+
+    /// `this is PropertyAccessImpl`.
+    pub fn is_property_access_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::PropertyAccessImpl(_)
         )
     }
 
@@ -10188,7 +14449,9 @@ impl AstNodeImpl {
             AstNodeImpl::AdjacentStringsImpl(_)
                 | AstNodeImpl::AnonymousMethodInvocationImpl(_)
                 | AstNodeImpl::AsExpressionImpl(_)
+                | AstNodeImpl::AssignmentExpressionImpl(_)
                 | AstNodeImpl::AwaitExpressionImpl(_)
+                | AstNodeImpl::BinaryExpressionImpl(_)
                 | AstNodeImpl::BinaryOperatorInvocationImpl(_)
                 | AstNodeImpl::BooleanLiteralImpl(_)
                 | AstNodeImpl::CallInvocationImpl(_)
@@ -10198,14 +14461,24 @@ impl AstNodeImpl {
                 | AstNodeImpl::CompoundAssignmentImpl(_)
                 | AstNodeImpl::ConditionalExpressionImpl(_)
                 | AstNodeImpl::ConstructorInvocationImpl(_)
+                | AstNodeImpl::ConstructorReferenceImpl(_)
                 | AstNodeImpl::DirectAssignmentImpl(_)
                 | AstNodeImpl::DotShorthandConstructorInvocation2Impl(_)
+                | AstNodeImpl::DotShorthandConstructorInvocationImpl(_)
+                | AstNodeImpl::DotShorthandInvocationImpl(_)
                 | AstNodeImpl::DotShorthandNameExpressionImpl(_)
+                | AstNodeImpl::DotShorthandPropertyAccessImpl(_)
                 | AstNodeImpl::DoubleLiteralImpl(_)
+                | AstNodeImpl::ExtensionOverrideImpl(_)
                 | AstNodeImpl::FunctionExpressionImpl(_)
+                | AstNodeImpl::FunctionExpressionInvocationImpl(_)
+                | AstNodeImpl::FunctionReferenceImpl(_)
                 | AstNodeImpl::IfNullAssignmentImpl(_)
                 | AstNodeImpl::IfNullImpl(_)
+                | AstNodeImpl::ImplicitCallReferenceImpl(_)
                 | AstNodeImpl::IncrementOrDecrementExpressionImpl(_)
+                | AstNodeImpl::IndexExpressionImpl(_)
+                | AstNodeImpl::InstanceCreationExpressionImpl(_)
                 | AstNodeImpl::IntegerLiteralImpl(_)
                 | AstNodeImpl::InvalidSuperExpressionImpl(_)
                 | AstNodeImpl::IsExpressionImpl(_)
@@ -10213,6 +14486,7 @@ impl AstNodeImpl {
                 | AstNodeImpl::LogicalAndImpl(_)
                 | AstNodeImpl::LogicalNotImpl(_)
                 | AstNodeImpl::LogicalOrImpl(_)
+                | AstNodeImpl::MethodInvocationImpl(_)
                 | AstNodeImpl::NullAssertionExpressionImpl(_)
                 | AstNodeImpl::NullLiteralImpl(_)
                 | AstNodeImpl::ParenthesizedExpressionImpl(_)
@@ -10224,14 +14498,20 @@ impl AstNodeImpl {
                 | AstNodeImpl::ParsedUnqualifiedNameImpl(_)
                 | AstNodeImpl::ParsedValueArgumentsImpl(_)
                 | AstNodeImpl::PatternAssignmentImpl(_)
+                | AstNodeImpl::PostfixExpressionImpl(_)
+                | AstNodeImpl::PrefixExpressionImpl(_)
+                | AstNodeImpl::PrefixedIdentifierImpl(_)
+                | AstNodeImpl::PropertyAccessImpl(_)
                 | AstNodeImpl::ReceiverIndexExpressionImpl(_)
                 | AstNodeImpl::ReceiverPropertyExtractionImpl(_)
                 | AstNodeImpl::RecordLiteralImpl(_)
                 | AstNodeImpl::RecordLiteralNamedFieldImpl(_)
                 | AstNodeImpl::RethrowExpressionImpl(_)
                 | AstNodeImpl::SetOrMapLiteralImpl(_)
+                | AstNodeImpl::SimpleIdentifierImpl(_)
                 | AstNodeImpl::SimpleStringLiteralImpl(_)
                 | AstNodeImpl::StringInterpolationImpl(_)
+                | AstNodeImpl::SuperExpressionImpl(_)
                 | AstNodeImpl::SwitchExpressionImpl(_)
                 | AstNodeImpl::SymbolLiteralImpl(_)
                 | AstNodeImpl::ThisExpressionImpl(_)
@@ -10401,6 +14681,14 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is SimpleIdentifierImpl`.
+    pub fn is_simple_identifier_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::SimpleIdentifierImpl(_)
+        )
+    }
+
     /// `this is SimpleStringLiteralImpl`.
     pub fn is_simple_string_literal_impl(&self) -> bool {
         matches!(
@@ -10438,6 +14726,7 @@ impl AstNodeImpl {
                 | AstNodeImpl::EmptyStatementImpl(_)
                 | AstNodeImpl::ExpressionStatementImpl(_)
                 | AstNodeImpl::ForStatementImpl(_)
+                | AstNodeImpl::FunctionDeclarationStatementImpl(_)
                 | AstNodeImpl::IfStatementImpl(_)
                 | AstNodeImpl::LabeledStatementImpl(_)
                 | AstNodeImpl::LocalFunctionDeclarationImpl(_)
@@ -10446,6 +14735,7 @@ impl AstNodeImpl {
                 | AstNodeImpl::ReturnStatementImpl(_)
                 | AstNodeImpl::SwitchStatementImpl(_)
                 | AstNodeImpl::TryStatementImpl(_)
+                | AstNodeImpl::VariableDeclarationStatementImpl(_)
                 | AstNodeImpl::WhileStatementImpl(_)
                 | AstNodeImpl::YieldStatementImpl(_)
         )
@@ -10474,6 +14764,14 @@ impl AstNodeImpl {
         matches!(
             self,
             AstNodeImpl::SuperConstructorInvocationImpl(_)
+        )
+    }
+
+    /// `this is SuperExpressionImpl`.
+    pub fn is_super_expression_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::SuperExpressionImpl(_)
         )
     }
 
@@ -10626,6 +14924,14 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is TopLevelVariableDeclarationImpl`.
+    pub fn is_top_level_variable_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::TopLevelVariableDeclarationImpl(_)
+        )
+    }
+
     /// `this is TopLevelVariablesDeclarationImpl`.
     pub fn is_top_level_variables_declaration_impl(&self) -> bool {
         matches!(
@@ -10639,6 +14945,16 @@ impl AstNodeImpl {
         matches!(
             self,
             AstNodeImpl::TryStatementImpl(_)
+        )
+    }
+
+    /// `this is TypeAliasImpl`.
+    pub fn is_type_alias_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::ClassTypeAliasImpl(_)
+                | AstNodeImpl::FunctionTypeAliasImpl(_)
+                | AstNodeImpl::GenericTypeAliasImpl(_)
         )
     }
 
@@ -10721,6 +15037,22 @@ impl AstNodeImpl {
         )
     }
 
+    /// `this is VariableDeclarationImpl`.
+    pub fn is_variable_declaration_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::VariableDeclarationImpl(_)
+        )
+    }
+
+    /// `this is VariableDeclarationListImpl`.
+    pub fn is_variable_declaration_list_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::VariableDeclarationListImpl(_)
+        )
+    }
+
     /// `this is VariableDeclarationListV1OriginImpl`.
     pub fn is_variable_declaration_list_v1_origin_impl(&self) -> bool {
         matches!(
@@ -10728,6 +15060,14 @@ impl AstNodeImpl {
             AstNodeImpl::FieldsDeclarationImpl(_)
                 | AstNodeImpl::LocalVariablesDeclarationImpl(_)
                 | AstNodeImpl::TopLevelVariablesDeclarationImpl(_)
+        )
+    }
+
+    /// `this is VariableDeclarationStatementImpl`.
+    pub fn is_variable_declaration_statement_impl(&self) -> bool {
+        matches!(
+            self,
+            AstNodeImpl::VariableDeclarationStatementImpl(_)
         )
     }
 
@@ -10832,6 +15172,40 @@ impl AdjacentStringsImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node_list("strings", self.strings.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.strings {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.strings, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.strings, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl AnnotationImpl {
@@ -10855,6 +15229,84 @@ impl AnnotationImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("atSign", self.at_sign);
+        entities.add_node("name", self.name(ast, id));
+        entities.add_node("typeArguments", self.type_arguments(ast, id));
+        entities.add_token("period", self.period(ast, id));
+        entities.add_node("constructorName", self.constructor_name(ast, id));
+        entities.add_node("arguments", self.arguments(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.constructor_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.arguments(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.name(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.constructor_name(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.arguments(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl AnonymousBlockBodyImpl {
@@ -10876,6 +15328,38 @@ impl AnonymousBlockBodyImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.block);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("block", self.block);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.block, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.block;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.block;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -10899,6 +15383,39 @@ impl AnonymousExpressionBodyImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("functionDefinition", self.function_definition);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -10940,6 +15457,77 @@ impl AnonymousMethodInvocationImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("target", ast.become_parent_of1(id, if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE }));
+        entities.add_token("operator", self.operator_);
+        entities.add_node("parameters", self.parameters);
+        entities.add_node("body", self.body);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = ast.become_parent_of1(id, if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE });
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.parameters;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(self.body, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE });
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.target2;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ArgumentListImpl {
@@ -10967,6 +15555,42 @@ impl ArgumentListImpl {
         for &element in &self.arguments2 {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node_list("arguments", ast.v1_projected_list(id, &self.arguments2, Ast::to_v1_argument));
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in ast.v1_projected_list(id, &self.arguments2, Ast::to_v1_argument) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.v1_projected_element_containing_range(id, &self.arguments2, Ast::to_v1_argument, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.arguments2, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -10998,6 +15622,53 @@ impl AsExpressionImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::relational
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_token("asOperator", self.as_operator);
+        entities.add_node("type", self.type_);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+        ast.accept(self.type_, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl AssertInitializerImpl {
@@ -11028,6 +15699,61 @@ impl AssertInitializerImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.condition2);
         f(self.message2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("assertKeyword", self.assert_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("condition", ast.become_parent_of1(id, ast.to_v1_expression(self.condition2)));
+        entities.add_token("comma", self.comma);
+        entities.add_node("message", ast.become_parent_of1(id, if self.message2 != NO_NODE { ast.to_v1_expression(self.message2) } else { NO_NODE }));
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.condition2)), visitor);
+        {
+            let child = ast.become_parent_of1(id, if self.message2 != NO_NODE { ast.to_v1_expression(self.message2) } else { NO_NODE });
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.condition2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, if self.message2 != NO_NODE { ast.to_v1_expression(self.message2) } else { NO_NODE });
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.condition2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.message2;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -11061,6 +15787,62 @@ impl AssertStatementImpl {
         f(self.condition2);
         f(self.message2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("assertKeyword", self.assert_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("condition", ast.become_parent_of1(id, ast.to_v1_expression(self.condition2)));
+        entities.add_token("comma", self.comma);
+        entities.add_node("message", ast.become_parent_of1(id, if self.message2 != NO_NODE { ast.to_v1_expression(self.message2) } else { NO_NODE }));
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.condition2)), visitor);
+        {
+            let child = ast.become_parent_of1(id, if self.message2 != NO_NODE { ast.to_v1_expression(self.message2) } else { NO_NODE });
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.condition2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, if self.message2 != NO_NODE { ast.to_v1_expression(self.message2) } else { NO_NODE });
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.condition2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.message2;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl AssignedVariablePatternImpl {
@@ -11082,6 +15864,93 @@ impl AssignedVariablePatternImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+}
+
+impl AssignmentExpressionImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.begin_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.v1_projection_origin, tokens)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: AssignmentExpression is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: AssignmentExpression is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("leftHandSide", self.left_hand_side(ast, id));
+        entities.add_token("operator", self.operator_);
+        entities.add_node("rightHandSide", self.right_hand_side(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.left_hand_side(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.right_hand_side(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.left_hand_side(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.right_hand_side(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: AssignmentExpression is not in the V2 AST view.");
     }
 }
 
@@ -11109,6 +15978,108 @@ impl AwaitExpressionImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::prefix
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("awaitKeyword", self.await_keyword);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl BinaryExpressionImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.begin_token(self.origin, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.origin, tokens)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: BinaryExpression is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: BinaryExpression is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("leftOperand", self.left_operand(ast, id));
+        entities.add_token("operator", self.operator_(ast, id));
+        entities.add_node("rightOperand", self.right_operand(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.left_operand(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.right_operand(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.left_operand(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.right_operand(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: BinaryExpression is not in the V2 AST view.");
     }
 }
 
@@ -11139,6 +16110,157 @@ impl BinaryOperatorInvocationImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::for_token_type(ast.tokens.type_(self.operator_))
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: BinaryOperatorInvocation is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: BinaryOperatorInvocation is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: BinaryOperatorInvocation is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.left_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.right_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl BlockClassBodyImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.left_bracket;
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.right_bracket;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: BlockClassBody is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: BlockClassBody is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("members", self.members.clone());
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.members {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.members, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: BlockClassBody is not in the V2 AST view.");
+    }
+}
+
+impl BlockEnumBodyImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.left_bracket;
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.right_bracket;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: BlockEnumBody is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: BlockEnumBody is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("constants", self.constants.clone());
+        entities.add_token("semicolon", self.semicolon);
+        entities.add_node_list("members", self.members.clone());
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.constants {
+            ast.accept(*element, visitor);
+        }
+        for element in &self.members {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.constants, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.members, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: BlockEnumBody is not in the V2 AST view.");
     }
 }
 
@@ -11176,6 +16298,38 @@ impl BlockEnumDeclarationBodyImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: BlockEnumDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: BlockEnumDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: BlockEnumDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.constants, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.members, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl BlockFunctionBodyImpl {
@@ -11206,6 +16360,40 @@ impl BlockFunctionBodyImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.block);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("keyword", self.keyword);
+        entities.add_token("star", self.star);
+        entities.add_node("block", self.block);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.block, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.block;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.block;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl BlockImpl {
@@ -11233,6 +16421,42 @@ impl BlockImpl {
         for &element in &self.statements2 {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("statements", ast.v1_projected_list(id, &self.statements2, Ast::to_v1_statement));
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in ast.v1_projected_list(id, &self.statements2, Ast::to_v1_statement) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.v1_projected_element_containing_range(id, &self.statements2, Ast::to_v1_statement, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.statements2, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -11262,6 +16486,32 @@ impl BlockInstanceDeclarationBodyImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: BlockInstanceDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: BlockInstanceDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: BlockInstanceDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.members, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl BooleanLiteralImpl {
@@ -11288,6 +16538,25 @@ impl BooleanLiteralImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("literal", self.literal);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
 }
 
 impl BreakStatementImpl {
@@ -11313,6 +16582,45 @@ impl BreakStatementImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.label);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("breakKeyword", self.break_keyword);
+        entities.add_node("label", self.label);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.label;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.label;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.label;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -11347,6 +16655,44 @@ impl CallInvocationImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: CallInvocation is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: CallInvocation is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: CallInvocation is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.receiver;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -11387,6 +16733,54 @@ impl CascadeExpressionImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::cascade
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("target", ast.become_parent_of1(id, ast.to_v1_expression(self.target2)));
+        entities.add_node_list("cascadeSections", self.cascade_sections(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.target2)), visitor);
+        for element in self.cascade_sections(ast, id) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.target2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = self.cascade_sections_element_containing_range(ast, id, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.target2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.sections, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl CascadeIndexAssignmentTargetImpl {
@@ -11410,6 +16804,32 @@ impl CascadeIndexAssignmentTargetImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.index);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: CascadeIndexAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: CascadeIndexAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: CascadeIndexAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.index;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -11439,6 +16859,32 @@ impl CascadeIndexExpressionImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: CascadeIndexExpression is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: CascadeIndexExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: CascadeIndexExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.index;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl CascadePropertyAssignmentTargetImpl {
@@ -11460,6 +16906,26 @@ impl CascadePropertyAssignmentTargetImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: CascadePropertyAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: CascadePropertyAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: CascadePropertyAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -11487,6 +16953,26 @@ impl CascadePropertyExtractionImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: CascadePropertyExtraction is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: CascadePropertyExtraction is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: CascadePropertyExtraction is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
 }
 
 impl CascadeSectionImpl {
@@ -11513,6 +16999,32 @@ impl CascadeSectionImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: CascadeSection is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: CascadeSection is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: CascadeSection is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl CaseClauseImpl {
@@ -11535,6 +17047,39 @@ impl CaseClauseImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.guarded_pattern);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("caseKeyword", self.case_keyword);
+        entities.add_node("guardedPattern", self.guarded_pattern);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.guarded_pattern, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.guarded_pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.guarded_pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -11561,6 +17106,53 @@ impl CastPatternImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.pattern);
         f(self.type_);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("pattern", self.pattern);
+        entities.add_token("asToken", self.as_token);
+        entities.add_node("type", self.type_);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.pattern, visitor);
+        ast.accept(self.type_, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -11628,6 +17220,100 @@ impl CatchClauseImpl {
         f(self.stack_trace_parameter);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("onKeyword", self.on_keyword);
+        entities.add_node("exceptionType", self.exception_type);
+        entities.add_token("catchKeyword", self.catch_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("exceptionParameter", self.exception_parameter);
+        entities.add_token("comma", self.comma);
+        entities.add_node("stackTraceParameter", self.stack_trace_parameter);
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_node("body", self.body);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.exception_type;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.exception_parameter;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.stack_trace_parameter;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(self.body, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.exception_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.exception_parameter;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.stack_trace_parameter;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.exception_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.exception_parameter;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.stack_trace_parameter;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl CatchClauseParameterImpl {
@@ -11649,6 +17335,25 @@ impl CatchClauseParameterImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -11746,6 +17451,258 @@ impl ClassDeclaration2Impl {
         f(self.native_clause);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ClassDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ClassDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.name_part;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.extends_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.with_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.implements_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.native_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl ClassDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.v1_projection_origin, tokens)
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        if self.abstract_keyword != NO_TOKEN {
+            return self.abstract_keyword;
+        }
+        if self.sealed_keyword != NO_TOKEN {
+            return self.sealed_keyword;
+        }
+        if self.base_keyword != NO_TOKEN {
+            return self.base_keyword;
+        }
+        if self.interface_keyword != NO_TOKEN {
+            return self.interface_keyword;
+        }
+        if self.final_keyword != NO_TOKEN {
+            return self.final_keyword;
+        }
+        if self.mixin_keyword != NO_TOKEN {
+            return self.mixin_keyword;
+        }
+        return self.class_keyword;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: ClassDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: ClassDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("abstractKeyword", self.abstract_keyword);
+        entities.add_token("sealedKeyword", self.sealed_keyword);
+        entities.add_token("baseKeyword", self.base_keyword);
+        entities.add_token("interfaceKeyword", self.interface_keyword);
+        entities.add_token("finalKeyword", self.final_keyword);
+        entities.add_token("mixinKeyword", self.mixin_keyword);
+        entities.add_token("classKeyword", self.class_keyword);
+        entities.add_node("namePart", self.name_part(ast, id));
+        entities.add_node("extendsClause", self.extends_clause(ast, id));
+        entities.add_node("withClause", self.with_clause(ast, id));
+        entities.add_node("implementsClause", self.implements_clause(ast, id));
+        entities.add_node("nativeClause", self.native_clause(ast, id));
+        entities.add_node("body", self.body(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.name_part(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.extends_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.with_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.implements_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.native_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.name_part(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.extends_clause(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.with_clause(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.implements_clause(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.native_clause(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ClassDeclaration is not in the V2 AST view.");
+    }
 }
 
 impl ClassTypeAlias2Impl {
@@ -11837,6 +17794,229 @@ impl ClassTypeAlias2Impl {
         f(self.implements_clause);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ClassTypeAlias2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ClassTypeAlias2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.superclass;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.with_clause;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.implements_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl ClassTypeAliasImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.semicolon;
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        if self.abstract_keyword != NO_TOKEN {
+            return self.abstract_keyword;
+        }
+        if self.sealed_keyword != NO_TOKEN {
+            return self.sealed_keyword;
+        }
+        if self.base_keyword != NO_TOKEN {
+            return self.base_keyword;
+        }
+        if self.interface_keyword != NO_TOKEN {
+            return self.interface_keyword;
+        }
+        if self.final_keyword != NO_TOKEN {
+            return self.final_keyword;
+        }
+        if self.mixin_keyword != NO_TOKEN {
+            return self.mixin_keyword;
+        }
+        return self.typedef_keyword;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: ClassTypeAlias is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: ClassTypeAlias is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("abstractKeyword", self.abstract_keyword);
+        entities.add_token("sealedKeyword", self.sealed_keyword);
+        entities.add_token("baseKeyword", self.base_keyword);
+        entities.add_token("interfaceKeyword", self.interface_keyword);
+        entities.add_token("finalKeyword", self.final_keyword);
+        entities.add_token("mixinKeyword", self.mixin_keyword);
+        entities.add_token("typedefKeyword", self.typedef_keyword);
+        entities.add_token("name", self.name);
+        entities.add_node("typeParameters", self.type_parameters(ast, id));
+        entities.add_token("equals", self.equals);
+        entities.add_node("superclass", self.superclass(ast, id));
+        entities.add_node("withClause", self.with_clause(ast, id));
+        entities.add_node("implementsClause", self.implements_clause(ast, id));
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.superclass(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.with_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.implements_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.superclass(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.with_clause(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.implements_clause(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ClassTypeAlias is not in the V2 AST view.");
+    }
 }
 
 impl CombinatorNameImpl {
@@ -11858,6 +18038,26 @@ impl CombinatorNameImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: CombinatorName is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: CombinatorName is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: CombinatorName is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -11885,6 +18085,29 @@ impl CommentImpl {
         for &element in &self.references {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node_list("references", self.references.clone());
+        entities.add_token_list("tokens", self.tokens.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.references {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        ast.element_containing_range(&self.references, range_offset, range_end)
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        ast.element_containing_range(&self.references, range_offset, range_end)
     }
 }
 
@@ -11915,6 +18138,26 @@ impl CommentReferenceComponentImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: CommentReferenceComponent is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: CommentReferenceComponent is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: CommentReferenceComponent is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -11953,6 +18196,43 @@ impl CommentReferenceImpl {
         for &element in &self.components {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("expression", self.expression(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.expression(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.components, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -12003,6 +18283,25 @@ impl CompilationUnitImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("scriptTag", self.script_tag);
+        entities.add_node_list("directives", self.directives.clone());
+        entities.add_node_list("declarations", self.declarations(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        self.visit_children1_hand(ast, id, visitor)
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        self.child_containing_range1_hand(ast, id, range_offset, range_end)
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        self.child_containing_range2_hand(ast, id, range_offset, range_end)
+    }
 }
 
 impl CompoundAssignmentImpl {
@@ -12032,6 +18331,38 @@ impl CompoundAssignmentImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::assignment
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: CompoundAssignment is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: CompoundAssignment is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: CompoundAssignment is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.target;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.value;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -12067,6 +18398,68 @@ impl ConditionalExpressionImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::conditional
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("condition", ast.become_parent_of1(id, ast.to_v1_expression(self.condition2)));
+        entities.add_token("question", self.question);
+        entities.add_node("thenExpression", ast.become_parent_of1(id, ast.to_v1_expression(self.then_expression2)));
+        entities.add_token("colon", self.colon);
+        entities.add_node("elseExpression", ast.become_parent_of1(id, ast.to_v1_expression(self.else_expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.condition2)), visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.then_expression2)), visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.else_expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.condition2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.then_expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.else_expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.condition2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.then_expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.else_expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ConfigurationImpl {
@@ -12101,6 +18494,75 @@ impl ConfigurationImpl {
         f(self.value);
         f(self.uri);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("ifKeyword", self.if_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("name", self.name);
+        entities.add_token("equalToken", self.equal_token);
+        entities.add_node("value", self.value);
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_node("uri", self.uri);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.name, visitor);
+        {
+            let child = self.value;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(self.uri, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.name;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.value;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.uri;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.name;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.value;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.uri;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ConstantPatternImpl {
@@ -12126,6 +18588,39 @@ impl ConstantPatternImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("constKeyword", self.const_keyword);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -12210,6 +18705,208 @@ impl ConstructorDeclaration2Impl {
         f(self.factory_redirection_target);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: MemberDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ConstructorDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ConstructorDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.formal_parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.initializers, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.factory_redirection_target;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl ConstructorDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.v1_projection_origin, tokens)
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        self.first_token_after_comment_and_metadata_hand(Ast::new(ast, tokens))
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: ConstructorDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: ConstructorDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("externalKeyword", self.external_keyword);
+        entities.add_token("constKeyword", self.const_keyword(ast, id));
+        entities.add_token("factoryKeyword", self.factory_keyword);
+        entities.add_token("newKeyword", self.new_keyword);
+        entities.add_node("typeName", self.type_name(ast, id));
+        entities.add_token("period", self.period);
+        entities.add_token("name", self.name);
+        entities.add_node("parameters", self.parameters(ast, id));
+        entities.add_token("separator", self.separator);
+        entities.add_node_list("initializers", self.initializers.clone());
+        entities.add_node("redirectedConstructor", self.redirected_constructor(ast, id));
+        entities.add_node("body", self.body(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.type_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.parameters(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        for element in &self.initializers {
+            ast.accept(*element, visitor);
+        }
+        {
+            let child = self.redirected_constructor(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_name(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.parameters(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.initializers, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.redirected_constructor(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ConstructorDeclaration is not in the V2 AST view.");
+    }
 }
 
 impl ConstructorFieldInitializerImpl {
@@ -12241,6 +18938,54 @@ impl ConstructorFieldInitializerImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("thisKeyword", self.this_keyword);
+        entities.add_token("period", self.period);
+        entities.add_node("fieldName", self.field_name(ast, id));
+        entities.add_token("equals", self.equals);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.field_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.field_name(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -12280,6 +19025,111 @@ impl ConstructorInvocationImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ConstructorInvocation is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ConstructorInvocation is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ConstructorInvocation is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.constructor_reference;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl ConstructorNameImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.begin_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.end_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: ConstructorName is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: ConstructorName is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("type", self.type_(ast, id));
+        entities.add_token("period", self.period(ast, id));
+        entities.add_node("name", self.name(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.name(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ConstructorName is not in the V2 AST view.");
+    }
 }
 
 impl ConstructorReference2Impl {
@@ -12310,6 +19160,93 @@ impl ConstructorReference2Impl {
         f(self.type_reference);
         f(self.selector);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ConstructorReference2 is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ConstructorReference2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ConstructorReference2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_reference;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.selector;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl ConstructorReferenceImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.begin_token(self.origin, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.origin, tokens)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: ConstructorReference is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: ConstructorReference is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("constructorName", self.constructor_name(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.constructor_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.constructor_name(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ConstructorReference is not in the V2 AST view.");
+    }
 }
 
 impl ConstructorSelectorImpl {
@@ -12332,6 +19269,38 @@ impl ConstructorSelectorImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("period", self.period);
+        entities.add_node("name", self.name(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.name(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -12369,6 +19338,38 @@ impl ConstructorTypeReferenceImpl {
         f(self.import_prefix);
         f(self.type_arguments);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ConstructorTypeReference is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ConstructorTypeReference is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ConstructorTypeReference is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.import_prefix;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ContinueStatementImpl {
@@ -12394,6 +19395,45 @@ impl ContinueStatementImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.label);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("continueKeyword", self.continue_keyword);
+        entities.add_node("label", self.label);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.label;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.label;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.label;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -12449,6 +19489,76 @@ impl DeclaredIdentifierImpl {
         }
         f(self.type_);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("keyword", self.keyword);
+        entities.add_node("type", self.type_);
+        entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.type_;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl DeclaredVariablePatternImpl {
@@ -12481,6 +19591,45 @@ impl DeclaredVariablePatternImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.type_);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("keyword", self.keyword);
+        entities.add_node("type", self.type_);
+        entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl DelimitedFormalParametersImpl {
@@ -12508,6 +19657,32 @@ impl DelimitedFormalParametersImpl {
         for &element in &self.formal_parameters {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: DelimitedFormalParameters is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: DelimitedFormalParameters is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: DelimitedFormalParameters is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.formal_parameters, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -12539,6 +19714,38 @@ impl DirectAssignmentImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::assignment
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: DirectAssignment is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: DirectAssignment is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: DirectAssignment is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.target;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.value;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl DoStatementImpl {
@@ -12568,6 +19775,57 @@ impl DoStatementImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.body2);
         f(self.condition2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("doKeyword", self.do_keyword);
+        entities.add_node("body", ast.become_parent_of1(id, ast.to_v1_statement(self.body2)));
+        entities.add_token("whileKeyword", self.while_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("condition", ast.become_parent_of1(id, ast.to_v1_expression(self.condition2)));
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_statement(self.body2)), visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.condition2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_statement(self.body2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.condition2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.body2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.condition2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -12606,6 +19864,202 @@ impl DotShorthandConstructorInvocation2Impl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: DotShorthandConstructorInvocation2 is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: DotShorthandConstructorInvocation2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: DotShorthandConstructorInvocation2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl DotShorthandConstructorInvocationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.begin_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return ast.end_token(self.argument_list, tokens);
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: DotShorthandConstructorInvocation is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: DotShorthandConstructorInvocation is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("constKeyword", self.const_keyword(ast, id));
+        entities.add_token("period", self.period);
+        entities.add_node("constructorName", self.constructor_name(ast, id));
+        entities.add_node("typeArguments", self.type_arguments(ast, id));
+        entities.add_node("argumentList", self.argument_list(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.constructor_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.constructor_name(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: DotShorthandConstructorInvocation is not in the V2 AST view.");
+    }
+}
+
+impl DotShorthandInvocationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.period;
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return ast.end_token(self.argument_list, tokens);
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: DotShorthandInvocation is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: DotShorthandInvocation is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("period", self.period);
+        entities.add_node("memberName", self.member_name(ast, id));
+        entities.add_node("typeArguments", self.type_arguments(ast, id));
+        entities.add_node("argumentList", self.argument_list(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.member_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.member_name(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: DotShorthandInvocation is not in the V2 AST view.");
+    }
 }
 
 impl DotShorthandNameExpressionImpl {
@@ -12633,6 +20087,82 @@ impl DotShorthandNameExpressionImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: DotShorthandNameExpression is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: DotShorthandNameExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: DotShorthandNameExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+}
+
+impl DotShorthandPropertyAccessImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.period;
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return ast.end_token(self.property_name, tokens);
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: DotShorthandPropertyAccess is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: DotShorthandPropertyAccess is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("period", self.period);
+        entities.add_node("propertyName", self.property_name(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.property_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.property_name(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: DotShorthandPropertyAccess is not in the V2 AST view.");
+    }
 }
 
 impl DottedNameImpl {
@@ -12654,6 +20184,25 @@ impl DottedNameImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token_list("tokens", self.tokens.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -12681,6 +20230,111 @@ impl DoubleLiteralImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("literal", self.literal);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+}
+
+impl EmptyClassBodyImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.semicolon;
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.semicolon;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: EmptyClassBody is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: EmptyClassBody is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: EmptyClassBody is not in the V2 AST view.");
+    }
+}
+
+impl EmptyEnumBodyImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.semicolon;
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.semicolon;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: EmptyEnumBody is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: EmptyEnumBody is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: EmptyEnumBody is not in the V2 AST view.");
+    }
 }
 
 impl EmptyFunctionBodyImpl {
@@ -12703,6 +20357,25 @@ impl EmptyFunctionBodyImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
 }
 
 impl EmptyStatementImpl {
@@ -12724,6 +20397,25 @@ impl EmptyStatementImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -12762,6 +20454,76 @@ impl EnumConstantArgumentsImpl {
         f(self.type_arguments);
         f(self.constructor_selector);
         f(self.argument_list);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("typeArguments", self.type_arguments);
+        entities.add_node("constructorSelector", self.constructor_selector);
+        entities.add_node("argumentList", self.argument_list);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.constructor_selector;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(self.argument_list, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.constructor_selector;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.constructor_selector;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -12816,6 +20578,139 @@ impl EnumConstantDeclaration2Impl {
             f(element);
         }
         f(self.arguments);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: EnumConstantDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: EnumConstantDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl EnumConstantDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.v1_projection_origin, tokens)
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        return self.name;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: EnumConstantDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: EnumConstantDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("name", self.name);
+        entities.add_node("arguments", self.arguments(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.arguments(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.arguments(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: EnumConstantDeclaration is not in the V2 AST view.");
     }
 }
 
@@ -12879,6 +20774,196 @@ impl EnumDeclaration2Impl {
         f(self.implements_clause);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: EnumDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: EnumDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.name_part;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.with_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.implements_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl EnumDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.v1_projection_origin, tokens)
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        return self.enum_keyword;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: EnumDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: EnumDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("enumKeyword", self.enum_keyword);
+        entities.add_node("namePart", self.name_part(ast, id));
+        entities.add_node("withClause", self.with_clause(ast, id));
+        entities.add_node("implementsClause", self.implements_clause(ast, id));
+        entities.add_node("body", self.body(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.name_part(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.with_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.implements_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.name_part(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.with_clause(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.implements_clause(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: EnumDeclaration is not in the V2 AST view.");
+    }
 }
 
 impl ExportDirectiveImpl {
@@ -12939,6 +21024,117 @@ impl ExportDirectiveImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("exportKeyword", self.export_keyword);
+        entities.add_node("uri", self.uri);
+        entities.add_node_list("configurations", self.configurations.clone());
+        entities.add_node_list("combinators", self.combinators.clone());
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        ast.accept(self.uri, visitor);
+        for element in &self.configurations {
+            ast.accept(*element, visitor);
+        }
+        for element in &self.combinators {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+                {
+            let child = self.uri;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                NO_NODE
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.uri;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.configurations, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.combinators, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.uri;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.configurations, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.combinators, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ExpressionFunctionBodyImpl {
@@ -12974,6 +21170,42 @@ impl ExpressionFunctionBodyImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("keyword", self.keyword);
+        entities.add_token("star", self.star);
+        entities.add_token("functionDefinition", self.function_definition);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ExpressionStatementImpl {
@@ -13000,6 +21232,39 @@ impl ExpressionStatementImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ExtendsClauseImpl {
@@ -13022,6 +21287,39 @@ impl ExtendsClauseImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.superclass);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("extendsKeyword", self.extends_keyword);
+        entities.add_node("superclass", self.superclass);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.superclass, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.superclass;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.superclass;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -13084,6 +21382,179 @@ impl ExtensionDeclaration2Impl {
         f(self.on_clause);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ExtensionDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ExtensionDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.on_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl ExtensionDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.v1_projection_origin, tokens)
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        return self.extension_keyword;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: ExtensionDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: ExtensionDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("extensionKeyword", self.extension_keyword);
+        entities.add_token("typeKeyword", self.type_keyword);
+        entities.add_token("name", self.name);
+        entities.add_node("typeParameters", self.type_parameters(ast, id));
+        entities.add_node("onClause", self.on_clause(ast, id));
+        entities.add_node("body", self.body(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.on_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.on_clause(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ExtensionDeclaration is not in the V2 AST view.");
+    }
 }
 
 impl ExtensionOnClauseImpl {
@@ -13106,6 +21577,120 @@ impl ExtensionOnClauseImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.extended_type);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("onKeyword", self.on_keyword);
+        entities.add_node("extendedType", self.extended_type);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.extended_type, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.extended_type;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.extended_type;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl ExtensionOverrideImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.begin_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.origin, tokens)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: ExtensionOverride is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: ExtensionOverride is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("importPrefix", self.import_prefix(ast, id));
+        entities.add_token("name", self.name(ast, id));
+        entities.add_node("typeArguments", self.type_arguments(ast, id));
+        entities.add_node("argumentList", self.argument_list(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.import_prefix(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.import_prefix(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ExtensionOverride is not in the V2 AST view.");
     }
 }
 
@@ -13165,6 +21750,178 @@ impl ExtensionTypeDeclaration2Impl {
         f(self.implements_clause);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ExtensionTypeDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ExtensionTypeDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.name_part;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.implements_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl ExtensionTypeDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.v1_projection_origin, tokens)
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        return self.extension_keyword;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: ExtensionTypeDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: ExtensionTypeDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("extensionKeyword", self.extension_keyword);
+        entities.add_token("typeKeyword", self.type_keyword);
+        entities.add_node("namePart", self.name_part(ast, id));
+        entities.add_node("implementsClause", self.implements_clause(ast, id));
+        entities.add_node("body", self.body(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.name_part(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.implements_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.name_part(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.implements_clause(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ExtensionTypeDeclaration is not in the V2 AST view.");
+    }
 }
 
 impl Field2Impl {
@@ -13196,6 +21953,126 @@ impl Field2Impl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.initializer);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: Field2 is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: Field2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: Field2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.initializer;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl FieldDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.semicolon;
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        {
+            let result = tokens.lexically_first(&[self.augment_keyword, self.external_keyword, self.static_keyword, self.abstract_keyword, self.covariant_keyword]);
+            if result != NO_TOKEN {
+                return result;
+            }
+        }
+        return ast.begin_token(self.fields, tokens);
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: FieldDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: FieldDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("externalKeyword", self.external_keyword);
+        entities.add_token("staticKeyword", self.static_keyword);
+        entities.add_token("abstractKeyword", self.abstract_keyword);
+        entities.add_token("covariantKeyword", self.covariant_keyword);
+        entities.add_node("fields", self.fields);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        ast.accept(self.fields, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.fields;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: FieldDeclaration is not in the V2 AST view.");
     }
 }
 
@@ -13276,6 +22153,142 @@ impl FieldFormalParameterImpl {
         f(self.type_);
         f(self.function_typed_suffix);
         f(self.default_clause);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("requiredKeyword", self.required_keyword);
+        entities.add_token("covariantKeyword", self.covariant_keyword);
+        entities.add_token("constFinalOrVarKeyword", self.const_final_or_var_keyword);
+        entities.add_node("type", self.type_);
+        entities.add_token("thisKeyword", self.this_keyword);
+        entities.add_token("period", self.period);
+        entities.add_token("name", self.name(ast, id));
+        entities.add_node("functionTypedSuffix", self.function_typed_suffix(ast, id));
+        entities.add_node("defaultClause", self.default_clause);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.type_;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.function_typed_suffix(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.default_clause;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                {
+            let result = ast.element_containing_range(&self.metadata, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+                {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                {
+            let child = self.function_typed_suffix(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                {
+            let child = self.default_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                NO_NODE
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.function_typed_suffix(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.default_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.function_typed_suffix;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.default_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -13359,6 +22372,52 @@ impl FieldsDeclarationImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: MemberDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: FieldsDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: FieldsDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.fields, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ForEachPartsWithDeclarationImpl {
@@ -13385,6 +22444,53 @@ impl ForEachPartsWithDeclarationImpl {
         f(self.iterable2);
         f(self.loop_variable);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("loopVariable", self.loop_variable);
+        entities.add_token("inKeyword", self.in_keyword);
+        entities.add_node("iterable", ast.to_v1_expression(self.iterable2));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.loop_variable, visitor);
+        ast.accept(ast.to_v1_expression(self.iterable2), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.loop_variable;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.to_v1_expression(self.iterable2);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.loop_variable;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.iterable2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ForEachPartsWithIdentifierImpl {
@@ -13410,6 +22516,58 @@ impl ForEachPartsWithIdentifierImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.iterable2);
         f(self.target);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("identifier", self.identifier(ast, id));
+        entities.add_token("inKeyword", self.in_keyword);
+        entities.add_node("iterable", ast.to_v1_expression(self.iterable2));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.identifier(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(ast.to_v1_expression(self.iterable2), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.identifier(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.to_v1_expression(self.iterable2);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.target;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.iterable2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -13451,6 +22609,70 @@ impl ForEachPartsWithPatternImpl {
         }
         f(self.pattern);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("keyword", self.keyword);
+        entities.add_node("pattern", self.pattern);
+        entities.add_token("inKeyword", self.in_keyword);
+        entities.add_node("iterable", ast.to_v1_expression(self.iterable2));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.metadata {
+            ast.accept(*element, visitor);
+        }
+        ast.accept(self.pattern, visitor);
+        ast.accept(ast.to_v1_expression(self.iterable2), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.metadata, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.to_v1_expression(self.iterable2);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.metadata, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.iterable2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ForElementImpl {
@@ -13482,6 +22704,56 @@ impl ForElementImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.for_loop_parts);
         f(self.body2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("awaitKeyword", self.await_keyword);
+        entities.add_token("forKeyword", self.for_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("forLoopParts", self.for_loop_parts);
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_node("body", ast.become_parent_of1(id, ast.to_v1_collection_element(self.body2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.for_loop_parts, visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_collection_element(self.body2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.for_loop_parts;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_collection_element(self.body2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.for_loop_parts;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -13524,6 +22796,75 @@ impl ForPartsWithDeclarationsImpl {
             f(element);
         }
         f(self.variables2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("variables", ast.become_parent_of1(id, ast.to_v1_local_variables(self.variables2)));
+        entities.add_token("leftSeparator", self.left_separator);
+        entities.add_node("condition", if self.condition2 != NO_NODE { ast.to_v1_expression(self.condition2) } else { NO_NODE });
+        entities.add_token("rightSeparator", self.right_separator);
+        entities.add_node_list("updaters", ast.v1_projected_list(id, &self.updaters2, Ast::to_v1_expression));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_local_variables(self.variables2)), visitor);
+        {
+            let child = if self.condition2 != NO_NODE { ast.to_v1_expression(self.condition2) } else { NO_NODE };
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        for element in ast.v1_projected_list(id, &self.updaters2, Ast::to_v1_expression) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_local_variables(self.variables2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = if self.condition2 != NO_NODE { ast.to_v1_expression(self.condition2) } else { NO_NODE };
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.v1_projected_element_containing_range(id, &self.updaters2, Ast::to_v1_expression, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.variables2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.condition2;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.updaters2, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -13572,6 +22913,80 @@ impl ForPartsWithExpressionImpl {
         }
         f(self.initialization2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("initialization", ast.become_parent_of1(id, if self.initialization2 != NO_NODE { ast.to_v1_expression(self.initialization2) } else { NO_NODE }));
+        entities.add_token("leftSeparator", self.left_separator);
+        entities.add_node("condition", if self.condition2 != NO_NODE { ast.to_v1_expression(self.condition2) } else { NO_NODE });
+        entities.add_token("rightSeparator", self.right_separator);
+        entities.add_node_list("updaters", ast.v1_projected_list(id, &self.updaters2, Ast::to_v1_expression));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = ast.become_parent_of1(id, if self.initialization2 != NO_NODE { ast.to_v1_expression(self.initialization2) } else { NO_NODE });
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = if self.condition2 != NO_NODE { ast.to_v1_expression(self.condition2) } else { NO_NODE };
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        for element in ast.v1_projected_list(id, &self.updaters2, Ast::to_v1_expression) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, if self.initialization2 != NO_NODE { ast.to_v1_expression(self.initialization2) } else { NO_NODE });
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = if self.condition2 != NO_NODE { ast.to_v1_expression(self.condition2) } else { NO_NODE };
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.v1_projected_element_containing_range(id, &self.updaters2, Ast::to_v1_expression, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.initialization2;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.condition2;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.updaters2, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ForPartsWithPatternImpl {
@@ -13614,6 +23029,75 @@ impl ForPartsWithPatternImpl {
         }
         f(self.variables);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("variables", self.variables);
+        entities.add_token("leftSeparator", self.left_separator);
+        entities.add_node("condition", if self.condition2 != NO_NODE { ast.to_v1_expression(self.condition2) } else { NO_NODE });
+        entities.add_token("rightSeparator", self.right_separator);
+        entities.add_node_list("updaters", ast.v1_projected_list(id, &self.updaters2, Ast::to_v1_expression));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.variables, visitor);
+        {
+            let child = if self.condition2 != NO_NODE { ast.to_v1_expression(self.condition2) } else { NO_NODE };
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        for element in ast.v1_projected_list(id, &self.updaters2, Ast::to_v1_expression) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.variables;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = if self.condition2 != NO_NODE { ast.to_v1_expression(self.condition2) } else { NO_NODE };
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.v1_projected_element_containing_range(id, &self.updaters2, Ast::to_v1_expression, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.variables;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.condition2;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.updaters2, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ForStatementImpl {
@@ -13646,6 +23130,56 @@ impl ForStatementImpl {
         f(self.for_loop_parts);
         f(self.body2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("awaitKeyword", self.await_keyword);
+        entities.add_token("forKeyword", self.for_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("forLoopParts", self.for_loop_parts);
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_node("body", ast.become_parent_of1(id, ast.to_v1_statement(self.body2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.for_loop_parts, visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_statement(self.body2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.for_loop_parts;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_statement(self.body2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.for_loop_parts;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl FormalParameterDefaultClauseImpl {
@@ -13668,6 +23202,39 @@ impl FormalParameterDefaultClauseImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.value2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("separator", self.separator);
+        entities.add_node("value", ast.become_parent_of1(id, ast.to_v1_expression(self.value2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.value2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.value2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.value2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -13701,6 +23268,194 @@ impl FormalParameterListImpl {
             f(element);
         }
         f(self.delimited_formal_parameters);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        self.child_entities1_hand(ast, id, entities)
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in self.parameters(ast, id) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = self.parameters_element_containing_range(ast, id, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.required_positional_formal_parameters, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.delimited_formal_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl FunctionDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return ast.end_token(self.function_expression, tokens);
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        self.first_token_after_comment_and_metadata_hand(Ast::new(ast, tokens))
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: FunctionDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: FunctionDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("externalKeyword", self.external_keyword);
+        entities.add_node("returnType", self.return_type(ast, id));
+        entities.add_token("propertyKeyword", self.property_keyword);
+        entities.add_token("name", self.name);
+        entities.add_node("functionExpression", self.function_expression);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.return_type(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(self.function_expression, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.function_expression;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: FunctionDeclaration is not in the V2 AST view.");
+    }
+}
+
+impl FunctionDeclarationStatementImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return ast.begin_token(self.function_declaration, tokens);
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return ast.end_token(self.function_declaration, tokens);
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: FunctionDeclarationStatement is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: FunctionDeclarationStatement is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("functionDeclaration", self.function_declaration);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.function_declaration, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.function_declaration;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: FunctionDeclarationStatement is not in the V2 AST view.");
     }
 }
 
@@ -13743,6 +23498,226 @@ impl FunctionExpressionImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("typeParameters", self.type_parameters(ast, id));
+        entities.add_node("parameters", self.parameters(ast, id));
+        entities.add_node("body", self.body(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.parameters(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.parameters(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        if id >= V1_BASE {
+            panic!("StateError: FunctionExpression is not in the V2 AST view.");
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl FunctionExpressionInvocationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.begin_token(self.origin, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.origin, tokens)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: FunctionExpressionInvocation is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: FunctionExpressionInvocation is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("function", self.function(ast, id));
+        entities.add_node("typeArguments", self.type_arguments(ast, id));
+        entities.add_node("argumentList", self.argument_list(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.function(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.function(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: FunctionExpressionInvocation is not in the V2 AST view.");
+    }
+}
+
+impl FunctionReferenceImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.begin_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.end_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: FunctionReference is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: FunctionReference is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("function", ast.become_parent_of1(id, ast.to_v1_expression(self.function2)));
+        entities.add_node("typeArguments", self.type_arguments);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.function2)), visitor);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.function2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: FunctionReference is not in the V2 AST view.");
     }
 }
 
@@ -13805,6 +23780,179 @@ impl FunctionTypeAlias2Impl {
         f(self.type_parameters);
         f(self.parameters);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: FunctionTypeAlias2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: FunctionTypeAlias2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl FunctionTypeAliasImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.semicolon;
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        return self.typedef_keyword;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: FunctionTypeAlias is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: FunctionTypeAlias is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("typedefKeyword", self.typedef_keyword);
+        entities.add_node("returnType", self.return_type(ast, id));
+        entities.add_token("name", self.name);
+        entities.add_node("typeParameters", self.type_parameters(ast, id));
+        entities.add_node("parameters", self.parameters(ast, id));
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.return_type(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.parameters(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.parameters(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: FunctionTypeAlias is not in the V2 AST view.");
+    }
 }
 
 impl FunctionTypedFormalParameterSuffixImpl {
@@ -13838,6 +23986,58 @@ impl FunctionTypedFormalParameterSuffixImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.type_parameters);
         f(self.formal_parameters);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("typeParameters", self.type_parameters);
+        entities.add_node("formalParameters", self.formal_parameters);
+        entities.add_token("question", self.question);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(self.formal_parameters, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.formal_parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.formal_parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -13878,6 +24078,78 @@ impl GenericFunctionTypeImpl {
         f(self.return_type);
         f(self.type_parameters);
         f(self.parameters);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("returnType", self.return_type);
+        entities.add_token("functionKeyword", self.function_keyword);
+        entities.add_node("typeParameters", self.type_parameters);
+        entities.add_node("parameters", self.parameters);
+        entities.add_token("question", self.question);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.return_type;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(self.parameters, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.return_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.return_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -13935,6 +24207,161 @@ impl GenericTypeAlias2Impl {
         }
         f(self.type_parameters);
         f(self.type_);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: GenericTypeAlias2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: GenericTypeAlias2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl GenericTypeAliasImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.semicolon;
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        return self.typedef_keyword;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: GenericTypeAlias is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: GenericTypeAlias is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("typedefKeyword", self.typedef_keyword);
+        entities.add_token("name", self.name);
+        entities.add_node("typeParameters", self.type_parameters(ast, id));
+        entities.add_token("equals", self.equals);
+        entities.add_node("type", self.type_(ast, id));
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: GenericTypeAlias is not in the V2 AST view.");
     }
 }
 
@@ -14007,6 +24434,58 @@ impl GetterDeclarationImpl {
         f(self.recovery_formal_parameters);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: MemberDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: GetterDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: GetterDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.recovery_formal_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl GuardedPatternImpl {
@@ -14036,6 +24515,57 @@ impl GuardedPatternImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.pattern);
         f(self.when_clause);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("pattern", self.pattern);
+        entities.add_node("whenClause", self.when_clause);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.pattern, visitor);
+        {
+            let child = self.when_clause;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.when_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.when_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -14069,6 +24599,41 @@ impl HideCombinatorImpl {
         for &element in &self.names {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("keyword", self.keyword);
+        entities.add_node_list("hiddenNames", ast.v1_projected_list(id, &self.names, Ast::to_v1_combinator_name));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in ast.v1_projected_list(id, &self.names, Ast::to_v1_combinator_name) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.v1_projected_element_containing_range(id, &self.names, Ast::to_v1_combinator_name, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.names, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -14115,6 +24680,94 @@ impl IfElementImpl {
         f(self.then_element2);
         f(self.else_element2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("ifKeyword", self.if_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_node("caseClause", self.case_clause);
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_node("thenElement", ast.become_parent_of1(id, ast.to_v1_collection_element(self.then_element2)));
+        entities.add_token("elseKeyword", self.else_keyword);
+        entities.add_node("elseElement", ast.become_parent_of1(id, if self.else_element2 != NO_NODE { ast.to_v1_collection_element(self.else_element2) } else { NO_NODE }));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+        {
+            let child = self.case_clause;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_collection_element(self.then_element2)), visitor);
+        {
+            let child = ast.become_parent_of1(id, if self.else_element2 != NO_NODE { ast.to_v1_collection_element(self.else_element2) } else { NO_NODE });
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.case_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_collection_element(self.then_element2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, if self.else_element2 != NO_NODE { ast.to_v1_collection_element(self.else_element2) } else { NO_NODE });
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.case_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.then_element2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.else_element2;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl IfNullAssignmentImpl {
@@ -14145,6 +24798,38 @@ impl IfNullAssignmentImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::assignment
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: IfNullAssignment is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: IfNullAssignment is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: IfNullAssignment is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.target;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.value;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl IfNullImpl {
@@ -14174,6 +24859,38 @@ impl IfNullImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::ifNull
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: IfNull is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: IfNull is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: IfNull is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.left_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.right_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -14220,6 +24937,94 @@ impl IfStatementImpl {
         f(self.then_statement2);
         f(self.else_statement2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("ifKeyword", self.if_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_node("caseClause", self.case_clause);
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_node("thenStatement", ast.become_parent_of1(id, ast.to_v1_statement(self.then_statement2)));
+        entities.add_token("elseKeyword", self.else_keyword);
+        entities.add_node("elseStatement", ast.become_parent_of1(id, if self.else_statement2 != NO_NODE { ast.to_v1_statement(self.else_statement2) } else { NO_NODE }));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+        {
+            let child = self.case_clause;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_statement(self.then_statement2)), visitor);
+        {
+            let child = ast.become_parent_of1(id, if self.else_statement2 != NO_NODE { ast.to_v1_statement(self.else_statement2) } else { NO_NODE });
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.case_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_statement(self.then_statement2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, if self.else_statement2 != NO_NODE { ast.to_v1_statement(self.else_statement2) } else { NO_NODE });
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.case_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.then_statement2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.else_statement2;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ImplementsClauseImpl {
@@ -14252,6 +25057,102 @@ impl ImplementsClauseImpl {
         for &element in &self.interfaces {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("implementsKeyword", self.implements_keyword);
+        entities.add_node_list("interfaces", self.interfaces.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.interfaces {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.interfaces, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.interfaces, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl ImplicitCallReferenceImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.begin_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.end_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: ImplicitCallReference is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: ImplicitCallReference is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_node("typeArguments", self.type_arguments);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ImplicitCallReference is not in the V2 AST view.");
     }
 }
 
@@ -14316,6 +25217,132 @@ impl ImportDirectiveImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("importKeyword", self.import_keyword);
+        entities.add_node("uri", self.uri);
+        entities.add_node_list("configurations", self.configurations.clone());
+        entities.add_token("deferredKeyword", self.deferred_keyword);
+        entities.add_token("asKeyword", self.as_keyword);
+        entities.add_node("prefix", self.prefix(ast, id));
+        entities.add_node_list("combinators", self.combinators.clone());
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        ast.accept(self.uri, visitor);
+        for element in &self.configurations {
+            ast.accept(*element, visitor);
+        }
+        {
+            let child = self.prefix(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        for element in &self.combinators {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+                {
+            let child = self.uri;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                NO_NODE
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.uri;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.configurations, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.prefix(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.combinators, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.uri;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.configurations, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.combinators, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ImportPrefixReferenceImpl {
@@ -14338,6 +25365,26 @@ impl ImportPrefixReferenceImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("name", self.name);
+        entities.add_token("period", self.period);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -14383,6 +25430,183 @@ impl IncrementOrDecrementExpressionImpl {
             IncrementOrDecrementPosition::postfix => Precedence::postfix,
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: IncrementOrDecrementExpression is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: IncrementOrDecrementExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: IncrementOrDecrementExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.target;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl IndexExpressionImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.begin_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.right_bracket;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: IndexExpression is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: IndexExpression is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("target", self.target(ast, id));
+        entities.add_token("period", self.period(ast, id));
+        entities.add_token("question", self.question);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node("index", self.index(ast, id));
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.target(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.index(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.target(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.index(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: IndexExpression is not in the V2 AST view.");
+    }
+}
+
+impl InstanceCreationExpressionImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.begin_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.end_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: InstanceCreationExpression is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: InstanceCreationExpression is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("keyword", self.keyword(ast, id));
+        entities.add_node("constructorName", self.constructor_name(ast, id));
+        entities.add_node("typeArguments", self.type_arguments(ast, id));
+        entities.add_node("argumentList", self.argument_list(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.constructor_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.constructor_name(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: InstanceCreationExpression is not in the V2 AST view.");
+    }
 }
 
 impl IntegerLiteralImpl {
@@ -14408,6 +25632,25 @@ impl IntegerLiteralImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("literal", self.literal);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -14436,6 +25679,40 @@ impl InterpolationExpressionImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl InterpolationStringImpl {
@@ -14457,6 +25734,25 @@ impl InterpolationStringImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("contents", self.contents);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -14480,6 +25776,32 @@ impl InvalidExpressionAssignmentTargetImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: InvalidExpressionAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: InvalidExpressionAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: InvalidExpressionAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl InvalidSuperAssignmentTargetImpl {
@@ -14501,6 +25823,32 @@ impl InvalidSuperAssignmentTargetImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.super_reference);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: InvalidSuperAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: InvalidSuperAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: InvalidSuperAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.super_reference;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -14527,6 +25875,32 @@ impl InvalidSuperExpressionImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: InvalidSuperExpression is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: InvalidSuperExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: InvalidSuperExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.super_reference;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -14559,6 +25933,54 @@ impl IsExpressionImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::relational
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_token("isOperator", self.is_operator);
+        entities.add_token("notOperator", self.not_operator);
+        entities.add_node("type", self.type_);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+        ast.accept(self.type_, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl LabelImpl {
@@ -14582,6 +26004,26 @@ impl LabelImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("name", self.name);
+        entities.add_token("colon", self.colon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
 }
 
 impl LabelReferenceImpl {
@@ -14603,6 +26045,25 @@ impl LabelReferenceImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -14638,6 +26099,54 @@ impl LabeledStatementImpl {
             f(element);
         }
         f(self.statement2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node_list("labels", self.labels.clone());
+        entities.add_node("statement", ast.become_parent_of1(id, ast.to_v1_statement(self.statement2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.labels {
+            ast.accept(*element, visitor);
+        }
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_statement(self.statement2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.labels, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_statement(self.statement2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.labels, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.statement2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -14687,6 +26196,76 @@ impl LibraryDirectiveImpl {
         }
         f(self.name);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("libraryKeyword", self.library_keyword);
+        entities.add_node("name", self.name);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.name;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.name;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.name;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ListLiteralImpl {
@@ -14731,6 +26310,62 @@ impl ListLiteralImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("constKeyword", self.const_keyword);
+        entities.add_node("typeArguments", self.type_arguments);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("elements", ast.v1_projected_list(id, &self.elements2, Ast::to_v1_collection_element));
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        for element in ast.v1_projected_list(id, &self.elements2, Ast::to_v1_collection_element) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.v1_projected_element_containing_range(id, &self.elements2, Ast::to_v1_collection_element, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.elements2, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ListPatternImpl {
@@ -14766,6 +26401,61 @@ impl ListPatternImpl {
         for &element in &self.elements {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("typeArguments", self.type_arguments);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("elements", self.elements.clone());
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        for element in &self.elements {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.elements, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.elements, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -14828,6 +26518,65 @@ impl LocalFunctionDeclarationImpl {
         f(self.formal_parameters);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: LocalFunctionDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: LocalFunctionDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.formal_parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl LocalVariableImpl {
@@ -14859,6 +26608,32 @@ impl LocalVariableImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.initializer);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: LocalVariable is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: LocalVariable is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: LocalVariable is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.initializer;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -14945,6 +26720,53 @@ impl LocalVariablesDeclarationImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: LocalVariablesDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: LocalVariablesDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.variables, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl LocalVariablesDeclarationStatementImpl {
@@ -14967,6 +26789,32 @@ impl LocalVariablesDeclarationStatementImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.declaration);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: LocalVariablesDeclarationStatement is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: LocalVariablesDeclarationStatement is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: LocalVariablesDeclarationStatement is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.declaration;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -14998,6 +26846,38 @@ impl LogicalAndImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::logicalAnd
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: LogicalAnd is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: LogicalAnd is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: LogicalAnd is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.left_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.right_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl LogicalAndPatternImpl {
@@ -15023,6 +26903,53 @@ impl LogicalAndPatternImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.left_operand);
         f(self.right_operand);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("leftOperand", self.left_operand);
+        entities.add_token("operator", self.operator_);
+        entities.add_node("rightOperand", self.right_operand);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.left_operand, visitor);
+        ast.accept(self.right_operand, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.left_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.right_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.left_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.right_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15050,6 +26977,32 @@ impl LogicalNotImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::prefix
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: LogicalNot is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: LogicalNot is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: LogicalNot is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15081,6 +27034,38 @@ impl LogicalOrImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::logicalOr
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: LogicalOr is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: LogicalOr is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: LogicalOr is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.left_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.right_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl LogicalOrPatternImpl {
@@ -15106,6 +27091,53 @@ impl LogicalOrPatternImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.left_operand);
         f(self.right_operand);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("leftOperand", self.left_operand);
+        entities.add_token("operator", self.operator_);
+        entities.add_node("rightOperand", self.right_operand);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.left_operand, visitor);
+        ast.accept(self.right_operand, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.left_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.right_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.left_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.right_operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15138,6 +27170,55 @@ impl MapLiteralEntryImpl {
         f(self.key2);
         f(self.value2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("keyQuestion", self.key_question);
+        entities.add_node("key", ast.become_parent_of1(id, ast.to_v1_expression(self.key2)));
+        entities.add_token("separator", self.separator);
+        entities.add_token("valueQuestion", self.value_question);
+        entities.add_node("value", ast.become_parent_of1(id, ast.to_v1_expression(self.value2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.key2)), visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.value2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.key2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.value2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.key2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.value2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl MapPatternEntryImpl {
@@ -15163,6 +27244,53 @@ impl MapPatternEntryImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.key2);
         f(self.value);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("key", ast.become_parent_of1(id, ast.to_v1_expression(self.key2)));
+        entities.add_token("separator", self.separator);
+        entities.add_node("value", self.value);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.key2)), visitor);
+        ast.accept(self.value, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.key2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.value;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.key2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.value;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15199,6 +27327,61 @@ impl MapPatternImpl {
         for &element in &self.elements {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("typeArguments", self.type_arguments);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("elements", self.elements.clone());
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        for element in &self.elements {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.elements, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.elements, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15273,6 +27456,297 @@ impl MethodDeclaration2Impl {
         f(self.formal_parameters);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: MemberDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: MethodDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: MethodDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.formal_parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl MethodDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.v1_projection_origin, tokens)
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        self.first_token_after_comment_and_metadata_hand(Ast::new(ast, tokens))
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: MethodDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: MethodDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("externalKeyword", self.external_keyword);
+        entities.add_token("modifierKeyword", self.modifier_keyword);
+        entities.add_node("returnType", self.return_type(ast, id));
+        entities.add_token("propertyKeyword", self.property_keyword);
+        entities.add_token("operatorKeyword", self.operator_keyword);
+        entities.add_token("name", self.name);
+        entities.add_node("typeParameters", self.type_parameters(ast, id));
+        entities.add_node("parameters", self.parameters(ast, id));
+        entities.add_node("body", self.body(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.return_type(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.parameters(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.parameters(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: MethodDeclaration is not in the V2 AST view.");
+    }
+}
+
+impl MethodInvocationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        if self.target2 != NO_NODE {
+            return ast.begin_token(self.target2, tokens);
+        }
+        if self.operator_ != NO_TOKEN {
+            return self.operator_;
+        }
+        return ast.begin_token(self.method_name, tokens);
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.argument_list, tokens)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: MethodInvocation is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: MethodInvocation is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("target", if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE });
+        entities.add_token("operator", self.operator_(ast, id));
+        entities.add_node("methodName", self.method_name(ast, id));
+        entities.add_node("typeArguments", self.type_arguments(ast, id));
+        entities.add_node("argumentList", self.argument_list(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE };
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.method_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE };
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.method_name(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: MethodInvocation is not in the V2 AST view.");
+    }
 }
 
 impl MixinDeclaration2Impl {
@@ -15342,6 +27816,201 @@ impl MixinDeclaration2Impl {
         f(self.implements_clause);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: MixinDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: MixinDeclaration2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.on_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.implements_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl MixinDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.v1_projection_origin, tokens)
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        if self.base_keyword != NO_TOKEN {
+            return self.base_keyword;
+        }
+        return self.mixin_keyword;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: MixinDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: MixinDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("baseKeyword", self.base_keyword);
+        entities.add_token("mixinKeyword", self.mixin_keyword);
+        entities.add_token("name", self.name);
+        entities.add_node("typeParameters", self.type_parameters(ast, id));
+        entities.add_node("onClause", self.on_clause(ast, id));
+        entities.add_node("implementsClause", self.implements_clause(ast, id));
+        entities.add_node("body", self.body(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.on_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.implements_clause(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_parameters(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.on_clause(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.implements_clause(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: MixinDeclaration is not in the V2 AST view.");
+    }
 }
 
 impl MixinOnClauseImpl {
@@ -15375,6 +28044,41 @@ impl MixinOnClauseImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("onKeyword", self.on_keyword);
+        entities.add_node_list("superclassConstraints", self.superclass_constraints.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.superclass_constraints {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.superclass_constraints, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.superclass_constraints, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl NameWithTypeParametersImpl {
@@ -15403,6 +28107,44 @@ impl NameWithTypeParametersImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.type_parameters);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("typeName", self.type_name);
+        entities.add_node("typeParameters", self.type_parameters);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl NamedArgumentImpl {
@@ -15426,6 +28168,40 @@ impl NamedArgumentImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.argument_expression2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("name", self.name);
+        entities.add_token("colon", self.colon);
+        entities.add_node("argumentExpression", ast.become_parent_of1(id, ast.to_v1_expression(self.argument_expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.argument_expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.argument_expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.argument_expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15467,6 +28243,67 @@ impl NamedTypeImpl {
         f(self.import_prefix);
         f(self.type_arguments);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("importPrefix", self.import_prefix(ast, id));
+        entities.add_token("name", self.name);
+        entities.add_node("typeArguments", self.type_arguments(ast, id));
+        entities.add_token("question", self.question);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.import_prefix(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.import_prefix(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        if id >= V1_BASE {
+            panic!("StateError: NamedType is not in the V2 AST view.");
+        }
+        {
+            let child = self.import_prefix;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl NativeClauseImpl {
@@ -15495,6 +28332,44 @@ impl NativeClauseImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.name);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("nativeKeyword", self.native_keyword);
+        entities.add_node("name", self.name);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.name;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.name;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.name;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl NativeFunctionBodyImpl {
@@ -15521,6 +28396,45 @@ impl NativeFunctionBodyImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.string_literal);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("nativeKeyword", self.native_keyword);
+        entities.add_node("stringLiteral", self.string_literal);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.string_literal;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.string_literal;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.string_literal;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl NullAssertPatternImpl {
@@ -15543,6 +28457,39 @@ impl NullAssertPatternImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.pattern);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("pattern", self.pattern);
+        entities.add_token("operator", self.operator_);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.pattern, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15571,6 +28518,32 @@ impl NullAssertionExpressionImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: NullAssertionExpression is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: NullAssertionExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: NullAssertionExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl NullAwareElementImpl {
@@ -15594,6 +28567,39 @@ impl NullAwareElementImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.value2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("question", self.question);
+        entities.add_node("value", ast.become_parent_of1(id, ast.to_v1_expression(self.value2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.value2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.value2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.value2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl NullCheckPatternImpl {
@@ -15616,6 +28622,39 @@ impl NullCheckPatternImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.pattern);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("pattern", self.pattern);
+        entities.add_token("operator", self.operator_);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.pattern, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15642,6 +28681,25 @@ impl NullLiteralImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("literal", self.literal);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -15673,6 +28731,56 @@ impl ObjectPatternImpl {
         for &element in &self.fields {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("type", self.type_);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node_list("fields", self.fields.clone());
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.type_, visitor);
+        for element in &self.fields {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.fields, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.fields, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15747,6 +28855,64 @@ impl OperatorDeclarationImpl {
         f(self.formal_parameters);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: MemberDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: OperatorDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: OperatorDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.recovery_type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.formal_parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ParenthesizedExpressionImpl {
@@ -15775,6 +28941,40 @@ impl ParenthesizedExpressionImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ParenthesizedPatternImpl {
@@ -15798,6 +28998,40 @@ impl ParenthesizedPatternImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.pattern);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("pattern", self.pattern);
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.pattern, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15825,6 +29059,26 @@ impl ParsedCascadeNameImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ParsedCascadeName is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ParsedCascadeName is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ParsedCascadeName is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
 }
 
 impl ParsedDotShorthandExpressionImpl {
@@ -15850,6 +29104,32 @@ impl ParsedDotShorthandExpressionImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         ast.precedence(self.expression)
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ParsedDotShorthandExpression is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ParsedDotShorthandExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ParsedDotShorthandExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15878,6 +29158,26 @@ impl ParsedDotShorthandNameImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ParsedDotShorthandName is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ParsedDotShorthandName is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ParsedDotShorthandName is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
 }
 
 impl ParsedNameAccessAssignmentTargetImpl {
@@ -15901,6 +29201,32 @@ impl ParsedNameAccessAssignmentTargetImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.operand);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ParsedNameAccessAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ParsedNameAccessAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ParsedNameAccessAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15940,6 +29266,32 @@ impl ParsedNameAccessImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ParsedNameAccess is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ParsedNameAccess is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ParsedNameAccess is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -15981,6 +29333,38 @@ impl ParsedTypeArgumentsImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ParsedTypeArguments is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ParsedTypeArguments is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ParsedTypeArguments is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_arguments;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ParsedUnqualifiedNameImpl {
@@ -16006,6 +29390,26 @@ impl ParsedUnqualifiedNameImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ParsedUnqualifiedName is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ParsedUnqualifiedName is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ParsedUnqualifiedName is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -16046,6 +29450,38 @@ impl ParsedValueArgumentsImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ParsedValueArguments is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ParsedValueArguments is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ParsedValueArguments is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -16092,6 +29528,85 @@ impl PartDirectiveImpl {
             f(element);
         }
         f(self.uri);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("partKeyword", self.part_keyword);
+        entities.add_node("uri", self.uri);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        ast.accept(self.uri, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+                {
+            let child = self.uri;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                NO_NODE
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.uri;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.uri;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -16147,6 +29662,96 @@ impl PartOfDirectiveImpl {
         f(self.uri);
         f(self.library_name);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("partKeyword", self.part_keyword);
+        entities.add_token("ofKeyword", self.of_keyword);
+        entities.add_node("uri", self.uri);
+        entities.add_node("libraryName", self.library_name);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.uri;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.library_name;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.uri;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.library_name;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.uri;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.library_name;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl PatternAssignmentImpl {
@@ -16176,6 +29781,53 @@ impl PatternAssignmentImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::assignment
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("pattern", self.pattern);
+        entities.add_token("equals", self.equals);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.pattern, visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -16207,6 +29859,57 @@ impl PatternFieldImpl {
         f(self.name);
         f(self.pattern);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("name", self.name);
+        entities.add_node("pattern", self.pattern);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.name;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(self.pattern, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.name;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.name;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl PatternFieldNameImpl {
@@ -16232,6 +29935,26 @@ impl PatternFieldNameImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("name", self.name);
+        entities.add_token("colon", self.colon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -16282,6 +30005,85 @@ impl PatternVariableDeclarationImpl {
         f(self.pattern);
         f(self.expression2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("keyword", self.keyword);
+        entities.add_node("pattern", self.pattern);
+        entities.add_token("equals", self.equals);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        ast.accept(self.pattern, visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl PatternVariableDeclarationStatementImpl {
@@ -16304,6 +30106,215 @@ impl PatternVariableDeclarationStatementImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.declaration);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("declaration", self.declaration);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.declaration, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.declaration;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.declaration;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl PostfixExpressionImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.begin_token(self.origin, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.origin, tokens)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: PostfixExpression is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: PostfixExpression is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("operand", self.operand(ast, id));
+        entities.add_token("operator", self.operator_(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.operand(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.operand(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: PostfixExpression is not in the V2 AST view.");
+    }
+}
+
+impl PrefixExpressionImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.begin_token(self.origin, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.origin, tokens)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: PrefixExpression is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: PrefixExpression is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("operator", self.operator_(ast, id));
+        entities.add_node("operand", self.operand(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.operand(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.operand(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: PrefixExpression is not in the V2 AST view.");
+    }
+}
+
+impl PrefixedIdentifierImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return ast.begin_token(self.prefix, tokens);
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.identifier, tokens)
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: PrefixedIdentifier is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: PrefixedIdentifier is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("prefix", self.prefix);
+        entities.add_token("period", self.period);
+        entities.add_node("identifier", self.identifier(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.prefix, visitor);
+        {
+            let child = self.identifier(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.prefix;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.identifier(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: PrefixedIdentifier is not in the V2 AST view.");
     }
 }
 
@@ -16362,6 +30373,155 @@ impl PrimaryConstructorBody2Impl {
         }
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: MemberDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: PrimaryConstructorBody2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: PrimaryConstructorBody2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.initializers, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl PrimaryConstructorBodyImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.v1_projection_origin, tokens)
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        return self.this_keyword;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: PrimaryConstructorBody is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: PrimaryConstructorBody is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("thisKeyword", self.this_keyword);
+        entities.add_token("colon", self.colon);
+        entities.add_node_list("initializers", self.initializers.clone());
+        entities.add_node("body", self.body(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        for element in &self.initializers {
+            ast.accept(*element, visitor);
+        }
+        {
+            let child = self.body(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.initializers, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.body(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: PrimaryConstructorBody is not in the V2 AST view.");
+    }
 }
 
 impl PrimaryConstructorDeclarationImpl {
@@ -16399,6 +30559,78 @@ impl PrimaryConstructorDeclarationImpl {
         f(self.constructor_name);
         f(self.formal_parameters);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("constKeyword", self.const_keyword);
+        entities.add_token("typeName", self.type_name);
+        entities.add_node("typeParameters", self.type_parameters);
+        entities.add_node("constructorName", self.constructor_name);
+        entities.add_node("formalParameters", self.formal_parameters);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.constructor_name;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(self.formal_parameters, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.constructor_name;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.formal_parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.constructor_name;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.formal_parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl PrimaryConstructorNameImpl {
@@ -16421,6 +30653,94 @@ impl PrimaryConstructorNameImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("period", self.period);
+        entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+}
+
+impl PropertyAccessImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.begin_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return ast.end_token(self.property_name, tokens);
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: PropertyAccess is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: PropertyAccess is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("target", if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE });
+        entities.add_token("operator", self.operator_(ast, id));
+        entities.add_node("propertyName", self.property_name(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE };
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.property_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE };
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.property_name(ast, id);
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: PropertyAccess is not in the V2 AST view.");
     }
 }
 
@@ -16449,6 +30769,38 @@ impl ReceiverIndexAssignmentTargetImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.index);
         f(self.receiver);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ReceiverIndexAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ReceiverIndexAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ReceiverIndexAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.receiver;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.index;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -16482,6 +30834,38 @@ impl ReceiverIndexExpressionImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ReceiverIndexExpression is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ReceiverIndexExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ReceiverIndexExpression is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.receiver;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.index;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ReceiverPropertyAssignmentTargetImpl {
@@ -16505,6 +30889,32 @@ impl ReceiverPropertyAssignmentTargetImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.receiver);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ReceiverPropertyAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ReceiverPropertyAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ReceiverPropertyAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.receiver;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -16533,6 +30943,32 @@ impl ReceiverPropertyExtractionImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::postfix
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: ReceiverPropertyExtraction is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: ReceiverPropertyExtraction is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: ReceiverPropertyExtraction is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.receiver;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -16570,6 +31006,43 @@ impl RecordLiteralImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("constKeyword", self.const_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node_list("fields", ast.v1_projected_list(id, &self.fields2, Ast::to_v1_record_literal_field));
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in ast.v1_projected_list(id, &self.fields2, Ast::to_v1_record_literal_field) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.v1_projected_element_containing_range(id, &self.fields2, Ast::to_v1_record_literal_field, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.fields2, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl RecordLiteralNamedFieldImpl {
@@ -16593,6 +31066,40 @@ impl RecordLiteralNamedFieldImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.field_expression2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("name", self.name);
+        entities.add_token("colon", self.colon);
+        entities.add_node("fieldExpression", ast.become_parent_of1(id, ast.to_v1_expression(self.field_expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.field_expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.field_expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.field_expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -16621,6 +31128,42 @@ impl RecordPatternImpl {
         for &element in &self.fields {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node_list("fields", self.fields.clone());
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.fields {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.fields, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.fields, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -16659,6 +31202,62 @@ impl RecordTypeAnnotationImpl {
         }
         f(self.named_fields);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node_list("positionalFields", self.positional_fields.clone());
+        entities.add_node("namedFields", self.named_fields);
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_token("question", self.question);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.positional_fields {
+            ast.accept(*element, visitor);
+        }
+        {
+            let child = self.named_fields;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.positional_fields, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.named_fields;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.positional_fields, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.named_fields;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl RecordTypeAnnotationNamedFieldImpl {
@@ -16695,6 +31294,55 @@ impl RecordTypeAnnotationNamedFieldImpl {
         }
         f(self.type_);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_node("type", self.type_);
+        entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.metadata {
+            ast.accept(*element, visitor);
+        }
+        ast.accept(self.type_, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.metadata, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.metadata, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl RecordTypeAnnotationNamedFieldsImpl {
@@ -16722,6 +31370,42 @@ impl RecordTypeAnnotationNamedFieldsImpl {
         for &element in &self.fields {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("fields", self.fields.clone());
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.fields {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.fields, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.fields, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -16762,6 +31446,55 @@ impl RecordTypeAnnotationPositionalFieldImpl {
         }
         f(self.type_);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_node("type", self.type_);
+        entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.metadata {
+            ast.accept(*element, visitor);
+        }
+        ast.accept(self.type_, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.metadata, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.metadata, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl RedirectingConstructorInvocationImpl {
@@ -16789,6 +31522,59 @@ impl RedirectingConstructorInvocationImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.constructor_selector);
         f(self.argument_list);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("thisKeyword", self.this_keyword);
+        entities.add_token("period", self.period(ast, id));
+        entities.add_node("constructorName", self.constructor_name(ast, id));
+        entities.add_node("argumentList", self.argument_list);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.constructor_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(self.argument_list, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.constructor_name(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.constructor_selector;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -16892,6 +31678,140 @@ impl RegularFormalParameterImpl {
         f(self.function_typed_suffix);
         f(self.default_clause);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("requiredKeyword", self.required_keyword);
+        entities.add_token("covariantKeyword", self.covariant_keyword);
+        entities.add_token("constFinalOrVarKeyword", self.const_final_or_var_keyword);
+        entities.add_node("type", self.type_);
+        entities.add_token("name", self.name);
+        entities.add_node("functionTypedSuffix", self.function_typed_suffix(ast, id));
+        entities.add_node("defaultClause", self.default_clause);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.type_;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.function_typed_suffix(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.default_clause;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                {
+            let result = ast.element_containing_range(&self.metadata, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+                {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                {
+            let child = self.function_typed_suffix(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                {
+            let child = self.default_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                NO_NODE
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.function_typed_suffix(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.default_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.function_typed_suffix;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.default_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl RelationalPatternImpl {
@@ -16914,6 +31834,39 @@ impl RelationalPatternImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.operand2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("operator", self.operator_);
+        entities.add_node("operand", ast.become_parent_of1(id, ast.to_v1_expression(self.operand2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.operand2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.operand2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.operand2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -16943,6 +31896,44 @@ impl RestPatternElementImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.pattern);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("operator", self.operator_);
+        entities.add_node("pattern", self.pattern);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.pattern;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.pattern;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl RethrowExpressionImpl {
@@ -16968,6 +31959,25 @@ impl RethrowExpressionImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::assignment
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("rethrowKeyword", self.rethrow_keyword);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -16995,6 +32005,45 @@ impl ReturnStatementImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("returnKeyword", self.return_keyword);
+        entities.add_node("expression", ast.become_parent_of1(id, if self.expression2 != NO_NODE { ast.to_v1_expression(self.expression2) } else { NO_NODE }));
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = ast.become_parent_of1(id, if self.expression2 != NO_NODE { ast.to_v1_expression(self.expression2) } else { NO_NODE });
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, if self.expression2 != NO_NODE { ast.to_v1_expression(self.expression2) } else { NO_NODE });
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ScriptTagImpl {
@@ -17016,6 +32065,25 @@ impl ScriptTagImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("scriptTag", self.script_tag);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -17039,6 +32107,26 @@ impl SemicolonEnumDeclarationBodyImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: SemicolonEnumDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: SemicolonEnumDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: SemicolonEnumDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
 }
 
 impl SemicolonInstanceDeclarationBodyImpl {
@@ -17060,6 +32148,26 @@ impl SemicolonInstanceDeclarationBodyImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: SemicolonInstanceDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: SemicolonInstanceDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: SemicolonInstanceDeclarationBody is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -17104,6 +32212,62 @@ impl SetOrMapLiteralImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("constKeyword", self.const_keyword);
+        entities.add_node("typeArguments", self.type_arguments);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("elements", ast.v1_projected_list(id, &self.elements2, Ast::to_v1_collection_element));
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        for element in ast.v1_projected_list(id, &self.elements2, Ast::to_v1_collection_element) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.v1_projected_element_containing_range(id, &self.elements2, Ast::to_v1_collection_element, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_arguments;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.elements2, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -17174,6 +32338,58 @@ impl SetterDeclarationImpl {
         f(self.formal_parameters);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: MemberDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: SetterDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: SetterDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.formal_parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl ShowCombinatorImpl {
@@ -17207,6 +32423,84 @@ impl ShowCombinatorImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("keyword", self.keyword);
+        entities.add_node_list("shownNames", ast.v1_projected_list(id, &self.names, Ast::to_v1_combinator_name));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in ast.v1_projected_list(id, &self.names, Ast::to_v1_combinator_name) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.v1_projected_element_containing_range(id, &self.names, Ast::to_v1_combinator_name, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.names, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl SimpleIdentifierImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.token;
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.token;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: SimpleIdentifier is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: SimpleIdentifier is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("token", self.token);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: SimpleIdentifier is not in the V2 AST view.");
+    }
 }
 
 impl SimpleStringLiteralImpl {
@@ -17233,6 +32527,25 @@ impl SimpleStringLiteralImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("literal", self.literal);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
 }
 
 impl SpreadElementImpl {
@@ -17255,6 +32568,39 @@ impl SpreadElementImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("spreadOperator", self.spread_operator);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -17298,6 +32644,40 @@ impl StringInterpolationImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node_list("elements", self.elements.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.elements {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.elements, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.elements, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl SuperConstructorInvocationImpl {
@@ -17325,6 +32705,102 @@ impl SuperConstructorInvocationImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.constructor_selector);
         f(self.argument_list);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("superKeyword", self.super_keyword);
+        entities.add_token("period", self.period(ast, id));
+        entities.add_node("constructorName", self.constructor_name(ast, id));
+        entities.add_node("argumentList", self.argument_list);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.constructor_name(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        ast.accept(self.argument_list, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.constructor_name(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.constructor_selector;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.argument_list;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl SuperExpressionImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.super_keyword;
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.super_keyword;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: SuperExpression is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: SuperExpression is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("superKeyword", self.super_keyword);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: SuperExpression is not in the V2 AST view.");
     }
 }
 
@@ -17406,6 +32882,142 @@ impl SuperFormalParameterImpl {
         f(self.function_typed_suffix);
         f(self.default_clause);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("requiredKeyword", self.required_keyword);
+        entities.add_token("covariantKeyword", self.covariant_keyword);
+        entities.add_token("constFinalOrVarKeyword", self.const_final_or_var_keyword);
+        entities.add_node("type", self.type_);
+        entities.add_token("superKeyword", self.super_keyword);
+        entities.add_token("period", self.period);
+        entities.add_token("name", self.name(ast, id));
+        entities.add_node("functionTypedSuffix", self.function_typed_suffix(ast, id));
+        entities.add_node("defaultClause", self.default_clause);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.type_;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.function_typed_suffix(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        {
+            let child = self.default_clause;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                {
+            let result = ast.element_containing_range(&self.metadata, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+                {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                {
+            let child = self.function_typed_suffix(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                {
+            let child = self.default_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                NO_NODE
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.function_typed_suffix(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.default_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.function_typed_suffix;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.default_clause;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl SuperReferenceImpl {
@@ -17427,6 +33039,26 @@ impl SuperReferenceImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: SuperReference is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: SuperReference is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: SuperReference is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -17478,6 +33110,72 @@ impl SwitchCaseImpl {
         }
         f(self.expression2);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node_list("labels", self.labels.clone());
+        entities.add_token("keyword", self.keyword);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_token("colon", self.colon);
+        entities.add_node_list("statements", self.statements(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.labels {
+            ast.accept(*element, visitor);
+        }
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+        for element in self.statements(ast, id) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.labels, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = self.statements_element_containing_range(ast, id, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.labels, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.statements2, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl SwitchDefaultImpl {
@@ -17525,6 +33223,58 @@ impl SwitchDefaultImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node_list("labels", self.labels.clone());
+        entities.add_token("keyword", self.keyword);
+        entities.add_token("colon", self.colon);
+        entities.add_node_list("statements", self.statements(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.labels {
+            ast.accept(*element, visitor);
+        }
+        for element in self.statements(ast, id) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.labels, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let result = self.statements_element_containing_range(ast, id, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.labels, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.statements2, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl SwitchExpressionCaseImpl {
@@ -17550,6 +33300,53 @@ impl SwitchExpressionCaseImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.guarded_pattern);
         f(self.expression2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("guardedPattern", self.guarded_pattern);
+        entities.add_token("arrow", self.arrow);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.guarded_pattern, visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.guarded_pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.guarded_pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -17588,6 +33385,59 @@ impl SwitchExpressionImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("switchKeyword", self.switch_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("cases", self.cases.clone());
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+        for element in &self.cases {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.cases, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.cases, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -17639,6 +33489,72 @@ impl SwitchPatternCaseImpl {
         }
         f(self.guarded_pattern);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node_list("labels", self.labels.clone());
+        entities.add_token("keyword", self.keyword);
+        entities.add_node("guardedPattern", self.guarded_pattern);
+        entities.add_token("colon", self.colon);
+        entities.add_node_list("statements", self.statements(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.labels {
+            ast.accept(*element, visitor);
+        }
+        ast.accept(self.guarded_pattern, visitor);
+        for element in self.statements(ast, id) {
+            ast.accept(element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.labels, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.guarded_pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = self.statements_element_containing_range(ast, id, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.labels, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.guarded_pattern;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.statements2, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl SwitchStatementImpl {
@@ -17673,6 +33589,59 @@ impl SwitchStatementImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("switchKeyword", self.switch_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("members", self.members.clone());
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+        for element in &self.members {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.members, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.members, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl SymbolLiteralImpl {
@@ -17700,6 +33669,26 @@ impl SymbolLiteralImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("poundSign", self.pound_sign);
+        entities.add_token_list("components", self.components.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
 }
 
 impl ThisExpressionImpl {
@@ -17725,6 +33714,25 @@ impl ThisExpressionImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::primary
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("thisKeyword", self.this_keyword);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
     }
 }
 
@@ -17752,6 +33760,39 @@ impl ThrowExpressionImpl {
 
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::assignment
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("throwKeyword", self.throw_keyword);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -17822,6 +33863,65 @@ impl TopLevelFunctionDeclarationImpl {
         f(self.formal_parameters);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: TopLevelFunctionDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: TopLevelFunctionDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.type_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.formal_parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl TopLevelGetterDeclarationImpl {
@@ -17889,6 +33989,59 @@ impl TopLevelGetterDeclarationImpl {
         f(self.recovery_formal_parameters);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: TopLevelGetterDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: TopLevelGetterDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.recovery_formal_parameters;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl TopLevelSetterDeclarationImpl {
@@ -17954,6 +34107,59 @@ impl TopLevelSetterDeclarationImpl {
         f(self.formal_parameters);
         f(self.body);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: TopLevelSetterDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: TopLevelSetterDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.return_type;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.formal_parameters;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl TopLevelVariable2Impl {
@@ -17985,6 +34191,127 @@ impl TopLevelVariable2Impl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.initializer);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: TopLevelVariable2 is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: TopLevelVariable2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: TopLevelVariable2 is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.initializer;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+}
+
+impl TopLevelVariableDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.semicolon;
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        if self.external_keyword != NO_TOKEN {
+            return self.external_keyword;
+        }
+        if self.abstract_keyword != NO_TOKEN {
+            return self.abstract_keyword;
+        }
+        return ast.begin_token(self.variables, tokens);
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: TopLevelVariableDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: TopLevelVariableDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("augmentKeyword", self.augment_keyword);
+        entities.add_token("externalKeyword", self.external_keyword);
+        entities.add_token("abstractKeyword", self.abstract_keyword);
+        entities.add_node("variables", self.variables);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        ast.accept(self.variables, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.variables;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: TopLevelVariableDeclaration is not in the V2 AST view.");
     }
 }
 
@@ -18069,6 +34396,53 @@ impl TopLevelVariablesDeclarationImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: TopLevelVariablesDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: TopLevelVariablesDeclaration is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.variables, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl TryStatementImpl {
@@ -18117,6 +34491,75 @@ impl TryStatementImpl {
         }
         f(self.finally_block);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("tryKeyword", self.try_keyword);
+        entities.add_node("body", self.body);
+        entities.add_node_list("catchClauses", self.catch_clauses.clone());
+        entities.add_token("finallyKeyword", self.finally_keyword);
+        entities.add_node("finallyBlock", self.finally_block);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.body, visitor);
+        for element in &self.catch_clauses {
+            ast.accept(*element, visitor);
+        }
+        {
+            let child = self.finally_block;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.catch_clauses, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.finally_block;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.body;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.catch_clauses, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.finally_block;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl TypeArgumentListImpl {
@@ -18144,6 +34587,42 @@ impl TypeArgumentListImpl {
         for &element in &self.arguments {
             f(element);
         }
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("arguments", self.arguments.clone());
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.arguments {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.arguments, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.arguments, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -18203,6 +34682,77 @@ impl TypeParameterImpl {
         }
         f(self.bound);
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("varianceKeyword", self.variance_keyword);
+        entities.add_token("name", self.name);
+        entities.add_token("extendsKeyword", self.extends_keyword);
+        entities.add_node("bound", self.bound);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.bound;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.bound;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.bound;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl TypeParameterListImpl {
@@ -18231,6 +34781,42 @@ impl TypeParameterListImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("leftBracket", self.left_bracket);
+        entities.add_node_list("typeParameters", self.type_parameters.clone());
+        entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.type_parameters {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.type_parameters, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.type_parameters, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl UnaryOperatorInvocationImpl {
@@ -18258,6 +34844,32 @@ impl UnaryOperatorInvocationImpl {
     pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
         Precedence::prefix
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: UnaryOperatorInvocation is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: UnaryOperatorInvocation is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: UnaryOperatorInvocation is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.operand;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl UnqualifiedNameAssignmentTargetImpl {
@@ -18279,6 +34891,264 @@ impl UnqualifiedNameAssignmentTargetImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        panic!("StateError: UnqualifiedNameAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        panic!("StateError: UnqualifiedNameAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: UnqualifiedNameAssignmentTarget is not in the V1 AST view.");
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        NO_NODE
+    }
+}
+
+impl VariableDeclarationImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        ast.end_token(self.v1_projection_origin, tokens)
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        return self.name;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: VariableDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: VariableDeclaration is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("name", self.name);
+        entities.add_token("equals", self.equals);
+        entities.add_node("initializer", self.initializer(ast, id));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.initializer(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.initializer(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: VariableDeclaration is not in the V2 AST view.");
+    }
+}
+
+impl VariableDeclarationListImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        let first = tokens.lexically_first(&[
+            if self.documentation_comment != NO_NODE {
+                ast.begin_token(self.documentation_comment, tokens)
+            } else {
+                NO_TOKEN
+            },
+            ast.node_list_begin_token(&self.metadata, tokens),
+        ]);
+        if first != NO_TOKEN {
+            return first;
+        }
+        self.first_token_after_comment_and_metadata(ast, tokens)
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        self.end_token1_hand(Ast::new(ast, tokens), id)
+    }
+
+    pub fn first_token_after_comment_and_metadata(&self, ast: &AstStore, tokens: &TokenStore) -> TokenId {
+        self.first_token_after_comment_and_metadata_hand(Ast::new(ast, tokens))
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: VariableDeclarationList is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: VariableDeclarationList is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("documentationComment", self.documentation_comment);
+        entities.add_node_list("metadata", self.metadata.clone());
+        entities.add_token("lateKeyword", self.late_keyword);
+        entities.add_token("keyword", self.keyword);
+        entities.add_node("type", self.type_(ast, id));
+        entities.add_node_list("variables", self.variables.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.visit_comment_and_annotations(self.documentation_comment, &self.metadata, visitor);
+        {
+            let child = self.type_(ast, id);
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+        for element in &self.variables {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = (|| -> NodeId {
+                {
+            let child = self.documentation_comment;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+                ast.element_containing_range(&self.metadata, range_offset, range_end)
+            })();
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        {
+            let child = self.type_(ast, id);
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let result = ast.element_containing_range(&self.variables, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: VariableDeclarationList is not in the V2 AST view.");
+    }
+}
+
+impl VariableDeclarationStatementImpl {
+    pub fn begin_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return ast.begin_token(self.variables, tokens);
+    }
+
+    pub fn end_token1(&self, ast: &AstStore, tokens: &TokenStore, id: NodeId) -> TokenId {
+        let _ = id;
+        return self.semicolon;
+    }
+
+    pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
+        panic!("StateError: VariableDeclarationStatement is not in the V2 AST view.");
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        panic!("StateError: VariableDeclarationStatement is not in the V2 AST view.");
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_node("variables", self.variables);
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(self.variables, visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.variables;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        panic!("StateError: VariableDeclarationStatement is not in the V2 AST view.");
     }
 }
 
@@ -18302,6 +35172,39 @@ impl WhenClauseImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("whenKeyword", self.when_keyword);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -18330,6 +35233,55 @@ impl WhileStatementImpl {
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.condition2);
         f(self.body2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("whileKeyword", self.while_keyword);
+        entities.add_token("leftParenthesis", self.left_parenthesis);
+        entities.add_node("condition", ast.become_parent_of1(id, ast.to_v1_expression(self.condition2)));
+        entities.add_token("rightParenthesis", self.right_parenthesis);
+        entities.add_node("body", ast.become_parent_of1(id, ast.to_v1_statement(self.body2)));
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.condition2)), visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_statement(self.body2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.condition2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_statement(self.body2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.condition2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        {
+            let child = self.body2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -18362,6 +35314,45 @@ impl WildcardPatternImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.type_);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("keyword", self.keyword);
+        entities.add_node("type", self.type_);
+        entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        {
+            let child = self.type_;
+            if child != NO_NODE {
+                ast.accept(child, visitor);
+            }
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.type_;
+            if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
@@ -18396,6 +35387,41 @@ impl WithClauseImpl {
             f(element);
         }
     }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("withKeyword", self.with_keyword);
+        entities.add_node_list("mixinTypes", self.mixin_types.clone());
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        for element in &self.mixin_types {
+            ast.accept(*element, visitor);
+        }
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.mixin_types, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let result = ast.element_containing_range(&self.mixin_types, range_offset, range_end);
+            if result != NO_NODE {
+                return result;
+            }
+        }
+        NO_NODE
+    }
 }
 
 impl YieldStatementImpl {
@@ -18420,6 +35446,41 @@ impl YieldStatementImpl {
 
     pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
         f(self.expression2);
+    }
+
+    pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
+        let _ = (ast, id, &entities);
+        entities.add_token("yieldKeyword", self.yield_keyword);
+        entities.add_token("star", self.star);
+        entities.add_node("expression", ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)));
+        entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
+        let _ = (ast, id, &visitor);
+        ast.accept(ast.become_parent_of1(id, ast.to_v1_expression(self.expression2)), visitor);
+    }
+
+    pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = ast.become_parent_of1(id, ast.to_v1_expression(self.expression2));
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
+    }
+
+    pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
+        let _ = (ast, id, range_offset, range_end);
+        {
+            let child = self.expression2;
+            if ast.contains_offset(child, range_offset, range_end) {
+                return child;
+            }
+        }
+        NO_NODE
     }
 }
 
