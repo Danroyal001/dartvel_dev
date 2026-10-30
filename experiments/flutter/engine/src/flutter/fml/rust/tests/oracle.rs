@@ -11,6 +11,7 @@
 //   FML_ORACLE_SEED_BASE  first seed (default 1)
 //   FML_ORACLE_SEEDS      seeds per suite (default 16)
 //   FML_ORACLE_CASES      cases per seed (default 250)
+//   FML_ORACLE_SUITES     comma-separated subset of the suites (default all)
 //   FML_ORACLE_WORK       scratch directory (default <target>/fml_oracle)
 
 use std::path::{Path, PathBuf};
@@ -37,7 +38,7 @@ const SUITES: &[&str] = &["time", "strings", "codec", "hash", "endian", "trie", 
 
 fn engine_src() -> PathBuf {
     // CARGO_MANIFEST_DIR is engine/src/flutter/fml/rust.
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..").canonicalize().unwrap()
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap()
 }
 
 fn env_or(name: &str, default: &str) -> String {
@@ -122,7 +123,13 @@ fn oracle_matches_upstream() {
     let cases = env_or("FML_ORACLE_CASES", "250");
     let mut failures = Vec::new();
     let mut compared = 0usize;
-    for suite in SUITES {
+    let only = env_or("FML_ORACLE_SUITES", "");
+    let suites: Vec<&str> = SUITES
+        .iter()
+        .copied()
+        .filter(|s| only.is_empty() || only.split(',').any(|o| o == *s))
+        .collect();
+    for suite in &suites {
         for seed in base..base + seeds {
             let seed = seed.to_string();
             let args = [*suite, seed.as_str(), cases.as_str()];
@@ -141,9 +148,9 @@ fn oracle_matches_upstream() {
         failures.is_empty(),
         "{} of {} runs differ ({} bytes of oracle output):\n{}",
         failures.len(),
-        SUITES.len() as u64 * seeds,
+        suites.len() as u64 * seeds,
         compared,
         failures.join("\n")
     );
-    eprintln!("oracle: {} suites x {seeds} seeds x {cases} cases, {compared} bytes identical", SUITES.len());
+    eprintln!("oracle: {} suites x {seeds} seeds x {cases} cases, {compared} bytes identical", suites.len());
 }
