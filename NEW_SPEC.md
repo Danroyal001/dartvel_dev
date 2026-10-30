@@ -16812,7 +16812,12 @@ either, whether run by the stock toolchain or by Dartvel's Rust one. A
 `.dv` file is never a `.dart` file and is never handed to a Dart compiler.
 Dartvel's toolchain compiles it ahead of time to native code: a shared
 library with a generated C header on native targets, a WebAssembly module
-(see *WebAssembly* below), or static linking into a Dartvel build. That also gives Dart and
+(see *WebAssembly* below), or static linking into a Dartvel build.
+Source files are compiled with `dartvel compile` (`exe`, `lib` for a shared
+library and header, `wasm`, `wasi`), Dartvel's equivalent of `dart compile`.
+`dartvel build` stays what it is, the command that builds Dartvel apps and
+stays Flutter-compatible; it compiles a project's `.dv` libraries by calling
+`dartvel compile`, never the other way round. That also gives Dart and
 Flutter something they lack, native libraries written in a Dart-shaped
 language.
 
@@ -16890,7 +16895,7 @@ WasmGC.
 A library is compiled to WasmGC only when it actually uses GC-managed Dart
 objects (classes with identity, closures over them, `List`/`Map` of them).
 The compiler decides per library from what the code uses and reports it;
-`dartvel build` names which libraries needed WasmGC and why. A `.dart` app
+`dartvel compile` names which libraries needed WasmGC and why. A `.dart` app
 compiled to WasmGC calls a plain-Wasm `.dv` module through the same generated
 binding it would use for a native library.
 
