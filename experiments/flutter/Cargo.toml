@@ -4,6 +4,7 @@
 resolver = "2"
 members = [
   "engine/src/flutter/fml/rust",
+  "engine/src/flutter/impeller/geometry/rust",
 ]
 
 [profile.release]
