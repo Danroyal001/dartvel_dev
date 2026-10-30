@@ -25,7 +25,10 @@
 #include <vector>
 
 #include "impeller/geometry/color.h"
+#include "impeller/geometry/arc.h"
 #include "impeller/geometry/constants.h"
+#include "impeller/geometry/dashed_line_path_source.h"
+#include "impeller/geometry/path_source.h"
 #include "impeller/geometry/gradient.h"
 #include "impeller/geometry/half.h"
 #include "impeller/geometry/matrix.h"
@@ -33,6 +36,10 @@
 #include "impeller/geometry/quaternion.h"
 #include "impeller/geometry/rational.h"
 #include "impeller/geometry/rect.h"
+#include "impeller/geometry/round_rect.h"
+#include "impeller/geometry/round_superellipse.h"
+#include "impeller/geometry/round_superellipse_param.h"
+#include "impeller/geometry/rounding_radii.h"
 #include "impeller/geometry/rstransform.h"
 #include "impeller/geometry/separated_vector.h"
 #include "impeller/geometry/sigma.h"
@@ -2280,6 +2287,392 @@ static void SuiteMisc(Rng& r, int cases) {
   }
 }
 
+// ----------------------------------------------- round shapes and paths ---
+
+// A receiver that prints every segment it is given.
+class PrintReceiver : public PathReceiver {
+ public:
+  explicit PrintReceiver(bool accept_conics) : accept_conics_(accept_conics) {}
+  void MoveTo(const Point& p2, bool will_be_closed) override {
+    S("M");
+    P(p2);
+    B(will_be_closed);
+  }
+  void LineTo(const Point& p2) override {
+    S("L");
+    P(p2);
+  }
+  void QuadTo(const Point& cp, const Point& p2) override {
+    S("Q");
+    P(cp);
+    P(p2);
+  }
+  bool ConicTo(const Point& cp, const Point& p2, Scalar weight) override {
+    S("K");
+    P(cp);
+    P(p2);
+    F(weight);
+    return accept_conics_;
+  }
+  void CubicTo(const Point& cp1, const Point& cp2, const Point& p2) override {
+    S("C");
+    P(cp1);
+    P(cp2);
+    P(p2);
+  }
+  void Close() override { S("Z"); }
+
+ private:
+  bool accept_conics_;
+};
+
+// A receiver that keeps PathReceiver's own ConicTo (returning false).
+class DefaultConicReceiver : public PathReceiver {
+ public:
+  void MoveTo(const Point& p2, bool will_be_closed) override { S("m"); }
+  void LineTo(const Point& p2) override { S("l"); }
+  void QuadTo(const Point& cp, const Point& p2) override { S("q"); }
+  void CubicTo(const Point& cp1, const Point& cp2, const Point& p2) override {
+    S("c");
+  }
+  void Close() override { S("z"); }
+};
+
+static void RR(const RoundingRadii& rr) {
+  SZ(rr.top_left);
+  SZ(rr.top_right);
+  SZ(rr.bottom_left);
+  SZ(rr.bottom_right);
+}
+
+static void Source(const PathSource& source, bool accept_conics) {
+  S("[");
+  I(static_cast<int>(source.GetFillType()));
+  R(source.GetBounds());
+  B(source.IsConvex());
+  PrintReceiver receiver(accept_conics);
+  source.Dispatch(receiver);
+  S("]");
+}
+
+// Radii: usually sane and positive, sometimes zero, negative or edge values.
+static float RadiusF(Rng& r) {
+  switch (r.Below(8)) {
+    case 0: return 0.0f;
+    case 1: return EdgeF(r);
+    case 2: return -static_cast<float>(r.Unit() * 10.0);
+    default: return static_cast<float>(r.Unit() * 60.0);
+  }
+}
+static Size RadiusS(Rng& r) {
+  float w = RadiusF(r);
+  float h = r.Chance(3) ? w : RadiusF(r);
+  return Size(w, h);
+}
+// A size with both dimensions in [0, scale).
+static Size UnitS(Rng& r, double scale) {
+  float w = static_cast<float>(r.Unit() * scale);
+  float h = static_cast<float>(r.Unit() * scale);
+  return Size(w, h);
+}
+
+static RoundingRadii GenRadii(Rng& r) {
+  switch (r.Below(4)) {
+    case 0: return RoundingRadii::MakeRadius(RadiusF(r));
+    case 1: return RoundingRadii::MakeRadii(RadiusS(r));
+    default: {
+      Size tl = RadiusS(r);
+      Size tr = RadiusS(r);
+      Size bl = RadiusS(r);
+      Size br = RadiusS(r);
+      return RoundingRadii{tl, tr, bl, br};
+    }
+  }
+}
+// Bounds for the round shapes: sane rects of every size, empty and inverted
+// ones, and sometimes edge values.
+static Rect RoundBounds(Rng& r) {
+  if (r.Chance(6)) {
+    return GenR(r);
+  }
+  float l = SaneF(r), t = SaneF(r);
+  float w = static_cast<float>(r.Unit() * 200.0);
+  float h = r.Chance(4) ? w : static_cast<float>(r.Unit() * 200.0);
+  if (r.Chance(8)) {
+    w = -w;
+  }
+  return Rect::MakeXYWH(l, t, w, h);
+}
+// A point near or inside the bounds, where containment is interesting.
+static Point NearPoint(Rng& r, const Rect& b) {
+  if (r.Chance(8)) {
+    return EdgeP(r);
+  }
+  float fx = static_cast<float>(r.Unit() * 1.2 - 0.1);
+  float fy = static_cast<float>(r.Unit() * 1.2 - 0.1);
+  if (r.Chance(8)) {
+    fx = std::round(fx * 4.0f) / 4.0f;
+  }
+  return Point(b.GetLeft() + fx * b.GetWidth(), b.GetTop() + fy * b.GetHeight());
+}
+
+static void SuiteRound(Rng& r, int cases) {
+  for (int c = 0; c < cases; c++) {
+    Rect bounds = RoundBounds(r);
+    RoundingRadii radii = GenRadii(r);
+    float tol = r.Chance(2) ? kEhCloseEnough : SaneF(r);
+    float sc = SaneF(r);
+    Tag("radii");
+    R(bounds);
+    RR(radii);
+    F(tol);
+    F(sc);
+    Arrow();
+    B(radii.IsFinite());
+    B(radii.AreAllCornersEmpty());
+    B(radii.AreAllCornersSame());
+    B(radii.AreAllCornersSame(tol));
+    B(radii.AreAllCornersCircular());
+    RR(radii.Scaled(bounds));
+    RR(radii * sc);
+    B(radii == radii.Scaled(bounds));
+    RR(RoundingRadii::MakeNinePatch(sc, tol, bounds.GetLeft(), bounds.GetTop()));
+    End();
+
+    float rad = RadiusF(r);
+    float rx = RadiusF(r), ry = RadiusF(r);
+    float dx = SaneF(r), dy = SaneF(r), dz = SaneF(r), dw = SaneF(r);
+    RoundRect rr = RoundRect::MakeRectRadii(bounds, radii);
+    Tag("round_rect");
+    R(bounds);
+    RR(radii);
+    F(rad);
+    F(rx);
+    F(ry);
+    Arrow();
+    R(rr.GetBounds());
+    RR(rr.GetRadii());
+    B(rr.IsFinite());
+    B(rr.IsEmpty());
+    B(rr.IsRect());
+    B(rr.IsOval());
+    for (int i = 0; i < 6; i++) {
+      Point p = NearPoint(r, rr.GetBounds());
+      P(p);
+      B(rr.Contains(p));
+    }
+    RoundRect variants[] = {
+        RoundRect::MakeRect(bounds),
+        RoundRect::MakeOval(bounds),
+        RoundRect::MakeRectRadius(bounds, rad),
+        RoundRect::MakeRectXY(bounds, rx, ry),
+        RoundRect::MakeRectXY(bounds, Size(ry, rx)),
+        RoundRect::MakeNinePatch(bounds, rx, ry, rad, dx),
+        rr.Shift(dx, dy),
+        rr.Expand(dx, dy, dz, dw),
+        rr.Expand(dx, dy),
+        rr.Expand(dz),
+    };
+    for (const auto& v : variants) {
+      R(v.GetBounds());
+      RR(v.GetRadii());
+      B(v.IsRect());
+      B(v.IsOval());
+      B(v == rr);
+    }
+    RoundRect inner = RoundRect::MakeRectRadii(bounds.Expand(-5.0f), radii);
+    Source(RoundRectPathSource(rr), true);
+    Source(DiffRoundRectPathSource(rr, inner), r.Chance(2));
+    End();
+
+    RoundSuperellipse rse = RoundSuperellipse::MakeRectRadii(bounds, radii);
+    Tag("rse");
+    R(bounds);
+    RR(radii);
+    Arrow();
+    R(rse.GetBounds());
+    RR(rse.GetRadii());
+    B(rse.IsFinite());
+    B(rse.IsEmpty());
+    B(rse.IsRect());
+    B(rse.IsOval());
+    for (int i = 0; i < 6; i++) {
+      Point p = NearPoint(r, rse.GetBounds());
+      P(p);
+      B(rse.Contains(p));
+    }
+    RoundSuperellipse rvariants[] = {
+        RoundSuperellipse::MakeRect(bounds),
+        RoundSuperellipse::MakeOval(bounds),
+        RoundSuperellipse::MakeRectRadius(bounds, rad),
+        RoundSuperellipse::MakeRectXY(bounds, rx, ry),
+        RoundSuperellipse::MakeRectXY(bounds, Size(ry, rx)),
+        rse.Shift(dx, dy),
+        rse.Expand(dx, dy, dz, dw),
+        rse.Expand(dx, dy),
+        rse.Expand(dz),
+    };
+    for (const auto& v : rvariants) {
+      R(v.GetBounds());
+      RR(v.GetRadii());
+      B(v.IsRect());
+      B(v.IsOval());
+      B(v == rse);
+    }
+    RoundRect approx = rse.ToApproximateRoundRect();
+    R(approx.GetBounds());
+    RR(approx.GetRadii());
+    Source(RoundSuperellipsePathSource(rse), true);
+    End();
+
+    // The param directly, with finite bounds and radii (upstream converts a
+    // NaN to size_t otherwise).
+    {
+      float l = SaneF(r), t = SaneF(r);
+      float w = static_cast<float>(r.Unit() * 300.0);
+      float h = static_cast<float>(r.Unit() * 300.0);
+      Rect pb = Rect::MakeXYWH(l, t, w, h);
+      float pr = static_cast<float>(r.Unit() * 200.0);
+      if (r.Chance(8)) {
+        pr = 0.0f;
+      }
+      if (r.Chance(8)) {
+        pr = static_cast<float>(r.Unit() * 2e-3);
+      }
+      Size tl = UnitS(r, 150.0);
+      Size tr = UnitS(r, 150.0);
+      Size bl = UnitS(r, 150.0);
+      Size br = UnitS(r, 150.0);
+      RoundingRadii pradii{tl, tr, bl, br};
+      if (r.Chance(4)) {
+        pradii = RoundingRadii::MakeRadius(pr);
+      }
+      Tag("rse_param");
+      R(pb);
+      F(pr);
+      RR(pradii);
+      Arrow();
+      for (const auto& param :
+           {RoundSuperellipseParam::MakeBoundsRadius(pb, pr),
+            RoundSuperellipseParam::MakeBoundsRadii(pb, pradii)}) {
+        for (const auto* q : {&param.top_right, &param.bottom_right,
+                              &param.bottom_left, &param.top_left}) {
+          P(q->offset);
+          P(q->signed_scale);
+          for (const auto* o : {&q->top, &q->right}) {
+            P(o->offset);
+            F(o->se_a);
+            F(o->se_n);
+            F(o->se_max_theta);
+            P(o->circle_start);
+            P(o->circle_center);
+            F(o->circle_max_angle.radians);
+            F(o->circle_radius);
+          }
+        }
+        B(param.all_corners_same);
+        F(param.top_split);
+        F(param.bottom_split);
+        F(param.left_split);
+        F(param.right_split);
+        for (int i = 0; i < 4; i++) {
+          Point p = NearPoint(r, pb);
+          P(p);
+          B(param.Contains(p));
+        }
+        PrintReceiver receiver(true);
+        param.Dispatch(receiver);
+      }
+      End();
+    }
+
+    // Arcs.
+    float start = r.Chance(4) ? EdgeF(r) : static_cast<float>(r.Unit() * 1440.0 - 720.0);
+    float sweep = r.Chance(4) ? EdgeF(r) : static_cast<float>(r.Unit() * 1440.0 - 720.0);
+    if (r.Chance(4)) {
+      start = static_cast<float>(static_cast<int>(r.Below(9)) * 90 - 360);
+      sweep = static_cast<float>(static_cast<int>(r.Below(9)) * 90 - 360);
+    }
+    bool include_center = r.Chance(2);
+    size_t step_count = r.Below(40);
+    Rect ab = r.Chance(5) ? GenR(r) : RoundBounds(r);
+    Arc arc(ab, Degrees(start), Degrees(sweep), include_center);
+    Tag("arc");
+    R(ab);
+    F(start);
+    F(sweep);
+    B(include_center);
+    U(step_count);
+    Arrow();
+    R(arc.GetOvalBounds());
+    P(arc.GetOvalCenter());
+    SZ(arc.GetOvalSize());
+    F(arc.GetStart().degrees);
+    F(arc.GetSweep().degrees);
+    B(arc.IncludeCenter());
+    B(arc.IsPerfectCircle());
+    B(arc.IsFullCircle());
+    R(arc.GetTightArcBounds());
+    for (bool simplify : {true, false}) {
+      Arc::Iteration it = arc.ComputeIterations(step_count, simplify);
+      P(it.start);
+      P(it.end);
+      U(it.quadrant_count);
+      for (size_t i = 0; i < it.quadrant_count; i++) {
+        P(it.quadrants[i].axis);
+        U(it.quadrants[i].start_index);
+        U(it.quadrants[i].end_index);
+      }
+      U(it.GetPointCount());
+    }
+    End();
+
+    // The other path sources, and PathTransformer.
+    Rect sb = GenR(r);
+    Point p0 = r.Chance(4) ? EdgeP(r) : SaneP(r);
+    Point p1 = r.Chance(4) ? EdgeP(r) : SaneP(r);
+    float on = r.Chance(4) ? EdgeF(r) : static_cast<float>(r.Unit() * 40.0);
+    float off = r.Chance(4) ? EdgeF(r) : static_cast<float>(r.Unit() * 40.0);
+    // Keep the number of dashes bounded (upstream loops until the dashes
+    // cover the line).
+    {
+      float length = p0.GetDistance(p1);
+      if (length > 0.0f && on >= 0.0f && off > 0.0f && std::isfinite(on) &&
+          std::isfinite(off) && (on + off) * 2000.0f < length) {
+        off = length / 1000.0f;
+      }
+    }
+    Matrix m = GenM(r);
+    Tag("paths");
+    R(sb);
+    P(p0);
+    P(p1);
+    F(on);
+    F(off);
+    M(m);
+    Arrow();
+    Source(RectPathSource(sb), true);
+    Source(EllipsePathSource(sb), true);
+    Source(DashedLinePathSource(p0, p1, on, off), true);
+    {
+      PrintReceiver inner(r.Chance(2));
+      PathTransformer transformer(inner, m);
+      EllipsePathSource(sb).Dispatch(transformer);
+      RoundRectPathSource(rr).Dispatch(transformer);
+      transformer.QuadTo(p0, p1);
+      transformer.CubicTo(p1, p0, p1);
+      S("ret");
+      B(transformer.ConicTo(p0, p1, on));
+    }
+    {
+      DefaultConicReceiver def;
+      B(def.ConicTo(p0, p1, on));
+      EllipsePathSource(sb).Dispatch(def);
+    }
+    End();
+  }
+}
+
 // ----------------------------------------------------------------- main ----
 
 typedef void (*Suite)(Rng&, int);
@@ -2296,6 +2689,7 @@ static const NamedSuite kSuites[] = {
     {"matrix", SuiteMatrix},
     {"rect", SuiteRect},
     {"misc", SuiteMisc},
+    {"round", SuiteRound},
 };
 
 int main(int argc, char** argv) {

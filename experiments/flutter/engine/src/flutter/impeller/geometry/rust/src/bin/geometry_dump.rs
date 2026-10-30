@@ -8,8 +8,11 @@
 
 use std::io::Write;
 
+use impeller_geometry::arc::*;
 use impeller_geometry::color::*;
 use impeller_geometry::constants::*;
+use impeller_geometry::dashed_line_path_source::*;
+use impeller_geometry::path_source::*;
 use impeller_geometry::half::*;
 use impeller_geometry::matrix::*;
 use impeller_geometry::matrix_decomposition::*;
@@ -17,6 +20,10 @@ use impeller_geometry::quaternion::*;
 use impeller_geometry::gradient::*;
 use impeller_geometry::rational::*;
 use impeller_geometry::rect::*;
+use impeller_geometry::round_rect::*;
+use impeller_geometry::round_superellipse::*;
+use impeller_geometry::round_superellipse_param::RoundSuperellipseParam;
+use impeller_geometry::rounding_radii::*;
 use impeller_geometry::rstransform::*;
 use impeller_geometry::separated_vector::*;
 use impeller_geometry::sigma::*;
@@ -2265,6 +2272,409 @@ fn suite_misc(r: &mut Rng, o: &mut Out, cases: i32) {
     }
 }
 
+// ----------------------------------------------- round shapes and paths ---
+
+struct PrintReceiver<'a> {
+    o: &'a mut Out,
+    accept_conics: bool,
+}
+
+impl PathReceiver for PrintReceiver<'_> {
+    fn move_to(&mut self, p2: &Point, will_be_closed: bool) {
+        self.o.s("M");
+        self.o.p(*p2);
+        self.o.b(will_be_closed);
+    }
+    fn line_to(&mut self, p2: &Point) {
+        self.o.s("L");
+        self.o.p(*p2);
+    }
+    fn quad_to(&mut self, cp: &Point, p2: &Point) {
+        self.o.s("Q");
+        self.o.p(*cp);
+        self.o.p(*p2);
+    }
+    fn conic_to(&mut self, cp: &Point, p2: &Point, weight: Scalar) -> bool {
+        self.o.s("K");
+        self.o.p(*cp);
+        self.o.p(*p2);
+        self.o.f(weight);
+        self.accept_conics
+    }
+    fn cubic_to(&mut self, cp1: &Point, cp2: &Point, p2: &Point) {
+        self.o.s("C");
+        self.o.p(*cp1);
+        self.o.p(*cp2);
+        self.o.p(*p2);
+    }
+    fn close(&mut self) {
+        self.o.s("Z");
+    }
+}
+
+struct DefaultConicReceiver<'a> {
+    o: &'a mut Out,
+}
+
+impl PathReceiver for DefaultConicReceiver<'_> {
+    fn move_to(&mut self, _p2: &Point, _will_be_closed: bool) {
+        self.o.s("m");
+    }
+    fn line_to(&mut self, _p2: &Point) {
+        self.o.s("l");
+    }
+    fn quad_to(&mut self, _cp: &Point, _p2: &Point) {
+        self.o.s("q");
+    }
+    fn cubic_to(&mut self, _cp1: &Point, _cp2: &Point, _p2: &Point) {
+        self.o.s("c");
+    }
+    fn close(&mut self) {
+        self.o.s("z");
+    }
+}
+
+impl Out {
+    fn rr(&mut self, rr: &RoundingRadii) {
+        self.sz(rr.top_left);
+        self.sz(rr.top_right);
+        self.sz(rr.bottom_left);
+        self.sz(rr.bottom_right);
+    }
+    fn source(&mut self, source: &dyn PathSource, accept_conics: bool) {
+        self.s("[");
+        self.i(source.get_fill_type() as i64);
+        self.r(&source.get_bounds());
+        self.b(source.is_convex());
+        let mut receiver = PrintReceiver { o: self, accept_conics };
+        source.dispatch(&mut receiver);
+        self.s("]");
+    }
+}
+
+fn radius_f(r: &mut Rng) -> f32 {
+    match r.below(8) {
+        0 => 0.0,
+        1 => edge_f(r),
+        2 => -(r.unit() * 10.0) as f32,
+        _ => (r.unit() * 60.0) as f32,
+    }
+}
+fn radius_s(r: &mut Rng) -> Size {
+    let w = radius_f(r);
+    let h = if r.chance(3) { w } else { radius_f(r) };
+    Size::new(w, h)
+}
+fn unit_s(r: &mut Rng, scale: f64) -> Size {
+    let w = (r.unit() * scale) as f32;
+    let h = (r.unit() * scale) as f32;
+    Size::new(w, h)
+}
+fn gen_radii(r: &mut Rng) -> RoundingRadii {
+    match r.below(4) {
+        0 => RoundingRadii::make_radius(radius_f(r)),
+        1 => RoundingRadii::make_radii(radius_s(r)),
+        _ => {
+            let tl = radius_s(r);
+            let tr = radius_s(r);
+            let bl = radius_s(r);
+            let br = radius_s(r);
+            RoundingRadii { top_left: tl, top_right: tr, bottom_left: bl, bottom_right: br }
+        }
+    }
+}
+fn round_bounds(r: &mut Rng) -> Rect {
+    if r.chance(6) {
+        return gen_r(r);
+    }
+    let l = sane_f(r);
+    let t = sane_f(r);
+    let mut w = (r.unit() * 200.0) as f32;
+    let h = if r.chance(4) { w } else { (r.unit() * 200.0) as f32 };
+    if r.chance(8) {
+        w = -w;
+    }
+    Rect::make_xywh(l, t, w, h)
+}
+fn near_point(r: &mut Rng, b: &Rect) -> Point {
+    if r.chance(8) {
+        return edge_p(r);
+    }
+    let mut fx = (r.unit() * 1.2 - 0.1) as f32;
+    let fy = (r.unit() * 1.2 - 0.1) as f32;
+    if r.chance(8) {
+        fx = (fx * 4.0).round() / 4.0;
+    }
+    Point::new(b.get_left() + fx * b.get_width(), b.get_top() + fy * b.get_height())
+}
+
+fn suite_round(r: &mut Rng, o: &mut Out, cases: i32) {
+    for _ in 0..cases {
+        let bounds = round_bounds(r);
+        let radii = gen_radii(r);
+        let tol = if r.chance(2) { kEhCloseEnough } else { sane_f(r) };
+        let sc = sane_f(r);
+        o.tag("radii");
+        o.r(&bounds);
+        o.rr(&radii);
+        o.f(tol);
+        o.f(sc);
+        o.arrow();
+        o.b(radii.is_finite());
+        o.b(radii.are_all_corners_empty());
+        o.b(radii.are_all_corners_same());
+        o.b(radii.are_all_corners_same_tol(tol));
+        o.b(radii.are_all_corners_circular());
+        o.rr(&radii.scaled(&bounds));
+        o.rr(&(radii * sc));
+        o.b(radii == radii.scaled(&bounds));
+        o.rr(&RoundingRadii::make_nine_patch(sc, tol, bounds.get_left(), bounds.get_top()));
+        o.end();
+
+        let rad = radius_f(r);
+        let rx = radius_f(r);
+        let ry = radius_f(r);
+        let dx = sane_f(r);
+        let dy = sane_f(r);
+        let dz = sane_f(r);
+        let dw = sane_f(r);
+        let rr = RoundRect::make_rect_radii(&bounds, &radii);
+        o.tag("round_rect");
+        o.r(&bounds);
+        o.rr(&radii);
+        o.f(rad);
+        o.f(rx);
+        o.f(ry);
+        o.arrow();
+        o.r(rr.get_bounds());
+        o.rr(rr.get_radii());
+        o.b(rr.is_finite());
+        o.b(rr.is_empty());
+        o.b(rr.is_rect());
+        o.b(rr.is_oval());
+        for _ in 0..6 {
+            let p = near_point(r, rr.get_bounds());
+            o.p(p);
+            o.b(rr.contains(&p));
+        }
+        let variants = [
+            RoundRect::make_rect(&bounds),
+            RoundRect::make_oval(&bounds),
+            RoundRect::make_rect_radius(&bounds, rad),
+            RoundRect::make_rect_xy(&bounds, rx, ry),
+            RoundRect::make_rect_xy_size(&bounds, Size::new(ry, rx)),
+            RoundRect::make_nine_patch(&bounds, rx, ry, rad, dx),
+            rr.shift(dx, dy),
+            rr.expand_ltrb(dx, dy, dz, dw),
+            rr.expand_xy(dx, dy),
+            rr.expand(dz),
+        ];
+        for v in &variants {
+            o.r(v.get_bounds());
+            o.rr(v.get_radii());
+            o.b(v.is_rect());
+            o.b(v.is_oval());
+            o.b(*v == rr);
+        }
+        let inner = RoundRect::make_rect_radii(&bounds.expand(-5.0), &radii);
+        o.source(&RoundRectPathSource::new(&rr), true);
+        let accept = r.chance(2);
+        o.source(&DiffRoundRectPathSource::new(&rr, &inner), accept);
+        o.end();
+
+        let rse = RoundSuperellipse::make_rect_radii(&bounds, &radii);
+        o.tag("rse");
+        o.r(&bounds);
+        o.rr(&radii);
+        o.arrow();
+        o.r(rse.get_bounds());
+        o.rr(rse.get_radii());
+        o.b(rse.is_finite());
+        o.b(rse.is_empty());
+        o.b(rse.is_rect());
+        o.b(rse.is_oval());
+        for _ in 0..6 {
+            let p = near_point(r, rse.get_bounds());
+            o.p(p);
+            o.b(rse.contains(&p));
+        }
+        let rvariants = [
+            RoundSuperellipse::make_rect(&bounds),
+            RoundSuperellipse::make_oval(&bounds),
+            RoundSuperellipse::make_rect_radius(&bounds, rad),
+            RoundSuperellipse::make_rect_xy(&bounds, rx, ry),
+            RoundSuperellipse::make_rect_xy_size(&bounds, Size::new(ry, rx)),
+            rse.shift(dx, dy),
+            rse.expand_ltrb(dx, dy, dz, dw),
+            rse.expand_xy(dx, dy),
+            rse.expand(dz),
+        ];
+        for v in &rvariants {
+            o.r(v.get_bounds());
+            o.rr(v.get_radii());
+            o.b(v.is_rect());
+            o.b(v.is_oval());
+            o.b(*v == rse);
+        }
+        let approx = rse.to_approximate_round_rect();
+        o.r(approx.get_bounds());
+        o.rr(approx.get_radii());
+        o.source(&RoundSuperellipsePathSource::new(&rse), true);
+        o.end();
+
+        {
+            let l = sane_f(r);
+            let t = sane_f(r);
+            let w = (r.unit() * 300.0) as f32;
+            let h = (r.unit() * 300.0) as f32;
+            let pb = Rect::make_xywh(l, t, w, h);
+            let mut pr = (r.unit() * 200.0) as f32;
+            if r.chance(8) {
+                pr = 0.0;
+            }
+            if r.chance(8) {
+                pr = (r.unit() * 2e-3) as f32;
+            }
+            let tl = unit_s(r, 150.0);
+            let tr = unit_s(r, 150.0);
+            let bl = unit_s(r, 150.0);
+            let br = unit_s(r, 150.0);
+            let mut pradii =
+                RoundingRadii { top_left: tl, top_right: tr, bottom_left: bl, bottom_right: br };
+            if r.chance(4) {
+                pradii = RoundingRadii::make_radius(pr);
+            }
+            o.tag("rse_param");
+            o.r(&pb);
+            o.f(pr);
+            o.rr(&pradii);
+            o.arrow();
+            for param in [
+                RoundSuperellipseParam::make_bounds_radius(&pb, pr),
+                RoundSuperellipseParam::make_bounds_radii(&pb, &pradii),
+            ] {
+                for q in [&param.top_right, &param.bottom_right, &param.bottom_left, &param.top_left] {
+                    o.p(q.offset);
+                    o.p(q.signed_scale);
+                    for oc in [&q.top, &q.right] {
+                        o.p(oc.offset);
+                        o.f(oc.se_a);
+                        o.f(oc.se_n);
+                        o.f(oc.se_max_theta);
+                        o.p(oc.circle_start);
+                        o.p(oc.circle_center);
+                        o.f(oc.circle_max_angle.radians);
+                        o.f(oc.circle_radius);
+                    }
+                }
+                o.b(param.all_corners_same);
+                o.f(param.top_split);
+                o.f(param.bottom_split);
+                o.f(param.left_split);
+                o.f(param.right_split);
+                for _ in 0..4 {
+                    let p = near_point(r, &pb);
+                    o.p(p);
+                    o.b(param.contains(&p));
+                }
+                let mut receiver = PrintReceiver { o: &mut *o, accept_conics: true };
+                param.dispatch(&mut receiver);
+            }
+            o.end();
+        }
+
+        let mut start = if r.chance(4) { edge_f(r) } else { (r.unit() * 1440.0 - 720.0) as f32 };
+        let mut sweep = if r.chance(4) { edge_f(r) } else { (r.unit() * 1440.0 - 720.0) as f32 };
+        if r.chance(4) {
+            start = (r.below(9) as i32 * 90 - 360) as f32;
+            sweep = (r.below(9) as i32 * 90 - 360) as f32;
+        }
+        let include_center = r.chance(2);
+        let step_count = r.below(40) as usize;
+        let ab = if r.chance(5) { gen_r(r) } else { round_bounds(r) };
+        let arc = Arc::new(&ab, Degrees::new(start), Degrees::new(sweep), include_center);
+        o.tag("arc");
+        o.r(&ab);
+        o.f(start);
+        o.f(sweep);
+        o.b(include_center);
+        o.u(step_count as u64);
+        o.arrow();
+        o.r(arc.get_oval_bounds());
+        o.p(arc.get_oval_center());
+        o.sz(arc.get_oval_size());
+        o.f(arc.get_start().degrees);
+        o.f(arc.get_sweep().degrees);
+        o.b(arc.include_center());
+        o.b(arc.is_perfect_circle());
+        o.b(arc.is_full_circle());
+        o.r(&arc.get_tight_arc_bounds());
+        for simplify in [true, false] {
+            let it = arc.compute_iterations(step_count, simplify);
+            o.p(it.start);
+            o.p(it.end);
+            o.u(it.quadrant_count as u64);
+            for i in 0..it.quadrant_count {
+                o.p(it.quadrants[i].axis);
+                o.u(it.quadrants[i].start_index as u64);
+                o.u(it.quadrants[i].end_index as u64);
+            }
+            o.u(it.get_point_count() as u64);
+        }
+        o.end();
+
+        let sb = gen_r(r);
+        let p0 = if r.chance(4) { edge_p(r) } else { sane_p(r) };
+        let p1 = if r.chance(4) { edge_p(r) } else { sane_p(r) };
+        let on = if r.chance(4) { edge_f(r) } else { (r.unit() * 40.0) as f32 };
+        let mut off = if r.chance(4) { edge_f(r) } else { (r.unit() * 40.0) as f32 };
+        {
+            let length = p0.get_distance(&p1);
+            if length > 0.0
+                && on >= 0.0
+                && off > 0.0
+                && on.is_finite()
+                && off.is_finite()
+                && (on + off) * 2000.0 < length
+            {
+                off = length / 1000.0;
+            }
+        }
+        let m = gen_m(r);
+        o.tag("paths");
+        o.r(&sb);
+        o.p(p0);
+        o.p(p1);
+        o.f(on);
+        o.f(off);
+        o.m(&m);
+        o.arrow();
+        o.source(&RectPathSource::new(&sb), true);
+        o.source(&EllipsePathSource::new(&sb), true);
+        o.source(&DashedLinePathSource::new(p0, p1, on, off), true);
+        {
+            let accept = r.chance(2);
+            let mut inner = PrintReceiver { o: &mut *o, accept_conics: accept };
+            let mut transformer = PathTransformer::new(&mut inner, &m);
+            EllipsePathSource::new(&sb).dispatch(&mut transformer);
+            RoundRectPathSource::new(&rr).dispatch(&mut transformer);
+            transformer.quad_to(&p0, &p1);
+            transformer.cubic_to(&p1, &p0, &p1);
+            drop(transformer);
+            inner.o.s("ret");
+            let ret = PathTransformer::new(&mut inner, &m).conic_to(&p0, &p1, on);
+            inner.o.b(ret);
+        }
+        {
+            let mut def = DefaultConicReceiver { o: &mut *o };
+            let ret = def.conic_to(&p0, &p1, on);
+            def.o.b(ret);
+            EllipsePathSource::new(&sb).dispatch(&mut def);
+        }
+        o.end();
+    }
+}
+
 // ----------------------------------------------------------------- main ----
 
 type Suite = fn(&mut Rng, &mut Out, i32);
@@ -2278,6 +2688,7 @@ const SUITES: &[(&str, Suite)] =
         ("matrix", suite_matrix),
         ("rect", suite_rect),
         ("misc", suite_misc),
+        ("round", suite_round),
     ];
 
 fn main() {

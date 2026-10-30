@@ -28,18 +28,27 @@ const UPSTREAM_SOURCES: &[&str] = &[
     "flutter/fml/logging.cc",
     "flutter/fml/log_settings.cc",
     "flutter/fml/log_settings_state.cc",
+    "flutter/impeller/geometry/arc.cc",
     "flutter/impeller/geometry/color.cc",
     "flutter/impeller/geometry/constants.cc",
+    "flutter/impeller/geometry/dashed_line_path_source.cc",
     "flutter/impeller/geometry/gradient.cc",
     "flutter/impeller/geometry/matrix.cc",
     "flutter/impeller/geometry/matrix_decomposition.cc",
+    "flutter/impeller/geometry/path_source.cc",
+    "flutter/impeller/geometry/point.cc",
     "flutter/impeller/geometry/quaternion.cc",
     "flutter/impeller/geometry/rational.cc",
     "flutter/impeller/geometry/rect.cc",
+    "flutter/impeller/geometry/round_rect.cc",
+    "flutter/impeller/geometry/round_superellipse.cc",
+    "flutter/impeller/geometry/round_superellipse_param.cc",
+    "flutter/impeller/geometry/rounding_radii.cc",
     "flutter/impeller/geometry/rstransform.cc",
     "flutter/impeller/geometry/separated_vector.cc",
     "flutter/impeller/geometry/shear.cc",
     "flutter/impeller/geometry/sigma.cc",
+    "flutter/impeller/geometry/size.cc",
     "flutter/impeller/geometry/stroke_parameters.cc",
     "flutter/impeller/geometry/trig.cc",
     "flutter/impeller/geometry/type_traits.cc",
@@ -47,7 +56,7 @@ const UPSTREAM_SOURCES: &[&str] = &[
     "flutter/impeller/geometry/wangs_formula.cc",
 ];
 
-const SUITES: &[&str] = &["scalar", "point", "size", "vector", "color", "matrix", "rect", "misc"];
+const SUITES: &[&str] = &["scalar", "point", "size", "vector", "color", "matrix", "rect", "misc", "round"];
 
 /// The compiler flags that decide floating-point results, as the engine's
 /// //build/config/compiler sets them for linux-x64: -march=x86-64 (SSE2, no
