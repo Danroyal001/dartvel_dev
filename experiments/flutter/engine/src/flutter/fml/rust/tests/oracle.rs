@@ -13,6 +13,7 @@
 //   FML_ORACLE_CASES      cases per seed (default 250)
 //   FML_ORACLE_SUITES     comma-separated subset of the suites (default all)
 //   FML_ORACLE_WORK       scratch directory (default <target>/fml_oracle)
+//   FML_ORACLE_TIMEOUT    seconds one driver run may take (default 300)
 //
 // The C++ is built with -DNDEBUG in release test runs and without it in debug
 // ones, matching the port's debug_assertions.
@@ -123,8 +124,46 @@ pub fn build_oracle() -> PathBuf {
     out
 }
 
+/// Runs one driver, killing it after FML_ORACLE_TIMEOUT seconds (default
+/// 300): a port that loses a task makes the loop and thread suites wait for
+/// it forever, and a hang must fail the test, not stall it.
 fn run(bin: &Path, args: &[&str]) -> (Vec<u8>, Vec<u8>) {
-    let out = Command::new(bin).args(args).output().unwrap();
+    use std::io::Read;
+    use std::process::Stdio;
+    let timeout: u64 = env_or("FML_ORACLE_TIMEOUT", "300").parse().unwrap();
+    let mut child =
+        Command::new(bin).args(args).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+    // Drain both pipes on threads so that a chatty child cannot block.
+    let mut stdout = child.stdout.take().unwrap();
+    let mut stderr = child.stderr.take().unwrap();
+    let out_reader = std::thread::spawn(move || {
+        let mut v = Vec::new();
+        stdout.read_to_end(&mut v).unwrap();
+        v
+    });
+    let err_reader = std::thread::spawn(move || {
+        let mut v = Vec::new();
+        stderr.read_to_end(&mut v).unwrap();
+        v
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout);
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("{} {:?} did not finish within {timeout} s", bin.display(), args);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    };
+    struct Output {
+        status: std::process::ExitStatus,
+        stdout: Vec<u8>,
+        stderr: Vec<u8>,
+    }
+    let out = Output { status, stdout: out_reader.join().unwrap(), stderr: err_reader.join().unwrap() };
     assert!(
         out.status.success(),
         "{} {:?} failed: {}",
