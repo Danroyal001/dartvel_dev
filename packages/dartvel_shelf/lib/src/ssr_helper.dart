@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
+    show DVCacheAdapter, DVRoutePage, DVServerCrashes, dvStatusPageRoute, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
@@ -240,8 +240,12 @@ Future<Response> _fromManifest(
 
   DVPageData? data;
   if (pageData != null && matched != null) {
-    data = await (cache ?? _cacheFor(spaRoot, settings, pageStore))
-        .resolve(matched, pageData, settings.pageDataMode);
+    try {
+      data = await (cache ?? _cacheFor(spaRoot, settings, pageStore))
+          .resolve(matched, pageData, settings.pageDataMode);
+    } catch (error, stack) {
+      return _statusPage(500, error, stack, shell: shell, path: pagePath, routeMap: routeMap, siteUrl: pageSiteUrl);
+    }
   }
 
   final Map<String, Object?>? route = matched == null ? null : (routeMap[matched.pattern] as Map?)?.cast<String, Object?>();
@@ -357,6 +361,43 @@ Response? _shellFirst({
     isStream: true,
     body: chunks.map<List<int>>(utf8.encode),
   );
+}
+
+/// The answer to a page request that failed: [code] as the status, the shell
+/// as the body so the application still loads, and the captured page of the
+/// code's status route in it for a reader with no JavaScript.
+///
+/// The detail a developer needs goes to the log and to crash reporting; the
+/// body never carries it. A build with no status page for the code still
+/// answers the code, with the shell's own title rather than the error.
+Response _statusPage(
+  int code,
+  Object error,
+  StackTrace stack, {
+  required String shell,
+  required String path,
+  required Map<String, Object?> routeMap,
+  required String? siteUrl,
+}) {
+  DVServerCrashes.record(error, stack);
+  stderr
+    ..writeln('dartvel: $path answered $code: its page data failed: $error')
+    ..writeln(stack);
+  final String? route = dvStatusPageRoute(code);
+  final Map<String, Object?>? statusRoute =
+      route == null ? null : (routeMap[route] as Map?)?.cast<String, Object?>();
+  final String? shellTitle = RegExp(r'<title>(.*?)</title>', dotAll: true).firstMatch(shell)?.group(1)?.trim();
+  final Object? captured = statusRoute?['page'];
+  final String page = captured is Map
+      ? dvRenderRoutePage(shell, DVRoutePage.fromJson(captured.cast<String, Object?>()).at(path, siteUrl: siteUrl))
+      : dvRenderRoute(
+          shell: shell,
+          path: path,
+          title: statusRoute?['title'] is String ? statusRoute!['title']! as String : (shellTitle ?? '$code'),
+          text: <String>[for (final Object? line in (statusRoute?['text'] as List?) ?? const <Object?>[]) '$line'],
+          siteUrl: siteUrl,
+        );
+  return _html(dvMinifyHtml(page), status: code);
 }
 
 Response _html(String page, {int status = 200, bool streaming = false}) {
