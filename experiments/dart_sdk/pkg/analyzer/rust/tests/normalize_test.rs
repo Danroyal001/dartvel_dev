@@ -94,3 +94,36 @@ fn type_parameter_bounded_by_never_is_never() {
     s.store.elements[u as usize].type_ = Some(i(int, vec![], none));
     assert_eq!(norm(&mut s, TypeImpl::type_parameter(u, none)), "U");
 }
+
+// Top merge (top_merge.dart), with the same stores.
+
+use analyzer::src::dart::element::top_merge::top_merge;
+
+fn merge(sdk: &mut Sdk, a: TypeImpl, b: TypeImpl) -> Result<String, &'static str> {
+    let r = top_merge(&mut sdk.store, &a, &b)?;
+    Ok(display_string(&sdk.store, &r))
+}
+
+#[test]
+fn top_merge_of_top_types() {
+    let mut s = sdk();
+    let object = s.object;
+    let oq = i(object, vec![], question);
+    assert_eq!(merge(&mut s, oq.clone(), TypeImpl::Dynamic), Ok("Object?".into()));
+    assert_eq!(merge(&mut s, TypeImpl::Dynamic, oq.clone()), Ok("Object?".into()));
+    assert_eq!(merge(&mut s, TypeImpl::Dynamic, TypeImpl::Void), Ok("Object?".into()));
+    assert_eq!(merge(&mut s, TypeImpl::Void, TypeImpl::Void), Ok("void".into()));
+    assert_eq!(merge(&mut s, TypeImpl::Dynamic, TypeImpl::Dynamic), Ok("dynamic".into()));
+}
+
+#[test]
+fn top_merge_of_interface_types() {
+    let mut s = sdk();
+    let (object, int, fo) = (s.object, s.int, s.future_or);
+    let a = i(fo, vec![TypeImpl::Dynamic], none);
+    let b = i(fo, vec![i(object, vec![], question)], none);
+    assert_eq!(merge(&mut s, a, b), Ok("FutureOr<Object?>".into()));
+    // Different classes, or different nullabilities, do not merge.
+    assert!(merge(&mut s, i(int, vec![], none), i(object, vec![], none)).is_err());
+    assert!(merge(&mut s, i(int, vec![], question), i(int, vec![], none)).is_err());
+}
