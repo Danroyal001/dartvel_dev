@@ -1,4 +1,4 @@
-/// The two pages an app shows when a page cannot be shown.
+/// The pages an app shows when a page cannot be shown.
 ///
 /// One is a path with nothing at it, and the other is a path the device
 /// cannot reach. Both used to be documents the build wrote by hand, which put
@@ -17,7 +17,7 @@ library dartvel_flutter.routing.page_errors;
 import 'package:dartvel_core/dartvel.dart' show dvOfflineReturn;
 import 'package:flutter/material.dart';
 
-import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings, DVNavLink, DVRouteTarget;
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings, DVNavLink, DVRouteTarget, DVTranslationKey;
 
 /// A path with nothing at it.
 ///
@@ -75,6 +75,46 @@ class DVOfflinePage extends StatelessWidget {
       ],
       children: <Widget>[
         _DVLinkButton(to: DVRouteTarget(target), label: DV.I18n.t(DVFrameworkStrings.retry)),
+      ],
+    );
+  }
+}
+
+/// The page for a status code a server answered a page request with.
+///
+/// Status pages are generated per code: a 500 is not a stack trace in front
+/// of a customer, and the detail a developer needs goes to the log while the
+/// visitor gets a sentence. So this takes the code and nothing else -- there
+/// is no parameter through which an error, a message or a stack could reach
+/// the reader.
+///
+/// Each code says what it means for the person reading it, because the
+/// answers differ: a 429 asks them to wait, a 503 says the application is
+/// down for now, a 403 says the page is not theirs to see, and a 500 says the
+/// fault is the application's. A code with no sentence of its own reads as
+/// a 500, which is the honest default for a failure the page cannot name.
+class DVStatusPage extends StatelessWidget {
+  const DVStatusPage({super.key, required this.code});
+
+  /// The HTTP status the page request was answered with.
+  final int code;
+
+  @override
+  Widget build(BuildContext context) {
+    final (DVTranslationKey title, DVTranslationKey body) = switch (code) {
+      403 => (DVFrameworkStrings.status403Title, DVFrameworkStrings.status403Body),
+      429 => (DVFrameworkStrings.status429Title, DVFrameworkStrings.status429Body),
+      503 => (DVFrameworkStrings.status503Title, DVFrameworkStrings.status503Body),
+      _ => (DVFrameworkStrings.status500Title, DVFrameworkStrings.status500Body),
+    };
+    return _DVErrorPage(
+      title: DV.I18n.t(title),
+      body: <String>[DV.I18n.t(body)],
+      children: <Widget>[
+        _DVLinkButton(
+          to: const DVRouteTarget('/'),
+          label: DV.I18n.t(DVFrameworkStrings.goHome),
+        ),
       ],
     );
   }

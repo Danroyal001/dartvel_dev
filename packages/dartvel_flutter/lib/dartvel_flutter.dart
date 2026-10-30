@@ -11851,6 +11851,39 @@ abstract final class DVFrameworkStrings {
   static const DVTranslationKey accountTypeToConfirm =
       DVTranslationKey('dv.account.typeToConfirm');
 
+  /// The heading of the status page for a 403.
+  static const DVTranslationKey status403Title =
+      DVTranslationKey('dv.status.403.title');
+
+  /// The sentence of the status page for a 403.
+  static const DVTranslationKey status403Body =
+      DVTranslationKey('dv.status.403.body');
+
+  /// The heading of the status page for a 429.
+  static const DVTranslationKey status429Title =
+      DVTranslationKey('dv.status.429.title');
+
+  /// The sentence of the status page for a 429.
+  static const DVTranslationKey status429Body =
+      DVTranslationKey('dv.status.429.body');
+
+  /// The heading of the status page for a 500, and for any code with no page
+  /// of its own.
+  static const DVTranslationKey status500Title =
+      DVTranslationKey('dv.status.500.title');
+
+  /// The sentence of the status page for a 500.
+  static const DVTranslationKey status500Body =
+      DVTranslationKey('dv.status.500.body');
+
+  /// The heading of the status page for a 503.
+  static const DVTranslationKey status503Title =
+      DVTranslationKey('dv.status.503.title');
+
+  /// The sentence of the status page for a 503.
+  static const DVTranslationKey status503Body =
+      DVTranslationKey('dv.status.503.body');
+
   /// The catalogue default for each framework key, by key.
   static const Map<String, String> defaults = <String, String>{
     'dv.table.empty': 'No rows',
@@ -11862,6 +11895,14 @@ abstract final class DVFrameworkStrings {
     'dv.empty.nothingMatching': 'No results',
     'dv.empty.nothingVisible': 'Nothing here is visible to you',
     'dv.action.clearFilters': 'Clear filters',
+    'dv.status.403.title': 'You cannot open this page',
+    'dv.status.403.body': 'This page is not available to your account.',
+    'dv.status.429.title': 'Too many requests',
+    'dv.status.429.body': 'Wait a moment, then try again.',
+    'dv.status.500.title': 'Something went wrong on our side',
+    'dv.status.500.body': 'The problem has been recorded. Try again in a little while.',
+    'dv.status.503.title': 'This application is unavailable',
+    'dv.status.503.body': 'It should be back shortly. Try again in a few minutes.',
     'dv.action.save': 'Save',
     'dv.action.reset': 'Reset',
     'dv.action.cancel': 'Cancel',
