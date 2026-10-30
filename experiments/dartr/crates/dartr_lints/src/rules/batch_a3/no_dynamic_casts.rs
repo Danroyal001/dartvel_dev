@@ -50,7 +50,8 @@ fn check(ctx: &LinterContext<'_>, expression: NodeId, target: TypeId, out: &mut 
         return;
     }
     if matches!(resolved.ctx.ty(target), TypeKind::Dynamic)
-        || target == resolved.ctx.tp.object_question_type()
+        // Dart `==` ignores a typedef alias.
+        || resolved.ctx.dart_eq(target, resolved.ctx.tp.object_question_type())
     {
         return;
     }
@@ -113,7 +114,9 @@ fn check_for_each(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnosti
     if matches!(
         resolved.ctx.ty(loop_type),
         TypeKind::Dynamic | TypeKind::Void
-    ) || loop_type == resolved.ctx.tp.object_question_type()
+    ) || resolved
+        .ctx
+        .dart_eq(loop_type, resolved.ctx.tp.object_question_type())
     {
         return;
     }
