@@ -4,7 +4,7 @@
 // Builds oracle/fml_dump.cc against the upstream fml sources with the system
 // C++ compiler (clang++ with libc++ by default, as the engine is built), runs
 // it and the port's fml_dump binary over the same seeds, and fails unless the
-// outputs are byte-identical.
+// outputs, stdout and stderr, are byte-identical.
 //
 //   FML_ORACLE_CXX        compiler (default clang++)
 //   FML_ORACLE_STDLIB     libc++ (default) or libstdc++
@@ -77,19 +77,23 @@ pub fn build_oracle() -> PathBuf {
             return out;
         }
     }
+    // Compile from engine/src with relative paths, as the engine's build does,
+    // so __FILE__ (and so FML_LOG's file name) reads "flutter/fml/...".
     let mut cmd = Command::new(&cxx);
+    cmd.current_dir(&src);
     cmd.arg("-std=c++20").arg("-O2").arg("-DNDEBUG").arg("-fwrapv").arg("-w");
     if stdlib == "libc++" {
         cmd.arg("-stdlib=libc++");
     }
-    cmd.arg("-I").arg(&src).arg("-o").arg(&out);
-    cmd.args(&inputs).arg("-lpthread");
+    cmd.arg("-I").arg(".").arg("-o").arg(&out);
+    cmd.arg("flutter/fml/rust/oracle/fml_dump.cc");
+    cmd.args(UPSTREAM_SOURCES).arg("-lpthread");
     let status = cmd.status().unwrap_or_else(|e| panic!("cannot run {cxx}: {e}"));
     assert!(status.success(), "building the C++ oracle with {cxx} failed");
     out
 }
 
-fn run(bin: &Path, args: &[&str]) -> Vec<u8> {
+fn run(bin: &Path, args: &[&str]) -> (Vec<u8>, Vec<u8>) {
     let out = Command::new(bin).args(args).output().unwrap();
     assert!(
         out.status.success(),
@@ -98,7 +102,7 @@ fn run(bin: &Path, args: &[&str]) -> Vec<u8> {
         args,
         String::from_utf8_lossy(&out.stderr)
     );
-    out.stdout
+    (out.stdout, out.stderr)
 }
 
 fn first_difference(a: &[u8], b: &[u8]) -> String {
@@ -133,13 +137,20 @@ fn oracle_matches_upstream() {
         for seed in base..base + seeds {
             let seed = seed.to_string();
             let args = [*suite, seed.as_str(), cases.as_str()];
-            let expected = run(&oracle, &args);
-            let actual = run(&port, &args);
-            compared += expected.len();
+            let (expected, expected_log) = run(&oracle, &args);
+            let (actual, actual_log) = run(&port, &args);
+            compared += expected.len() + expected_log.len();
             if expected != actual {
                 failures.push(format!(
                     "{suite} seed {seed}: {}",
                     first_difference(&expected, &actual)
+                ));
+            }
+            // Logs (FML_LOG) go to stderr and must match too.
+            if expected_log != actual_log {
+                failures.push(format!(
+                    "{suite} seed {seed} (stderr): {}",
+                    first_difference(&expected_log, &actual_log)
                 ));
             }
         }
