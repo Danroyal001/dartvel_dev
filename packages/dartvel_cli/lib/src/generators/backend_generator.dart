@@ -4037,8 +4037,12 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ];
       sb
         ..writeln("  registry.register('${esc(entry.name)}',")
-        ..writeln('      (DVJsonObject input) async {')
-        ..writeln('    final args = DVJsonCodec.toJsonObject(input);');
+        ..writeln('      (DVJsonObject input) async {');
+      // A tool with no parameters reads no arguments, and an unread local is
+      // an analyzer warning in every application that declares one.
+      if (entry.parameterNames.isNotEmpty) {
+        sb.writeln('    final args = DVJsonCodec.toJsonObject(input);');
+      }
       if (entry.returnsVoid) {
         // Awaited only when there is a Future to await. `await f()` on a
         // plain void is an error, not a no-op.

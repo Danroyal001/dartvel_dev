@@ -52,6 +52,7 @@ Future<void> main() async {
 
 void main() {
   late Map<String, Object?> r;
+  late ProcessResult analysis;
 
   setUpAll(() async {
     final Directory project =
@@ -118,6 +119,17 @@ Future<String> listAll() async => 'all';
           '${result.stdout}\n${result.stderr}');
     }
     r = jsonDecode(line.substring('PROBE '.length)) as Map<String, Object?>;
+    analysis = await Process.run(
+      Platform.resolvedExecutable,
+      <String>['analyze', '--fatal-infos', 'lib/dartvel_client/ai_tools.g.dart'],
+      workingDirectory: project.path,
+    );
+  });
+
+  test('the generated file passes the analyzer an application runs', () {
+    // Generated code lands in somebody else's project, and a warning there
+    // is one they cannot fix.
+    expect(analysis.exitCode, 0, reason: '${analysis.stdout}');
   });
 
   test('required lists the arguments the handler refuses to go without', () {
