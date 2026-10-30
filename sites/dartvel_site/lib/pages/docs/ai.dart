@@ -107,8 +107,9 @@ Widget _docsAiPage(BuildContext context) => const DocsArticle(
           title: 'Status',
           children: <Widget>[
             DocsStatus('AI', missing: <String>[
-              'A tool\'s schema has a type per parameter and no descriptions or '
-                  'enums.',
+              'A tool\'s schema has a type per parameter and lists the '
+                  'required ones, but has no descriptions or enums, and a '
+                  'parameter with a default is still required.',
               'A tool that returns a type DVJsonCodec cannot encode throws when '
                   'the result is sent.',
             ]),
