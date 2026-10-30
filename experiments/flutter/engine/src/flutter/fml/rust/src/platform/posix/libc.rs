@@ -129,6 +129,9 @@ pub fn s_isreg(mode: u32) -> bool {
     mode & S_IFMT == S_IFREG
 }
 
+// SAFETY: declarations only, each matching its prototype in <fcntl.h>, <unistd.h>, <sys/stat.h>, <dirent.h>, <stdlib.h>, <string.h>, <sys/mman.h> and <dlfcn.h>
+// for the LP64 Linux/Apple targets this crate builds for; every call
+// below is in its own unsafe block that says why it is sound.
 unsafe extern "C" {
     pub fn openat(dirfd: c_int, pathname: *const c_char, flags: c_int, ...) -> c_int;
     pub fn mkdirat(dirfd: c_int, pathname: *const c_char, mode: mode_t) -> c_int;

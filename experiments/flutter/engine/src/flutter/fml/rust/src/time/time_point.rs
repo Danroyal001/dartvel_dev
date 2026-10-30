@@ -119,6 +119,9 @@ impl Ord for TimePoint {
 #[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) fn steady_clock_now() -> i64 {
     use super::time_delta::timespec;
+    // SAFETY: declarations only, each matching its prototype in <time.h>
+    // for the LP64 Linux/Apple targets this crate builds for; every call
+    // below is in its own unsafe block that says why it is sound.
     unsafe extern "C" {
         fn clock_gettime(clock_id: i32, tp: *mut timespec) -> i32;
     }
@@ -135,6 +138,9 @@ pub(crate) fn steady_clock_now() -> i64 {
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) fn steady_clock_now() -> i64 {
+    // SAFETY: declarations only, each matching its prototype in <time.h>
+    // for the LP64 Linux/Apple targets this crate builds for; every call
+    // below is in its own unsafe block that says why it is sound.
     unsafe extern "C" {
         fn clock_gettime_nsec_np(clock_id: u32) -> u64;
     }

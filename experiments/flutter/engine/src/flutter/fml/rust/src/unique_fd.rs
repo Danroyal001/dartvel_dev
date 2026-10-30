@@ -9,6 +9,9 @@ pub mod internal {
         use super::super::*;
         use crate::platform::posix::libc::{DIR, closedir};
 
+        // SAFETY: declarations only, each matching its prototype in <unistd.h>
+        // for the LP64 Linux/Apple targets this crate builds for; every call
+        // below is in its own unsafe block that says why it is sound.
         unsafe extern "C" {
             fn close(fd: i32) -> i32;
         }

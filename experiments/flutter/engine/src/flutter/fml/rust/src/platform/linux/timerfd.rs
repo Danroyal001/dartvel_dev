@@ -31,6 +31,9 @@ pub struct itimerspec {
     pub it_value: timespec,
 }
 
+// SAFETY: declarations only, each matching its prototype in <sys/timerfd.h>
+// for the LP64 Linux/Apple targets this crate builds for; every call
+// below is in its own unsafe block that says why it is sound.
 unsafe extern "C" {
     #[link_name = "timerfd_create"]
     fn c_timerfd_create(clockid: c_int, flags: c_int) -> c_int;

@@ -106,6 +106,9 @@ fn set_thread_name(name: &str) {
     }
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     {
+        // SAFETY: declarations only, each matching its prototype in <pthread.h>
+        // for the LP64 Linux/Apple targets this crate builds for; every call
+        // below is in its own unsafe block that says why it is sound.
         unsafe extern "C" {
             fn pthread_setname_np(name: *const std::os::raw::c_char) -> i32;
         }

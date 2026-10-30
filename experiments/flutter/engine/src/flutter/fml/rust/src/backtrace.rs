@@ -28,6 +28,9 @@ const FILE: &str = "flutter/fml/backtrace.cc";
 
 const K_K_UNKNOWN_FRAME_NAME: &str = "Unknown";
 
+// SAFETY: declarations only, each matching its prototype in <execinfo.h> and <signal.h>
+// for the LP64 Linux/Apple targets this crate builds for; every call
+// below is in its own unsafe block that says why it is sound.
 unsafe extern "C" {
     #[link_name = "backtrace"]
     fn c_backtrace(buffer: *mut *mut c_void, size: c_int) -> c_int;

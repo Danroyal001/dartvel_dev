@@ -42,6 +42,9 @@ fn has_a_running_message_loop() {
 #[repr(C, align(8))]
 struct PthreadAttr([u8; 64]);
 
+// SAFETY: declarations only, each matching its prototype in <pthread.h> and <sched.h>
+// for the LP64 Linux/Apple targets this crate builds for; every call
+// below is in its own unsafe block that says why it is sound.
 unsafe extern "C" {
     fn pthread_self() -> usize;
     fn pthread_getattr_np(thread: usize, attr: *mut PthreadAttr) -> c_int;
@@ -106,6 +109,9 @@ struct SchedParam {
 
 const SCHED_OTHER: c_int = 0;
 
+// SAFETY: declarations only, each matching its prototype in <pthread.h> and <sched.h>
+// for the LP64 Linux/Apple targets this crate builds for; every call
+// below is in its own unsafe block that says why it is sound.
 unsafe extern "C" {
     fn sched_get_priority_min(policy: c_int) -> c_int;
     fn sched_get_priority_max(policy: c_int) -> c_int;

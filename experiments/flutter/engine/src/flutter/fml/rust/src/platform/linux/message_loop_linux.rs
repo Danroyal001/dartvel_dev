@@ -40,6 +40,9 @@ struct epoll_event {
     data: u64,
 }
 
+// SAFETY: declarations only, each matching its prototype in <sys/epoll.h>
+// for the LP64 Linux/Apple targets this crate builds for; every call
+// below is in its own unsafe block that says why it is sound.
 unsafe extern "C" {
     fn epoll_create(size: c_int) -> c_int;
     fn epoll_ctl(epfd: c_int, op: c_int, fd: c_int, event: *mut epoll_event) -> c_int;
