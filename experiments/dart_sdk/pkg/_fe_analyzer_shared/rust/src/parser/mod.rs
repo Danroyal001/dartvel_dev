@@ -1,8 +1,6 @@
 // Module list for lib/src/parser (not a mirrored file).
 //
-// Not ported yet: parser_main.dart (a command-line driver),
-// stack_listener.dart and quote.dart (used by listeners that build trees,
-// not by the parser).
+// Not ported yet: parser_main.dart (a command-line driver).
 
 pub mod assert;
 pub mod async_modifier;
@@ -27,7 +25,9 @@ pub mod modifier_context;
 pub mod parser;
 pub mod parser_error;
 pub mod parser_impl;
+pub mod quote;
 pub mod recovery_listeners;
+pub mod stack_listener;
 pub mod token_stream_rewriter;
 pub mod top_level_parser;
 pub mod type_info;
