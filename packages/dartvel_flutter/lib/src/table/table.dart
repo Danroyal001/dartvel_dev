@@ -371,7 +371,7 @@ class DVTableState<T> extends State<DVTable<T>> {
               ),
             )
           else if (rows.isEmpty && widget.empty != null)
-            DVEmptyView(widget.empty!)
+            DVEmptyView(widget.empty!, collection: '$T')
           else if (rows.isEmpty)
             Padding(
               padding: const .all(24),
