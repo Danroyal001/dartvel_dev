@@ -15076,6 +15076,11 @@ The distinction generated components make, because the answers differ:
   separating, because "no records" when the truth is "not yours to see" sends
   a reader to support with the wrong question.
 
+The three are `DVEmpty.nothingYet(action: ...)`, `DVEmpty.nothingMatching(onClear:
+...)` and `DVEmpty.nothingVisible()`, which `DVTable` takes as `empty:`, each
+worded by its own framework string. The generated collections do not take the
+slot yet.
+
 ## Loading
 
 Skeletons are derived from the model's field layout, so the placeholder is the

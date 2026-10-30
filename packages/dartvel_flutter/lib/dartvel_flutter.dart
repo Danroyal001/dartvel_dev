@@ -884,6 +884,7 @@ export 'src/run/application.dart' show DVAppParts, dvRunApplication, dvResetAppl
 export 'src/scene3d/model_viewer.dart';
 export 'src/scene3d/scene_nodes.dart';
 export 'src/scene3d/scene_viewport.dart';
+export 'src/state/empty_state.dart';
 export 'src/studio/functions/function_editor.dart';
 export 'src/studio/functions/function_section.dart'
     show dvFunctionStudioSections, dvWorkflowStudioSection;
@@ -11496,6 +11497,22 @@ abstract final class DVFrameworkStrings {
   /// The control that offers to try a failed thing again.
   static const DVTranslationKey retry = DVTranslationKey('dv.action.retry');
 
+  /// An empty collection: nothing has been created yet.
+  static const DVTranslationKey nothingYet =
+      DVTranslationKey('dv.empty.nothingYet');
+
+  /// A filter or search that matched nothing.
+  static const DVTranslationKey nothingMatching =
+      DVTranslationKey('dv.empty.nothingMatching');
+
+  /// A policy filtered everything out.
+  static const DVTranslationKey nothingVisible =
+      DVTranslationKey('dv.empty.nothingVisible');
+
+  /// The control that clears a filter which matched nothing.
+  static const DVTranslationKey clearFilters =
+      DVTranslationKey('dv.action.clearFilters');
+
   /// The catalogue default for each framework key, by key.
   static const Map<String, String> defaults = <String, String>{
     'dv.table.empty': 'No rows',
@@ -11503,6 +11520,10 @@ abstract final class DVFrameworkStrings {
     'dv.network.offline': "You're offline",
     'dv.page.error': 'Something went wrong',
     'dv.action.retry': 'Try again',
+    'dv.empty.nothingYet': 'Nothing here yet',
+    'dv.empty.nothingMatching': 'No results',
+    'dv.empty.nothingVisible': 'Nothing here is visible to you',
+    'dv.action.clearFilters': 'Clear filters',
   };
 }
 

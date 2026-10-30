@@ -11,7 +11,7 @@
 library dartvel_flutter.table;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart'
-    show DV, DVFrameworkStrings;
+    show DV, DVEmpty, DVEmptyView, DVFrameworkStrings;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -157,6 +157,7 @@ class DVTable<T> extends StatefulWidget {
     super.key,
     required this.columns,
     this.emptyLabel,
+    this.empty,
     this.loading = false,
     this.placeholderRows = 3,
   });
@@ -169,6 +170,7 @@ class DVTable<T> extends StatefulWidget {
     this.placeholderRows = 3,
   })  : rows = const <Never>[],
         emptyLabel = null,
+        empty = null,
         loading = true;
 
   final List<T> rows;
@@ -193,6 +195,10 @@ class DVTable<T> extends StatefulWidget {
   /// default localises and rebrands from the application's catalogue rather
   /// than saying "No rows" in every language.
   final String? emptyLabel;
+
+  /// Which empty this table is when it has no rows, and what it offers:
+  /// nothing yet, nothing matching or nothing visible. Null is [emptyLabel].
+  final DVEmpty? empty;
 
   @override
   State<DVTable<T>> createState() => DVTableState<T>();
@@ -364,6 +370,8 @@ class DVTableState<T> extends State<DVTable<T>> {
                 ],
               ),
             )
+          else if (rows.isEmpty && widget.empty != null)
+            DVEmptyView(widget.empty!)
           else if (rows.isEmpty)
             Padding(
               padding: const .all(24),
