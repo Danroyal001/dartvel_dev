@@ -39,7 +39,8 @@
 // `<ElementKind> <library uri> <firstTokenOffset>/<nameOffset>` of the first
 // fragment. Flags computed after the declarations are built (field
 // promotability) are left out, as are the constructors of mixin
-// applications, which need the supertypes.
+// applications, which need the supertypes, and the default values super
+// formal parameters get from the super constructor.
 //
 // `--types` adds what resolving the declared types gives: the display
 // string (`getDisplayString()`) of every declared type: bounds, supertypes,
@@ -490,7 +491,15 @@ class ElementDumper {
         }
       }
       if (element is SuperFormalParameterElementImpl) line(d, 'superFormal');
-      if (element.defaultValueCode case var code?) {
+      // A super formal parameter without a default value of its own gets
+      // the one of the super constructor's parameter, which needs the
+      // super constructor resolved; only its own is written.
+      String? code = element is SuperFormalParameterElementImpl
+          ? (element.isRequired
+                ? null
+                : element.constantInitializer2?.toSource())
+          : element.defaultValueCode;
+      if (code != null) {
         line(d, 'default ${name(code)}');
       }
       if (types) {

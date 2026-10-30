@@ -41,12 +41,16 @@ pub mod source {
 }
 #[allow(clippy::module_inception)]
 pub mod src {
+    pub mod context {
+        pub mod packages;
+    }
     pub mod dart {
         pub mod analysis {
             pub mod experiments;
             #[rustfmt::skip]
             pub mod experiments_g;
             pub mod experiments_impl;
+            pub mod file_state;
         }
         pub mod ast {
             #[rustfmt::skip]
@@ -55,12 +59,22 @@ pub mod src {
             pub mod ast_g;
             pub mod ast_store;
             pub mod ast_v1;
+            pub mod invokes_super_self;
             pub mod to_source_visitor;
             pub mod utilities;
+        }
+        pub mod element {
+            pub mod element;
+        }
+        pub mod resolver {
+            pub mod scope;
         }
         pub mod scanner {
             pub mod scanner;
             pub mod translate_error_token;
+        }
+        pub mod sdk {
+            pub mod sdk;
         }
     }
     pub mod diagnostic {
@@ -81,5 +95,14 @@ pub mod src {
     pub mod generated {
         pub mod parser;
         pub mod utilities_dart;
+    }
+    pub mod summary2 {
+        pub mod element_builder;
+        pub mod export;
+        pub mod library_builder;
+        pub mod link;
+    }
+    pub mod utilities {
+        pub mod uri_cache;
     }
 }
