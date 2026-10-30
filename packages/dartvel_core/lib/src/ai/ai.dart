@@ -89,11 +89,28 @@ class DVJsonCodec {
       };
 }
 
+/// Whether a tool runs when a model asks for it, or waits until something
+/// approves the call.
+///
+/// `required` is for a tool that moves money or changes data: the agent loop
+/// stops at it and hands back a [DVAIToolPause] instead of running it, and
+/// anything that reaches it another way is refused with `DV-AI-010`.
+enum DVToolApproval {
+  /// Runs when a model calls it.
+  none,
+
+  /// Runs only once a [DVAIToolPause] for the call is approved.
+  required,
+}
+
 /// A registered AI tool: the handler plus the description and JSON Schema a
 /// provider needs in order to decide when to call it.
 class DVAIToolDefinition {
   final String name;
   final String description;
+
+  /// Whether a call waits for approval before the tool runs.
+  final DVToolApproval approval;
 
   /// JSON Schema object describing the tool's input.
   final DVJsonObject parameters;
@@ -104,6 +121,7 @@ class DVAIToolDefinition {
     required this.handler,
     this.description = '',
     this.parameters = const <String, DVJsonValue>{},
+    this.approval = DVToolApproval.none,
   });
 
   /// The schema sent to providers. A tool that declared no parameters is
@@ -127,6 +145,7 @@ class DVAIToolRegistry {
     DVAIToolHandler handler, {
     String description = '',
     DVJsonObject parameters = const <String, DVJsonValue>{},
+    DVToolApproval approval = DVToolApproval.none,
   }) {
     if (name.trim().isEmpty) {
       throw ArgumentError.value(name, 'name', 'AI tool names cannot be empty.');
@@ -136,6 +155,7 @@ class DVAIToolRegistry {
       handler: handler,
       description: description,
       parameters: parameters,
+      approval: approval,
     );
   }
 
@@ -144,6 +164,7 @@ class DVAIToolRegistry {
         definition.handler,
         description: definition.description,
         parameters: definition.parameters,
+        approval: definition.approval,
       );
 
   bool contains(String name) => _tools.containsKey(name);
@@ -160,7 +181,31 @@ class DVAIToolRegistry {
           if (_tools[name] case final definition?) definition,
       ]);
 
+  /// Runs a tool. One that needs approval is refused with
+  /// [DVAIToolApprovalRequired] (`DV-AI-010`): this is the path an MCP client
+  /// and a provider that runs tools up front take, and neither can pause.
   Future<DVJsonValue> call(String name, [DVJsonObject input = const {}]) async {
+    if (_tools[name]?.approval == DVToolApproval.required) {
+      throw DVAIToolApprovalRequired(name);
+    }
+    return _run(name, input);
+  }
+
+  /// The first of [names] that needs approval, as a pause carrying [input],
+  /// or null when none does. Asked before any of them runs, so a run that
+  /// stops has run nothing it was asked for in that step.
+  DVAIToolPause? _pauseFor(Iterable<String> names, DVJsonObject input) {
+    for (final String name in names) {
+      if (_tools[name]?.approval == DVToolApproval.required) {
+        return DVAIToolPause._(name, input);
+      }
+    }
+    return null;
+  }
+
+  /// Runs a tool regardless of its approval. Reached only from here and
+  /// from [DVAIToolPause.approve].
+  Future<DVJsonValue> _run(String name, DVJsonObject input) async {
     final tool = _tools[name];
     if (tool == null) {
       throw StateError('No AI tool registered for "$name".');
@@ -204,11 +249,65 @@ class DVAIAgentResult {
   final DVJsonObject data;
   final List<String> usedTools;
 
+  /// Where the run stopped for approval, or null when it finished. A run
+  /// that paused has not called the tool: [DVAIToolPause.approve] does.
+  final DVAIToolPause? pause;
+
   const DVAIAgentResult({
     required this.output,
     this.data = const <String, DVJsonValue>{},
     this.usedTools = const <String>[],
+    this.pause,
   });
+}
+
+/// Thrown when a tool that needs approval is called without it: `DV-AI-010`.
+///
+/// An error rather than a prompt, because a caller that asked at this point
+/// would be asking after the decision to call was made.
+final class DVAIToolApprovalRequired implements Exception {
+  const DVAIToolApprovalRequired(this.tool);
+
+  /// The diagnostic code.
+  String get code => 'DV-AI-010';
+
+  /// The tool that was called.
+  final String tool;
+
+  @override
+  String toString() => '$code: the AI tool "$tool" requires approval and was '
+      'called without it. An agent run stops at it with a DVAIToolPause; '
+      'approve that to run it.';
+}
+
+/// An agent run stopped at a tool that needs approval: the tool, the
+/// arguments the model gave it, and why the run stopped.
+///
+/// [approve] runs the tool once, with exactly these arguments, so what was
+/// approved is what runs. Declining is not calling it.
+final class DVAIToolPause {
+  DVAIToolPause._(this.tool, this.arguments)
+      : reason = 'the AI tool "$tool" requires approval before it runs';
+
+  /// The tool the model called.
+  final String tool;
+
+  /// The arguments it called the tool with.
+  final DVJsonObject arguments;
+
+  /// Why the run stopped here.
+  final String reason;
+
+  bool _approved = false;
+
+  /// Runs the tool with [arguments]. A pause approves once.
+  Future<DVJsonValue> approve() async {
+    if (_approved) {
+      throw StateError('This pause for "$tool" was already approved.');
+    }
+    _approved = true;
+    return const DVAIToolRegistry()._run(tool, arguments);
+  }
 }
 
 abstract class DVAIAdapter {
@@ -280,6 +379,9 @@ class LocalDVAIAdapter implements DVAIAdapter {
 
   @override
   Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) async {
+    final pause =
+        const DVAIToolRegistry()._pauseFor(request.tools, request.context);
+    if (pause != null) return DVAIAgentResult(output: '', pause: pause);
     final usedTools = <String>[];
     final data = <String, DVJsonValue>{};
     for (final toolName in request.tools) {
@@ -390,6 +492,13 @@ abstract class DVHttpAIAdapter implements DVAIAdapter {
     DVAIToolDefinition tool,
     DVJsonObject input,
   ) async {
+    // The loops pause before reaching here; this is the floor under them.
+    if (tool.approval == DVToolApproval.required) {
+      return (
+        value: DVJsonString('${DVAIToolApprovalRequired(tool.name)}'),
+        isError: true,
+      );
+    }
     try {
       return (value: await tool.handler(input), isError: false);
     } on Object catch (error) {
@@ -419,6 +528,11 @@ abstract class DVHttpAIAdapter implements DVAIAdapter {
   @override
   Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) async {
     const registry = DVAIToolRegistry();
+    // These tools run before the model is asked anything, with the request
+    // context as their input, so a tool that needs approval stops the run
+    // here rather than running on nobody's say-so.
+    final pause = registry._pauseFor(request.tools, request.context);
+    if (pause != null) return DVAIAgentResult(output: '', pause: pause);
     final usedTools = <String>[];
     final data = <String, DVJsonValue>{};
     for (final toolName in request.tools) {
@@ -709,6 +823,27 @@ class AnthropicDVAIAdapter extends DVHttpAIAdapter {
         );
       }
 
+      // A call to a tool that needs approval stops the run before anything
+      // in this turn runs, and hands back what the model asked for.
+      for (final block in content) {
+        if (block is! Map<String, Object?> || block['type'] != 'tool_use') {
+          continue;
+        }
+        final name = readString(block, 'name');
+        if (tools.any((tool) => tool.name == name)) {
+          final pause = const DVAIToolRegistry()
+              ._pauseFor(<String>[name], decodeToolInput(block['input']));
+          if (pause != null) {
+            return DVAIAgentResult(
+              output: _joinTextBlocks(content),
+              data: Map<String, DVJsonValue>.unmodifiable(data),
+              usedTools: List<String>.unmodifiable(usedTools),
+              pause: pause,
+            );
+          }
+        }
+      }
+
       messages.add(<String, Object?>{'role': 'assistant', 'content': content});
 
       final results = <Object?>[];
@@ -953,6 +1088,26 @@ class OpenAIDVAIAdapter extends DVHttpAIAdapter {
           data: Map<String, DVJsonValue>.unmodifiable(data),
           usedTools: List<String>.unmodifiable(usedTools),
         );
+      }
+
+      // As in the Messages loop: a call to a tool that needs approval stops
+      // the run before any call in this turn runs.
+      for (final call in calls) {
+        if (call is! Map<String, Object?>) continue;
+        final function = readMap(call, 'function');
+        final name = readString(function, 'name');
+        if (tools.any((tool) => tool.name == name)) {
+          final pause = const DVAIToolRegistry()._pauseFor(
+              <String>[name], decodeToolInput(function['arguments']));
+          if (pause != null) {
+            return DVAIAgentResult(
+              output: message['content'] as String? ?? '',
+              data: Map<String, DVJsonValue>.unmodifiable(data),
+              usedTools: List<String>.unmodifiable(usedTools),
+              pause: pause,
+            );
+          }
+        }
       }
 
       messages.add(message);
