@@ -10021,6 +10021,22 @@ class DVStorage {
 
   Future<List<String>> list({String prefix = ''}) =>
       adapter.list(prefix: prefix);
+
+  /// Stores [bytes] under [key] as they arrive. All or nothing: a stream
+  /// that fails part way leaves what [key] held before. An adapter that
+  /// streams (the local one) never holds the whole object; one that does
+  /// not is given it once, after the stream ends.
+  Future<void> putStream(
+    String key,
+    Stream<List<int>> bytes, {
+    String? contentType,
+  }) =>
+      dvPutStream(_host ?? adapter, key, bytes, contentType: contentType);
+
+  /// The object under [key] as a stream. A missing object fails this call
+  /// with a 404 [DVFileStorageException] before any byte is sent.
+  Future<Stream<List<int>>> getStream(String key) =>
+      dvGetStream(_host ?? adapter, key);
 }
 
 class DVRustInt {
