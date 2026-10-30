@@ -1,0 +1,3 @@
+linter:
+  rules:
+    - omit_obvious_local_variable_types

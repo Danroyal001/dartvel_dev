@@ -51,7 +51,17 @@ fn check(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
                 else {
                     return;
                 };
-                if resolved.ctx.type_arguments(iterable).first() == Some(&declared) {
+                // Dart `iterableType.elementTypeOfIterable == staticType`:
+                // `==` on types (structural for function and record types),
+                // not `identical`.
+                if resolved
+                    .ctx
+                    .type_arguments(iterable)
+                    .first()
+                    .is_some_and(|&element| {
+                        dartr_typesystem::equality::dart_eq(&resolved.ctx, element, declared)
+                    })
+                {
                     ctx.report_node(
                         out,
                         &diag::OMIT_OBVIOUS_LOCAL_VARIABLE_TYPES,
