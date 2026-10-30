@@ -78,6 +78,7 @@ pub mod src {
             pub mod display_string_builder;
             pub mod element;
             pub mod r#type;
+            pub mod scope;
             pub mod type_algebra;
         }
         pub mod resolver {
