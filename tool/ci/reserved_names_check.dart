@@ -22,85 +22,45 @@
 /// A rule nothing checks drifts back, which is the same reason
 /// `no_python_check.dart` exists. This one runs over tracked Dart sources; it
 /// leaves prose alone, so the specification and the rule files can name what
-/// they forbid.
+/// they forbid. Comments and the text of string literals are prose too: a
+/// docs page saying no `MethodChannel` is used, or a test asserting generated
+/// code has none, is the rule being kept. The reserved names and the lexer
+/// that tells code from prose are in `reserved_names.dart`.
 library;
 
 import 'dart:io';
 
-/// A reserved name, and why.
-typedef _Reserved = (String name, String because);
-
-const List<_Reserved> _reserved = <_Reserved>[
-  // A second namespace for what DV.Modules already is.
-  ('DVModuleManager', 'DV.Modules is the surface; a manager beside it is a '
-      'second name for one concept'),
-  ('DVBindingManager', 'bindings are internal machinery beneath modules and '
-      'have no manager an application names'),
-  ('DVBindings', 'internal means internal; a public DV.Bindings would make a '
-      'binding a thing developers manage'),
-  ('DVIntegrations', 'an integration is a module'),
-  ('DVPackages', 'a package is a package; what an application composes is a '
-      'module'),
-  ('DVPlugins', 'Dartvel has no plugin tier, which is the whole point of '
-      'having one composition unit'),
-  // Per-language and per-platform binding classes.
-  ('DVSwiftBinding', 'Swift reaches Dart across the C ABI: DVFfiBinding'),
-  ('DVRustBinding', 'Rust reaches Dart across the C ABI: DVFfiBinding'),
-  ('DVKotlinBinding', 'Kotlin is reached through the JVM: DVJniBinding'),
-  ('DVObjCBinding', 'Objective-C reaches Dart across the C ABI: DVFfiBinding'),
-  ('DVAppleBinding', 'a target is not a binding kind: DVFfiBinding'),
-  ('DVWindowsBinding', 'a target is not a binding kind: DVFfiBinding'),
-  ('DVLinuxBinding', 'a target is not a binding kind: DVFfiBinding'),
-  ('DVAndroidBinding', 'a target is not a binding kind: DVJniBinding or '
-      'DVFfiBinding, and an Android module may carry both'),
-  ('DVJvmBinding', 'JNI is the boundary being crossed, so DVJniBinding'),
-];
-
-/// Flutter's platform channels, which Dartvel never uses.
-const List<String> _channels = <String>[
-  'MethodChannel',
-  'EventChannel',
-  'BasicMessageChannel',
-];
+import 'reserved_names.dart';
 
 void main(List<String> arguments) {
-  final ProcessResult tracked = Process.runSync(
-    'git',
-    <String>['ls-files', '-z', '*.dart'],
-  );
+  final ProcessResult tracked = Process.runSync('git', <String>[
+    'ls-files',
+    '-z',
+    '*.dart',
+  ]);
   if (tracked.exitCode != 0) {
     stderr.writeln('reserved names: git ls-files failed');
     exitCode = 1;
     return;
   }
 
+  // These two files name every reserved identifier as data.
+  const Set<String> exempt = <String>{
+    'tool/ci/reserved_names_check.dart',
+    'tool/ci/reserved_names.dart',
+  };
+
   final List<String> problems = <String>[];
   int scanned = 0;
   for (final String path in '${tracked.stdout}'.split('\u0000')) {
-    if (path.isEmpty) continue;
-    // This file names every one of them, and so does the checker that would
-    // otherwise have to be written to exempt it.
-    if (path == 'tool/ci/reserved_names_check.dart') continue;
+    if (path.isEmpty || exempt.contains(path)) continue;
     final File file = File(path);
     if (!file.existsSync()) continue;
     scanned++;
-    final List<String> lines = file.readAsLinesSync();
-    for (int i = 0; i < lines.length; i++) {
-      final String line = lines[i];
-      // A rule explained in a comment is not a rule broken.
-      final String code = line.split('//').first;
-      if (code.trim().isEmpty) continue;
-      for (final _Reserved name in _reserved) {
-        if (!RegExp('\\b${name.$1}\\b').hasMatch(code)) continue;
-        problems.add('$path:${i + 1}  ${name.$1} is reserved: ${name.$2}');
-      }
-      for (final String channel in _channels) {
-        if (!RegExp('\\b$channel\\b').hasMatch(code)) continue;
-        problems.add(
-          '$path:${i + 1}  $channel is a Flutter platform channel. Dartvel '
-          'binds natively through generated FFI/ffigen and JNI/jnigen.',
-        );
-      }
+    for (final DVReservedUse use in dvReservedNameUses(
+      file.readAsStringSync(),
+    )) {
+      problems.add('$path:${use.line}  ${use.name}: ${use.because}');
     }
   }
 
