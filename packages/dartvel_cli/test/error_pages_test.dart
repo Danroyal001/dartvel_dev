@@ -116,5 +116,13 @@ void main() {
     test('names the not-found page at its extensionless path', () {
       expect(dvApacheConfig(), contains('ErrorDocument 404 /404/index.html'));
     });
+
+    test('names a status page for each code that has one, so a failure is '
+        'the application\'s own sentence rather than the host\'s page', () {
+      for (final int code in <int>[403, 429, 500, 503]) {
+        expect(dvApacheConfig(),
+            contains('ErrorDocument $code /$code/index.html'));
+      }
+    });
   });
 }

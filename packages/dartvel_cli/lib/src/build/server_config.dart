@@ -3,7 +3,7 @@ library dartvel_cli.build.server_config;
 
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show dvDefaultSecurityHeaders;
+import 'package:dartvel_core/dartvel.dart' show dvDefaultSecurityHeaders, dvStatusPageCodes, dvStatusPageRoute;
 
 /// Makes [web] readable by a web server running as another user: every
 /// directory 755 and every file 644.
@@ -70,6 +70,11 @@ String dvApacheConfig() => '''
 # branding.
 ErrorDocument 404 /404/index.html
 
+# The application's own page for each status code that has one, so a refusal,
+# a rate limit or a failure is a sentence in the site's theme rather than the
+# server's default page. Each is a route the build prerendered.
+${_apacheStatusDocuments()}
+
 # The Universal Links document has no extension for AddType to match, and iOS
 # refuses it as anything but JSON.
 <Files "apple-app-site-association">
@@ -104,6 +109,11 @@ ${_apacheSecurityHeaders()}
   </FilesMatch>
 </IfModule>
 ''';
+
+String _apacheStatusDocuments() => <String>[
+      for (final int code in dvStatusPageCodes)
+        'ErrorDocument $code ${dvStatusPageRoute(code)}/index.html',
+    ].join('\n');
 
 String _apacheSecurityHeaders() => <String>[
       for (final MapEntry<String, String> header in dvDefaultSecurityHeaders.entries)
