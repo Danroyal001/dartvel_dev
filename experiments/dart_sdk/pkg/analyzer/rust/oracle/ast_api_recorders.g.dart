@@ -2524,3 +2524,3373 @@ class SimpleRecorder extends SimpleAstVisitor2<void> {
     log('visitYieldStatement', node);
   }
 }
+
+class RecursiveRecorder1 extends RecursiveAstVisitor<void> {
+  final void Function(String, AstNode) log;
+
+  RecursiveRecorder1(this.log);
+
+  @override
+  void visitAdjacentStrings(AdjacentStrings node) {
+    log('visitAdjacentStrings', node);
+    super.visitAdjacentStrings(node);
+  }
+
+  @override
+  void visitAnnotation(Annotation node) {
+    log('visitAnnotation', node);
+    super.visitAnnotation(node);
+  }
+
+  @override
+  void visitAnonymousBlockBody(AnonymousBlockBody node) {
+    log('visitAnonymousBlockBody', node);
+    super.visitAnonymousBlockBody(node);
+  }
+
+  @override
+  void visitAnonymousExpressionBody(AnonymousExpressionBody node) {
+    log('visitAnonymousExpressionBody', node);
+    super.visitAnonymousExpressionBody(node);
+  }
+
+  @override
+  void visitAnonymousMethodInvocation(AnonymousMethodInvocation node) {
+    log('visitAnonymousMethodInvocation', node);
+    super.visitAnonymousMethodInvocation(node);
+  }
+
+  @override
+  void visitArgumentList(ArgumentList node) {
+    log('visitArgumentList', node);
+    super.visitArgumentList(node);
+  }
+
+  @override
+  void visitAsExpression(AsExpression node) {
+    log('visitAsExpression', node);
+    super.visitAsExpression(node);
+  }
+
+  @override
+  void visitAssertInitializer(AssertInitializer node) {
+    log('visitAssertInitializer', node);
+    super.visitAssertInitializer(node);
+  }
+
+  @override
+  void visitAssertStatement(AssertStatement node) {
+    log('visitAssertStatement', node);
+    super.visitAssertStatement(node);
+  }
+
+  @override
+  void visitAssignedVariablePattern(AssignedVariablePattern node) {
+    log('visitAssignedVariablePattern', node);
+    super.visitAssignedVariablePattern(node);
+  }
+
+  @override
+  void visitAssignmentExpression(AssignmentExpression node) {
+    log('visitAssignmentExpression', node);
+    super.visitAssignmentExpression(node);
+  }
+
+  @override
+  void visitAwaitExpression(AwaitExpression node) {
+    log('visitAwaitExpression', node);
+    super.visitAwaitExpression(node);
+  }
+
+  @override
+  void visitBinaryExpression(BinaryExpression node) {
+    log('visitBinaryExpression', node);
+    super.visitBinaryExpression(node);
+  }
+
+  @override
+  void visitBlock(Block node) {
+    log('visitBlock', node);
+    super.visitBlock(node);
+  }
+
+  @override
+  void visitBlockClassBody(BlockClassBody node) {
+    log('visitBlockClassBody', node);
+    super.visitBlockClassBody(node);
+  }
+
+  @override
+  void visitBlockEnumBody(BlockEnumBody node) {
+    log('visitBlockEnumBody', node);
+    super.visitBlockEnumBody(node);
+  }
+
+  @override
+  void visitBlockFunctionBody(BlockFunctionBody node) {
+    log('visitBlockFunctionBody', node);
+    super.visitBlockFunctionBody(node);
+  }
+
+  @override
+  void visitBooleanLiteral(BooleanLiteral node) {
+    log('visitBooleanLiteral', node);
+    super.visitBooleanLiteral(node);
+  }
+
+  @override
+  void visitBreakStatement(BreakStatement node) {
+    log('visitBreakStatement', node);
+    super.visitBreakStatement(node);
+  }
+
+  @override
+  void visitCascadeExpression(CascadeExpression node) {
+    log('visitCascadeExpression', node);
+    super.visitCascadeExpression(node);
+  }
+
+  @override
+  void visitCaseClause(CaseClause node) {
+    log('visitCaseClause', node);
+    super.visitCaseClause(node);
+  }
+
+  @override
+  void visitCastPattern(CastPattern node) {
+    log('visitCastPattern', node);
+    super.visitCastPattern(node);
+  }
+
+  @override
+  void visitCatchClause(CatchClause node) {
+    log('visitCatchClause', node);
+    super.visitCatchClause(node);
+  }
+
+  @override
+  void visitCatchClauseParameter(CatchClauseParameter node) {
+    log('visitCatchClauseParameter', node);
+    super.visitCatchClauseParameter(node);
+  }
+
+  @override
+  void visitClassDeclaration(ClassDeclaration node) {
+    log('visitClassDeclaration', node);
+    super.visitClassDeclaration(node);
+  }
+
+  @override
+  void visitClassTypeAlias(ClassTypeAlias node) {
+    log('visitClassTypeAlias', node);
+    super.visitClassTypeAlias(node);
+  }
+
+  @override
+  void visitComment(Comment node) {
+    log('visitComment', node);
+    super.visitComment(node);
+  }
+
+  @override
+  void visitCommentReference(CommentReference node) {
+    log('visitCommentReference', node);
+    super.visitCommentReference(node);
+  }
+
+  @override
+  void visitCompilationUnit(CompilationUnit node) {
+    log('visitCompilationUnit', node);
+    super.visitCompilationUnit(node);
+  }
+
+  @override
+  void visitConditionalExpression(ConditionalExpression node) {
+    log('visitConditionalExpression', node);
+    super.visitConditionalExpression(node);
+  }
+
+  @override
+  void visitConfiguration(Configuration node) {
+    log('visitConfiguration', node);
+    super.visitConfiguration(node);
+  }
+
+  @override
+  void visitConstantPattern(ConstantPattern node) {
+    log('visitConstantPattern', node);
+    super.visitConstantPattern(node);
+  }
+
+  @override
+  void visitConstructorDeclaration(ConstructorDeclaration node) {
+    log('visitConstructorDeclaration', node);
+    super.visitConstructorDeclaration(node);
+  }
+
+  @override
+  void visitConstructorFieldInitializer(ConstructorFieldInitializer node) {
+    log('visitConstructorFieldInitializer', node);
+    super.visitConstructorFieldInitializer(node);
+  }
+
+  @override
+  void visitConstructorName(ConstructorName node) {
+    log('visitConstructorName', node);
+    super.visitConstructorName(node);
+  }
+
+  @override
+  void visitConstructorReference(ConstructorReference node) {
+    log('visitConstructorReference', node);
+    super.visitConstructorReference(node);
+  }
+
+  @override
+  void visitConstructorSelector(ConstructorSelector node) {
+    log('visitConstructorSelector', node);
+    super.visitConstructorSelector(node);
+  }
+
+  @override
+  void visitContinueStatement(ContinueStatement node) {
+    log('visitContinueStatement', node);
+    super.visitContinueStatement(node);
+  }
+
+  @override
+  void visitDeclaredIdentifier(DeclaredIdentifier node) {
+    log('visitDeclaredIdentifier', node);
+    super.visitDeclaredIdentifier(node);
+  }
+
+  @override
+  void visitDeclaredVariablePattern(DeclaredVariablePattern node) {
+    log('visitDeclaredVariablePattern', node);
+    super.visitDeclaredVariablePattern(node);
+  }
+
+  @override
+  void visitDoStatement(DoStatement node) {
+    log('visitDoStatement', node);
+    super.visitDoStatement(node);
+  }
+
+  @override
+  void visitDotShorthandConstructorInvocation(DotShorthandConstructorInvocation node) {
+    log('visitDotShorthandConstructorInvocation', node);
+    super.visitDotShorthandConstructorInvocation(node);
+  }
+
+  @override
+  void visitDotShorthandInvocation(DotShorthandInvocation node) {
+    log('visitDotShorthandInvocation', node);
+    super.visitDotShorthandInvocation(node);
+  }
+
+  @override
+  void visitDotShorthandPropertyAccess(DotShorthandPropertyAccess node) {
+    log('visitDotShorthandPropertyAccess', node);
+    super.visitDotShorthandPropertyAccess(node);
+  }
+
+  @override
+  void visitDottedName(DottedName node) {
+    log('visitDottedName', node);
+    super.visitDottedName(node);
+  }
+
+  @override
+  void visitDoubleLiteral(DoubleLiteral node) {
+    log('visitDoubleLiteral', node);
+    super.visitDoubleLiteral(node);
+  }
+
+  @override
+  void visitEmptyClassBody(EmptyClassBody node) {
+    log('visitEmptyClassBody', node);
+    super.visitEmptyClassBody(node);
+  }
+
+  @override
+  void visitEmptyEnumBody(EmptyEnumBody node) {
+    log('visitEmptyEnumBody', node);
+    super.visitEmptyEnumBody(node);
+  }
+
+  @override
+  void visitEmptyFunctionBody(EmptyFunctionBody node) {
+    log('visitEmptyFunctionBody', node);
+    super.visitEmptyFunctionBody(node);
+  }
+
+  @override
+  void visitEmptyStatement(EmptyStatement node) {
+    log('visitEmptyStatement', node);
+    super.visitEmptyStatement(node);
+  }
+
+  @override
+  void visitEnumConstantArguments(EnumConstantArguments node) {
+    log('visitEnumConstantArguments', node);
+    super.visitEnumConstantArguments(node);
+  }
+
+  @override
+  void visitEnumConstantDeclaration(EnumConstantDeclaration node) {
+    log('visitEnumConstantDeclaration', node);
+    super.visitEnumConstantDeclaration(node);
+  }
+
+  @override
+  void visitEnumDeclaration(EnumDeclaration node) {
+    log('visitEnumDeclaration', node);
+    super.visitEnumDeclaration(node);
+  }
+
+  @override
+  void visitExportDirective(ExportDirective node) {
+    log('visitExportDirective', node);
+    super.visitExportDirective(node);
+  }
+
+  @override
+  void visitExpressionFunctionBody(ExpressionFunctionBody node) {
+    log('visitExpressionFunctionBody', node);
+    super.visitExpressionFunctionBody(node);
+  }
+
+  @override
+  void visitExpressionStatement(ExpressionStatement node) {
+    log('visitExpressionStatement', node);
+    super.visitExpressionStatement(node);
+  }
+
+  @override
+  void visitExtendsClause(ExtendsClause node) {
+    log('visitExtendsClause', node);
+    super.visitExtendsClause(node);
+  }
+
+  @override
+  void visitExtensionDeclaration(ExtensionDeclaration node) {
+    log('visitExtensionDeclaration', node);
+    super.visitExtensionDeclaration(node);
+  }
+
+  @override
+  void visitExtensionOnClause(ExtensionOnClause node) {
+    log('visitExtensionOnClause', node);
+    super.visitExtensionOnClause(node);
+  }
+
+  @override
+  void visitExtensionOverride(ExtensionOverride node) {
+    log('visitExtensionOverride', node);
+    super.visitExtensionOverride(node);
+  }
+
+  @override
+  void visitExtensionTypeDeclaration(ExtensionTypeDeclaration node) {
+    log('visitExtensionTypeDeclaration', node);
+    super.visitExtensionTypeDeclaration(node);
+  }
+
+  @override
+  void visitFieldDeclaration(FieldDeclaration node) {
+    log('visitFieldDeclaration', node);
+    super.visitFieldDeclaration(node);
+  }
+
+  @override
+  void visitFieldFormalParameter(FieldFormalParameter node) {
+    log('visitFieldFormalParameter', node);
+    super.visitFieldFormalParameter(node);
+  }
+
+  @override
+  void visitForEachPartsWithDeclaration(ForEachPartsWithDeclaration node) {
+    log('visitForEachPartsWithDeclaration', node);
+    super.visitForEachPartsWithDeclaration(node);
+  }
+
+  @override
+  void visitForEachPartsWithIdentifier(ForEachPartsWithIdentifier node) {
+    log('visitForEachPartsWithIdentifier', node);
+    super.visitForEachPartsWithIdentifier(node);
+  }
+
+  @override
+  void visitForEachPartsWithPattern(ForEachPartsWithPattern node) {
+    log('visitForEachPartsWithPattern', node);
+    super.visitForEachPartsWithPattern(node);
+  }
+
+  @override
+  void visitForElement(ForElement node) {
+    log('visitForElement', node);
+    super.visitForElement(node);
+  }
+
+  @override
+  void visitFormalParameterDefaultClause(FormalParameterDefaultClause node) {
+    log('visitFormalParameterDefaultClause', node);
+    super.visitFormalParameterDefaultClause(node);
+  }
+
+  @override
+  void visitFormalParameterList(FormalParameterList node) {
+    log('visitFormalParameterList', node);
+    super.visitFormalParameterList(node);
+  }
+
+  @override
+  void visitForPartsWithDeclarations(ForPartsWithDeclarations node) {
+    log('visitForPartsWithDeclarations', node);
+    super.visitForPartsWithDeclarations(node);
+  }
+
+  @override
+  void visitForPartsWithExpression(ForPartsWithExpression node) {
+    log('visitForPartsWithExpression', node);
+    super.visitForPartsWithExpression(node);
+  }
+
+  @override
+  void visitForPartsWithPattern(ForPartsWithPattern node) {
+    log('visitForPartsWithPattern', node);
+    super.visitForPartsWithPattern(node);
+  }
+
+  @override
+  void visitForStatement(ForStatement node) {
+    log('visitForStatement', node);
+    super.visitForStatement(node);
+  }
+
+  @override
+  void visitFunctionDeclaration(FunctionDeclaration node) {
+    log('visitFunctionDeclaration', node);
+    super.visitFunctionDeclaration(node);
+  }
+
+  @override
+  void visitFunctionDeclarationStatement(FunctionDeclarationStatement node) {
+    log('visitFunctionDeclarationStatement', node);
+    super.visitFunctionDeclarationStatement(node);
+  }
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    log('visitFunctionExpression', node);
+    super.visitFunctionExpression(node);
+  }
+
+  @override
+  void visitFunctionExpressionInvocation(FunctionExpressionInvocation node) {
+    log('visitFunctionExpressionInvocation', node);
+    super.visitFunctionExpressionInvocation(node);
+  }
+
+  @override
+  void visitFunctionReference(FunctionReference node) {
+    log('visitFunctionReference', node);
+    super.visitFunctionReference(node);
+  }
+
+  @override
+  void visitFunctionTypeAlias(FunctionTypeAlias node) {
+    log('visitFunctionTypeAlias', node);
+    super.visitFunctionTypeAlias(node);
+  }
+
+  @override
+  void visitFunctionTypedFormalParameterSuffix(FunctionTypedFormalParameterSuffix node) {
+    log('visitFunctionTypedFormalParameterSuffix', node);
+    super.visitFunctionTypedFormalParameterSuffix(node);
+  }
+
+  @override
+  void visitGenericFunctionType(GenericFunctionType node) {
+    log('visitGenericFunctionType', node);
+    super.visitGenericFunctionType(node);
+  }
+
+  @override
+  void visitGenericTypeAlias(GenericTypeAlias node) {
+    log('visitGenericTypeAlias', node);
+    super.visitGenericTypeAlias(node);
+  }
+
+  @override
+  void visitGuardedPattern(GuardedPattern node) {
+    log('visitGuardedPattern', node);
+    super.visitGuardedPattern(node);
+  }
+
+  @override
+  void visitHideCombinator(HideCombinator node) {
+    log('visitHideCombinator', node);
+    super.visitHideCombinator(node);
+  }
+
+  @override
+  void visitIfElement(IfElement node) {
+    log('visitIfElement', node);
+    super.visitIfElement(node);
+  }
+
+  @override
+  void visitIfStatement(IfStatement node) {
+    log('visitIfStatement', node);
+    super.visitIfStatement(node);
+  }
+
+  @override
+  void visitImplementsClause(ImplementsClause node) {
+    log('visitImplementsClause', node);
+    super.visitImplementsClause(node);
+  }
+
+  @override
+  void visitImplicitCallReference(ImplicitCallReference node) {
+    log('visitImplicitCallReference', node);
+    super.visitImplicitCallReference(node);
+  }
+
+  @override
+  void visitImportDirective(ImportDirective node) {
+    log('visitImportDirective', node);
+    super.visitImportDirective(node);
+  }
+
+  @override
+  void visitImportPrefixReference(ImportPrefixReference node) {
+    log('visitImportPrefixReference', node);
+    super.visitImportPrefixReference(node);
+  }
+
+  @override
+  void visitIndexExpression(IndexExpression node) {
+    log('visitIndexExpression', node);
+    super.visitIndexExpression(node);
+  }
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    log('visitInstanceCreationExpression', node);
+    super.visitInstanceCreationExpression(node);
+  }
+
+  @override
+  void visitIntegerLiteral(IntegerLiteral node) {
+    log('visitIntegerLiteral', node);
+    super.visitIntegerLiteral(node);
+  }
+
+  @override
+  void visitInterpolationExpression(InterpolationExpression node) {
+    log('visitInterpolationExpression', node);
+    super.visitInterpolationExpression(node);
+  }
+
+  @override
+  void visitInterpolationString(InterpolationString node) {
+    log('visitInterpolationString', node);
+    super.visitInterpolationString(node);
+  }
+
+  @override
+  void visitIsExpression(IsExpression node) {
+    log('visitIsExpression', node);
+    super.visitIsExpression(node);
+  }
+
+  @override
+  void visitLabel(Label node) {
+    log('visitLabel', node);
+    super.visitLabel(node);
+  }
+
+  @override
+  void visitLabeledStatement(LabeledStatement node) {
+    log('visitLabeledStatement', node);
+    super.visitLabeledStatement(node);
+  }
+
+  @override
+  void visitLabelReference(LabelReference node) {
+    log('visitLabelReference', node);
+    super.visitLabelReference(node);
+  }
+
+  @override
+  void visitLibraryDirective(LibraryDirective node) {
+    log('visitLibraryDirective', node);
+    super.visitLibraryDirective(node);
+  }
+
+  @override
+  void visitListLiteral(ListLiteral node) {
+    log('visitListLiteral', node);
+    super.visitListLiteral(node);
+  }
+
+  @override
+  void visitListPattern(ListPattern node) {
+    log('visitListPattern', node);
+    super.visitListPattern(node);
+  }
+
+  @override
+  void visitLogicalAndPattern(LogicalAndPattern node) {
+    log('visitLogicalAndPattern', node);
+    super.visitLogicalAndPattern(node);
+  }
+
+  @override
+  void visitLogicalOrPattern(LogicalOrPattern node) {
+    log('visitLogicalOrPattern', node);
+    super.visitLogicalOrPattern(node);
+  }
+
+  @override
+  void visitMapLiteralEntry(MapLiteralEntry node) {
+    log('visitMapLiteralEntry', node);
+    super.visitMapLiteralEntry(node);
+  }
+
+  @override
+  void visitMapPattern(MapPattern node) {
+    log('visitMapPattern', node);
+    super.visitMapPattern(node);
+  }
+
+  @override
+  void visitMapPatternEntry(MapPatternEntry node) {
+    log('visitMapPatternEntry', node);
+    super.visitMapPatternEntry(node);
+  }
+
+  @override
+  void visitMethodDeclaration(MethodDeclaration node) {
+    log('visitMethodDeclaration', node);
+    super.visitMethodDeclaration(node);
+  }
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    log('visitMethodInvocation', node);
+    super.visitMethodInvocation(node);
+  }
+
+  @override
+  void visitMixinDeclaration(MixinDeclaration node) {
+    log('visitMixinDeclaration', node);
+    super.visitMixinDeclaration(node);
+  }
+
+  @override
+  void visitMixinOnClause(MixinOnClause node) {
+    log('visitMixinOnClause', node);
+    super.visitMixinOnClause(node);
+  }
+
+  @override
+  void visitNamedArgument(NamedArgument node) {
+    log('visitNamedArgument', node);
+    super.visitNamedArgument(node);
+  }
+
+  @override
+  void visitNamedType(NamedType node) {
+    log('visitNamedType', node);
+    super.visitNamedType(node);
+  }
+
+  @override
+  void visitNameWithTypeParameters(NameWithTypeParameters node) {
+    log('visitNameWithTypeParameters', node);
+    super.visitNameWithTypeParameters(node);
+  }
+
+  @override
+  void visitNativeClause(NativeClause node) {
+    log('visitNativeClause', node);
+    super.visitNativeClause(node);
+  }
+
+  @override
+  void visitNativeFunctionBody(NativeFunctionBody node) {
+    log('visitNativeFunctionBody', node);
+    super.visitNativeFunctionBody(node);
+  }
+
+  @override
+  void visitNullAssertPattern(NullAssertPattern node) {
+    log('visitNullAssertPattern', node);
+    super.visitNullAssertPattern(node);
+  }
+
+  @override
+  void visitNullAwareElement(NullAwareElement node) {
+    log('visitNullAwareElement', node);
+    super.visitNullAwareElement(node);
+  }
+
+  @override
+  void visitNullCheckPattern(NullCheckPattern node) {
+    log('visitNullCheckPattern', node);
+    super.visitNullCheckPattern(node);
+  }
+
+  @override
+  void visitNullLiteral(NullLiteral node) {
+    log('visitNullLiteral', node);
+    super.visitNullLiteral(node);
+  }
+
+  @override
+  void visitObjectPattern(ObjectPattern node) {
+    log('visitObjectPattern', node);
+    super.visitObjectPattern(node);
+  }
+
+  @override
+  void visitParenthesizedExpression(ParenthesizedExpression node) {
+    log('visitParenthesizedExpression', node);
+    super.visitParenthesizedExpression(node);
+  }
+
+  @override
+  void visitParenthesizedPattern(ParenthesizedPattern node) {
+    log('visitParenthesizedPattern', node);
+    super.visitParenthesizedPattern(node);
+  }
+
+  @override
+  void visitPartDirective(PartDirective node) {
+    log('visitPartDirective', node);
+    super.visitPartDirective(node);
+  }
+
+  @override
+  void visitPartOfDirective(PartOfDirective node) {
+    log('visitPartOfDirective', node);
+    super.visitPartOfDirective(node);
+  }
+
+  @override
+  void visitPatternAssignment(PatternAssignment node) {
+    log('visitPatternAssignment', node);
+    super.visitPatternAssignment(node);
+  }
+
+  @override
+  void visitPatternField(PatternField node) {
+    log('visitPatternField', node);
+    super.visitPatternField(node);
+  }
+
+  @override
+  void visitPatternFieldName(PatternFieldName node) {
+    log('visitPatternFieldName', node);
+    super.visitPatternFieldName(node);
+  }
+
+  @override
+  void visitPatternVariableDeclaration(PatternVariableDeclaration node) {
+    log('visitPatternVariableDeclaration', node);
+    super.visitPatternVariableDeclaration(node);
+  }
+
+  @override
+  void visitPatternVariableDeclarationStatement(PatternVariableDeclarationStatement node) {
+    log('visitPatternVariableDeclarationStatement', node);
+    super.visitPatternVariableDeclarationStatement(node);
+  }
+
+  @override
+  void visitPostfixExpression(PostfixExpression node) {
+    log('visitPostfixExpression', node);
+    super.visitPostfixExpression(node);
+  }
+
+  @override
+  void visitPrefixedIdentifier(PrefixedIdentifier node) {
+    log('visitPrefixedIdentifier', node);
+    super.visitPrefixedIdentifier(node);
+  }
+
+  @override
+  void visitPrefixExpression(PrefixExpression node) {
+    log('visitPrefixExpression', node);
+    super.visitPrefixExpression(node);
+  }
+
+  @override
+  void visitPrimaryConstructorBody(PrimaryConstructorBody node) {
+    log('visitPrimaryConstructorBody', node);
+    super.visitPrimaryConstructorBody(node);
+  }
+
+  @override
+  void visitPrimaryConstructorDeclaration(PrimaryConstructorDeclaration node) {
+    log('visitPrimaryConstructorDeclaration', node);
+    super.visitPrimaryConstructorDeclaration(node);
+  }
+
+  @override
+  void visitPrimaryConstructorName(PrimaryConstructorName node) {
+    log('visitPrimaryConstructorName', node);
+    super.visitPrimaryConstructorName(node);
+  }
+
+  @override
+  void visitPropertyAccess(PropertyAccess node) {
+    log('visitPropertyAccess', node);
+    super.visitPropertyAccess(node);
+  }
+
+  @override
+  void visitRecordLiteral(RecordLiteral node) {
+    log('visitRecordLiteral', node);
+    super.visitRecordLiteral(node);
+  }
+
+  @override
+  void visitRecordLiteralNamedField(RecordLiteralNamedField node) {
+    log('visitRecordLiteralNamedField', node);
+    super.visitRecordLiteralNamedField(node);
+  }
+
+  @override
+  void visitRecordPattern(RecordPattern node) {
+    log('visitRecordPattern', node);
+    super.visitRecordPattern(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotation(RecordTypeAnnotation node) {
+    log('visitRecordTypeAnnotation', node);
+    super.visitRecordTypeAnnotation(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedField(RecordTypeAnnotationNamedField node) {
+    log('visitRecordTypeAnnotationNamedField', node);
+    super.visitRecordTypeAnnotationNamedField(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedFields(RecordTypeAnnotationNamedFields node) {
+    log('visitRecordTypeAnnotationNamedFields', node);
+    super.visitRecordTypeAnnotationNamedFields(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationPositionalField(RecordTypeAnnotationPositionalField node) {
+    log('visitRecordTypeAnnotationPositionalField', node);
+    super.visitRecordTypeAnnotationPositionalField(node);
+  }
+
+  @override
+  void visitRedirectingConstructorInvocation(RedirectingConstructorInvocation node) {
+    log('visitRedirectingConstructorInvocation', node);
+    super.visitRedirectingConstructorInvocation(node);
+  }
+
+  @override
+  void visitRegularFormalParameter(RegularFormalParameter node) {
+    log('visitRegularFormalParameter', node);
+    super.visitRegularFormalParameter(node);
+  }
+
+  @override
+  void visitRelationalPattern(RelationalPattern node) {
+    log('visitRelationalPattern', node);
+    super.visitRelationalPattern(node);
+  }
+
+  @override
+  void visitRestPatternElement(RestPatternElement node) {
+    log('visitRestPatternElement', node);
+    super.visitRestPatternElement(node);
+  }
+
+  @override
+  void visitRethrowExpression(RethrowExpression node) {
+    log('visitRethrowExpression', node);
+    super.visitRethrowExpression(node);
+  }
+
+  @override
+  void visitReturnStatement(ReturnStatement node) {
+    log('visitReturnStatement', node);
+    super.visitReturnStatement(node);
+  }
+
+  @override
+  void visitScriptTag(ScriptTag node) {
+    log('visitScriptTag', node);
+    super.visitScriptTag(node);
+  }
+
+  @override
+  void visitSetOrMapLiteral(SetOrMapLiteral node) {
+    log('visitSetOrMapLiteral', node);
+    super.visitSetOrMapLiteral(node);
+  }
+
+  @override
+  void visitShowCombinator(ShowCombinator node) {
+    log('visitShowCombinator', node);
+    super.visitShowCombinator(node);
+  }
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    log('visitSimpleIdentifier', node);
+    super.visitSimpleIdentifier(node);
+  }
+
+  @override
+  void visitSimpleStringLiteral(SimpleStringLiteral node) {
+    log('visitSimpleStringLiteral', node);
+    super.visitSimpleStringLiteral(node);
+  }
+
+  @override
+  void visitSpreadElement(SpreadElement node) {
+    log('visitSpreadElement', node);
+    super.visitSpreadElement(node);
+  }
+
+  @override
+  void visitStringInterpolation(StringInterpolation node) {
+    log('visitStringInterpolation', node);
+    super.visitStringInterpolation(node);
+  }
+
+  @override
+  void visitSuperConstructorInvocation(SuperConstructorInvocation node) {
+    log('visitSuperConstructorInvocation', node);
+    super.visitSuperConstructorInvocation(node);
+  }
+
+  @override
+  void visitSuperExpression(SuperExpression node) {
+    log('visitSuperExpression', node);
+    super.visitSuperExpression(node);
+  }
+
+  @override
+  void visitSuperFormalParameter(SuperFormalParameter node) {
+    log('visitSuperFormalParameter', node);
+    super.visitSuperFormalParameter(node);
+  }
+
+  @override
+  void visitSwitchCase(SwitchCase node) {
+    log('visitSwitchCase', node);
+    super.visitSwitchCase(node);
+  }
+
+  @override
+  void visitSwitchDefault(SwitchDefault node) {
+    log('visitSwitchDefault', node);
+    super.visitSwitchDefault(node);
+  }
+
+  @override
+  void visitSwitchExpression(SwitchExpression node) {
+    log('visitSwitchExpression', node);
+    super.visitSwitchExpression(node);
+  }
+
+  @override
+  void visitSwitchExpressionCase(SwitchExpressionCase node) {
+    log('visitSwitchExpressionCase', node);
+    super.visitSwitchExpressionCase(node);
+  }
+
+  @override
+  void visitSwitchPatternCase(SwitchPatternCase node) {
+    log('visitSwitchPatternCase', node);
+    super.visitSwitchPatternCase(node);
+  }
+
+  @override
+  void visitSwitchStatement(SwitchStatement node) {
+    log('visitSwitchStatement', node);
+    super.visitSwitchStatement(node);
+  }
+
+  @override
+  void visitSymbolLiteral(SymbolLiteral node) {
+    log('visitSymbolLiteral', node);
+    super.visitSymbolLiteral(node);
+  }
+
+  @override
+  void visitThisExpression(ThisExpression node) {
+    log('visitThisExpression', node);
+    super.visitThisExpression(node);
+  }
+
+  @override
+  void visitThrowExpression(ThrowExpression node) {
+    log('visitThrowExpression', node);
+    super.visitThrowExpression(node);
+  }
+
+  @override
+  void visitTopLevelVariableDeclaration(TopLevelVariableDeclaration node) {
+    log('visitTopLevelVariableDeclaration', node);
+    super.visitTopLevelVariableDeclaration(node);
+  }
+
+  @override
+  void visitTryStatement(TryStatement node) {
+    log('visitTryStatement', node);
+    super.visitTryStatement(node);
+  }
+
+  @override
+  void visitTypeArgumentList(TypeArgumentList node) {
+    log('visitTypeArgumentList', node);
+    super.visitTypeArgumentList(node);
+  }
+
+  @override
+  void visitTypeLiteral(TypeLiteral node) {
+    log('visitTypeLiteral', node);
+    super.visitTypeLiteral(node);
+  }
+
+  @override
+  void visitTypeParameter(TypeParameter node) {
+    log('visitTypeParameter', node);
+    super.visitTypeParameter(node);
+  }
+
+  @override
+  void visitTypeParameterList(TypeParameterList node) {
+    log('visitTypeParameterList', node);
+    super.visitTypeParameterList(node);
+  }
+
+  @override
+  void visitVariableDeclaration(VariableDeclaration node) {
+    log('visitVariableDeclaration', node);
+    super.visitVariableDeclaration(node);
+  }
+
+  @override
+  void visitVariableDeclarationList(VariableDeclarationList node) {
+    log('visitVariableDeclarationList', node);
+    super.visitVariableDeclarationList(node);
+  }
+
+  @override
+  void visitVariableDeclarationStatement(VariableDeclarationStatement node) {
+    log('visitVariableDeclarationStatement', node);
+    super.visitVariableDeclarationStatement(node);
+  }
+
+  @override
+  void visitWhenClause(WhenClause node) {
+    log('visitWhenClause', node);
+    super.visitWhenClause(node);
+  }
+
+  @override
+  void visitWhileStatement(WhileStatement node) {
+    log('visitWhileStatement', node);
+    super.visitWhileStatement(node);
+  }
+
+  @override
+  void visitWildcardPattern(WildcardPattern node) {
+    log('visitWildcardPattern', node);
+    super.visitWildcardPattern(node);
+  }
+
+  @override
+  void visitWithClause(WithClause node) {
+    log('visitWithClause', node);
+    super.visitWithClause(node);
+  }
+
+  @override
+  void visitYieldStatement(YieldStatement node) {
+    log('visitYieldStatement', node);
+    super.visitYieldStatement(node);
+  }
+}
+
+class SimpleRecorder1 extends SimpleAstVisitor<void> {
+  final void Function(String, AstNode) log;
+
+  SimpleRecorder1(this.log);
+
+  @override
+  void visitAdjacentStrings(AdjacentStrings node) {
+    log('visitAdjacentStrings', node);
+  }
+
+  @override
+  void visitAnnotation(Annotation node) {
+    log('visitAnnotation', node);
+  }
+
+  @override
+  void visitAnonymousBlockBody(AnonymousBlockBody node) {
+    log('visitAnonymousBlockBody', node);
+  }
+
+  @override
+  void visitAnonymousExpressionBody(AnonymousExpressionBody node) {
+    log('visitAnonymousExpressionBody', node);
+  }
+
+  @override
+  void visitAnonymousMethodInvocation(AnonymousMethodInvocation node) {
+    log('visitAnonymousMethodInvocation', node);
+  }
+
+  @override
+  void visitArgumentList(ArgumentList node) {
+    log('visitArgumentList', node);
+  }
+
+  @override
+  void visitAsExpression(AsExpression node) {
+    log('visitAsExpression', node);
+  }
+
+  @override
+  void visitAssertInitializer(AssertInitializer node) {
+    log('visitAssertInitializer', node);
+  }
+
+  @override
+  void visitAssertStatement(AssertStatement node) {
+    log('visitAssertStatement', node);
+  }
+
+  @override
+  void visitAssignedVariablePattern(AssignedVariablePattern node) {
+    log('visitAssignedVariablePattern', node);
+  }
+
+  @override
+  void visitAssignmentExpression(AssignmentExpression node) {
+    log('visitAssignmentExpression', node);
+  }
+
+  @override
+  void visitAwaitExpression(AwaitExpression node) {
+    log('visitAwaitExpression', node);
+  }
+
+  @override
+  void visitBinaryExpression(BinaryExpression node) {
+    log('visitBinaryExpression', node);
+  }
+
+  @override
+  void visitBlock(Block node) {
+    log('visitBlock', node);
+  }
+
+  @override
+  void visitBlockClassBody(BlockClassBody node) {
+    log('visitBlockClassBody', node);
+  }
+
+  @override
+  void visitBlockEnumBody(BlockEnumBody node) {
+    log('visitBlockEnumBody', node);
+  }
+
+  @override
+  void visitBlockFunctionBody(BlockFunctionBody node) {
+    log('visitBlockFunctionBody', node);
+  }
+
+  @override
+  void visitBooleanLiteral(BooleanLiteral node) {
+    log('visitBooleanLiteral', node);
+  }
+
+  @override
+  void visitBreakStatement(BreakStatement node) {
+    log('visitBreakStatement', node);
+  }
+
+  @override
+  void visitCascadeExpression(CascadeExpression node) {
+    log('visitCascadeExpression', node);
+  }
+
+  @override
+  void visitCaseClause(CaseClause node) {
+    log('visitCaseClause', node);
+  }
+
+  @override
+  void visitCastPattern(CastPattern node) {
+    log('visitCastPattern', node);
+  }
+
+  @override
+  void visitCatchClause(CatchClause node) {
+    log('visitCatchClause', node);
+  }
+
+  @override
+  void visitCatchClauseParameter(CatchClauseParameter node) {
+    log('visitCatchClauseParameter', node);
+  }
+
+  @override
+  void visitClassDeclaration(ClassDeclaration node) {
+    log('visitClassDeclaration', node);
+  }
+
+  @override
+  void visitClassTypeAlias(ClassTypeAlias node) {
+    log('visitClassTypeAlias', node);
+  }
+
+  @override
+  void visitComment(Comment node) {
+    log('visitComment', node);
+  }
+
+  @override
+  void visitCommentReference(CommentReference node) {
+    log('visitCommentReference', node);
+  }
+
+  @override
+  void visitCompilationUnit(CompilationUnit node) {
+    log('visitCompilationUnit', node);
+  }
+
+  @override
+  void visitConditionalExpression(ConditionalExpression node) {
+    log('visitConditionalExpression', node);
+  }
+
+  @override
+  void visitConfiguration(Configuration node) {
+    log('visitConfiguration', node);
+  }
+
+  @override
+  void visitConstantPattern(ConstantPattern node) {
+    log('visitConstantPattern', node);
+  }
+
+  @override
+  void visitConstructorDeclaration(ConstructorDeclaration node) {
+    log('visitConstructorDeclaration', node);
+  }
+
+  @override
+  void visitConstructorFieldInitializer(ConstructorFieldInitializer node) {
+    log('visitConstructorFieldInitializer', node);
+  }
+
+  @override
+  void visitConstructorName(ConstructorName node) {
+    log('visitConstructorName', node);
+  }
+
+  @override
+  void visitConstructorReference(ConstructorReference node) {
+    log('visitConstructorReference', node);
+  }
+
+  @override
+  void visitConstructorSelector(ConstructorSelector node) {
+    log('visitConstructorSelector', node);
+  }
+
+  @override
+  void visitContinueStatement(ContinueStatement node) {
+    log('visitContinueStatement', node);
+  }
+
+  @override
+  void visitDeclaredIdentifier(DeclaredIdentifier node) {
+    log('visitDeclaredIdentifier', node);
+  }
+
+  @override
+  void visitDeclaredVariablePattern(DeclaredVariablePattern node) {
+    log('visitDeclaredVariablePattern', node);
+  }
+
+  @override
+  void visitDoStatement(DoStatement node) {
+    log('visitDoStatement', node);
+  }
+
+  @override
+  void visitDotShorthandConstructorInvocation(DotShorthandConstructorInvocation node) {
+    log('visitDotShorthandConstructorInvocation', node);
+  }
+
+  @override
+  void visitDotShorthandInvocation(DotShorthandInvocation node) {
+    log('visitDotShorthandInvocation', node);
+  }
+
+  @override
+  void visitDotShorthandPropertyAccess(DotShorthandPropertyAccess node) {
+    log('visitDotShorthandPropertyAccess', node);
+  }
+
+  @override
+  void visitDottedName(DottedName node) {
+    log('visitDottedName', node);
+  }
+
+  @override
+  void visitDoubleLiteral(DoubleLiteral node) {
+    log('visitDoubleLiteral', node);
+  }
+
+  @override
+  void visitEmptyClassBody(EmptyClassBody node) {
+    log('visitEmptyClassBody', node);
+  }
+
+  @override
+  void visitEmptyEnumBody(EmptyEnumBody node) {
+    log('visitEmptyEnumBody', node);
+  }
+
+  @override
+  void visitEmptyFunctionBody(EmptyFunctionBody node) {
+    log('visitEmptyFunctionBody', node);
+  }
+
+  @override
+  void visitEmptyStatement(EmptyStatement node) {
+    log('visitEmptyStatement', node);
+  }
+
+  @override
+  void visitEnumConstantArguments(EnumConstantArguments node) {
+    log('visitEnumConstantArguments', node);
+  }
+
+  @override
+  void visitEnumConstantDeclaration(EnumConstantDeclaration node) {
+    log('visitEnumConstantDeclaration', node);
+  }
+
+  @override
+  void visitEnumDeclaration(EnumDeclaration node) {
+    log('visitEnumDeclaration', node);
+  }
+
+  @override
+  void visitExportDirective(ExportDirective node) {
+    log('visitExportDirective', node);
+  }
+
+  @override
+  void visitExpressionFunctionBody(ExpressionFunctionBody node) {
+    log('visitExpressionFunctionBody', node);
+  }
+
+  @override
+  void visitExpressionStatement(ExpressionStatement node) {
+    log('visitExpressionStatement', node);
+  }
+
+  @override
+  void visitExtendsClause(ExtendsClause node) {
+    log('visitExtendsClause', node);
+  }
+
+  @override
+  void visitExtensionDeclaration(ExtensionDeclaration node) {
+    log('visitExtensionDeclaration', node);
+  }
+
+  @override
+  void visitExtensionOnClause(ExtensionOnClause node) {
+    log('visitExtensionOnClause', node);
+  }
+
+  @override
+  void visitExtensionOverride(ExtensionOverride node) {
+    log('visitExtensionOverride', node);
+  }
+
+  @override
+  void visitExtensionTypeDeclaration(ExtensionTypeDeclaration node) {
+    log('visitExtensionTypeDeclaration', node);
+  }
+
+  @override
+  void visitFieldDeclaration(FieldDeclaration node) {
+    log('visitFieldDeclaration', node);
+  }
+
+  @override
+  void visitFieldFormalParameter(FieldFormalParameter node) {
+    log('visitFieldFormalParameter', node);
+  }
+
+  @override
+  void visitForEachPartsWithDeclaration(ForEachPartsWithDeclaration node) {
+    log('visitForEachPartsWithDeclaration', node);
+  }
+
+  @override
+  void visitForEachPartsWithIdentifier(ForEachPartsWithIdentifier node) {
+    log('visitForEachPartsWithIdentifier', node);
+  }
+
+  @override
+  void visitForEachPartsWithPattern(ForEachPartsWithPattern node) {
+    log('visitForEachPartsWithPattern', node);
+  }
+
+  @override
+  void visitForElement(ForElement node) {
+    log('visitForElement', node);
+  }
+
+  @override
+  void visitFormalParameterDefaultClause(FormalParameterDefaultClause node) {
+    log('visitFormalParameterDefaultClause', node);
+  }
+
+  @override
+  void visitFormalParameterList(FormalParameterList node) {
+    log('visitFormalParameterList', node);
+  }
+
+  @override
+  void visitForPartsWithDeclarations(ForPartsWithDeclarations node) {
+    log('visitForPartsWithDeclarations', node);
+  }
+
+  @override
+  void visitForPartsWithExpression(ForPartsWithExpression node) {
+    log('visitForPartsWithExpression', node);
+  }
+
+  @override
+  void visitForPartsWithPattern(ForPartsWithPattern node) {
+    log('visitForPartsWithPattern', node);
+  }
+
+  @override
+  void visitForStatement(ForStatement node) {
+    log('visitForStatement', node);
+  }
+
+  @override
+  void visitFunctionDeclaration(FunctionDeclaration node) {
+    log('visitFunctionDeclaration', node);
+  }
+
+  @override
+  void visitFunctionDeclarationStatement(FunctionDeclarationStatement node) {
+    log('visitFunctionDeclarationStatement', node);
+  }
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    log('visitFunctionExpression', node);
+  }
+
+  @override
+  void visitFunctionExpressionInvocation(FunctionExpressionInvocation node) {
+    log('visitFunctionExpressionInvocation', node);
+  }
+
+  @override
+  void visitFunctionReference(FunctionReference node) {
+    log('visitFunctionReference', node);
+  }
+
+  @override
+  void visitFunctionTypeAlias(FunctionTypeAlias node) {
+    log('visitFunctionTypeAlias', node);
+  }
+
+  @override
+  void visitFunctionTypedFormalParameterSuffix(FunctionTypedFormalParameterSuffix node) {
+    log('visitFunctionTypedFormalParameterSuffix', node);
+  }
+
+  @override
+  void visitGenericFunctionType(GenericFunctionType node) {
+    log('visitGenericFunctionType', node);
+  }
+
+  @override
+  void visitGenericTypeAlias(GenericTypeAlias node) {
+    log('visitGenericTypeAlias', node);
+  }
+
+  @override
+  void visitGuardedPattern(GuardedPattern node) {
+    log('visitGuardedPattern', node);
+  }
+
+  @override
+  void visitHideCombinator(HideCombinator node) {
+    log('visitHideCombinator', node);
+  }
+
+  @override
+  void visitIfElement(IfElement node) {
+    log('visitIfElement', node);
+  }
+
+  @override
+  void visitIfStatement(IfStatement node) {
+    log('visitIfStatement', node);
+  }
+
+  @override
+  void visitImplementsClause(ImplementsClause node) {
+    log('visitImplementsClause', node);
+  }
+
+  @override
+  void visitImplicitCallReference(ImplicitCallReference node) {
+    log('visitImplicitCallReference', node);
+  }
+
+  @override
+  void visitImportDirective(ImportDirective node) {
+    log('visitImportDirective', node);
+  }
+
+  @override
+  void visitImportPrefixReference(ImportPrefixReference node) {
+    log('visitImportPrefixReference', node);
+  }
+
+  @override
+  void visitIndexExpression(IndexExpression node) {
+    log('visitIndexExpression', node);
+  }
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    log('visitInstanceCreationExpression', node);
+  }
+
+  @override
+  void visitIntegerLiteral(IntegerLiteral node) {
+    log('visitIntegerLiteral', node);
+  }
+
+  @override
+  void visitInterpolationExpression(InterpolationExpression node) {
+    log('visitInterpolationExpression', node);
+  }
+
+  @override
+  void visitInterpolationString(InterpolationString node) {
+    log('visitInterpolationString', node);
+  }
+
+  @override
+  void visitIsExpression(IsExpression node) {
+    log('visitIsExpression', node);
+  }
+
+  @override
+  void visitLabel(Label node) {
+    log('visitLabel', node);
+  }
+
+  @override
+  void visitLabeledStatement(LabeledStatement node) {
+    log('visitLabeledStatement', node);
+  }
+
+  @override
+  void visitLabelReference(LabelReference node) {
+    log('visitLabelReference', node);
+  }
+
+  @override
+  void visitLibraryDirective(LibraryDirective node) {
+    log('visitLibraryDirective', node);
+  }
+
+  @override
+  void visitListLiteral(ListLiteral node) {
+    log('visitListLiteral', node);
+  }
+
+  @override
+  void visitListPattern(ListPattern node) {
+    log('visitListPattern', node);
+  }
+
+  @override
+  void visitLogicalAndPattern(LogicalAndPattern node) {
+    log('visitLogicalAndPattern', node);
+  }
+
+  @override
+  void visitLogicalOrPattern(LogicalOrPattern node) {
+    log('visitLogicalOrPattern', node);
+  }
+
+  @override
+  void visitMapLiteralEntry(MapLiteralEntry node) {
+    log('visitMapLiteralEntry', node);
+  }
+
+  @override
+  void visitMapPattern(MapPattern node) {
+    log('visitMapPattern', node);
+  }
+
+  @override
+  void visitMapPatternEntry(MapPatternEntry node) {
+    log('visitMapPatternEntry', node);
+  }
+
+  @override
+  void visitMethodDeclaration(MethodDeclaration node) {
+    log('visitMethodDeclaration', node);
+  }
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    log('visitMethodInvocation', node);
+  }
+
+  @override
+  void visitMixinDeclaration(MixinDeclaration node) {
+    log('visitMixinDeclaration', node);
+  }
+
+  @override
+  void visitMixinOnClause(MixinOnClause node) {
+    log('visitMixinOnClause', node);
+  }
+
+  @override
+  void visitNamedArgument(NamedArgument node) {
+    log('visitNamedArgument', node);
+  }
+
+  @override
+  void visitNamedType(NamedType node) {
+    log('visitNamedType', node);
+  }
+
+  @override
+  void visitNameWithTypeParameters(NameWithTypeParameters node) {
+    log('visitNameWithTypeParameters', node);
+  }
+
+  @override
+  void visitNativeClause(NativeClause node) {
+    log('visitNativeClause', node);
+  }
+
+  @override
+  void visitNativeFunctionBody(NativeFunctionBody node) {
+    log('visitNativeFunctionBody', node);
+  }
+
+  @override
+  void visitNullAssertPattern(NullAssertPattern node) {
+    log('visitNullAssertPattern', node);
+  }
+
+  @override
+  void visitNullAwareElement(NullAwareElement node) {
+    log('visitNullAwareElement', node);
+  }
+
+  @override
+  void visitNullCheckPattern(NullCheckPattern node) {
+    log('visitNullCheckPattern', node);
+  }
+
+  @override
+  void visitNullLiteral(NullLiteral node) {
+    log('visitNullLiteral', node);
+  }
+
+  @override
+  void visitObjectPattern(ObjectPattern node) {
+    log('visitObjectPattern', node);
+  }
+
+  @override
+  void visitParenthesizedExpression(ParenthesizedExpression node) {
+    log('visitParenthesizedExpression', node);
+  }
+
+  @override
+  void visitParenthesizedPattern(ParenthesizedPattern node) {
+    log('visitParenthesizedPattern', node);
+  }
+
+  @override
+  void visitPartDirective(PartDirective node) {
+    log('visitPartDirective', node);
+  }
+
+  @override
+  void visitPartOfDirective(PartOfDirective node) {
+    log('visitPartOfDirective', node);
+  }
+
+  @override
+  void visitPatternAssignment(PatternAssignment node) {
+    log('visitPatternAssignment', node);
+  }
+
+  @override
+  void visitPatternField(PatternField node) {
+    log('visitPatternField', node);
+  }
+
+  @override
+  void visitPatternFieldName(PatternFieldName node) {
+    log('visitPatternFieldName', node);
+  }
+
+  @override
+  void visitPatternVariableDeclaration(PatternVariableDeclaration node) {
+    log('visitPatternVariableDeclaration', node);
+  }
+
+  @override
+  void visitPatternVariableDeclarationStatement(PatternVariableDeclarationStatement node) {
+    log('visitPatternVariableDeclarationStatement', node);
+  }
+
+  @override
+  void visitPostfixExpression(PostfixExpression node) {
+    log('visitPostfixExpression', node);
+  }
+
+  @override
+  void visitPrefixedIdentifier(PrefixedIdentifier node) {
+    log('visitPrefixedIdentifier', node);
+  }
+
+  @override
+  void visitPrefixExpression(PrefixExpression node) {
+    log('visitPrefixExpression', node);
+  }
+
+  @override
+  void visitPrimaryConstructorBody(PrimaryConstructorBody node) {
+    log('visitPrimaryConstructorBody', node);
+  }
+
+  @override
+  void visitPrimaryConstructorDeclaration(PrimaryConstructorDeclaration node) {
+    log('visitPrimaryConstructorDeclaration', node);
+  }
+
+  @override
+  void visitPrimaryConstructorName(PrimaryConstructorName node) {
+    log('visitPrimaryConstructorName', node);
+  }
+
+  @override
+  void visitPropertyAccess(PropertyAccess node) {
+    log('visitPropertyAccess', node);
+  }
+
+  @override
+  void visitRecordLiteral(RecordLiteral node) {
+    log('visitRecordLiteral', node);
+  }
+
+  @override
+  void visitRecordLiteralNamedField(RecordLiteralNamedField node) {
+    log('visitRecordLiteralNamedField', node);
+  }
+
+  @override
+  void visitRecordPattern(RecordPattern node) {
+    log('visitRecordPattern', node);
+  }
+
+  @override
+  void visitRecordTypeAnnotation(RecordTypeAnnotation node) {
+    log('visitRecordTypeAnnotation', node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedField(RecordTypeAnnotationNamedField node) {
+    log('visitRecordTypeAnnotationNamedField', node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedFields(RecordTypeAnnotationNamedFields node) {
+    log('visitRecordTypeAnnotationNamedFields', node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationPositionalField(RecordTypeAnnotationPositionalField node) {
+    log('visitRecordTypeAnnotationPositionalField', node);
+  }
+
+  @override
+  void visitRedirectingConstructorInvocation(RedirectingConstructorInvocation node) {
+    log('visitRedirectingConstructorInvocation', node);
+  }
+
+  @override
+  void visitRegularFormalParameter(RegularFormalParameter node) {
+    log('visitRegularFormalParameter', node);
+  }
+
+  @override
+  void visitRelationalPattern(RelationalPattern node) {
+    log('visitRelationalPattern', node);
+  }
+
+  @override
+  void visitRestPatternElement(RestPatternElement node) {
+    log('visitRestPatternElement', node);
+  }
+
+  @override
+  void visitRethrowExpression(RethrowExpression node) {
+    log('visitRethrowExpression', node);
+  }
+
+  @override
+  void visitReturnStatement(ReturnStatement node) {
+    log('visitReturnStatement', node);
+  }
+
+  @override
+  void visitScriptTag(ScriptTag node) {
+    log('visitScriptTag', node);
+  }
+
+  @override
+  void visitSetOrMapLiteral(SetOrMapLiteral node) {
+    log('visitSetOrMapLiteral', node);
+  }
+
+  @override
+  void visitShowCombinator(ShowCombinator node) {
+    log('visitShowCombinator', node);
+  }
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    log('visitSimpleIdentifier', node);
+  }
+
+  @override
+  void visitSimpleStringLiteral(SimpleStringLiteral node) {
+    log('visitSimpleStringLiteral', node);
+  }
+
+  @override
+  void visitSpreadElement(SpreadElement node) {
+    log('visitSpreadElement', node);
+  }
+
+  @override
+  void visitStringInterpolation(StringInterpolation node) {
+    log('visitStringInterpolation', node);
+  }
+
+  @override
+  void visitSuperConstructorInvocation(SuperConstructorInvocation node) {
+    log('visitSuperConstructorInvocation', node);
+  }
+
+  @override
+  void visitSuperExpression(SuperExpression node) {
+    log('visitSuperExpression', node);
+  }
+
+  @override
+  void visitSuperFormalParameter(SuperFormalParameter node) {
+    log('visitSuperFormalParameter', node);
+  }
+
+  @override
+  void visitSwitchCase(SwitchCase node) {
+    log('visitSwitchCase', node);
+  }
+
+  @override
+  void visitSwitchDefault(SwitchDefault node) {
+    log('visitSwitchDefault', node);
+  }
+
+  @override
+  void visitSwitchExpression(SwitchExpression node) {
+    log('visitSwitchExpression', node);
+  }
+
+  @override
+  void visitSwitchExpressionCase(SwitchExpressionCase node) {
+    log('visitSwitchExpressionCase', node);
+  }
+
+  @override
+  void visitSwitchPatternCase(SwitchPatternCase node) {
+    log('visitSwitchPatternCase', node);
+  }
+
+  @override
+  void visitSwitchStatement(SwitchStatement node) {
+    log('visitSwitchStatement', node);
+  }
+
+  @override
+  void visitSymbolLiteral(SymbolLiteral node) {
+    log('visitSymbolLiteral', node);
+  }
+
+  @override
+  void visitThisExpression(ThisExpression node) {
+    log('visitThisExpression', node);
+  }
+
+  @override
+  void visitThrowExpression(ThrowExpression node) {
+    log('visitThrowExpression', node);
+  }
+
+  @override
+  void visitTopLevelVariableDeclaration(TopLevelVariableDeclaration node) {
+    log('visitTopLevelVariableDeclaration', node);
+  }
+
+  @override
+  void visitTryStatement(TryStatement node) {
+    log('visitTryStatement', node);
+  }
+
+  @override
+  void visitTypeArgumentList(TypeArgumentList node) {
+    log('visitTypeArgumentList', node);
+  }
+
+  @override
+  void visitTypeLiteral(TypeLiteral node) {
+    log('visitTypeLiteral', node);
+  }
+
+  @override
+  void visitTypeParameter(TypeParameter node) {
+    log('visitTypeParameter', node);
+  }
+
+  @override
+  void visitTypeParameterList(TypeParameterList node) {
+    log('visitTypeParameterList', node);
+  }
+
+  @override
+  void visitVariableDeclaration(VariableDeclaration node) {
+    log('visitVariableDeclaration', node);
+  }
+
+  @override
+  void visitVariableDeclarationList(VariableDeclarationList node) {
+    log('visitVariableDeclarationList', node);
+  }
+
+  @override
+  void visitVariableDeclarationStatement(VariableDeclarationStatement node) {
+    log('visitVariableDeclarationStatement', node);
+  }
+
+  @override
+  void visitWhenClause(WhenClause node) {
+    log('visitWhenClause', node);
+  }
+
+  @override
+  void visitWhileStatement(WhileStatement node) {
+    log('visitWhileStatement', node);
+  }
+
+  @override
+  void visitWildcardPattern(WildcardPattern node) {
+    log('visitWildcardPattern', node);
+  }
+
+  @override
+  void visitWithClause(WithClause node) {
+    log('visitWithClause', node);
+  }
+
+  @override
+  void visitYieldStatement(YieldStatement node) {
+    log('visitYieldStatement', node);
+  }
+}
+
+class GeneralizingRecorder extends GeneralizingAstVisitor<void> {
+  final void Function(String, AstNode) log;
+
+  GeneralizingRecorder(this.log);
+
+  @override
+  void visitAdjacentStrings(AdjacentStrings node) {
+    log('visitAdjacentStrings', node);
+    super.visitAdjacentStrings(node);
+  }
+
+  void visitAnnotatedNode(AnnotatedNode node) {
+    log('visitAnnotatedNode', node);
+    super.visitAnnotatedNode(node);
+  }
+
+  @override
+  void visitAnnotation(Annotation node) {
+    log('visitAnnotation', node);
+    super.visitAnnotation(node);
+  }
+
+  @override
+  void visitAnonymousBlockBody(AnonymousBlockBody node) {
+    log('visitAnonymousBlockBody', node);
+    super.visitAnonymousBlockBody(node);
+  }
+
+  @override
+  void visitAnonymousExpressionBody(AnonymousExpressionBody node) {
+    log('visitAnonymousExpressionBody', node);
+    super.visitAnonymousExpressionBody(node);
+  }
+
+  void visitAnonymousMethodBody(AnonymousMethodBody node) {
+    log('visitAnonymousMethodBody', node);
+    super.visitAnonymousMethodBody(node);
+  }
+
+  @override
+  void visitAnonymousMethodInvocation(AnonymousMethodInvocation node) {
+    log('visitAnonymousMethodInvocation', node);
+    super.visitAnonymousMethodInvocation(node);
+  }
+
+  @override
+  void visitArgumentList(ArgumentList node) {
+    log('visitArgumentList', node);
+    super.visitArgumentList(node);
+  }
+
+  @override
+  void visitAsExpression(AsExpression node) {
+    log('visitAsExpression', node);
+    super.visitAsExpression(node);
+  }
+
+  @override
+  void visitAssertInitializer(AssertInitializer node) {
+    log('visitAssertInitializer', node);
+    super.visitAssertInitializer(node);
+  }
+
+  @override
+  void visitAssertStatement(AssertStatement node) {
+    log('visitAssertStatement', node);
+    super.visitAssertStatement(node);
+  }
+
+  @override
+  void visitAssignedVariablePattern(AssignedVariablePattern node) {
+    log('visitAssignedVariablePattern', node);
+    super.visitAssignedVariablePattern(node);
+  }
+
+  @override
+  void visitAssignmentExpression(AssignmentExpression node) {
+    log('visitAssignmentExpression', node);
+    super.visitAssignmentExpression(node);
+  }
+
+  void visitAssignmentExpression2(AssignmentExpression2 node) {
+    log('visitAssignmentExpression2', node);
+    super.visitAssignmentExpression2(node);
+  }
+
+  void visitAssignmentTarget(AssignmentTarget node) {
+    log('visitAssignmentTarget', node);
+    super.visitAssignmentTarget(node);
+  }
+
+  @override
+  void visitAwaitExpression(AwaitExpression node) {
+    log('visitAwaitExpression', node);
+    super.visitAwaitExpression(node);
+  }
+
+  @override
+  void visitBinaryExpression(BinaryExpression node) {
+    log('visitBinaryExpression', node);
+    super.visitBinaryExpression(node);
+  }
+
+  @override
+  void visitBlock(Block node) {
+    log('visitBlock', node);
+    super.visitBlock(node);
+  }
+
+  @override
+  void visitBlockClassBody(BlockClassBody node) {
+    log('visitBlockClassBody', node);
+    super.visitBlockClassBody(node);
+  }
+
+  @override
+  void visitBlockEnumBody(BlockEnumBody node) {
+    log('visitBlockEnumBody', node);
+    super.visitBlockEnumBody(node);
+  }
+
+  @override
+  void visitBlockFunctionBody(BlockFunctionBody node) {
+    log('visitBlockFunctionBody', node);
+    super.visitBlockFunctionBody(node);
+  }
+
+  @override
+  void visitBooleanLiteral(BooleanLiteral node) {
+    log('visitBooleanLiteral', node);
+    super.visitBooleanLiteral(node);
+  }
+
+  @override
+  void visitBreakStatement(BreakStatement node) {
+    log('visitBreakStatement', node);
+    super.visitBreakStatement(node);
+  }
+
+  @override
+  void visitCascadeExpression(CascadeExpression node) {
+    log('visitCascadeExpression', node);
+    super.visitCascadeExpression(node);
+  }
+
+  @override
+  void visitCaseClause(CaseClause node) {
+    log('visitCaseClause', node);
+    super.visitCaseClause(node);
+  }
+
+  @override
+  void visitCastPattern(CastPattern node) {
+    log('visitCastPattern', node);
+    super.visitCastPattern(node);
+  }
+
+  @override
+  void visitCatchClause(CatchClause node) {
+    log('visitCatchClause', node);
+    super.visitCatchClause(node);
+  }
+
+  @override
+  void visitCatchClauseParameter(CatchClauseParameter node) {
+    log('visitCatchClauseParameter', node);
+    super.visitCatchClauseParameter(node);
+  }
+
+  void visitClassBody(ClassBody node) {
+    log('visitClassBody', node);
+    super.visitClassBody(node);
+  }
+
+  @override
+  void visitClassDeclaration(ClassDeclaration node) {
+    log('visitClassDeclaration', node);
+    super.visitClassDeclaration(node);
+  }
+
+  void visitClassMember(ClassMember node) {
+    log('visitClassMember', node);
+    super.visitClassMember(node);
+  }
+
+  void visitClassNamePart(ClassNamePart node) {
+    log('visitClassNamePart', node);
+    super.visitClassNamePart(node);
+  }
+
+  @override
+  void visitClassTypeAlias(ClassTypeAlias node) {
+    log('visitClassTypeAlias', node);
+    super.visitClassTypeAlias(node);
+  }
+
+  void visitCombinator(Combinator node) {
+    log('visitCombinator', node);
+    super.visitCombinator(node);
+  }
+
+  @override
+  void visitComment(Comment node) {
+    log('visitComment', node);
+    super.visitComment(node);
+  }
+
+  void visitCommentReferableExpression(CommentReferableExpression node) {
+    log('visitCommentReferableExpression', node);
+    super.visitCommentReferableExpression(node);
+  }
+
+  @override
+  void visitCommentReference(CommentReference node) {
+    log('visitCommentReference', node);
+    super.visitCommentReference(node);
+  }
+
+  @override
+  void visitCompilationUnit(CompilationUnit node) {
+    log('visitCompilationUnit', node);
+    super.visitCompilationUnit(node);
+  }
+
+  void visitCompilationUnitMember(CompilationUnitMember node) {
+    log('visitCompilationUnitMember', node);
+    super.visitCompilationUnitMember(node);
+  }
+
+  @override
+  void visitConditionalExpression(ConditionalExpression node) {
+    log('visitConditionalExpression', node);
+    super.visitConditionalExpression(node);
+  }
+
+  @override
+  void visitConfiguration(Configuration node) {
+    log('visitConfiguration', node);
+    super.visitConfiguration(node);
+  }
+
+  @override
+  void visitConstantPattern(ConstantPattern node) {
+    log('visitConstantPattern', node);
+    super.visitConstantPattern(node);
+  }
+
+  @override
+  void visitConstructorDeclaration(ConstructorDeclaration node) {
+    log('visitConstructorDeclaration', node);
+    super.visitConstructorDeclaration(node);
+  }
+
+  @override
+  void visitConstructorFieldInitializer(ConstructorFieldInitializer node) {
+    log('visitConstructorFieldInitializer', node);
+    super.visitConstructorFieldInitializer(node);
+  }
+
+  void visitConstructorInitializer(ConstructorInitializer node) {
+    log('visitConstructorInitializer', node);
+    super.visitConstructorInitializer(node);
+  }
+
+  @override
+  void visitConstructorName(ConstructorName node) {
+    log('visitConstructorName', node);
+    super.visitConstructorName(node);
+  }
+
+  @override
+  void visitConstructorReference(ConstructorReference node) {
+    log('visitConstructorReference', node);
+    super.visitConstructorReference(node);
+  }
+
+  @override
+  void visitConstructorSelector(ConstructorSelector node) {
+    log('visitConstructorSelector', node);
+    super.visitConstructorSelector(node);
+  }
+
+  @override
+  void visitContinueStatement(ContinueStatement node) {
+    log('visitContinueStatement', node);
+    super.visitContinueStatement(node);
+  }
+
+  void visitDartPattern(DartPattern node) {
+    log('visitDartPattern', node);
+    super.visitDartPattern(node);
+  }
+
+  void visitDeclaration(Declaration node) {
+    log('visitDeclaration', node);
+    super.visitDeclaration(node);
+  }
+
+  @override
+  void visitDeclaredIdentifier(DeclaredIdentifier node) {
+    log('visitDeclaredIdentifier', node);
+    super.visitDeclaredIdentifier(node);
+  }
+
+  @override
+  void visitDeclaredVariablePattern(DeclaredVariablePattern node) {
+    log('visitDeclaredVariablePattern', node);
+    super.visitDeclaredVariablePattern(node);
+  }
+
+  void visitDirective(Directive node) {
+    log('visitDirective', node);
+    super.visitDirective(node);
+  }
+
+  @override
+  void visitDoStatement(DoStatement node) {
+    log('visitDoStatement', node);
+    super.visitDoStatement(node);
+  }
+
+  @override
+  void visitDotShorthandConstructorInvocation(DotShorthandConstructorInvocation node) {
+    log('visitDotShorthandConstructorInvocation', node);
+    super.visitDotShorthandConstructorInvocation(node);
+  }
+
+  @override
+  void visitDotShorthandInvocation(DotShorthandInvocation node) {
+    log('visitDotShorthandInvocation', node);
+    super.visitDotShorthandInvocation(node);
+  }
+
+  @override
+  void visitDotShorthandPropertyAccess(DotShorthandPropertyAccess node) {
+    log('visitDotShorthandPropertyAccess', node);
+    super.visitDotShorthandPropertyAccess(node);
+  }
+
+  @override
+  void visitDottedName(DottedName node) {
+    log('visitDottedName', node);
+    super.visitDottedName(node);
+  }
+
+  @override
+  void visitDoubleLiteral(DoubleLiteral node) {
+    log('visitDoubleLiteral', node);
+    super.visitDoubleLiteral(node);
+  }
+
+  @override
+  void visitEmptyClassBody(EmptyClassBody node) {
+    log('visitEmptyClassBody', node);
+    super.visitEmptyClassBody(node);
+  }
+
+  @override
+  void visitEmptyEnumBody(EmptyEnumBody node) {
+    log('visitEmptyEnumBody', node);
+    super.visitEmptyEnumBody(node);
+  }
+
+  @override
+  void visitEmptyFunctionBody(EmptyFunctionBody node) {
+    log('visitEmptyFunctionBody', node);
+    super.visitEmptyFunctionBody(node);
+  }
+
+  @override
+  void visitEmptyStatement(EmptyStatement node) {
+    log('visitEmptyStatement', node);
+    super.visitEmptyStatement(node);
+  }
+
+  void visitEnumBody(EnumBody node) {
+    log('visitEnumBody', node);
+    super.visitEnumBody(node);
+  }
+
+  @override
+  void visitEnumConstantArguments(EnumConstantArguments node) {
+    log('visitEnumConstantArguments', node);
+    super.visitEnumConstantArguments(node);
+  }
+
+  @override
+  void visitEnumConstantDeclaration(EnumConstantDeclaration node) {
+    log('visitEnumConstantDeclaration', node);
+    super.visitEnumConstantDeclaration(node);
+  }
+
+  @override
+  void visitEnumDeclaration(EnumDeclaration node) {
+    log('visitEnumDeclaration', node);
+    super.visitEnumDeclaration(node);
+  }
+
+  void visitEnumDeclarationBody(EnumDeclarationBody node) {
+    log('visitEnumDeclarationBody', node);
+    super.visitEnumDeclarationBody(node);
+  }
+
+  @override
+  void visitExportDirective(ExportDirective node) {
+    log('visitExportDirective', node);
+    super.visitExportDirective(node);
+  }
+
+  void visitExpression(Expression node) {
+    log('visitExpression', node);
+    super.visitExpression(node);
+  }
+
+  @override
+  void visitExpressionFunctionBody(ExpressionFunctionBody node) {
+    log('visitExpressionFunctionBody', node);
+    super.visitExpressionFunctionBody(node);
+  }
+
+  @override
+  void visitExpressionStatement(ExpressionStatement node) {
+    log('visitExpressionStatement', node);
+    super.visitExpressionStatement(node);
+  }
+
+  @override
+  void visitExtendsClause(ExtendsClause node) {
+    log('visitExtendsClause', node);
+    super.visitExtendsClause(node);
+  }
+
+  @override
+  void visitExtensionDeclaration(ExtensionDeclaration node) {
+    log('visitExtensionDeclaration', node);
+    super.visitExtensionDeclaration(node);
+  }
+
+  @override
+  void visitExtensionOnClause(ExtensionOnClause node) {
+    log('visitExtensionOnClause', node);
+    super.visitExtensionOnClause(node);
+  }
+
+  @override
+  void visitExtensionOverride(ExtensionOverride node) {
+    log('visitExtensionOverride', node);
+    super.visitExtensionOverride(node);
+  }
+
+  @override
+  void visitExtensionTypeDeclaration(ExtensionTypeDeclaration node) {
+    log('visitExtensionTypeDeclaration', node);
+    super.visitExtensionTypeDeclaration(node);
+  }
+
+  @override
+  void visitFieldDeclaration(FieldDeclaration node) {
+    log('visitFieldDeclaration', node);
+    super.visitFieldDeclaration(node);
+  }
+
+  @override
+  void visitFieldFormalParameter(FieldFormalParameter node) {
+    log('visitFieldFormalParameter', node);
+    super.visitFieldFormalParameter(node);
+  }
+
+  void visitForEachParts(ForEachParts node) {
+    log('visitForEachParts', node);
+    super.visitForEachParts(node);
+  }
+
+  @override
+  void visitForEachPartsWithDeclaration(ForEachPartsWithDeclaration node) {
+    log('visitForEachPartsWithDeclaration', node);
+    super.visitForEachPartsWithDeclaration(node);
+  }
+
+  @override
+  void visitForEachPartsWithIdentifier(ForEachPartsWithIdentifier node) {
+    log('visitForEachPartsWithIdentifier', node);
+    super.visitForEachPartsWithIdentifier(node);
+  }
+
+  @override
+  void visitForEachPartsWithPattern(ForEachPartsWithPattern node) {
+    log('visitForEachPartsWithPattern', node);
+    super.visitForEachPartsWithPattern(node);
+  }
+
+  @override
+  void visitForElement(ForElement node) {
+    log('visitForElement', node);
+    super.visitForElement(node);
+  }
+
+  void visitForLoopParts(ForLoopParts node) {
+    log('visitForLoopParts', node);
+    super.visitForLoopParts(node);
+  }
+
+  void visitFormalParameter(FormalParameter node) {
+    log('visitFormalParameter', node);
+    super.visitFormalParameter(node);
+  }
+
+  @override
+  void visitFormalParameterDefaultClause(FormalParameterDefaultClause node) {
+    log('visitFormalParameterDefaultClause', node);
+    super.visitFormalParameterDefaultClause(node);
+  }
+
+  @override
+  void visitFormalParameterList(FormalParameterList node) {
+    log('visitFormalParameterList', node);
+    super.visitFormalParameterList(node);
+  }
+
+  void visitForParts(ForParts node) {
+    log('visitForParts', node);
+    super.visitForParts(node);
+  }
+
+  @override
+  void visitForPartsWithDeclarations(ForPartsWithDeclarations node) {
+    log('visitForPartsWithDeclarations', node);
+    super.visitForPartsWithDeclarations(node);
+  }
+
+  @override
+  void visitForPartsWithExpression(ForPartsWithExpression node) {
+    log('visitForPartsWithExpression', node);
+    super.visitForPartsWithExpression(node);
+  }
+
+  @override
+  void visitForPartsWithPattern(ForPartsWithPattern node) {
+    log('visitForPartsWithPattern', node);
+    super.visitForPartsWithPattern(node);
+  }
+
+  @override
+  void visitForStatement(ForStatement node) {
+    log('visitForStatement', node);
+    super.visitForStatement(node);
+  }
+
+  void visitFunctionBody(FunctionBody node) {
+    log('visitFunctionBody', node);
+    super.visitFunctionBody(node);
+  }
+
+  @override
+  void visitFunctionDeclaration(FunctionDeclaration node) {
+    log('visitFunctionDeclaration', node);
+    super.visitFunctionDeclaration(node);
+  }
+
+  @override
+  void visitFunctionDeclarationStatement(FunctionDeclarationStatement node) {
+    log('visitFunctionDeclarationStatement', node);
+    super.visitFunctionDeclarationStatement(node);
+  }
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    log('visitFunctionExpression', node);
+    super.visitFunctionExpression(node);
+  }
+
+  @override
+  void visitFunctionExpressionInvocation(FunctionExpressionInvocation node) {
+    log('visitFunctionExpressionInvocation', node);
+    super.visitFunctionExpressionInvocation(node);
+  }
+
+  void visitFunctionInvocation(FunctionInvocation node) {
+    log('visitFunctionInvocation', node);
+    super.visitFunctionInvocation(node);
+  }
+
+  @override
+  void visitFunctionReference(FunctionReference node) {
+    log('visitFunctionReference', node);
+    super.visitFunctionReference(node);
+  }
+
+  @override
+  void visitFunctionTypeAlias(FunctionTypeAlias node) {
+    log('visitFunctionTypeAlias', node);
+    super.visitFunctionTypeAlias(node);
+  }
+
+  @override
+  void visitFunctionTypedFormalParameterSuffix(FunctionTypedFormalParameterSuffix node) {
+    log('visitFunctionTypedFormalParameterSuffix', node);
+    super.visitFunctionTypedFormalParameterSuffix(node);
+  }
+
+  @override
+  void visitGenericFunctionType(GenericFunctionType node) {
+    log('visitGenericFunctionType', node);
+    super.visitGenericFunctionType(node);
+  }
+
+  @override
+  void visitGenericTypeAlias(GenericTypeAlias node) {
+    log('visitGenericTypeAlias', node);
+    super.visitGenericTypeAlias(node);
+  }
+
+  @override
+  void visitGuardedPattern(GuardedPattern node) {
+    log('visitGuardedPattern', node);
+    super.visitGuardedPattern(node);
+  }
+
+  @override
+  void visitHideCombinator(HideCombinator node) {
+    log('visitHideCombinator', node);
+    super.visitHideCombinator(node);
+  }
+
+  void visitIdentifier(Identifier node) {
+    log('visitIdentifier', node);
+    super.visitIdentifier(node);
+  }
+
+  @override
+  void visitIfElement(IfElement node) {
+    log('visitIfElement', node);
+    super.visitIfElement(node);
+  }
+
+  @override
+  void visitIfStatement(IfStatement node) {
+    log('visitIfStatement', node);
+    super.visitIfStatement(node);
+  }
+
+  @override
+  void visitImplementsClause(ImplementsClause node) {
+    log('visitImplementsClause', node);
+    super.visitImplementsClause(node);
+  }
+
+  @override
+  void visitImplicitCallReference(ImplicitCallReference node) {
+    log('visitImplicitCallReference', node);
+    super.visitImplicitCallReference(node);
+  }
+
+  @override
+  void visitImportDirective(ImportDirective node) {
+    log('visitImportDirective', node);
+    super.visitImportDirective(node);
+  }
+
+  @override
+  void visitImportPrefixReference(ImportPrefixReference node) {
+    log('visitImportPrefixReference', node);
+    super.visitImportPrefixReference(node);
+  }
+
+  void visitIndexAssignmentTarget(IndexAssignmentTarget node) {
+    log('visitIndexAssignmentTarget', node);
+    super.visitIndexAssignmentTarget(node);
+  }
+
+  @override
+  void visitIndexExpression(IndexExpression node) {
+    log('visitIndexExpression', node);
+    super.visitIndexExpression(node);
+  }
+
+  void visitIndexExpression2(IndexExpression2 node) {
+    log('visitIndexExpression2', node);
+    super.visitIndexExpression2(node);
+  }
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    log('visitInstanceCreationExpression', node);
+    super.visitInstanceCreationExpression(node);
+  }
+
+  void visitInstanceDeclarationBody(InstanceDeclarationBody node) {
+    log('visitInstanceDeclarationBody', node);
+    super.visitInstanceDeclarationBody(node);
+  }
+
+  void visitInstanceReceiver(InstanceReceiver node) {
+    log('visitInstanceReceiver', node);
+    super.visitInstanceReceiver(node);
+  }
+
+  @override
+  void visitIntegerLiteral(IntegerLiteral node) {
+    log('visitIntegerLiteral', node);
+    super.visitIntegerLiteral(node);
+  }
+
+  void visitInterpolationElement(InterpolationElement node) {
+    log('visitInterpolationElement', node);
+    super.visitInterpolationElement(node);
+  }
+
+  @override
+  void visitInterpolationExpression(InterpolationExpression node) {
+    log('visitInterpolationExpression', node);
+    super.visitInterpolationExpression(node);
+  }
+
+  @override
+  void visitInterpolationString(InterpolationString node) {
+    log('visitInterpolationString', node);
+    super.visitInterpolationString(node);
+  }
+
+  void visitInvocationExpression(InvocationExpression node) {
+    log('visitInvocationExpression', node);
+    super.visitInvocationExpression(node);
+  }
+
+  @override
+  void visitIsExpression(IsExpression node) {
+    log('visitIsExpression', node);
+    super.visitIsExpression(node);
+  }
+
+  @override
+  void visitLabel(Label node) {
+    log('visitLabel', node);
+    super.visitLabel(node);
+  }
+
+  @override
+  void visitLabeledStatement(LabeledStatement node) {
+    log('visitLabeledStatement', node);
+    super.visitLabeledStatement(node);
+  }
+
+  @override
+  void visitLabelReference(LabelReference node) {
+    log('visitLabelReference', node);
+    super.visitLabelReference(node);
+  }
+
+  @override
+  void visitLibraryDirective(LibraryDirective node) {
+    log('visitLibraryDirective', node);
+    super.visitLibraryDirective(node);
+  }
+
+  @override
+  void visitListLiteral(ListLiteral node) {
+    log('visitListLiteral', node);
+    super.visitListLiteral(node);
+  }
+
+  @override
+  void visitListPattern(ListPattern node) {
+    log('visitListPattern', node);
+    super.visitListPattern(node);
+  }
+
+  void visitLiteral(Literal node) {
+    log('visitLiteral', node);
+    super.visitLiteral(node);
+  }
+
+  @override
+  void visitLogicalAndPattern(LogicalAndPattern node) {
+    log('visitLogicalAndPattern', node);
+    super.visitLogicalAndPattern(node);
+  }
+
+  @override
+  void visitLogicalOrPattern(LogicalOrPattern node) {
+    log('visitLogicalOrPattern', node);
+    super.visitLogicalOrPattern(node);
+  }
+
+  @override
+  void visitMapLiteralEntry(MapLiteralEntry node) {
+    log('visitMapLiteralEntry', node);
+    super.visitMapLiteralEntry(node);
+  }
+
+  @override
+  void visitMapPattern(MapPattern node) {
+    log('visitMapPattern', node);
+    super.visitMapPattern(node);
+  }
+
+  @override
+  void visitMapPatternEntry(MapPatternEntry node) {
+    log('visitMapPatternEntry', node);
+    super.visitMapPatternEntry(node);
+  }
+
+  void visitMemberDeclaration(MemberDeclaration node) {
+    log('visitMemberDeclaration', node);
+    super.visitMemberDeclaration(node);
+  }
+
+  @override
+  void visitMethodDeclaration(MethodDeclaration node) {
+    log('visitMethodDeclaration', node);
+    super.visitMethodDeclaration(node);
+  }
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    log('visitMethodInvocation', node);
+    super.visitMethodInvocation(node);
+  }
+
+  @override
+  void visitMixinDeclaration(MixinDeclaration node) {
+    log('visitMixinDeclaration', node);
+    super.visitMixinDeclaration(node);
+  }
+
+  @override
+  void visitMixinOnClause(MixinOnClause node) {
+    log('visitMixinOnClause', node);
+    super.visitMixinOnClause(node);
+  }
+
+  @override
+  void visitNamedArgument(NamedArgument node) {
+    log('visitNamedArgument', node);
+    super.visitNamedArgument(node);
+  }
+
+  void visitNamedFunctionInvocation(NamedFunctionInvocation node) {
+    log('visitNamedFunctionInvocation', node);
+    super.visitNamedFunctionInvocation(node);
+  }
+
+  void visitNamedReceiver(NamedReceiver node) {
+    log('visitNamedReceiver', node);
+    super.visitNamedReceiver(node);
+  }
+
+  @override
+  void visitNamedType(NamedType node) {
+    log('visitNamedType', node);
+    super.visitNamedType(node);
+  }
+
+  void visitNamespaceDirective(NamespaceDirective node) {
+    log('visitNamespaceDirective', node);
+    super.visitNamespaceDirective(node);
+  }
+
+  @override
+  void visitNameWithTypeParameters(NameWithTypeParameters node) {
+    log('visitNameWithTypeParameters', node);
+    super.visitNameWithTypeParameters(node);
+  }
+
+  @override
+  void visitNativeClause(NativeClause node) {
+    log('visitNativeClause', node);
+    super.visitNativeClause(node);
+  }
+
+  @override
+  void visitNativeFunctionBody(NativeFunctionBody node) {
+    log('visitNativeFunctionBody', node);
+    super.visitNativeFunctionBody(node);
+  }
+
+  @override
+  void visitNode(AstNode node) {
+    log('visitNode', node);
+    super.visitNode(node);
+  }
+
+  @override
+  void visitNullAssertPattern(NullAssertPattern node) {
+    log('visitNullAssertPattern', node);
+    super.visitNullAssertPattern(node);
+  }
+
+  @override
+  void visitNullAwareElement(NullAwareElement node) {
+    log('visitNullAwareElement', node);
+    super.visitNullAwareElement(node);
+  }
+
+  @override
+  void visitNullCheckPattern(NullCheckPattern node) {
+    log('visitNullCheckPattern', node);
+    super.visitNullCheckPattern(node);
+  }
+
+  @override
+  void visitNullLiteral(NullLiteral node) {
+    log('visitNullLiteral', node);
+    super.visitNullLiteral(node);
+  }
+
+  @override
+  void visitObjectPattern(ObjectPattern node) {
+    log('visitObjectPattern', node);
+    super.visitObjectPattern(node);
+  }
+
+  @override
+  void visitParenthesizedExpression(ParenthesizedExpression node) {
+    log('visitParenthesizedExpression', node);
+    super.visitParenthesizedExpression(node);
+  }
+
+  @override
+  void visitParenthesizedPattern(ParenthesizedPattern node) {
+    log('visitParenthesizedPattern', node);
+    super.visitParenthesizedPattern(node);
+  }
+
+  @override
+  void visitPartDirective(PartDirective node) {
+    log('visitPartDirective', node);
+    super.visitPartDirective(node);
+  }
+
+  @override
+  void visitPartOfDirective(PartOfDirective node) {
+    log('visitPartOfDirective', node);
+    super.visitPartOfDirective(node);
+  }
+
+  @override
+  void visitPatternAssignment(PatternAssignment node) {
+    log('visitPatternAssignment', node);
+    super.visitPatternAssignment(node);
+  }
+
+  @override
+  void visitPatternField(PatternField node) {
+    log('visitPatternField', node);
+    super.visitPatternField(node);
+  }
+
+  @override
+  void visitPatternFieldName(PatternFieldName node) {
+    log('visitPatternFieldName', node);
+    super.visitPatternFieldName(node);
+  }
+
+  @override
+  void visitPatternVariableDeclaration(PatternVariableDeclaration node) {
+    log('visitPatternVariableDeclaration', node);
+    super.visitPatternVariableDeclaration(node);
+  }
+
+  @override
+  void visitPatternVariableDeclarationStatement(PatternVariableDeclarationStatement node) {
+    log('visitPatternVariableDeclarationStatement', node);
+    super.visitPatternVariableDeclarationStatement(node);
+  }
+
+  @override
+  void visitPostfixExpression(PostfixExpression node) {
+    log('visitPostfixExpression', node);
+    super.visitPostfixExpression(node);
+  }
+
+  @override
+  void visitPrefixedIdentifier(PrefixedIdentifier node) {
+    log('visitPrefixedIdentifier', node);
+    super.visitPrefixedIdentifier(node);
+  }
+
+  @override
+  void visitPrefixExpression(PrefixExpression node) {
+    log('visitPrefixExpression', node);
+    super.visitPrefixExpression(node);
+  }
+
+  @override
+  void visitPrimaryConstructorBody(PrimaryConstructorBody node) {
+    log('visitPrimaryConstructorBody', node);
+    super.visitPrimaryConstructorBody(node);
+  }
+
+  @override
+  void visitPrimaryConstructorDeclaration(PrimaryConstructorDeclaration node) {
+    log('visitPrimaryConstructorDeclaration', node);
+    super.visitPrimaryConstructorDeclaration(node);
+  }
+
+  @override
+  void visitPrimaryConstructorName(PrimaryConstructorName node) {
+    log('visitPrimaryConstructorName', node);
+    super.visitPrimaryConstructorName(node);
+  }
+
+  @override
+  void visitPropertyAccess(PropertyAccess node) {
+    log('visitPropertyAccess', node);
+    super.visitPropertyAccess(node);
+  }
+
+  void visitPropertyAssignmentTarget(PropertyAssignmentTarget node) {
+    log('visitPropertyAssignmentTarget', node);
+    super.visitPropertyAssignmentTarget(node);
+  }
+
+  @override
+  void visitRecordLiteral(RecordLiteral node) {
+    log('visitRecordLiteral', node);
+    super.visitRecordLiteral(node);
+  }
+
+  @override
+  void visitRecordLiteralNamedField(RecordLiteralNamedField node) {
+    log('visitRecordLiteralNamedField', node);
+    super.visitRecordLiteralNamedField(node);
+  }
+
+  @override
+  void visitRecordPattern(RecordPattern node) {
+    log('visitRecordPattern', node);
+    super.visitRecordPattern(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotation(RecordTypeAnnotation node) {
+    log('visitRecordTypeAnnotation', node);
+    super.visitRecordTypeAnnotation(node);
+  }
+
+  void visitRecordTypeAnnotationField(RecordTypeAnnotationField node) {
+    log('visitRecordTypeAnnotationField', node);
+    super.visitRecordTypeAnnotationField(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedField(RecordTypeAnnotationNamedField node) {
+    log('visitRecordTypeAnnotationNamedField', node);
+    super.visitRecordTypeAnnotationNamedField(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedFields(RecordTypeAnnotationNamedFields node) {
+    log('visitRecordTypeAnnotationNamedFields', node);
+    super.visitRecordTypeAnnotationNamedFields(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationPositionalField(RecordTypeAnnotationPositionalField node) {
+    log('visitRecordTypeAnnotationPositionalField', node);
+    super.visitRecordTypeAnnotationPositionalField(node);
+  }
+
+  @override
+  void visitRedirectingConstructorInvocation(RedirectingConstructorInvocation node) {
+    log('visitRedirectingConstructorInvocation', node);
+    super.visitRedirectingConstructorInvocation(node);
+  }
+
+  @override
+  void visitRegularFormalParameter(RegularFormalParameter node) {
+    log('visitRegularFormalParameter', node);
+    super.visitRegularFormalParameter(node);
+  }
+
+  @override
+  void visitRelationalPattern(RelationalPattern node) {
+    log('visitRelationalPattern', node);
+    super.visitRelationalPattern(node);
+  }
+
+  @override
+  void visitRestPatternElement(RestPatternElement node) {
+    log('visitRestPatternElement', node);
+    super.visitRestPatternElement(node);
+  }
+
+  @override
+  void visitRethrowExpression(RethrowExpression node) {
+    log('visitRethrowExpression', node);
+    super.visitRethrowExpression(node);
+  }
+
+  @override
+  void visitReturnStatement(ReturnStatement node) {
+    log('visitReturnStatement', node);
+    super.visitReturnStatement(node);
+  }
+
+  @override
+  void visitScriptTag(ScriptTag node) {
+    log('visitScriptTag', node);
+    super.visitScriptTag(node);
+  }
+
+  @override
+  void visitSetOrMapLiteral(SetOrMapLiteral node) {
+    log('visitSetOrMapLiteral', node);
+    super.visitSetOrMapLiteral(node);
+  }
+
+  @override
+  void visitShowCombinator(ShowCombinator node) {
+    log('visitShowCombinator', node);
+    super.visitShowCombinator(node);
+  }
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    log('visitSimpleIdentifier', node);
+    super.visitSimpleIdentifier(node);
+  }
+
+  @override
+  void visitSimpleStringLiteral(SimpleStringLiteral node) {
+    log('visitSimpleStringLiteral', node);
+    super.visitSimpleStringLiteral(node);
+  }
+
+  void visitSingleStringLiteral(SingleStringLiteral node) {
+    log('visitSingleStringLiteral', node);
+    super.visitSingleStringLiteral(node);
+  }
+
+  @override
+  void visitSpreadElement(SpreadElement node) {
+    log('visitSpreadElement', node);
+    super.visitSpreadElement(node);
+  }
+
+  void visitStatement(Statement node) {
+    log('visitStatement', node);
+    super.visitStatement(node);
+  }
+
+  @override
+  void visitStringInterpolation(StringInterpolation node) {
+    log('visitStringInterpolation', node);
+    super.visitStringInterpolation(node);
+  }
+
+  void visitStringLiteral(StringLiteral node) {
+    log('visitStringLiteral', node);
+    super.visitStringLiteral(node);
+  }
+
+  @override
+  void visitSuperConstructorInvocation(SuperConstructorInvocation node) {
+    log('visitSuperConstructorInvocation', node);
+    super.visitSuperConstructorInvocation(node);
+  }
+
+  @override
+  void visitSuperExpression(SuperExpression node) {
+    log('visitSuperExpression', node);
+    super.visitSuperExpression(node);
+  }
+
+  @override
+  void visitSuperFormalParameter(SuperFormalParameter node) {
+    log('visitSuperFormalParameter', node);
+    super.visitSuperFormalParameter(node);
+  }
+
+  @override
+  void visitSwitchCase(SwitchCase node) {
+    log('visitSwitchCase', node);
+    super.visitSwitchCase(node);
+  }
+
+  @override
+  void visitSwitchDefault(SwitchDefault node) {
+    log('visitSwitchDefault', node);
+    super.visitSwitchDefault(node);
+  }
+
+  @override
+  void visitSwitchExpression(SwitchExpression node) {
+    log('visitSwitchExpression', node);
+    super.visitSwitchExpression(node);
+  }
+
+  @override
+  void visitSwitchExpressionCase(SwitchExpressionCase node) {
+    log('visitSwitchExpressionCase', node);
+    super.visitSwitchExpressionCase(node);
+  }
+
+  void visitSwitchMember(SwitchMember node) {
+    log('visitSwitchMember', node);
+    super.visitSwitchMember(node);
+  }
+
+  @override
+  void visitSwitchPatternCase(SwitchPatternCase node) {
+    log('visitSwitchPatternCase', node);
+    super.visitSwitchPatternCase(node);
+  }
+
+  @override
+  void visitSwitchStatement(SwitchStatement node) {
+    log('visitSwitchStatement', node);
+    super.visitSwitchStatement(node);
+  }
+
+  @override
+  void visitSymbolLiteral(SymbolLiteral node) {
+    log('visitSymbolLiteral', node);
+    super.visitSymbolLiteral(node);
+  }
+
+  @override
+  void visitThisExpression(ThisExpression node) {
+    log('visitThisExpression', node);
+    super.visitThisExpression(node);
+  }
+
+  @override
+  void visitThrowExpression(ThrowExpression node) {
+    log('visitThrowExpression', node);
+    super.visitThrowExpression(node);
+  }
+
+  void visitTopLevelDeclaration(TopLevelDeclaration node) {
+    log('visitTopLevelDeclaration', node);
+    super.visitTopLevelDeclaration(node);
+  }
+
+  @override
+  void visitTopLevelVariableDeclaration(TopLevelVariableDeclaration node) {
+    log('visitTopLevelVariableDeclaration', node);
+    super.visitTopLevelVariableDeclaration(node);
+  }
+
+  @override
+  void visitTryStatement(TryStatement node) {
+    log('visitTryStatement', node);
+    super.visitTryStatement(node);
+  }
+
+  void visitTypeAlias(TypeAlias node) {
+    log('visitTypeAlias', node);
+    super.visitTypeAlias(node);
+  }
+
+  void visitTypeAnnotation(TypeAnnotation node) {
+    log('visitTypeAnnotation', node);
+    super.visitTypeAnnotation(node);
+  }
+
+  @override
+  void visitTypeArgumentList(TypeArgumentList node) {
+    log('visitTypeArgumentList', node);
+    super.visitTypeArgumentList(node);
+  }
+
+  void visitTypedLiteral(TypedLiteral node) {
+    log('visitTypedLiteral', node);
+    super.visitTypedLiteral(node);
+  }
+
+  @override
+  void visitTypeLiteral(TypeLiteral node) {
+    log('visitTypeLiteral', node);
+    super.visitTypeLiteral(node);
+  }
+
+  @override
+  void visitTypeParameter(TypeParameter node) {
+    log('visitTypeParameter', node);
+    super.visitTypeParameter(node);
+  }
+
+  @override
+  void visitTypeParameterList(TypeParameterList node) {
+    log('visitTypeParameterList', node);
+    super.visitTypeParameterList(node);
+  }
+
+  void visitUriBasedDirective(UriBasedDirective node) {
+    log('visitUriBasedDirective', node);
+    super.visitUriBasedDirective(node);
+  }
+
+  @override
+  void visitVariableDeclaration(VariableDeclaration node) {
+    log('visitVariableDeclaration', node);
+    super.visitVariableDeclaration(node);
+  }
+
+  @override
+  void visitVariableDeclarationList(VariableDeclarationList node) {
+    log('visitVariableDeclarationList', node);
+    super.visitVariableDeclarationList(node);
+  }
+
+  @override
+  void visitVariableDeclarationStatement(VariableDeclarationStatement node) {
+    log('visitVariableDeclarationStatement', node);
+    super.visitVariableDeclarationStatement(node);
+  }
+
+  void visitVariablePattern(VariablePattern node) {
+    log('visitVariablePattern', node);
+    super.visitVariablePattern(node);
+  }
+
+  @override
+  void visitWhenClause(WhenClause node) {
+    log('visitWhenClause', node);
+    super.visitWhenClause(node);
+  }
+
+  @override
+  void visitWhileStatement(WhileStatement node) {
+    log('visitWhileStatement', node);
+    super.visitWhileStatement(node);
+  }
+
+  @override
+  void visitWildcardPattern(WildcardPattern node) {
+    log('visitWildcardPattern', node);
+    super.visitWildcardPattern(node);
+  }
+
+  @override
+  void visitWithClause(WithClause node) {
+    log('visitWithClause', node);
+    super.visitWithClause(node);
+  }
+
+  @override
+  void visitYieldStatement(YieldStatement node) {
+    log('visitYieldStatement', node);
+    super.visitYieldStatement(node);
+  }
+}

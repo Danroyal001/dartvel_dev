@@ -121,6 +121,18 @@ void main(List<String> args) {
     for (var m in methodsOf(classNamed(astG, 'AstVisitor2'))) m.name.lexeme,
   ];
 
+  List<MethodDeclaration> visitor2Methods = methodsOf(
+    classNamed(astG, 'AstVisitor2'),
+  );
+  List<MethodDeclaration> visitor1Methods = methodsOf(
+    classNamed(astG, 'AstVisitor'),
+  );
+  Set<String> visitor1Names = {for (var m in visitor1Methods) m.name.lexeme};
+  List<MethodDeclaration> generalizingMethods = [
+    for (var m in methodsOf(classNamed(visitorG, 'GeneralizingAstVisitor')))
+      if (!m.name.lexeme.startsWith('_')) m,
+  ];
+
   StringBuffer a = StringBuffer();
   a.writeln('// Port of lib/src/dart/ast/ast.g.dart (`AstVisitor2`).');
   a.writeln('//');
@@ -266,20 +278,33 @@ void main(List<String> args) {
   d.writeln();
   d.writeln("import 'package:analyzer/dart/ast/visitor.dart';");
   d.writeln("import 'package:analyzer/src/dart/ast/ast.dart';");
-  for (var (String name, String base, bool callSuper) in [
-    ('RecursiveRecorder', 'RecursiveAstVisitor2', true),
-    ('SimpleRecorder', 'SimpleAstVisitor2', false),
-  ]) {
+  for (var (String name, String base, bool callSuper, List<MethodDeclaration> ms)
+      in [
+        ('RecursiveRecorder', 'RecursiveAstVisitor2', true, visitor2Methods),
+        ('SimpleRecorder', 'SimpleAstVisitor2', false, visitor2Methods),
+        ('RecursiveRecorder1', 'RecursiveAstVisitor', true, visitor1Methods),
+        ('SimpleRecorder1', 'SimpleAstVisitor', false, visitor1Methods),
+        (
+          'GeneralizingRecorder',
+          'GeneralizingAstVisitor',
+          true,
+          generalizingMethods,
+        ),
+      ]) {
     d.writeln();
     d.writeln('class $name extends $base<void> {');
     d.writeln('  final void Function(String, AstNode) log;');
     d.writeln();
     d.writeln('  $name(this.log);');
-    for (var m in methodsOf(classNamed(astG, 'AstVisitor2'))) {
+    for (var m in ms) {
       String type = m.parameters!.parameters.single.toSource().split(' ').first;
       String visit = m.name.lexeme;
       d.writeln();
-      d.writeln('  @override');
+      if (base != 'GeneralizingAstVisitor' ||
+          visitor1Names.contains(visit) ||
+          visit == 'visitNode') {
+        d.writeln('  @override');
+      }
       d.writeln('  void $visit($type node) {');
       d.writeln("    log('$visit', node);");
       if (callSuper) d.writeln('    super.$visit(node);');

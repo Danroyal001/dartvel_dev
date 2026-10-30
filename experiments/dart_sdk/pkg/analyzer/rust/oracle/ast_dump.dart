@@ -364,6 +364,36 @@ void runRetain(List<(String, String)> inputs) {
 //   locate <a>-<b> <n>   NodeLocator2(a, b).searchWithin(unit) at offsets
 //                        drawn from a generator seeded by the file length
 //   diagnostic <uniqueName>@<offset>+<length> "<message>" "<correction>"
+//   cover <a>-<b> <n>    unit.nodeCovering2(offset: a, length: b - a)
+//   timed2 <visits>      a RecursiveAstVisitor2 behind a TimedAstVisitor2
+//   replace <i> <j> <r>  a fresh parse's node i replaced by node j (the next
+//                        node of the same type that is not an ancestor of
+//                        i's parent) in its parent2: `r` is the parent's
+//                        toSource and then the parent2 of j and of i, or
+//                        the error thrown (`!ArgumentError:<message>`, ...)
+//   remove <i> <r>       node i of a fresh parse removed from its parent2:
+//                        the parent's toSource, or the error thrown
+//
+// The V1 view follows. Its nodes are numbered in the pre-order of the V1
+// named child entities (`namedChildEntities`), walked once from the unit
+// before anything else is asked of the view, which links the V1 parents:
+//
+//   v1node <j> <runtime type> <offset>+<length> v=<visit method> p=<parent>
+//     r=<root> w=<the node's number in the V2 view, or -> s=<toSource>
+//     c=<the named child entities: name@offset for a token, name#j for a
+//     node, name[n] then the elements for a list>
+//   v1recursive, v1generalizing, v1unifying, v1delegating <visits>
+//                        as above, for RecursiveAstVisitor,
+//                        GeneralizingAstVisitor (every visit method each
+//                        node goes through), UnifyingAstVisitor and a
+//                        SimpleAstVisitor delegate of DelegatingAstVisitor
+//   v1breadth <visits>   BreadthFirstVisitor.visitAllNodes(unit)
+//   v1timed <visits>     a RecursiveAstVisitor behind a TimedAstVisitor
+//   v1locate <a>-<b> <n> NodeLocator(a, b).searchWithin(unit)
+//   v1cover <a>-<b> <n>  unit.nodeCovering(offset: a, length: b - a)
+//   v1replace <j> <k> <r> V1 node j of a fresh parse replaced by V1 node k
+//                        (chosen as for `replace`) in its V1 parent, as
+//                        for `replace` with V1 numbers
 //
 // A visit list is node numbers, `<i>:<method>` when the method is not the
 // node's `v`, with runs of consecutive numbers as `<a>-<b>`. Anything that
@@ -373,6 +403,24 @@ void runRetain(List<(String, String)> inputs) {
 String guard(String Function() f) {
   try {
     return f();
+  } catch (_) {
+    return '!throw';
+  }
+}
+
+/// [guard], naming the error: `!<class>:<message>` for the errors whose
+/// messages upstream writes, `!TypeError` for a failed cast.
+String guardError(String Function() f) {
+  try {
+    return f();
+  } on ArgumentError catch (e) {
+    return '!ArgumentError:${escape('${e.message}')}';
+  } on UnsupportedError catch (e) {
+    return '!UnsupportedError:${escape('${e.message}')}';
+  } on StateError catch (e) {
+    return '!StateError:${escape(e.message)}';
+  } on TypeError {
+    return '!TypeError';
   } catch (_) {
     return '!throw';
   }
@@ -390,6 +438,30 @@ String fnv(String s) {
 
 String summary(String s) =>
     s.length <= 60 ? '"${escape(s)}"' : '#${s.length}:${fnv(s)}';
+
+class UnifyingRecorder1 extends UnifyingAstVisitor<void> {
+  final void Function(String, AstNode) log;
+
+  UnifyingRecorder1(this.log);
+
+  @override
+  void visitNode(AstNode node) {
+    log('visitNode', node);
+    super.visitNode(node);
+  }
+}
+
+class BreadthFirstRecorder extends BreadthFirstVisitor<void> {
+  final void Function(String, AstNode) log;
+
+  BreadthFirstRecorder(this.log);
+
+  @override
+  void visitNode(AstNode node) {
+    log('visitNode', node);
+    super.visitNode(node);
+  }
+}
 
 class UnifyingRecorder extends UnifyingAstVisitor2<void> {
   final void Function(String, AstNode) log;
@@ -422,6 +494,60 @@ List<AstNodeImpl> numberNodes(AstNodeImpl unit) {
 
   visit(unit);
   return nodes;
+}
+
+/// Number of every node of the V1 view: the pre-order of the V1 named child
+/// entities.
+List<AstNodeImpl> numberNodes1(AstNodeImpl unit) {
+  List<AstNodeImpl> nodes = [];
+  void visit(AstNodeImpl node) {
+    nodes.add(node);
+    for (ChildEntity child in node.namedChildEntities) {
+      Object value = child.value;
+      if (value is AstNodeImpl) {
+        visit(value);
+      } else if (value is List) {
+        for (Object? element in value) {
+          if (element is AstNodeImpl) visit(element);
+        }
+      }
+    }
+  }
+
+  visit(unit);
+  return nodes;
+}
+
+/// The number of [node] in [nodes], as `ref` writes it.
+String refIn(List<AstNodeImpl> nodes, AstNode? node) {
+  if (node == null) return '-';
+  for (int i = 0; i < nodes.length; i++) {
+    if (identical(nodes[i], node)) return '$i';
+  }
+  return '?${node.runtimeType}';
+}
+
+/// The node after [i] in [nodes] (cyclically) with the runtime type of node
+/// [i] that is not [parent] or one of its ancestors in the view [parentOf]
+/// walks, or null.
+int? replacementFor(
+  List<AstNodeImpl> nodes,
+  int i,
+  AstNode parent,
+  AstNode? Function(AstNode) parentOf,
+) {
+  Set<AstNode> ancestors = new Set.identity();
+  for (AstNode? p = parent; p != null; p = parentOf(p)) {
+    ancestors.add(p);
+  }
+  for (int k = 1; k < nodes.length; k++) {
+    int j = (i + k) % nodes.length;
+    if (nodes[j].runtimeType == nodes[i].runtimeType &&
+        !ancestors.contains(nodes[j])) {
+      return j;
+    }
+  }
+  return null;
 }
 
 String dumpApi(String source) {
@@ -530,7 +656,243 @@ String dumpApi(String source) {
       ' ${correction == null ? '-' : '"${escape(correction)}"'}\n',
     );
   }
+
+  seed = length;
+  for (int k = 0; k < 32; k++) {
+    int a = next() % (length + 1);
+    int b = k < 16 ? a : a + next() % 40;
+    String found = guard(
+      () => ref((unit as CompilationUnitImpl).nodeCovering2(
+        offset: a,
+        length: b - a,
+      )),
+    );
+    sb.write('cover $a-$b $found\n');
+  }
+  sb.write(
+    'timed2 ${visits((log) => unit.accept2(new TimedAstVisitor2<void>(new RecursiveRecorder(log))))}\n',
+  );
+
+  // Mutations, each on a fresh parse.
+  for (int k = 0; k < 4; k++) {
+    AstNodeImpl fresh = parseString(
+      content: source,
+      throwIfDiagnostics: false,
+    ).unit as AstNodeImpl;
+    List<AstNodeImpl> freshNodes = numberNodes(fresh);
+    int i = next() % nodes.length;
+    AstNodeImpl node = freshNodes[i];
+    AstNodeImpl? parent = node.parent2;
+    if (parent == null) {
+      sb.write('replace $i -\n');
+      continue;
+    }
+    int? j = replacementFor(freshNodes, i, parent, (n) => n.parent2);
+    if (j == null) {
+      sb.write('replace $i -\n');
+      continue;
+    }
+    AstNodeImpl other = freshNodes[j];
+    String r = guardError(() {
+      parent.replaceChild(node, other);
+      return '${summary(parent.toSource())} '
+          '${guard(() => refIn(freshNodes, other.parent2))} '
+          '${guard(() => refIn(freshNodes, node.parent2))}';
+    });
+    sb.write('replace $i $j $r\n');
+  }
+  for (int k = 0; k < 4; k++) {
+    AstNodeImpl fresh = parseString(
+      content: source,
+      throwIfDiagnostics: false,
+    ).unit as AstNodeImpl;
+    List<AstNodeImpl> freshNodes = numberNodes(fresh);
+    int i = next() % nodes.length;
+    AstNodeImpl node = freshNodes[i];
+    AstNodeImpl? parent = node.parent2;
+    if (parent == null) {
+      sb.write('remove $i -\n');
+      continue;
+    }
+    String r = guardError(() {
+      parent.removeChild(node);
+      return summary(parent.toSource());
+    });
+    sb.write('remove $i $r\n');
+  }
+
+  dumpApi1(sb, source, unit, index, visits);
   return sb.toString();
+}
+
+/// The V1 view of [unit] (see the format above).
+void dumpApi1(
+  StringBuffer sb,
+  String source,
+  AstNodeImpl unit,
+  Map<AstNode, int> index2,
+  String Function(void Function(void Function(String, AstNode))) visits2,
+) {
+  List<AstNodeImpl> nodes;
+  try {
+    nodes = numberNodes1(unit);
+  } catch (_) {
+    sb.write('v1 !throw\n');
+    return;
+  }
+  Map<AstNode, int> index = new Map.identity();
+  for (int i = 0; i < nodes.length; i++) {
+    index[nodes[i]] = i;
+  }
+  String ref(AstNode? node) {
+    if (node == null) return '-';
+    int? i = index[node];
+    return i == null ? '?${node.runtimeType}' : '$i';
+  }
+
+  List<String> dispatch = [];
+  for (int i = 0; i < nodes.length; i++) {
+    AstNodeImpl node = nodes[i];
+    String v = guard(() {
+      String name = '-';
+      node.accept(new SimpleRecorder1((String visit, _) => name = visit));
+      return name;
+    });
+    dispatch.add(v);
+    String p = guard(() => ref(node.parent));
+    String r = guard(() => ref(node.root));
+    String w = index2[node]?.toString() ?? '-';
+    String s = guard(() => summary(node.toSource()));
+    String c = guard(() {
+      List<String> entities = [];
+      for (ChildEntity child in node.namedChildEntities) {
+        Object value = child.value;
+        if (value is Token) {
+          entities.add('${child.name}@${value.offset}');
+        } else if (value is AstNodeImpl) {
+          entities.add('${child.name}#${ref(value)}');
+        } else if (value is List) {
+          entities.add('${child.name}[${value.length}]');
+          for (Object? element in value) {
+            entities.add(
+              element is Token ? '@${element.offset}' : '#${ref(element as AstNode)}',
+            );
+          }
+        }
+      }
+      return entities.join(',');
+    });
+    sb.write(
+      'v1node $i ${node.runtimeType} '
+      '${guard(() => '${node.offset}+${node.length}')} v=$v p=$p r=$r w=$w '
+      's=$s c=$c\n',
+    );
+  }
+
+  String visits(void Function(void Function(String, AstNode)) run) {
+    List<String> entries = [];
+    int? runStart;
+    int? runEnd;
+    void flush() {
+      if (runStart != null) {
+        entries.add(runStart == runEnd ? '$runStart' : '$runStart-$runEnd');
+        runStart = null;
+      }
+    }
+
+    void log(String visit, AstNode node) {
+      int? i = index[node];
+      if (i != null && (visit == 'visitNode' || visit == dispatch[i])) {
+        if (runStart != null && runEnd! + 1 == i) {
+          runEnd = i;
+          return;
+        }
+        flush();
+        runStart = i;
+        runEnd = i;
+        return;
+      }
+      flush();
+      entries.add('${i ?? '?${node.runtimeType}'}:$visit');
+    }
+
+    try {
+      run(log);
+    } catch (_) {
+      flush();
+      entries.add('!throw');
+    }
+    flush();
+    return entries.join(' ');
+  }
+
+  sb.write(
+    'v1recursive ${visits((log) => unit.accept(new RecursiveRecorder1(log)))}\n',
+  );
+  sb.write(
+    'v1generalizing ${visits((log) => unit.accept(new GeneralizingRecorder(log)))}\n',
+  );
+  sb.write(
+    'v1unifying ${visits((log) => unit.accept(new UnifyingRecorder1(log)))}\n',
+  );
+  sb.write(
+    'v1delegating ${visits((log) => unit.accept(new DelegatingAstVisitor<void>([new SimpleRecorder1(log)])))}\n',
+  );
+  sb.write(
+    'v1breadth ${visits((log) => new BreadthFirstRecorder(log).visitAllNodes(unit))}\n',
+  );
+  sb.write(
+    'v1timed ${visits((log) => unit.accept(new TimedAstVisitor<void>(new RecursiveRecorder1(log))))}\n',
+  );
+
+  int length = source.length;
+  int seed = length;
+  int next() {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed;
+  }
+
+  for (int k = 0; k < 32; k++) {
+    int a = next() % (length + 1);
+    int b = k < 16 ? a : a + next() % 40;
+    String found = guard(() => ref(new NodeLocator(a, b).searchWithin(unit)));
+    String covering = guard(
+      () => ref((unit as CompilationUnitImpl).nodeCovering(
+        offset: a,
+        length: b - a,
+      )),
+    );
+    sb.write('v1locate $a-$b $found\n');
+    sb.write('v1cover $a-$b $covering\n');
+  }
+
+  for (int k = 0; k < 4; k++) {
+    AstNodeImpl fresh = parseString(
+      content: source,
+      throwIfDiagnostics: false,
+    ).unit as AstNodeImpl;
+    List<AstNodeImpl> freshNodes = numberNodes1(fresh);
+    int i = next() % nodes.length;
+    AstNodeImpl node = freshNodes[i];
+    AstNodeImpl? parent = node.parent;
+    if (parent == null) {
+      sb.write('v1replace $i -\n');
+      continue;
+    }
+    int? j = replacementFor(freshNodes, i, parent, (n) => n.parent);
+    if (j == null) {
+      sb.write('v1replace $i -\n');
+      continue;
+    }
+    AstNodeImpl other = freshNodes[j];
+    String r = guardError(() {
+      parent.replaceChild(node, other);
+      return '${summary(parent.toSource())} '
+          '${guard(() => refIn(freshNodes, other.parent))} '
+          '${guard(() => refIn(freshNodes, node.parent))}';
+    });
+    sb.write('v1replace $i $j $r\n');
+  }
 }
 
 /// Parses every file once, then calls `toSource` on every unit [rounds]
