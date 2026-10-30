@@ -1,0 +1,3 @@
+linter:
+  rules:
+    - simple_directive_paths

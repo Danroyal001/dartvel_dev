@@ -515,26 +515,6 @@ fn uri_is_simple(uri: &str, source_path: &str) -> bool {
     }
     let path = path.split(['?', '#']).next().unwrap_or(path);
     let absolute = path.starts_with('/');
-    if !has_scheme && !absolute && !source_path.is_empty() {
-        let package_uri = source_path.starts_with("package:");
-        let source_path = source_path
-            .strip_prefix("package:")
-            .or_else(|| source_path.strip_prefix("file://"))
-            .unwrap_or(source_path);
-        // Dart package URI resolution never traverses above the package name.
-        let directory_depth = source_path
-            .split('/')
-            .filter(|part| !part.is_empty())
-            .count()
-            .saturating_sub(if package_uri { 2 } else { 1 });
-        let leading_parents = path
-            .split('/')
-            .take_while(|segment| *segment == "..")
-            .count();
-        if leading_parents > directory_depth {
-            return false;
-        }
-    }
     let mut depth = 0usize;
     for segment in path.split('/') {
         match segment {
@@ -546,7 +526,411 @@ fn uri_is_simple(uri: &str, source_path: &str) -> bool {
             _ => depth += 1,
         }
     }
-    !path.contains("//")
+    if path.contains("//") {
+        return false;
+    }
+    // 2. Relative path minimality (Dart `_Visitor._check`, step 2):
+    //
+    //     var resolvedUri = contextUri.resolveUri(parsedUri);
+    //     var relativePath = path.url.relative(
+    //       resolvedUri.path,
+    //       from: path.url.dirname(contextUri.path),
+    //     );
+    //     if (relativePath != uriString) report;
+    //
+    // A `PathException` from `relative` escapes the rule, which reports
+    // nothing for this directive.
+    if !has_scheme && !absolute && !path.is_empty() && !source_path.is_empty() {
+        let Some(base) = SimpleUri::parse(source_path) else {
+            return true;
+        };
+        let resolved = base.resolve_relative_path(path);
+        let from = url_path::dirname(base.path());
+        return match url_path::relative(&resolved, &from) {
+            Some(relative) => relative == uri,
+            None => true,
+        };
+    }
+    true
+}
+
+/// The parts of a URI that `_SimpleUri` (`sdk/lib/core/uri.dart`) indexes:
+/// the base URIs of directives (`package:` and `file:` URIs) are simple.
+struct SimpleUri<'a> {
+    uri: &'a str,
+    /// `_schemeEnd`: the index of the `:` after the scheme.
+    scheme_end: usize,
+    /// Whether the URI has an authority (`//` after the scheme).
+    has_authority: bool,
+    path_start: usize,
+    /// `_queryStart`: the end of the path.
+    query_start: usize,
+}
+
+impl<'a> SimpleUri<'a> {
+    fn parse(uri: &'a str) -> Option<Self> {
+        let scheme_end = uri.find(':')?;
+        if uri[..scheme_end].contains(['/', '?', '#']) {
+            return None;
+        }
+        let has_authority = uri[scheme_end + 1..].starts_with("//");
+        let path_start = if has_authority {
+            let host_start = scheme_end + 3;
+            uri[host_start..]
+                .find(['/', '?', '#'])
+                .map_or(uri.len(), |i| host_start + i)
+        } else {
+            scheme_end + 1
+        };
+        let query_start = uri[path_start..]
+            .find(['?', '#'])
+            .map_or(uri.len(), |i| path_start + i);
+        Some(SimpleUri {
+            uri,
+            scheme_end,
+            has_authority,
+            path_start,
+            query_start,
+        })
+    }
+
+    fn path(&self) -> &'a str {
+        &self.uri[self.path_start..self.query_start]
+    }
+
+    /// Dart `_SimpleUri._packageNameEnd`: the index of the `/` after the
+    /// package name of a `package:` URI, or `None`.
+    fn package_name_end(&self) -> Option<usize> {
+        if &self.uri[..self.scheme_end] != "package" || self.has_authority {
+            return None;
+        }
+        // Dart `_skipPackageNameChars`.
+        let bytes = self.uri.as_bytes();
+        let mut dots = 0u8;
+        for (i, &char) in bytes
+            .iter()
+            .enumerate()
+            .take(self.query_start)
+            .skip(self.path_start)
+        {
+            if char == b'/' {
+                return (dots != 0).then_some(i);
+            }
+            if char == b'%' || char == b':' {
+                return None;
+            }
+            dots |= char ^ b'.';
+        }
+        None
+    }
+
+    /// The path of Dart `resolveUri` for a reference that is a relative,
+    /// normalized path (no scheme, no authority, not absolute, only leading
+    /// `../` segments): the "Merge paths" case of `_SimpleUri._simpleMerge`.
+    /// The base URIs here always have a scheme.
+    fn resolve_relative_path(&self, reference: &str) -> String {
+        let base = self.uri.as_bytes();
+        let mut base_start = self.path_start;
+        let mut base_end = self.query_start;
+        if let Some(package_name_end) = self.package_name_end() {
+            // At the `/` after the first package name.
+            base_start = package_name_end;
+        } else {
+            while self.uri[base_start..].starts_with("../") {
+                base_start += 3;
+            }
+        }
+        let mut ref_start = 0;
+        let ref_end = reference.len();
+        // Count of leading ".." segments in the reference path.
+        let mut back_count = 0;
+        while ref_start + 3 <= ref_end && reference[ref_start..].starts_with("../") {
+            ref_start += 3;
+            back_count += 1;
+        }
+        let mut insert = "";
+        while base_end > base_start {
+            base_end -= 1;
+            if base[base_end] == b'/' {
+                insert = "/";
+                if back_count == 0 {
+                    break;
+                }
+                back_count -= 1;
+            }
+        }
+        // The new URI is `base[0..baseEnd] + insert + reference[refStart..]`;
+        // its path starts at the base path start.
+        format!(
+            "{}{insert}{}",
+            &self.uri[self.path_start..base_end.max(self.path_start)],
+            &reference[ref_start..]
+        )
+    }
+}
+
+/// `package:path`'s `path.url` context (`Context(style: Style.url)`, whose
+/// `current` is `'.'`): the functions the rule uses.
+mod url_path {
+    /// `UrlStyle.rootLength` (without the drive letter handling of `file:`
+    /// URLs, which `withDrive: false` skips).
+    fn root_length(path: &str) -> usize {
+        let bytes = path.as_bytes();
+        if bytes.is_empty() {
+            return 0;
+        }
+        if bytes[0] == b'/' {
+            return 1;
+        }
+        let mut i = 0;
+        while i < bytes.len() {
+            let code_unit = bytes[i];
+            if code_unit == b'/' {
+                return 0;
+            }
+            if code_unit == b':' {
+                if i == 0 {
+                    return 0;
+                }
+                if path[i + 1..].starts_with("//") {
+                    i += 3;
+                }
+                return match path[i.min(path.len())..].find('/') {
+                    Some(index) if i + index > 0 => i + index,
+                    _ => path.len(),
+                };
+            }
+            i += 1;
+        }
+        0
+    }
+
+    fn is_absolute(path: &str) -> bool {
+        root_length(path) > 0
+    }
+
+    fn is_root_relative(path: &str) -> bool {
+        path.starts_with('/')
+    }
+
+    /// `InternalStyle.getRoot`.
+    fn get_root(path: &str) -> Option<&str> {
+        let length = root_length(path);
+        if length > 0 {
+            return Some(&path[..length]);
+        }
+        is_root_relative(path).then(|| &path[..1])
+    }
+
+    /// `ParsedPath`.
+    struct ParsedPath {
+        root: Option<String>,
+        parts: Vec<String>,
+        separators: Vec<String>,
+    }
+
+    impl ParsedPath {
+        /// `ParsedPath.parse`.
+        fn parse(path: &str) -> Self {
+            let root = get_root(path).map(str::to_string);
+            let path = &path[root.as_ref().map_or(0, String::len)..];
+            let mut parts = Vec::new();
+            let mut separators = Vec::new();
+            let mut start = 0;
+            if path.starts_with('/') {
+                separators.push("/".to_string());
+                start = 1;
+            } else {
+                separators.push(String::new());
+            }
+            let first = start;
+            for (i, char) in path.char_indices().skip(first) {
+                if char == '/' {
+                    parts.push(path[start..i].to_string());
+                    separators.push("/".to_string());
+                    start = i + 1;
+                }
+            }
+            if start < path.len() {
+                parts.push(path[start..].to_string());
+                separators.push(String::new());
+            }
+            ParsedPath {
+                root,
+                parts,
+                separators,
+            }
+        }
+
+        fn is_absolute(&self) -> bool {
+            self.root.is_some()
+        }
+
+        /// `ParsedPath.removeTrailingSeparators`.
+        fn remove_trailing_separators(&mut self) {
+            while self.parts.last().is_some_and(String::is_empty) {
+                self.parts.pop();
+                self.separators.pop();
+            }
+            if let Some(last) = self.separators.last_mut() {
+                last.clear();
+            }
+        }
+
+        /// `ParsedPath.normalize` (url style: no root canonicalization).
+        fn normalize(&mut self) {
+            let mut leading_doubles = 0;
+            let mut new_parts: Vec<String> = Vec::new();
+            for part in &self.parts {
+                if part == "." || part.is_empty() {
+                } else if part == ".." {
+                    if new_parts.pop().is_none() {
+                        leading_doubles += 1;
+                    }
+                } else {
+                    new_parts.push(part.clone());
+                }
+            }
+            if !self.is_absolute() {
+                for _ in 0..leading_doubles {
+                    new_parts.insert(0, "..".to_string());
+                }
+            }
+            if new_parts.is_empty() && !self.is_absolute() {
+                new_parts.push(".".to_string());
+            }
+            let mut separators = vec!["/".to_string(); new_parts.len() + 1];
+            // `style.needsSeparator(root)`: a root that does not end in `/`.
+            if !self.is_absolute()
+                || new_parts.is_empty()
+                || !needs_separator(self.root.as_deref().unwrap_or(""))
+            {
+                separators[0] = String::new();
+            }
+            self.parts = new_parts;
+            self.separators = separators;
+            self.remove_trailing_separators();
+        }
+
+        fn to_string(&self) -> String {
+            let mut builder = self.root.clone().unwrap_or_default();
+            for (i, part) in self.parts.iter().enumerate() {
+                builder.push_str(&self.separators[i]);
+                builder.push_str(part);
+            }
+            builder.push_str(self.separators.last().map_or("", String::as_str));
+            builder
+        }
+    }
+
+    /// `UrlStyle.needsSeparator`.
+    fn needs_separator(path: &str) -> bool {
+        if path.is_empty() {
+            return false;
+        }
+        if !path.ends_with('/') {
+            return true;
+        }
+        path.ends_with("://") && root_length(path) == path.len()
+    }
+
+    /// `Context.joinAll(['.', path])`, as `Context.absolute` calls it.
+    fn join_current(path: &str) -> String {
+        if path.is_empty() {
+            return ".".to_string();
+        }
+        if is_absolute(path) {
+            // An absolute path discards everything before it.
+            return path.to_string();
+        }
+        format!("./{path}")
+    }
+
+    /// `Context.absolute`.
+    fn absolute(path: &str) -> String {
+        if is_absolute(path) && !is_root_relative(path) {
+            return path.to_string();
+        }
+        join_current(path)
+    }
+
+    /// `Context.dirname`.
+    pub fn dirname(path: &str) -> String {
+        let mut parsed = ParsedPath::parse(path);
+        parsed.remove_trailing_separators();
+        if parsed.parts.len() <= 1 {
+            return parsed.root.unwrap_or_else(|| ".".to_string());
+        }
+        parsed.parts.pop();
+        parsed.separators.pop();
+        parsed.remove_trailing_separators();
+        parsed.to_string()
+    }
+
+    /// `Context.normalize`.
+    fn normalize(path: &str) -> String {
+        let mut parsed = ParsedPath::parse(path);
+        parsed.normalize();
+        parsed.to_string()
+    }
+
+    /// `Context.relative(path, from: from)`; `None` for a `PathException`.
+    pub fn relative(path: &str, from: &str) -> Option<String> {
+        let from = absolute(from);
+        if !is_absolute(&from) && is_absolute(path) {
+            return Some(normalize(path));
+        }
+        let path = if !is_absolute(path) || is_root_relative(path) {
+            absolute(path)
+        } else {
+            path.to_string()
+        };
+        if !is_absolute(&path) && is_absolute(&from) {
+            return None;
+        }
+        let mut from_parsed = ParsedPath::parse(&from);
+        from_parsed.normalize();
+        let mut path_parsed = ParsedPath::parse(&path);
+        path_parsed.normalize();
+        if from_parsed.parts.first().is_some_and(|p| p == ".") {
+            return Some(path_parsed.to_string());
+        }
+        if from_parsed.root != path_parsed.root {
+            return Some(path_parsed.to_string());
+        }
+        while !from_parsed.parts.is_empty()
+            && !path_parsed.parts.is_empty()
+            && from_parsed.parts[0] == path_parsed.parts[0]
+        {
+            from_parsed.parts.remove(0);
+            from_parsed.separators.remove(1);
+            path_parsed.parts.remove(0);
+            path_parsed.separators.remove(1);
+        }
+        if from_parsed.parts.first().is_some_and(|p| p == "..") {
+            return None;
+        }
+        let ups = from_parsed.parts.len();
+        for _ in 0..ups {
+            path_parsed.parts.insert(0, "..".to_string());
+        }
+        path_parsed.separators[0] = String::new();
+        for _ in 0..ups {
+            path_parsed.separators.insert(1, "/".to_string());
+        }
+        if path_parsed.parts.is_empty() {
+            return Some(".".to_string());
+        }
+        if path_parsed.parts.len() > 1 && path_parsed.parts.last().is_some_and(|p| p == ".") {
+            path_parsed.parts.pop();
+            path_parsed.separators.pop();
+            path_parsed.separators.pop();
+            path_parsed.separators.push(String::new());
+        }
+        path_parsed.root = Some(String::new());
+        path_parsed.remove_trailing_separators();
+        Some(path_parsed.to_string())
+    }
 }
 
 fn slash_for_doc_comments(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
