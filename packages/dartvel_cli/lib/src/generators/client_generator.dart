@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVCrashBuildMode,
+        dvStatusPageCodes,
+        dvStatusPageRoute,
         DVCrashConfig,
         DVFileStorageConfig,
         DVHostEntry,
@@ -1797,6 +1799,18 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
       path: '/offline',
       pageBuilder: (context, state) => NoTransitionPage<void>(
         child: DVOfflinePage(from: state.uri.queryParameters['from']),
+      ),
+    ),''',
+      // A page per status code a server answers a page request with, so the
+      // server and the host configuration have the application's own page
+      // to serve for a 500 rather than a line of plain text.
+      for (final int code in dvStatusPageCodes)
+        if (!applicationRoutes.contains(dvStatusPageRoute(code)))
+          '''
+    GoRoute(
+      path: '${dvStatusPageRoute(code)}',
+      pageBuilder: (context, state) => const NoTransitionPage<void>(
+        child: DVStatusPage(code: $code),
       ),
     ),''',
     ]);

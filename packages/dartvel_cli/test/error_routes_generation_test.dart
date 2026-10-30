@@ -130,4 +130,31 @@ void main() {
     expect(router, isNot(contains("DVRouteTarget('/404')")));
     expect(router, isNot(contains("DVRouteTarget('/offline')")));
   });
+
+  test('every application serves a status page per code, drawn by '
+      'DVStatusPage', () async {
+    // Error, Empty, and Loading States: status pages are generated per code,
+    // so a 500 is a sentence in the application's theme rather than a line of
+    // plain text, and the server and the host configuration have a page to
+    // serve for it.
+    final Directory root = await _generate(<String, String>{
+      'index.dart': _page('home', '@DVPage()'),
+    });
+    final String router = _read(root, 'router.g.dart');
+    for (final int code in <int>[403, 429, 500, 503]) {
+      expect(_route(router, '/$code'), contains('DVStatusPage(code: $code)'));
+    }
+    final int manifest = router.indexOf('dartvelRouteManifest');
+    expect(router.substring(manifest), isNot(contains("path: '/500'")));
+  });
+
+  test('a status page the application wrote itself wins', () async {
+    final Directory root = await _generate(<String, String>{
+      'index.dart': _page('home', '@DVPage()'),
+      '503.dart': _page('maintenance', "@DVPage(title: 'Back soon')"),
+    });
+    final String router = _read(root, 'router.g.dart');
+    expect(_route(router, '/503'), isNot(contains('DVStatusPage(')));
+    expect(_route(router, '/500'), contains('DVStatusPage(code: 500)'));
+  });
 }
