@@ -30,10 +30,14 @@ const UPSTREAM_SOURCES: &[&str] = &[
     "flutter/fml/log_settings_state.cc",
     "flutter/impeller/geometry/color.cc",
     "flutter/impeller/geometry/constants.cc",
+    "flutter/impeller/geometry/matrix.cc",
+    "flutter/impeller/geometry/matrix_decomposition.cc",
+    "flutter/impeller/geometry/quaternion.cc",
+    "flutter/impeller/geometry/shear.cc",
     "flutter/impeller/geometry/vector.cc",
 ];
 
-const SUITES: &[&str] = &["scalar", "point", "size", "vector", "color"];
+const SUITES: &[&str] = &["scalar", "point", "size", "vector", "color", "matrix"];
 
 /// The compiler flags that decide floating-point results, as the engine's
 /// //build/config/compiler sets them for linux-x64: -march=x86-64 (SSE2, no

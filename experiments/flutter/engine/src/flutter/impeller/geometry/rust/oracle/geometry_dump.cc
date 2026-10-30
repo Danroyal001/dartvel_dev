@@ -27,6 +27,10 @@
 #include "impeller/geometry/color.h"
 #include "impeller/geometry/constants.h"
 #include "impeller/geometry/half.h"
+#include "impeller/geometry/matrix.h"
+#include "impeller/geometry/matrix_decomposition.h"
+#include "impeller/geometry/quaternion.h"
+#include "impeller/geometry/shear.h"
 #include "impeller/geometry/point.h"
 #include "impeller/geometry/size.h"
 #include "impeller/geometry/vector.h"
@@ -1400,6 +1404,350 @@ static void SuiteColor(Rng& r, int cases) {
   }
 }
 
+// ---------------------------------------------------------------- matrix ---
+
+static void M(const Matrix& m) {
+  for (int i = 0; i < 16; i++) {
+    F(m.m[i]);
+  }
+}
+static void Q(const Quaternion& q) {
+  F(q.x);
+  F(q.y);
+  F(q.z);
+  F(q.w);
+}
+static void OptF(std::optional<Scalar> v) {
+  if (v.has_value()) {
+    F(*v);
+  } else {
+    S("none");
+  }
+}
+static void Decomp(const MatrixDecomposition& d) {
+  V3(d.translation);
+  V3(d.scale);
+  D(d.shear.xy);
+  D(d.shear.xz);
+  D(d.shear.yz);
+  V4(d.perspective);
+  Q(d.rotation);
+  U(d.GetComponentsMask());
+}
+
+static Point SaneP(Rng& r) {
+  float x = SaneF(r);
+  float y = SaneF(r);
+  return Point(x, y);
+}
+
+static Vector3 SaneV3(Rng& r) {
+  float x = SaneF(r);
+  float y = SaneF(r);
+  float z = SaneF(r);
+  return Vector3(x, y, z);
+}
+
+// Matrices of every shape: wild bits, sane entries, compositions of the
+// constructors (affine, rotated, skewed, with perspective), and singular or
+// nearly singular ones.
+static Matrix GenM(Rng& r) {
+  Matrix m;
+  switch (r.Below(10)) {
+    case 0:
+      for (int i = 0; i < 16; i++) {
+        m.m[i] = EdgeF(r);
+      }
+      return m;
+    case 1:
+      for (int i = 0; i < 16; i++) {
+        m.m[i] = SaneF(r);
+      }
+      return m;
+    case 2: {
+      // 2D affine.
+      float a = SaneF(r), b = SaneF(r), c = SaneF(r), d = SaneF(r),
+            tx = SaneF(r), ty = SaneF(r);
+      return Matrix(a, b, 0, 0, c, d, 0, 0, 0, 0, 1, 0, tx, ty, 0, 1);
+    }
+    case 3: {
+      // Scale and translate (sometimes negative or zero scales).
+      Vector3 s = SaneV3(r);
+      Vector3 t = SaneV3(r);
+      return Matrix::MakeTranslateScale(s, t);
+    }
+    case 4: {
+      // A composition.
+      Vector3 t = SaneV3(r);
+      float angle = SaneF(r);
+      Vector3 s = SaneV3(r);
+      float kx = SaneF(r) * 0.01f;
+      float ky = SaneF(r) * 0.01f;
+      return Matrix::MakeTranslation(t) * Matrix::MakeRotationZ(Radians(angle)) *
+             Matrix::MakeScale(s) * Matrix::MakeSkew(kx, ky);
+    }
+    case 5: {
+      // With perspective.
+      for (int i = 0; i < 16; i++) {
+        m.m[i] = SaneF(r) * 0.01f;
+      }
+      m.m[0] += 1;
+      m.m[5] += 1;
+      m.m[10] += 1;
+      m.m[15] += 1;
+      return m;
+    }
+    case 6: {
+      // Singular: one column a multiple of another.
+      for (int i = 0; i < 16; i++) {
+        m.m[i] = SaneF(r);
+      }
+      int a = static_cast<int>(r.Below(4));
+      int b = static_cast<int>(r.Below(4));
+      float k = SaneF(r);
+      for (int j = 0; j < 4; j++) {
+        m.e[a][j] = m.e[b][j] * k;
+      }
+      return m;
+    }
+    case 7: {
+      // Nearly singular.
+      for (int i = 0; i < 16; i++) {
+        m.m[i] = SaneF(r);
+      }
+      int a = static_cast<int>(r.Below(4));
+      int b = (a + 1 + static_cast<int>(r.Below(3))) % 4;
+      for (int j = 0; j < 4; j++) {
+        float eps = static_cast<float>((r.Unit() - 0.5) * 1e-5);
+        m.e[a][j] = m.e[b][j] + eps;
+      }
+      return m;
+    }
+    case 8: {
+      // A rotation about an axis, then translated.
+      float angle = EdgeF(r);
+      float x = SaneF(r), y = SaneF(r), z = SaneF(r);
+      Vector3 t = SaneV3(r);
+      return Matrix::MakeTranslation(t) *
+             Matrix::MakeRotation(Radians(angle), Vector4(x, y, z, 1.0f));
+    }
+    default: {
+      // The identity with a few entries replaced.
+      int n = static_cast<int>(r.Below(4));
+      for (int i = 0; i < n; i++) {
+        int k = static_cast<int>(r.Below(16));
+        m.m[k] = r.Chance(2) ? EdgeF(r) : 0.0f;
+      }
+      return m;
+    }
+  }
+}
+
+static Quaternion GenQ(Rng& r) {
+  if (r.Chance(4)) {
+    float x = EdgeF(r), y = EdgeF(r), z = EdgeF(r), w = EdgeF(r);
+    return Quaternion(x, y, z, w);
+  }
+  Vector3 axis = SaneV3(r);
+  float angle = SaneF(r);
+  return Quaternion(axis.Normalize(), angle);
+}
+
+static void SuiteMatrix(Rng& r, int cases) {
+  for (int c = 0; c < cases; c++) {
+    Matrix a = GenM(r);
+    Matrix b = GenM(r);
+    Vector3 v3 = r.Chance(3) ? EdgeV3(r) : SaneV3(r);
+    Vector4 v4 = EdgeV4(r);
+    Point p = r.Chance(3) ? EdgeP(r) : SaneP(r);
+    float s = r.Chance(3) ? EdgeF(r) : SaneF(r);
+    float tol = r.Chance(2) ? kEhCloseEnough : SaneF(r);
+
+    Tag("mx_ops");
+    M(a);
+    M(b);
+    V3(v3);
+    V4(v4);
+    P(p);
+    Arrow();
+    M(a.Basis());
+    M(a.To3x3());
+    M(a.Translate(v3));
+    M(a.Scale(v3));
+    M(a.Multiply(b));
+    M(a * b);
+    M(a + b);
+    M(a + v3);
+    M(a - v3);
+    M(a.Transpose());
+    M(a.Invert());
+    F(a.GetDeterminant());
+    B(a.IsInvertible());
+    V4(a * v4);
+    V3(a * v3);
+    P(a * p);
+    V3(a.TransformHomogenous(p));
+    V4(a.TransformDirection(v4));
+    V3(a.TransformDirection(v3));
+    P(a.TransformDirection(p));
+    Quad quad = {p, Point(v3.x, v3.y), Point(v4.x, v4.y), Point(s, s)};
+    Quad tq = a.Transform(quad);
+    for (const auto& qp : tq) {
+      P(qp);
+    }
+    B(a == b);
+    B(a != b);
+    B(a == a);
+    B(a.Equals(b));
+    B(a.Equals(b, tol));
+    End();
+
+    Tag("mx_query");
+    M(a);
+    F(tol);
+    V3(v3);
+    Arrow();
+    F(a.GetMaxBasisLengthXY());
+    OptF(a.GetMinScale2D());
+    OptF(a.GetMaxScale2D());
+    auto scales = a.GetScales2D();
+    if (scales.has_value()) {
+      F(scales->first);
+      F(scales->second);
+    } else {
+      S("none");
+    }
+    V3(a.GetBasisX());
+    V3(a.GetBasisY());
+    V3(a.GetBasisZ());
+    V3(a.GetScale());
+    P(a.GetBasisX2D());
+    P(a.GetBasisY2D());
+    P(a.GetBasisScaleXY());
+    P(a.GetTransformedPixelSize());
+    F(a.GetDirectionScale(v3));
+    B(a.IsFinite());
+    B(a.IsAffine());
+    B(a.HasPerspective2D());
+    B(a.HasPerspective());
+    B(a.HasTranslation());
+    B(a.IsAligned2D());
+    B(a.IsAligned2D(tol));
+    B(a.IsAligned());
+    B(a.IsAligned(tol));
+    B(a.IsIdentity());
+    B(a.IsTranslationOnly());
+    B(a.IsTranslationScaleOnly());
+    End();
+
+    Tag("mx_decompose");
+    M(a);
+    Arrow();
+    auto d = a.Decompose();
+    if (d.has_value()) {
+      Decomp(*d);
+      M(Matrix(*d));
+    } else {
+      S("none");
+    }
+    End();
+
+    // A random decomposition, recomposed.
+    MatrixDecomposition rd;
+    rd.translation = SaneV3(r);
+    rd.scale = SaneV3(r);
+    {
+      double xy = r.Chance(2) ? 0.0 : (r.Unit() - 0.5);
+      double xz = r.Chance(2) ? 0.0 : (r.Unit() - 0.5);
+      double yz = r.Chance(2) ? 0.0 : (r.Unit() - 0.5);
+      rd.shear = Shear(xy, xz, yz);
+    }
+    if (r.Chance(2)) {
+      float px = SaneF(r) * 0.01f, py = SaneF(r) * 0.01f, pz = SaneF(r) * 0.01f;
+      rd.perspective = Vector4(px, py, pz, 1.0f);
+    }
+    rd.rotation = GenQ(r);
+    Tag("mx_recompose");
+    Decomp(rd);
+    Arrow();
+    M(Matrix(rd));
+    U(MatrixDecomposition().GetComponentsMask());
+    B(Shear(rd.shear.xy, 0, 0) == rd.shear);
+    End();
+
+    float f[16];
+    for (int i = 0; i < 16; i++) {
+      f[i] = EdgeF(r);
+    }
+    Quaternion q = GenQ(r);
+    Quaternion q2 = GenQ(r);
+    float angle = r.Chance(3) ? EdgeF(r) : SaneF(r);
+    float sx = SaneF(r), sy = SaneF(r);
+    Vector3 eye = SaneV3(r);
+    Vector3 target = SaneV3(r);
+    Vector3 up = SaneV3(r);
+    float fov = SaneF(r), aspect = SaneF(r), znear = SaneF(r), zfar = SaneF(r);
+    Size osz = EdgeS(r);
+    ISize iosz = {EdgeI(r, 64), EdgeI(r, 64)};
+    double t = r.Chance(4) ? EdgeD(r) : r.Unit();
+    Tag("mx_make");
+    for (int i = 0; i < 16; i++) {
+      F(f[i]);
+    }
+    Q(q);
+    Q(q2);
+    F(angle);
+    Arrow();
+    M(Matrix::MakeColumn(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8],
+                         f[9], f[10], f[11], f[12], f[13], f[14], f[15]));
+    M(Matrix::MakeRow(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8],
+                      f[9], f[10], f[11], f[12], f[13], f[14], f[15]));
+    M(Matrix::MakeTranslation(v3));
+    M(Matrix::MakeScale(v3));
+    M(Matrix::MakeTranslateScale(v3, Vector3(f[0], f[1], f[2])));
+    M(Matrix::MakeScale(Vector2(f[3], f[4])));
+    M(Matrix::MakeSkew(sx, sy));
+    M(Matrix::MakeRotation(q));
+    M(Matrix::MakeRotation(Radians(angle), v4));
+    M(Matrix::MakeRotationX(Radians(angle)));
+    M(Matrix::MakeRotationY(Radians(angle)));
+    M(Matrix::MakeRotationZ(Radians(angle)));
+    P(Matrix::CosSin(Radians(angle)));
+    M(Matrix::MakeOrthographic(osz));
+    M(Matrix::MakeOrthographic(iosz));
+    M(Matrix::MakePerspective(Radians(fov), aspect, znear, zfar));
+    M(Matrix::MakePerspective(Radians(fov), osz, znear, zfar));
+    M(Matrix::MakePerspective(Radians(fov), iosz, znear, zfar));
+    M(Matrix::MakeLookAt(eye, target, up));
+    M(Matrix());
+    End();
+
+    Tag("quaternion");
+    Q(q);
+    Q(q2);
+    V3(v3);
+    F(s);
+    D(t);
+    Arrow();
+    F(q.Dot(q2));
+    F(q.Length());
+    Q(q.Normalize());
+    Q(q.Invert());
+    Q(q.Slerp(q2, t));
+    Q(q * q2);
+    Q(q * s);
+    V3(q * v3);
+    Q(q + q2);
+    Q(q - q2);
+    B(q == q2);
+    B(q != q2);
+    B(q == q);
+    Q(Quaternion());
+    Q(Quaternion(v3, s));
+    End();
+  }
+}
+
 // ----------------------------------------------------------------- main ----
 
 typedef void (*Suite)(Rng&, int);
@@ -1413,6 +1761,7 @@ static const NamedSuite kSuites[] = {
     {"size", SuiteSize},
     {"vector", SuiteVector},
     {"color", SuiteColor},
+    {"matrix", SuiteMatrix},
 };
 
 int main(int argc, char** argv) {

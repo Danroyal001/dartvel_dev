@@ -11,6 +11,10 @@ use std::io::Write;
 use impeller_geometry::color::*;
 use impeller_geometry::constants::*;
 use impeller_geometry::half::*;
+use impeller_geometry::matrix::*;
+use impeller_geometry::matrix_decomposition::*;
+use impeller_geometry::quaternion::*;
+use impeller_geometry::shear::*;
 use impeller_geometry::vector::*;
 use impeller_geometry::saturated;
 use impeller_geometry::cxx::{self, Num};
@@ -1363,6 +1367,366 @@ fn suite_color(r: &mut Rng, o: &mut Out, cases: i32) {
     }
 }
 
+// ---------------------------------------------------------------- matrix ---
+
+impl Out {
+    fn m(&mut self, m: &Matrix) {
+        for i in 0..16 {
+            self.f(m.m[i]);
+        }
+    }
+    fn q(&mut self, q: &Quaternion) {
+        self.f(q.x);
+        self.f(q.y);
+        self.f(q.z);
+        self.f(q.w);
+    }
+    fn opt_f(&mut self, v: Option<Scalar>) {
+        match v {
+            Some(v) => self.f(v),
+            None => self.s("none"),
+        }
+    }
+    fn decomp(&mut self, d: &MatrixDecomposition) {
+        self.v3(d.translation);
+        self.v3(d.scale);
+        self.d(d.shear.xy);
+        self.d(d.shear.xz);
+        self.d(d.shear.yz);
+        self.v4(d.perspective);
+        self.q(&d.rotation);
+        self.u(d.get_components_mask());
+    }
+}
+
+fn sane_p(r: &mut Rng) -> Point {
+    let x = sane_f(r);
+    let y = sane_f(r);
+    Point::new(x, y)
+}
+
+fn sane_v3(r: &mut Rng) -> Vector3 {
+    let x = sane_f(r);
+    let y = sane_f(r);
+    let z = sane_f(r);
+    Vector3::new(x, y, z)
+}
+
+fn gen_m(r: &mut Rng) -> Matrix {
+    let mut m = Matrix::default();
+    match r.below(10) {
+        0 => {
+            for i in 0..16 {
+                m.m[i] = edge_f(r);
+            }
+            m
+        }
+        1 => {
+            for i in 0..16 {
+                m.m[i] = sane_f(r);
+            }
+            m
+        }
+        2 => {
+            let a = sane_f(r);
+            let b = sane_f(r);
+            let c = sane_f(r);
+            let d = sane_f(r);
+            let tx = sane_f(r);
+            let ty = sane_f(r);
+            Matrix::new(a, b, 0.0, 0.0, c, d, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, tx, ty, 0.0, 1.0)
+        }
+        3 => {
+            let s = sane_v3(r);
+            let t = sane_v3(r);
+            Matrix::make_translate_scale(s, t)
+        }
+        4 => {
+            let t = sane_v3(r);
+            let angle = sane_f(r);
+            let s = sane_v3(r);
+            let kx = sane_f(r) * 0.01;
+            let ky = sane_f(r) * 0.01;
+            Matrix::make_translation(t)
+                * Matrix::make_rotation_z(Radians::new(angle))
+                * Matrix::make_scale(s)
+                * Matrix::make_skew(kx, ky)
+        }
+        5 => {
+            for i in 0..16 {
+                m.m[i] = sane_f(r) * 0.01;
+            }
+            m.m[0] += 1.0;
+            m.m[5] += 1.0;
+            m.m[10] += 1.0;
+            m.m[15] += 1.0;
+            m
+        }
+        6 => {
+            for i in 0..16 {
+                m.m[i] = sane_f(r);
+            }
+            let a = r.below(4) as usize;
+            let b = r.below(4) as usize;
+            let k = sane_f(r);
+            for j in 0..4 {
+                *m.e_mut(a, j) = m.e(b, j) * k;
+            }
+            m
+        }
+        7 => {
+            for i in 0..16 {
+                m.m[i] = sane_f(r);
+            }
+            let a = r.below(4) as usize;
+            let b = (a + 1 + r.below(3) as usize) % 4;
+            for j in 0..4 {
+                let eps = ((r.unit() - 0.5) * 1e-5) as f32;
+                *m.e_mut(a, j) = m.e(b, j) + eps;
+            }
+            m
+        }
+        8 => {
+            let angle = edge_f(r);
+            let x = sane_f(r);
+            let y = sane_f(r);
+            let z = sane_f(r);
+            let t = sane_v3(r);
+            Matrix::make_translation(t)
+                * Matrix::make_rotation_axis(Radians::new(angle), &Vector4::new(x, y, z, 1.0))
+        }
+        _ => {
+            let n = r.below(4);
+            for _ in 0..n {
+                let k = r.below(16) as usize;
+                m.m[k] = if r.chance(2) { edge_f(r) } else { 0.0 };
+            }
+            m
+        }
+    }
+}
+
+fn gen_q(r: &mut Rng) -> Quaternion {
+    if r.chance(4) {
+        let x = edge_f(r);
+        let y = edge_f(r);
+        let z = edge_f(r);
+        let w = edge_f(r);
+        return Quaternion::new(x, y, z, w);
+    }
+    let axis = sane_v3(r);
+    let angle = sane_f(r);
+    Quaternion::from_axis_angle(&axis.normalize(), angle)
+}
+
+fn suite_matrix(r: &mut Rng, o: &mut Out, cases: i32) {
+    for _ in 0..cases {
+        let a = gen_m(r);
+        let b = gen_m(r);
+        let v3 = if r.chance(3) { edge_v3(r) } else { sane_v3(r) };
+        let v4 = edge_v4(r);
+        let p = if r.chance(3) { edge_p(r) } else { sane_p(r) };
+        let s = if r.chance(3) { edge_f(r) } else { sane_f(r) };
+        let tol = if r.chance(2) { kEhCloseEnough } else { sane_f(r) };
+
+        o.tag("mx_ops");
+        o.m(&a);
+        o.m(&b);
+        o.v3(v3);
+        o.v4(v4);
+        o.p(p);
+        o.arrow();
+        o.m(&a.basis());
+        o.m(&a.to3x3());
+        o.m(&a.translate(&v3));
+        o.m(&a.scale(&v3));
+        o.m(&a.multiply(&b));
+        o.m(&(a * b));
+        o.m(&(a + b));
+        o.m(&(a + v3));
+        o.m(&(a - v3));
+        o.m(&a.transpose());
+        o.m(&a.invert());
+        o.f(a.get_determinant());
+        o.b(a.is_invertible());
+        o.v4(a * v4);
+        o.v3(a * v3);
+        o.p(a * p);
+        o.v3(a.transform_homogenous(&p));
+        o.v4(a.transform_direction4(&v4));
+        o.v3(a.transform_direction3(&v3));
+        o.p(a.transform_direction2(&p));
+        let quad: Quad = [p, Point::new(v3.x, v3.y), Point::new(v4.x, v4.y), Point::new(s, s)];
+        let tq = a.transform(&quad);
+        for qp in tq {
+            o.p(qp);
+        }
+        o.b(a == b);
+        o.b(a != b);
+        o.b(a == a);
+        o.b(a.equals(&b));
+        o.b(a.equals_eps(&b, tol));
+        o.end();
+
+        o.tag("mx_query");
+        o.m(&a);
+        o.f(tol);
+        o.v3(v3);
+        o.arrow();
+        o.f(a.get_max_basis_length_xy());
+        o.opt_f(a.get_min_scale_2d());
+        o.opt_f(a.get_max_scale_2d());
+        match a.get_scales_2d() {
+            Some((x, y)) => {
+                o.f(x);
+                o.f(y);
+            }
+            None => o.s("none"),
+        }
+        o.v3(a.get_basis_x());
+        o.v3(a.get_basis_y());
+        o.v3(a.get_basis_z());
+        o.v3(a.get_scale());
+        o.p(a.get_basis_x_2d());
+        o.p(a.get_basis_y_2d());
+        o.p(a.get_basis_scale_xy());
+        o.p(a.get_transformed_pixel_size());
+        o.f(a.get_direction_scale(v3));
+        o.b(a.is_finite());
+        o.b(a.is_affine());
+        o.b(a.has_perspective_2d());
+        o.b(a.has_perspective());
+        o.b(a.has_translation());
+        o.b(a.is_aligned_2d());
+        o.b(a.is_aligned_2d_tol(tol));
+        o.b(a.is_aligned());
+        o.b(a.is_aligned_tol(tol));
+        o.b(a.is_identity());
+        o.b(a.is_translation_only());
+        o.b(a.is_translation_scale_only());
+        o.end();
+
+        o.tag("mx_decompose");
+        o.m(&a);
+        o.arrow();
+        match a.decompose() {
+            Some(d) => {
+                o.decomp(&d);
+                o.m(&Matrix::from_decomposition(&d));
+            }
+            None => o.s("none"),
+        }
+        o.end();
+
+        let mut rd = MatrixDecomposition::default();
+        rd.translation = sane_v3(r);
+        rd.scale = sane_v3(r);
+        {
+            let xy = if r.chance(2) { 0.0 } else { r.unit() - 0.5 };
+            let xz = if r.chance(2) { 0.0 } else { r.unit() - 0.5 };
+            let yz = if r.chance(2) { 0.0 } else { r.unit() - 0.5 };
+            rd.shear = Shear::new(xy, xz, yz);
+        }
+        if r.chance(2) {
+            let px = sane_f(r) * 0.01;
+            let py = sane_f(r) * 0.01;
+            let pz = sane_f(r) * 0.01;
+            rd.perspective = Vector4::new(px, py, pz, 1.0);
+        }
+        rd.rotation = gen_q(r);
+        o.tag("mx_recompose");
+        o.decomp(&rd);
+        o.arrow();
+        o.m(&Matrix::from_decomposition(&rd));
+        o.u(MatrixDecomposition::default().get_components_mask());
+        o.b(Shear::new(rd.shear.xy, 0.0, 0.0) == rd.shear);
+        o.end();
+
+        let mut f = [0.0f32; 16];
+        for v in f.iter_mut() {
+            *v = edge_f(r);
+        }
+        let q = gen_q(r);
+        let q2 = gen_q(r);
+        let angle = if r.chance(3) { edge_f(r) } else { sane_f(r) };
+        let sx = sane_f(r);
+        let sy = sane_f(r);
+        let eye = sane_v3(r);
+        let target = sane_v3(r);
+        let up = sane_v3(r);
+        let fov = sane_f(r);
+        let aspect = sane_f(r);
+        let znear = sane_f(r);
+        let zfar = sane_f(r);
+        let osz = edge_s(r);
+        let iosz = {
+            let w = edge_i(r, 64);
+            let h = edge_i(r, 64);
+            ISize::new(w, h)
+        };
+        let t = if r.chance(4) { edge_d(r) } else { r.unit() };
+        o.tag("mx_make");
+        for v in f {
+            o.f(v);
+        }
+        o.q(&q);
+        o.q(&q2);
+        o.f(angle);
+        o.arrow();
+        o.m(&Matrix::make_column(
+            f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11], f[12], f[13],
+            f[14], f[15],
+        ));
+        o.m(&Matrix::make_row(
+            f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11], f[12], f[13],
+            f[14], f[15],
+        ));
+        o.m(&Matrix::make_translation(v3));
+        o.m(&Matrix::make_scale(v3));
+        o.m(&Matrix::make_translate_scale(v3, Vector3::new(f[0], f[1], f[2])));
+        o.m(&Matrix::make_scale2(Vector2::new(f[3], f[4])));
+        o.m(&Matrix::make_skew(sx, sy));
+        o.m(&Matrix::make_rotation(q));
+        o.m(&Matrix::make_rotation_axis(Radians::new(angle), &v4));
+        o.m(&Matrix::make_rotation_x(Radians::new(angle)));
+        o.m(&Matrix::make_rotation_y(Radians::new(angle)));
+        o.m(&Matrix::make_rotation_z(Radians::new(angle)));
+        o.p(Matrix::cos_sin(Radians::new(angle)));
+        o.m(&Matrix::make_orthographic(osz));
+        o.m(&Matrix::make_orthographic(iosz));
+        o.m(&Matrix::make_perspective(Radians::new(fov), aspect, znear, zfar));
+        o.m(&Matrix::make_perspective_size(Radians::new(fov), osz, znear, zfar));
+        o.m(&Matrix::make_perspective_size(Radians::new(fov), iosz, znear, zfar));
+        o.m(&Matrix::make_look_at(eye, target, up));
+        o.m(&Matrix::default());
+        o.end();
+
+        o.tag("quaternion");
+        o.q(&q);
+        o.q(&q2);
+        o.v3(v3);
+        o.f(s);
+        o.d(t);
+        o.arrow();
+        o.f(q.dot(&q2));
+        o.f(q.length());
+        o.q(&q.normalize());
+        o.q(&q.invert());
+        o.q(&q.slerp(&q2, t));
+        o.q(&(q * q2));
+        o.q(&(q * s));
+        o.v3(q * v3);
+        o.q(&(q + q2));
+        o.q(&(q - q2));
+        o.b(q == q2);
+        o.b(q != q2);
+        o.b(q == q);
+        o.q(&Quaternion::default());
+        o.q(&Quaternion::from_axis_angle(&v3, s));
+        o.end();
+    }
+}
+
 // ----------------------------------------------------------------- main ----
 
 type Suite = fn(&mut Rng, &mut Out, i32);
@@ -1373,6 +1737,7 @@ const SUITES: &[(&str, Suite)] =
         ("size", suite_size),
         ("vector", suite_vector),
         ("color", suite_color),
+        ("matrix", suite_matrix),
     ];
 
 fn main() {
