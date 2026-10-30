@@ -1,5 +1,9 @@
 ## Unreleased
 
+- AI tools are declared with `@DVAITool` only. `DV.AI.registerTool` is removed, and `DVAIToolRegistry` is no longer exported to applications: a tool registered by hand was one the build never saw, with no generated schema and no approval read from source. Move each hand-registered tool to a `@DVAITool` function under `lib/backend`.
+- `@DVAITool(approval: DVToolApproval.required)` makes an agent run stop before the tool runs and return a `DVAIToolPause`; `pause.resume(approved: ...)` carries the run on. Calling such a tool any other way, an MCP client included, is `DV-AI-010`.
+- A generated tool schema lists the arguments the tool requires, and a parameter with a literal default is optional with its default applied.
+- `DV.FileStorage.putStream` and `getStream`; the local adapter streams, and a stream that fails part way leaves the old file.
 - Web: clicking or tapping a button no longer draws the browser's blue focus ring or tap highlight around its text. Dartvel builds the semantics tree on every page, which made its elements focusable DOM that Chrome decorated; plain Flutter builds it only for a screen reader. The browser ring now shows only while the user navigates with the keyboard.
 - `dartvel --version | head -1` (or any command piped into a reader that stops early) ends quietly instead of printing an unhandled broken-pipe exception and exiting 255.
 

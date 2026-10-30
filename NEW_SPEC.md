@@ -5714,8 +5714,8 @@ separation is load-bearing rather than tidy:
 - `dartvel mcp` serves Dartvel's own tools — the inspectors over the project
   graph, migration planning, doctor, and build validation — to a coding agent
   working on the application.
-- `DVMcpServer` serves the application's tools, the ones `DV.AI.registerTool`
-  and `@DVAITool` declare, to whatever the application exposes them to.
+- `DVMcpServer` serves the application's tools, the ones `@DVAITool` declares,
+  to whatever the application exposes them to.
 
 Framework tools must never enter the process-global tool registry. Application
 AI tool exposure is explicit opt-in with `@DVAIHidden()` as the escape, and a
@@ -5729,16 +5729,13 @@ validation as hand-written code and carries the same provenance in source
 mappings, so `dartvel inspect generated` can say what produced a given line
 regardless of who asked for it.
 
-Tool calls:
+Tool calls. A tool is declared with `@DVAITool` and nothing else; the generated
+registration is how it reaches the registry, and there is no
+`DV.AI.registerTool`, because a tool declared by hand is one the build never
+sees -- no generated schema, no approval read from source:
 ```dart
-DV.AI.registerTool('sumLedger', (input) {
-  final left = input['left'];
-  final right = input['right'];
-  if (left is! DVJsonNumber || right is! DVJsonNumber) {
-    throw ArgumentError('sumLedger requires numeric left and right.');
-  }
-  return DVJsonNumber(left.value + right.value);
-});
+@DVAITool(description: 'Adds two ledger amounts')
+Future<num> sumLedger(num left, num right) async => left + right;
 
 final result = await DV.AI.callTool('sumLedger', const {
   'left': DVJsonNumber(2),
@@ -5746,7 +5743,7 @@ final result = await DV.AI.callTool('sumLedger', const {
 });
 ```
 
-Tool handlers use `DVJsonObject` and `DVJsonValue` (`DVJsonString`,
+Generated tool handlers use `DVJsonObject` and `DVJsonValue` (`DVJsonString`,
 `DVJsonNumber`, `DVJsonBool`, `DVJsonList`, `DVJsonMap`, `DVJsonNull`) rather
 than loose dynamic maps. The same metadata can map to platform equivalents such
 as Android App Functions while remaining available to Dartvel-native AI and
@@ -16649,7 +16646,7 @@ to stop starts.
 
 - **Agents running the application.** This is documentation for agents building
   it. An agent a product serves to its users is the AI section's business, over
-  `DV.AI.registerTool`, and it is a different surface with different rules.
+  `@DVAITool`, and it is a different surface with different rules.
 - **Prose the agent must obey.** The block states rules. An agent that needs to
   be *told* to follow them is a different product, and one the specification
   does not want.

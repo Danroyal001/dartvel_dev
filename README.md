@@ -1290,23 +1290,22 @@ final adapter = OpenAIDVAIAdapter(
 
 ### Agents and tool calling
 
-Register a tool with a description and JSON Schema, and the model decides when
-to call it:
+Declare a tool with `@DVAITool` on a function under `lib/backend`. `dartvel
+routes` writes its JSON Schema (with the arguments it requires) and the
+handler, and the generated backend registers it; there is no other way to
+declare one. The model decides when to call it:
 
 ```dart
-DV.AI.registerTool(
-  'getWeather',
-  (input) => DVJsonString('sunny in ${(input['city']! as DVJsonString).value}'),
-  description: 'Look up the current weather for a city.',
-  parameters: const <String, DVJsonValue>{
-    'type': DVJsonString('object'),
-    'properties': DVJsonMap(<String, DVJsonValue>{
-      'city': DVJsonMap(<String, DVJsonValue>{'type': DVJsonString('string')}),
-    }),
-    'required': DVJsonList(<DVJsonValue>[DVJsonString('city')]),
-  },
-);
+// lib/backend/functions/weather.dart
+@DVAITool(description: 'Look up the current weather for a city.')
+Future<String> getWeather(String city) async => 'sunny in $city';
 
+// A tool that moves money or changes data asks first.
+@DVAITool(description: 'Issue a refund', approval: .required)
+Future<String> issueRefund(String orderId, int amount) async => 'refunded';
+```
+
+```dart
 final result = await DV.AI.runAgent(
   const DVAIAgentRequest(
     goal: 'What is the weather in Paris?',
@@ -1314,6 +1313,11 @@ final result = await DV.AI.runAgent(
   ),
 );
 result.usedTools; // ['getWeather'] — only tools the model actually called
+
+// A run that reaches issueRefund stops before it runs and hands back a pause.
+if (result.pause case final DVAIToolPause pause) {
+  final DVAIAgentResult done = await pause.resume(approved: true);
+}
 ```
 
 `AnthropicDVAIAdapter` drives the Messages API `tool_use`/`tool_result` loop and

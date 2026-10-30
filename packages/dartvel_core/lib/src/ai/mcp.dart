@@ -81,7 +81,7 @@ class DVMcpException implements Exception {
 
 /// Serves Dartvel's registered AI tools over MCP.
 ///
-/// The tools are exactly the ones `DV.AI.registerTool` knows about, so an MCP
+/// The tools are exactly the ones `@DVAITool` declares, so an MCP
 /// client and Dartvel's own agent runs see the same surface — there is no
 /// second registry to drift.
 class DVMcpServer {
