@@ -184,15 +184,15 @@ impl TypeInfo {
     pub fn parse_type(&self, token: TokenId, parser: &mut Parser) -> TokenId {
         match self {
             TypeInfo::NoType => {
-                parser.listener.handle_no_type(&parser.tokens, token);
+                parser.listener.handle_no_type(&mut parser.tokens, token);
                 token
             }
             TypeInfo::PrefixedType => {
-                let t = &parser.tokens;
+                let t = &mut parser.tokens;
                 let start = t.next(token);
                 debug_assert!(t.is_keyword_or_identifier(start));
                 parser.listener.handle_identifier(
-                    &parser.tokens,
+                    &mut parser.tokens,
                     start,
                     IdentifierContext::prefixedTypeReference,
                 );
@@ -203,17 +203,19 @@ impl TypeInfo {
                 let token = parser.tokens.next(period);
                 debug_assert!(parser.tokens.is_keyword_or_identifier(token));
                 parser.listener.handle_identifier(
-                    &parser.tokens,
+                    &mut parser.tokens,
                     token,
                     IdentifierContext::typeReferenceContinuation,
                 );
-                parser.listener.handle_qualified(&parser.tokens, period);
+                parser.listener.handle_qualified(&mut parser.tokens, period);
 
                 let next = parser.tokens.next(token);
                 parser
                     .listener
-                    .handle_no_type_arguments(&parser.tokens, next);
-                parser.listener.handle_type(&parser.tokens, start, NO_TOKEN);
+                    .handle_no_type_arguments(&mut parser.tokens, next);
+                parser
+                    .listener
+                    .handle_type(&mut parser.tokens, start, NO_TOKEN);
                 token
             }
             TypeInfo::SimpleNullableTypeWith1Argument | TypeInfo::SimpleTypeWith1Argument(_) => {
@@ -224,7 +226,7 @@ impl TypeInfo {
                 let start = parser.tokens.next(token);
                 debug_assert!(parser.tokens.is_keyword_or_identifier(start));
                 parser.listener.handle_identifier(
-                    &parser.tokens,
+                    &mut parser.tokens,
                     start,
                     IdentifierContext::typeReference,
                 );
@@ -233,10 +235,14 @@ impl TypeInfo {
                 if let TypeInfo::SimpleNullableTypeWith1Argument = self {
                     let token = parser.tokens.next(token);
                     debug_assert!(parser.tokens.is_a(token, TokenType::QUESTION));
-                    parser.listener.handle_type(&parser.tokens, start, token);
+                    parser
+                        .listener
+                        .handle_type(&mut parser.tokens, start, token);
                     token
                 } else {
-                    parser.listener.handle_type(&parser.tokens, start, NO_TOKEN);
+                    parser
+                        .listener
+                        .handle_type(&mut parser.tokens, start, NO_TOKEN);
                     token
                 }
             }
@@ -244,7 +250,7 @@ impl TypeInfo {
                 let token = parser.tokens.next(token);
                 debug_assert!(is_valid_non_record_type_reference(&parser.tokens, token));
                 parser.listener.handle_identifier(
-                    &parser.tokens,
+                    &mut parser.tokens,
                     token,
                     IdentifierContext::typeReference,
                 );
@@ -254,10 +260,14 @@ impl TypeInfo {
                     let start = token;
                     let token = parser.tokens.next(start);
                     debug_assert!(parser.tokens.is_a(token, TokenType::QUESTION));
-                    parser.listener.handle_type(&parser.tokens, start, token);
+                    parser
+                        .listener
+                        .handle_type(&mut parser.tokens, start, token);
                     token
                 } else {
-                    parser.listener.handle_type(&parser.tokens, token, NO_TOKEN);
+                    parser
+                        .listener
+                        .handle_type(&mut parser.tokens, token, NO_TOKEN);
                     token
                 }
             }
@@ -281,12 +291,12 @@ impl TypeInfo {
                 if has_type_arguments {
                     parser
                         .listener
-                        .handle_void_keyword_with_type_arguments(&parser.tokens, void_keyword);
+                        .handle_void_keyword_with_type_arguments(&mut parser.tokens, void_keyword);
                 } else {
                     // Normal case.
                     parser
                         .listener
-                        .handle_void_keyword(&parser.tokens, void_keyword);
+                        .handle_void_keyword(&mut parser.tokens, void_keyword);
                 }
                 token
             }
@@ -452,7 +462,7 @@ impl ComplexTypeInfo {
         for &head in info.type_variable_starters.iter().rev() {
             parser
                 .listener
-                .begin_function_type(&parser.tokens, info.start);
+                .begin_function_type(&mut parser.tokens, info.start);
             let type_params = compute_type_param_or_arg(&mut parser.tokens, head, true, false);
             type_variable_end_groups.push(type_params.parse_variables(head, parser));
         }
@@ -506,7 +516,7 @@ impl ComplexTypeInfo {
 
                 parser
                     .listener
-                    .handle_type(&parser.tokens, type_ref_or_prefix, question_mark);
+                    .handle_type(&mut parser.tokens, type_ref_or_prefix, question_mark);
             }
         }
 
@@ -535,7 +545,7 @@ impl ComplexTypeInfo {
             end_group_index -= 1;
             parser
                 .listener
-                .end_function_type(&parser.tokens, function_token, question_mark);
+                .end_function_type(&mut parser.tokens, function_token, question_mark);
         }
 
         // There are two situations in which the [token] != [end]:
@@ -983,7 +993,7 @@ impl TypeParamOrArgInfo {
                 let next = parser.tokens.next(token);
                 parser
                     .listener
-                    .handle_no_type_arguments(&parser.tokens, next);
+                    .handle_no_type_arguments(&mut parser.tokens, next);
                 token
             }
             TypeParamOrArgInfo::Complex(info) => info.parse_arguments(token, parser),
@@ -994,11 +1004,11 @@ impl TypeParamOrArgInfo {
                 let end_group = self.parse_end_group(&mut parser.tokens, begin_group, before_end);
                 parser
                     .listener
-                    .begin_type_arguments(&parser.tokens, begin_group);
+                    .begin_type_arguments(&mut parser.tokens, begin_group);
                 simpleType.parse_type(begin_group, parser);
                 parser
                     .listener
-                    .end_type_arguments(&parser.tokens, 1, begin_group, end_group);
+                    .end_type_arguments(&mut parser.tokens, 1, begin_group, end_group);
                 end_group
             }
         }
@@ -1012,7 +1022,7 @@ impl TypeParamOrArgInfo {
                 let next = parser.tokens.next(token);
                 parser
                     .listener
-                    .handle_no_type_variables(&parser.tokens, next);
+                    .handle_no_type_variables(&mut parser.tokens, next);
                 token
             }
             TypeParamOrArgInfo::Complex(info) => info.parse_variables(token, parser),
@@ -1021,7 +1031,7 @@ impl TypeParamOrArgInfo {
                 debug_assert!(parser.tokens.is_a(begin_group, TokenType::LT));
                 let token = parser.tokens.next(begin_group);
                 let end_group = self.parse_end_group(&mut parser.tokens, begin_group, token);
-                let t = &parser.tokens;
+                let t = &mut parser.tokens;
                 let listener = &mut parser.listener;
                 listener.begin_type_variables(t, begin_group);
                 listener.begin_metadata_star(t, token);
@@ -1231,7 +1241,7 @@ impl ComplexTypeParamOrArgInfo {
         let mut next = self.start;
         parser
             .listener
-            .begin_type_arguments(&parser.tokens, self.start);
+            .begin_type_arguments(&mut parser.tokens, self.start);
         let mut count = 0;
         loop {
             let mut type_info =
@@ -1273,7 +1283,7 @@ impl ComplexTypeParamOrArgInfo {
         let end_group = parser.tokens.next(token);
         parser
             .listener
-            .end_type_arguments(&parser.tokens, count, self.start, end_group);
+            .end_type_arguments(&mut parser.tokens, count, self.start, end_group);
         end_group
     }
 
@@ -1282,7 +1292,7 @@ impl ComplexTypeParamOrArgInfo {
         let mut next = self.start;
         parser
             .listener
-            .begin_type_variables(&parser.tokens, self.start);
+            .begin_type_variables(&mut parser.tokens, self.start);
         let mut count: i32 = 0;
 
         // Prepend order: the head of each upstream `Link` is the last element.
@@ -1293,7 +1303,7 @@ impl ComplexTypeParamOrArgInfo {
         loop {
             token = parser.parse_metadata_star(next);
 
-            let t = &parser.tokens;
+            let t = &mut parser.tokens;
             let mut variance = t.next(next);
             let mut identifier = t.next(variance);
             if self.allows_variance
@@ -1324,7 +1334,9 @@ impl ComplexTypeParamOrArgInfo {
 
             next = parser.ensure_identifier(token, IdentifierContext::typeVariableDeclaration);
             token = next;
-            parser.listener.begin_type_variable(&parser.tokens, token);
+            parser
+                .listener
+                .begin_type_variable(&mut parser.tokens, token);
             type_starts.push(token);
 
             next = parser.tokens.next(token);
@@ -1356,7 +1368,7 @@ impl ComplexTypeParamOrArgInfo {
         debug_assert!(count > 0);
         parser
             .listener
-            .handle_type_variables_defined(&parser.tokens, token, count);
+            .handle_type_variables_defined(&mut parser.tokens, token, count);
 
         let mut token3 = NO_TOKEN;
         while let Some(mut token2) = type_starts.pop() {
@@ -1372,7 +1384,7 @@ impl ComplexTypeParamOrArgInfo {
                 next2 = parser.tokens.next(token2);
             } else {
                 debug_assert!(!parser.tokens.is_a(next2, kw::EXTENDS));
-                parser.listener.handle_no_type(&parser.tokens, token2);
+                parser.listener.handle_no_type(&mut parser.tokens, token2);
             }
             // Type variables are "completed" in reverse order, so capture the last
             // consumed token from the first "completed" type variable.
@@ -1381,7 +1393,7 @@ impl ComplexTypeParamOrArgInfo {
             }
             count -= 1;
             parser.listener.end_type_variable(
-                &parser.tokens,
+                &mut parser.tokens,
                 next2,
                 count,
                 extends_or_super,
@@ -1395,7 +1407,7 @@ impl ComplexTypeParamOrArgInfo {
         let end_group = parser.tokens.next(token3);
         parser
             .listener
-            .end_type_variables(&parser.tokens, self.start, end_group);
+            .end_type_variables(&mut parser.tokens, self.start, end_group);
         end_group
     }
 

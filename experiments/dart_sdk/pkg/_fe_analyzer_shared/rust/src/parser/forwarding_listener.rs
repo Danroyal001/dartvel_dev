@@ -42,7 +42,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_arguments(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_arguments(tokens, token);
         }
@@ -50,7 +50,7 @@ impl Listener for ForwardingListener {
 
     fn end_arguments(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -62,7 +62,7 @@ impl Listener for ForwardingListener {
 
     fn handle_object_pattern_fields(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -74,7 +74,7 @@ impl Listener for ForwardingListener {
 
     fn handle_async_modifier(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         async_token: TokenId,
         star_token: TokenId,
     ) {
@@ -83,7 +83,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_await_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_await_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_await_expression(tokens, token);
         }
@@ -91,7 +91,7 @@ impl Listener for ForwardingListener {
 
     fn end_await_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -102,7 +102,7 @@ impl Listener for ForwardingListener {
 
     fn end_invalid_await_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
         error_code: &'static MessageCode,
@@ -112,7 +112,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_block(&mut self, tokens: &TokenStore, token: TokenId, block_kind: BlockKind) {
+    fn begin_block(&mut self, tokens: &mut TokenStore, token: TokenId, block_kind: BlockKind) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_block(tokens, token, block_kind);
         }
@@ -120,7 +120,7 @@ impl Listener for ForwardingListener {
 
     fn end_block(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -131,31 +131,31 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_invalid_top_level_block(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_invalid_top_level_block(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_invalid_top_level_block(tokens, token);
         }
     }
 
-    fn begin_cascade(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_cascade(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_cascade(tokens, token);
         }
     }
 
-    fn end_cascade(&mut self, tokens: &TokenStore) {
+    fn end_cascade(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_cascade(tokens);
         }
     }
 
-    fn handle_cascade_expression_end(&mut self, tokens: &TokenStore, section_count: i32) {
+    fn handle_cascade_expression_end(&mut self, tokens: &mut TokenStore, section_count: i32) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_cascade_expression_end(tokens, section_count);
         }
     }
 
-    fn begin_case_expression(&mut self, tokens: &TokenStore, case_keyword: TokenId) {
+    fn begin_case_expression(&mut self, tokens: &mut TokenStore, case_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_case_expression(tokens, case_keyword);
         }
@@ -163,7 +163,7 @@ impl Listener for ForwardingListener {
 
     fn end_case_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         case_keyword: TokenId,
         when: TokenId,
         colon: TokenId,
@@ -175,7 +175,7 @@ impl Listener for ForwardingListener {
 
     fn begin_class_or_mixin_or_extension_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         token: TokenId,
     ) {
@@ -186,7 +186,7 @@ impl Listener for ForwardingListener {
 
     fn end_class_or_mixin_or_extension_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         member_count: i32,
         begin_token: TokenId,
@@ -205,7 +205,7 @@ impl Listener for ForwardingListener {
 
     fn begin_class_or_mixin_or_named_mixin_application_prelude(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
     ) {
         if let Some(listener) = self.listener.as_mut() {
@@ -215,7 +215,7 @@ impl Listener for ForwardingListener {
 
     fn begin_class_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin: TokenId,
         abstract_token: TokenId,
         sealed_token: TokenId,
@@ -244,7 +244,7 @@ impl Listener for ForwardingListener {
 
     fn handle_class_extends(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         extends_keyword: TokenId,
         type_count: i32,
     ) {
@@ -258,7 +258,7 @@ impl Listener for ForwardingListener {
 
     fn handle_implements(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         implements_keyword: TokenId,
         interfaces_count: i32,
     ) {
@@ -274,7 +274,7 @@ impl Listener for ForwardingListener {
 
     fn handle_class_header(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin: TokenId,
         class_keyword: TokenId,
         native_token: TokenId,
@@ -286,7 +286,7 @@ impl Listener for ForwardingListener {
 
     fn handle_recover_declaration_header(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationHeaderKind,
     ) {
         if let Some(listener) = self.listener.as_mut() {
@@ -296,7 +296,7 @@ impl Listener for ForwardingListener {
 
     fn end_class_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -305,13 +305,13 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_no_class_body(&mut self, tokens: &TokenStore, semicolon_token: TokenId) {
+    fn handle_no_class_body(&mut self, tokens: &mut TokenStore, semicolon_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_class_body(tokens, semicolon_token);
         }
     }
 
-    fn handle_no_extension_type_body(&mut self, tokens: &TokenStore, semicolon_token: TokenId) {
+    fn handle_no_extension_type_body(&mut self, tokens: &mut TokenStore, semicolon_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_extension_type_body(tokens, semicolon_token);
         }
@@ -319,7 +319,7 @@ impl Listener for ForwardingListener {
 
     fn begin_mixin_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         augment_token: TokenId,
         base_token: TokenId,
@@ -338,7 +338,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_mixin_on(&mut self, tokens: &TokenStore, on_keyword: TokenId, type_count: i32) {
+    fn handle_mixin_on(&mut self, tokens: &mut TokenStore, on_keyword: TokenId, type_count: i32) {
         if let Some(Recovery::MixinHeader(r)) = self.recovery.as_mut() {
             r.on_keyword = on_keyword;
         }
@@ -347,19 +347,19 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_mixin_header(&mut self, tokens: &TokenStore, mixin_keyword: TokenId) {
+    fn handle_mixin_header(&mut self, tokens: &mut TokenStore, mixin_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_mixin_header(tokens, mixin_keyword);
         }
     }
 
-    fn handle_recover_mixin_header(&mut self, tokens: &TokenStore) {
+    fn handle_recover_mixin_header(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_recover_mixin_header(tokens);
         }
     }
 
-    fn handle_no_mixin_body(&mut self, tokens: &TokenStore, semicolon_token: TokenId) {
+    fn handle_no_mixin_body(&mut self, tokens: &mut TokenStore, semicolon_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_mixin_body(tokens, semicolon_token);
         }
@@ -367,7 +367,7 @@ impl Listener for ForwardingListener {
 
     fn end_mixin_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -376,7 +376,11 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_uncategorized_top_level_declaration(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_uncategorized_top_level_declaration(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_uncategorized_top_level_declaration(tokens, token);
         }
@@ -384,7 +388,7 @@ impl Listener for ForwardingListener {
 
     fn begin_extension_declaration_prelude(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         extension_keyword: TokenId,
     ) {
         if let Some(listener) = self.listener.as_mut() {
@@ -394,7 +398,7 @@ impl Listener for ForwardingListener {
 
     fn begin_extension_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_token: TokenId,
         extension_keyword: TokenId,
         name: TokenId,
@@ -406,7 +410,7 @@ impl Listener for ForwardingListener {
 
     fn end_extension_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         extension_keyword: TokenId,
         on_keyword: TokenId,
@@ -423,7 +427,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_no_extension_body(&mut self, tokens: &TokenStore, semicolon_token: TokenId) {
+    fn handle_no_extension_body(&mut self, tokens: &mut TokenStore, semicolon_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_extension_body(tokens, semicolon_token);
         }
@@ -431,7 +435,7 @@ impl Listener for ForwardingListener {
 
     fn begin_extension_type_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_keyword: TokenId,
         extension_keyword: TokenId,
         name: TokenId,
@@ -448,7 +452,7 @@ impl Listener for ForwardingListener {
 
     fn end_extension_type_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         augment_token: TokenId,
         extension_keyword: TokenId,
@@ -467,7 +471,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_primary_constructor(&mut self, tokens: &TokenStore, begin_token: TokenId) {
+    fn begin_primary_constructor(&mut self, tokens: &mut TokenStore, begin_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_primary_constructor(tokens, begin_token);
         }
@@ -475,7 +479,7 @@ impl Listener for ForwardingListener {
 
     fn end_primary_constructor(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         begin_token: TokenId,
         end_token: TokenId,
@@ -496,7 +500,7 @@ impl Listener for ForwardingListener {
 
     fn handle_no_primary_constructor(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         token: TokenId,
         const_keyword: TokenId,
@@ -508,7 +512,7 @@ impl Listener for ForwardingListener {
 
     fn begin_primary_constructor_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         augment_token: TokenId,
     ) {
@@ -519,7 +523,7 @@ impl Listener for ForwardingListener {
 
     fn end_primary_constructor_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         this_token: TokenId,
         begin_initializers: TokenId,
@@ -536,49 +540,49 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_combinators(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_combinators(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_combinators(tokens, token);
         }
     }
 
-    fn end_combinators(&mut self, tokens: &TokenStore, count: i32) {
+    fn end_combinators(&mut self, tokens: &mut TokenStore, count: i32) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_combinators(tokens, count);
         }
     }
 
-    fn begin_compilation_unit(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_compilation_unit(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_compilation_unit(tokens, token);
         }
     }
 
-    fn handle_directives_only(&mut self, tokens: &TokenStore) {
+    fn handle_directives_only(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_directives_only(tokens);
         }
     }
 
-    fn end_compilation_unit(&mut self, tokens: &TokenStore, count: i32, token: TokenId) {
+    fn end_compilation_unit(&mut self, tokens: &mut TokenStore, count: i32, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_compilation_unit(tokens, count, token);
         }
     }
 
-    fn begin_const_literal(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_const_literal(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_const_literal(tokens, token);
         }
     }
 
-    fn end_const_literal(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_const_literal(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_const_literal(tokens, end_token);
         }
     }
 
-    fn begin_constructor_reference(&mut self, tokens: &TokenStore, start: TokenId) {
+    fn begin_constructor_reference(&mut self, tokens: &mut TokenStore, start: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_constructor_reference(tokens, start);
         }
@@ -586,7 +590,7 @@ impl Listener for ForwardingListener {
 
     fn end_constructor_reference(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         start: TokenId,
         period_before_name: TokenId,
         end_token: TokenId,
@@ -603,7 +607,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_do_while_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_do_while_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_do_while_statement(tokens, token);
         }
@@ -611,7 +615,7 @@ impl Listener for ForwardingListener {
 
     fn end_do_while_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         do_keyword: TokenId,
         while_keyword: TokenId,
         end_token: TokenId,
@@ -621,31 +625,31 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_do_while_statement_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_do_while_statement_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_do_while_statement_body(tokens, token);
         }
     }
 
-    fn end_do_while_statement_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_do_while_statement_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_do_while_statement_body(tokens, token);
         }
     }
 
-    fn begin_while_statement_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_while_statement_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_while_statement_body(tokens, token);
         }
     }
 
-    fn end_while_statement_body(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_while_statement_body(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_while_statement_body(tokens, end_token);
         }
     }
 
-    fn begin_enum_declaration_prelude(&mut self, tokens: &TokenStore, enum_keyword: TokenId) {
+    fn begin_enum_declaration_prelude(&mut self, tokens: &mut TokenStore, enum_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_enum_declaration_prelude(tokens, enum_keyword);
         }
@@ -653,7 +657,7 @@ impl Listener for ForwardingListener {
 
     fn begin_enum_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         augment_token: TokenId,
         enum_keyword: TokenId,
@@ -666,7 +670,7 @@ impl Listener for ForwardingListener {
 
     fn end_enum_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         enum_keyword: TokenId,
         left_brace: TokenId,
@@ -687,7 +691,7 @@ impl Listener for ForwardingListener {
 
     fn handle_enum_elements(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         elements_end_token: TokenId,
         elements_count: i32,
     ) {
@@ -698,7 +702,7 @@ impl Listener for ForwardingListener {
 
     fn handle_enum_header(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_token: TokenId,
         enum_keyword: TokenId,
         left_brace: TokenId,
@@ -708,19 +712,19 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_enum_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_enum_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_enum_body(tokens, token);
         }
     }
 
-    fn end_enum_body(&mut self, tokens: &TokenStore, begin_token: TokenId, end_token: TokenId) {
+    fn end_enum_body(&mut self, tokens: &mut TokenStore, begin_token: TokenId, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_enum_body(tokens, begin_token, end_token);
         }
     }
 
-    fn handle_no_enum_body(&mut self, tokens: &TokenStore, semicolon_token: TokenId) {
+    fn handle_no_enum_body(&mut self, tokens: &mut TokenStore, semicolon_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_enum_body(tokens, semicolon_token);
         }
@@ -728,7 +732,7 @@ impl Listener for ForwardingListener {
 
     fn handle_enum_element(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         augment_token: TokenId,
     ) {
@@ -737,13 +741,13 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_export(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_export(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_export(tokens, token);
         }
     }
 
-    fn end_export(&mut self, tokens: &TokenStore, export_keyword: TokenId, semicolon: TokenId) {
+    fn end_export(&mut self, tokens: &mut TokenStore, export_keyword: TokenId, semicolon: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_export(tokens, export_keyword, semicolon);
         }
@@ -751,7 +755,7 @@ impl Listener for ForwardingListener {
 
     fn handle_extraneous_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         message: &Message,
     ) {
@@ -762,7 +766,7 @@ impl Listener for ForwardingListener {
 
     fn handle_expression_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -773,7 +777,7 @@ impl Listener for ForwardingListener {
 
     fn begin_factory(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         declaration_kind: DeclarationKind,
         last_consumed: TokenId,
         augment_token: TokenId,
@@ -794,7 +798,7 @@ impl Listener for ForwardingListener {
 
     fn end_factory(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         begin_token: TokenId,
         factory_keyword: TokenId,
@@ -807,7 +811,7 @@ impl Listener for ForwardingListener {
 
     fn begin_formal_parameter(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         kind: MemberKind,
         required_token: TokenId,
@@ -828,7 +832,7 @@ impl Listener for ForwardingListener {
 
     fn end_formal_parameter(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         var_or_final: TokenId,
         this_keyword: TokenId,
         super_keyword: TokenId,
@@ -857,7 +861,7 @@ impl Listener for ForwardingListener {
 
     fn handle_no_formal_parameters(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         kind: MemberKind,
     ) {
@@ -866,7 +870,12 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_formal_parameters(&mut self, tokens: &TokenStore, token: TokenId, kind: MemberKind) {
+    fn begin_formal_parameters(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+        kind: MemberKind,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_formal_parameters(tokens, token, kind);
         }
@@ -874,7 +883,7 @@ impl Listener for ForwardingListener {
 
     fn end_formal_parameters(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -887,7 +896,7 @@ impl Listener for ForwardingListener {
 
     fn end_fields(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         abstract_token: TokenId,
         augment_token: TokenId,
@@ -918,7 +927,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_for_initializer_empty_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_for_initializer_empty_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_for_initializer_empty_statement(tokens, token);
         }
@@ -926,7 +935,7 @@ impl Listener for ForwardingListener {
 
     fn handle_for_initializer_expression_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         for_in: bool,
     ) {
@@ -937,7 +946,7 @@ impl Listener for ForwardingListener {
 
     fn handle_for_initializer_local_variable_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         for_in: bool,
     ) {
@@ -948,7 +957,7 @@ impl Listener for ForwardingListener {
 
     fn handle_for_initializer_pattern_variable_assignment(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         keyword: TokenId,
         equals: TokenId,
     ) {
@@ -957,7 +966,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_for_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_for_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_for_statement(tokens, token);
         }
@@ -965,7 +974,7 @@ impl Listener for ForwardingListener {
 
     fn handle_for_loop_parts(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         for_keyword: TokenId,
         left_paren: TokenId,
         left_separator: TokenId,
@@ -984,19 +993,19 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn end_for_statement(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_for_statement(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_for_statement(tokens, end_token);
         }
     }
 
-    fn begin_for_statement_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_for_statement_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_for_statement_body(tokens, token);
         }
     }
 
-    fn end_for_statement_body(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_for_statement_body(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_for_statement_body(tokens, end_token);
         }
@@ -1004,7 +1013,7 @@ impl Listener for ForwardingListener {
 
     fn handle_for_in_loop_parts(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         await_token: TokenId,
         for_token: TokenId,
         left_parenthesis: TokenId,
@@ -1023,61 +1032,61 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn end_for_in(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_for_in(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_for_in(tokens, end_token);
         }
     }
 
-    fn begin_for_in_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_for_in_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_for_in_expression(tokens, token);
         }
     }
 
-    fn end_for_in_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_for_in_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_for_in_expression(tokens, token);
         }
     }
 
-    fn begin_for_in_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_for_in_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_for_in_body(tokens, token);
         }
     }
 
-    fn end_for_in_body(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_for_in_body(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_for_in_body(tokens, end_token);
         }
     }
 
-    fn begin_named_function_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_named_function_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_named_function_expression(tokens, token);
         }
     }
 
-    fn end_named_function_expression(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_named_function_expression(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_named_function_expression(tokens, end_token);
         }
     }
 
-    fn begin_local_function_declaration(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_local_function_declaration(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_local_function_declaration(tokens, token);
         }
     }
 
-    fn end_local_function_declaration(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_local_function_declaration(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_local_function_declaration(tokens, end_token);
         }
     }
 
-    fn begin_block_function_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_block_function_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_block_function_body(tokens, token);
         }
@@ -1085,7 +1094,7 @@ impl Listener for ForwardingListener {
 
     fn end_block_function_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -1095,7 +1104,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_no_function_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_function_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_function_body(tokens, token);
         }
@@ -1103,7 +1112,7 @@ impl Listener for ForwardingListener {
 
     fn handle_function_body_skipped(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
         is_expression_body: bool,
@@ -1118,7 +1127,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_function_name(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_function_name(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_function_name(tokens, token);
         }
@@ -1126,7 +1135,7 @@ impl Listener for ForwardingListener {
 
     fn end_function_name(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         token: TokenId,
         is_function_expression: bool,
@@ -1136,7 +1145,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_typedef(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_typedef(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_typedef(tokens, token);
         }
@@ -1144,7 +1153,7 @@ impl Listener for ForwardingListener {
 
     fn end_typedef(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_token: TokenId,
         typedef_keyword: TokenId,
         equals: TokenId,
@@ -1155,7 +1164,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_class_with_clause(&mut self, tokens: &TokenStore, with_keyword: TokenId) {
+    fn handle_class_with_clause(&mut self, tokens: &mut TokenStore, with_keyword: TokenId) {
         if let Some(Recovery::DeclarationHeader(r)) = self.recovery.as_mut() {
             r.with_keyword = with_keyword;
         }
@@ -1164,25 +1173,25 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_class_no_with_clause(&mut self, tokens: &TokenStore) {
+    fn handle_class_no_with_clause(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_class_no_with_clause(tokens);
         }
     }
 
-    fn handle_enum_with_clause(&mut self, tokens: &TokenStore, with_keyword: TokenId) {
+    fn handle_enum_with_clause(&mut self, tokens: &mut TokenStore, with_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_enum_with_clause(tokens, with_keyword);
         }
     }
 
-    fn handle_enum_no_with_clause(&mut self, tokens: &TokenStore) {
+    fn handle_enum_no_with_clause(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_enum_no_with_clause(tokens);
         }
     }
 
-    fn handle_mixin_with_clause(&mut self, tokens: &TokenStore, with_keyword: TokenId) {
+    fn handle_mixin_with_clause(&mut self, tokens: &mut TokenStore, with_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_mixin_with_clause(tokens, with_keyword);
         }
@@ -1190,7 +1199,7 @@ impl Listener for ForwardingListener {
 
     fn begin_named_mixin_application(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         abstract_token: TokenId,
         sealed_token: TokenId,
@@ -1219,7 +1228,7 @@ impl Listener for ForwardingListener {
 
     fn handle_named_mixin_application_with_clause(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         with_keyword: TokenId,
     ) {
         if let Some(listener) = self.listener.as_mut() {
@@ -1229,7 +1238,7 @@ impl Listener for ForwardingListener {
 
     fn end_named_mixin_application(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin: TokenId,
         class_keyword: TokenId,
         equals: TokenId,
@@ -1248,13 +1257,13 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_hide(&mut self, tokens: &TokenStore, hide_keyword: TokenId) {
+    fn begin_hide(&mut self, tokens: &mut TokenStore, hide_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_hide(tokens, hide_keyword);
         }
     }
 
-    fn end_hide(&mut self, tokens: &TokenStore, hide_keyword: TokenId) {
+    fn end_hide(&mut self, tokens: &mut TokenStore, hide_keyword: TokenId) {
         if let Some(Recovery::Import(r)) = self.recovery.as_mut() {
             r.has_combinator = true;
         }
@@ -1263,25 +1272,25 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_identifier_list(&mut self, tokens: &TokenStore, count: i32) {
+    fn handle_identifier_list(&mut self, tokens: &mut TokenStore, count: i32) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_identifier_list(tokens, count);
         }
     }
 
-    fn begin_type_list(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_type_list(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_type_list(tokens, token);
         }
     }
 
-    fn end_type_list(&mut self, tokens: &TokenStore, count: i32) {
+    fn end_type_list(&mut self, tokens: &mut TokenStore, count: i32) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_type_list(tokens, count);
         }
     }
 
-    fn begin_if_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_if_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_if_statement(tokens, token);
         }
@@ -1289,7 +1298,7 @@ impl Listener for ForwardingListener {
 
     fn end_if_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         if_token: TokenId,
         else_token: TokenId,
         end_token: TokenId,
@@ -1299,7 +1308,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_then_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_then_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_then_statement(tokens, token);
         }
@@ -1307,7 +1316,7 @@ impl Listener for ForwardingListener {
 
     fn end_then_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -1316,7 +1325,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_else_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_else_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_else_statement(tokens, token);
         }
@@ -1324,7 +1333,7 @@ impl Listener for ForwardingListener {
 
     fn end_else_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -1333,7 +1342,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_import(&mut self, tokens: &TokenStore, import_keyword: TokenId) {
+    fn begin_import(&mut self, tokens: &mut TokenStore, import_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_import(tokens, import_keyword);
         }
@@ -1341,7 +1350,7 @@ impl Listener for ForwardingListener {
 
     fn handle_import_prefix(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         deferred_keyword: TokenId,
         as_keyword: TokenId,
     ) {
@@ -1354,31 +1363,31 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn end_import(&mut self, tokens: &TokenStore, import_keyword: TokenId, semicolon: TokenId) {
+    fn end_import(&mut self, tokens: &mut TokenStore, import_keyword: TokenId, semicolon: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_import(tokens, import_keyword, semicolon);
         }
     }
 
-    fn handle_recover_import(&mut self, tokens: &TokenStore, semicolon: TokenId) {
+    fn handle_recover_import(&mut self, tokens: &mut TokenStore, semicolon: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_recover_import(tokens, semicolon);
         }
     }
 
-    fn begin_conditional_uris(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_conditional_uris(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_conditional_uris(tokens, token);
         }
     }
 
-    fn end_conditional_uris(&mut self, tokens: &TokenStore, count: i32) {
+    fn end_conditional_uris(&mut self, tokens: &mut TokenStore, count: i32) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_conditional_uris(tokens, count);
         }
     }
 
-    fn begin_conditional_uri(&mut self, tokens: &TokenStore, if_keyword: TokenId) {
+    fn begin_conditional_uri(&mut self, tokens: &mut TokenStore, if_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_conditional_uri(tokens, if_keyword);
         }
@@ -1386,7 +1395,7 @@ impl Listener for ForwardingListener {
 
     fn end_conditional_uri(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         if_keyword: TokenId,
         left_paren: TokenId,
         equal_sign: TokenId,
@@ -1399,13 +1408,18 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_dotted_name(&mut self, tokens: &TokenStore, count: i32, first_identifier: TokenId) {
+    fn handle_dotted_name(
+        &mut self,
+        tokens: &mut TokenStore,
+        count: i32,
+        first_identifier: TokenId,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_dotted_name(tokens, count, first_identifier);
         }
     }
 
-    fn begin_implicit_creation_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_implicit_creation_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_implicit_creation_expression(tokens, token);
         }
@@ -1413,7 +1427,7 @@ impl Listener for ForwardingListener {
 
     fn end_implicit_creation_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         open_angle_bracket: TokenId,
     ) {
@@ -1422,19 +1436,19 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_initialized_identifier(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_initialized_identifier(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_initialized_identifier(tokens, token);
         }
     }
 
-    fn end_initialized_identifier(&mut self, tokens: &TokenStore, name_token: TokenId) {
+    fn end_initialized_identifier(&mut self, tokens: &mut TokenStore, name_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_initialized_identifier(tokens, name_token);
         }
     }
 
-    fn begin_field_initializer(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_field_initializer(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_field_initializer(tokens, token);
         }
@@ -1442,7 +1456,7 @@ impl Listener for ForwardingListener {
 
     fn end_field_initializer(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         assignment: TokenId,
         end_token: TokenId,
     ) {
@@ -1451,43 +1465,43 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_no_field_initializer(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_field_initializer(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_field_initializer(tokens, token);
         }
     }
 
-    fn begin_variable_initializer(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_variable_initializer(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_variable_initializer(tokens, token);
         }
     }
 
-    fn end_variable_initializer(&mut self, tokens: &TokenStore, assignment_operator: TokenId) {
+    fn end_variable_initializer(&mut self, tokens: &mut TokenStore, assignment_operator: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_variable_initializer(tokens, assignment_operator);
         }
     }
 
-    fn handle_no_variable_initializer(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_variable_initializer(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_variable_initializer(tokens, token);
         }
     }
 
-    fn begin_initializer(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_initializer(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_initializer(tokens, token);
         }
     }
 
-    fn end_initializer(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_initializer(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_initializer(tokens, end_token);
         }
     }
 
-    fn begin_initializers(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_initializers(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_initializers(tokens, token);
         }
@@ -1495,7 +1509,7 @@ impl Listener for ForwardingListener {
 
     fn end_initializers(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -1505,43 +1519,48 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_no_initializers(&mut self, tokens: &TokenStore) {
+    fn handle_no_initializers(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_initializers(tokens);
         }
     }
 
-    fn handle_invalid_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_invalid_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_invalid_expression(tokens, token);
         }
     }
 
-    fn handle_invalid_function_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_invalid_function_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_invalid_function_body(tokens, token);
         }
     }
 
-    fn handle_invalid_type_reference(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_invalid_type_reference(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_invalid_type_reference(tokens, token);
         }
     }
 
-    fn handle_label(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_label(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_label(tokens, token);
         }
     }
 
-    fn begin_labeled_statement(&mut self, tokens: &TokenStore, token: TokenId, label_count: i32) {
+    fn begin_labeled_statement(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+        label_count: i32,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_labeled_statement(tokens, token, label_count);
         }
     }
 
-    fn end_labeled_statement(&mut self, tokens: &TokenStore, label_count: i32) {
+    fn end_labeled_statement(&mut self, tokens: &mut TokenStore, label_count: i32) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_labeled_statement(tokens, label_count);
         }
@@ -1549,7 +1568,7 @@ impl Listener for ForwardingListener {
 
     fn begin_library_augmentation(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_keyword: TokenId,
         library_keyword: TokenId,
     ) {
@@ -1560,7 +1579,7 @@ impl Listener for ForwardingListener {
 
     fn end_library_augmentation(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_keyword: TokenId,
         library_keyword: TokenId,
         semicolon: TokenId,
@@ -1570,7 +1589,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_library_name(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_library_name(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_library_name(tokens, token);
         }
@@ -1578,7 +1597,7 @@ impl Listener for ForwardingListener {
 
     fn end_library_name(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         library_keyword: TokenId,
         semicolon: TokenId,
         has_name: bool,
@@ -1590,7 +1609,7 @@ impl Listener for ForwardingListener {
 
     fn handle_literal_map_entry(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         colon: TokenId,
         end_token: TokenId,
         null_aware_key_token: TokenId,
@@ -1609,7 +1628,7 @@ impl Listener for ForwardingListener {
 
     fn handle_map_pattern_entry(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         colon: TokenId,
         end_token: TokenId,
     ) {
@@ -1618,7 +1637,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_literal_string(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_literal_string(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_literal_string(tokens, token);
         }
@@ -1626,7 +1645,7 @@ impl Listener for ForwardingListener {
 
     fn handle_interpolation_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         left_bracket: TokenId,
         right_bracket: TokenId,
     ) {
@@ -1637,7 +1656,7 @@ impl Listener for ForwardingListener {
 
     fn end_literal_string(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         interpolation_count: i32,
         end_token: TokenId,
     ) {
@@ -1648,7 +1667,7 @@ impl Listener for ForwardingListener {
 
     fn handle_adjacent_string_literals(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         start_token: TokenId,
         literal_count: i32,
     ) {
@@ -1657,19 +1676,19 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_member(&mut self, tokens: &TokenStore) {
+    fn begin_member(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_member(tokens);
         }
     }
 
-    fn handle_invalid_member(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn handle_invalid_member(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_invalid_member(tokens, end_token);
         }
     }
 
-    fn end_member(&mut self, tokens: &TokenStore) {
+    fn end_member(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_member(tokens);
         }
@@ -1677,7 +1696,7 @@ impl Listener for ForwardingListener {
 
     fn begin_method(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         declaration_kind: DeclarationKind,
         augment_token: TokenId,
         external_token: TokenId,
@@ -1706,7 +1725,7 @@ impl Listener for ForwardingListener {
 
     fn end_method(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         get_or_set: TokenId,
         begin_token: TokenId,
@@ -1729,7 +1748,7 @@ impl Listener for ForwardingListener {
 
     fn begin_constructor(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         declaration_kind: DeclarationKind,
         augment_token: TokenId,
         external_token: TokenId,
@@ -1760,7 +1779,7 @@ impl Listener for ForwardingListener {
 
     fn end_constructor(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         begin_token: TokenId,
         new_token: TokenId,
@@ -1781,19 +1800,19 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_metadata_star(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_metadata_star(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_metadata_star(tokens, token);
         }
     }
 
-    fn end_metadata_star(&mut self, tokens: &TokenStore, count: i32) {
+    fn end_metadata_star(&mut self, tokens: &mut TokenStore, count: i32) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_metadata_star(tokens, count);
         }
     }
 
-    fn begin_metadata(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_metadata(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_metadata(tokens, token);
         }
@@ -1801,7 +1820,7 @@ impl Listener for ForwardingListener {
 
     fn end_metadata(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         period_before_name: TokenId,
         end_token: TokenId,
@@ -1811,7 +1830,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_optional_formal_parameters(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_optional_formal_parameters(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_optional_formal_parameters(tokens, token);
         }
@@ -1819,7 +1838,7 @@ impl Listener for ForwardingListener {
 
     fn end_optional_formal_parameters(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -1830,19 +1849,19 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_part(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_part(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_part(tokens, token);
         }
     }
 
-    fn end_part(&mut self, tokens: &TokenStore, part_keyword: TokenId, semicolon: TokenId) {
+    fn end_part(&mut self, tokens: &mut TokenStore, part_keyword: TokenId, semicolon: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_part(tokens, part_keyword, semicolon);
         }
     }
 
-    fn begin_part_of(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_part_of(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_part_of(tokens, token);
         }
@@ -1850,7 +1869,7 @@ impl Listener for ForwardingListener {
 
     fn end_part_of(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         part_keyword: TokenId,
         of_keyword: TokenId,
         semicolon: TokenId,
@@ -1861,7 +1880,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_redirecting_factory_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_redirecting_factory_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_redirecting_factory_body(tokens, token);
         }
@@ -1869,7 +1888,7 @@ impl Listener for ForwardingListener {
 
     fn end_redirecting_factory_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -1878,7 +1897,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_return_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_return_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_return_statement(tokens, token);
         }
@@ -1886,7 +1905,7 @@ impl Listener for ForwardingListener {
 
     fn handle_native_function_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         native_token: TokenId,
         semicolon: TokenId,
     ) {
@@ -1897,7 +1916,7 @@ impl Listener for ForwardingListener {
 
     fn handle_native_function_body_ignored(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         native_token: TokenId,
         semicolon: TokenId,
     ) {
@@ -1908,7 +1927,7 @@ impl Listener for ForwardingListener {
 
     fn handle_native_function_body_skipped(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         native_token: TokenId,
         semicolon: TokenId,
     ) {
@@ -1917,7 +1936,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_empty_function_body(&mut self, tokens: &TokenStore, semicolon: TokenId) {
+    fn handle_empty_function_body(&mut self, tokens: &mut TokenStore, semicolon: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_empty_function_body(tokens, semicolon);
         }
@@ -1925,7 +1944,7 @@ impl Listener for ForwardingListener {
 
     fn handle_expression_function_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         arrow_token: TokenId,
         end_token: TokenId,
     ) {
@@ -1936,7 +1955,7 @@ impl Listener for ForwardingListener {
 
     fn end_return_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         has_expression: bool,
         begin_token: TokenId,
         end_token: TokenId,
@@ -1946,7 +1965,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_send(&mut self, tokens: &TokenStore, begin_token: TokenId, end_token: TokenId) {
+    fn handle_send(&mut self, tokens: &mut TokenStore, begin_token: TokenId, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_send(tokens, begin_token, end_token);
         }
@@ -1954,7 +1973,7 @@ impl Listener for ForwardingListener {
 
     fn handle_send_without_arguments(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
         next_token: TokenId,
@@ -1966,7 +1985,7 @@ impl Listener for ForwardingListener {
 
     fn handle_invocation_without_type_arguments(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -1975,13 +1994,13 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_show(&mut self, tokens: &TokenStore, show_keyword: TokenId) {
+    fn begin_show(&mut self, tokens: &mut TokenStore, show_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_show(tokens, show_keyword);
         }
     }
 
-    fn end_show(&mut self, tokens: &TokenStore, show_keyword: TokenId) {
+    fn end_show(&mut self, tokens: &mut TokenStore, show_keyword: TokenId) {
         if let Some(Recovery::Import(r)) = self.recovery.as_mut() {
             r.has_combinator = true;
         }
@@ -1990,7 +2009,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_switch_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_switch_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_switch_statement(tokens, token);
         }
@@ -1998,7 +2017,7 @@ impl Listener for ForwardingListener {
 
     fn end_switch_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         switch_keyword: TokenId,
         end_token: TokenId,
     ) {
@@ -2007,7 +2026,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_switch_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_switch_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_switch_expression(tokens, token);
         }
@@ -2015,7 +2034,7 @@ impl Listener for ForwardingListener {
 
     fn end_switch_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         switch_keyword: TokenId,
         end_token: TokenId,
     ) {
@@ -2024,7 +2043,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_switch_block(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_switch_block(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_switch_block(tokens, token);
         }
@@ -2032,7 +2051,7 @@ impl Listener for ForwardingListener {
 
     fn end_switch_block(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         case_count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -2042,7 +2061,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_switch_expression_block(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_switch_expression_block(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_switch_expression_block(tokens, token);
         }
@@ -2050,7 +2069,7 @@ impl Listener for ForwardingListener {
 
     fn end_switch_expression_block(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         case_count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -2060,7 +2079,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_literal_symbol(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_literal_symbol(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_literal_symbol(tokens, token);
         }
@@ -2068,7 +2087,7 @@ impl Listener for ForwardingListener {
 
     fn end_literal_symbol(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         hash_token: TokenId,
         identifier_count: i32,
     ) {
@@ -2079,7 +2098,7 @@ impl Listener for ForwardingListener {
 
     fn handle_throw_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         throw_token: TokenId,
         end_token: TokenId,
     ) {
@@ -2088,7 +2107,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_rethrow_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_rethrow_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_rethrow_statement(tokens, token);
         }
@@ -2096,7 +2115,7 @@ impl Listener for ForwardingListener {
 
     fn end_rethrow_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         rethrow_token: TokenId,
         end_token: TokenId,
     ) {
@@ -2105,19 +2124,23 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn end_top_level_declaration(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_top_level_declaration(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_top_level_declaration(tokens, end_token);
         }
     }
 
-    fn handle_invalid_top_level_declaration(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn handle_invalid_top_level_declaration(
+        &mut self,
+        tokens: &mut TokenStore,
+        end_token: TokenId,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_invalid_top_level_declaration(tokens, end_token);
         }
     }
 
-    fn begin_top_level_member(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_top_level_member(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_top_level_member(tokens, token);
         }
@@ -2125,7 +2148,7 @@ impl Listener for ForwardingListener {
 
     fn begin_fields(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         declaration_kind: DeclarationKind,
         augment_token: TokenId,
         abstract_token: TokenId,
@@ -2154,7 +2177,7 @@ impl Listener for ForwardingListener {
 
     fn end_top_level_fields(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_token: TokenId,
         abstract_token: TokenId,
         external_token: TokenId,
@@ -2185,7 +2208,7 @@ impl Listener for ForwardingListener {
 
     fn begin_top_level_method(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         last_consumed: TokenId,
         augment_token: TokenId,
         external_token: TokenId,
@@ -2197,7 +2220,7 @@ impl Listener for ForwardingListener {
 
     fn end_top_level_method(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         get_or_set: TokenId,
         end_token: TokenId,
@@ -2207,19 +2230,19 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_try_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_try_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_try_statement(tokens, token);
         }
     }
 
-    fn begin_catch_clause(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_catch_clause(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_catch_clause(tokens, token);
         }
     }
 
-    fn end_catch_clause(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_catch_clause(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_catch_clause(tokens, token);
         }
@@ -2227,7 +2250,7 @@ impl Listener for ForwardingListener {
 
     fn handle_catch_block(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         on_keyword: TokenId,
         catch_keyword: TokenId,
         comma: TokenId,
@@ -2237,7 +2260,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_finally_block(&mut self, tokens: &TokenStore, finally_keyword: TokenId) {
+    fn handle_finally_block(&mut self, tokens: &mut TokenStore, finally_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_finally_block(tokens, finally_keyword);
         }
@@ -2245,7 +2268,7 @@ impl Listener for ForwardingListener {
 
     fn end_try_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         catch_count: i32,
         try_keyword: TokenId,
         finally_keyword: TokenId,
@@ -2262,31 +2285,36 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_type(&mut self, tokens: &TokenStore, begin_token: TokenId, question_mark: TokenId) {
+    fn handle_type(
+        &mut self,
+        tokens: &mut TokenStore,
+        begin_token: TokenId,
+        question_mark: TokenId,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_type(tokens, begin_token, question_mark);
         }
     }
 
-    fn handle_non_null_assert_expression(&mut self, tokens: &TokenStore, bang: TokenId) {
+    fn handle_non_null_assert_expression(&mut self, tokens: &mut TokenStore, bang: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_non_null_assert_expression(tokens, bang);
         }
     }
 
-    fn handle_null_assert_pattern(&mut self, tokens: &TokenStore, bang: TokenId) {
+    fn handle_null_assert_pattern(&mut self, tokens: &mut TokenStore, bang: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_null_assert_pattern(tokens, bang);
         }
     }
 
-    fn handle_null_check_pattern(&mut self, tokens: &TokenStore, question: TokenId) {
+    fn handle_null_check_pattern(&mut self, tokens: &mut TokenStore, question: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_null_check_pattern(tokens, question);
         }
     }
 
-    fn handle_assigned_variable_pattern(&mut self, tokens: &TokenStore, variable: TokenId) {
+    fn handle_assigned_variable_pattern(&mut self, tokens: &mut TokenStore, variable: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_assigned_variable_pattern(tokens, variable);
         }
@@ -2294,7 +2322,7 @@ impl Listener for ForwardingListener {
 
     fn handle_declared_variable_pattern(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         keyword: TokenId,
         variable: TokenId,
         in_assignment_pattern: bool,
@@ -2311,7 +2339,7 @@ impl Listener for ForwardingListener {
 
     fn handle_wildcard_pattern(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         keyword: TokenId,
         wildcard: TokenId,
     ) {
@@ -2320,13 +2348,13 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_no_name(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_name(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_name(tokens, token);
         }
     }
 
-    fn begin_record_type(&mut self, tokens: &TokenStore, left_bracket: TokenId) {
+    fn begin_record_type(&mut self, tokens: &mut TokenStore, left_bracket: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_record_type(tokens, left_bracket);
         }
@@ -2334,7 +2362,7 @@ impl Listener for ForwardingListener {
 
     fn end_record_type(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         left_bracket: TokenId,
         question_mark: TokenId,
         count: i32,
@@ -2345,19 +2373,19 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_record_type_entry(&mut self, tokens: &TokenStore) {
+    fn begin_record_type_entry(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_record_type_entry(tokens);
         }
     }
 
-    fn end_record_type_entry(&mut self, tokens: &TokenStore) {
+    fn end_record_type_entry(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_record_type_entry(tokens);
         }
     }
 
-    fn begin_record_type_named_fields(&mut self, tokens: &TokenStore, left_bracket: TokenId) {
+    fn begin_record_type_named_fields(&mut self, tokens: &mut TokenStore, left_bracket: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_record_type_named_fields(tokens, left_bracket);
         }
@@ -2365,7 +2393,7 @@ impl Listener for ForwardingListener {
 
     fn end_record_type_named_fields(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         left_bracket: TokenId,
     ) {
@@ -2374,7 +2402,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_function_type(&mut self, tokens: &TokenStore, begin_token: TokenId) {
+    fn begin_function_type(&mut self, tokens: &mut TokenStore, begin_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_function_type(tokens, begin_token);
         }
@@ -2382,7 +2410,7 @@ impl Listener for ForwardingListener {
 
     fn end_function_type(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         function_token: TokenId,
         question_mark: TokenId,
     ) {
@@ -2391,7 +2419,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_type_arguments(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_type_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_type_arguments(tokens, token);
         }
@@ -2399,7 +2427,7 @@ impl Listener for ForwardingListener {
 
     fn end_type_arguments(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -2409,25 +2437,30 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_invalid_type_arguments(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_invalid_type_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_invalid_type_arguments(tokens, token);
         }
     }
 
-    fn handle_no_type_arguments(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_type_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_type_arguments(tokens, token);
         }
     }
 
-    fn begin_type_variable(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_type_variable(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_type_variable(tokens, token);
         }
     }
 
-    fn handle_type_variables_defined(&mut self, tokens: &TokenStore, token: TokenId, count: i32) {
+    fn handle_type_variables_defined(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+        count: i32,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_type_variables_defined(tokens, token, count);
         }
@@ -2435,7 +2468,7 @@ impl Listener for ForwardingListener {
 
     fn end_type_variable(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         index: i32,
         extends_or_super: TokenId,
@@ -2446,7 +2479,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_type_variables(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_type_variables(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_type_variables(tokens, token);
         }
@@ -2454,7 +2487,7 @@ impl Listener for ForwardingListener {
 
     fn end_type_variables(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -2463,13 +2496,13 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn report_variance_modifier_not_enabled(&mut self, tokens: &TokenStore, variance: TokenId) {
+    fn report_variance_modifier_not_enabled(&mut self, tokens: &mut TokenStore, variance: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.report_variance_modifier_not_enabled(tokens, variance);
         }
     }
 
-    fn begin_function_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_function_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_function_expression(tokens, token);
         }
@@ -2477,7 +2510,7 @@ impl Listener for ForwardingListener {
 
     fn end_function_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -2488,7 +2521,7 @@ impl Listener for ForwardingListener {
 
     fn begin_variables_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         late_token: TokenId,
         var_final_or_const: TokenId,
@@ -2498,13 +2531,18 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn end_variables_declaration(&mut self, tokens: &TokenStore, count: i32, end_token: TokenId) {
+    fn end_variables_declaration(
+        &mut self,
+        tokens: &mut TokenStore,
+        count: i32,
+        end_token: TokenId,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_variables_declaration(tokens, count, end_token);
         }
     }
 
-    fn begin_while_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_while_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_while_statement(tokens, token);
         }
@@ -2512,7 +2550,7 @@ impl Listener for ForwardingListener {
 
     fn end_while_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         while_keyword: TokenId,
         end_token: TokenId,
     ) {
@@ -2521,25 +2559,25 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_as_operator_type(&mut self, tokens: &TokenStore, operator: TokenId) {
+    fn begin_as_operator_type(&mut self, tokens: &mut TokenStore, operator: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_as_operator_type(tokens, operator);
         }
     }
 
-    fn end_as_operator_type(&mut self, tokens: &TokenStore, operator: TokenId) {
+    fn end_as_operator_type(&mut self, tokens: &mut TokenStore, operator: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_as_operator_type(tokens, operator);
         }
     }
 
-    fn handle_as_operator(&mut self, tokens: &TokenStore, operator: TokenId) {
+    fn handle_as_operator(&mut self, tokens: &mut TokenStore, operator: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_as_operator(tokens, operator);
         }
     }
 
-    fn handle_cast_pattern(&mut self, tokens: &TokenStore, operator: TokenId) {
+    fn handle_cast_pattern(&mut self, tokens: &mut TokenStore, operator: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_cast_pattern(tokens, operator);
         }
@@ -2547,7 +2585,7 @@ impl Listener for ForwardingListener {
 
     fn handle_assignment_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         end_token: TokenId,
     ) {
@@ -2556,7 +2594,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_anonymous_method_invocation(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_anonymous_method_invocation(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_anonymous_method_invocation(tokens, token);
         }
@@ -2564,7 +2602,7 @@ impl Listener for ForwardingListener {
 
     fn end_anonymous_method_invocation(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         function_definition: TokenId,
         end_token: TokenId,
@@ -2581,31 +2619,36 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_implicit_formal_parameters(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_implicit_formal_parameters(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_implicit_formal_parameters(tokens, token);
         }
     }
 
-    fn begin_binary_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_binary_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_binary_expression(tokens, token);
         }
     }
 
-    fn end_binary_expression(&mut self, tokens: &TokenStore, token: TokenId, end_token: TokenId) {
+    fn end_binary_expression(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+        end_token: TokenId,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_binary_expression(tokens, token, end_token);
         }
     }
 
-    fn begin_binary_pattern(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_binary_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_binary_pattern(tokens, token);
         }
     }
 
-    fn end_binary_pattern(&mut self, tokens: &TokenStore, operator_token: TokenId) {
+    fn end_binary_pattern(&mut self, tokens: &mut TokenStore, operator_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_binary_pattern(tokens, operator_token);
         }
@@ -2613,7 +2656,7 @@ impl Listener for ForwardingListener {
 
     fn handle_dot_access(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         end_token: TokenId,
         is_null_aware: bool,
@@ -2625,7 +2668,7 @@ impl Listener for ForwardingListener {
 
     fn handle_cascade_access(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         end_token: TokenId,
         is_null_aware: bool,
@@ -2635,13 +2678,13 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_conditional_expression(&mut self, tokens: &TokenStore, question: TokenId) {
+    fn begin_conditional_expression(&mut self, tokens: &mut TokenStore, question: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_conditional_expression(tokens, question);
         }
     }
 
-    fn handle_conditional_expression_colon(&mut self, tokens: &TokenStore) {
+    fn handle_conditional_expression_colon(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_conditional_expression_colon(tokens);
         }
@@ -2649,7 +2692,7 @@ impl Listener for ForwardingListener {
 
     fn end_conditional_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         question: TokenId,
         colon: TokenId,
         end_token: TokenId,
@@ -2659,19 +2702,19 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_const_expression(&mut self, tokens: &TokenStore, const_keyword: TokenId) {
+    fn begin_const_expression(&mut self, tokens: &mut TokenStore, const_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_const_expression(tokens, const_keyword);
         }
     }
 
-    fn end_const_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_const_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_const_expression(tokens, token);
         }
     }
 
-    fn handle_const_factory(&mut self, tokens: &TokenStore, const_keyword: TokenId) {
+    fn handle_const_factory(&mut self, tokens: &mut TokenStore, const_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_const_factory(tokens, const_keyword);
         }
@@ -2679,7 +2722,7 @@ impl Listener for ForwardingListener {
 
     fn begin_for_control_flow(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         await_token: TokenId,
         for_token: TokenId,
     ) {
@@ -2688,67 +2731,72 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn end_for_control_flow(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_for_control_flow(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_for_control_flow(tokens, token);
         }
     }
 
-    fn end_for_in_control_flow(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_for_in_control_flow(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_for_in_control_flow(tokens, token);
         }
     }
 
-    fn begin_if_control_flow(&mut self, tokens: &TokenStore, if_token: TokenId) {
+    fn begin_if_control_flow(&mut self, tokens: &mut TokenStore, if_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_if_control_flow(tokens, if_token);
         }
     }
 
-    fn handle_then_control_flow(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_then_control_flow(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_then_control_flow(tokens, token);
         }
     }
 
-    fn handle_else_control_flow(&mut self, tokens: &TokenStore, else_token: TokenId) {
+    fn handle_else_control_flow(&mut self, tokens: &mut TokenStore, else_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_else_control_flow(tokens, else_token);
         }
     }
 
-    fn end_if_control_flow(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_if_control_flow(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_if_control_flow(tokens, token);
         }
     }
 
-    fn end_if_else_control_flow(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_if_else_control_flow(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_if_else_control_flow(tokens, token);
         }
     }
 
-    fn handle_spread_expression(&mut self, tokens: &TokenStore, spread_token: TokenId) {
+    fn handle_spread_expression(&mut self, tokens: &mut TokenStore, spread_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_spread_expression(tokens, spread_token);
         }
     }
 
-    fn handle_null_aware_element(&mut self, tokens: &TokenStore, null_aware_token: TokenId) {
+    fn handle_null_aware_element(&mut self, tokens: &mut TokenStore, null_aware_token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_null_aware_element(tokens, null_aware_token);
         }
     }
 
-    fn handle_rest_pattern(&mut self, tokens: &TokenStore, dots: TokenId, has_sub_pattern: bool) {
+    fn handle_rest_pattern(
+        &mut self,
+        tokens: &mut TokenStore,
+        dots: TokenId,
+        has_sub_pattern: bool,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_rest_pattern(tokens, dots, has_sub_pattern);
         }
     }
 
-    fn begin_function_typed_formal_parameter(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_function_typed_formal_parameter(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_function_typed_formal_parameter(tokens, token);
         }
@@ -2756,7 +2804,7 @@ impl Listener for ForwardingListener {
 
     fn end_function_typed_formal_parameter(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         name_token: TokenId,
         question: TokenId,
     ) {
@@ -2767,7 +2815,7 @@ impl Listener for ForwardingListener {
 
     fn handle_identifier(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         context: &'static IdentifierContext,
     ) {
@@ -2778,7 +2826,7 @@ impl Listener for ForwardingListener {
 
     fn handle_indexed_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         question: TokenId,
         open_square_bracket: TokenId,
         close_square_bracket: TokenId,
@@ -2793,25 +2841,25 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_is_operator_type(&mut self, tokens: &TokenStore, operator: TokenId) {
+    fn begin_is_operator_type(&mut self, tokens: &mut TokenStore, operator: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_is_operator_type(tokens, operator);
         }
     }
 
-    fn end_is_operator_type(&mut self, tokens: &TokenStore, operator: TokenId) {
+    fn end_is_operator_type(&mut self, tokens: &mut TokenStore, operator: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_is_operator_type(tokens, operator);
         }
     }
 
-    fn handle_is_operator(&mut self, tokens: &TokenStore, is_operator: TokenId, not: TokenId) {
+    fn handle_is_operator(&mut self, tokens: &mut TokenStore, is_operator: TokenId, not: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_is_operator(tokens, is_operator, not);
         }
     }
 
-    fn handle_literal_bool(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_bool(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_literal_bool(tokens, token);
         }
@@ -2819,7 +2867,7 @@ impl Listener for ForwardingListener {
 
     fn handle_break_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         has_target: bool,
         break_keyword: TokenId,
         end_token: TokenId,
@@ -2831,7 +2879,7 @@ impl Listener for ForwardingListener {
 
     fn handle_continue_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         has_target: bool,
         continue_keyword: TokenId,
         end_token: TokenId,
@@ -2841,13 +2889,13 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_empty_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_empty_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_empty_statement(tokens, token);
         }
     }
 
-    fn begin_assert(&mut self, tokens: &TokenStore, assert_keyword: TokenId, kind: Assert) {
+    fn begin_assert(&mut self, tokens: &mut TokenStore, assert_keyword: TokenId, kind: Assert) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_assert(tokens, assert_keyword, kind);
         }
@@ -2855,7 +2903,7 @@ impl Listener for ForwardingListener {
 
     fn end_assert(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         assert_keyword: TokenId,
         kind: Assert,
         left_parenthesis: TokenId,
@@ -2874,25 +2922,25 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_literal_double(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_double(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_literal_double(tokens, token);
         }
     }
 
-    fn handle_literal_double_with_separators(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_double_with_separators(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_literal_double_with_separators(tokens, token);
         }
     }
 
-    fn handle_literal_int(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_int(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_literal_int(tokens, token);
         }
     }
 
-    fn handle_literal_int_with_separators(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_int_with_separators(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_literal_int_with_separators(tokens, token);
         }
@@ -2900,7 +2948,7 @@ impl Listener for ForwardingListener {
 
     fn handle_literal_list(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         left_bracket: TokenId,
         const_keyword: TokenId,
@@ -2913,7 +2961,7 @@ impl Listener for ForwardingListener {
 
     fn handle_list_pattern(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         left_bracket: TokenId,
         right_bracket: TokenId,
@@ -2925,7 +2973,7 @@ impl Listener for ForwardingListener {
 
     fn handle_literal_set_or_map(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         left_brace: TokenId,
         const_keyword: TokenId,
@@ -2946,7 +2994,7 @@ impl Listener for ForwardingListener {
 
     fn handle_map_pattern(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         left_brace: TokenId,
         right_brace: TokenId,
@@ -2956,61 +3004,66 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_literal_null(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_null(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_literal_null(tokens, token);
         }
     }
 
-    fn handle_native_clause(&mut self, tokens: &TokenStore, native_token: TokenId, has_name: bool) {
+    fn handle_native_clause(
+        &mut self,
+        tokens: &mut TokenStore,
+        native_token: TokenId,
+        has_name: bool,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_native_clause(tokens, native_token, has_name);
         }
     }
 
-    fn handle_named_argument(&mut self, tokens: &TokenStore, colon: TokenId) {
+    fn handle_named_argument(&mut self, tokens: &mut TokenStore, colon: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_named_argument(tokens, colon);
         }
     }
 
-    fn handle_positional_argument(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_positional_argument(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_positional_argument(tokens, token);
         }
     }
 
-    fn handle_pattern_field(&mut self, tokens: &TokenStore, colon: TokenId) {
+    fn handle_pattern_field(&mut self, tokens: &mut TokenStore, colon: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_pattern_field(tokens, colon);
         }
     }
 
-    fn handle_named_record_field(&mut self, tokens: &TokenStore, colon: TokenId) {
+    fn handle_named_record_field(&mut self, tokens: &mut TokenStore, colon: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_named_record_field(tokens, colon);
         }
     }
 
-    fn handle_positional_record_field(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_positional_record_field(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_positional_record_field(tokens, token);
         }
     }
 
-    fn begin_new_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_new_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_new_expression(tokens, token);
         }
     }
 
-    fn end_new_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_new_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_new_expression(tokens, token);
         }
     }
 
-    fn handle_no_arguments(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_arguments(tokens, token);
         }
@@ -3018,7 +3071,7 @@ impl Listener for ForwardingListener {
 
     fn handle_no_constructor_reference_continuation_after_type_arguments(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
     ) {
         if let Some(listener) = self.listener.as_mut() {
@@ -3029,7 +3082,7 @@ impl Listener for ForwardingListener {
 
     fn handle_no_identifier(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         identifier_context: &'static IdentifierContext,
     ) {
@@ -3040,7 +3093,7 @@ impl Listener for ForwardingListener {
 
     fn handle_no_type_name_in_constructor_reference(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
     ) {
         if let Some(listener) = self.listener.as_mut() {
@@ -3048,37 +3101,37 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_no_type(&mut self, tokens: &TokenStore, last_consumed: TokenId) {
+    fn handle_no_type(&mut self, tokens: &mut TokenStore, last_consumed: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_type(tokens, last_consumed);
         }
     }
 
-    fn handle_no_type_variables(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_type_variables(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_no_type_variables(tokens, token);
         }
     }
 
-    fn handle_operator(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_operator(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_operator(tokens, token);
         }
     }
 
-    fn handle_switch_case_no_when_clause(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_switch_case_no_when_clause(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_switch_case_no_when_clause(tokens, token);
         }
     }
 
-    fn handle_switch_expression_case_pattern(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_switch_expression_case_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_switch_expression_case_pattern(tokens, token);
         }
     }
 
-    fn handle_symbol_void(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_symbol_void(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_symbol_void(tokens, token);
         }
@@ -3086,7 +3139,7 @@ impl Listener for ForwardingListener {
 
     fn handle_operator_name(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         operator_keyword: TokenId,
         token: TokenId,
     ) {
@@ -3097,7 +3150,7 @@ impl Listener for ForwardingListener {
 
     fn handle_invalid_operator_name(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         operator_keyword: TokenId,
         token: TokenId,
     ) {
@@ -3108,7 +3161,7 @@ impl Listener for ForwardingListener {
 
     fn handle_parenthesized_condition(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         case_: TokenId,
         when: TokenId,
@@ -3118,13 +3171,13 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_pattern(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_pattern(tokens, token);
         }
     }
 
-    fn begin_pattern_guard(&mut self, tokens: &TokenStore, when: TokenId) {
+    fn begin_pattern_guard(&mut self, tokens: &mut TokenStore, when: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_pattern_guard(tokens, when);
         }
@@ -3132,7 +3185,7 @@ impl Listener for ForwardingListener {
 
     fn begin_parenthesized_expression_or_record_literal(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
     ) {
         if let Some(listener) = self.listener.as_mut() {
@@ -3140,7 +3193,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_switch_case_when_clause(&mut self, tokens: &TokenStore, when: TokenId) {
+    fn begin_switch_case_when_clause(&mut self, tokens: &mut TokenStore, when: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_switch_case_when_clause(tokens, when);
         }
@@ -3148,7 +3201,7 @@ impl Listener for ForwardingListener {
 
     fn end_record_literal(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         count: i32,
         const_keyword: TokenId,
@@ -3158,49 +3211,49 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_record_pattern(&mut self, tokens: &TokenStore, token: TokenId, count: i32) {
+    fn handle_record_pattern(&mut self, tokens: &mut TokenStore, token: TokenId, count: i32) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_record_pattern(tokens, token, count);
         }
     }
 
-    fn end_pattern(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_pattern(tokens, token);
         }
     }
 
-    fn end_pattern_guard(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_pattern_guard(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_pattern_guard(tokens, token);
         }
     }
 
-    fn end_parenthesized_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_parenthesized_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_parenthesized_expression(tokens, token);
         }
     }
 
-    fn end_switch_case_when_clause(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_switch_case_when_clause(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_switch_case_when_clause(tokens, token);
         }
     }
 
-    fn handle_parenthesized_pattern(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_parenthesized_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_parenthesized_pattern(tokens, token);
         }
     }
 
-    fn begin_constant_pattern(&mut self, tokens: &TokenStore, const_keyword: TokenId) {
+    fn begin_constant_pattern(&mut self, tokens: &mut TokenStore, const_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_constant_pattern(tokens, const_keyword);
         }
     }
 
-    fn end_constant_pattern(&mut self, tokens: &TokenStore, const_keyword: TokenId) {
+    fn end_constant_pattern(&mut self, tokens: &mut TokenStore, const_keyword: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_constant_pattern(tokens, const_keyword);
         }
@@ -3208,7 +3261,7 @@ impl Listener for ForwardingListener {
 
     fn handle_object_pattern(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         first_identifier: TokenId,
         dot: TokenId,
         second_identifier: TokenId,
@@ -3218,13 +3271,13 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_qualified(&mut self, tokens: &TokenStore, period: TokenId) {
+    fn handle_qualified(&mut self, tokens: &mut TokenStore, period: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_qualified(tokens, period);
         }
     }
 
-    fn handle_string_part(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_string_part(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_string_part(tokens, token);
         }
@@ -3232,7 +3285,7 @@ impl Listener for ForwardingListener {
 
     fn handle_super_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         context: &'static IdentifierContext,
     ) {
@@ -3243,7 +3296,7 @@ impl Listener for ForwardingListener {
 
     fn begin_switch_case(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         label_count: i32,
         expression_count: i32,
         begin_token: TokenId,
@@ -3255,7 +3308,7 @@ impl Listener for ForwardingListener {
 
     fn end_switch_case(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         label_count: i32,
         expression_count: i32,
         default_keyword: TokenId,
@@ -3278,7 +3331,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn begin_switch_expression_case(&mut self, tokens: &TokenStore) {
+    fn begin_switch_expression_case(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_switch_expression_case(tokens);
         }
@@ -3286,7 +3339,7 @@ impl Listener for ForwardingListener {
 
     fn end_switch_expression_case(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         when: TokenId,
         arrow: TokenId,
@@ -3299,7 +3352,7 @@ impl Listener for ForwardingListener {
 
     fn handle_this_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         context: &'static IdentifierContext,
     ) {
@@ -3308,37 +3361,45 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_unary_postfix_assignment_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_unary_postfix_assignment_expression(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_unary_postfix_assignment_expression(tokens, token);
         }
     }
 
-    fn handle_unary_prefix_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_unary_prefix_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_unary_prefix_expression(tokens, token);
         }
     }
 
-    fn handle_relational_pattern(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_relational_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_relational_pattern(tokens, token);
         }
     }
 
-    fn handle_unary_prefix_assignment_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_unary_prefix_assignment_expression(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_unary_prefix_assignment_expression(tokens, token);
         }
     }
 
-    fn begin_formal_parameter_default_value_expression(&mut self, tokens: &TokenStore) {
+    fn begin_formal_parameter_default_value_expression(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_formal_parameter_default_value_expression(tokens);
         }
     }
 
-    fn end_formal_parameter_default_value_expression(&mut self, tokens: &TokenStore) {
+    fn end_formal_parameter_default_value_expression(&mut self, tokens: &mut TokenStore) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_formal_parameter_default_value_expression(tokens);
         }
@@ -3346,7 +3407,7 @@ impl Listener for ForwardingListener {
 
     fn handle_valued_formal_parameter(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         equals: TokenId,
         token: TokenId,
         kind: FormalParameterKind,
@@ -3356,25 +3417,25 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_formal_parameter_without_value(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_formal_parameter_without_value(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_formal_parameter_without_value(tokens, token);
         }
     }
 
-    fn handle_void_keyword(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_void_keyword(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_void_keyword(tokens, token);
         }
     }
 
-    fn handle_void_keyword_with_type_arguments(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_void_keyword_with_type_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_void_keyword_with_type_arguments(tokens, token);
         }
     }
 
-    fn begin_yield_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_yield_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_yield_statement(tokens, token);
         }
@@ -3382,7 +3443,7 @@ impl Listener for ForwardingListener {
 
     fn end_yield_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         yield_token: TokenId,
         star_token: TokenId,
         end_token: TokenId,
@@ -3394,7 +3455,7 @@ impl Listener for ForwardingListener {
 
     fn end_invalid_yield_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         star_token: TokenId,
         end_token: TokenId,
@@ -3413,7 +3474,7 @@ impl Listener for ForwardingListener {
 
     fn handle_recoverable_error(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         message: &Message,
         start_token: TokenId,
         end_token: TokenId,
@@ -3427,7 +3488,7 @@ impl Listener for ForwardingListener {
 
     fn handle_experiment_not_enabled(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         experimental_flag: ExperimentalFlag,
         begin_token: TokenId,
         end_token: TokenId,
@@ -3442,7 +3503,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_error_token(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_error_token(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_error_token(tokens, token);
         }
@@ -3450,7 +3511,7 @@ impl Listener for ForwardingListener {
 
     fn handle_unescape_error(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         message: &Message,
         location: TokenId,
         string_offset: i32,
@@ -3461,13 +3522,18 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_invalid_statement(&mut self, tokens: &TokenStore, token: TokenId, message: &Message) {
+    fn handle_invalid_statement(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+        message: &Message,
+    ) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_invalid_statement(tokens, token, message);
         }
     }
 
-    fn handle_script(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_script(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_script(tokens, token);
         }
@@ -3475,7 +3541,7 @@ impl Listener for ForwardingListener {
 
     fn handle_type_argument_application(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         open_angle_bracket: TokenId,
     ) {
         if let Some(listener) = self.listener.as_mut() {
@@ -3483,7 +3549,7 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_new_as_identifier(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_new_as_identifier(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_new_as_identifier(tokens, token);
         }
@@ -3491,7 +3557,7 @@ impl Listener for ForwardingListener {
 
     fn handle_pattern_variable_declaration_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         keyword: TokenId,
         equals: TokenId,
         semicolon: TokenId,
@@ -3502,31 +3568,31 @@ impl Listener for ForwardingListener {
         }
     }
 
-    fn handle_pattern_assignment(&mut self, tokens: &TokenStore, equals: TokenId) {
+    fn handle_pattern_assignment(&mut self, tokens: &mut TokenStore, equals: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_pattern_assignment(tokens, equals);
         }
     }
 
-    fn handle_dot_shorthand_context(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_dot_shorthand_context(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_dot_shorthand_context(tokens, token);
         }
     }
 
-    fn handle_dot_shorthand_head(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_dot_shorthand_head(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.handle_dot_shorthand_head(tokens, token);
         }
     }
 
-    fn begin_const_dot_shorthand(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_const_dot_shorthand(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.begin_const_dot_shorthand(tokens, token);
         }
     }
 
-    fn end_const_dot_shorthand(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_const_dot_shorthand(&mut self, tokens: &mut TokenStore, token: TokenId) {
         if let Some(listener) = self.listener.as_mut() {
             listener.end_const_dot_shorthand(tokens, token);
         }
@@ -3549,11 +3615,11 @@ impl NullListener {
 impl Listener for NullListener {
     fn log_event(&mut self, _name: &str) {}
 
-    fn begin_arguments(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_arguments(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_arguments(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _begin_token: TokenId,
         _end_token: TokenId,
@@ -3562,7 +3628,7 @@ impl Listener for NullListener {
 
     fn handle_object_pattern_fields(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _begin_token: TokenId,
         _end_token: TokenId,
@@ -3571,17 +3637,17 @@ impl Listener for NullListener {
 
     fn handle_async_modifier(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _async_token: TokenId,
         _star_token: TokenId,
     ) {
     }
 
-    fn begin_await_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_await_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_await_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
@@ -3589,18 +3655,18 @@ impl Listener for NullListener {
 
     fn end_invalid_await_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
         _error_code: &'static MessageCode,
     ) {
     }
 
-    fn begin_block(&mut self, _tokens: &TokenStore, _token: TokenId, _block_kind: BlockKind) {}
+    fn begin_block(&mut self, _tokens: &mut TokenStore, _token: TokenId, _block_kind: BlockKind) {}
 
     fn end_block(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _begin_token: TokenId,
         _end_token: TokenId,
@@ -3608,19 +3674,19 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn handle_invalid_top_level_block(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_invalid_top_level_block(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_cascade(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_cascade(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_cascade(&mut self, _tokens: &TokenStore) {}
+    fn end_cascade(&mut self, _tokens: &mut TokenStore) {}
 
-    fn handle_cascade_expression_end(&mut self, _tokens: &TokenStore, _section_count: i32) {}
+    fn handle_cascade_expression_end(&mut self, _tokens: &mut TokenStore, _section_count: i32) {}
 
-    fn begin_case_expression(&mut self, _tokens: &TokenStore, _case_keyword: TokenId) {}
+    fn begin_case_expression(&mut self, _tokens: &mut TokenStore, _case_keyword: TokenId) {}
 
     fn end_case_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _case_keyword: TokenId,
         _when: TokenId,
         _colon: TokenId,
@@ -3629,7 +3695,7 @@ impl Listener for NullListener {
 
     fn begin_class_or_mixin_or_extension_body(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _kind: DeclarationKind,
         _token: TokenId,
     ) {
@@ -3637,7 +3703,7 @@ impl Listener for NullListener {
 
     fn end_class_or_mixin_or_extension_body(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _kind: DeclarationKind,
         _member_count: i32,
         _begin_token: TokenId,
@@ -3647,14 +3713,14 @@ impl Listener for NullListener {
 
     fn begin_class_or_mixin_or_named_mixin_application_prelude(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
     ) {
     }
 
     fn begin_class_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin: TokenId,
         _abstract_token: TokenId,
         _sealed_token: TokenId,
@@ -3669,7 +3735,7 @@ impl Listener for NullListener {
 
     fn handle_class_extends(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _extends_keyword: TokenId,
         _type_count: i32,
     ) {
@@ -3677,7 +3743,7 @@ impl Listener for NullListener {
 
     fn handle_implements(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _implements_keyword: TokenId,
         _interfaces_count: i32,
     ) {
@@ -3685,7 +3751,7 @@ impl Listener for NullListener {
 
     fn handle_class_header(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin: TokenId,
         _class_keyword: TokenId,
         _native_token: TokenId,
@@ -3694,26 +3760,31 @@ impl Listener for NullListener {
 
     fn handle_recover_declaration_header(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _kind: DeclarationHeaderKind,
     ) {
     }
 
     fn end_class_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn handle_no_class_body(&mut self, _tokens: &TokenStore, _semicolon_token: TokenId) {}
+    fn handle_no_class_body(&mut self, _tokens: &mut TokenStore, _semicolon_token: TokenId) {}
 
-    fn handle_no_extension_type_body(&mut self, _tokens: &TokenStore, _semicolon_token: TokenId) {}
+    fn handle_no_extension_type_body(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _semicolon_token: TokenId,
+    ) {
+    }
 
     fn begin_mixin_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _augment_token: TokenId,
         _base_token: TokenId,
@@ -3722,35 +3793,45 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn handle_mixin_on(&mut self, _tokens: &TokenStore, _on_keyword: TokenId, _type_count: i32) {}
+    fn handle_mixin_on(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _on_keyword: TokenId,
+        _type_count: i32,
+    ) {
+    }
 
-    fn handle_mixin_header(&mut self, _tokens: &TokenStore, _mixin_keyword: TokenId) {}
+    fn handle_mixin_header(&mut self, _tokens: &mut TokenStore, _mixin_keyword: TokenId) {}
 
-    fn handle_recover_mixin_header(&mut self, _tokens: &TokenStore) {}
+    fn handle_recover_mixin_header(&mut self, _tokens: &mut TokenStore) {}
 
-    fn handle_no_mixin_body(&mut self, _tokens: &TokenStore, _semicolon_token: TokenId) {}
+    fn handle_no_mixin_body(&mut self, _tokens: &mut TokenStore, _semicolon_token: TokenId) {}
 
     fn end_mixin_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_uncategorized_top_level_declaration(&mut self, _tokens: &TokenStore, _token: TokenId) {
+    fn begin_uncategorized_top_level_declaration(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _token: TokenId,
+    ) {
     }
 
     fn begin_extension_declaration_prelude(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _extension_keyword: TokenId,
     ) {
     }
 
     fn begin_extension_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _augment_token: TokenId,
         _extension_keyword: TokenId,
         _name: TokenId,
@@ -3759,7 +3840,7 @@ impl Listener for NullListener {
 
     fn end_extension_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _extension_keyword: TokenId,
         _on_keyword: TokenId,
@@ -3767,11 +3848,11 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn handle_no_extension_body(&mut self, _tokens: &TokenStore, _semicolon_token: TokenId) {}
+    fn handle_no_extension_body(&mut self, _tokens: &mut TokenStore, _semicolon_token: TokenId) {}
 
     fn begin_extension_type_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _augment_keyword: TokenId,
         _extension_keyword: TokenId,
         _name: TokenId,
@@ -3780,7 +3861,7 @@ impl Listener for NullListener {
 
     fn end_extension_type_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _augment_token: TokenId,
         _extension_keyword: TokenId,
@@ -3789,11 +3870,11 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn begin_primary_constructor(&mut self, _tokens: &TokenStore, _begin_token: TokenId) {}
+    fn begin_primary_constructor(&mut self, _tokens: &mut TokenStore, _begin_token: TokenId) {}
 
     fn end_primary_constructor(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _kind: DeclarationKind,
         _begin_token: TokenId,
         _end_token: TokenId,
@@ -3804,7 +3885,7 @@ impl Listener for NullListener {
 
     fn handle_no_primary_constructor(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _kind: DeclarationKind,
         _token: TokenId,
         _const_keyword: TokenId,
@@ -3813,7 +3894,7 @@ impl Listener for NullListener {
 
     fn begin_primary_constructor_body(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _augment_token: TokenId,
     ) {
@@ -3821,7 +3902,7 @@ impl Listener for NullListener {
 
     fn end_primary_constructor_body(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _this_token: TokenId,
         _begin_initializers: TokenId,
@@ -3829,25 +3910,25 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn begin_combinators(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_combinators(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_combinators(&mut self, _tokens: &TokenStore, _count: i32) {}
+    fn end_combinators(&mut self, _tokens: &mut TokenStore, _count: i32) {}
 
-    fn begin_compilation_unit(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_compilation_unit(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_directives_only(&mut self, _tokens: &TokenStore) {}
+    fn handle_directives_only(&mut self, _tokens: &mut TokenStore) {}
 
-    fn end_compilation_unit(&mut self, _tokens: &TokenStore, _count: i32, _token: TokenId) {}
+    fn end_compilation_unit(&mut self, _tokens: &mut TokenStore, _count: i32, _token: TokenId) {}
 
-    fn begin_const_literal(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_const_literal(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_const_literal(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn end_const_literal(&mut self, _tokens: &mut TokenStore, _end_token: TokenId) {}
 
-    fn begin_constructor_reference(&mut self, _tokens: &TokenStore, _start: TokenId) {}
+    fn begin_constructor_reference(&mut self, _tokens: &mut TokenStore, _start: TokenId) {}
 
     fn end_constructor_reference(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _start: TokenId,
         _period_before_name: TokenId,
         _end_token: TokenId,
@@ -3855,30 +3936,31 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn begin_do_while_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_do_while_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_do_while_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _do_keyword: TokenId,
         _while_keyword: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_do_while_statement_body(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_do_while_statement_body(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_do_while_statement_body(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_do_while_statement_body(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_while_statement_body(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_while_statement_body(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_while_statement_body(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn end_while_statement_body(&mut self, _tokens: &mut TokenStore, _end_token: TokenId) {}
 
-    fn begin_enum_declaration_prelude(&mut self, _tokens: &TokenStore, _enum_keyword: TokenId) {}
+    fn begin_enum_declaration_prelude(&mut self, _tokens: &mut TokenStore, _enum_keyword: TokenId) {
+    }
 
     fn begin_enum_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _augment_token: TokenId,
         _enum_keyword: TokenId,
@@ -3888,7 +3970,7 @@ impl Listener for NullListener {
 
     fn end_enum_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _enum_keyword: TokenId,
         _left_brace: TokenId,
@@ -3899,7 +3981,7 @@ impl Listener for NullListener {
 
     fn handle_enum_elements(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _elements_end_token: TokenId,
         _elements_count: i32,
     ) {
@@ -3907,34 +3989,46 @@ impl Listener for NullListener {
 
     fn handle_enum_header(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _augment_token: TokenId,
         _enum_keyword: TokenId,
         _left_brace: TokenId,
     ) {
     }
 
-    fn begin_enum_body(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_enum_body(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_enum_body(&mut self, _tokens: &TokenStore, _begin_token: TokenId, _end_token: TokenId) {}
+    fn end_enum_body(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _begin_token: TokenId,
+        _end_token: TokenId,
+    ) {
+    }
 
-    fn handle_no_enum_body(&mut self, _tokens: &TokenStore, _semicolon_token: TokenId) {}
+    fn handle_no_enum_body(&mut self, _tokens: &mut TokenStore, _semicolon_token: TokenId) {}
 
     fn handle_enum_element(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _augment_token: TokenId,
     ) {
     }
 
-    fn begin_export(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_export(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_export(&mut self, _tokens: &TokenStore, _export_keyword: TokenId, _semicolon: TokenId) {}
+    fn end_export(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _export_keyword: TokenId,
+        _semicolon: TokenId,
+    ) {
+    }
 
     fn handle_extraneous_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _message: &Message,
     ) {
@@ -3942,7 +4036,7 @@ impl Listener for NullListener {
 
     fn handle_expression_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
@@ -3950,7 +4044,7 @@ impl Listener for NullListener {
 
     fn begin_factory(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _declaration_kind: DeclarationKind,
         _last_consumed: TokenId,
         _augment_token: TokenId,
@@ -3961,7 +4055,7 @@ impl Listener for NullListener {
 
     fn end_factory(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _kind: DeclarationKind,
         _begin_token: TokenId,
         _factory_keyword: TokenId,
@@ -3971,7 +4065,7 @@ impl Listener for NullListener {
 
     fn begin_formal_parameter(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _kind: MemberKind,
         _required_token: TokenId,
@@ -3982,7 +4076,7 @@ impl Listener for NullListener {
 
     fn end_formal_parameter(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _var_or_final: TokenId,
         _this_keyword: TokenId,
         _super_keyword: TokenId,
@@ -3997,7 +4091,7 @@ impl Listener for NullListener {
 
     fn handle_no_formal_parameters(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _kind: MemberKind,
     ) {
@@ -4005,7 +4099,7 @@ impl Listener for NullListener {
 
     fn begin_formal_parameters(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _kind: MemberKind,
     ) {
@@ -4013,7 +4107,7 @@ impl Listener for NullListener {
 
     fn end_formal_parameters(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _begin_token: TokenId,
         _end_token: TokenId,
@@ -4023,7 +4117,7 @@ impl Listener for NullListener {
 
     fn end_fields(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _kind: DeclarationKind,
         _abstract_token: TokenId,
         _augment_token: TokenId,
@@ -4038,11 +4132,16 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn handle_for_initializer_empty_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_for_initializer_empty_statement(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _token: TokenId,
+    ) {
+    }
 
     fn handle_for_initializer_expression_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _for_in: bool,
     ) {
@@ -4050,7 +4149,7 @@ impl Listener for NullListener {
 
     fn handle_for_initializer_local_variable_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _for_in: bool,
     ) {
@@ -4058,17 +4157,17 @@ impl Listener for NullListener {
 
     fn handle_for_initializer_pattern_variable_assignment(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _keyword: TokenId,
         _equals: TokenId,
     ) {
     }
 
-    fn begin_for_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_for_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_for_loop_parts(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _for_keyword: TokenId,
         _left_paren: TokenId,
         _left_separator: TokenId,
@@ -4077,15 +4176,15 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn end_for_statement(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn end_for_statement(&mut self, _tokens: &mut TokenStore, _end_token: TokenId) {}
 
-    fn begin_for_statement_body(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_for_statement_body(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_for_statement_body(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn end_for_statement_body(&mut self, _tokens: &mut TokenStore, _end_token: TokenId) {}
 
     fn handle_for_in_loop_parts(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _await_token: TokenId,
         _for_token: TokenId,
         _left_parenthesis: TokenId,
@@ -4094,62 +4193,62 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn end_for_in(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn end_for_in(&mut self, _tokens: &mut TokenStore, _end_token: TokenId) {}
 
-    fn begin_for_in_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_for_in_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_for_in_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_for_in_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_for_in_body(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_for_in_body(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_for_in_body(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn end_for_in_body(&mut self, _tokens: &mut TokenStore, _end_token: TokenId) {}
 
-    fn begin_named_function_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_named_function_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_named_function_expression(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn end_named_function_expression(&mut self, _tokens: &mut TokenStore, _end_token: TokenId) {}
 
-    fn begin_local_function_declaration(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_local_function_declaration(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_local_function_declaration(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn end_local_function_declaration(&mut self, _tokens: &mut TokenStore, _end_token: TokenId) {}
 
-    fn begin_block_function_body(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_block_function_body(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_block_function_body(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn handle_no_function_body(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_no_function_body(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_function_body_skipped(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
         _is_expression_body: bool,
     ) {
     }
 
-    fn begin_function_name(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_function_name(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_function_name(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _token: TokenId,
         _is_function_expression: bool,
     ) {
     }
 
-    fn begin_typedef(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_typedef(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_typedef(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _augment_token: TokenId,
         _typedef_keyword: TokenId,
         _equals: TokenId,
@@ -4157,19 +4256,19 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn handle_class_with_clause(&mut self, _tokens: &TokenStore, _with_keyword: TokenId) {}
+    fn handle_class_with_clause(&mut self, _tokens: &mut TokenStore, _with_keyword: TokenId) {}
 
-    fn handle_class_no_with_clause(&mut self, _tokens: &TokenStore) {}
+    fn handle_class_no_with_clause(&mut self, _tokens: &mut TokenStore) {}
 
-    fn handle_enum_with_clause(&mut self, _tokens: &TokenStore, _with_keyword: TokenId) {}
+    fn handle_enum_with_clause(&mut self, _tokens: &mut TokenStore, _with_keyword: TokenId) {}
 
-    fn handle_enum_no_with_clause(&mut self, _tokens: &TokenStore) {}
+    fn handle_enum_no_with_clause(&mut self, _tokens: &mut TokenStore) {}
 
-    fn handle_mixin_with_clause(&mut self, _tokens: &TokenStore, _with_keyword: TokenId) {}
+    fn handle_mixin_with_clause(&mut self, _tokens: &mut TokenStore, _with_keyword: TokenId) {}
 
     fn begin_named_mixin_application(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _abstract_token: TokenId,
         _sealed_token: TokenId,
@@ -4184,14 +4283,14 @@ impl Listener for NullListener {
 
     fn handle_named_mixin_application_with_clause(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _with_keyword: TokenId,
     ) {
     }
 
     fn end_named_mixin_application(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin: TokenId,
         _class_keyword: TokenId,
         _equals: TokenId,
@@ -4200,70 +4299,76 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn begin_hide(&mut self, _tokens: &TokenStore, _hide_keyword: TokenId) {}
+    fn begin_hide(&mut self, _tokens: &mut TokenStore, _hide_keyword: TokenId) {}
 
-    fn end_hide(&mut self, _tokens: &TokenStore, _hide_keyword: TokenId) {}
+    fn end_hide(&mut self, _tokens: &mut TokenStore, _hide_keyword: TokenId) {}
 
-    fn handle_identifier_list(&mut self, _tokens: &TokenStore, _count: i32) {}
+    fn handle_identifier_list(&mut self, _tokens: &mut TokenStore, _count: i32) {}
 
-    fn begin_type_list(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_type_list(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_type_list(&mut self, _tokens: &TokenStore, _count: i32) {}
+    fn end_type_list(&mut self, _tokens: &mut TokenStore, _count: i32) {}
 
-    fn begin_if_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_if_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_if_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _if_token: TokenId,
         _else_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_then_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_then_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_then_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_else_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_else_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_else_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_import(&mut self, _tokens: &TokenStore, _import_keyword: TokenId) {}
+    fn begin_import(&mut self, _tokens: &mut TokenStore, _import_keyword: TokenId) {}
 
     fn handle_import_prefix(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _deferred_keyword: TokenId,
         _as_keyword: TokenId,
     ) {
     }
 
-    fn end_import(&mut self, _tokens: &TokenStore, _import_keyword: TokenId, _semicolon: TokenId) {}
+    fn end_import(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _import_keyword: TokenId,
+        _semicolon: TokenId,
+    ) {
+    }
 
-    fn handle_recover_import(&mut self, _tokens: &TokenStore, _semicolon: TokenId) {}
+    fn handle_recover_import(&mut self, _tokens: &mut TokenStore, _semicolon: TokenId) {}
 
-    fn begin_conditional_uris(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_conditional_uris(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_conditional_uris(&mut self, _tokens: &TokenStore, _count: i32) {}
+    fn end_conditional_uris(&mut self, _tokens: &mut TokenStore, _count: i32) {}
 
-    fn begin_conditional_uri(&mut self, _tokens: &TokenStore, _if_keyword: TokenId) {}
+    fn begin_conditional_uri(&mut self, _tokens: &mut TokenStore, _if_keyword: TokenId) {}
 
     fn end_conditional_uri(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _if_keyword: TokenId,
         _left_paren: TokenId,
         _equal_sign: TokenId,
@@ -4272,82 +4377,87 @@ impl Listener for NullListener {
 
     fn handle_dotted_name(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _first_identifier: TokenId,
     ) {
     }
 
-    fn begin_implicit_creation_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_implicit_creation_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_implicit_creation_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _open_angle_bracket: TokenId,
     ) {
     }
 
-    fn begin_initialized_identifier(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_initialized_identifier(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_initialized_identifier(&mut self, _tokens: &TokenStore, _name_token: TokenId) {}
+    fn end_initialized_identifier(&mut self, _tokens: &mut TokenStore, _name_token: TokenId) {}
 
-    fn begin_field_initializer(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_field_initializer(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_field_initializer(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _assignment: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn handle_no_field_initializer(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_no_field_initializer(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_variable_initializer(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_variable_initializer(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_variable_initializer(&mut self, _tokens: &TokenStore, _assignment_operator: TokenId) {}
+    fn end_variable_initializer(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _assignment_operator: TokenId,
+    ) {
+    }
 
-    fn handle_no_variable_initializer(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_no_variable_initializer(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_initializer(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_initializer(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_initializer(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn end_initializer(&mut self, _tokens: &mut TokenStore, _end_token: TokenId) {}
 
-    fn begin_initializers(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_initializers(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_initializers(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn handle_no_initializers(&mut self, _tokens: &TokenStore) {}
+    fn handle_no_initializers(&mut self, _tokens: &mut TokenStore) {}
 
-    fn handle_invalid_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_invalid_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_invalid_function_body(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_invalid_function_body(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_invalid_type_reference(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_invalid_type_reference(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_label(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_label(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn begin_labeled_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _label_count: i32,
     ) {
     }
 
-    fn end_labeled_statement(&mut self, _tokens: &TokenStore, _label_count: i32) {}
+    fn end_labeled_statement(&mut self, _tokens: &mut TokenStore, _label_count: i32) {}
 
     fn begin_library_augmentation(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _augment_keyword: TokenId,
         _library_keyword: TokenId,
     ) {
@@ -4355,18 +4465,18 @@ impl Listener for NullListener {
 
     fn end_library_augmentation(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _augment_keyword: TokenId,
         _library_keyword: TokenId,
         _semicolon: TokenId,
     ) {
     }
 
-    fn begin_library_name(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_library_name(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_library_name(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _library_keyword: TokenId,
         _semicolon: TokenId,
         _has_name: bool,
@@ -4375,7 +4485,7 @@ impl Listener for NullListener {
 
     fn handle_literal_map_entry(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _colon: TokenId,
         _end_token: TokenId,
         _null_aware_key_token: TokenId,
@@ -4385,17 +4495,17 @@ impl Listener for NullListener {
 
     fn handle_map_pattern_entry(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _colon: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_literal_string(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_literal_string(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_interpolation_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _left_bracket: TokenId,
         _right_bracket: TokenId,
     ) {
@@ -4403,7 +4513,7 @@ impl Listener for NullListener {
 
     fn end_literal_string(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _interpolation_count: i32,
         _end_token: TokenId,
     ) {
@@ -4411,21 +4521,21 @@ impl Listener for NullListener {
 
     fn handle_adjacent_string_literals(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _start_token: TokenId,
         _literal_count: i32,
     ) {
     }
 
-    fn begin_member(&mut self, _tokens: &TokenStore) {}
+    fn begin_member(&mut self, _tokens: &mut TokenStore) {}
 
-    fn handle_invalid_member(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn handle_invalid_member(&mut self, _tokens: &mut TokenStore, _end_token: TokenId) {}
 
-    fn end_member(&mut self, _tokens: &TokenStore) {}
+    fn end_member(&mut self, _tokens: &mut TokenStore) {}
 
     fn begin_method(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _declaration_kind: DeclarationKind,
         _augment_token: TokenId,
         _external_token: TokenId,
@@ -4440,7 +4550,7 @@ impl Listener for NullListener {
 
     fn end_method(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _kind: DeclarationKind,
         _get_or_set: TokenId,
         _begin_token: TokenId,
@@ -4452,7 +4562,7 @@ impl Listener for NullListener {
 
     fn begin_constructor(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _declaration_kind: DeclarationKind,
         _augment_token: TokenId,
         _external_token: TokenId,
@@ -4468,7 +4578,7 @@ impl Listener for NullListener {
 
     fn end_constructor(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _kind: DeclarationKind,
         _begin_token: TokenId,
         _new_token: TokenId,
@@ -4478,26 +4588,26 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn begin_metadata_star(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_metadata_star(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_metadata_star(&mut self, _tokens: &TokenStore, _count: i32) {}
+    fn end_metadata_star(&mut self, _tokens: &mut TokenStore, _count: i32) {}
 
-    fn begin_metadata(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_metadata(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_metadata(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _period_before_name: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_optional_formal_parameters(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_optional_formal_parameters(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_optional_formal_parameters(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _begin_token: TokenId,
         _end_token: TokenId,
@@ -4505,15 +4615,15 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn begin_part(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_part(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_part(&mut self, _tokens: &TokenStore, _part_keyword: TokenId, _semicolon: TokenId) {}
+    fn end_part(&mut self, _tokens: &mut TokenStore, _part_keyword: TokenId, _semicolon: TokenId) {}
 
-    fn begin_part_of(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_part_of(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_part_of(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _part_keyword: TokenId,
         _of_keyword: TokenId,
         _semicolon: TokenId,
@@ -4521,21 +4631,21 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn begin_redirecting_factory_body(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_redirecting_factory_body(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_redirecting_factory_body(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_return_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_return_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_native_function_body(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _native_token: TokenId,
         _semicolon: TokenId,
     ) {
@@ -4543,7 +4653,7 @@ impl Listener for NullListener {
 
     fn handle_native_function_body_ignored(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _native_token: TokenId,
         _semicolon: TokenId,
     ) {
@@ -4551,17 +4661,17 @@ impl Listener for NullListener {
 
     fn handle_native_function_body_skipped(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _native_token: TokenId,
         _semicolon: TokenId,
     ) {
     }
 
-    fn handle_empty_function_body(&mut self, _tokens: &TokenStore, _semicolon: TokenId) {}
+    fn handle_empty_function_body(&mut self, _tokens: &mut TokenStore, _semicolon: TokenId) {}
 
     fn handle_expression_function_body(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _arrow_token: TokenId,
         _end_token: TokenId,
     ) {
@@ -4569,18 +4679,24 @@ impl Listener for NullListener {
 
     fn end_return_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _has_expression: bool,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn handle_send(&mut self, _tokens: &TokenStore, _begin_token: TokenId, _end_token: TokenId) {}
+    fn handle_send(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _begin_token: TokenId,
+        _end_token: TokenId,
+    ) {
+    }
 
     fn handle_send_without_arguments(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
         _next_token: TokenId,
@@ -4589,63 +4705,63 @@ impl Listener for NullListener {
 
     fn handle_invocation_without_type_arguments(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_show(&mut self, _tokens: &TokenStore, _show_keyword: TokenId) {}
+    fn begin_show(&mut self, _tokens: &mut TokenStore, _show_keyword: TokenId) {}
 
-    fn end_show(&mut self, _tokens: &TokenStore, _show_keyword: TokenId) {}
+    fn end_show(&mut self, _tokens: &mut TokenStore, _show_keyword: TokenId) {}
 
-    fn begin_switch_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_switch_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_switch_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _switch_keyword: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_switch_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_switch_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_switch_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _switch_keyword: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_switch_block(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_switch_block(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_switch_block(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _case_count: i32,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_switch_expression_block(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_switch_expression_block(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_switch_expression_block(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _case_count: i32,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_literal_symbol(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_literal_symbol(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_literal_symbol(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _hash_token: TokenId,
         _identifier_count: i32,
     ) {
@@ -4653,31 +4769,36 @@ impl Listener for NullListener {
 
     fn handle_throw_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _throw_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_rethrow_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_rethrow_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_rethrow_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _rethrow_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn end_top_level_declaration(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn end_top_level_declaration(&mut self, _tokens: &mut TokenStore, _end_token: TokenId) {}
 
-    fn handle_invalid_top_level_declaration(&mut self, _tokens: &TokenStore, _end_token: TokenId) {}
+    fn handle_invalid_top_level_declaration(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _end_token: TokenId,
+    ) {
+    }
 
-    fn begin_top_level_member(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_top_level_member(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn begin_fields(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _declaration_kind: DeclarationKind,
         _augment_token: TokenId,
         _abstract_token: TokenId,
@@ -4692,7 +4813,7 @@ impl Listener for NullListener {
 
     fn end_top_level_fields(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _augment_token: TokenId,
         _abstract_token: TokenId,
         _external_token: TokenId,
@@ -4708,7 +4829,7 @@ impl Listener for NullListener {
 
     fn begin_top_level_method(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _last_consumed: TokenId,
         _augment_token: TokenId,
         _external_token: TokenId,
@@ -4717,33 +4838,33 @@ impl Listener for NullListener {
 
     fn end_top_level_method(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _get_or_set: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_try_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_try_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_catch_clause(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_catch_clause(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_catch_clause(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_catch_clause(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_catch_block(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _on_keyword: TokenId,
         _catch_keyword: TokenId,
         _comma: TokenId,
     ) {
     }
 
-    fn handle_finally_block(&mut self, _tokens: &TokenStore, _finally_keyword: TokenId) {}
+    fn handle_finally_block(&mut self, _tokens: &mut TokenStore, _finally_keyword: TokenId) {}
 
     fn end_try_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _catch_count: i32,
         _try_keyword: TokenId,
         _finally_keyword: TokenId,
@@ -4753,23 +4874,23 @@ impl Listener for NullListener {
 
     fn handle_type(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _question_mark: TokenId,
     ) {
     }
 
-    fn handle_non_null_assert_expression(&mut self, _tokens: &TokenStore, _bang: TokenId) {}
+    fn handle_non_null_assert_expression(&mut self, _tokens: &mut TokenStore, _bang: TokenId) {}
 
-    fn handle_null_assert_pattern(&mut self, _tokens: &TokenStore, _bang: TokenId) {}
+    fn handle_null_assert_pattern(&mut self, _tokens: &mut TokenStore, _bang: TokenId) {}
 
-    fn handle_null_check_pattern(&mut self, _tokens: &TokenStore, _question: TokenId) {}
+    fn handle_null_check_pattern(&mut self, _tokens: &mut TokenStore, _question: TokenId) {}
 
-    fn handle_assigned_variable_pattern(&mut self, _tokens: &TokenStore, _variable: TokenId) {}
+    fn handle_assigned_variable_pattern(&mut self, _tokens: &mut TokenStore, _variable: TokenId) {}
 
     fn handle_declared_variable_pattern(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _keyword: TokenId,
         _variable: TokenId,
         _in_assignment_pattern: bool,
@@ -4778,19 +4899,19 @@ impl Listener for NullListener {
 
     fn handle_wildcard_pattern(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _keyword: TokenId,
         _wildcard: TokenId,
     ) {
     }
 
-    fn handle_no_name(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_no_name(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_record_type(&mut self, _tokens: &TokenStore, _left_bracket: TokenId) {}
+    fn begin_record_type(&mut self, _tokens: &mut TokenStore, _left_bracket: TokenId) {}
 
     fn end_record_type(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _left_bracket: TokenId,
         _question_mark: TokenId,
         _count: i32,
@@ -4798,50 +4919,51 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn begin_record_type_entry(&mut self, _tokens: &TokenStore) {}
+    fn begin_record_type_entry(&mut self, _tokens: &mut TokenStore) {}
 
-    fn end_record_type_entry(&mut self, _tokens: &TokenStore) {}
+    fn end_record_type_entry(&mut self, _tokens: &mut TokenStore) {}
 
-    fn begin_record_type_named_fields(&mut self, _tokens: &TokenStore, _left_bracket: TokenId) {}
+    fn begin_record_type_named_fields(&mut self, _tokens: &mut TokenStore, _left_bracket: TokenId) {
+    }
 
     fn end_record_type_named_fields(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _left_bracket: TokenId,
     ) {
     }
 
-    fn begin_function_type(&mut self, _tokens: &TokenStore, _begin_token: TokenId) {}
+    fn begin_function_type(&mut self, _tokens: &mut TokenStore, _begin_token: TokenId) {}
 
     fn end_function_type(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _function_token: TokenId,
         _question_mark: TokenId,
     ) {
     }
 
-    fn begin_type_arguments(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_type_arguments(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_type_arguments(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn handle_invalid_type_arguments(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_invalid_type_arguments(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_no_type_arguments(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_no_type_arguments(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_type_variable(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_type_variable(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_type_variables_defined(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _count: i32,
     ) {
@@ -4849,7 +4971,7 @@ impl Listener for NullListener {
 
     fn end_type_variable(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _index: i32,
         _extends_or_super: TokenId,
@@ -4857,23 +4979,28 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn begin_type_variables(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_type_variables(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_type_variables(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn report_variance_modifier_not_enabled(&mut self, _tokens: &TokenStore, _variance: TokenId) {}
+    fn report_variance_modifier_not_enabled(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _variance: TokenId,
+    ) {
+    }
 
-    fn begin_function_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_function_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_function_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
@@ -4881,7 +5008,7 @@ impl Listener for NullListener {
 
     fn begin_variables_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _late_token: TokenId,
         _var_final_or_const: TokenId,
@@ -4890,43 +5017,43 @@ impl Listener for NullListener {
 
     fn end_variables_declaration(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_while_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_while_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_while_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _while_keyword: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_as_operator_type(&mut self, _tokens: &TokenStore, _operator: TokenId) {}
+    fn begin_as_operator_type(&mut self, _tokens: &mut TokenStore, _operator: TokenId) {}
 
-    fn end_as_operator_type(&mut self, _tokens: &TokenStore, _operator: TokenId) {}
+    fn end_as_operator_type(&mut self, _tokens: &mut TokenStore, _operator: TokenId) {}
 
-    fn handle_as_operator(&mut self, _tokens: &TokenStore, _operator: TokenId) {}
+    fn handle_as_operator(&mut self, _tokens: &mut TokenStore, _operator: TokenId) {}
 
-    fn handle_cast_pattern(&mut self, _tokens: &TokenStore, _operator: TokenId) {}
+    fn handle_cast_pattern(&mut self, _tokens: &mut TokenStore, _operator: TokenId) {}
 
     fn handle_assignment_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_anonymous_method_invocation(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_anonymous_method_invocation(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_anonymous_method_invocation(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _function_definition: TokenId,
         _end_token: TokenId,
@@ -4934,25 +5061,25 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn handle_implicit_formal_parameters(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_implicit_formal_parameters(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_binary_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_binary_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_binary_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_binary_pattern(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_binary_pattern(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_binary_pattern(&mut self, _tokens: &TokenStore, _operator_token: TokenId) {}
+    fn end_binary_pattern(&mut self, _tokens: &mut TokenStore, _operator_token: TokenId) {}
 
     fn handle_dot_access(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _end_token: TokenId,
         _is_null_aware: bool,
@@ -4961,71 +5088,72 @@ impl Listener for NullListener {
 
     fn handle_cascade_access(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _end_token: TokenId,
         _is_null_aware: bool,
     ) {
     }
 
-    fn begin_conditional_expression(&mut self, _tokens: &TokenStore, _question: TokenId) {}
+    fn begin_conditional_expression(&mut self, _tokens: &mut TokenStore, _question: TokenId) {}
 
-    fn handle_conditional_expression_colon(&mut self, _tokens: &TokenStore) {}
+    fn handle_conditional_expression_colon(&mut self, _tokens: &mut TokenStore) {}
 
     fn end_conditional_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _question: TokenId,
         _colon: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn begin_const_expression(&mut self, _tokens: &TokenStore, _const_keyword: TokenId) {}
+    fn begin_const_expression(&mut self, _tokens: &mut TokenStore, _const_keyword: TokenId) {}
 
-    fn end_const_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_const_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_const_factory(&mut self, _tokens: &TokenStore, _const_keyword: TokenId) {}
+    fn handle_const_factory(&mut self, _tokens: &mut TokenStore, _const_keyword: TokenId) {}
 
     fn begin_for_control_flow(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _await_token: TokenId,
         _for_token: TokenId,
     ) {
     }
 
-    fn end_for_control_flow(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_for_control_flow(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_for_in_control_flow(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_for_in_control_flow(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_if_control_flow(&mut self, _tokens: &TokenStore, _if_token: TokenId) {}
+    fn begin_if_control_flow(&mut self, _tokens: &mut TokenStore, _if_token: TokenId) {}
 
-    fn handle_then_control_flow(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_then_control_flow(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_else_control_flow(&mut self, _tokens: &TokenStore, _else_token: TokenId) {}
+    fn handle_else_control_flow(&mut self, _tokens: &mut TokenStore, _else_token: TokenId) {}
 
-    fn end_if_control_flow(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_if_control_flow(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_if_else_control_flow(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_if_else_control_flow(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_spread_expression(&mut self, _tokens: &TokenStore, _spread_token: TokenId) {}
+    fn handle_spread_expression(&mut self, _tokens: &mut TokenStore, _spread_token: TokenId) {}
 
-    fn handle_null_aware_element(&mut self, _tokens: &TokenStore, _null_aware_token: TokenId) {}
+    fn handle_null_aware_element(&mut self, _tokens: &mut TokenStore, _null_aware_token: TokenId) {}
 
     fn handle_rest_pattern(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _dots: TokenId,
         _has_sub_pattern: bool,
     ) {
     }
 
-    fn begin_function_typed_formal_parameter(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_function_typed_formal_parameter(&mut self, _tokens: &mut TokenStore, _token: TokenId) {
+    }
 
     fn end_function_typed_formal_parameter(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _name_token: TokenId,
         _question: TokenId,
     ) {
@@ -5033,7 +5161,7 @@ impl Listener for NullListener {
 
     fn handle_identifier(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _context: &'static IdentifierContext,
     ) {
@@ -5041,24 +5169,30 @@ impl Listener for NullListener {
 
     fn handle_indexed_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _question: TokenId,
         _open_square_bracket: TokenId,
         _close_square_bracket: TokenId,
     ) {
     }
 
-    fn begin_is_operator_type(&mut self, _tokens: &TokenStore, _operator: TokenId) {}
+    fn begin_is_operator_type(&mut self, _tokens: &mut TokenStore, _operator: TokenId) {}
 
-    fn end_is_operator_type(&mut self, _tokens: &TokenStore, _operator: TokenId) {}
+    fn end_is_operator_type(&mut self, _tokens: &mut TokenStore, _operator: TokenId) {}
 
-    fn handle_is_operator(&mut self, _tokens: &TokenStore, _is_operator: TokenId, _not: TokenId) {}
+    fn handle_is_operator(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _is_operator: TokenId,
+        _not: TokenId,
+    ) {
+    }
 
-    fn handle_literal_bool(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_literal_bool(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_break_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _has_target: bool,
         _break_keyword: TokenId,
         _end_token: TokenId,
@@ -5067,20 +5201,20 @@ impl Listener for NullListener {
 
     fn handle_continue_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _has_target: bool,
         _continue_keyword: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn handle_empty_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_empty_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_assert(&mut self, _tokens: &TokenStore, _assert_keyword: TokenId, _kind: Assert) {}
+    fn begin_assert(&mut self, _tokens: &mut TokenStore, _assert_keyword: TokenId, _kind: Assert) {}
 
     fn end_assert(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _assert_keyword: TokenId,
         _kind: Assert,
         _left_parenthesis: TokenId,
@@ -5089,17 +5223,18 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn handle_literal_double(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_literal_double(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_literal_double_with_separators(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_literal_double_with_separators(&mut self, _tokens: &mut TokenStore, _token: TokenId) {
+    }
 
-    fn handle_literal_int(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_literal_int(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_literal_int_with_separators(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_literal_int_with_separators(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_literal_list(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _left_bracket: TokenId,
         _const_keyword: TokenId,
@@ -5109,7 +5244,7 @@ impl Listener for NullListener {
 
     fn handle_list_pattern(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _left_bracket: TokenId,
         _right_bracket: TokenId,
@@ -5118,7 +5253,7 @@ impl Listener for NullListener {
 
     fn handle_literal_set_or_map(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _left_brace: TokenId,
         _const_keyword: TokenId,
@@ -5129,49 +5264,49 @@ impl Listener for NullListener {
 
     fn handle_map_pattern(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _count: i32,
         _left_brace: TokenId,
         _right_brace: TokenId,
     ) {
     }
 
-    fn handle_literal_null(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_literal_null(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_native_clause(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _native_token: TokenId,
         _has_name: bool,
     ) {
     }
 
-    fn handle_named_argument(&mut self, _tokens: &TokenStore, _colon: TokenId) {}
+    fn handle_named_argument(&mut self, _tokens: &mut TokenStore, _colon: TokenId) {}
 
-    fn handle_positional_argument(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_positional_argument(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_pattern_field(&mut self, _tokens: &TokenStore, _colon: TokenId) {}
+    fn handle_pattern_field(&mut self, _tokens: &mut TokenStore, _colon: TokenId) {}
 
-    fn handle_named_record_field(&mut self, _tokens: &TokenStore, _colon: TokenId) {}
+    fn handle_named_record_field(&mut self, _tokens: &mut TokenStore, _colon: TokenId) {}
 
-    fn handle_positional_record_field(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_positional_record_field(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_new_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_new_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_new_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_new_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_no_arguments(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_no_arguments(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_no_constructor_reference_continuation_after_type_arguments(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
     ) {
     }
 
     fn handle_no_identifier(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _identifier_context: &'static IdentifierContext,
     ) {
@@ -5179,26 +5314,27 @@ impl Listener for NullListener {
 
     fn handle_no_type_name_in_constructor_reference(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
     ) {
     }
 
-    fn handle_no_type(&mut self, _tokens: &TokenStore, _last_consumed: TokenId) {}
+    fn handle_no_type(&mut self, _tokens: &mut TokenStore, _last_consumed: TokenId) {}
 
-    fn handle_no_type_variables(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_no_type_variables(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_operator(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_operator(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_switch_case_no_when_clause(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_switch_case_no_when_clause(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_switch_expression_case_pattern(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_switch_expression_case_pattern(&mut self, _tokens: &mut TokenStore, _token: TokenId) {
+    }
 
-    fn handle_symbol_void(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_symbol_void(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_operator_name(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _operator_keyword: TokenId,
         _token: TokenId,
     ) {
@@ -5206,7 +5342,7 @@ impl Listener for NullListener {
 
     fn handle_invalid_operator_name(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _operator_keyword: TokenId,
         _token: TokenId,
     ) {
@@ -5214,67 +5350,67 @@ impl Listener for NullListener {
 
     fn handle_parenthesized_condition(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _case_: TokenId,
         _when: TokenId,
     ) {
     }
 
-    fn begin_pattern(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_pattern(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_pattern_guard(&mut self, _tokens: &TokenStore, _when: TokenId) {}
+    fn begin_pattern_guard(&mut self, _tokens: &mut TokenStore, _when: TokenId) {}
 
     fn begin_parenthesized_expression_or_record_literal(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
     ) {
     }
 
-    fn begin_switch_case_when_clause(&mut self, _tokens: &TokenStore, _when: TokenId) {}
+    fn begin_switch_case_when_clause(&mut self, _tokens: &mut TokenStore, _when: TokenId) {}
 
     fn end_record_literal(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _count: i32,
         _const_keyword: TokenId,
     ) {
     }
 
-    fn handle_record_pattern(&mut self, _tokens: &TokenStore, _token: TokenId, _count: i32) {}
+    fn handle_record_pattern(&mut self, _tokens: &mut TokenStore, _token: TokenId, _count: i32) {}
 
-    fn end_pattern(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_pattern(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_pattern_guard(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_pattern_guard(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_parenthesized_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_parenthesized_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_switch_case_when_clause(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_switch_case_when_clause(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_parenthesized_pattern(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_parenthesized_pattern(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_constant_pattern(&mut self, _tokens: &TokenStore, _const_keyword: TokenId) {}
+    fn begin_constant_pattern(&mut self, _tokens: &mut TokenStore, _const_keyword: TokenId) {}
 
-    fn end_constant_pattern(&mut self, _tokens: &TokenStore, _const_keyword: TokenId) {}
+    fn end_constant_pattern(&mut self, _tokens: &mut TokenStore, _const_keyword: TokenId) {}
 
     fn handle_object_pattern(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _first_identifier: TokenId,
         _dot: TokenId,
         _second_identifier: TokenId,
     ) {
     }
 
-    fn handle_qualified(&mut self, _tokens: &TokenStore, _period: TokenId) {}
+    fn handle_qualified(&mut self, _tokens: &mut TokenStore, _period: TokenId) {}
 
-    fn handle_string_part(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_string_part(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_super_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _context: &'static IdentifierContext,
     ) {
@@ -5282,7 +5418,7 @@ impl Listener for NullListener {
 
     fn begin_switch_case(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _label_count: i32,
         _expression_count: i32,
         _begin_token: TokenId,
@@ -5291,7 +5427,7 @@ impl Listener for NullListener {
 
     fn end_switch_case(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _label_count: i32,
         _expression_count: i32,
         _default_keyword: TokenId,
@@ -5302,11 +5438,11 @@ impl Listener for NullListener {
     ) {
     }
 
-    fn begin_switch_expression_case(&mut self, _tokens: &TokenStore) {}
+    fn begin_switch_expression_case(&mut self, _tokens: &mut TokenStore) {}
 
     fn end_switch_expression_case(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _when: TokenId,
         _arrow: TokenId,
@@ -5316,7 +5452,7 @@ impl Listener for NullListener {
 
     fn handle_this_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _context: &'static IdentifierContext,
     ) {
@@ -5324,42 +5460,52 @@ impl Listener for NullListener {
 
     fn handle_unary_postfix_assignment_expression(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
     ) {
     }
 
-    fn handle_unary_prefix_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_unary_prefix_expression(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_relational_pattern(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_relational_pattern(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_unary_prefix_assignment_expression(&mut self, _tokens: &TokenStore, _token: TokenId) {
+    fn handle_unary_prefix_assignment_expression(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _token: TokenId,
+    ) {
     }
 
-    fn begin_formal_parameter_default_value_expression(&mut self, _tokens: &TokenStore) {}
+    fn begin_formal_parameter_default_value_expression(&mut self, _tokens: &mut TokenStore) {}
 
-    fn end_formal_parameter_default_value_expression(&mut self, _tokens: &TokenStore) {}
+    fn end_formal_parameter_default_value_expression(&mut self, _tokens: &mut TokenStore) {}
 
     fn handle_valued_formal_parameter(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _equals: TokenId,
         _token: TokenId,
         _kind: FormalParameterKind,
     ) {
     }
 
-    fn handle_formal_parameter_without_value(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_formal_parameter_without_value(&mut self, _tokens: &mut TokenStore, _token: TokenId) {
+    }
 
-    fn handle_void_keyword(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_void_keyword(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_void_keyword_with_type_arguments(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_void_keyword_with_type_arguments(
+        &mut self,
+        _tokens: &mut TokenStore,
+        _token: TokenId,
+    ) {
+    }
 
-    fn begin_yield_statement(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_yield_statement(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn end_yield_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _yield_token: TokenId,
         _star_token: TokenId,
         _end_token: TokenId,
@@ -5368,7 +5514,7 @@ impl Listener for NullListener {
 
     fn end_invalid_yield_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _begin_token: TokenId,
         _star_token: TokenId,
         _end_token: TokenId,
@@ -5378,7 +5524,7 @@ impl Listener for NullListener {
 
     fn handle_recoverable_error(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _message: &Message,
         _start_token: TokenId,
         _end_token: TokenId,
@@ -5388,18 +5534,18 @@ impl Listener for NullListener {
 
     fn handle_experiment_not_enabled(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _experimental_flag: ExperimentalFlag,
         _begin_token: TokenId,
         _end_token: TokenId,
     ) {
     }
 
-    fn handle_error_token(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_error_token(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_unescape_error(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _message: &Message,
         _location: TokenId,
         _string_offset: i32,
@@ -5409,39 +5555,39 @@ impl Listener for NullListener {
 
     fn handle_invalid_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _token: TokenId,
         _message: &Message,
     ) {
     }
 
-    fn handle_script(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_script(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_type_argument_application(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _open_angle_bracket: TokenId,
     ) {
     }
 
-    fn handle_new_as_identifier(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_new_as_identifier(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
     fn handle_pattern_variable_declaration_statement(
         &mut self,
-        _tokens: &TokenStore,
+        _tokens: &mut TokenStore,
         _keyword: TokenId,
         _equals: TokenId,
         _semicolon: TokenId,
     ) {
     }
 
-    fn handle_pattern_assignment(&mut self, _tokens: &TokenStore, _equals: TokenId) {}
+    fn handle_pattern_assignment(&mut self, _tokens: &mut TokenStore, _equals: TokenId) {}
 
-    fn handle_dot_shorthand_context(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_dot_shorthand_context(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn handle_dot_shorthand_head(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn handle_dot_shorthand_head(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn begin_const_dot_shorthand(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn begin_const_dot_shorthand(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 
-    fn end_const_dot_shorthand(&mut self, _tokens: &TokenStore, _token: TokenId) {}
+    fn end_const_dot_shorthand(&mut self, _tokens: &mut TokenStore, _token: TokenId) {}
 }

@@ -342,7 +342,7 @@ impl Parser {
         let token = find_non_zero_length_token(&self.tokens, token);
         let message = message.into();
         self.listener
-            .handle_recoverable_error(&self.tokens, &message, token, token);
+            .handle_recoverable_error(&mut self.tokens, &message, token, token);
     }
 
     pub fn report_recoverable_error_with_end(
@@ -353,7 +353,7 @@ impl Parser {
     ) {
         let message = message.into();
         self.listener
-            .handle_recoverable_error(&self.tokens, &message, start_token, end_token);
+            .handle_recoverable_error(&mut self.tokens, &message, start_token, end_token);
     }
 
     pub fn report_experiment_not_enabled(
@@ -363,7 +363,7 @@ impl Parser {
         end_token: TokenId,
     ) {
         self.listener.handle_experiment_not_enabled(
-            &self.tokens,
+            &mut self.tokens,
             experimental_flag,
             start_token,
             end_token,
@@ -379,12 +379,12 @@ impl Parser {
         let token = find_non_zero_length_token(&self.tokens, token);
         let message = (template.with_arguments)(&self.tokens, token);
         self.listener
-            .handle_recoverable_error(&self.tokens, &message, token, token);
+            .handle_recoverable_error(&mut self.tokens, &message, token, token);
     }
 
     pub fn report_all_error_tokens(&mut self, mut token: TokenId) -> TokenId {
         while self.tokens.runtime_type(token).is_error_token() {
-            self.listener.handle_error_token(&self.tokens, token);
+            self.listener.handle_error_token(&mut self.tokens, token);
             token = self.next(token);
         }
         token
@@ -411,7 +411,8 @@ impl Parser {
         let error_token = token;
         token = self.skip_error_tokens(error_token);
 
-        self.listener.begin_compilation_unit(&self.tokens, token);
+        self.listener
+            .begin_compilation_unit(&mut self.tokens, token);
         let mut count = 0;
         let mut directive_state = DirectiveContext::new(self.is_enhanced_parts_feature_enabled);
         token = self.synthetic_previous_token(token);
@@ -423,19 +424,21 @@ impl Parser {
         while !self.tokens.is_eof(self.next(token)) {
             let start = self.next(token);
             token = self.parse_top_level_declaration_impl(token, Some(&mut directive_state));
-            self.listener.end_top_level_declaration(&self.tokens, token);
+            self.listener
+                .end_top_level_declaration(&mut self.tokens, token);
             count += 1;
             if start == self.next(token) {
                 // Recovery:
                 // If progress has not been made reaching the end of the token stream,
                 // then report an error and skip the current token.
                 token = self.next(token);
-                self.listener.begin_metadata_star(&self.tokens, token);
-                self.listener.end_metadata_star(&self.tokens, 0);
+                self.listener.begin_metadata_star(&mut self.tokens, token);
+                self.listener.end_metadata_star(&mut self.tokens, 0);
                 self.report_recoverable_error_with_token(token, diag::expectedDeclaration);
                 self.listener
-                    .handle_invalid_top_level_declaration(&self.tokens, token);
-                self.listener.end_top_level_declaration(&self.tokens, token);
+                    .handle_invalid_top_level_declaration(&mut self.tokens, token);
+                self.listener
+                    .end_top_level_declaration(&mut self.tokens, token);
                 count += 1;
             }
         }
@@ -443,7 +446,7 @@ impl Parser {
         debug_assert!(self.tokens.is_eof(token));
         self.report_all_error_tokens(error_token);
         self.listener
-            .end_compilation_unit(&self.tokens, count, token);
+            .end_compilation_unit(&mut self.tokens, count, token);
         // Clear fields that could lead to memory leak.
         self.cached_rewriter = None;
         token
@@ -456,7 +459,8 @@ impl Parser {
     /// but stops when it reaches the first declaration or EOF.
     pub fn parse_directives(&mut self, mut token: TokenId) -> TokenId {
         token = self.skip_error_tokens(token);
-        self.listener.begin_compilation_unit(&self.tokens, token);
+        self.listener
+            .begin_compilation_unit(&mut self.tokens, token);
         let count = 0;
         let mut directive_state = DirectiveContext::new(self.is_enhanced_parts_feature_enabled);
         token = self.synthetic_previous_token(token);
@@ -493,21 +497,22 @@ impl Parser {
                     token = self.parse_part_or_part_of(keyword, Some(&mut directive_state));
                 } else if value == Some(";") {
                     token = start;
-                    self.listener.handle_directives_only(&self.tokens);
+                    self.listener.handle_directives_only(&mut self.tokens);
                     report_top_level_declaration_end = false;
                 } else {
-                    self.listener.handle_directives_only(&self.tokens);
+                    self.listener.handle_directives_only(&mut self.tokens);
                     report_top_level_declaration_end = false;
                     break;
                 }
             }
             if report_top_level_declaration_end {
-                self.listener.end_top_level_declaration(&self.tokens, token);
+                self.listener
+                    .end_top_level_declaration(&mut self.tokens, token);
             }
         }
         token = self.next(token);
         self.listener
-            .end_compilation_unit(&self.tokens, count, token);
+            .end_compilation_unit(&mut self.tokens, count, token);
         // Clear fields that could lead to memory leak.
         self.cached_rewriter = None;
         token
@@ -522,7 +527,8 @@ impl Parser {
     pub fn parse_top_level_declaration(&mut self, token: TokenId) -> TokenId {
         let previous = self.synthetic_previous_token(token);
         let token = self.parse_top_level_declaration_impl(previous, None);
-        self.listener.end_top_level_declaration(&self.tokens, token);
+        self.listener
+            .end_top_level_declaration(&mut self.tokens, token);
         self.next(token)
     }
 
@@ -634,7 +640,7 @@ impl Parser {
             return self.parse_top_level_member_impl(next);
         }
         // Ignore any preceding modifiers and just report the unexpected token
-        self.listener.begin_top_level_member(&self.tokens, next);
+        self.listener.begin_top_level_member(&mut self.tokens, next);
         self.parse_invalid_top_level_declaration(token)
     }
 
@@ -880,14 +886,17 @@ impl Parser {
         debug_assert!(self.is_a(augment_keyword, kw::AUGMENT));
         debug_assert!(self.is_a(library_keyword, kw::LIBRARY));
         self.listener
-            .begin_uncategorized_top_level_declaration(&self.tokens, library_keyword);
-        self.listener
-            .begin_library_augmentation(&self.tokens, augment_keyword, library_keyword);
+            .begin_uncategorized_top_level_declaration(&mut self.tokens, library_keyword);
+        self.listener.begin_library_augmentation(
+            &mut self.tokens,
+            augment_keyword,
+            library_keyword,
+        );
         let start = library_keyword;
         let token = self.ensure_literal_string(start);
         let semicolon = self.ensure_semicolon(token);
         self.listener.end_library_augmentation(
-            &self.tokens,
+            &mut self.tokens,
             augment_keyword,
             library_keyword,
             semicolon,
@@ -903,9 +912,9 @@ impl Parser {
     pub fn parse_library_name(&mut self, library_keyword: TokenId) -> TokenId {
         debug_assert!(self.is_a(library_keyword, kw::LIBRARY));
         self.listener
-            .begin_uncategorized_top_level_declaration(&self.tokens, library_keyword);
+            .begin_uncategorized_top_level_declaration(&mut self.tokens, library_keyword);
         self.listener
-            .begin_library_name(&self.tokens, library_keyword);
+            .begin_library_name(&mut self.tokens, library_keyword);
         let mut token = self.next(library_keyword);
         let has_name = !self.is_a(token, TokenType::SEMICOLON);
         if has_name {
@@ -919,7 +928,7 @@ impl Parser {
             token = self.ensure_semicolon(library_keyword);
         }
         self.listener
-            .end_library_name(&self.tokens, library_keyword, token, has_name);
+            .end_library_name(&mut self.tokens, library_keyword, token, has_name);
         token
     }
 
@@ -935,15 +944,15 @@ impl Parser {
             let as_keyword = self.next(next);
             token = self.ensure_identifier(as_keyword, IdentifierContext::importPrefixDeclaration);
             self.listener
-                .handle_import_prefix(&self.tokens, deferred_token, as_keyword);
+                .handle_import_prefix(&mut self.tokens, deferred_token, as_keyword);
         } else if self.is_a(next, kw::AS) {
             let as_keyword = next;
             token = self.ensure_identifier(next, IdentifierContext::importPrefixDeclaration);
             self.listener
-                .handle_import_prefix(&self.tokens, NO_TOKEN, as_keyword);
+                .handle_import_prefix(&mut self.tokens, NO_TOKEN, as_keyword);
         } else {
             self.listener
-                .handle_import_prefix(&self.tokens, NO_TOKEN, NO_TOKEN);
+                .handle_import_prefix(&mut self.tokens, NO_TOKEN, NO_TOKEN);
         }
         token
     }
@@ -956,8 +965,8 @@ impl Parser {
     pub fn parse_import(&mut self, import_keyword: TokenId) -> TokenId {
         debug_assert!(self.is_a(import_keyword, kw::IMPORT));
         self.listener
-            .begin_uncategorized_top_level_declaration(&self.tokens, import_keyword);
-        self.listener.begin_import(&self.tokens, import_keyword);
+            .begin_uncategorized_top_level_declaration(&mut self.tokens, import_keyword);
+        self.listener.begin_import(&mut self.tokens, import_keyword);
         let start = import_keyword;
         let mut token = self.ensure_literal_string(start);
         let uri = token;
@@ -967,12 +976,12 @@ impl Parser {
         token = self.next(token);
         if self.is_a(token, TokenType::SEMICOLON) {
             self.listener
-                .end_import(&self.tokens, import_keyword, token);
+                .end_import(&mut self.tokens, import_keyword, token);
             token
         } else {
             // Recovery
             self.listener
-                .end_import(&self.tokens, import_keyword, NO_TOKEN);
+                .end_import(&mut self.tokens, import_keyword, NO_TOKEN);
             self.parse_import_recovery(uri)
         }
     }
@@ -1066,7 +1075,7 @@ impl Parser {
             {
                 let next = self.next(token);
                 self.listener
-                    .handle_import_prefix(&self.tokens, next, NO_TOKEN);
+                    .handle_import_prefix(&mut self.tokens, next, NO_TOKEN);
                 token = next;
             } else {
                 token = self.parse_import_prefix_opt(token);
@@ -1104,7 +1113,8 @@ impl Parser {
                 // If no forward progress was made, insert ';' so that we exit loop.
                 semicolon = self.ensure_semicolon(token);
             }
-            self.listener.handle_recover_import(&self.tokens, semicolon);
+            self.listener
+                .handle_recover_import(&mut self.tokens, semicolon);
             if semicolon != NO_TOKEN {
                 break;
             }
@@ -1126,14 +1136,15 @@ impl Parser {
     /// ;
     /// ```
     pub fn parse_conditional_uri_star(&mut self, mut token: TokenId) -> TokenId {
+        let next_38 = self.tokens.next(token);
         self.listener
-            .begin_conditional_uris(&self.tokens, self.tokens.next(token));
+            .begin_conditional_uris(&mut self.tokens, next_38);
         let mut count = 0;
         while self.is_a(self.next(token), kw::IF) {
             count += 1;
             token = self.parse_conditional_uri(token);
         }
-        self.listener.end_conditional_uris(&self.tokens, count);
+        self.listener.end_conditional_uris(&mut self.tokens, count);
         token
     }
 
@@ -1146,7 +1157,7 @@ impl Parser {
         token = self.next(token);
         let if_keyword = token;
         debug_assert!(self.is_a(token, kw::IF));
-        self.listener.begin_conditional_uri(&self.tokens, token);
+        self.listener.begin_conditional_uri(&mut self.tokens, token);
         let mut left_paren = self.next(token);
         if !self.is_a(left_paren, TokenType::OPEN_PAREN) {
             self.report_recoverable_error(left_paren, (diag::expectedButGot.with_arguments)("("));
@@ -1175,7 +1186,7 @@ impl Parser {
 
         token = self.ensure_literal_string(token);
         self.listener
-            .end_conditional_uri(&self.tokens, if_keyword, left_paren, equality_sign);
+            .end_conditional_uri(&mut self.tokens, if_keyword, left_paren, equality_sign);
         token
     }
 
@@ -1194,7 +1205,7 @@ impl Parser {
             count += 1;
         }
         self.listener
-            .handle_dotted_name(&self.tokens, count, first_identifier);
+            .handle_dotted_name(&mut self.tokens, count, first_identifier);
         token
     }
 
@@ -1206,14 +1217,14 @@ impl Parser {
     pub fn parse_export(&mut self, export_keyword: TokenId) -> TokenId {
         debug_assert!(self.is_a(export_keyword, kw::EXPORT));
         self.listener
-            .begin_uncategorized_top_level_declaration(&self.tokens, export_keyword);
-        self.listener.begin_export(&self.tokens, export_keyword);
+            .begin_uncategorized_top_level_declaration(&mut self.tokens, export_keyword);
+        self.listener.begin_export(&mut self.tokens, export_keyword);
         let mut token = self.ensure_literal_string(export_keyword);
         token = self.parse_conditional_uri_star(token);
         token = self.parse_combinator_star(token);
         token = self.ensure_semicolon(token);
         self.listener
-            .end_export(&self.tokens, export_keyword, token);
+            .end_export(&mut self.tokens, export_keyword, token);
         token
     }
 
@@ -1224,7 +1235,7 @@ impl Parser {
     /// ```
     pub fn parse_combinator_star(&mut self, mut token: TokenId) -> TokenId {
         let mut next = self.next(token);
-        self.listener.begin_combinators(&self.tokens, next);
+        self.listener.begin_combinators(&mut self.tokens, next);
         let mut count = 0;
         loop {
             let value = self.sv(next);
@@ -1239,7 +1250,7 @@ impl Parser {
                 }
                 token = self.parse_show(token);
             } else {
-                self.listener.end_combinators(&self.tokens, count);
+                self.listener.end_combinators(&mut self.tokens, count);
                 break;
             }
             next = self.next(token);
@@ -1256,9 +1267,9 @@ impl Parser {
     pub fn parse_hide(&mut self, token: TokenId) -> TokenId {
         let hide_keyword = self.next(token);
         debug_assert!(self.is_a(hide_keyword, kw::HIDE));
-        self.listener.begin_hide(&self.tokens, hide_keyword);
+        self.listener.begin_hide(&mut self.tokens, hide_keyword);
         let token = self.parse_identifier_list(hide_keyword);
-        self.listener.end_hide(&self.tokens, hide_keyword);
+        self.listener.end_hide(&mut self.tokens, hide_keyword);
         token
     }
 
@@ -1270,9 +1281,9 @@ impl Parser {
     pub fn parse_show(&mut self, token: TokenId) -> TokenId {
         let show_keyword = self.next(token);
         debug_assert!(self.is_a(show_keyword, kw::SHOW));
-        self.listener.begin_show(&self.tokens, show_keyword);
+        self.listener.begin_show(&mut self.tokens, show_keyword);
         let token = self.parse_identifier_list(show_keyword);
-        self.listener.end_show(&self.tokens, show_keyword);
+        self.listener.end_show(&mut self.tokens, show_keyword);
         token
     }
 
@@ -1289,7 +1300,8 @@ impl Parser {
             token = self.ensure_identifier(next, IdentifierContext::combinator);
             count += 1;
         }
-        self.listener.handle_identifier_list(&self.tokens, count);
+        self.listener
+            .handle_identifier_list(&mut self.tokens, count);
         token
     }
 
@@ -1299,8 +1311,8 @@ impl Parser {
     /// ;
     /// ```
     pub fn parse_type_list(&mut self, mut token: TokenId) -> TokenId {
-        self.listener
-            .begin_type_list(&self.tokens, self.tokens.next(token));
+        let next_37 = self.tokens.next(token);
+        self.listener.begin_type_list(&mut self.tokens, next_37);
         token = compute_type(&mut self.tokens, token, true, false, false)
             .ensure_type_or_void(token, self);
         let mut count = 1;
@@ -1310,7 +1322,7 @@ impl Parser {
                 .ensure_type_or_void(next, self);
             count += 1;
         }
-        self.listener.end_type_list(&self.tokens, count);
+        self.listener.end_type_list(&mut self.tokens, count);
         token
     }
 
@@ -1321,7 +1333,7 @@ impl Parser {
     ) -> TokenId {
         debug_assert!(self.is_a(part_keyword, kw::PART));
         self.listener
-            .begin_uncategorized_top_level_declaration(&self.tokens, part_keyword);
+            .begin_uncategorized_top_level_declaration(&mut self.tokens, part_keyword);
         if self.is_a(self.next(part_keyword), kw::OF) {
             if let Some(d) = directive_state {
                 d.check_part_of(self, part_keyword);
@@ -1342,10 +1354,11 @@ impl Parser {
     /// ```
     pub fn parse_part(&mut self, part_keyword: TokenId) -> TokenId {
         debug_assert!(self.is_a(part_keyword, kw::PART));
-        self.listener.begin_part(&self.tokens, part_keyword);
+        self.listener.begin_part(&mut self.tokens, part_keyword);
         let mut token = self.ensure_literal_string(part_keyword);
         token = self.ensure_semicolon(token);
-        self.listener.end_part(&self.tokens, part_keyword, token);
+        self.listener
+            .end_part(&mut self.tokens, part_keyword, token);
         token
     }
 
@@ -1358,7 +1371,7 @@ impl Parser {
         let of_keyword = self.next(part_keyword);
         debug_assert!(self.is_a(part_keyword, kw::PART));
         debug_assert!(self.is_a(of_keyword, kw::OF));
-        self.listener.begin_part_of(&self.tokens, part_keyword);
+        self.listener.begin_part_of(&mut self.tokens, part_keyword);
         let has_name = self.tokens.is_identifier(self.next(of_keyword));
         let mut token = if has_name {
             self.parse_qualified(
@@ -1371,7 +1384,7 @@ impl Parser {
         };
         token = self.ensure_semicolon(token);
         self.listener
-            .end_part_of(&self.tokens, part_keyword, of_keyword, token, has_name);
+            .end_part_of(&mut self.tokens, part_keyword, of_keyword, token, has_name);
         token
     }
 
@@ -1381,14 +1394,14 @@ impl Parser {
     /// ;
     /// ```
     pub fn parse_metadata_star(&mut self, mut token: TokenId) -> TokenId {
-        self.listener
-            .begin_metadata_star(&self.tokens, self.tokens.next(token));
+        let next_36 = self.tokens.next(token);
+        self.listener.begin_metadata_star(&mut self.tokens, next_36);
         let mut count = 0;
         while self.is_a(self.next(token), TokenType::AT) {
             token = self.parse_metadata(token);
             count += 1;
         }
-        self.listener.end_metadata_star(&self.tokens, count);
+        self.listener.end_metadata_star(&mut self.tokens, count);
         token
     }
 
@@ -1401,7 +1414,7 @@ impl Parser {
     pub fn parse_metadata(&mut self, mut token: TokenId) -> TokenId {
         let at_token = self.next(token);
         debug_assert!(self.is_a(at_token, TokenType::AT));
-        self.listener.begin_metadata(&self.tokens, at_token);
+        self.listener.begin_metadata(&mut self.tokens, at_token);
         token = self.ensure_identifier(at_token, IdentifierContext::metadataReference);
         token = self.parse_qualified_rest_opt(token, IdentifierContext::metadataContinuation);
         let has_type_arguments = self.is_a(self.next(token), TokenType::LT);
@@ -1420,7 +1433,7 @@ impl Parser {
         }
         token = self.parse_arguments_opt_metadata(token, has_type_arguments);
         self.listener
-            .end_metadata(&self.tokens, at_token, period, token);
+            .end_metadata(&mut self.tokens, at_token, period, token);
         token
     }
 
@@ -1432,7 +1445,7 @@ impl Parser {
     pub fn parse_script(&mut self, token: TokenId) -> TokenId {
         let token = self.next(token);
         debug_assert!(self.tokens.type_(token) == TokenType::SCRIPT_TAG);
-        self.listener.handle_script(&self.tokens, token);
+        self.listener.handle_script(&mut self.tokens, token);
         token
     }
 
@@ -1448,8 +1461,9 @@ impl Parser {
             self.report_recoverable_error(augment_token, diag::typedefAugmentation);
         }
         self.listener
-            .begin_uncategorized_top_level_declaration(&self.tokens, typedef_keyword);
-        self.listener.begin_typedef(&self.tokens, typedef_keyword);
+            .begin_uncategorized_top_level_declaration(&mut self.tokens, typedef_keyword);
+        self.listener
+            .begin_typedef(&mut self.tokens, typedef_keyword);
         let type_info = compute_type(&mut self.tokens, typedef_keyword, false, false, false);
         let mut token = type_info.skip_type(&mut self.tokens, typedef_keyword);
         let mut next = self.next(token);
@@ -1604,8 +1618,13 @@ impl Parser {
             token = self.parse_formal_parameters_required_opt(token, MemberKind::FunctionTypeAlias);
         }
         token = self.ensure_semicolon(token);
-        self.listener
-            .end_typedef(&self.tokens, augment_token, typedef_keyword, equals, token);
+        self.listener.end_typedef(
+            &mut self.tokens,
+            augment_token,
+            typedef_keyword,
+            equals,
+            token,
+        );
         token
     }
 
@@ -1628,7 +1647,7 @@ impl Parser {
         }
         let token = self.parse_type_list(with_keyword);
         self.listener
-            .handle_named_mixin_application_with_clause(&self.tokens, with_keyword);
+            .handle_named_mixin_application_with_clause(&mut self.tokens, with_keyword);
         token
     }
 
@@ -1638,9 +1657,9 @@ impl Parser {
         if self.is_a(with_keyword, kw::WITH) {
             token = self.parse_type_list(with_keyword);
             self.listener
-                .handle_class_with_clause(&self.tokens, with_keyword);
+                .handle_class_with_clause(&mut self.tokens, with_keyword);
         } else {
-            self.listener.handle_class_no_with_clause(&self.tokens);
+            self.listener.handle_class_no_with_clause(&mut self.tokens);
         }
         token
     }
@@ -1651,9 +1670,9 @@ impl Parser {
         if self.is_a(with_keyword, kw::WITH) {
             token = self.parse_type_list(with_keyword);
             self.listener
-                .handle_enum_with_clause(&self.tokens, with_keyword);
+                .handle_enum_with_clause(&mut self.tokens, with_keyword);
         } else {
-            self.listener.handle_enum_no_with_clause(&self.tokens);
+            self.listener.handle_enum_no_with_clause(&mut self.tokens);
         }
         token
     }
@@ -1675,7 +1694,7 @@ impl Parser {
             token = self.parse_formal_parameters(token, kind);
         } else if is_getter {
             self.listener
-                .handle_no_formal_parameters(&self.tokens, next, kind);
+                .handle_no_formal_parameters(&mut self.tokens, next, kind);
         } else {
             // Recovery
             if self.is_a(name, kw::OPERATOR) {
@@ -1700,7 +1719,7 @@ impl Parser {
             token = self.parse_formal_parameters(token, kind);
         } else {
             self.listener
-                .handle_no_formal_parameters(&self.tokens, next, kind);
+                .handle_no_formal_parameters(&mut self.tokens, next, kind);
         }
         token
     }
@@ -1714,11 +1733,11 @@ impl Parser {
         debug_assert!(self.is_a(token, TokenType::OPEN_PAREN));
         // TODO(ahe): Shouldn't this be `beginFormalParameters`?
         self.listener
-            .begin_optional_formal_parameters(&self.tokens, token);
+            .begin_optional_formal_parameters(&mut self.tokens, token);
         let close_brace = self.tokens.end_group(token);
         debug_assert!(self.is_a(close_brace, TokenType::CLOSE_PAREN));
         self.listener
-            .end_formal_parameters(&self.tokens, 0, token, close_brace, kind);
+            .end_formal_parameters(&mut self.tokens, 0, token, close_brace, kind);
         close_brace
     }
 
@@ -1732,7 +1751,7 @@ impl Parser {
         token = self.next(token);
         debug_assert!(self.is_a(token, TokenType::OPEN_PAREN));
 
-        self.listener.begin_record_type(&self.tokens, start);
+        self.listener.begin_record_type(&mut self.tokens, start);
 
         let begin = token;
 
@@ -1818,7 +1837,7 @@ impl Parser {
             question_mark = NO_TOKEN;
         }
         self.listener.end_record_type(
-            &self.tokens,
+            &mut self.tokens,
             start,
             question_mark,
             parameter_count,
@@ -1833,7 +1852,7 @@ impl Parser {
         mut token: TokenId,
         identifier_is_optional: bool,
     ) -> TokenId {
-        self.listener.begin_record_type_entry(&self.tokens);
+        self.listener.begin_record_type_entry(&mut self.tokens);
         token = self.parse_metadata_star(token);
         token = compute_type(&mut self.tokens, token, true, false, false)
             .ensure_type_or_void(token, self);
@@ -1841,10 +1860,10 @@ impl Parser {
             token = self.ensure_identifier(token, IdentifierContext::recordFieldDeclaration);
         } else {
             // Name is optional and is not provided.
-            self.listener
-                .handle_no_name(&self.tokens, self.tokens.next(token));
+            let next_35 = self.tokens.next(token);
+            self.listener.handle_no_name(&mut self.tokens, next_35);
         }
-        self.listener.end_record_type_entry(&self.tokens);
+        self.listener.end_record_type_entry(&mut self.tokens);
         token
     }
 
@@ -1853,7 +1872,7 @@ impl Parser {
         let begin = token;
         debug_assert!(self.is_a(token, TokenType::OPEN_CURLY_BRACKET));
         self.listener
-            .begin_record_type_named_fields(&self.tokens, begin);
+            .begin_record_type_named_fields(&mut self.tokens, begin);
         let mut parameter_count = 0;
         let mut next;
         loop {
@@ -1881,7 +1900,7 @@ impl Parser {
             self.report_recoverable_error(token, diag::emptyRecordTypeNamedFieldsList);
         }
         self.listener
-            .end_record_type_named_fields(&self.tokens, parameter_count, begin);
+            .end_record_type_named_fields(&mut self.tokens, parameter_count, begin);
         token
     }
 
@@ -1918,7 +1937,7 @@ impl Parser {
         let begin = token;
         debug_assert!(self.is_a(token, TokenType::OPEN_PAREN));
         self.listener
-            .begin_formal_parameters(&self.tokens, begin, kind);
+            .begin_formal_parameters(&mut self.tokens, begin, kind);
         let mut parameter_count = 0;
         loop {
             let mut next = self.next(token);
@@ -1979,7 +1998,7 @@ impl Parser {
         }
         debug_assert!(self.is_a(token, TokenType::CLOSE_PAREN));
         self.listener
-            .end_formal_parameters(&self.tokens, parameter_count, begin, token, kind);
+            .end_formal_parameters(&mut self.tokens, parameter_count, begin, token, kind);
         token
     }
 
@@ -2109,7 +2128,7 @@ impl Parser {
         }
 
         self.listener.begin_formal_parameter(
-            &self.tokens,
+            &mut self.tokens,
             start,
             member_kind,
             required_token,
@@ -2262,10 +2281,9 @@ impl Parser {
         if before_inline_function_type != NO_TOKEN {
             end_inline_function_type =
                 type_param.parse_variables(before_inline_function_type, self);
-            self.listener.begin_function_typed_formal_parameter(
-                &self.tokens,
-                self.tokens.next(before_inline_function_type),
-            );
+            let next_34 = self.tokens.next(before_inline_function_type);
+            self.listener
+                .begin_function_typed_formal_parameter(&mut self.tokens, next_34);
             token = type_info.parse_type(before_type, self);
             end_inline_function_type = self.parse_formal_parameters_required_opt(
                 end_inline_function_type,
@@ -2277,7 +2295,7 @@ impl Parser {
                 question = end_inline_function_type;
             }
             self.listener.end_function_typed_formal_parameter(
-                &self.tokens,
+                &mut self.tokens,
                 before_inline_function_type,
                 question,
             );
@@ -2307,7 +2325,7 @@ impl Parser {
             && before_inline_function_type == NO_TOKEN
         {
             name_token = self.next(token);
-            self.listener.handle_no_name(&self.tokens, name_token);
+            self.listener.handle_no_name(&mut self.tokens, name_token);
         } else {
             token = self.ensure_identifier(token, name_context);
             name_token = token;
@@ -2324,16 +2342,20 @@ impl Parser {
             let equal = next;
             initializer_start = self.next(equal);
             self.listener
-                .begin_formal_parameter_default_value_expression(&self.tokens);
+                .begin_formal_parameter_default_value_expression(&mut self.tokens);
             token = self.parse_expression(equal);
             initializer_end = token;
             next = self.next(token);
             self.listener
-                .end_formal_parameter_default_value_expression(&self.tokens);
+                .end_formal_parameter_default_value_expression(&mut self.tokens);
             // TODO(danrubel): Consider removing the last parameter from the
             // handleValuedFormalParameter event... it appears to be unused.
-            self.listener
-                .handle_valued_formal_parameter(&self.tokens, equal, next, parameter_kind);
+            self.listener.handle_valued_formal_parameter(
+                &mut self.tokens,
+                equal,
+                next,
+                parameter_kind,
+            );
             if parameter_kind.is_required_positional() {
                 self.report_recoverable_error(equal, diag::requiredParameterWithDefault);
             } else if parameter_kind.is_optional_positional() && value == Some(":") {
@@ -2346,10 +2368,10 @@ impl Parser {
             }
         } else {
             self.listener
-                .handle_formal_parameter_without_value(&self.tokens, next);
+                .handle_formal_parameter_without_value(&mut self.tokens, next);
         }
         self.listener.end_formal_parameter(
-            &self.tokens,
+            &mut self.tokens,
             var_or_final,
             this_keyword,
             super_keyword,
@@ -2436,7 +2458,7 @@ impl Parser {
         let begin = token;
         debug_assert!(self.is_a(token, open));
         self.listener
-            .begin_optional_formal_parameters(&self.tokens, begin);
+            .begin_optional_formal_parameters(&mut self.tokens, begin);
         let mut parameter_count = 0;
         loop {
             let mut next = self.next(token);
@@ -2479,7 +2501,7 @@ impl Parser {
         token = self.next(token);
         debug_assert!(self.is_a(token, close));
         self.listener.end_optional_formal_parameters(
-            &self.tokens,
+            &mut self.tokens,
             parameter_count,
             begin,
             token,
@@ -2538,7 +2560,7 @@ impl Parser {
         self.try_rewrite_new_to_identifier(token, context);
         let period = token;
         let token = self.ensure_identifier(token, context);
-        self.listener.handle_qualified(&self.tokens, period);
+        self.listener.handle_qualified(&mut self.tokens, period);
         token
     }
 
@@ -2568,7 +2590,7 @@ impl Parser {
     ) -> TokenId {
         debug_assert!(self.is_a(enum_keyword, kw::ENUM));
         self.listener
-            .begin_enum_declaration_prelude(&self.tokens, enum_keyword);
+            .begin_enum_declaration_prelude(&mut self.tokens, enum_keyword);
         let mut token = enum_keyword;
         let mut const_token = NO_TOKEN;
         if self.is_a(self.next(token), kw::CONST) {
@@ -2581,7 +2603,7 @@ impl Parser {
         token = compute_type_param_or_arg(&mut self.tokens, token, true, true)
             .parse_variables(token, self);
         self.listener.begin_enum_declaration(
-            &self.tokens,
+            &mut self.tokens,
             begin_token,
             augment_token,
             enum_keyword,
@@ -2600,14 +2622,23 @@ impl Parser {
                     left_brace,
                 );
             }
+            self.listener.handle_enum_header(
+                &mut self.tokens,
+                augment_token,
+                enum_keyword,
+                left_brace,
+            );
             self.listener
-                .handle_enum_header(&self.tokens, augment_token, enum_keyword, left_brace);
-            self.listener.handle_no_enum_body(&self.tokens, left_brace);
+                .handle_no_enum_body(&mut self.tokens, left_brace);
             token = left_brace;
         } else if self.is_a(left_brace, TokenType::OPEN_CURLY_BRACKET) {
-            self.listener
-                .handle_enum_header(&self.tokens, augment_token, enum_keyword, left_brace);
-            self.listener.begin_enum_body(&self.tokens, left_brace);
+            self.listener.handle_enum_header(
+                &mut self.tokens,
+                augment_token,
+                enum_keyword,
+                left_brace,
+            );
+            self.listener.begin_enum_body(&mut self.tokens, left_brace);
             token = left_brace;
             loop {
                 let mut next = self.next(token);
@@ -2655,7 +2686,7 @@ impl Parser {
                 }
             }
             self.listener
-                .handle_enum_elements(&self.tokens, token, element_count);
+                .handle_enum_elements(&mut self.tokens, token, element_count);
             if self.is_a(token, TokenType::SEMICOLON) {
                 while self.not_eof_or_type(TokenType::CLOSE_CURLY_BRACKET, self.next(token)) {
                     token = self.parse_class_or_mixin_or_extension_or_enum_member_impl(
@@ -2670,24 +2701,30 @@ impl Parser {
                     self.tokens.is_eof(token) || self.is_a(token, TokenType::CLOSE_CURLY_BRACKET)
                 );
             }
-            self.listener.end_enum_body(&self.tokens, left_brace, token);
+            self.listener
+                .end_enum_body(&mut self.tokens, left_brace, token);
         } else {
             // TODO(johnniwinther): Avoid parsing the `enum` body in this case.
             left_brace = self.ensure_block(token, Some(BlockKind::enumDeclaration));
+            self.listener.handle_enum_header(
+                &mut self.tokens,
+                augment_token,
+                enum_keyword,
+                left_brace,
+            );
+            self.listener.begin_enum_body(&mut self.tokens, left_brace);
             self.listener
-                .handle_enum_header(&self.tokens, augment_token, enum_keyword, left_brace);
-            self.listener.begin_enum_body(&self.tokens, left_brace);
-            self.listener
-                .handle_enum_elements(&self.tokens, token, element_count);
+                .handle_enum_elements(&mut self.tokens, token, element_count);
             token = self.tokens.end_group(left_brace);
-            self.listener.end_enum_body(&self.tokens, left_brace, token);
+            self.listener
+                .end_enum_body(&mut self.tokens, left_brace, token);
         }
         debug_assert!(
             self.is_a(token, TokenType::CLOSE_CURLY_BRACKET)
                 || self.is_a(token, TokenType::SEMICOLON)
         );
         self.listener.end_enum_declaration(
-            &self.tokens,
+            &mut self.tokens,
             begin_token,
             enum_keyword,
             left_brace,
@@ -2863,12 +2900,11 @@ impl Parser {
             // This is almost a verbatim copy of [parseConstructorReference] inserted
             // to provide better recovery.
             let start = token;
-            self.listener.handle_no_type_name_in_constructor_reference(
-                &self.tokens,
-                self.tokens.next(token),
-            );
+            let next_33 = self.tokens.next(token);
             self.listener
-                .begin_constructor_reference(&self.tokens, start);
+                .handle_no_type_name_in_constructor_reference(&mut self.tokens, next_33);
+            self.listener
+                .begin_constructor_reference(&mut self.tokens, start);
             let type_arg = compute_type_param_or_arg(&mut self.tokens, token, false, false);
             if type_arg != noTypeParamOrArg {
                 has_type_arguments_or_dot = true;
@@ -2885,12 +2921,12 @@ impl Parser {
             } else {
                 self.listener
                     .handle_no_constructor_reference_continuation_after_type_arguments(
-                        &self.tokens,
+                        &mut self.tokens,
                         token,
                     );
             }
             self.listener.end_constructor_reference(
-                &self.tokens,
+                &mut self.tokens,
                 start,
                 period,
                 token,
@@ -2901,10 +2937,10 @@ impl Parser {
         if self.is_a(next, TokenType::OPEN_PAREN) || has_type_arguments_or_dot {
             token = self.parse_constructor_invocation_arguments(token);
         } else {
-            self.listener.handle_no_arguments(&self.tokens, token);
+            self.listener.handle_no_arguments(&mut self.tokens, token);
         }
         self.listener
-            .handle_enum_element(&self.tokens, begin_token, augment_token);
+            .handle_enum_element(&mut self.tokens, begin_token, augment_token);
         token
     }
 
@@ -2922,7 +2958,7 @@ impl Parser {
     ) -> TokenId {
         debug_assert!(self.is_a(class_keyword, kw::CLASS));
         self.listener
-            .begin_class_or_mixin_or_named_mixin_application_prelude(&self.tokens, begin_token);
+            .begin_class_or_mixin_or_named_mixin_application_prelude(&mut self.tokens, begin_token);
         let mut token = class_keyword;
         let mut const_token = NO_TOKEN;
         if self.is_a(self.next(token), kw::CONST) {
@@ -2963,7 +2999,7 @@ impl Parser {
                 );
             }
             self.listener.begin_named_mixin_application(
-                &self.tokens,
+                &mut self.tokens,
                 begin_token,
                 abstract_token,
                 sealed_token,
@@ -2977,7 +3013,7 @@ impl Parser {
             self.parse_named_mixin_application(token, begin_token, class_keyword)
         } else {
             self.listener.begin_class_declaration(
-                &self.tokens,
+                &mut self.tokens,
                 begin_token,
                 abstract_token,
                 sealed_token,
@@ -3012,7 +3048,7 @@ impl Parser {
         }
         token = self.ensure_semicolon(token);
         self.listener.end_named_mixin_application(
-            &self.tokens,
+            &mut self.tokens,
             begin,
             class_keyword,
             equals,
@@ -3047,7 +3083,7 @@ impl Parser {
                 );
             }
             self.listener
-                .handle_no_class_body(&self.tokens, semicolon_token);
+                .handle_no_class_body(&mut self.tokens, semicolon_token);
         } else {
             if !self.is_a(self.next(token), TokenType::OPEN_CURLY_BRACKET) {
                 // Recovery
@@ -3061,7 +3097,7 @@ impl Parser {
             );
         }
         self.listener
-            .end_class_declaration(&self.tokens, begin_token, token);
+            .end_class_declaration(&mut self.tokens, begin_token, token);
         token
     }
 
@@ -3080,7 +3116,7 @@ impl Parser {
             token = self.parse_native_clause(token);
         }
         self.listener
-            .handle_class_header(&self.tokens, begin, class_keyword, native_token);
+            .handle_class_header(&mut self.tokens, begin, class_keyword, native_token);
         token
     }
 
@@ -3231,7 +3267,7 @@ impl Parser {
             }
 
             self.listener
-                .handle_recover_declaration_header(&self.tokens, kind);
+                .handle_recover_declaration_header(&mut self.tokens, kind);
 
             // Exit if a declaration body is detected, or if no progress has been made
             if self.is_a(self.next(token), TokenType::OPEN_CURLY_BRACKET) || start == token {
@@ -3259,9 +3295,9 @@ impl Parser {
         if self.is_a(next, kw::EXTENDS) {
             token = self.parse_class_extends_seen_extends_clause(next, token, kind);
         } else {
-            self.listener.handle_no_type(&self.tokens, token);
+            self.listener.handle_no_type(&mut self.tokens, token);
             self.listener
-                .handle_class_extends(&self.tokens, NO_TOKEN, 1);
+                .handle_class_extends(&mut self.tokens, NO_TOKEN, 1);
         }
         token
     }
@@ -3298,7 +3334,7 @@ impl Parser {
         }
 
         self.listener
-            .handle_class_extends(&self.tokens, extends_keyword, count);
+            .handle_class_extends(&mut self.tokens, extends_keyword, count);
         token
     }
 
@@ -3323,7 +3359,7 @@ impl Parser {
             }
         }
         self.listener
-            .handle_implements(&self.tokens, implements_keyword, interfaces_count);
+            .handle_implements(&mut self.tokens, implements_keyword, interfaces_count);
         token
     }
 
@@ -3345,7 +3381,10 @@ impl Parser {
     ) -> TokenId {
         debug_assert!(self.is_a(mixin_keyword, kw::MIXIN));
         self.listener
-            .begin_class_or_mixin_or_named_mixin_application_prelude(&self.tokens, mixin_keyword);
+            .begin_class_or_mixin_or_named_mixin_application_prelude(
+                &mut self.tokens,
+                mixin_keyword,
+            );
         let mut token = mixin_keyword;
         let mut const_keyword = NO_TOKEN;
         if self.is_a(self.next(token), kw::CONST) {
@@ -3357,7 +3396,7 @@ impl Parser {
         let header_start = compute_type_param_or_arg(&mut self.tokens, name, true, true)
             .parse_variables(name, self);
         self.listener.begin_mixin_declaration(
-            &self.tokens,
+            &mut self.tokens,
             begin_token,
             augment_token,
             base_token,
@@ -3381,7 +3420,7 @@ impl Parser {
                 );
             }
             self.listener
-                .handle_no_mixin_body(&self.tokens, semicolon_token);
+                .handle_no_mixin_body(&mut self.tokens, semicolon_token);
         } else {
             if !self.is_a(self.next(token), TokenType::OPEN_CURLY_BRACKET) {
                 token = self.parse_mixin_header_recovery(
@@ -3400,7 +3439,7 @@ impl Parser {
             );
         }
         self.listener
-            .end_mixin_declaration(&self.tokens, begin_token, token);
+            .end_mixin_declaration(&mut self.tokens, begin_token, token);
         token
     }
 
@@ -3416,7 +3455,7 @@ impl Parser {
         token = self.parse_mixin_on_opt(token, is_augmentation);
         token = self.parse_class_or_mixin_or_enum_implements_opt(token);
         self.listener
-            .handle_mixin_header(&self.tokens, mixin_keyword);
+            .handle_mixin_header(&mut self.tokens, mixin_keyword);
         token
     }
 
@@ -3492,10 +3531,10 @@ impl Parser {
                 self.report_recoverable_error(with_keyword, diag::mixinWithClause);
                 token = self.parse_type_list(with_keyword);
                 self.listener
-                    .handle_mixin_with_clause(&self.tokens, with_keyword);
+                    .handle_mixin_with_clause(&mut self.tokens, with_keyword);
             }
 
-            self.listener.handle_recover_mixin_header(&self.tokens);
+            self.listener.handle_recover_mixin_header(&mut self.tokens);
 
             // Exit if a mixin body is detected, or if no progress has been made
             if self.is_a(self.next(token), TokenType::OPEN_CURLY_BRACKET) || start == token {
@@ -3516,7 +3555,7 @@ impl Parser {
     pub fn parse_mixin_on_opt(&mut self, token: TokenId, is_augmentation: bool) -> TokenId {
         let on_keyword = self.next(token);
         if !self.is_a(on_keyword, kw::ON) {
-            self.listener.handle_mixin_on(&self.tokens, NO_TOKEN, 0);
+            self.listener.handle_mixin_on(&mut self.tokens, NO_TOKEN, 0);
             return token;
         }
         if is_augmentation {
@@ -3544,7 +3583,7 @@ impl Parser {
             }
         }
         self.listener
-            .handle_mixin_on(&self.tokens, on_keyword, type_count);
+            .handle_mixin_on(&mut self.tokens, on_keyword, type_count);
         token
     }
 
@@ -3564,7 +3603,7 @@ impl Parser {
         debug_assert!(self.is_a(extension_keyword, kw::EXTENSION));
         let token = extension_keyword;
         self.listener
-            .begin_extension_declaration_prelude(&self.tokens, extension_keyword);
+            .begin_extension_declaration_prelude(&mut self.tokens, extension_keyword);
         let next = self.next(token);
         if self.tokens.is_identifier(next) && self.tokens.lexeme_string(next) == "type" {
             let type_keyword = next;
@@ -3614,7 +3653,7 @@ impl Parser {
         token = compute_type_param_or_arg(&mut self.tokens, token, true, false)
             .parse_variables(token, self);
         self.listener.begin_extension_declaration(
-            &self.tokens,
+            &mut self.tokens,
             augment_token,
             extension_keyword,
             name,
@@ -3667,7 +3706,7 @@ impl Parser {
                 );
             }
             self.listener
-                .handle_no_extension_body(&self.tokens, semicolon_token);
+                .handle_no_extension_body(&mut self.tokens, semicolon_token);
         } else {
             if !self.is_a(self.next(token), TokenType::OPEN_CURLY_BRACKET) {
                 // Recovery
@@ -3706,7 +3745,7 @@ impl Parser {
             );
         }
         self.listener.end_extension_declaration(
-            &self.tokens,
+            &mut self.tokens,
             begin_token,
             extension_keyword,
             on_keyword,
@@ -3775,7 +3814,7 @@ impl Parser {
             }
 
             self.listener
-                .begin_primary_constructor(&self.tokens, begin_primary_constructor);
+                .begin_primary_constructor(&mut self.tokens, begin_primary_constructor);
             let has_constructor_name = self.is_a(begin_primary_constructor, TokenType::PERIOD);
             if has_constructor_name {
                 token = self.ensure_identifier(
@@ -3795,13 +3834,13 @@ impl Parser {
                     self.report_recoverable_error(token, diag::missingPrimaryConstructorParameters);
                 }
                 self.listener.handle_no_formal_parameters(
-                    &self.tokens,
+                    &mut self.tokens,
                     token,
                     MemberKind::PrimaryConstructor,
                 );
             }
             self.listener.end_primary_constructor(
-                &self.tokens,
+                &mut self.tokens,
                 kind,
                 begin_primary_constructor,
                 token,
@@ -3844,8 +3883,12 @@ impl Parser {
                     self.report_recoverable_error(const_keyword, message);
                 }
             }
-            self.listener
-                .handle_no_primary_constructor(&self.tokens, kind, token, const_keyword);
+            self.listener.handle_no_primary_constructor(
+                &mut self.tokens,
+                kind,
+                token,
+                const_keyword,
+            );
         }
         token
     }
@@ -3862,7 +3905,7 @@ impl Parser {
         };
         let this_token = token;
         self.listener
-            .begin_primary_constructor_body(&self.tokens, token, augment_token);
+            .begin_primary_constructor_body(&mut self.tokens, token, augment_token);
         let mut before_initializers = token;
         token = self.parse_initializers_opt(before_initializers);
         if token == before_initializers {
@@ -3888,7 +3931,7 @@ impl Parser {
             self.next(before_initializers)
         };
         self.listener.end_primary_constructor_body(
-            &self.tokens,
+            &mut self.tokens,
             begin_token,
             this_token,
             after_initializers,
@@ -3937,7 +3980,7 @@ impl Parser {
         token = compute_type_param_or_arg(&mut self.tokens, token, true, false)
             .parse_variables(token, self);
         self.listener.begin_extension_type_declaration(
-            &self.tokens,
+            &mut self.tokens,
             augment_token,
             extension_keyword,
             name,
@@ -3961,7 +4004,7 @@ impl Parser {
                 );
             }
             self.listener
-                .handle_no_extension_type_body(&self.tokens, semicolon_token);
+                .handle_no_extension_type_body(&mut self.tokens, semicolon_token);
         } else {
             if !self.is_a(self.next(token), TokenType::OPEN_CURLY_BRACKET) {
                 token = self.parse_extension_type_header_recovery(start, extension_keyword);
@@ -3975,7 +4018,7 @@ impl Parser {
             );
         }
         self.listener.end_extension_type_declaration(
-            &self.tokens,
+            &mut self.tokens,
             begin_token,
             augment_token,
             extension_keyword,
@@ -3999,7 +4042,7 @@ impl Parser {
             );
             next = self.rewriter().insert_token(token, string);
         }
-        self.listener.handle_string_part(&self.tokens, next);
+        self.listener.handle_string_part(&mut self.tokens, next);
         next
     }
 
@@ -4044,7 +4087,7 @@ impl Parser {
             debug_assert!(self.tokens.is_keyword_or_identifier(identifier));
         }
         self.listener
-            .handle_identifier(&self.tokens, identifier, context);
+            .handle_identifier(&mut self.tokens, identifier, context);
         identifier
     }
 
@@ -4096,7 +4139,7 @@ impl Parser {
             .string_token(TokenType::IDENTIFIER, lexeme, offset);
         let replacement_token = self.rewriter().replace_token_following(token, string);
         self.listener
-            .handle_new_as_identifier(&self.tokens, replacement_token);
+            .handle_new_as_identifier(&mut self.tokens, replacement_token);
     }
 
     /// Parse a simple identifier at the given [token], and return the identifier
@@ -4119,7 +4162,7 @@ impl Parser {
             debug_assert!(self.tokens.is_keyword_or_identifier(identifier));
         }
         self.listener
-            .handle_identifier(&self.tokens, identifier, context);
+            .handle_identifier(&mut self.tokens, identifier, context);
         identifier
     }
 
@@ -4147,7 +4190,7 @@ impl Parser {
     pub fn parse_top_level_member_impl(&mut self, mut token: TokenId) -> TokenId {
         let before_start = token;
         let mut next = self.next(token);
-        self.listener.begin_top_level_member(&self.tokens, next);
+        self.listener.begin_top_level_member(&mut self.tokens, next);
 
         let skipped_non_late_late = NO_TOKEN;
 
@@ -4318,7 +4361,7 @@ impl Parser {
                     }
                     // Ignore any preceding modifiers and just report the unexpected token
                     self.listener
-                        .handle_invalid_top_level_declaration(&self.tokens, next);
+                        .handle_invalid_top_level_declaration(&mut self.tokens, next);
                     return next;
                 }
                 // Fall through and continue parsing
@@ -4430,7 +4473,7 @@ impl Parser {
         name_is_recovered: bool,
     ) -> TokenId {
         self.listener.begin_fields(
-            &self.tokens,
+            &mut self.tokens,
             kind,
             augment_token,
             abstract_token,
@@ -4552,7 +4595,7 @@ impl Parser {
         let begin = self.next(before_start);
         if kind == DeclarationKind::TopLevel {
             self.listener.end_top_level_fields(
-                &self.tokens,
+                &mut self.tokens,
                 augment_token,
                 abstract_token,
                 external_token,
@@ -4566,7 +4609,7 @@ impl Parser {
             );
         } else {
             self.listener.end_fields(
-                &self.tokens,
+                &mut self.tokens,
                 kind,
                 abstract_token,
                 augment_token,
@@ -4595,7 +4638,7 @@ impl Parser {
         name_is_recovered: bool,
     ) -> TokenId {
         self.listener.begin_top_level_method(
-            &self.tokens,
+            &mut self.tokens,
             before_start,
             augment_token,
             external_token,
@@ -4627,8 +4670,9 @@ impl Parser {
         } else {
             is_getter = self.is_a(get_or_set, kw::GET);
             token = name;
+            let next_32 = self.tokens.next(token);
             self.listener
-                .handle_no_type_variables(&self.tokens, self.tokens.next(token));
+                .handle_no_type_variables(&mut self.tokens, next_32);
         }
         token = self.parse_getter_or_formal_parameters(
             token,
@@ -4651,7 +4695,7 @@ impl Parser {
         self.async_state = saved_async_modifier;
         let begin = self.next(before_start);
         self.listener
-            .end_top_level_method(&self.tokens, begin, get_or_set, token);
+            .end_top_level_method(&mut self.tokens, begin, get_or_set, token);
         token
     }
 
@@ -4692,10 +4736,11 @@ impl Parser {
         let next = self.next(token);
         if self.is_a(next, TokenType::EQ) {
             let assignment = next;
-            self.listener.begin_field_initializer(&self.tokens, next);
+            self.listener
+                .begin_field_initializer(&mut self.tokens, next);
             token = self.parse_expression(next);
             self.listener
-                .end_field_initializer(&self.tokens, assignment, token);
+                .end_field_initializer(&mut self.tokens, assignment, token);
         } else {
             if var_final_or_const != NO_TOKEN && !self.tokens.is_synthetic(name) {
                 if self.is_a(var_final_or_const, kw::CONST) {
@@ -4715,8 +4760,9 @@ impl Parser {
                     self.report_recoverable_error(name, message);
                 }
             }
+            let next_31 = self.tokens.next(token);
             self.listener
-                .handle_no_field_initializer(&self.tokens, self.tokens.next(token));
+                .handle_no_field_initializer(&mut self.tokens, next_31);
         }
         token
     }
@@ -4725,13 +4771,13 @@ impl Parser {
         if self.is_a(self.next(token), TokenType::EQ) {
             let assignment = self.next(token);
             self.listener
-                .begin_variable_initializer(&self.tokens, assignment);
+                .begin_variable_initializer(&mut self.tokens, assignment);
             token = self.parse_expression(assignment);
             self.listener
-                .end_variable_initializer(&self.tokens, assignment);
+                .end_variable_initializer(&mut self.tokens, assignment);
         } else {
             self.listener
-                .handle_no_variable_initializer(&self.tokens, token);
+                .handle_no_variable_initializer(&mut self.tokens, token);
         }
         token
     }
@@ -4741,7 +4787,7 @@ impl Parser {
             let next = self.next(token);
             self.parse_initializers(next)
         } else {
-            self.listener.handle_no_initializers(&self.tokens);
+            self.listener.handle_no_initializers(&mut self.tokens);
             token
         }
     }
@@ -4754,7 +4800,7 @@ impl Parser {
     pub fn parse_initializers(&mut self, mut token: TokenId) -> TokenId {
         let begin = token;
         debug_assert!(self.is_a(begin, TokenType::COLON));
-        self.listener.begin_initializers(&self.tokens, begin);
+        self.listener.begin_initializers(&mut self.tokens, begin);
         let mut count = 0;
         let old = self.may_parse_function_expressions;
         self.may_parse_function_expressions = false;
@@ -4805,7 +4851,7 @@ impl Parser {
         }
         self.may_parse_function_expressions = old;
         self.listener
-            .end_initializers(&self.tokens, count, begin, token);
+            .end_initializers(&mut self.tokens, count, begin, token);
         token
     }
 
@@ -4822,11 +4868,11 @@ impl Parser {
     /// ```
     pub fn parse_initializer(&mut self, mut token: TokenId) -> TokenId {
         let mut next = self.next(token);
-        self.listener.begin_initializer(&self.tokens, next);
+        self.listener.begin_initializer(&mut self.tokens, next);
         let before_expression = token;
         if self.is_a(next, kw::ASSERT) {
             token = self.parse_assert(token, Assert::Initializer);
-            self.listener.end_initializer(&self.tokens, token);
+            self.listener.end_initializer(&mut self.tokens, token);
             return token;
         } else if self.is_a(next, kw::SUPER) {
             return self.parse_super_initializer_expression(token);
@@ -4985,7 +5031,7 @@ impl Parser {
 
     pub fn parse_initializer_expression_rest(&mut self, token: TokenId) -> TokenId {
         let token = self.parse_expression(token);
-        self.listener.end_initializer(&self.tokens, token);
+        self.listener.end_initializer(&mut self.tokens, token);
         token
     }
 
@@ -5187,7 +5233,7 @@ impl Parser {
             token = self.parse_literal_string(token);
         }
         self.listener
-            .handle_native_clause(&self.tokens, native_token, has_name);
+            .handle_native_clause(&mut self.tokens, native_token, has_name);
         self.report_recoverable_error(native_token, diag::nativeClauseShouldBeAnnotation);
         token
     }
@@ -5215,7 +5261,7 @@ impl Parser {
         let begin = token;
         debug_assert!(self.is_a(token, TokenType::OPEN_CURLY_BRACKET));
         self.listener
-            .begin_class_or_mixin_or_extension_body(&self.tokens, kind, token);
+            .begin_class_or_mixin_or_extension_body(&mut self.tokens, kind, token);
         let mut count = 0;
         while self.not_eof_or_type(TokenType::CLOSE_CURLY_BRACKET, self.next(token)) {
             token = self.parse_class_or_mixin_or_extension_or_enum_member_impl(
@@ -5229,8 +5275,13 @@ impl Parser {
         debug_assert!(
             self.tokens.is_eof(token) || self.is_a(token, TokenType::CLOSE_CURLY_BRACKET)
         );
-        self.listener
-            .end_class_or_mixin_or_extension_body(&self.tokens, kind, count, begin, token);
+        self.listener.end_class_or_mixin_or_extension_body(
+            &mut self.tokens,
+            kind,
+            count,
+            begin,
+            token,
+        );
         token
     }
 
@@ -5424,7 +5475,7 @@ impl Parser {
             late_token = skipped_non_late_late;
         }
 
-        self.listener.begin_member(&self.tokens);
+        self.listener.begin_member(&mut self.tokens);
 
         let before_type = token;
         if var_final_or_const != NO_TOKEN && !self.is_a(var_final_or_const, kw::CONST) {
@@ -5457,7 +5508,7 @@ impl Parser {
                     enclosing_declaration_name,
                     true,
                 );
-                self.listener.end_member(&self.tokens);
+                self.listener.end_member(&mut self.tokens);
                 return token;
             }
         }
@@ -5521,7 +5572,7 @@ impl Parser {
                         var_final_or_const,
                         true,
                     );
-                    self.listener.end_member(&self.tokens);
+                    self.listener.end_member(&mut self.tokens);
                     return token;
                 } else if self.is_primary_constructors_feature_enabled
                     && self.is_a(next2, TokenType::OPEN_PAREN)
@@ -5549,7 +5600,7 @@ impl Parser {
                             var_final_or_const,
                             false,
                         );
-                        self.listener.end_member(&self.tokens);
+                        self.listener.end_member(&mut self.tokens);
                         return token;
                     }
                 }
@@ -5579,7 +5630,7 @@ impl Parser {
                         enclosing_declaration_name,
                         name_is_recovered,
                     );
-                    self.listener.end_member(&self.tokens);
+                    self.listener.end_member(&mut self.tokens);
                     return token;
                 } else if self.is_a(next2, TokenType::EQ_EQ_EQ)
                     || self.is_a(next2, TokenType::BANG_EQ_EQ)
@@ -5622,7 +5673,7 @@ impl Parser {
                         enclosing_declaration_name,
                         name_is_recovered,
                     );
-                    self.listener.end_member(&self.tokens);
+                    self.listener.end_member(&mut self.tokens);
                     return token;
                 }
                 // Fall through to continue parsing `operator` as an identifier.
@@ -5657,7 +5708,7 @@ impl Parser {
                         }
                     }
                     token = self.parse_primary_constructor_body(next, augment_token);
-                    self.listener.end_member(&self.tokens);
+                    self.listener.end_member(&mut self.tokens);
                     return token;
                 }
             } else if !self.tokens.is_identifier(next)
@@ -5771,7 +5822,7 @@ impl Parser {
                 name_is_recovered,
             );
         }
-        self.listener.end_member(&self.tokens);
+        self.listener.end_member(&mut self.tokens);
         token
     }
 
@@ -5931,7 +5982,7 @@ impl Parser {
         // rather than passing the name token into beginMethod.
         if is_constructor {
             self.listener.begin_constructor(
-                &self.tokens,
+                &mut self.tokens,
                 kind,
                 augment_token,
                 external_token,
@@ -5945,7 +5996,7 @@ impl Parser {
             );
         } else {
             self.listener.begin_method(
-                &self.tokens,
+                &mut self.tokens,
                 kind,
                 augment_token,
                 external_token,
@@ -5973,7 +6024,7 @@ impl Parser {
                 token = next;
                 let identifier = token;
                 self.listener.handle_identifier(
-                    &self.tokens,
+                    &mut self.tokens,
                     identifier,
                     IdentifierContext::methodDeclaration,
                 );
@@ -5991,7 +6042,7 @@ impl Parser {
                 let identifier = token;
                 self.report_recoverable_error(identifier, diag::newConstructorNewName);
                 self.listener.handle_identifier(
-                    &self.tokens,
+                    &mut self.tokens,
                     identifier,
                     IdentifierContext::methodDeclaration,
                 );
@@ -6003,7 +6054,7 @@ impl Parser {
                 token = self.next(dot);
                 let identifier = token;
                 self.listener.handle_identifier(
-                    &self.tokens,
+                    &mut self.tokens,
                     identifier,
                     IdentifierContext::methodDeclaration,
                 );
@@ -6018,7 +6069,7 @@ impl Parser {
                 token = qualified;
             } else {
                 self.listener.handle_no_identifier(
-                    &self.tokens,
+                    &mut self.tokens,
                     token,
                     IdentifierContext::methodDeclaration,
                 );
@@ -6042,8 +6093,9 @@ impl Parser {
             token = self.parse_method_type_var(token);
         } else {
             is_considered_getter = self.is_a(get_or_set, kw::GET);
+            let next_30 = self.tokens.next(token);
             self.listener
-                .handle_no_type_variables(&self.tokens, self.tokens.next(token));
+                .handle_no_type_variables(&mut self.tokens, next_30);
 
             // If it becomes considered a constructor below, don't consider it a
             // getter now (this also enforces parenthesis (and thus parameters)).
@@ -6158,7 +6210,7 @@ impl Parser {
             let begin = self.next(before_start);
             let param = self.next(before_param);
             self.listener.end_constructor(
-                &self.tokens,
+                &mut self.tokens,
                 kind,
                 begin,
                 new_token,
@@ -6177,7 +6229,7 @@ impl Parser {
             let begin = self.next(before_start);
             let param = self.next(before_param);
             self.listener.end_method(
-                &self.tokens,
+                &mut self.tokens,
                 kind,
                 get_or_set,
                 begin,
@@ -6230,7 +6282,7 @@ impl Parser {
         }
 
         self.listener.begin_factory(
-            &self.tokens,
+            &mut self.tokens,
             kind,
             before_start,
             augment_token,
@@ -6239,7 +6291,7 @@ impl Parser {
         );
         if !has_name {
             self.listener.handle_no_identifier(
-                &self.tokens,
+                &mut self.tokens,
                 token,
                 IdentifierContext::methodDeclaration,
             );
@@ -6250,7 +6302,7 @@ impl Parser {
             let identifier = token;
             self.report_recoverable_error(identifier, diag::factoryConstructorNewName);
             self.listener.handle_identifier(
-                &self.tokens,
+                &mut self.tokens,
                 identifier,
                 IdentifierContext::methodDeclaration,
             );
@@ -6281,7 +6333,7 @@ impl Parser {
             if var_final_or_const != NO_TOKEN && !self.is_a(next, kw::NATIVE) {
                 if self.is_a(var_final_or_const, kw::CONST) {
                     self.listener
-                        .handle_const_factory(&self.tokens, var_final_or_const);
+                        .handle_const_factory(&mut self.tokens, var_final_or_const);
                 }
             }
             let allow_abstract = self.is_augmentations_feature_enabled;
@@ -6299,7 +6351,7 @@ impl Parser {
         }
         let begin = self.next(before_start);
         self.listener
-            .end_factory(&self.tokens, kind, begin, factory_keyword, token);
+            .end_factory(&mut self.tokens, kind, begin, factory_keyword, token);
         token
     }
 
@@ -6314,14 +6366,14 @@ impl Parser {
                 // `operator` is being used as an identifier.
                 // For example: `int operator<T>(foo) => 0;`
                 self.listener.handle_identifier(
-                    &self.tokens,
+                    &mut self.tokens,
                     token,
                     IdentifierContext::methodDeclaration,
                 );
                 token
             } else {
                 self.listener
-                    .handle_operator_name(&self.tokens, token, next);
+                    .handle_operator_name(&mut self.tokens, token, next);
                 next
             }
         } else if self.is_a(next, TokenType::OPEN_PAREN) {
@@ -6331,7 +6383,7 @@ impl Parser {
             self.report_recoverable_error_with_token(next, diag::unexpectedToken);
             next = self.next(next);
             self.listener
-                .handle_operator_name(&self.tokens, token, next);
+                .handle_operator_name(&mut self.tokens, token, next);
             next
         } else {
             // Recovery
@@ -6344,7 +6396,7 @@ impl Parser {
                 self.report_recoverable_error_with_token(next, diag::invalidOperator);
             }
             self.listener
-                .handle_invalid_operator_name(&self.tokens, token, next);
+                .handle_invalid_operator_name(&mut self.tokens, token, next);
             next
         }
     }
@@ -6352,11 +6404,11 @@ impl Parser {
     pub fn parse_function_expression(&mut self, mut token: TokenId) -> TokenId {
         let begin_token = self.next(token);
         self.listener
-            .begin_function_expression(&self.tokens, begin_token);
+            .begin_function_expression(&mut self.tokens, begin_token);
         token = self.parse_formal_parameters_required_opt(token, MemberKind::Local);
         token = self.parse_async_opt_body(token, true, false);
         self.listener
-            .end_function_expression(&self.tokens, begin_token, token);
+            .end_function_expression(&mut self.tokens, begin_token, token);
         token
     }
 
@@ -6370,8 +6422,9 @@ impl Parser {
         _context: &'static IdentifierContext,
     ) -> TokenId {
         let formals = type_param.parse_variables(name, self);
+        let next_29 = self.tokens.next(start);
         self.listener
-            .begin_named_function_expression(&self.tokens, self.tokens.next(start));
+            .begin_named_function_expression(&mut self.tokens, next_29);
         type_info.parse_type(start, self);
         let begin = self.next(start);
         self.parse_named_function_rest(before_name, begin, formals, true)
@@ -6394,7 +6447,7 @@ impl Parser {
         is_function_expression: bool,
     ) -> TokenId {
         let mut token = self.next(before_name);
-        self.listener.begin_function_name(&self.tokens, token);
+        self.listener.begin_function_name(&mut self.tokens, token);
         token = self.ensure_identifier(before_name, IdentifierContext::localFunctionDeclaration);
         token = self.next(token);
         if is_function_expression {
@@ -6402,16 +6455,16 @@ impl Parser {
             self.report_recoverable_error(next, diag::namedFunctionExpression);
         }
         self.listener
-            .end_function_name(&self.tokens, begin, token, is_function_expression);
+            .end_function_name(&mut self.tokens, begin, token, is_function_expression);
         token = self.parse_formal_parameters_required_opt(formals, MemberKind::Local);
         token = self.parse_initializers_opt(token);
         token = self.parse_async_opt_body(token, is_function_expression, false);
         if is_function_expression {
             self.listener
-                .end_named_function_expression(&self.tokens, token);
+                .end_named_function_expression(&mut self.tokens, token);
         } else {
             self.listener
-                .end_local_function_declaration(&self.tokens, token);
+                .end_local_function_declaration(&mut self.tokens, token);
         }
         token
     }
@@ -6446,7 +6499,7 @@ impl Parser {
         // any change here should be added there too.
         let start = self.ensure_identifier(token, IdentifierContext::constructorReference);
         self.listener
-            .begin_constructor_reference(&self.tokens, start);
+            .begin_constructor_reference(&mut self.tokens, start);
         let mut token = self
             .parse_qualified_rest_opt(start, IdentifierContext::constructorReferenceContinuation);
         let type_arg = match type_arg {
@@ -6464,12 +6517,12 @@ impl Parser {
         } else {
             self.listener
                 .handle_no_constructor_reference_continuation_after_type_arguments(
-                    &self.tokens,
+                    &mut self.tokens,
                     token,
                 );
         }
         self.listener.end_constructor_reference(
-            &self.tokens,
+            &mut self.tokens,
             start,
             period,
             token,
@@ -6482,7 +6535,7 @@ impl Parser {
         token = self.next(token);
         debug_assert!(self.is_a(token, TokenType::EQ));
         self.listener
-            .begin_redirecting_factory_body(&self.tokens, token);
+            .begin_redirecting_factory_body(&mut self.tokens, token);
         let equals = token;
         token = self.parse_constructor_reference(
             token,
@@ -6491,7 +6544,7 @@ impl Parser {
         );
         token = self.ensure_semicolon(token);
         self.listener
-            .end_redirecting_factory_body(&self.tokens, equals, token);
+            .end_redirecting_factory_body(&mut self.tokens, equals, token);
         token
     }
 
@@ -6512,12 +6565,15 @@ impl Parser {
             token = self.parse_native_clause(token);
             next = self.next(token);
             if self.is_a(next, TokenType::SEMICOLON) {
-                self.listener
-                    .handle_native_function_body_skipped(&self.tokens, native_token, next);
+                self.listener.handle_native_function_body_skipped(
+                    &mut self.tokens,
+                    native_token,
+                    next,
+                );
                 return self.next(token);
             }
             self.listener
-                .handle_native_function_body_ignored(&self.tokens, native_token, next);
+                .handle_native_function_body_ignored(&mut self.tokens, native_token, next);
             // Fall through to recover and skip function body
         }
         let value = self.sv(next);
@@ -6526,7 +6582,8 @@ impl Parser {
             if !allow_abstract {
                 self.report_recoverable_error(token, diag::expectedBody);
             }
-            self.listener.handle_no_function_body(&self.tokens, token);
+            self.listener
+                .handle_no_function_body(&mut self.tokens, token);
         } else if value == Some("=>") {
             let begin_token = next;
             token = self.parse_expression(next);
@@ -6534,7 +6591,7 @@ impl Parser {
                 token = self.next(token);
             }
             self.listener
-                .handle_function_body_skipped(&self.tokens, begin_token, token, true);
+                .handle_function_body_skipped(&mut self.tokens, begin_token, token, true);
         } else if value == Some("=") {
             token = next;
             let begin_token = token;
@@ -6545,12 +6602,12 @@ impl Parser {
                 token = self.next(token);
             }
             self.listener
-                .handle_function_body_skipped(&self.tokens, begin_token, token, true);
+                .handle_function_body_skipped(&mut self.tokens, begin_token, token, true);
         } else {
             let begin_token = self.next(token);
             token = self.skip_block(token);
             self.listener
-                .handle_function_body_skipped(&self.tokens, begin_token, token, false);
+                .handle_function_body_skipped(&mut self.tokens, begin_token, token, false);
         }
         token
     }
@@ -6577,19 +6634,20 @@ impl Parser {
             next = self.next(token);
             if self.is_a(next, TokenType::SEMICOLON) {
                 self.listener
-                    .handle_native_function_body(&self.tokens, native_token, next);
+                    .handle_native_function_body(&mut self.tokens, native_token, next);
                 return next;
             }
             self.report_recoverable_error(next, diag::externalMethodWithBody);
             self.listener
-                .handle_native_function_body_ignored(&self.tokens, native_token, next);
+                .handle_native_function_body_ignored(&mut self.tokens, native_token, next);
             // Fall through to recover and parse function body
         }
         if self.is_a(next, TokenType::SEMICOLON) {
             if !allow_abstract {
                 self.report_recoverable_error(next, diag::expectedBody);
             }
-            self.listener.handle_empty_function_body(&self.tokens, next);
+            self.listener
+                .handle_empty_function_body(&mut self.tokens, next);
             return next;
         } else if self.is_a(next, TokenType::FUNCTION) {
             return self.parse_expression_function_body(next, of_function_expression);
@@ -6604,10 +6662,10 @@ impl Parser {
             if !of_function_expression {
                 token = self.ensure_semicolon(token);
                 self.listener
-                    .handle_expression_function_body(&self.tokens, begin, token);
+                    .handle_expression_function_body(&mut self.tokens, begin, token);
             } else {
                 self.listener
-                    .handle_expression_function_body(&self.tokens, begin, NO_TOKEN);
+                    .handle_expression_function_body(&mut self.tokens, begin, NO_TOKEN);
             }
             return token;
         }
@@ -6645,14 +6703,15 @@ impl Parser {
             } else {
                 token = self.ensure_block(token, Some(BlockKind::functionBody));
                 self.listener
-                    .handle_invalid_function_body(&self.tokens, token);
+                    .handle_invalid_function_body(&mut self.tokens, token);
                 return self.tokens.end_group(token);
             }
         }
 
         let saved_loop_state = self.loop_state;
         self.loop_state = LoopState::OutsideLoop;
-        self.listener.begin_block_function_body(&self.tokens, begin);
+        self.listener
+            .begin_block_function_body(&mut self.tokens, begin);
         token = next;
         while self.not_eof_or_type(TokenType::CLOSE_CURLY_BRACKET, self.next(token)) {
             let start_token = self.next(token);
@@ -6670,7 +6729,7 @@ impl Parser {
             self.tokens.is_eof(token) || self.is_a(token, TokenType::CLOSE_CURLY_BRACKET)
         );
         self.listener
-            .end_block_function_body(&self.tokens, statement_count, begin, token);
+            .end_block_function_body(&mut self.tokens, statement_count, begin, token);
         self.loop_state = saved_loop_state;
         token
     }
@@ -6686,15 +6745,15 @@ impl Parser {
         if !of_function_expression {
             token = self.ensure_semicolon(token);
             self.listener
-                .handle_expression_function_body(&self.tokens, begin, token);
+                .handle_expression_function_body(&mut self.tokens, begin, token);
         } else {
             self.listener
-                .handle_expression_function_body(&self.tokens, begin, NO_TOKEN);
+                .handle_expression_function_body(&mut self.tokens, begin, NO_TOKEN);
         }
         if self.in_generator() {
             let message = diag::generatorReturnsValue.message();
             self.listener
-                .handle_invalid_statement(&self.tokens, begin, &message);
+                .handle_invalid_statement(&mut self.tokens, begin, &message);
         }
         token
     }
@@ -6739,7 +6798,7 @@ impl Parser {
             }
         }
         self.listener
-            .handle_async_modifier(&self.tokens, async_, star);
+            .handle_async_modifier(&mut self.tokens, async_, star);
         if !self.in_plain_sync() && self.is_a(self.next(token), TokenType::SEMICOLON) {
             let next = self.next(token);
             self.report_recoverable_error(next, diag::abstractNotSync);
@@ -6873,7 +6932,7 @@ impl Parser {
         token = self.next(token);
         let begin = token;
         debug_assert!(self.is_a(token, kw::YIELD));
-        self.listener.begin_yield_statement(&self.tokens, begin);
+        self.listener.begin_yield_statement(&mut self.tokens, begin);
         let mut star_token = NO_TOKEN;
         if self.is_a(self.next(token), TokenType::STAR) {
             token = self.next(token);
@@ -6883,11 +6942,11 @@ impl Parser {
         token = self.ensure_semicolon(token);
         if self.in_generator() {
             self.listener
-                .end_yield_statement(&self.tokens, begin, star_token, token);
+                .end_yield_statement(&mut self.tokens, begin, star_token, token);
         } else {
             self.report_recoverable_error(begin, diag::yieldNotGenerator);
             self.listener.end_invalid_yield_statement(
-                &self.tokens,
+                &mut self.tokens,
                 begin,
                 star_token,
                 token,
@@ -6906,21 +6965,22 @@ impl Parser {
         token = self.next(token);
         let begin = token;
         debug_assert!(self.is_a(token, kw::RETURN));
-        self.listener.begin_return_statement(&self.tokens, begin);
+        self.listener
+            .begin_return_statement(&mut self.tokens, begin);
         let next = self.next(token);
         if self.is_a(next, TokenType::SEMICOLON) {
             self.listener
-                .end_return_statement(&self.tokens, false, begin, next);
+                .end_return_statement(&mut self.tokens, false, begin, next);
             return next;
         }
         token = self.parse_expression(token);
         token = self.ensure_semicolon(token);
         self.listener
-            .end_return_statement(&self.tokens, true, begin, token);
+            .end_return_statement(&mut self.tokens, true, begin, token);
         if self.in_generator() {
             let message = diag::generatorReturnsValue.message();
             self.listener
-                .handle_invalid_statement(&self.tokens, begin, &message);
+                .handle_invalid_statement(&mut self.tokens, begin, &message);
         }
         token
     }
@@ -6935,7 +6995,7 @@ impl Parser {
         let token = self.ensure_identifier(token, IdentifierContext::labelDeclaration);
         let token = self.next(token);
         debug_assert!(self.is_a(token, TokenType::COLON));
-        self.listener.handle_label(&self.tokens, token);
+        self.listener.handle_label(&mut self.tokens, token);
         token
     }
 
@@ -6957,10 +7017,10 @@ impl Parser {
             }
         }
         self.listener
-            .begin_labeled_statement(&self.tokens, next, label_count);
+            .begin_labeled_statement(&mut self.tokens, next, label_count);
         token = self.parse_statement(token);
         self.listener
-            .end_labeled_statement(&self.tokens, label_count);
+            .end_labeled_statement(&mut self.tokens, label_count);
         token
     }
 
@@ -6981,7 +7041,7 @@ impl Parser {
         token = self.parse_expression(token);
         token = self.ensure_semicolon(token);
         self.listener
-            .handle_expression_statement(&self.tokens, begin_token, token);
+            .handle_expression_statement(&mut self.tokens, begin_token, token);
         token
     }
 
@@ -7017,8 +7077,11 @@ impl Parser {
             }
             if !self.tokens.is_eof(token) {
                 token = self.rewriter().insert_synthetic_identifier(token);
-                self.listener
-                    .handle_identifier(&self.tokens, token, IdentifierContext::expression);
+                self.listener.handle_identifier(
+                    &mut self.tokens,
+                    token,
+                    IdentifierContext::expression,
+                );
             }
         } else {
             token = self.parse_expression_impl(token, true);
@@ -7090,14 +7153,14 @@ impl Parser {
         let question = token;
         debug_assert!(self.is_a(question, TokenType::QUESTION));
         self.listener
-            .begin_conditional_expression(&self.tokens, token);
+            .begin_conditional_expression(&mut self.tokens, token);
         token = self.parse_expression_without_cascade(token);
         let colon = self.ensure_colon(token);
         self.listener
-            .handle_conditional_expression_colon(&self.tokens);
+            .handle_conditional_expression_colon(&mut self.tokens);
         token = self.parse_expression_without_cascade(colon);
         self.listener
-            .end_conditional_expression(&self.tokens, question, colon, token);
+            .end_conditional_expression(&mut self.tokens, question, colon, token);
         token
     }
 
@@ -7138,13 +7201,14 @@ impl Parser {
                 let const_keyword = next_token;
                 let dot = self.next(next_token);
                 self.listener
-                    .begin_const_dot_shorthand(&self.tokens, const_keyword);
+                    .begin_const_dot_shorthand(&mut self.tokens, const_keyword);
                 token = self.ensure_identifier(dot, IdentifierContext::expressionContinuation);
-                self.listener.handle_dot_shorthand_head(&self.tokens, dot);
                 self.listener
-                    .end_const_dot_shorthand(&self.tokens, const_keyword);
+                    .handle_dot_shorthand_head(&mut self.tokens, dot);
                 self.listener
-                    .handle_dot_shorthand_context(&self.tokens, dot);
+                    .end_const_dot_shorthand(&mut self.tokens, const_keyword);
+                self.listener
+                    .handle_dot_shorthand_context(&mut self.tokens, dot);
                 return token;
             }
             if self.is_a(next_token, TokenType::PERIOD) {
@@ -7152,9 +7216,9 @@ impl Parser {
                 token =
                     self.ensure_identifier(next_token, IdentifierContext::expressionContinuation);
                 self.listener
-                    .handle_dot_shorthand_head(&self.tokens, next_token);
+                    .handle_dot_shorthand_head(&mut self.tokens, next_token);
                 self.listener
-                    .handle_dot_shorthand_context(&self.tokens, next_token);
+                    .handle_dot_shorthand_context(&mut self.tokens, next_token);
             } else {
                 token =
                     self.parse_unary_expression(token, allow_cascades, constant_pattern_context);
@@ -7169,7 +7233,7 @@ impl Parser {
             // For example a(b)<T>(c), where token is before '<'.
             if self.is_a(bang_token, TokenType::BANG) {
                 self.listener
-                    .handle_non_null_assert_expression(&self.tokens, bang_token);
+                    .handle_non_null_assert_expression(&mut self.tokens, bang_token);
             }
             token = type_arg.parse_arguments(bang_token, self);
             if !self.is_a(self.next(token), TokenType::OPEN_PAREN) {
@@ -7177,8 +7241,9 @@ impl Parser {
                     let next = self.next(bang_token);
                     self.report_recoverable_error(next, diag::invalidConstantPatternGeneric);
                 }
+                let next_28 = self.tokens.next(bang_token);
                 self.listener
-                    .handle_type_argument_application(&self.tokens, self.tokens.next(bang_token));
+                    .handle_type_argument_application(&mut self.tokens, next_28);
                 type_arg = noTypeParamOrArg;
             }
         }
@@ -7220,15 +7285,16 @@ impl Parser {
             // const .foo() or const .new()
             let dot = self.next(next_token);
             self.listener
-                .begin_const_dot_shorthand(&self.tokens, next_token);
+                .begin_const_dot_shorthand(&mut self.tokens, next_token);
             token = self.parse_primary(
                 dot,
                 IdentifierContext::expressionContinuation,
                 constant_pattern_context,
             );
-            self.listener.handle_dot_shorthand_head(&self.tokens, dot);
             self.listener
-                .end_const_dot_shorthand(&self.tokens, next_token);
+                .handle_dot_shorthand_head(&mut self.tokens, dot);
+            self.listener
+                .end_const_dot_shorthand(&mut self.tokens, next_token);
             token = self.parse_precedence_expression_loop(
                 SELECTOR_PRECEDENCE,
                 allow_cascades,
@@ -7238,7 +7304,7 @@ impl Parser {
                 false,
             );
             self.listener
-                .handle_dot_shorthand_context(&self.tokens, dot);
+                .handle_dot_shorthand_context(&mut self.tokens, dot);
         } else {
             // .foo or .new
             let dot = self.next(token);
@@ -7253,11 +7319,11 @@ impl Parser {
             let next = self.next(token);
             if self.is_a(next, TokenType::BANG) {
                 self.listener
-                    .handle_non_null_assert_expression(&self.tokens, next);
+                    .handle_non_null_assert_expression(&mut self.tokens, next);
                 token = next;
             }
             self.listener
-                .handle_dot_shorthand_context(&self.tokens, dot);
+                .handle_dot_shorthand_context(&mut self.tokens, dot);
         }
         token
     }
@@ -7374,7 +7440,7 @@ impl Parser {
             let mut operator = next;
             if cascade_section_count > 0 && token_level != CASCADE_PRECEDENCE {
                 self.listener
-                    .handle_cascade_expression_end(&self.tokens, cascade_section_count);
+                    .handle_cascade_expression_end(&mut self.tokens, cascade_section_count);
                 cascade_section_count = 0;
             }
             if token_level == CASCADE_PRECEDENCE {
@@ -7407,17 +7473,16 @@ impl Parser {
                 }
                 token = self.parse_expression_impl(next, allow_cascades);
                 self.listener
-                    .handle_assignment_expression(&self.tokens, operator, token);
+                    .handle_assignment_expression(&mut self.tokens, operator, token);
             } else if token_level == POSTFIX_PRECEDENCE {
                 if type_ == TokenType::PLUS_PLUS || type_ == TokenType::MINUS_MINUS {
-                    self.listener.handle_unary_postfix_assignment_expression(
-                        &self.tokens,
-                        self.tokens.next(token),
-                    );
+                    let next_27 = self.tokens.next(token);
+                    self.listener
+                        .handle_unary_postfix_assignment_expression(&mut self.tokens, next_27);
                     token = next;
                 } else if type_ == TokenType::BANG {
                     self.listener
-                        .handle_non_null_assert_expression(&self.tokens, next);
+                        .handle_non_null_assert_expression(&mut self.tokens, next);
                     token = next;
                 }
             } else if token_level == SELECTOR_PRECEDENCE {
@@ -7440,11 +7505,12 @@ impl Parser {
                             constant_pattern_context,
                         );
                         if is_dot_shorthand {
-                            self.listener.handle_dot_shorthand_head(&self.tokens, dot);
+                            self.listener
+                                .handle_dot_shorthand_head(&mut self.tokens, dot);
                             is_dot_shorthand = false;
                         } else {
                             self.listener.handle_dot_access(
-                                &self.tokens,
+                                &mut self.tokens,
                                 operator,
                                 token,
                                 type_ == TokenType::QUESTION_PERIOD,
@@ -7458,8 +7524,10 @@ impl Parser {
                         if type_arg != noTypeParamOrArg {
                             // For example a(b)..<T>(c), where token is '<'.
                             if self.is_a(bang_token, TokenType::BANG) {
-                                self.listener
-                                    .handle_non_null_assert_expression(&self.tokens, bang_token);
+                                self.listener.handle_non_null_assert_expression(
+                                    &mut self.tokens,
+                                    bang_token,
+                                );
                             }
                             token = type_arg.parse_arguments(bang_token, self);
                             if !self.is_a(self.next(token), TokenType::OPEN_PAREN) {
@@ -7470,10 +7538,9 @@ impl Parser {
                                         diag::invalidConstantPatternGeneric,
                                     );
                                 }
-                                self.listener.handle_type_argument_application(
-                                    &self.tokens,
-                                    self.tokens.next(bang_token),
-                                );
+                                let next_26 = self.tokens.next(bang_token);
+                                self.listener
+                                    .handle_type_argument_application(&mut self.tokens, next_26);
                                 type_arg = noTypeParamOrArg;
                             }
                         }
@@ -7489,8 +7556,9 @@ impl Parser {
                     self.rewrite_square_brackets(token);
                     token = self.parse_argument_or_index_star(token, noTypeParamOrArg, false);
                 } else if type_ == TokenType::BANG {
+                    let next_25 = self.tokens.next(token);
                     self.listener
-                        .handle_non_null_assert_expression(&self.tokens, self.tokens.next(token));
+                        .handle_non_null_assert_expression(&mut self.tokens, next_25);
                     token = next;
                 } else {
                     // Recovery
@@ -7536,7 +7604,8 @@ impl Parser {
                         operator = next;
                     }
                 }
-                self.listener.begin_binary_expression(&self.tokens, next);
+                self.listener
+                    .begin_binary_expression(&mut self.tokens, next);
                 // Left associative, so we recurse at the next higher
                 // precedence level.
                 let after = self.next(token);
@@ -7547,7 +7616,7 @@ impl Parser {
                     ConstantPatternContext::none,
                 );
                 self.listener
-                    .end_binary_expression(&self.tokens, operator, token);
+                    .end_binary_expression(&mut self.tokens, operator, token);
             }
             next = self.next(token);
             type_ = self.tokens.type_(next);
@@ -7599,7 +7668,7 @@ impl Parser {
         }
         if cascade_section_count > 0 {
             self.listener
-                .handle_cascade_expression_end(&self.tokens, cascade_section_count);
+                .handle_cascade_expression_end(&mut self.tokens, cascade_section_count);
         }
         token
     }
@@ -7672,12 +7741,12 @@ impl Parser {
     ) -> TokenId {
         let mut current_token;
         self.listener
-            .begin_anonymous_method_invocation(&self.tokens, punctuation);
+            .begin_anonymous_method_invocation(&mut self.tokens, punctuation);
         if self.is_a(after_punctuation, TokenType::OPEN_PAREN) {
             current_token = self.parse_formal_parameters(punctuation, MemberKind::AnonymousMethod);
         } else {
             self.listener
-                .handle_implicit_formal_parameters(&self.tokens, punctuation);
+                .handle_implicit_formal_parameters(&mut self.tokens, punctuation);
             current_token = punctuation;
         }
         let after_parameters = self.next(current_token);
@@ -7703,7 +7772,7 @@ impl Parser {
             current_token = self.parse_expression_without_cascade(function_definition);
         }
         self.listener.end_anonymous_method_invocation(
-            &self.tokens,
+            &mut self.tokens,
             punctuation,
             function_definition,
             current_token,
@@ -7877,7 +7946,8 @@ impl Parser {
             self.is_a(cascade_operator, TokenType::PERIOD_PERIOD)
                 || self.is_a(cascade_operator, TokenType::QUESTION_PERIOD_PERIOD)
         );
-        self.listener.begin_cascade(&self.tokens, cascade_operator);
+        self.listener
+            .begin_cascade(&mut self.tokens, cascade_operator);
         let after_dots = self.next(token);
         if self.is_a(after_dots, TokenType::OPEN_SQUARE_BRACKET) {
             // No access, the cascade is an index expression.
@@ -7894,7 +7964,7 @@ impl Parser {
             );
             let is_null_aware = self.is_a(cascade_operator, TokenType::QUESTION_PERIOD_PERIOD);
             self.listener.handle_cascade_access(
-                &self.tokens,
+                &mut self.tokens,
                 cascade_operator,
                 token,
                 is_null_aware,
@@ -7920,11 +7990,11 @@ impl Parser {
                     );
                     next = self.next(token);
                     self.listener
-                        .handle_dot_access(&self.tokens, period, token, is_null_aware);
+                        .handle_dot_access(&mut self.tokens, period, token, is_null_aware);
                 }
             } else if self.is_a(next, TokenType::BANG) {
                 self.listener
-                    .handle_non_null_assert_expression(&self.tokens, next);
+                    .handle_non_null_assert_expression(&mut self.tokens, next);
                 token = next;
                 next = self.next(token);
             }
@@ -7934,8 +8004,9 @@ impl Parser {
                 token = type_arg.parse_arguments(token, self);
                 next = self.next(token);
                 if !self.is_a(next, TokenType::OPEN_PAREN) {
+                    let next_24 = self.tokens.next(token);
                     self.listener
-                        .handle_type_argument_application(&self.tokens, self.tokens.next(token));
+                        .handle_type_argument_application(&mut self.tokens, next_24);
                     type_arg = noTypeParamOrArg;
                 }
             }
@@ -7958,9 +8029,9 @@ impl Parser {
             let assignment = next;
             token = self.parse_expression_without_cascade(next);
             self.listener
-                .handle_assignment_expression(&self.tokens, assignment, token);
+                .handle_assignment_expression(&mut self.tokens, assignment, token);
         }
-        self.listener.end_cascade(&self.tokens);
+        self.listener.end_cascade(&mut self.tokens);
         token
     }
 
@@ -8020,7 +8091,7 @@ impl Parser {
                 ConstantPatternContext::none,
             );
             self.listener
-                .handle_unary_prefix_expression(&self.tokens, operator);
+                .handle_unary_prefix_expression(&mut self.tokens, operator);
             return token;
         } else if value == Some("-") {
             let operator = self.next(token);
@@ -8042,7 +8113,7 @@ impl Parser {
                 context,
             );
             self.listener
-                .handle_unary_prefix_expression(&self.tokens, operator);
+                .handle_unary_prefix_expression(&mut self.tokens, operator);
             return token;
         } else if value == Some("++") || value == Some("--") {
             // TODO(ahe): Validate this is used correctly.
@@ -8056,7 +8127,7 @@ impl Parser {
                 ConstantPatternContext::none,
             );
             self.listener
-                .handle_unary_prefix_assignment_expression(&self.tokens, operator);
+                .handle_unary_prefix_assignment_expression(&mut self.tokens, operator);
             return token;
         } else if self.use_implicit_creation_expression
             && self.tokens.is_identifier(self.next(token))
@@ -8143,7 +8214,7 @@ impl Parser {
                     }
                 }
                 self.listener.handle_indexed_expression(
-                    &self.tokens,
+                    &mut self.tokens,
                     question,
                     open_square_bracket,
                     next,
@@ -8158,24 +8229,25 @@ impl Parser {
                     // For example a[b]<T>(c), where token is before '<'.
                     if self.is_a(bang_token, TokenType::BANG) {
                         self.listener
-                            .handle_non_null_assert_expression(&self.tokens, bang_token);
+                            .handle_non_null_assert_expression(&mut self.tokens, bang_token);
                     }
                     token = type_arg.parse_arguments(bang_token, self);
                     if !self.is_a(self.next(token), TokenType::OPEN_PAREN) {
-                        self.listener.handle_type_argument_application(
-                            &self.tokens,
-                            self.tokens.next(bang_token),
-                        );
+                        let next_23 = self.tokens.next(bang_token);
+                        self.listener
+                            .handle_type_argument_application(&mut self.tokens, next_23);
                         type_arg = noTypeParamOrArg;
                     }
                 }
                 next = self.next(token);
             } else if self.is_a(next, TokenType::OPEN_PAREN) {
                 if type_arg == noTypeParamOrArg {
-                    self.listener.handle_no_type_arguments(&self.tokens, next);
+                    self.listener
+                        .handle_no_type_arguments(&mut self.tokens, next);
                 }
                 token = self.parse_arguments(token);
-                self.listener.handle_send(&self.tokens, begin_token, token);
+                self.listener
+                    .handle_send(&mut self.tokens, begin_token, token);
                 let mut bang_token = token;
                 if self.is_a(self.next(token), TokenType::BANG) {
                     bang_token = self.next(token);
@@ -8185,14 +8257,13 @@ impl Parser {
                     // For example a(b)<T>(c), where token is before '<'.
                     if self.is_a(bang_token, TokenType::BANG) {
                         self.listener
-                            .handle_non_null_assert_expression(&self.tokens, bang_token);
+                            .handle_non_null_assert_expression(&mut self.tokens, bang_token);
                     }
                     token = type_arg.parse_arguments(bang_token, self);
                     if !self.is_a(self.next(token), TokenType::OPEN_PAREN) {
-                        self.listener.handle_type_argument_application(
-                            &self.tokens,
-                            self.tokens.next(bang_token),
-                        );
+                        let next_22 = self.tokens.next(bang_token);
+                        self.listener
+                            .handle_type_argument_application(&mut self.tokens, next_22);
                         type_arg = noTypeParamOrArg;
                     }
                 }
@@ -8302,12 +8373,14 @@ impl Parser {
             );
         } else if kind == OPEN_SQUARE_BRACKET_TOKEN || self.is_a(self.next(token), TokenType::INDEX)
         {
+            let next_21 = self.tokens.next(token);
             self.listener
-                .handle_no_type_arguments(&self.tokens, self.tokens.next(token));
+                .handle_no_type_arguments(&mut self.tokens, next_21);
             return self.parse_literal_list_suffix(token, NO_TOKEN);
         } else if kind == OPEN_CURLY_BRACKET_TOKEN {
+            let next_20 = self.tokens.next(token);
             self.listener
-                .handle_no_type_arguments(&self.tokens, self.tokens.next(token));
+                .handle_no_type_arguments(&mut self.tokens, next_20);
             return self.parse_literal_set_or_map_suffix(token, NO_TOKEN);
         } else if kind == LT_TOKEN {
             return self.parse_literal_list_set_map_or_function(token, NO_TOKEN);
@@ -8345,11 +8418,13 @@ impl Parser {
             let next_token = self.next(self.tokens.end_group(next));
             let mut kind = self.tokens.kind(next_token);
             if kind == FUNCTION_TOKEN || kind == OPEN_CURLY_BRACKET_TOKEN {
-                self.listener.handle_no_type_variables(&self.tokens, next);
+                self.listener
+                    .handle_no_type_variables(&mut self.tokens, next);
                 return self.parse_function_expression(token);
             } else if kind == KEYWORD_TOKEN || kind == IDENTIFIER_TOKEN {
                 if self.is_a(next_token, kw::ASYNC) || self.is_a(next_token, kw::SYNC) {
-                    self.listener.handle_no_type_variables(&self.tokens, next);
+                    self.listener
+                        .handle_no_type_variables(&mut self.tokens, next);
                     return self.parse_function_expression(token);
                 }
                 // Recovery
@@ -8358,7 +8433,8 @@ impl Parser {
                 // and allow parseFunctionExpression to report an unexpected token.
                 kind = self.tokens.kind(self.next(next_token));
                 if kind == FUNCTION_TOKEN || kind == OPEN_CURLY_BRACKET_TOKEN {
-                    self.listener.handle_no_type_variables(&self.tokens, next);
+                    self.listener
+                        .handle_no_type_variables(&mut self.tokens, next);
                     return self.parse_function_expression(token);
                 }
             }
@@ -8396,7 +8472,7 @@ impl Parser {
         let begin = self.next(token);
         debug_assert!(self.is_a(begin, TokenType::OPEN_PAREN));
         self.listener
-            .begin_parenthesized_expression_or_record_literal(&self.tokens, begin);
+            .begin_parenthesized_expression_or_record_literal(&mut self.tokens, begin);
 
         // Expect them to be parenthesized expressions,
         // and for records to have a trailing comma.
@@ -8436,12 +8512,12 @@ impl Parser {
             token = self.parse_expression(token);
             next = self.next(token);
             if colon != NO_TOKEN {
-                self.listener.handle_named_record_field(&self.tokens, colon);
+                self.listener
+                    .handle_named_record_field(&mut self.tokens, colon);
             } else {
-                self.listener.handle_positional_record_field(
-                    &self.tokens,
-                    self.tokens.next(begin_expression_token),
-                );
+                let next_19 = self.tokens.next(begin_expression_token);
+                self.listener
+                    .handle_positional_record_field(&mut self.tokens, next_19);
             }
             count += 1;
             if !self.is_a(next, TokenType::COMMA) {
@@ -8475,11 +8551,15 @@ impl Parser {
                     diag::invalidConstantPatternEmptyRecordLiteral,
                 );
             }
-            self.listener
-                .end_record_literal(&self.tokens, begin, count, const_keyword_for_record);
+            self.listener.end_record_literal(
+                &mut self.tokens,
+                begin,
+                count,
+                const_keyword_for_record,
+            );
         } else {
             self.listener
-                .end_parenthesized_expression(&self.tokens, begin);
+                .end_parenthesized_expression(&mut self.tokens, begin);
         }
         token
     }
@@ -8504,17 +8584,21 @@ impl Parser {
             if self.is_a(next, kw::WHEN) {
                 token = next;
                 when = token;
-                self.listener.begin_pattern_guard(&self.tokens, when);
+                self.listener.begin_pattern_guard(&mut self.tokens, when);
                 token = self.parse_expression(token);
-                self.listener.end_pattern_guard(&self.tokens, when);
+                self.listener.end_pattern_guard(&mut self.tokens, when);
             }
             token = self.ensure_close_paren(token, begin);
             self.listener
-                .handle_parenthesized_condition(&self.tokens, begin, case_, when);
+                .handle_parenthesized_condition(&mut self.tokens, begin, case_, when);
         } else {
             token = self.ensure_close_paren(token, begin);
-            self.listener
-                .handle_parenthesized_condition(&self.tokens, begin, NO_TOKEN, NO_TOKEN);
+            self.listener.handle_parenthesized_condition(
+                &mut self.tokens,
+                begin,
+                NO_TOKEN,
+                NO_TOKEN,
+            );
         }
         debug_assert!(self.is_a(token, TokenType::CLOSE_PAREN));
         token
@@ -8529,13 +8613,15 @@ impl Parser {
         let this_token = token;
         debug_assert!(self.is_a(this_token, kw::THIS));
         self.listener
-            .handle_this_expression(&self.tokens, this_token, context);
+            .handle_this_expression(&mut self.tokens, this_token, context);
         let next = self.next(token);
         if self.is_a(next, TokenType::OPEN_PAREN) {
             // Constructor forwarding.
-            self.listener.handle_no_type_arguments(&self.tokens, next);
+            self.listener
+                .handle_no_type_arguments(&mut self.tokens, next);
             token = self.parse_arguments(token);
-            self.listener.handle_send(&self.tokens, this_token, token);
+            self.listener
+                .handle_send(&mut self.tokens, this_token, token);
         }
         token
     }
@@ -8549,12 +8635,14 @@ impl Parser {
         let super_token = token;
         debug_assert!(self.is_a(token, kw::SUPER));
         self.listener
-            .handle_super_expression(&self.tokens, super_token, context);
+            .handle_super_expression(&mut self.tokens, super_token, context);
         let next = self.next(token);
         if self.is_a(next, TokenType::OPEN_PAREN) {
-            self.listener.handle_no_type_arguments(&self.tokens, next);
+            self.listener
+                .handle_no_type_arguments(&mut self.tokens, next);
             token = self.parse_arguments(token);
-            self.listener.handle_send(&self.tokens, super_token, token);
+            self.listener
+                .handle_send(&mut self.tokens, super_token, token);
         } else if self.is_a(next, TokenType::QUESTION_PERIOD) {
             self.report_recoverable_error(next, diag::superNullAware);
         }
@@ -8578,13 +8666,9 @@ impl Parser {
         if self.is_a(token, TokenType::INDEX) {
             let rewritten = self.rewrite_square_brackets(before_token);
             token = self.next(rewritten);
-            self.listener.handle_literal_list(
-                &self.tokens,
-                0,
-                token,
-                const_keyword,
-                self.tokens.next(token),
-            );
+            let next_18 = self.tokens.next(token);
+            self.listener
+                .handle_literal_list(&mut self.tokens, 0, token, const_keyword, next_18);
             return self.next(token);
         }
         let old = self.may_parse_function_expressions;
@@ -8605,7 +8689,7 @@ impl Parser {
                         token = next;
                         token = self.parse_expression(token);
                         self.listener
-                            .handle_null_aware_element(&self.tokens, null_aware_token);
+                            .handle_null_aware_element(&mut self.tokens, null_aware_token);
                     } else {
                         token = self.parse_expression(token);
                     }
@@ -8650,8 +8734,13 @@ impl Parser {
             token = next;
         }
         self.may_parse_function_expressions = old;
-        self.listener
-            .handle_literal_list(&self.tokens, count, begin_token, const_keyword, token);
+        self.listener.handle_literal_list(
+            &mut self.tokens,
+            count,
+            begin_token,
+            const_keyword,
+            token,
+        );
         token
     }
 
@@ -8669,7 +8758,7 @@ impl Parser {
         let mut next = self.next(token);
         if self.is_a(next, TokenType::CLOSE_CURLY_BRACKET) {
             self.listener.handle_literal_set_or_map(
-                &self.tokens,
+                &mut self.tokens,
                 0,
                 left_brace,
                 const_keyword,
@@ -8710,10 +8799,11 @@ impl Parser {
                         null_aware_value_token = token;
                     }
                     token = self.parse_expression(token);
+                    let next_17 = self.tokens.next(token);
                     self.listener.handle_literal_map_entry(
-                        &self.tokens,
+                        &mut self.tokens,
                         colon,
-                        self.tokens.next(token),
+                        next_17,
                         NO_TOKEN,
                         null_aware_value_token,
                     );
@@ -8741,16 +8831,17 @@ impl Parser {
                                 null_aware_value_token = token;
                             }
                             token = self.parse_expression(token);
+                            let next_16 = self.tokens.next(token);
                             self.listener.handle_literal_map_entry(
-                                &self.tokens,
+                                &mut self.tokens,
                                 colon,
-                                self.tokens.next(token),
+                                next_16,
                                 null_aware_key_token,
                                 null_aware_value_token,
                             );
                         } else if null_aware_key_token != NO_TOKEN {
                             self.listener
-                                .handle_null_aware_element(&self.tokens, null_aware_key_token);
+                                .handle_null_aware_element(&mut self.tokens, null_aware_key_token);
                         }
                     } else {
                         token = entry.parse(token, self);
@@ -8769,7 +8860,7 @@ impl Parser {
             }
             if self.is_a(next, TokenType::CLOSE_CURLY_BRACKET) {
                 self.listener.handle_literal_set_or_map(
-                    &self.tokens,
+                    &mut self.tokens,
                     count,
                     left_brace,
                     const_keyword,
@@ -8798,7 +8889,7 @@ impl Parser {
                     // Scanner guarantees a closing curly bracket
                     next = self.tokens.end_group(left_brace);
                     self.listener.handle_literal_set_or_map(
-                        &self.tokens,
+                        &mut self.tokens,
                         count,
                         left_brace,
                         const_keyword,
@@ -8918,10 +9009,11 @@ impl Parser {
                 token = self.parse_expression(token);
                 let colon = self.ensure_colon(token);
                 token = self.parse_expression(colon);
+                let next_15 = self.tokens.next(token);
                 self.listener.handle_literal_map_entry(
-                    &self.tokens,
+                    &mut self.tokens,
                     colon,
-                    self.tokens.next(token),
+                    next_15,
                     NO_TOKEN,
                     NO_TOKEN,
                 );
@@ -8988,7 +9080,7 @@ impl Parser {
                 self.report_recoverable_error(token, diag::constructorWithTypeArguments);
                 token = type_arg.parse_arguments(token, self);
                 self.listener
-                    .handle_invalid_type_arguments(&self.tokens, token);
+                    .handle_invalid_type_arguments(&mut self.tokens, token);
                 next = self.next(token);
             }
             if !self.is_a(next, TokenType::OPEN_PAREN) {
@@ -9094,14 +9186,15 @@ impl Parser {
         }
 
         self.listener
-            .begin_new_expression(&self.tokens, new_keyword);
+            .begin_new_expression(&mut self.tokens, new_keyword);
         token = self.parse_constructor_reference(
             new_keyword,
             ConstructorReferenceContext::New,
             potential_type_arg,
         );
         token = self.parse_constructor_invocation_arguments(token);
-        self.listener.end_new_expression(&self.tokens, new_keyword);
+        self.listener
+            .end_new_expression(&mut self.tokens, new_keyword);
         token
     }
 
@@ -9113,7 +9206,7 @@ impl Parser {
     ) -> TokenId {
         let begin = self.next(token); // This is the class name.
         self.listener
-            .begin_implicit_creation_expression(&self.tokens, begin);
+            .begin_implicit_creation_expression(&mut self.tokens, begin);
         token = self.parse_constructor_reference(
             token,
             ConstructorReferenceContext::Implicit,
@@ -9121,7 +9214,7 @@ impl Parser {
         );
         token = self.parse_constructor_invocation_arguments(token);
         self.listener
-            .end_implicit_creation_expression(&self.tokens, begin, open_angle_bracket);
+            .end_implicit_creation_expression(&mut self.tokens, begin, open_angle_bracket);
         token
     }
 
@@ -9134,33 +9227,35 @@ impl Parser {
         let next = self.next(token);
         let value = self.sv(next);
         if value == Some("[") || value == Some("[]") {
-            self.listener.begin_const_literal(&self.tokens, next);
-            self.listener.handle_no_type_arguments(&self.tokens, next);
+            self.listener.begin_const_literal(&mut self.tokens, next);
+            self.listener
+                .handle_no_type_arguments(&mut self.tokens, next);
             token = self.parse_literal_list_suffix(token, const_keyword);
-            self.listener.end_const_literal(&self.tokens, token);
+            self.listener.end_const_literal(&mut self.tokens, token);
             return token;
         }
         if value == Some("(") {
-            self.listener.begin_const_literal(&self.tokens, next);
+            self.listener.begin_const_literal(&mut self.tokens, next);
             token = self.parse_parenthesized_expression_or_record_literal(
                 token,
                 const_keyword,
                 ConstantPatternContext::none,
             );
-            self.listener.end_const_literal(&self.tokens, token);
+            self.listener.end_const_literal(&mut self.tokens, token);
             return token;
         }
         if value == Some("{") {
-            self.listener.begin_const_literal(&self.tokens, next);
-            self.listener.handle_no_type_arguments(&self.tokens, next);
+            self.listener.begin_const_literal(&mut self.tokens, next);
+            self.listener
+                .handle_no_type_arguments(&mut self.tokens, next);
             token = self.parse_literal_set_or_map_suffix(token, const_keyword);
-            self.listener.end_const_literal(&self.tokens, token);
+            self.listener.end_const_literal(&mut self.tokens, token);
             return token;
         }
         if value == Some("<") {
-            self.listener.begin_const_literal(&self.tokens, next);
+            self.listener.begin_const_literal(&mut self.tokens, next);
             token = self.parse_literal_list_set_map_or_function(token, const_keyword);
-            self.listener.end_const_literal(&self.tokens, token);
+            self.listener.end_const_literal(&mut self.tokens, token);
             return token;
         }
         let lexeme = self.tokens.lexeme_string(next);
@@ -9181,11 +9276,12 @@ impl Parser {
                         next,
                     );
                     self.report_recoverable_error(next, message);
-                    self.listener.begin_const_literal(&self.tokens, next_next);
                     self.listener
-                        .handle_no_type_arguments(&self.tokens, next_next);
+                        .begin_const_literal(&mut self.tokens, next_next);
+                    self.listener
+                        .handle_no_type_arguments(&mut self.tokens, next_next);
                     token = self.parse_literal_set_or_map_suffix(next, const_keyword);
-                    self.listener.end_const_literal(&self.tokens, token);
+                    self.listener.end_const_literal(&mut self.tokens, token);
                     return token;
                 }
                 if next_value == Some("<") {
@@ -9196,9 +9292,10 @@ impl Parser {
                         next,
                     );
                     self.report_recoverable_error(next, message);
-                    self.listener.begin_const_literal(&self.tokens, next_next);
+                    self.listener
+                        .begin_const_literal(&mut self.tokens, next_next);
                     token = self.parse_literal_list_set_map_or_function(next, const_keyword);
-                    self.listener.end_const_literal(&self.tokens, token);
+                    self.listener.end_const_literal(&mut self.tokens, token);
                     return token;
                 }
                 debug_assert!(false, "Expected either {{ or < but found neither.");
@@ -9220,11 +9317,12 @@ impl Parser {
                         next,
                     );
                     self.report_recoverable_error(next, message);
-                    self.listener.begin_const_literal(&self.tokens, next_next);
                     self.listener
-                        .handle_no_type_arguments(&self.tokens, next_next);
+                        .begin_const_literal(&mut self.tokens, next_next);
+                    self.listener
+                        .handle_no_type_arguments(&mut self.tokens, next_next);
                     token = self.parse_literal_list_suffix(next, const_keyword);
-                    self.listener.end_const_literal(&self.tokens, token);
+                    self.listener.end_const_literal(&mut self.tokens, token);
                     return token;
                 }
                 if next_value == Some("<") {
@@ -9235,9 +9333,10 @@ impl Parser {
                         next,
                     );
                     self.report_recoverable_error(next, message);
-                    self.listener.begin_const_literal(&self.tokens, next_next);
+                    self.listener
+                        .begin_const_literal(&mut self.tokens, next_next);
                     token = self.parse_literal_list_set_map_or_function(next, const_keyword);
-                    self.listener.end_const_literal(&self.tokens, token);
+                    self.listener.end_const_literal(&mut self.tokens, token);
                     return token;
                 }
                 debug_assert!(false, "Expected either [, [] or < but found neither.");
@@ -9245,7 +9344,7 @@ impl Parser {
         }
 
         self.listener
-            .begin_const_expression(&self.tokens, const_keyword);
+            .begin_const_expression(&mut self.tokens, const_keyword);
         token = self.parse_constructor_reference(
             token,
             ConstructorReferenceContext::Const,
@@ -9253,7 +9352,7 @@ impl Parser {
         );
         token = self.parse_constructor_invocation_arguments(token);
         self.listener
-            .end_const_expression(&self.tokens, const_keyword);
+            .end_const_expression(&mut self.tokens, const_keyword);
         token
     }
 
@@ -9267,7 +9366,7 @@ impl Parser {
         debug_assert!(
             self.tokens.kind(token) == INT_TOKEN || self.tokens.kind(token) == HEXADECIMAL_TOKEN
         );
-        self.listener.handle_literal_int(&self.tokens, token);
+        self.listener.handle_literal_int(&mut self.tokens, token);
         token
     }
 
@@ -9277,7 +9376,7 @@ impl Parser {
             self.tokens.kind(token) == INT_TOKEN || self.tokens.kind(token) == HEXADECIMAL_TOKEN
         );
         self.listener
-            .handle_literal_int_with_separators(&self.tokens, token);
+            .handle_literal_int_with_separators(&mut self.tokens, token);
         token
     }
 
@@ -9289,7 +9388,7 @@ impl Parser {
     pub fn parse_literal_double(&mut self, token: TokenId) -> TokenId {
         let token = self.next(token);
         debug_assert!(self.tokens.kind(token) == DOUBLE_TOKEN);
-        self.listener.handle_literal_double(&self.tokens, token);
+        self.listener.handle_literal_double(&mut self.tokens, token);
         token
     }
 
@@ -9297,7 +9396,7 @@ impl Parser {
         let token = self.next(token);
         debug_assert!(self.tokens.kind(token) == DOUBLE_TOKEN);
         self.listener
-            .handle_literal_double_with_separators(&self.tokens, token);
+            .handle_literal_double_with_separators(&mut self.tokens, token);
         token
     }
 
@@ -9319,7 +9418,7 @@ impl Parser {
         }
         if count > 1 {
             self.listener
-                .handle_adjacent_string_literals(&self.tokens, start_token, count);
+                .handle_adjacent_string_literals(&mut self.tokens, start_token, count);
         }
         self.may_parse_function_expressions = old;
         token
@@ -9334,17 +9433,18 @@ impl Parser {
         token = self.next(token);
         let hash_token = token;
         debug_assert!(self.is_a(hash_token, TokenType::HASH));
-        self.listener.begin_literal_symbol(&self.tokens, hash_token);
+        self.listener
+            .begin_literal_symbol(&mut self.tokens, hash_token);
         let next = self.next(token);
         if self.tokens.is_user_definable_operator(next) {
-            self.listener.handle_operator(&self.tokens, next);
+            self.listener.handle_operator(&mut self.tokens, next);
             self.listener
-                .end_literal_symbol(&self.tokens, hash_token, 1);
+                .end_literal_symbol(&mut self.tokens, hash_token, 1);
             next
         } else if self.is_a(next, kw::VOID) {
-            self.listener.handle_symbol_void(&self.tokens, next);
+            self.listener.handle_symbol_void(&mut self.tokens, next);
             self.listener
-                .end_literal_symbol(&self.tokens, hash_token, 1);
+                .end_literal_symbol(&mut self.tokens, hash_token, 1);
             next
         } else {
             let mut count = 1;
@@ -9355,7 +9455,7 @@ impl Parser {
                 token = self.ensure_identifier(next, IdentifierContext::literalSymbolContinuation);
             }
             self.listener
-                .end_literal_symbol(&self.tokens, hash_token, count);
+                .end_literal_symbol(&mut self.tokens, hash_token, count);
             token
         }
     }
@@ -9363,7 +9463,7 @@ impl Parser {
     pub fn parse_single_literal_string(&mut self, mut token: TokenId) -> TokenId {
         token = self.next(token);
         debug_assert!(self.tokens.kind(token) == STRING_TOKEN);
-        self.listener.begin_literal_string(&self.tokens, token);
+        self.listener.begin_literal_string(&mut self.tokens, token);
         // Parsing the prefix, for instance 'x of 'x${id}y${id}z'
         let mut interpolation_count = 0;
         let mut next = self.next(token);
@@ -9381,12 +9481,12 @@ impl Parser {
                     token = self.tokens.end_group(next);
                 }
                 self.listener
-                    .handle_interpolation_expression(&self.tokens, next, token);
+                    .handle_interpolation_expression(&mut self.tokens, next, token);
             } else if kind == STRING_INTERPOLATION_IDENTIFIER_TOKEN {
                 // Parsing $identifier.
                 token = self.parse_identifier_expression(next);
                 self.listener
-                    .handle_interpolation_expression(&self.tokens, next, NO_TOKEN);
+                    .handle_interpolation_expression(&mut self.tokens, next, NO_TOKEN);
             } else {
                 break;
             }
@@ -9397,7 +9497,7 @@ impl Parser {
             kind = self.tokens.kind(next);
         }
         self.listener
-            .end_literal_string(&self.tokens, interpolation_count, token);
+            .end_literal_string(&mut self.tokens, interpolation_count, token);
         token
     }
 
@@ -9408,8 +9508,11 @@ impl Parser {
         }
         let next = self.next(token);
         if self.tokens.kind(next) == KEYWORD_TOKEN && self.sv(next) == Some("this") {
-            self.listener
-                .handle_this_expression(&self.tokens, next, IdentifierContext::expression);
+            self.listener.handle_this_expression(
+                &mut self.tokens,
+                next,
+                IdentifierContext::expression,
+            );
             next
         } else {
             self.parse_send(
@@ -9429,7 +9532,7 @@ impl Parser {
     pub fn parse_literal_bool(&mut self, token: TokenId) -> TokenId {
         let token = self.next(token);
         debug_assert!(self.is_a(token, kw::FALSE) || self.is_a(token, kw::TRUE));
-        self.listener.handle_literal_bool(&self.tokens, token);
+        self.listener.handle_literal_bool(&mut self.tokens, token);
         token
     }
 
@@ -9441,7 +9544,7 @@ impl Parser {
     pub fn parse_literal_null(&mut self, token: TokenId) -> TokenId {
         let token = self.next(token);
         debug_assert!(self.is_a(token, kw::NULL));
-        self.listener.handle_literal_null(&self.tokens, token);
+        self.listener.handle_literal_null(&mut self.tokens, token);
         token
     }
 
@@ -9521,31 +9624,33 @@ impl Parser {
         }
         let _ = constant_pattern_context;
         if type_arg == noTypeParamOrArg && !self.is_a(self.next(token), TokenType::OPEN_PAREN) {
+            let next_14 = self.tokens.next(token);
             self.listener.handle_send_without_arguments(
-                &self.tokens,
+                &mut self.tokens,
                 begin_token,
                 token,
-                self.tokens.next(token),
+                next_14,
             );
             return token;
         }
         if type_arg == noTypeParamOrArg {
             token = self.parse_arguments_opt(token, false);
             self.listener.handle_invocation_without_type_arguments(
-                &self.tokens,
+                &mut self.tokens,
                 begin_token,
                 token,
             );
             return token;
         }
         token = self.parse_arguments_opt(token, false);
-        self.listener.handle_send(&self.tokens, begin_token, token);
+        self.listener
+            .handle_send(&mut self.tokens, begin_token, token);
         token
     }
 
     pub fn skip_arguments_opt(&mut self, token: TokenId) -> TokenId {
         let next = self.next(token);
-        self.listener.handle_no_arguments(&self.tokens, next);
+        self.listener.handle_no_arguments(&mut self.tokens, next);
         if self.is_a(next, TokenType::OPEN_PAREN) {
             self.tokens.end_group(next)
         } else {
@@ -9560,7 +9665,7 @@ impl Parser {
     ) -> TokenId {
         let next = self.next(token);
         if !self.is_a(next, TokenType::OPEN_PAREN) {
-            self.listener.handle_no_arguments(&self.tokens, next);
+            self.listener.handle_no_arguments(&mut self.tokens, next);
             token
         } else if self.tokens.char_end(token) == self.tokens.char_offset(next) {
             self.parse_arguments(token)
@@ -9578,7 +9683,7 @@ impl Parser {
                 self.report_recoverable_error(next, diag::metadataSpaceBeforeParenthesis);
                 return self.parse_arguments(token);
             }
-            self.listener.handle_no_arguments(&self.tokens, next);
+            self.listener.handle_no_arguments(&mut self.tokens, next);
             token
         }
     }
@@ -9590,7 +9695,7 @@ impl Parser {
         }
         let next = self.next(token);
         if !self.is_a(next, TokenType::OPEN_PAREN) {
-            self.listener.handle_no_arguments(&self.tokens, next);
+            self.listener.handle_no_arguments(&mut self.tokens, next);
             token
         } else {
             self.parse_arguments(token)
@@ -9610,7 +9715,7 @@ impl Parser {
     pub fn parse_arguments_rest(&mut self, mut token: TokenId) -> TokenId {
         let begin = token;
         debug_assert!(self.is_a(begin, TokenType::OPEN_PAREN));
-        self.listener.begin_arguments(&self.tokens, begin);
+        self.listener.begin_arguments(&mut self.tokens, begin);
         let mut argument_count = 0;
         let old = self.may_parse_function_expressions;
         self.may_parse_function_expressions = true;
@@ -9637,12 +9742,12 @@ impl Parser {
                         || self.is_a(next2, TokenType::CLOSE_PAREN)
                     {
                         self.listener.handle_identifier(
-                            &self.tokens,
+                            &mut self.tokens,
                             next1,
                             IdentifierContext::expression,
                         );
                         self.listener.handle_send_without_arguments(
-                            &self.tokens,
+                            &mut self.tokens,
                             next1,
                             next1,
                             next2,
@@ -9657,29 +9762,33 @@ impl Parser {
                                 || self.is_a(next4, TokenType::CLOSE_PAREN)
                             {
                                 self.listener.handle_identifier(
-                                    &self.tokens,
+                                    &mut self.tokens,
                                     next1,
                                     IdentifierContext::expression,
                                 );
                                 self.listener.handle_send_without_arguments(
-                                    &self.tokens,
+                                    &mut self.tokens,
                                     next1,
                                     next1,
                                     next2,
                                 );
                                 self.listener.handle_identifier(
-                                    &self.tokens,
+                                    &mut self.tokens,
                                     next3,
                                     IdentifierContext::expressionContinuation,
                                 );
                                 self.listener.handle_send_without_arguments(
-                                    &self.tokens,
+                                    &mut self.tokens,
                                     next3,
                                     next3,
                                     next4,
                                 );
-                                self.listener
-                                    .handle_dot_access(&self.tokens, next2, next3, false);
+                                self.listener.handle_dot_access(
+                                    &mut self.tokens,
+                                    next2,
+                                    next3,
+                                    false,
+                                );
                                 token = next3;
                                 expression_handled = true;
                             }
@@ -9690,8 +9799,8 @@ impl Parser {
                     if self.is_a(next2, TokenType::COMMA)
                         || self.is_a(next2, TokenType::CLOSE_PAREN)
                     {
-                        self.listener.begin_literal_string(&self.tokens, next1);
-                        self.listener.end_literal_string(&self.tokens, 0, next1);
+                        self.listener.begin_literal_string(&mut self.tokens, next1);
+                        self.listener.end_literal_string(&mut self.tokens, 0, next1);
                         token = next1;
                         expression_handled = true;
                     }
@@ -9702,12 +9811,11 @@ impl Parser {
             }
             next = self.next(token);
             if colon != NO_TOKEN {
-                self.listener.handle_named_argument(&self.tokens, colon);
+                self.listener.handle_named_argument(&mut self.tokens, colon);
             } else {
-                self.listener.handle_positional_argument(
-                    &self.tokens,
-                    self.tokens.next(begin_expression_token),
-                );
+                let next_13 = self.tokens.next(begin_expression_token);
+                self.listener
+                    .handle_positional_argument(&mut self.tokens, next_13);
             }
             argument_count += 1;
             if !self.is_a(next, TokenType::COMMA) {
@@ -9736,7 +9844,7 @@ impl Parser {
         debug_assert!(self.is_a(token, TokenType::CLOSE_PAREN));
         self.may_parse_function_expressions = old;
         self.listener
-            .end_arguments(&self.tokens, argument_count, begin, token);
+            .end_arguments(&mut self.tokens, argument_count, begin, token);
         token
     }
 
@@ -9754,12 +9862,14 @@ impl Parser {
             token = self.next(token);
             not = token;
         }
-        self.listener.begin_is_operator_type(&self.tokens, operator);
+        self.listener
+            .begin_is_operator_type(&mut self.tokens, operator);
         let type_info = self.compute_type_after_is_or_as(token);
         token = type_info.ensure_type_not_void(token, self);
-        self.listener.end_is_operator_type(&self.tokens, operator);
         self.listener
-            .handle_is_operator(&self.tokens, operator, not);
+            .end_is_operator_type(&mut self.tokens, operator);
+        self.listener
+            .handle_is_operator(&mut self.tokens, operator, not);
         self.skip_chained_as_is_operators(token)
     }
 
@@ -9806,11 +9916,13 @@ impl Parser {
         token = self.next(token);
         let operator = token;
         debug_assert!(self.is_a(operator, kw::AS));
-        self.listener.begin_as_operator_type(&self.tokens, operator);
+        self.listener
+            .begin_as_operator_type(&mut self.tokens, operator);
         let type_info = self.compute_type_after_is_or_as(token);
         token = type_info.ensure_type_not_void(token, self);
-        self.listener.end_as_operator_type(&self.tokens, operator);
-        self.listener.handle_as_operator(&self.tokens, operator);
+        self.listener
+            .end_as_operator_type(&mut self.tokens, operator);
+        self.listener.handle_as_operator(&mut self.tokens, operator);
         self.skip_chained_as_is_operators(token)
     }
 
@@ -9988,9 +10100,9 @@ impl Parser {
                     self.report_recoverable_error(late_token, diag::latePatternVariableDeclaration);
                 }
                 if !self.is_a(self.next(start), TokenType::AT) {
-                    self.listener
-                        .begin_metadata_star(&self.tokens, self.tokens.next(start));
-                    self.listener.end_metadata_star(&self.tokens, 0);
+                    let next_12 = self.tokens.next(start);
+                    self.listener.begin_metadata_star(&mut self.tokens, next_12);
+                    self.listener.end_metadata_star(&mut self.tokens, 0);
                 }
                 if let Some(for_parts_context) = for_parts_context {
                     for_parts_context.pattern_keyword = var_final_or_const;
@@ -10029,15 +10141,16 @@ impl Parser {
                     self.report_recoverable_error_with_token(late_token, diag::extraneousModifier);
                 }
                 if !self.is_a(self.next(start), TokenType::AT) {
-                    self.listener
-                        .begin_metadata_star(&self.tokens, self.tokens.next(start));
-                    self.listener.end_metadata_star(&self.tokens, 0);
+                    let next_11 = self.tokens.next(start);
+                    self.listener.begin_metadata_star(&mut self.tokens, next_11);
+                    self.listener.end_metadata_star(&mut self.tokens, 0);
                 }
                 let before_formals =
                     compute_type_param_or_arg(&mut self.tokens, next, false, false)
                         .parse_variables(next, self);
+                let next_10 = self.tokens.next(start);
                 self.listener
-                    .begin_local_function_declaration(&self.tokens, self.tokens.next(start));
+                    .begin_local_function_declaration(&mut self.tokens, next_10);
                 token = type_info.parse_type(before_type, self);
                 let begin = self.next(start);
                 return self.parse_named_function_rest(token, begin, before_formals, false);
@@ -10142,9 +10255,9 @@ impl Parser {
         }
 
         if !self.is_a(self.next(start), TokenType::AT) {
-            self.listener
-                .begin_metadata_star(&self.tokens, self.tokens.next(start));
-            self.listener.end_metadata_star(&self.tokens, 0);
+            let next_9 = self.tokens.next(start);
+            self.listener.begin_metadata_star(&mut self.tokens, next_9);
+            self.listener.end_metadata_star(&mut self.tokens, 0);
         }
         if self.is_a(self.next(before_type), TokenType::LT) {
             // Recovery: `Foo<int> x` type args without type.
@@ -10161,7 +10274,7 @@ impl Parser {
         token = type_info.parse_type(before_type, self);
         next = self.next(token);
         self.listener.begin_variables_declaration(
-            &self.tokens,
+            &mut self.tokens,
             next,
             late_token,
             var_final_or_const,
@@ -10187,11 +10300,11 @@ impl Parser {
         if end_with_semicolon {
             let semicolon = self.ensure_semicolon(token);
             self.listener
-                .end_variables_declaration(&self.tokens, count, semicolon);
+                .end_variables_declaration(&mut self.tokens, count, semicolon);
             semicolon
         } else {
             self.listener
-                .end_variables_declaration(&self.tokens, count, NO_TOKEN);
+                .end_variables_declaration(&mut self.tokens, count, NO_TOKEN);
             token
         }
     }
@@ -10199,10 +10312,10 @@ impl Parser {
     pub fn parse_optionally_initialized_identifier(&mut self, token: TokenId) -> TokenId {
         let name_token = self.ensure_identifier(token, IdentifierContext::localVariableDeclaration);
         self.listener
-            .begin_initialized_identifier(&self.tokens, name_token);
+            .begin_initialized_identifier(&mut self.tokens, name_token);
         let token = self.parse_variable_initializer_opt(name_token);
         self.listener
-            .end_initialized_identifier(&self.tokens, name_token);
+            .end_initialized_identifier(&mut self.tokens, name_token);
         token
     }
 
@@ -10214,25 +10327,26 @@ impl Parser {
     pub fn parse_if_statement(&mut self, mut token: TokenId) -> TokenId {
         let if_token = self.next(token);
         debug_assert!(self.is_a(if_token, kw::IF));
-        self.listener.begin_if_statement(&self.tokens, if_token);
+        self.listener.begin_if_statement(&mut self.tokens, if_token);
         let allow_case = self.is_patterns_feature_enabled;
         token = self.ensure_parenthesized_condition(if_token, allow_case);
         let then_begin_token = self.next(token);
         self.listener
-            .begin_then_statement(&self.tokens, then_begin_token);
+            .begin_then_statement(&mut self.tokens, then_begin_token);
         token = self.parse_statement(token);
         self.listener
-            .end_then_statement(&self.tokens, then_begin_token, token);
+            .end_then_statement(&mut self.tokens, then_begin_token, token);
         let mut else_token = NO_TOKEN;
         if self.is_a(self.next(token), kw::ELSE) {
             else_token = self.next(token);
-            self.listener.begin_else_statement(&self.tokens, else_token);
+            self.listener
+                .begin_else_statement(&mut self.tokens, else_token);
             token = self.parse_statement(else_token);
             self.listener
-                .end_else_statement(&self.tokens, else_token, token);
+                .end_else_statement(&mut self.tokens, else_token, token);
         }
         self.listener
-            .end_if_statement(&self.tokens, if_token, else_token, token);
+            .end_if_statement(&mut self.tokens, if_token, else_token, token);
         token
     }
 
@@ -10246,7 +10360,8 @@ impl Parser {
         let for_token = token;
         debug_assert!(await_token == NO_TOKEN || self.is_a(await_token, kw::AWAIT));
         debug_assert!(self.is_a(token, kw::FOR));
-        self.listener.begin_for_statement(&self.tokens, for_token);
+        self.listener
+            .begin_for_statement(&mut self.tokens, for_token);
 
         let mut for_parts_context = ForPartsContext::new();
         token = self.parse_for_loop_parts_start(await_token, for_token, &mut for_parts_context);
@@ -10258,7 +10373,7 @@ impl Parser {
                 token = self.parse_expression(equals);
                 self.listener
                     .handle_for_initializer_pattern_variable_assignment(
-                        &self.tokens,
+                        &mut self.tokens,
                         pattern_keyword,
                         equals,
                     );
@@ -10352,18 +10467,22 @@ impl Parser {
             let next = self.next(token);
             let is_in = self.is_a(next, kw::IN) || self.is_a(next, TokenType::COLON);
             self.listener
-                .handle_for_initializer_local_variable_declaration(&self.tokens, token, is_in);
+                .handle_for_initializer_local_variable_declaration(&mut self.tokens, token, is_in);
         } else if self.is_a(self.next(token), TokenType::SEMICOLON) {
+            let next_8 = self.tokens.next(token);
             self.listener
-                .handle_for_initializer_empty_statement(&self.tokens, self.tokens.next(token));
+                .handle_for_initializer_empty_statement(&mut self.tokens, next_8);
         } else {
             token = self.parse_expression(token);
             let next = self.next(token);
             let for_in = self.is_a(next, kw::IN)
                 || self.is_a(next, TokenType::COLON)
                 || (await_token != NO_TOKEN && self.is_a(next, TokenType::CLOSE_PAREN));
-            self.listener
-                .handle_for_initializer_expression_statement(&self.tokens, token, for_in);
+            self.listener.handle_for_initializer_expression_statement(
+                &mut self.tokens,
+                token,
+                for_in,
+            );
         }
         let next = self.next(token);
         if self.is_a(next, TokenType::SEMICOLON) {
@@ -10394,14 +10513,16 @@ impl Parser {
         for_token: TokenId,
     ) -> TokenId {
         token = self.parse_for_loop_parts_rest(token, for_token, await_token);
+        let next_7 = self.tokens.next(token);
         self.listener
-            .begin_for_statement_body(&self.tokens, self.tokens.next(token));
+            .begin_for_statement_body(&mut self.tokens, next_7);
         let saved_loop_state = self.loop_state;
         self.loop_state = LoopState::InsideLoop;
         token = self.parse_statement(token);
         self.loop_state = saved_loop_state;
-        self.listener.end_for_statement_body(&self.tokens, token);
-        self.listener.end_for_statement(&self.tokens, token);
+        self.listener
+            .end_for_statement_body(&mut self.tokens, token);
+        self.listener.end_for_statement(&mut self.tokens, token);
         token
     }
 
@@ -10442,7 +10563,7 @@ impl Parser {
             token = end_group;
         }
         self.listener.handle_for_loop_parts(
-            &self.tokens,
+            &mut self.tokens,
             for_token,
             left_parenthesis,
             left_separator,
@@ -10469,14 +10590,14 @@ impl Parser {
             pattern_keyword,
             identifier,
         );
-        self.listener
-            .begin_for_in_body(&self.tokens, self.tokens.next(token));
+        let next_6 = self.tokens.next(token);
+        self.listener.begin_for_in_body(&mut self.tokens, next_6);
         let saved_loop_state = self.loop_state;
         self.loop_state = LoopState::InsideLoop;
         token = self.parse_statement(token);
         self.loop_state = saved_loop_state;
-        self.listener.end_for_in_body(&self.tokens, token);
-        self.listener.end_for_in(&self.tokens, token);
+        self.listener.end_for_in_body(&mut self.tokens, token);
+        self.listener.end_for_in(&mut self.tokens, token);
         token
     }
 
@@ -10510,14 +10631,15 @@ impl Parser {
             }
         }
 
+        let next_5 = self.tokens.next(in_keyword);
         self.listener
-            .begin_for_in_expression(&self.tokens, self.tokens.next(in_keyword));
+            .begin_for_in_expression(&mut self.tokens, next_5);
         token = self.parse_expression(in_keyword);
         let open_paren = self.next(for_token);
         token = self.ensure_close_paren(token, open_paren);
-        self.listener.end_for_in_expression(&self.tokens, token);
+        self.listener.end_for_in_expression(&mut self.tokens, token);
         self.listener.handle_for_in_loop_parts(
-            &self.tokens,
+            &mut self.tokens,
             await_token,
             for_token,
             open_paren,
@@ -10536,17 +10658,19 @@ impl Parser {
         let while_token = self.next(token);
         debug_assert!(self.is_a(while_token, kw::WHILE));
         self.listener
-            .begin_while_statement(&self.tokens, while_token);
+            .begin_while_statement(&mut self.tokens, while_token);
         token = self.ensure_parenthesized_condition(while_token, false);
+        let next_4 = self.tokens.next(token);
         self.listener
-            .begin_while_statement_body(&self.tokens, self.tokens.next(token));
+            .begin_while_statement_body(&mut self.tokens, next_4);
         let saved_loop_state = self.loop_state;
         self.loop_state = LoopState::InsideLoop;
         token = self.parse_statement(token);
         self.loop_state = saved_loop_state;
-        self.listener.end_while_statement_body(&self.tokens, token);
         self.listener
-            .end_while_statement(&self.tokens, while_token, token);
+            .end_while_statement_body(&mut self.tokens, token);
+        self.listener
+            .end_while_statement(&mut self.tokens, while_token, token);
         token
     }
 
@@ -10559,15 +10683,16 @@ impl Parser {
         let do_token = self.next(token);
         debug_assert!(self.is_a(do_token, kw::DO));
         self.listener
-            .begin_do_while_statement(&self.tokens, do_token);
+            .begin_do_while_statement(&mut self.tokens, do_token);
+        let next_3 = self.tokens.next(do_token);
         self.listener
-            .begin_do_while_statement_body(&self.tokens, self.tokens.next(do_token));
+            .begin_do_while_statement_body(&mut self.tokens, next_3);
         let saved_loop_state = self.loop_state;
         self.loop_state = LoopState::InsideLoop;
         token = self.parse_statement(do_token);
         self.loop_state = saved_loop_state;
         self.listener
-            .end_do_while_statement_body(&self.tokens, token);
+            .end_do_while_statement_body(&mut self.tokens, token);
         let mut while_token = self.next(token);
         if !self.is_a(while_token, kw::WHILE) {
             self.report_recoverable_error(
@@ -10581,7 +10706,7 @@ impl Parser {
         token = self.ensure_parenthesized_condition(while_token, false);
         token = self.ensure_semicolon(token);
         self.listener
-            .end_do_while_statement(&self.tokens, do_token, while_token, token);
+            .end_do_while_statement(&mut self.tokens, do_token, while_token, token);
         token
     }
 
@@ -10593,7 +10718,8 @@ impl Parser {
     pub fn parse_block(&mut self, mut token: TokenId, block_kind: BlockKind) -> TokenId {
         token = self.ensure_block(token, Some(block_kind));
         let begin = token;
-        self.listener.begin_block(&self.tokens, begin, block_kind);
+        self.listener
+            .begin_block(&mut self.tokens, begin, block_kind);
         let mut statement_count = 0;
         let mut start_token = self.next(token);
         while self.not_eof_or_type(TokenType::CLOSE_CURLY_BRACKET, start_token) {
@@ -10612,7 +10738,7 @@ impl Parser {
             self.tokens.is_eof(token) || self.is_a(token, TokenType::CLOSE_CURLY_BRACKET)
         );
         self.listener
-            .end_block(&self.tokens, statement_count, begin, token, block_kind);
+            .end_block(&mut self.tokens, statement_count, begin, token, block_kind);
         token
     }
 
@@ -10636,7 +10762,7 @@ impl Parser {
             .unwrap();
         self.listener = original_listener;
         self.listener
-            .handle_invalid_top_level_block(&self.tokens, begin);
+            .handle_invalid_top_level_block(&mut self.tokens, begin);
         token
     }
 
@@ -10730,7 +10856,7 @@ impl Parser {
         let await_token = self.next(token);
         debug_assert!(self.is_a(await_token, kw::AWAIT));
         self.listener
-            .begin_await_expression(&self.tokens, await_token);
+            .begin_await_expression(&mut self.tokens, await_token);
         token = self.parse_precedence_expression(
             await_token,
             POSTFIX_PRECEDENCE,
@@ -10739,11 +10865,11 @@ impl Parser {
         );
         if self.in_async() {
             self.listener
-                .end_await_expression(&self.tokens, await_token, token);
+                .end_await_expression(&mut self.tokens, await_token, token);
         } else {
             self.report_recoverable_error(await_token, diag::awaitNotAsync);
             self.listener.end_invalid_await_expression(
-                &self.tokens,
+                &mut self.tokens,
                 await_token,
                 token,
                 &diag::awaitNotAsync,
@@ -10782,7 +10908,7 @@ impl Parser {
             self.parse_expression_without_cascade(throw_token)
         };
         self.listener
-            .handle_throw_expression(&self.tokens, throw_token, token);
+            .handle_throw_expression(&mut self.tokens, throw_token, token);
         token
     }
 
@@ -10795,10 +10921,10 @@ impl Parser {
         let throw_token = self.next(token);
         debug_assert!(self.is_a(throw_token, kw::RETHROW));
         self.listener
-            .begin_rethrow_statement(&self.tokens, throw_token);
+            .begin_rethrow_statement(&mut self.tokens, throw_token);
         let token = self.ensure_semicolon(throw_token);
         self.listener
-            .end_rethrow_statement(&self.tokens, throw_token, token);
+            .end_rethrow_statement(&mut self.tokens, throw_token, token);
         token
     }
 
@@ -10810,7 +10936,8 @@ impl Parser {
     pub fn parse_try_statement(&mut self, token: TokenId) -> TokenId {
         let try_keyword = self.next(token);
         debug_assert!(self.is_a(try_keyword, kw::TRY));
-        self.listener.begin_try_statement(&self.tokens, try_keyword);
+        self.listener
+            .begin_try_statement(&mut self.tokens, try_keyword);
         let mut last_consumed = self.parse_block(try_keyword, BlockKind::tryStatement);
         let mut token = self.next(last_consumed);
         let mut catch_count = 0;
@@ -10823,7 +10950,7 @@ impl Parser {
                 // 'on' type catchPart?
                 on_keyword = token;
                 let type_info = compute_type(&mut self.tokens, token, true, false, false);
-                self.listener.begin_catch_clause(&self.tokens, token);
+                self.listener.begin_catch_clause(&mut self.tokens, token);
                 did_begin_catch_clause = true;
                 last_consumed = type_info.ensure_type_not_void(token, self);
                 token = self.next(last_consumed);
@@ -10833,7 +10960,7 @@ impl Parser {
             let mut comma = NO_TOKEN;
             if value == Some("catch") {
                 if !did_begin_catch_clause {
-                    self.listener.begin_catch_clause(&self.tokens, token);
+                    self.listener.begin_catch_clause(&mut self.tokens, token);
                     did_begin_catch_clause = true;
                 }
                 catch_keyword = token;
@@ -10905,12 +11032,12 @@ impl Parser {
                 last_consumed = self.parse_formal_parameters(catch_keyword, MemberKind::Catch);
                 token = self.next(last_consumed);
             }
-            self.listener.end_catch_clause(&self.tokens, token);
+            self.listener.end_catch_clause(&mut self.tokens, token);
             last_consumed = self.parse_block(last_consumed, BlockKind::catchClause);
             token = self.next(last_consumed);
             catch_count += 1;
             self.listener
-                .handle_catch_block(&self.tokens, on_keyword, catch_keyword, comma);
+                .handle_catch_block(&mut self.tokens, on_keyword, catch_keyword, comma);
             value = self.sv(token); // while condition
         }
 
@@ -10919,14 +11046,14 @@ impl Parser {
             finally_keyword = token;
             last_consumed = self.parse_block(token, BlockKind::finallyClause);
             self.listener
-                .handle_finally_block(&self.tokens, finally_keyword);
+                .handle_finally_block(&mut self.tokens, finally_keyword);
         } else {
             if catch_count == 0 {
                 self.report_recoverable_error(try_keyword, diag::onlyTry);
             }
         }
         self.listener.end_try_statement(
-            &self.tokens,
+            &mut self.tokens,
             catch_count,
             try_keyword,
             finally_keyword,
@@ -10944,7 +11071,7 @@ impl Parser {
         let switch_keyword = self.next(token);
         debug_assert!(self.is_a(switch_keyword, kw::SWITCH));
         self.listener
-            .begin_switch_statement(&self.tokens, switch_keyword);
+            .begin_switch_statement(&mut self.tokens, switch_keyword);
         token = self.ensure_parenthesized_condition(switch_keyword, false);
         let saved_loop_state = self.loop_state;
         if self.loop_state == LoopState::OutsideLoop {
@@ -10953,7 +11080,7 @@ impl Parser {
         token = self.parse_switch_block(token);
         self.loop_state = saved_loop_state;
         self.listener
-            .end_switch_statement(&self.tokens, switch_keyword, token);
+            .end_switch_statement(&mut self.tokens, switch_keyword, token);
         token
     }
 
@@ -10965,7 +11092,8 @@ impl Parser {
     pub fn parse_switch_block(&mut self, mut token: TokenId) -> TokenId {
         token = self.ensure_block(token, Some(BlockKind::switchStatement));
         let begin_switch = token;
-        self.listener.begin_switch_block(&self.tokens, begin_switch);
+        self.listener
+            .begin_switch_block(&mut self.tokens, begin_switch);
         let mut case_count = 0;
         let mut has_default = false;
         while self.not_eof_or_type(TokenType::CLOSE_CURLY_BRACKET, self.next(token)) {
@@ -11006,7 +11134,7 @@ impl Parser {
                         );
                     }
                     self.listener
-                        .begin_case_expression(&self.tokens, case_keyword);
+                        .begin_case_expression(&mut self.tokens, case_keyword);
                     if self.is_patterns_feature_enabled {
                         token = self.parse_pattern(case_keyword, PatternContext::matching, 1);
                     } else {
@@ -11018,17 +11146,17 @@ impl Parser {
                         token = next;
                         when = token;
                         self.listener
-                            .begin_switch_case_when_clause(&self.tokens, when);
+                            .begin_switch_case_when_clause(&mut self.tokens, when);
                         token = self.parse_expression(token);
                         self.listener
-                            .end_switch_case_when_clause(&self.tokens, token);
+                            .end_switch_case_when_clause(&mut self.tokens, token);
                     } else {
                         self.listener
-                            .handle_switch_case_no_when_clause(&self.tokens, token);
+                            .handle_switch_case_no_when_clause(&mut self.tokens, token);
                     }
                     token = self.ensure_colon(token);
                     self.listener
-                        .end_case_expression(&self.tokens, case_keyword, when, token);
+                        .end_case_expression(&mut self.tokens, case_keyword, when, token);
                     expression_count += 1;
                     peek = self.peek_past_labels(self.next(token));
                 } else if expression_count > 0 {
@@ -11060,7 +11188,7 @@ impl Parser {
         }
         token = self.next(token);
         self.listener
-            .end_switch_block(&self.tokens, case_count, begin_switch, token);
+            .end_switch_block(&mut self.tokens, case_count, begin_switch, token);
         debug_assert!(
             self.tokens.is_eof(token) || self.is_a(token, TokenType::CLOSE_CURLY_BRACKET)
         );
@@ -11087,7 +11215,7 @@ impl Parser {
         colon_after_default: TokenId,
     ) -> TokenId {
         self.listener
-            .begin_switch_case(&self.tokens, label_count, expression_count, begin);
+            .begin_switch_case(&mut self.tokens, label_count, expression_count, begin);
         // Finally zero or more statements.
         let mut statement_count = 0;
         while self.tokens.kind(self.next(token)) != EOF_TOKEN {
@@ -11112,7 +11240,7 @@ impl Parser {
             peek = self.peek_past_labels(self.next(token));
         }
         self.listener.end_switch_case(
-            &self.tokens,
+            &mut self.tokens,
             label_count,
             expression_count,
             default_keyword,
@@ -11142,7 +11270,7 @@ impl Parser {
         }
         token = self.ensure_semicolon(token);
         self.listener
-            .handle_break_statement(&self.tokens, has_target, break_keyword, token);
+            .handle_break_statement(&mut self.tokens, has_target, break_keyword, token);
         token
     }
 
@@ -11154,7 +11282,7 @@ impl Parser {
     pub fn parse_assert(&mut self, mut token: TokenId, kind: Assert) -> TokenId {
         token = self.next(token);
         debug_assert!(self.is_a(token, kw::ASSERT));
-        self.listener.begin_assert(&self.tokens, token, kind);
+        self.listener.begin_assert(&mut self.tokens, token, kind);
         let assert_keyword = token;
         let mut left_parenthesis = self.next(token);
         if !self.is_a(left_parenthesis, TokenType::OPEN_PAREN) {
@@ -11206,7 +11334,7 @@ impl Parser {
             self.ensure_semicolon(token);
         }
         self.listener.end_assert(
-            &self.tokens,
+            &mut self.tokens,
             assert_keyword,
             kind,
             left_parenthesis,
@@ -11252,8 +11380,12 @@ impl Parser {
             self.report_recoverable_error(continue_keyword, message);
         }
         token = self.ensure_semicolon(token);
-        self.listener
-            .handle_continue_statement(&self.tokens, has_target, continue_keyword, token);
+        self.listener.handle_continue_statement(
+            &mut self.tokens,
+            has_target,
+            continue_keyword,
+            token,
+        );
         token
     }
 
@@ -11265,7 +11397,8 @@ impl Parser {
     pub fn parse_empty_statement(&mut self, token: TokenId) -> TokenId {
         let token = self.next(token);
         debug_assert!(self.is_a(token, TokenType::SEMICOLON));
-        self.listener.handle_empty_statement(&self.tokens, token);
+        self.listener
+            .handle_empty_statement(&mut self.tokens, token);
         token
     }
 
@@ -11355,7 +11488,7 @@ impl Parser {
             enclosing_declaration_name,
             false,
         );
-        self.listener.end_member(&self.tokens);
+        self.listener.end_member(&mut self.tokens);
         token
     }
 
@@ -11428,7 +11561,7 @@ impl Parser {
         } else if token == before_start {
             // TODO(danrubel): Provide a more specific error message for extra ';'.
             self.report_recoverable_error_with_token(next, diag::expectedClassMember);
-            self.listener.handle_invalid_member(&self.tokens, next);
+            self.listener.handle_invalid_member(&mut self.tokens, next);
             if value != Some("}") {
                 // Ensure we make progress.
                 token = next;
@@ -11453,7 +11586,7 @@ impl Parser {
             );
         }
 
-        self.listener.end_member(&self.tokens);
+        self.listener.end_member(&mut self.tokens);
         token
     }
 
@@ -11465,7 +11598,7 @@ impl Parser {
         let mut next = self
             .rewriter()
             .insert_synthetic_token(token, TokenType::SEMICOLON);
-        self.listener.handle_empty_statement(&self.tokens, next);
+        self.listener.handle_empty_statement(&mut self.tokens, next);
 
         while self.not_eof_or_type(TokenType::CLOSE_CURLY_BRACKET, next) {
             token = next;
@@ -11486,14 +11619,14 @@ impl Parser {
             next = self.parse_invalid_block(token);
         }
         self.listener
-            .handle_invalid_top_level_declaration(&self.tokens, next);
+            .handle_invalid_top_level_declaration(&mut self.tokens, next);
         next
     }
 
     pub fn report_and_skip_class_in_class(&mut self, mut token: TokenId) -> TokenId {
         debug_assert!(self.is_a(token, kw::CLASS));
         self.report_recoverable_error(token, diag::classInClass);
-        self.listener.handle_invalid_member(&self.tokens, token);
+        self.listener.handle_invalid_member(&mut self.tokens, token);
         let mut next = self.next(token);
         // If the declaration appears to be a valid class declaration
         // then skip the entire declaration so that we only generate the one
@@ -11509,14 +11642,14 @@ impl Parser {
                 token = self.tokens.end_group(next);
             }
         }
-        self.listener.end_member(&self.tokens);
+        self.listener.end_member(&mut self.tokens);
         token
     }
 
     pub fn report_and_skip_enum_in_class(&mut self, mut token: TokenId) -> TokenId {
         debug_assert!(self.is_a(token, kw::ENUM));
         self.report_recoverable_error(token, diag::enumInClass);
-        self.listener.handle_invalid_member(&self.tokens, token);
+        self.listener.handle_invalid_member(&mut self.tokens, token);
         let mut next = self.next(token);
         // If the declaration appears to be a valid enum declaration
         // then skip the entire declaration so that we only generate the one
@@ -11530,18 +11663,18 @@ impl Parser {
                 token = self.tokens.end_group(next);
             }
         }
-        self.listener.end_member(&self.tokens);
+        self.listener.end_member(&mut self.tokens);
         token
     }
 
     pub fn report_and_skip_typedef_in_class(&mut self, token: TokenId) -> TokenId {
         debug_assert!(self.is_a(token, kw::TYPEDEF));
         self.report_recoverable_error(token, diag::typedefInClass);
-        self.listener.handle_invalid_member(&self.tokens, token);
+        self.listener.handle_invalid_member(&mut self.tokens, token);
         // TODO(brianwilkerson): If the declaration appears to be a valid typedef
         // then skip the entire declaration so that we generate a single error
         // (above) rather than many unhelpful errors.
-        self.listener.end_member(&self.tokens);
+        self.listener.end_member(&mut self.tokens);
         token
     }
 
@@ -11576,14 +11709,14 @@ impl Parser {
     ) -> TokenId {
         debug_assert!(precedence >= 1);
         debug_assert!(precedence <= SELECTOR_PRECEDENCE);
-        self.listener.begin_pattern(&self.tokens, token);
+        self.listener.begin_pattern(&mut self.tokens, token);
         let start = self.next(token);
         token = self.parse_primary_pattern(token, pattern_context);
         loop {
             let next = self.next(token);
             let token_level = self.compute_precedence(next, true);
             if token_level < precedence {
-                self.listener.end_pattern(&self.tokens, token);
+                self.listener.end_pattern(&mut self.tokens, token);
                 return token;
             }
             match self.tokens.lexeme_string(next).as_str() {
@@ -11599,11 +11732,14 @@ impl Parser {
                     }
                     token = next;
                     let operator = token;
-                    self.listener.begin_as_operator_type(&self.tokens, token);
+                    self.listener
+                        .begin_as_operator_type(&mut self.tokens, token);
                     let type_info = self.compute_type_after_is_or_as(token);
                     token = type_info.ensure_type_not_void(token, self);
-                    self.listener.end_as_operator_type(&self.tokens, operator);
-                    self.listener.handle_cast_pattern(&self.tokens, operator);
+                    self.listener
+                        .end_as_operator_type(&mut self.tokens, operator);
+                    self.listener
+                        .handle_cast_pattern(&mut self.tokens, operator);
                 }
                 "!" => {
                     if !self.is_last_pattern_allowed_inside_unary_pattern {
@@ -11613,7 +11749,8 @@ impl Parser {
                             diag::invalidInsideUnaryPattern,
                         );
                     }
-                    self.listener.handle_null_assert_pattern(&self.tokens, next);
+                    self.listener
+                        .handle_null_assert_pattern(&mut self.tokens, next);
                     token = next;
                 }
                 "?" => {
@@ -11624,19 +11761,20 @@ impl Parser {
                             diag::invalidInsideUnaryPattern,
                         );
                     }
-                    self.listener.handle_null_check_pattern(&self.tokens, next);
+                    self.listener
+                        .handle_null_check_pattern(&mut self.tokens, next);
                     token = next;
                 }
                 "&&" | "||" => {
-                    self.listener.begin_binary_pattern(&self.tokens, next);
+                    self.listener.begin_binary_pattern(&mut self.tokens, next);
                     // Left associative, so we recurse at the next higher precedence
                     // level.
                     token = self.parse_pattern(next, pattern_context, token_level + 1);
-                    self.listener.end_binary_pattern(&self.tokens, next);
+                    self.listener.end_binary_pattern(&mut self.tokens, next);
                 }
                 _ => {
                     // Some other operator that doesn't belong in a pattern
-                    self.listener.end_pattern(&self.tokens, token);
+                    self.listener.end_pattern(&mut self.tokens, token);
                     return token;
                 }
             }
@@ -11717,7 +11855,8 @@ impl Parser {
                 // patternField          ::= ( identifier? ':' )? pattern
                 let next_next = self.next(next);
                 if self.is_a(next_next, TokenType::CLOSE_PAREN) {
-                    self.listener.handle_record_pattern(&self.tokens, next, 0);
+                    self.listener
+                        .handle_record_pattern(&mut self.tokens, next, 0);
                     token = next_next;
                 } else {
                     token =
@@ -11740,14 +11879,15 @@ impl Parser {
                 //                   | 'const' typeArguments? '{' elements? '}'
                 //                   | 'const' '(' expression ')'
                 let const_ = next;
-                self.listener.begin_constant_pattern(&self.tokens, const_);
+                self.listener
+                    .begin_constant_pattern(&mut self.tokens, const_);
                 token = self.parse_precedence_expression(
                     const_,
                     EQUALITY_PRECEDENCE,
                     false,
                     ConstantPatternContext::explicit,
                 );
-                self.listener.end_constant_pattern(&self.tokens, const_);
+                self.listener.end_constant_pattern(&mut self.tokens, const_);
                 // A constant pattern is a primary pattern so it's allowed inside unary
                 // patterns.
                 self.is_last_pattern_allowed_inside_unary_pattern = true;
@@ -11766,7 +11906,7 @@ impl Parser {
                 ConstantPatternContext::none,
             );
             self.listener
-                .handle_relational_pattern(&self.tokens, operator);
+                .handle_relational_pattern(&mut self.tokens, operator);
             // A relational pattern is a unary pattern so it's not allowed inside
             // another unary pattern.
             self.is_last_pattern_allowed_inside_unary_pattern = false;
@@ -11810,7 +11950,7 @@ impl Parser {
                 token = type_arg.parse_arguments(token, self);
                 token = self.parse_object_pattern_rest(token, pattern_context);
                 self.listener.handle_object_pattern(
-                    &self.tokens,
+                    &mut self.tokens,
                     first_identifier,
                     dot,
                     second_identifier,
@@ -11843,14 +11983,16 @@ impl Parser {
             // It's not an object pattern so parse it as an expression.
             token = before_first_identifier;
         }
-        self.listener.begin_constant_pattern(&self.tokens, NO_TOKEN);
+        self.listener
+            .begin_constant_pattern(&mut self.tokens, NO_TOKEN);
         token = self.parse_precedence_expression(
             token,
             EQUALITY_PRECEDENCE,
             false,
             ConstantPatternContext::implicit,
         );
-        self.listener.end_constant_pattern(&self.tokens, NO_TOKEN);
+        self.listener
+            .end_constant_pattern(&mut self.tokens, NO_TOKEN);
         // A constant pattern is a primary pattern so it's allowed inside unary
         // patterns.
         self.is_last_pattern_allowed_inside_unary_pattern = true;
@@ -11927,10 +12069,10 @@ impl Parser {
         let in_assignment_pattern = pattern_context == PatternContext::assignment;
         if variable_name == "_" {
             if is_bare_identifier {
-                self.listener.handle_no_type(&self.tokens, token);
+                self.listener.handle_no_type(&mut self.tokens, token);
             }
             self.listener
-                .handle_wildcard_pattern(&self.tokens, keyword, token);
+                .handle_wildcard_pattern(&mut self.tokens, keyword, token);
         } else if in_assignment_pattern && is_bare_identifier {
             if illegalPatternIdentifiers.contains(&variable_name.as_str()) {
                 let message = (diag::illegalPatternAssignmentVariableName.with_arguments)(
@@ -11940,7 +12082,7 @@ impl Parser {
                 self.report_recoverable_error(token, message);
             }
             self.listener
-                .handle_assigned_variable_pattern(&self.tokens, token);
+                .handle_assigned_variable_pattern(&mut self.tokens, token);
         } else {
             if illegalPatternIdentifiers.contains(&variable_name.as_str()) {
                 let message =
@@ -11948,10 +12090,10 @@ impl Parser {
                 self.report_recoverable_error(token, message);
             }
             if is_bare_identifier {
-                self.listener.handle_no_type(&self.tokens, token);
+                self.listener.handle_no_type(&mut self.tokens, token);
             }
             self.listener.handle_declared_variable_pattern(
-                &self.tokens,
+                &mut self.tokens,
                 keyword,
                 token,
                 in_assignment_pattern,
@@ -11978,8 +12120,9 @@ impl Parser {
         if self.is_a(token, TokenType::INDEX) {
             let rewritten = self.rewrite_square_brackets(before_token);
             token = self.next(rewritten);
+            let next_2 = self.tokens.next(token);
             self.listener
-                .handle_list_pattern(&self.tokens, 0, token, self.tokens.next(token));
+                .handle_list_pattern(&mut self.tokens, 0, token, next_2);
             return self.next(token);
         }
         let old = self.may_parse_function_expressions;
@@ -11999,7 +12142,7 @@ impl Parser {
                     token = self.parse_pattern(token, pattern_context, 1);
                 }
                 self.listener
-                    .handle_rest_pattern(&self.tokens, dots, has_sub_pattern);
+                    .handle_rest_pattern(&mut self.tokens, dots, has_sub_pattern);
             } else {
                 token = self.parse_pattern(token, pattern_context, 1);
                 if next == self.next(token) {
@@ -12043,7 +12186,7 @@ impl Parser {
             token = next;
         }
         self.listener
-            .handle_list_pattern(&self.tokens, count, begin_token, token);
+            .handle_list_pattern(&mut self.tokens, count, begin_token, token);
         self.may_parse_function_expressions = old;
         token
     }
@@ -12064,7 +12207,7 @@ impl Parser {
         let mut next = self.next(token);
         if self.is_a(next, TokenType::CLOSE_CURLY_BRACKET) {
             self.listener
-                .handle_map_pattern(&self.tokens, 0, left_brace, next);
+                .handle_map_pattern(&mut self.tokens, 0, left_brace, next);
             return next;
         }
         let old = self.may_parse_function_expressions;
@@ -12080,7 +12223,7 @@ impl Parser {
                     token = self.parse_pattern(token, pattern_context, 1);
                 }
                 self.listener
-                    .handle_rest_pattern(&self.tokens, dots, has_sub_pattern);
+                    .handle_rest_pattern(&mut self.tokens, dots, has_sub_pattern);
             } else {
                 token = self.parse_expression(token);
                 let mut colon = self.next(token);
@@ -12099,11 +12242,9 @@ impl Parser {
                     // Recovery: Avoid looping endlessly.
                     token = self.next(token);
                 }
-                self.listener.handle_map_pattern_entry(
-                    &self.tokens,
-                    colon,
-                    self.tokens.next(token),
-                );
+                let next_1 = self.tokens.next(token);
+                self.listener
+                    .handle_map_pattern_entry(&mut self.tokens, colon, next_1);
             }
             count += 1;
             next = self.next(token);
@@ -12138,7 +12279,7 @@ impl Parser {
         }
         self.may_parse_function_expressions = old;
         self.listener
-            .handle_map_pattern(&self.tokens, count, left_brace, next);
+            .handle_map_pattern(&mut self.tokens, count, left_brace, next);
         next
     }
 
@@ -12166,7 +12307,7 @@ impl Parser {
             if self.is_a(next, TokenType::COLON) {
                 was_record = true;
                 was_valid_record = true;
-                self.listener.handle_no_name(&self.tokens, token);
+                self.listener.handle_no_name(&mut self.tokens, token);
                 token = next;
                 colon = token;
             } else if !self.is_a(next, TokenType::OPEN_PAREN)
@@ -12181,14 +12322,14 @@ impl Parser {
             token = self.parse_pattern(token, pattern_context, 1);
             next = self.next(token);
             if was_record || colon != NO_TOKEN {
-                self.listener.handle_pattern_field(&self.tokens, colon);
+                self.listener.handle_pattern_field(&mut self.tokens, colon);
             }
             count += 1;
             if !self.is_a(next, TokenType::COMMA) {
                 break;
             } else {
                 if !was_record && colon == NO_TOKEN {
-                    self.listener.handle_pattern_field(&self.tokens, colon);
+                    self.listener.handle_pattern_field(&mut self.tokens, colon);
                 }
                 was_record = true;
                 was_valid_record = true;
@@ -12207,10 +12348,10 @@ impl Parser {
                 );
             }
             self.listener
-                .handle_record_pattern(&self.tokens, begin, count);
+                .handle_record_pattern(&mut self.tokens, begin, count);
         } else {
             self.listener
-                .handle_parenthesized_pattern(&self.tokens, begin);
+                .handle_parenthesized_pattern(&mut self.tokens, begin);
         }
 
         self.may_parse_function_expressions = old;
@@ -12238,7 +12379,7 @@ impl Parser {
             }
             let mut colon = NO_TOKEN;
             if self.is_a(next, TokenType::COLON) {
-                self.listener.handle_no_name(&self.tokens, token);
+                self.listener.handle_no_name(&mut self.tokens, token);
                 token = next;
                 colon = token;
             } else if self.is_a(self.next(next), TokenType::COLON) {
@@ -12248,7 +12389,7 @@ impl Parser {
             }
             token = self.parse_pattern(token, pattern_context, 1);
             next = self.next(token);
-            self.listener.handle_pattern_field(&self.tokens, colon);
+            self.listener.handle_pattern_field(&mut self.tokens, colon);
             argument_count += 1;
             if !self.is_a(next, TokenType::COMMA) {
                 if self.is_a(next, TokenType::CLOSE_PAREN) {
@@ -12276,7 +12417,7 @@ impl Parser {
         debug_assert!(self.is_a(token, TokenType::CLOSE_PAREN));
         self.may_parse_function_expressions = old;
         self.listener
-            .handle_object_pattern_fields(&self.tokens, argument_count, begin, token);
+            .handle_object_pattern_fields(&mut self.tokens, argument_count, begin, token);
         token
     }
 
@@ -12359,7 +12500,7 @@ impl Parser {
         token = self.parse_expression(equals);
         let semicolon = self.ensure_semicolon(token);
         self.listener.handle_pattern_variable_declaration_statement(
-            &self.tokens,
+            &mut self.tokens,
             keyword,
             equals,
             semicolon,
@@ -12387,7 +12528,7 @@ impl Parser {
             self.parse_expression_without_cascade(equals)
         };
         self.listener
-            .handle_pattern_assignment(&self.tokens, equals);
+            .handle_pattern_assignment(&mut self.tokens, equals);
         token
     }
 
@@ -12402,25 +12543,25 @@ impl Parser {
         let old = self.may_parse_function_expressions;
         self.may_parse_function_expressions = true;
         self.listener
-            .begin_switch_expression(&self.tokens, switch_keyword);
+            .begin_switch_expression(&mut self.tokens, switch_keyword);
         token = self.ensure_parenthesized_condition(switch_keyword, false);
         token = self.ensure_block(token, Some(BlockKind::switchExpression));
         let begin_switch = token;
         self.listener
-            .begin_switch_expression_block(&self.tokens, begin_switch);
+            .begin_switch_expression_block(&mut self.tokens, begin_switch);
         let mut next = self.next(token);
         let mut case_count = 0;
         if !self.is_a(next, TokenType::CLOSE_CURLY_BRACKET) {
             self.may_parse_function_expressions = false;
             loop {
-                self.listener.begin_switch_expression_case(&self.tokens);
+                self.listener.begin_switch_expression_case(&mut self.tokens);
                 next = self.next(token);
                 let begin_token = next;
                 if self.is_a(next, kw::DEFAULT) {
                     self.report_recoverable_error(next, diag::defaultInSwitchExpression);
-                    self.listener.handle_no_type(&self.tokens, next);
+                    self.listener.handle_no_type(&mut self.tokens, next);
                     self.listener
-                        .handle_wildcard_pattern(&self.tokens, NO_TOKEN, next);
+                        .handle_wildcard_pattern(&mut self.tokens, NO_TOKEN, next);
                     token = next;
                 } else {
                     if self.is_a(next, kw::CASE) {
@@ -12431,7 +12572,7 @@ impl Parser {
                     token = self.parse_pattern(token, PatternContext::matching, 1);
                 }
                 self.listener
-                    .handle_switch_expression_case_pattern(&self.tokens, token);
+                    .handle_switch_expression_case_pattern(&mut self.tokens, token);
                 let mut when = NO_TOKEN;
                 next = self.next(token);
                 if self.is_a(next, kw::WHEN) {
@@ -12456,7 +12597,7 @@ impl Parser {
                 token = self.parse_expression(token);
                 self.may_parse_function_expressions = false;
                 self.listener.end_switch_expression_case(
-                    &self.tokens,
+                    &mut self.tokens,
                     begin_token,
                     when,
                     arrow,
@@ -12515,14 +12656,14 @@ impl Parser {
             }
         }
         self.listener
-            .end_switch_expression_block(&self.tokens, case_count, begin_switch, next);
+            .end_switch_expression_block(&mut self.tokens, case_count, begin_switch, next);
         self.may_parse_function_expressions = old;
         token = next;
         debug_assert!(
             self.tokens.is_eof(token) || self.is_a(token, TokenType::CLOSE_CURLY_BRACKET)
         );
         self.listener
-            .end_switch_expression(&self.tokens, switch_keyword, token);
+            .end_switch_expression(&mut self.tokens, switch_keyword, token);
         token
     }
 

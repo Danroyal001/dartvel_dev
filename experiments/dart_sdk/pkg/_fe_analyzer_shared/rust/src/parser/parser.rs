@@ -18,7 +18,7 @@ pub struct ErrorCollectingListener {
 impl Listener for ErrorCollectingListener {
     fn handle_recoverable_error(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         message: &Message,
         start_token: TokenId,
         end_token: TokenId,

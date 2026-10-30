@@ -3,5 +3,12 @@
 version = 4
 
 [[package]]
+name = "analyzer"
+version = "0.1.0"
+dependencies = [
+ "fe_analyzer_shared",
+]
+
+[[package]]
 name = "fe_analyzer_shared"
 version = "0.1.0"

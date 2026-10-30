@@ -106,7 +106,9 @@ every event.
   `TopLevelParser`); a subclass that only overrides listener events becomes
   a `ForwardingListener` with recovery state.
 - The parser owns the `TokenStore` and the listener (`Box<dyn Listener>`),
-  and every listener event takes the store first. Code that splits `>>` or
+  and every listener event takes the store first, mutably: a listener that
+  builds a tree (the analyzer's `AstBuilder`) inserts and rewrites tokens,
+  which upstream does through `parser.rewriter`. Code that splits `>>` or
   inserts synthetic tokens takes `&mut TokenStore`.
 - Behaviour that looks like an upstream slip is ported as is and marked with
   a comment, never fixed: the oracle would report the fix as a difference.

@@ -51,7 +51,7 @@ impl LiteralEntryInfo {
                 debug_assert!(parser.tokens.is_a(for_token, kw::FOR));
                 parser
                     .listener
-                    .begin_for_control_flow(&parser.tokens, await_token, for_token);
+                    .begin_for_control_flow(&mut parser.tokens, await_token, for_token);
 
                 let mut for_parts_context = ForPartsContext::new();
                 token = parser.parse_for_loop_parts_start(
@@ -68,7 +68,7 @@ impl LiteralEntryInfo {
                         parser
                             .listener
                             .handle_for_initializer_pattern_variable_assignment(
-                                &parser.tokens,
+                                &mut parser.tokens,
                                 pattern_keyword,
                                 equals,
                             );
@@ -109,13 +109,15 @@ impl LiteralEntryInfo {
                 token
             }
             ForComplete => {
-                parser.listener.end_for_control_flow(&parser.tokens, token);
+                parser
+                    .listener
+                    .end_for_control_flow(&mut parser.tokens, token);
                 token
             }
             ForInComplete => {
                 parser
                     .listener
-                    .end_for_in_control_flow(&parser.tokens, token);
+                    .end_for_in_control_flow(&mut parser.tokens, token);
                 token
             }
             IfCondition => {
@@ -123,17 +125,19 @@ impl LiteralEntryInfo {
                 debug_assert!(parser.tokens.is_a(if_token, kw::IF));
                 parser
                     .listener
-                    .begin_if_control_flow(&parser.tokens, if_token);
+                    .begin_if_control_flow(&mut parser.tokens, if_token);
                 let allow_case = parser.is_patterns_feature_enabled;
                 let result = parser.ensure_parenthesized_condition(if_token, allow_case);
                 parser
                     .listener
-                    .handle_then_control_flow(&parser.tokens, result);
+                    .handle_then_control_flow(&mut parser.tokens, result);
                 result
             }
             IfComplete => {
                 if !parser.tokens.is_a(parser.tokens.next(token), kw::ELSE) {
-                    parser.listener.end_if_control_flow(&parser.tokens, token);
+                    parser
+                        .listener
+                        .end_if_control_flow(&mut parser.tokens, token);
                 }
                 token
             }
@@ -142,13 +146,13 @@ impl LiteralEntryInfo {
                 debug_assert!(parser.tokens.is_a(else_token, kw::ELSE));
                 parser
                     .listener
-                    .handle_else_control_flow(&parser.tokens, else_token);
+                    .handle_else_control_flow(&mut parser.tokens, else_token);
                 else_token
             }
             IfElseComplete => {
                 parser
                     .listener
-                    .end_if_else_control_flow(&parser.tokens, token);
+                    .end_if_else_control_flow(&mut parser.tokens, token);
                 token
             }
             SpreadOperator | ForSpread | ForInSpread | IfSpread | ElseSpread => {
@@ -158,7 +162,7 @@ impl LiteralEntryInfo {
                 token = parser.parse_expression(operator);
                 parser
                     .listener
-                    .handle_spread_expression(&parser.tokens, operator);
+                    .handle_spread_expression(&mut parser.tokens, operator);
                 token
             }
             Nested { nested_step, .. } => nested_step.as_mut().unwrap().parse(token, parser),

@@ -2,7 +2,8 @@
 //
 // `Listener` is a trait whose provided methods are upstream's method bodies.
 // Every event also receives the `TokenStore` its tokens live in (the parser
-// owns it), which upstream's tokens carry implicitly. `Token` and `Token?`
+// owns it), which upstream's tokens carry implicitly, and may change it as
+// upstream's listeners do through `parser.rewriter`. `Token` and `Token?`
 // arguments are both `TokenId`s, `NO_TOKEN` standing for null.
 //
 // `Listener: Any` lets the parser take back a listener it swapped in and
@@ -37,12 +38,12 @@ pub trait Listener: Any {
     fn log_event(&mut self, _name: &str) {}
 
     #[allow(unused_variables)]
-    fn begin_arguments(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_arguments(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -55,7 +56,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_object_pattern_fields(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -67,7 +68,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_async_modifier(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         async_token: TokenId,
         star_token: TokenId,
     ) {
@@ -76,14 +77,14 @@ pub trait Listener: Any {
 
     /// Ended by either [endAwaitExpression] or [endInvalidAwaitExpression].
     #[allow(unused_variables)]
-    fn begin_await_expression(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_await_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// One of the two possible corresponding end events for
     /// [beginAwaitExpression].
     #[allow(unused_variables)]
     fn end_await_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -95,7 +96,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_invalid_await_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
         error_code: &'static MessageCode,
@@ -104,12 +105,12 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_block(&mut self, tokens: &TokenStore, token: TokenId, block_kind: BlockKind) {}
+    fn begin_block(&mut self, tokens: &mut TokenStore, token: TokenId, block_kind: BlockKind) {}
 
     #[allow(unused_variables)]
     fn end_block(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -122,13 +123,13 @@ pub trait Listener: Any {
     /// with any top level function declaration. Substructures:
     /// - block
     #[allow(unused_variables)]
-    fn handle_invalid_top_level_block(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn handle_invalid_top_level_block(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn begin_cascade(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_cascade(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_cascade(&mut self, tokens: &TokenStore) {
+    fn end_cascade(&mut self, tokens: &mut TokenStore) {
         self.log_event("Cascade");
     }
 
@@ -139,15 +140,15 @@ pub trait Listener: Any {
     /// So a listener can build the cascade expression once, instead of after
     /// each section.
     #[allow(unused_variables)]
-    fn handle_cascade_expression_end(&mut self, tokens: &TokenStore, section_count: i32) {}
+    fn handle_cascade_expression_end(&mut self, tokens: &mut TokenStore, section_count: i32) {}
 
     #[allow(unused_variables)]
-    fn begin_case_expression(&mut self, tokens: &TokenStore, case_keyword: TokenId) {}
+    fn begin_case_expression(&mut self, tokens: &mut TokenStore, case_keyword: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_case_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         case_keyword: TokenId,
         when: TokenId,
         colon: TokenId,
@@ -161,7 +162,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_class_or_mixin_or_extension_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         token: TokenId,
     ) {
@@ -174,7 +175,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_class_or_mixin_or_extension_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         member_count: i32,
         begin_token: TokenId,
@@ -194,7 +195,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_class_or_mixin_or_named_mixin_application_prelude(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
     ) {
     }
@@ -207,7 +208,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_class_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin: TokenId,
         abstract_token: TokenId,
         sealed_token: TokenId,
@@ -228,7 +229,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_class_extends(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         extends_keyword: TokenId,
         type_count: i32,
     ) {
@@ -241,7 +242,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_implements(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         implements_keyword: TokenId,
         interfaces_count: i32,
     ) {
@@ -260,7 +261,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_class_header(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin: TokenId,
         class_keyword: TokenId,
         native_token: TokenId,
@@ -279,7 +280,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_recover_declaration_header(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationHeaderKind,
     ) {
         self.log_event("RecoverDeclarationHeader");
@@ -291,7 +292,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_class_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -300,13 +301,13 @@ pub trait Listener: Any {
 
     /// Handle `;` as a class body.
     #[allow(unused_variables)]
-    fn handle_no_class_body(&mut self, tokens: &TokenStore, semicolon_token: TokenId) {
+    fn handle_no_class_body(&mut self, tokens: &mut TokenStore, semicolon_token: TokenId) {
         self.log_event("NoClassBody");
     }
 
     /// Handle `;` as an extension type body.
     #[allow(unused_variables)]
-    fn handle_no_extension_type_body(&mut self, tokens: &TokenStore, semicolon_token: TokenId) {
+    fn handle_no_extension_type_body(&mut self, tokens: &mut TokenStore, semicolon_token: TokenId) {
         self.log_event("NoExtensionTypeBody");
     }
 
@@ -314,7 +315,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_mixin_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         augment_token: TokenId,
         base_token: TokenId,
@@ -326,7 +327,7 @@ pub trait Listener: Any {
     /// Handle an on clause in a mixin declaration. Substructures:
     /// - implemented types
     #[allow(unused_variables)]
-    fn handle_mixin_on(&mut self, tokens: &TokenStore, on_keyword: TokenId, type_count: i32) {
+    fn handle_mixin_on(&mut self, tokens: &mut TokenStore, on_keyword: TokenId, type_count: i32) {
         self.log_event("MixinOn");
     }
 
@@ -337,7 +338,7 @@ pub trait Listener: Any {
     /// - on types
     /// - implemented types
     #[allow(unused_variables)]
-    fn handle_mixin_header(&mut self, tokens: &TokenStore, mixin_keyword: TokenId) {
+    fn handle_mixin_header(&mut self, tokens: &mut TokenStore, mixin_keyword: TokenId) {
         self.log_event("MixinHeader");
     }
 
@@ -351,13 +352,13 @@ pub trait Listener: Any {
     /// but also covers the illegal
     /// - with clause
     #[allow(unused_variables)]
-    fn handle_recover_mixin_header(&mut self, tokens: &TokenStore) {
+    fn handle_recover_mixin_header(&mut self, tokens: &mut TokenStore) {
         self.log_event("RecoverMixinHeader");
     }
 
     /// Handle `;` as a mixin body.
     #[allow(unused_variables)]
-    fn handle_no_mixin_body(&mut self, tokens: &TokenStore, semicolon_token: TokenId) {
+    fn handle_no_mixin_body(&mut self, tokens: &mut TokenStore, semicolon_token: TokenId) {
         self.log_event("NoMixinBody");
     }
 
@@ -367,7 +368,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_mixin_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -378,7 +379,12 @@ pub trait Listener: Any {
     ///
     /// Ended by [endTopLevelDeclaration].
     #[allow(unused_variables)]
-    fn begin_uncategorized_top_level_declaration(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_uncategorized_top_level_declaration(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+    ) {
+    }
 
     /// Handle the beginning of an extension methods declaration.  Substructures:
     /// - metadata
@@ -390,7 +396,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_extension_declaration_prelude(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         extension_keyword: TokenId,
     ) {
     }
@@ -402,7 +408,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_extension_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_token: TokenId,
         extension_keyword: TokenId,
         name: TokenId,
@@ -416,7 +422,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_extension_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         extension_keyword: TokenId,
         on_keyword: TokenId,
@@ -427,7 +433,7 @@ pub trait Listener: Any {
 
     /// Handle `;` as an extension body.
     #[allow(unused_variables)]
-    fn handle_no_extension_body(&mut self, tokens: &TokenStore, semicolon_token: TokenId) {
+    fn handle_no_extension_body(&mut self, tokens: &mut TokenStore, semicolon_token: TokenId) {
         self.log_event("NoExtensionBody");
     }
 
@@ -438,7 +444,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_extension_type_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_keyword: TokenId,
         extension_keyword: TokenId,
         name: TokenId,
@@ -453,7 +459,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_extension_type_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         augment_token: TokenId,
         extension_keyword: TokenId,
@@ -465,7 +471,7 @@ pub trait Listener: Any {
 
     /// Handle the start of a primary constructor declaration.
     #[allow(unused_variables)]
-    fn begin_primary_constructor(&mut self, tokens: &TokenStore, begin_token: TokenId) {
+    fn begin_primary_constructor(&mut self, tokens: &mut TokenStore, begin_token: TokenId) {
         self.log_event("PrimaryConstructor");
     }
 
@@ -482,7 +488,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_primary_constructor(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         begin_token: TokenId,
         end_token: TokenId,
@@ -496,7 +502,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_no_primary_constructor(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         token: TokenId,
         const_keyword: TokenId,
@@ -506,7 +512,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_primary_constructor_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         augment_token: TokenId,
     ) {
@@ -520,7 +526,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_primary_constructor_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         this_token: TokenId,
         begin_initializers: TokenId,
@@ -530,44 +536,44 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_combinators(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_combinators(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_combinators(&mut self, tokens: &TokenStore, count: i32) {
+    fn end_combinators(&mut self, tokens: &mut TokenStore, count: i32) {
         self.log_event("Combinators");
     }
 
     #[allow(unused_variables)]
-    fn begin_compilation_unit(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_compilation_unit(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// This is called when [Parser.parseDirectives] has parsed all directives
     /// and is skipping the remainder of the file.  Substructures:
     /// - metadata
     #[allow(unused_variables)]
-    fn handle_directives_only(&mut self, tokens: &TokenStore) {}
+    fn handle_directives_only(&mut self, tokens: &mut TokenStore) {}
 
     #[allow(unused_variables)]
-    fn end_compilation_unit(&mut self, tokens: &TokenStore, count: i32, token: TokenId) {
+    fn end_compilation_unit(&mut self, tokens: &mut TokenStore, count: i32, token: TokenId) {
         self.log_event("CompilationUnit");
     }
 
     #[allow(unused_variables)]
-    fn begin_const_literal(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_const_literal(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     // TODO(jensj): Should this have a beginToken?
     #[allow(unused_variables)]
-    fn end_const_literal(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_const_literal(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         self.log_event("ConstLiteral");
     }
 
     #[allow(unused_variables)]
-    fn begin_constructor_reference(&mut self, tokens: &TokenStore, start: TokenId) {}
+    fn begin_constructor_reference(&mut self, tokens: &mut TokenStore, start: TokenId) {}
 
     // TODO(jensj): Renamed `start` to `beginToken`?
     #[allow(unused_variables)]
     fn end_constructor_reference(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         start: TokenId,
         period_before_name: TokenId,
         end_token: TokenId,
@@ -577,13 +583,13 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_do_while_statement(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_do_while_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     // TODO(jensj): Renamed `doKeyword` to `beginToken`?
     #[allow(unused_variables)]
     fn end_do_while_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         do_keyword: TokenId,
         while_keyword: TokenId,
         end_token: TokenId,
@@ -592,19 +598,19 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_do_while_statement_body(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_do_while_statement_body(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_do_while_statement_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_do_while_statement_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("DoWhileStatementBody");
     }
 
     #[allow(unused_variables)]
-    fn begin_while_statement_body(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_while_statement_body(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
-    fn end_while_statement_body(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_while_statement_body(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         self.log_event("WhileStatementBody");
     }
 
@@ -616,7 +622,7 @@ pub trait Listener: Any {
     ///
     /// Ended by [endTopLevelDeclaration].
     #[allow(unused_variables)]
-    fn begin_enum_declaration_prelude(&mut self, tokens: &TokenStore, enum_keyword: TokenId) {}
+    fn begin_enum_declaration_prelude(&mut self, tokens: &mut TokenStore, enum_keyword: TokenId) {}
 
     /// Handle the beginning of an enum declaration.
     /// [beginToken] may be the [enumKeyword], or may point to modifiers
@@ -626,7 +632,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_enum_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         augment_token: TokenId,
         enum_keyword: TokenId,
@@ -640,7 +646,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_enum_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         enum_keyword: TokenId,
         left_brace: TokenId,
@@ -656,7 +662,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_enum_elements(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         elements_end_token: TokenId,
         elements_count: i32,
     ) {
@@ -672,7 +678,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_enum_header(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_token: TokenId,
         enum_keyword: TokenId,
         left_brace: TokenId,
@@ -682,15 +688,16 @@ pub trait Listener: Any {
 
     /// Handle the start of an enum body.
     #[allow(unused_variables)]
-    fn begin_enum_body(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_enum_body(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of an enum body.
     #[allow(unused_variables)]
-    fn end_enum_body(&mut self, tokens: &TokenStore, begin_token: TokenId, end_token: TokenId) {}
+    fn end_enum_body(&mut self, tokens: &mut TokenStore, begin_token: TokenId, end_token: TokenId) {
+    }
 
     /// Handle `;` as an enum body.
     #[allow(unused_variables)]
-    fn handle_no_enum_body(&mut self, tokens: &TokenStore, semicolon_token: TokenId) {
+    fn handle_no_enum_body(&mut self, tokens: &mut TokenStore, semicolon_token: TokenId) {
         self.log_event("NoEnumBody");
     }
 
@@ -700,7 +707,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_enum_element(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         augment_token: TokenId,
     ) {
@@ -708,7 +715,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_export(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_export(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of an export directive.  Substructures:
     /// - metadata
@@ -716,7 +723,7 @@ pub trait Listener: Any {
     /// - conditional uris
     /// - combinators
     #[allow(unused_variables)]
-    fn end_export(&mut self, tokens: &TokenStore, export_keyword: TokenId, semicolon: TokenId) {
+    fn end_export(&mut self, tokens: &mut TokenStore, export_keyword: TokenId, semicolon: TokenId) {
         self.log_event("Export");
     }
 
@@ -726,7 +733,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_extraneous_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         message: &Message,
     ) {
@@ -736,7 +743,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_expression_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -746,7 +753,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_factory(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         declaration_kind: DeclarationKind,
         last_consumed: TokenId,
         augment_token: TokenId,
@@ -758,7 +765,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_factory(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         begin_token: TokenId,
         factory_keyword: TokenId,
@@ -770,7 +777,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_formal_parameter(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         kind: MemberKind,
         required_token: TokenId,
@@ -782,7 +789,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_formal_parameter(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         var_or_final: TokenId,
         this_keyword: TokenId,
         super_keyword: TokenId,
@@ -799,7 +806,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_no_formal_parameters(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         kind: MemberKind,
     ) {
@@ -807,12 +814,18 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_formal_parameters(&mut self, tokens: &TokenStore, token: TokenId, kind: MemberKind) {}
+    fn begin_formal_parameters(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+        kind: MemberKind,
+    ) {
+    }
 
     #[allow(unused_variables)]
     fn end_formal_parameters(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -831,7 +844,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_fields(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         abstract_token: TokenId,
         augment_token: TokenId,
@@ -850,7 +863,7 @@ pub trait Listener: Any {
     /// Marks that the grammar term `forInitializerStatement` has been parsed and
     /// it was an empty statement.
     #[allow(unused_variables)]
-    fn handle_for_initializer_empty_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_for_initializer_empty_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("ForInitializerEmptyStatement");
     }
 
@@ -859,7 +872,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_for_initializer_expression_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         for_in: bool,
     ) {
@@ -872,7 +885,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_for_initializer_local_variable_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         for_in: bool,
     ) {
@@ -885,7 +898,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_for_initializer_pattern_variable_assignment(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         keyword: TokenId,
         equals: TokenId,
     ) {
@@ -895,7 +908,7 @@ pub trait Listener: Any {
     /// Marks the start of a for statement which is ended by either
     /// [endForStatement] or [endForIn].
     #[allow(unused_variables)]
-    fn begin_for_statement(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_for_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Marks the end of parsing the control structure of a for statement
     /// or for control flow entry up to and including the closing parenthesis.
@@ -903,7 +916,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_for_loop_parts(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         for_keyword: TokenId,
         left_paren: TokenId,
         left_separator: TokenId,
@@ -914,16 +927,16 @@ pub trait Listener: Any {
 
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
-    fn end_for_statement(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_for_statement(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         self.log_event("ForStatement");
     }
 
     #[allow(unused_variables)]
-    fn begin_for_statement_body(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_for_statement_body(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
-    fn end_for_statement_body(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_for_statement_body(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         self.log_event("ForStatementBody");
     }
 
@@ -937,7 +950,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_for_in_loop_parts(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         await_token: TokenId,
         for_token: TokenId,
         left_parenthesis: TokenId,
@@ -949,24 +962,24 @@ pub trait Listener: Any {
     // One of the two possible corresponding end events for [beginForStatement].
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
-    fn end_for_in(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_for_in(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         self.log_event("ForIn");
     }
 
     #[allow(unused_variables)]
-    fn begin_for_in_expression(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_for_in_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_for_in_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_for_in_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("ForInExpression");
     }
 
     #[allow(unused_variables)]
-    fn begin_for_in_body(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_for_in_body(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
-    fn end_for_in_body(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_for_in_body(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         self.log_event("ForInBody");
     }
 
@@ -978,7 +991,7 @@ pub trait Listener: Any {
     /// Substructures:
     /// - Type variables
     #[allow(unused_variables)]
-    fn begin_named_function_expression(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_named_function_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// A named function expression which isn't legal syntax in Dart.
     /// Useful for recovering from JavaScript code being pasted into a Dart
@@ -996,7 +1009,7 @@ pub trait Listener: Any {
     /// - Function body (block or arrow expression).
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
-    fn end_named_function_expression(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_named_function_expression(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         self.log_event("NamedFunctionExpression");
     }
 
@@ -1004,7 +1017,7 @@ pub trait Listener: Any {
     /// - Metadata
     /// - Type variables
     #[allow(unused_variables)]
-    fn begin_local_function_declaration(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_local_function_declaration(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// A function declaration.
     ///
@@ -1020,7 +1033,7 @@ pub trait Listener: Any {
     /// - Function body (block or arrow expression).
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
-    fn end_local_function_declaration(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_local_function_declaration(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         self.log_event("FunctionDeclaration");
     }
 
@@ -1029,7 +1042,7 @@ pub trait Listener: Any {
     /// function bodies, see the corresponding methods [handleEmptyFunctionBody]
     /// and [handleExpressionFunctionBody].
     #[allow(unused_variables)]
-    fn begin_block_function_body(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_block_function_body(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// This method is invoked by the parser after it finished parsing a block
     /// function body.  This method is not invoked for empty or expression
@@ -1040,7 +1053,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_block_function_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -1049,7 +1062,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn handle_no_function_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_function_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("NoFunctionBody");
     }
 
@@ -1060,7 +1073,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_function_body_skipped(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
         is_expression_body: bool,
@@ -1068,7 +1081,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_function_name(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_function_name(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// The end of the function name in either a local function declaration, like
     /// 'local' in:
@@ -1092,7 +1105,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_function_name(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         token: TokenId,
         is_function_expression: bool,
@@ -1101,7 +1114,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_typedef(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_typedef(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of a typedef declaration.
     ///
@@ -1121,7 +1134,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_typedef(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_token: TokenId,
         typedef_keyword: TokenId,
         equals: TokenId,
@@ -1134,13 +1147,13 @@ pub trait Listener: Any {
     /// Substructures:
     /// - mixin types (TypeList)
     #[allow(unused_variables)]
-    fn handle_class_with_clause(&mut self, tokens: &TokenStore, with_keyword: TokenId) {
+    fn handle_class_with_clause(&mut self, tokens: &mut TokenStore, with_keyword: TokenId) {
         self.log_event("ClassWithClause");
     }
 
     /// Handle the absence of a class with clause.
     #[allow(unused_variables)]
-    fn handle_class_no_with_clause(&mut self, tokens: &TokenStore) {
+    fn handle_class_no_with_clause(&mut self, tokens: &mut TokenStore) {
         self.log_event("ClassNoWithClause");
     }
 
@@ -1151,13 +1164,13 @@ pub trait Listener: Any {
     /// This method is separated from [handleClassWithClause] to simplify
     /// handling the different objects in the context.
     #[allow(unused_variables)]
-    fn handle_enum_with_clause(&mut self, tokens: &TokenStore, with_keyword: TokenId) {
+    fn handle_enum_with_clause(&mut self, tokens: &mut TokenStore, with_keyword: TokenId) {
         self.log_event("EnumWithClause");
     }
 
     /// Handle the absence of an enum with clause.
     #[allow(unused_variables)]
-    fn handle_enum_no_with_clause(&mut self, tokens: &TokenStore) {
+    fn handle_enum_no_with_clause(&mut self, tokens: &mut TokenStore) {
         self.log_event("EnumNoWithClause");
     }
 
@@ -1168,7 +1181,7 @@ pub trait Listener: Any {
     /// This method is separated from [handleClassWithClause] and
     /// [handleEnumWithClause] as it is an error state.
     #[allow(unused_variables)]
-    fn handle_mixin_with_clause(&mut self, tokens: &TokenStore, with_keyword: TokenId) {
+    fn handle_mixin_with_clause(&mut self, tokens: &mut TokenStore, with_keyword: TokenId) {
         self.log_event("MixinWithClause");
     }
 
@@ -1180,7 +1193,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_named_mixin_application(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         abstract_token: TokenId,
         sealed_token: TokenId,
@@ -1200,7 +1213,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_named_mixin_application_with_clause(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         with_keyword: TokenId,
     ) {
         self.log_event("NamedMixinApplicationWithClause");
@@ -1224,7 +1237,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_named_mixin_application(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin: TokenId,
         class_keyword: TokenId,
         equals: TokenId,
@@ -1235,35 +1248,35 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_hide(&mut self, tokens: &TokenStore, hide_keyword: TokenId) {}
+    fn begin_hide(&mut self, tokens: &mut TokenStore, hide_keyword: TokenId) {}
 
     /// Handle the end of a "hide" combinator.  Substructures:
     /// - hidden names (IdentifierList)
     #[allow(unused_variables)]
-    fn end_hide(&mut self, tokens: &TokenStore, hide_keyword: TokenId) {
+    fn end_hide(&mut self, tokens: &mut TokenStore, hide_keyword: TokenId) {
         self.log_event("Hide");
     }
 
     #[allow(unused_variables)]
-    fn handle_identifier_list(&mut self, tokens: &TokenStore, count: i32) {
+    fn handle_identifier_list(&mut self, tokens: &mut TokenStore, count: i32) {
         self.log_event("IdentifierList");
     }
 
     #[allow(unused_variables)]
-    fn begin_type_list(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_type_list(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_type_list(&mut self, tokens: &TokenStore, count: i32) {
+    fn end_type_list(&mut self, tokens: &mut TokenStore, count: i32) {
         self.log_event("TypeList");
     }
 
     #[allow(unused_variables)]
-    fn begin_if_statement(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_if_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_if_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         if_token: TokenId,
         else_token: TokenId,
         end_token: TokenId,
@@ -1272,12 +1285,12 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_then_statement(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_then_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_then_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -1285,13 +1298,13 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_else_statement(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_else_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// The [beginToken] is the `else` token.
     #[allow(unused_variables)]
     fn end_else_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -1299,7 +1312,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_import(&mut self, tokens: &TokenStore, import_keyword: TokenId) {}
+    fn begin_import(&mut self, tokens: &mut TokenStore, import_keyword: TokenId) {}
 
     /// Signals that the current import is deferred and/or has a prefix
     /// depending upon whether [deferredKeyword] and [asKeyword]
@@ -1308,7 +1321,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_import_prefix(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         deferred_keyword: TokenId,
         as_keyword: TokenId,
     ) {
@@ -1322,7 +1335,7 @@ pub trait Listener: Any {
     /// - prefix identifier
     /// - combinators
     #[allow(unused_variables)]
-    fn end_import(&mut self, tokens: &TokenStore, import_keyword: TokenId, semicolon: TokenId) {
+    fn end_import(&mut self, tokens: &mut TokenStore, import_keyword: TokenId, semicolon: TokenId) {
         self.log_event("Import");
     }
 
@@ -1334,20 +1347,20 @@ pub trait Listener: Any {
     /// - prefix identifier
     /// - combinators
     #[allow(unused_variables)]
-    fn handle_recover_import(&mut self, tokens: &TokenStore, semicolon: TokenId) {
+    fn handle_recover_import(&mut self, tokens: &mut TokenStore, semicolon: TokenId) {
         self.log_event("ImportRecovery");
     }
 
     #[allow(unused_variables)]
-    fn begin_conditional_uris(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_conditional_uris(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_conditional_uris(&mut self, tokens: &TokenStore, count: i32) {
+    fn end_conditional_uris(&mut self, tokens: &mut TokenStore, count: i32) {
         self.log_event("ConditionalUris");
     }
 
     #[allow(unused_variables)]
-    fn begin_conditional_uri(&mut self, tokens: &TokenStore, if_keyword: TokenId) {}
+    fn begin_conditional_uri(&mut self, tokens: &mut TokenStore, if_keyword: TokenId) {}
 
     /// Handle the end of a conditional URI construct.  Substructures:
     /// - Dotted name
@@ -1356,7 +1369,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_conditional_uri(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         if_keyword: TokenId,
         left_paren: TokenId,
         equal_sign: TokenId,
@@ -1365,17 +1378,22 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn handle_dotted_name(&mut self, tokens: &TokenStore, count: i32, first_identifier: TokenId) {
+    fn handle_dotted_name(
+        &mut self,
+        tokens: &mut TokenStore,
+        count: i32,
+        first_identifier: TokenId,
+    ) {
         self.log_event("DottedName");
     }
 
     #[allow(unused_variables)]
-    fn begin_implicit_creation_expression(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_implicit_creation_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_implicit_creation_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         open_angle_bracket: TokenId,
     ) {
@@ -1383,15 +1401,15 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_initialized_identifier(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_initialized_identifier(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_initialized_identifier(&mut self, tokens: &TokenStore, name_token: TokenId) {
+    fn end_initialized_identifier(&mut self, tokens: &mut TokenStore, name_token: TokenId) {
         self.log_event("InitializedIdentifier");
     }
 
     #[allow(unused_variables)]
-    fn begin_field_initializer(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_field_initializer(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of a field initializer.  Substructures:
     /// - Initializer expression
@@ -1399,7 +1417,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_field_initializer(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         assignment: TokenId,
         end_token: TokenId,
     ) {
@@ -1408,42 +1426,42 @@ pub trait Listener: Any {
 
     /// Handle the lack of a field initializer.
     #[allow(unused_variables)]
-    fn handle_no_field_initializer(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_field_initializer(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("NoFieldInitializer");
     }
 
     #[allow(unused_variables)]
-    fn begin_variable_initializer(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_variable_initializer(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of a variable initializer. Substructures:
     /// - Initializer expression.
     #[allow(unused_variables)]
-    fn end_variable_initializer(&mut self, tokens: &TokenStore, assignment_operator: TokenId) {
+    fn end_variable_initializer(&mut self, tokens: &mut TokenStore, assignment_operator: TokenId) {
         self.log_event("VariableInitializer");
     }
 
     /// Used when a variable has no initializer.
     #[allow(unused_variables)]
-    fn handle_no_variable_initializer(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_variable_initializer(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("NoVariableInitializer");
     }
 
     #[allow(unused_variables)]
-    fn begin_initializer(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_initializer(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
-    fn end_initializer(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_initializer(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         self.log_event("ConstructorInitializer");
     }
 
     #[allow(unused_variables)]
-    fn begin_initializers(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_initializers(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_initializers(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -1452,7 +1470,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn handle_no_initializers(&mut self, tokens: &TokenStore) {
+    fn handle_no_initializers(&mut self, tokens: &mut TokenStore) {
         self.log_event("NoInitializers");
     }
 
@@ -1460,7 +1478,7 @@ pub trait Listener: Any {
     /// parser will resume parsing from [token]. Exactly where the parser will
     /// resume parsing is unspecified.
     #[allow(unused_variables)]
-    fn handle_invalid_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_invalid_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("InvalidExpression");
     }
 
@@ -1468,7 +1486,7 @@ pub trait Listener: Any {
     /// body. The parser expected an open curly brace `{` and will resume parsing
     /// from [token] as if a function body had preceded it.
     #[allow(unused_variables)]
-    fn handle_invalid_function_body(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_invalid_function_body(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("InvalidFunctionBody");
     }
 
@@ -1476,27 +1494,33 @@ pub trait Listener: Any {
     /// expected an identifier, and will resume parsing type arguments from
     /// [token].
     #[allow(unused_variables)]
-    fn handle_invalid_type_reference(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_invalid_type_reference(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("InvalidTypeReference");
     }
 
     #[allow(unused_variables)]
-    fn handle_label(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_label(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("Label");
     }
 
     #[allow(unused_variables)]
-    fn begin_labeled_statement(&mut self, tokens: &TokenStore, token: TokenId, label_count: i32) {}
+    fn begin_labeled_statement(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+        label_count: i32,
+    ) {
+    }
 
     #[allow(unused_variables)]
-    fn end_labeled_statement(&mut self, tokens: &TokenStore, label_count: i32) {
+    fn end_labeled_statement(&mut self, tokens: &mut TokenStore, label_count: i32) {
         self.log_event("LabeledStatement");
     }
 
     #[allow(unused_variables)]
     fn begin_library_augmentation(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_keyword: TokenId,
         library_keyword: TokenId,
     ) {
@@ -1508,7 +1532,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_library_augmentation(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_keyword: TokenId,
         library_keyword: TokenId,
         semicolon: TokenId,
@@ -1517,7 +1541,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_library_name(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_library_name(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of a library directive.  Substructures:
     /// - Metadata
@@ -1525,7 +1549,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_library_name(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         library_keyword: TokenId,
         semicolon: TokenId,
         has_name: bool,
@@ -1542,7 +1566,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_literal_map_entry(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         colon: TokenId,
         end_token: TokenId,
         null_aware_key_token: TokenId,
@@ -1557,7 +1581,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_map_pattern_entry(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         colon: TokenId,
         end_token: TokenId,
     ) {
@@ -1565,12 +1589,12 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_literal_string(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_literal_string(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn handle_interpolation_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         left_bracket: TokenId,
         right_bracket: TokenId,
     ) {
@@ -1580,7 +1604,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_literal_string(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         interpolation_count: i32,
         end_token: TokenId,
     ) {
@@ -1590,7 +1614,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_adjacent_string_literals(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         start_token: TokenId,
         literal_count: i32,
     ) {
@@ -1601,13 +1625,13 @@ pub trait Listener: Any {
     /// should also have a more specific begin/end pair, e.g.
     /// [beginFactory]/[endFactory].
     #[allow(unused_variables)]
-    fn begin_member(&mut self, tokens: &TokenStore) {}
+    fn begin_member(&mut self, tokens: &mut TokenStore) {}
 
     /// Handle an invalid member declaration. Substructures:
     /// - metadata
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
-    fn handle_invalid_member(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn handle_invalid_member(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         self.log_event("InvalidMember");
     }
 
@@ -1617,7 +1641,7 @@ pub trait Listener: Any {
     /// Normally listeners should probably override
     /// [endFields], [endMethod] or [endConstructor] instead.
     #[allow(unused_variables)]
-    fn end_member(&mut self, tokens: &TokenStore) {
+    fn end_member(&mut self, tokens: &mut TokenStore) {
         self.log_event("Member");
     }
 
@@ -1626,7 +1650,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_method(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         declaration_kind: DeclarationKind,
         augment_token: TokenId,
         external_token: TokenId,
@@ -1652,7 +1676,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_method(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         get_or_set: TokenId,
         begin_token: TokenId,
@@ -1668,7 +1692,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_constructor(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         declaration_kind: DeclarationKind,
         augment_token: TokenId,
         external_token: TokenId,
@@ -1694,7 +1718,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_constructor(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         kind: DeclarationKind,
         begin_token: TokenId,
         new_token: TokenId,
@@ -1706,15 +1730,15 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_metadata_star(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_metadata_star(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_metadata_star(&mut self, tokens: &TokenStore, count: i32) {
+    fn end_metadata_star(&mut self, tokens: &mut TokenStore, count: i32) {
         self.log_event("MetadataStar");
     }
 
     #[allow(unused_variables)]
-    fn begin_metadata(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_metadata(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of a metadata annotation.  Substructures:
     /// - Identifier
@@ -1724,7 +1748,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_metadata(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         period_before_name: TokenId,
         end_token: TokenId,
@@ -1733,12 +1757,12 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_optional_formal_parameters(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_optional_formal_parameters(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_optional_formal_parameters(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -1748,18 +1772,18 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_part(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_part(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of a part directive.  Substructures:
     /// - metadata
     /// - uri
     #[allow(unused_variables)]
-    fn end_part(&mut self, tokens: &TokenStore, part_keyword: TokenId, semicolon: TokenId) {
+    fn end_part(&mut self, tokens: &mut TokenStore, part_keyword: TokenId, semicolon: TokenId) {
         self.log_event("Part");
     }
 
     #[allow(unused_variables)]
-    fn begin_part_of(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_part_of(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of a "part of" directive.  Substructures:
     /// - Metadata
@@ -1770,7 +1794,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_part_of(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         part_keyword: TokenId,
         of_keyword: TokenId,
         semicolon: TokenId,
@@ -1780,12 +1804,12 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_redirecting_factory_body(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_redirecting_factory_body(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_redirecting_factory_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -1793,14 +1817,14 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_return_statement(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_return_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of a `native` function.
     /// The [handleNativeClause] event is sent prior to this event.
     #[allow(unused_variables)]
     fn handle_native_function_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         native_token: TokenId,
         semicolon: TokenId,
     ) {
@@ -1814,7 +1838,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_native_function_body_ignored(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         native_token: TokenId,
         semicolon: TokenId,
     ) {
@@ -1826,7 +1850,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_native_function_body_skipped(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         native_token: TokenId,
         semicolon: TokenId,
     ) {
@@ -1835,7 +1859,7 @@ pub trait Listener: Any {
 
     /// This method is invoked when a function has the empty body.
     #[allow(unused_variables)]
-    fn handle_empty_function_body(&mut self, tokens: &TokenStore, semicolon: TokenId) {
+    fn handle_empty_function_body(&mut self, tokens: &mut TokenStore, semicolon: TokenId) {
         self.log_event("EmptyFunctionBody");
     }
 
@@ -1846,7 +1870,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_expression_function_body(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         arrow_token: TokenId,
         end_token: TokenId,
     ) {
@@ -1856,7 +1880,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_return_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         has_expression: bool,
         begin_token: TokenId,
         end_token: TokenId,
@@ -1865,7 +1889,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn handle_send(&mut self, tokens: &TokenStore, begin_token: TokenId, end_token: TokenId) {
+    fn handle_send(&mut self, tokens: &mut TokenStore, begin_token: TokenId, end_token: TokenId) {
         self.log_event("Send");
     }
 
@@ -1877,7 +1901,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_send_without_arguments(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
         next_token: TokenId,
@@ -1892,7 +1916,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_invocation_without_type_arguments(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -1900,23 +1924,23 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_show(&mut self, tokens: &TokenStore, show_keyword: TokenId) {}
+    fn begin_show(&mut self, tokens: &mut TokenStore, show_keyword: TokenId) {}
 
     /// Handle the end of a "show" combinator.  Substructures:
     /// - shown names (IdentifierList)
     #[allow(unused_variables)]
-    fn end_show(&mut self, tokens: &TokenStore, show_keyword: TokenId) {
+    fn end_show(&mut self, tokens: &mut TokenStore, show_keyword: TokenId) {
         self.log_event("Show");
     }
 
     #[allow(unused_variables)]
-    fn begin_switch_statement(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_switch_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
     fn end_switch_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         switch_keyword: TokenId,
         end_token: TokenId,
     ) {
@@ -1924,13 +1948,13 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_switch_expression(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_switch_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
     fn end_switch_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         switch_keyword: TokenId,
         end_token: TokenId,
     ) {
@@ -1938,12 +1962,12 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_switch_block(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_switch_block(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_switch_block(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         case_count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -1952,13 +1976,13 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_switch_expression_block(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_switch_expression_block(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
     fn end_switch_expression_block(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         case_count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -1967,12 +1991,12 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_literal_symbol(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_literal_symbol(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_literal_symbol(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         hash_token: TokenId,
         identifier_count: i32,
     ) {
@@ -1983,7 +2007,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_throw_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         throw_token: TokenId,
         end_token: TokenId,
     ) {
@@ -1991,13 +2015,13 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_rethrow_statement(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_rethrow_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
     fn end_rethrow_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         rethrow_token: TokenId,
         end_token: TokenId,
     ) {
@@ -2020,7 +2044,7 @@ pub trait Listener: Any {
     /// or [beginUncategorizedTopLevelDeclaration].
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
-    fn end_top_level_declaration(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn end_top_level_declaration(&mut self, tokens: &mut TokenStore, end_token: TokenId) {
         self.log_event("TopLevelDeclaration");
     }
 
@@ -2033,7 +2057,11 @@ pub trait Listener: Any {
     /// - metadata
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
-    fn handle_invalid_top_level_declaration(&mut self, tokens: &TokenStore, end_token: TokenId) {
+    fn handle_invalid_top_level_declaration(
+        &mut self,
+        tokens: &mut TokenStore,
+        end_token: TokenId,
+    ) {
         self.log_event("InvalidTopLevelDeclaration");
     }
 
@@ -2042,14 +2070,14 @@ pub trait Listener: Any {
     ///
     /// Ended by [endTopLevelDeclaration].
     #[allow(unused_variables)]
-    fn begin_top_level_member(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_top_level_member(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Marks the beginning of a fields declaration.
     /// Note that this is ended with [endTopLevelFields] or [endFields].
     #[allow(unused_variables)]
     fn begin_fields(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         declaration_kind: DeclarationKind,
         augment_token: TokenId,
         abstract_token: TokenId,
@@ -2073,7 +2101,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_top_level_fields(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         augment_token: TokenId,
         abstract_token: TokenId,
         external_token: TokenId,
@@ -2091,7 +2119,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_top_level_method(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         last_consumed: TokenId,
         augment_token: TokenId,
         external_token: TokenId,
@@ -2110,7 +2138,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_top_level_method(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         get_or_set: TokenId,
         end_token: TokenId,
@@ -2119,20 +2147,20 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_try_statement(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_try_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn begin_catch_clause(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_catch_clause(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_catch_clause(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_catch_clause(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("CatchClause");
     }
 
     #[allow(unused_variables)]
     fn handle_catch_block(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         on_keyword: TokenId,
         catch_keyword: TokenId,
         comma: TokenId,
@@ -2141,14 +2169,14 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn handle_finally_block(&mut self, tokens: &TokenStore, finally_keyword: TokenId) {
+    fn handle_finally_block(&mut self, tokens: &mut TokenStore, finally_keyword: TokenId) {
         self.log_event("FinallyBlock");
     }
 
     #[allow(unused_variables)]
     fn end_try_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         catch_count: i32,
         try_keyword: TokenId,
         finally_keyword: TokenId,
@@ -2158,28 +2186,33 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn handle_type(&mut self, tokens: &TokenStore, begin_token: TokenId, question_mark: TokenId) {
+    fn handle_type(
+        &mut self,
+        tokens: &mut TokenStore,
+        begin_token: TokenId,
+        question_mark: TokenId,
+    ) {
         self.log_event("Type");
     }
 
     /// Called when parser encounters a '!'
     /// used as a non-null postfix assertion in an expression.
     #[allow(unused_variables)]
-    fn handle_non_null_assert_expression(&mut self, tokens: &TokenStore, bang: TokenId) {
+    fn handle_non_null_assert_expression(&mut self, tokens: &mut TokenStore, bang: TokenId) {
         self.log_event("NonNullAssertExpression");
     }
 
     /// Called after the parser has consumed a null-assert pattern, consisting of
     /// a pattern followed by a `!` operator.
     #[allow(unused_variables)]
-    fn handle_null_assert_pattern(&mut self, tokens: &TokenStore, bang: TokenId) {
+    fn handle_null_assert_pattern(&mut self, tokens: &mut TokenStore, bang: TokenId) {
         self.log_event("NullAssertPattern");
     }
 
     /// Called after the parser has consumed a null-check pattern, consisting of a
     /// pattern followed by a `?` operator.
     #[allow(unused_variables)]
-    fn handle_null_check_pattern(&mut self, tokens: &TokenStore, question: TokenId) {
+    fn handle_null_check_pattern(&mut self, tokens: &mut TokenStore, question: TokenId) {
         self.log_event("NullCheckPattern");
     }
 
@@ -2190,7 +2223,7 @@ pub trait Listener: Any {
     /// `patternAssignment` (and hence should refer to a previously declared
     /// variable rather than declaring a fresh one).
     #[allow(unused_variables)]
-    fn handle_assigned_variable_pattern(&mut self, tokens: &TokenStore, variable: TokenId) {
+    fn handle_assigned_variable_pattern(&mut self, tokens: &mut TokenStore, variable: TokenId) {
         self.log_event("AssignedVariablePattern");
     }
 
@@ -2206,7 +2239,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_declared_variable_pattern(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         keyword: TokenId,
         variable: TokenId,
         in_assignment_pattern: bool,
@@ -2220,7 +2253,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_wildcard_pattern(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         keyword: TokenId,
         wildcard: TokenId,
     ) {
@@ -2228,12 +2261,12 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn handle_no_name(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_name(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("NoName");
     }
 
     #[allow(unused_variables)]
-    fn begin_record_type(&mut self, tokens: &TokenStore, left_bracket: TokenId) {}
+    fn begin_record_type(&mut self, tokens: &mut TokenStore, left_bracket: TokenId) {}
 
     /// Handle the end of a record type declaration.
     ///
@@ -2247,7 +2280,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_record_type(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         left_bracket: TokenId,
         question_mark: TokenId,
         count: i32,
@@ -2257,7 +2290,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_record_type_entry(&mut self, tokens: &TokenStore) {}
+    fn begin_record_type_entry(&mut self, tokens: &mut TokenStore) {}
 
     /// Handle the end of the record type entries.
     ///
@@ -2266,12 +2299,12 @@ pub trait Listener: Any {
     /// - type
     /// - identifier
     #[allow(unused_variables)]
-    fn end_record_type_entry(&mut self, tokens: &TokenStore) {
+    fn end_record_type_entry(&mut self, tokens: &mut TokenStore) {
         self.log_event("RecordTypeEntry");
     }
 
     #[allow(unused_variables)]
-    fn begin_record_type_named_fields(&mut self, tokens: &TokenStore, left_bracket: TokenId) {}
+    fn begin_record_type_named_fields(&mut self, tokens: &mut TokenStore, left_bracket: TokenId) {}
 
     /// Handle the end of the record type named fields.
     ///
@@ -2280,7 +2313,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_record_type_named_fields(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         left_bracket: TokenId,
     ) {
@@ -2288,7 +2321,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_function_type(&mut self, tokens: &TokenStore, begin_token: TokenId) {}
+    fn begin_function_type(&mut self, tokens: &mut TokenStore, begin_token: TokenId) {}
 
     /// Handle the end of a generic function type declaration.
     ///
@@ -2299,7 +2332,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_function_type(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         function_token: TokenId,
         question_mark: TokenId,
     ) {
@@ -2307,12 +2340,12 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_type_arguments(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_type_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_type_arguments(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         begin_token: TokenId,
         end_token: TokenId,
@@ -2323,12 +2356,12 @@ pub trait Listener: Any {
     /// After endTypeArguments has been called,
     /// this event is called if those type arguments are invalid.
     #[allow(unused_variables)]
-    fn handle_invalid_type_arguments(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_invalid_type_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("NoTypeArguments");
     }
 
     #[allow(unused_variables)]
-    fn handle_no_type_arguments(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_type_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("NoTypeArguments");
     }
 
@@ -2337,13 +2370,19 @@ pub trait Listener: Any {
     /// - Metadata
     /// - Name (identifier)
     #[allow(unused_variables)]
-    fn begin_type_variable(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_type_variable(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Called when [beginTypeVariable] has been called for all of the variables
     /// in a group, and before [endTypeVariable] has been called for any of the
     /// variables in that same group.
     #[allow(unused_variables)]
-    fn handle_type_variables_defined(&mut self, tokens: &TokenStore, token: TokenId, count: i32) {}
+    fn handle_type_variables_defined(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+        count: i32,
+    ) {
+    }
 
     /// Handle the end of a type formal parameter (e.g. "X extends Y")
     /// where [index] is the index of the type variable in the list of
@@ -2356,7 +2395,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_type_variable(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         index: i32,
         extends_or_super: TokenId,
@@ -2366,12 +2405,12 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_type_variables(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_type_variables(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
     fn end_type_variables(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -2379,7 +2418,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn report_variance_modifier_not_enabled(&mut self, tokens: &TokenStore, variance: TokenId) {
+    fn report_variance_modifier_not_enabled(&mut self, tokens: &mut TokenStore, variance: TokenId) {
         if variance != NO_TOKEN {
             self.handle_experiment_not_enabled(
                 tokens,
@@ -2391,7 +2430,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_function_expression(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_function_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of a function expression (e.g. "() { ... }").
     /// Substructures:
@@ -2402,7 +2441,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_function_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         end_token: TokenId,
     ) {
@@ -2415,7 +2454,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_variables_declaration(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         late_token: TokenId,
         var_final_or_const: TokenId,
@@ -2425,18 +2464,23 @@ pub trait Listener: Any {
     // TODO(jensj): The declaration does end --- on the name of `endToken` it
     // doesn't make sense it's nullable. Also should there be a `beginToken`?
     #[allow(unused_variables)]
-    fn end_variables_declaration(&mut self, tokens: &TokenStore, count: i32, end_token: TokenId) {
+    fn end_variables_declaration(
+        &mut self,
+        tokens: &mut TokenStore,
+        count: i32,
+        end_token: TokenId,
+    ) {
         self.log_event("VariablesDeclaration");
     }
 
     #[allow(unused_variables)]
-    fn begin_while_statement(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_while_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
     fn end_while_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         while_keyword: TokenId,
         end_token: TokenId,
     ) {
@@ -2444,29 +2488,29 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_as_operator_type(&mut self, tokens: &TokenStore, operator: TokenId) {}
+    fn begin_as_operator_type(&mut self, tokens: &mut TokenStore, operator: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_as_operator_type(&mut self, tokens: &TokenStore, operator: TokenId) {
+    fn end_as_operator_type(&mut self, tokens: &mut TokenStore, operator: TokenId) {
         self.log_event("AsOperatorType");
     }
 
     #[allow(unused_variables)]
-    fn handle_as_operator(&mut self, tokens: &TokenStore, operator: TokenId) {
+    fn handle_as_operator(&mut self, tokens: &mut TokenStore, operator: TokenId) {
         self.log_event("AsOperator");
     }
 
     /// Called after the parser has consumed a cast pattern, consisting of a
     /// pattern, `as` operator, and type annotation.
     #[allow(unused_variables)]
-    fn handle_cast_pattern(&mut self, tokens: &TokenStore, operator: TokenId) {
+    fn handle_cast_pattern(&mut self, tokens: &mut TokenStore, operator: TokenId) {
         self.log_event("CastPattern");
     }
 
     #[allow(unused_variables)]
     fn handle_assignment_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         end_token: TokenId,
     ) {
@@ -2474,7 +2518,7 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_anonymous_method_invocation(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_anonymous_method_invocation(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Called after the parser has consumed an anonymous method invocation.
     /// Substructures:
@@ -2485,7 +2529,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_anonymous_method_invocation(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         function_definition: TokenId,
         end_token: TokenId,
@@ -2497,7 +2541,7 @@ pub trait Listener: Any {
     /// Called when an anonymous method invocation does not have
     /// an explicit formal parameter list.
     #[allow(unused_variables)]
-    fn handle_implicit_formal_parameters(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_implicit_formal_parameters(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("ImplicitFormalParameters");
     }
 
@@ -2506,21 +2550,26 @@ pub trait Listener: Any {
     ///
     /// Not called when the binary operator is `.`, `?.`, or `..`.
     #[allow(unused_variables)]
-    fn begin_binary_expression(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_binary_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_binary_expression(&mut self, tokens: &TokenStore, token: TokenId, end_token: TokenId) {
+    fn end_binary_expression(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+        end_token: TokenId,
+    ) {
         self.log_event("BinaryExpression");
     }
 
     /// Called when the parser has consumed the operator of a binary pattern.
     #[allow(unused_variables)]
-    fn begin_binary_pattern(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_binary_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Called when the parser has consumed a binary pattern, consisting of a LHS
     /// pattern, `&&` or `||` operator, and a RHS pattern.
     #[allow(unused_variables)]
-    fn end_binary_pattern(&mut self, tokens: &TokenStore, operator_token: TokenId) {
+    fn end_binary_pattern(&mut self, tokens: &mut TokenStore, operator_token: TokenId) {
         self.log_event("BinaryPattern");
     }
 
@@ -2530,7 +2579,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_dot_access(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         end_token: TokenId,
         is_null_aware: bool,
@@ -2543,7 +2592,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_cascade_access(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         end_token: TokenId,
         is_null_aware: bool,
@@ -2553,18 +2602,18 @@ pub trait Listener: Any {
     /// Called when the parser encounters a `?` operator and begins parsing a
     /// conditional expression.
     #[allow(unused_variables)]
-    fn begin_conditional_expression(&mut self, tokens: &TokenStore, question: TokenId) {}
+    fn begin_conditional_expression(&mut self, tokens: &mut TokenStore, question: TokenId) {}
 
     /// Called when the parser encounters a `:` operator in a conditional
     /// expression.
     #[allow(unused_variables)]
-    fn handle_conditional_expression_colon(&mut self, tokens: &TokenStore) {}
+    fn handle_conditional_expression_colon(&mut self, tokens: &mut TokenStore) {}
 
     /// Called when the parser finishes processing a conditional expression.
     #[allow(unused_variables)]
     fn end_conditional_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         question: TokenId,
         colon: TokenId,
         end_token: TokenId,
@@ -2573,15 +2622,15 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_const_expression(&mut self, tokens: &TokenStore, const_keyword: TokenId) {}
+    fn begin_const_expression(&mut self, tokens: &mut TokenStore, const_keyword: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_const_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_const_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("ConstExpression");
     }
 
     #[allow(unused_variables)]
-    fn handle_const_factory(&mut self, tokens: &TokenStore, const_keyword: TokenId) {
+    fn handle_const_factory(&mut self, tokens: &mut TokenStore, const_keyword: TokenId) {
         self.log_event("ConstFactory");
     }
 
@@ -2590,7 +2639,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_for_control_flow(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         await_token: TokenId,
         for_token: TokenId,
     ) {
@@ -2600,7 +2649,7 @@ pub trait Listener: Any {
     /// One of the two possible corresponding end events for
     /// [beginForControlFlow].
     #[allow(unused_variables)]
-    fn end_for_control_flow(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_for_control_flow(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("endForControlFlow");
     }
 
@@ -2608,24 +2657,24 @@ pub trait Listener: Any {
     /// One of the two possible corresponding end events for
     /// [beginForControlFlow].
     #[allow(unused_variables)]
-    fn end_for_in_control_flow(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_for_in_control_flow(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("endForInControlFlow");
     }
 
     /// Called before parsing an `if` control flow list, set, or map entry.
     /// Ended by either [endIfControlFlow] or [endIfElseControlFlow].
     #[allow(unused_variables)]
-    fn begin_if_control_flow(&mut self, tokens: &TokenStore, if_token: TokenId) {}
+    fn begin_if_control_flow(&mut self, tokens: &mut TokenStore, if_token: TokenId) {}
 
     /// Called before parsing the `then` portion of an `if` control flow list,
     /// set, or map entry.
     #[allow(unused_variables)]
-    fn handle_then_control_flow(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn handle_then_control_flow(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Called before parsing the `else` portion of an `if` control flow list,
     /// set, or map entry.
     #[allow(unused_variables)]
-    fn handle_else_control_flow(&mut self, tokens: &TokenStore, else_token: TokenId) {
+    fn handle_else_control_flow(&mut self, tokens: &mut TokenStore, else_token: TokenId) {
         self.log_event("ElseControlFlow");
     }
 
@@ -2636,7 +2685,7 @@ pub trait Listener: Any {
     /// One of the two possible corresponding end events for
     /// [beginIfControlFlow].
     #[allow(unused_variables)]
-    fn end_if_control_flow(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_if_control_flow(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("endIfControlFlow");
     }
 
@@ -2648,7 +2697,7 @@ pub trait Listener: Any {
     /// One of the two possible corresponding end events for
     /// [beginIfControlFlow].
     #[allow(unused_variables)]
-    fn end_if_else_control_flow(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_if_else_control_flow(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("endIfElseControlFlow");
     }
 
@@ -2656,7 +2705,7 @@ pub trait Listener: Any {
     /// one of the spread collection tokens `...` or `...?`.  Substructures:
     /// - expression
     #[allow(unused_variables)]
-    fn handle_spread_expression(&mut self, tokens: &TokenStore, spread_token: TokenId) {
+    fn handle_spread_expression(&mut self, tokens: &mut TokenStore, spread_token: TokenId) {
         self.log_event("SpreadExpression");
     }
 
@@ -2664,7 +2713,7 @@ pub trait Listener: Any {
     /// token `?`. Substructures:
     /// - expression
     #[allow(unused_variables)]
-    fn handle_null_aware_element(&mut self, tokens: &TokenStore, null_aware_token: TokenId) {
+    fn handle_null_aware_element(&mut self, tokens: &mut TokenStore, null_aware_token: TokenId) {
         self.log_event("NullAwareElement");
     }
 
@@ -2672,14 +2721,19 @@ pub trait Listener: Any {
     /// `...`.  Substructures:
     /// - pattern (if hasSubPattern is `true`)
     #[allow(unused_variables)]
-    fn handle_rest_pattern(&mut self, tokens: &TokenStore, dots: TokenId, has_sub_pattern: bool) {
+    fn handle_rest_pattern(
+        &mut self,
+        tokens: &mut TokenStore,
+        dots: TokenId,
+        has_sub_pattern: bool,
+    ) {
         self.log_event("RestPattern");
     }
 
     /// Handle the start of a function typed formal parameter.  Substructures:
     /// - type variables
     #[allow(unused_variables)]
-    fn begin_function_typed_formal_parameter(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_function_typed_formal_parameter(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Handle the end of a function typed formal parameter.  Substructures:
     /// - type variables
@@ -2688,7 +2742,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_function_typed_formal_parameter(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         name_token: TokenId,
         question: TokenId,
     ) {
@@ -2701,7 +2755,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_identifier(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         context: &'static IdentifierContext,
     ) {
@@ -2711,7 +2765,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_indexed_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         question: TokenId,
         open_square_bracket: TokenId,
         close_square_bracket: TokenId,
@@ -2720,20 +2774,20 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_is_operator_type(&mut self, tokens: &TokenStore, operator: TokenId) {}
+    fn begin_is_operator_type(&mut self, tokens: &mut TokenStore, operator: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_is_operator_type(&mut self, tokens: &TokenStore, operator: TokenId) {
+    fn end_is_operator_type(&mut self, tokens: &mut TokenStore, operator: TokenId) {
         self.log_event("IsOperatorType");
     }
 
     #[allow(unused_variables)]
-    fn handle_is_operator(&mut self, tokens: &TokenStore, is_operator: TokenId, not: TokenId) {
+    fn handle_is_operator(&mut self, tokens: &mut TokenStore, is_operator: TokenId, not: TokenId) {
         self.log_event("IsOperator");
     }
 
     #[allow(unused_variables)]
-    fn handle_literal_bool(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_bool(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("LiteralBool");
     }
 
@@ -2741,7 +2795,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_break_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         has_target: bool,
         break_keyword: TokenId,
         end_token: TokenId,
@@ -2753,7 +2807,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_continue_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         has_target: bool,
         continue_keyword: TokenId,
         end_token: TokenId,
@@ -2762,18 +2816,18 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn handle_empty_statement(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_empty_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("EmptyStatement");
     }
 
     #[allow(unused_variables)]
-    fn begin_assert(&mut self, tokens: &TokenStore, assert_keyword: TokenId, kind: Assert) {}
+    fn begin_assert(&mut self, tokens: &mut TokenStore, assert_keyword: TokenId, kind: Assert) {}
 
     // TODO(jensj): Should this have a `beginToken`?
     #[allow(unused_variables)]
     fn end_assert(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         assert_keyword: TokenId,
         kind: Assert,
         left_parenthesis: TokenId,
@@ -2786,35 +2840,35 @@ pub trait Listener: Any {
     /// Called with either the token containing a double literal, or an
     /// immediately preceding "unary minus" token.
     #[allow(unused_variables)]
-    fn handle_literal_double(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_double(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("LiteralDouble");
     }
 
     /// Called with either the token containing a double literal with separators,
     /// or an immediately preceding "unary minus" token.
     #[allow(unused_variables)]
-    fn handle_literal_double_with_separators(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_double_with_separators(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("LiteralDoubleWithSeparators");
     }
 
     /// Called with either the token containing an integer literal, or an
     /// immediately preceding "unary minus" token.
     #[allow(unused_variables)]
-    fn handle_literal_int(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_int(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("LiteralInt");
     }
 
     /// Called with either the token containing an integer literal with
     /// separators, or an immediately preceding "unary minus" token.
     #[allow(unused_variables)]
-    fn handle_literal_int_with_separators(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_int_with_separators(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("LiteralIntWithSeparators");
     }
 
     #[allow(unused_variables)]
     fn handle_literal_list(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         left_bracket: TokenId,
         const_keyword: TokenId,
@@ -2828,7 +2882,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_list_pattern(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         left_bracket: TokenId,
         right_bracket: TokenId,
@@ -2839,7 +2893,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_literal_set_or_map(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         left_brace: TokenId,
         const_keyword: TokenId,
@@ -2854,7 +2908,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_map_pattern(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         count: i32,
         left_brace: TokenId,
         right_brace: TokenId,
@@ -2863,55 +2917,60 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn handle_literal_null(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_literal_null(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("LiteralNull");
     }
 
     #[allow(unused_variables)]
-    fn handle_native_clause(&mut self, tokens: &TokenStore, native_token: TokenId, has_name: bool) {
+    fn handle_native_clause(
+        &mut self,
+        tokens: &mut TokenStore,
+        native_token: TokenId,
+        has_name: bool,
+    ) {
         self.log_event("NativeClause");
     }
 
     #[allow(unused_variables)]
-    fn handle_named_argument(&mut self, tokens: &TokenStore, colon: TokenId) {
+    fn handle_named_argument(&mut self, tokens: &mut TokenStore, colon: TokenId) {
         self.log_event("NamedArgument");
     }
 
     #[allow(unused_variables)]
-    fn handle_positional_argument(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn handle_positional_argument(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Called after the parser has consumed a patternField, consisting of an
     /// optional identifier, optional `:`, and a pattern.
     #[allow(unused_variables)]
-    fn handle_pattern_field(&mut self, tokens: &TokenStore, colon: TokenId) {
+    fn handle_pattern_field(&mut self, tokens: &mut TokenStore, colon: TokenId) {
         self.log_event("PatternField");
     }
 
     #[allow(unused_variables)]
-    fn handle_named_record_field(&mut self, tokens: &TokenStore, colon: TokenId) {
+    fn handle_named_record_field(&mut self, tokens: &mut TokenStore, colon: TokenId) {
         self.log_event("NamedRecordField");
     }
 
     #[allow(unused_variables)]
-    fn handle_positional_record_field(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn handle_positional_record_field(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn begin_new_expression(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_new_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_new_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_new_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("NewExpression");
     }
 
     #[allow(unused_variables)]
-    fn handle_no_arguments(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("NoArguments");
     }
 
     #[allow(unused_variables)]
     fn handle_no_constructor_reference_continuation_after_type_arguments(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
     ) {
         self.log_event("NoConstructorReferenceContinuationAfterTypeArguments");
@@ -2920,7 +2979,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_no_identifier(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         identifier_context: &'static IdentifierContext,
     ) {
@@ -2930,40 +2989,40 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_no_type_name_in_constructor_reference(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
     ) {
         self.log_event("NoTypeNameInConstructorReference");
     }
 
     #[allow(unused_variables)]
-    fn handle_no_type(&mut self, tokens: &TokenStore, last_consumed: TokenId) {
+    fn handle_no_type(&mut self, tokens: &mut TokenStore, last_consumed: TokenId) {
         self.log_event("NoType");
     }
 
     #[allow(unused_variables)]
-    fn handle_no_type_variables(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_no_type_variables(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("NoTypeVariables");
     }
 
     #[allow(unused_variables)]
-    fn handle_operator(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_operator(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("Operator");
     }
 
     /// Invoked when a pattern switch case doesn't have the 'when' clause
     #[allow(unused_variables)]
-    fn handle_switch_case_no_when_clause(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_switch_case_no_when_clause(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("SwitchCaseNoWhenClause");
     }
 
     #[allow(unused_variables)]
-    fn handle_switch_expression_case_pattern(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_switch_expression_case_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("SwitchExpressionCasePattern");
     }
 
     #[allow(unused_variables)]
-    fn handle_symbol_void(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_symbol_void(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("SymbolVoid");
     }
 
@@ -2971,7 +3030,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_operator_name(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         operator_keyword: TokenId,
         token: TokenId,
     ) {
@@ -2983,7 +3042,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_invalid_operator_name(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         operator_keyword: TokenId,
         token: TokenId,
     ) {
@@ -2998,7 +3057,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_parenthesized_condition(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         case_: TokenId,
         when: TokenId,
@@ -3008,13 +3067,13 @@ pub trait Listener: Any {
 
     /// Starts a pattern
     #[allow(unused_variables)]
-    fn begin_pattern(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn begin_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("Pattern");
     }
 
     /// Starts a pattern guard, the expression that follows the 'when' keyword
     #[allow(unused_variables)]
-    fn begin_pattern_guard(&mut self, tokens: &TokenStore, when: TokenId) {
+    fn begin_pattern_guard(&mut self, tokens: &mut TokenStore, when: TokenId) {
         self.log_event("PatternGuard");
     }
 
@@ -3023,14 +3082,14 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_parenthesized_expression_or_record_literal(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
     ) {
     }
 
     /// Starts a guard expression in a switch case, after the 'when' keyword
     #[allow(unused_variables)]
-    fn begin_switch_case_when_clause(&mut self, tokens: &TokenStore, when: TokenId) {
+    fn begin_switch_case_when_clause(&mut self, tokens: &mut TokenStore, when: TokenId) {
         self.log_event("SwitchCaseWhenClause");
     }
 
@@ -3038,7 +3097,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_record_literal(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         count: i32,
         const_keyword: TokenId,
@@ -3049,19 +3108,19 @@ pub trait Listener: Any {
     /// Called after the parser has consumed a record pattern, consisting of a
     /// `(`, a comma-separated sequence of patternFields, and a `)`.
     #[allow(unused_variables)]
-    fn handle_record_pattern(&mut self, tokens: &TokenStore, token: TokenId, count: i32) {
+    fn handle_record_pattern(&mut self, tokens: &mut TokenStore, token: TokenId, count: i32) {
         self.log_event("RecordPattern");
     }
 
     /// Ends a pattern
     #[allow(unused_variables)]
-    fn end_pattern(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("Pattern");
     }
 
     /// End a pattern guard, the expression that follows the 'when' keyword
     #[allow(unused_variables)]
-    fn end_pattern_guard(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_pattern_guard(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("PatternGuard");
     }
 
@@ -3069,20 +3128,20 @@ pub trait Listener: Any {
     /// These may be within the condition expression of a control structure
     /// but will not be the condition of a control structure.
     #[allow(unused_variables)]
-    fn end_parenthesized_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_parenthesized_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("ParenthesizedExpression");
     }
 
     /// Starts a guard expression in a switch case, after the 'when' keyword
     #[allow(unused_variables)]
-    fn end_switch_case_when_clause(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_switch_case_when_clause(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("SwitchCaseWhenClause");
     }
 
     /// Called after the parser has consumed a parenthesized pattern, consisting
     /// of a `(`, a pattern, and a `)`.
     #[allow(unused_variables)]
-    fn handle_parenthesized_pattern(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_parenthesized_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("ParenthesizedPattern");
     }
 
@@ -3097,7 +3156,7 @@ pub trait Listener: Any {
     /// [beginConstantPattern] and [endConstantPattern] rather than
     /// [handleLiteralList].
     #[allow(unused_variables)]
-    fn begin_constant_pattern(&mut self, tokens: &TokenStore, const_keyword: TokenId) {
+    fn begin_constant_pattern(&mut self, tokens: &mut TokenStore, const_keyword: TokenId) {
         self.log_event("ConstantPattern");
     }
 
@@ -3112,7 +3171,7 @@ pub trait Listener: Any {
     /// [beginConstantPattern] and [endConstantPattern] rather than
     /// [handleLiteralList].
     #[allow(unused_variables)]
-    fn end_constant_pattern(&mut self, tokens: &TokenStore, const_keyword: TokenId) {
+    fn end_constant_pattern(&mut self, tokens: &mut TokenStore, const_keyword: TokenId) {
         self.log_event("ConstantPattern");
     }
 
@@ -3123,7 +3182,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_object_pattern(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         first_identifier: TokenId,
         dot: TokenId,
         second_identifier: TokenId,
@@ -3137,19 +3196,19 @@ pub trait Listener: Any {
     /// - Qualified identifier (before the period)
     /// - Identifier (after the period)
     #[allow(unused_variables)]
-    fn handle_qualified(&mut self, tokens: &TokenStore, period: TokenId) {
+    fn handle_qualified(&mut self, tokens: &mut TokenStore, period: TokenId) {
         self.log_event("Qualified");
     }
 
     #[allow(unused_variables)]
-    fn handle_string_part(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_string_part(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("StringPart");
     }
 
     #[allow(unused_variables)]
     fn handle_super_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         context: &'static IdentifierContext,
     ) {
@@ -3159,7 +3218,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn begin_switch_case(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         label_count: i32,
         expression_count: i32,
         begin_token: TokenId,
@@ -3169,7 +3228,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_switch_case(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         label_count: i32,
         expression_count: i32,
         default_keyword: TokenId,
@@ -3182,12 +3241,12 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn begin_switch_expression_case(&mut self, tokens: &TokenStore) {}
+    fn begin_switch_expression_case(&mut self, tokens: &mut TokenStore) {}
 
     #[allow(unused_variables)]
     fn end_switch_expression_case(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         when: TokenId,
         arrow: TokenId,
@@ -3199,7 +3258,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_this_expression(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         token: TokenId,
         context: &'static IdentifierContext,
     ) {
@@ -3207,39 +3266,47 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn handle_unary_postfix_assignment_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_unary_postfix_assignment_expression(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+    ) {
         self.log_event("UnaryPostfixAssignmentExpression");
     }
 
     #[allow(unused_variables)]
-    fn handle_unary_prefix_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_unary_prefix_expression(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("UnaryPrefixExpression");
     }
 
     /// Called after the parser has consumed a relational pattern, consisting of
     /// an equality operator or relational operator, followed by an expression.
     #[allow(unused_variables)]
-    fn handle_relational_pattern(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_relational_pattern(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("RelationalPattern");
     }
 
     #[allow(unused_variables)]
-    fn handle_unary_prefix_assignment_expression(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_unary_prefix_assignment_expression(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+    ) {
         self.log_event("UnaryPrefixAssignmentExpression");
     }
 
     #[allow(unused_variables)]
-    fn begin_formal_parameter_default_value_expression(&mut self, tokens: &TokenStore) {}
+    fn begin_formal_parameter_default_value_expression(&mut self, tokens: &mut TokenStore) {}
 
     #[allow(unused_variables)]
-    fn end_formal_parameter_default_value_expression(&mut self, tokens: &TokenStore) {
+    fn end_formal_parameter_default_value_expression(&mut self, tokens: &mut TokenStore) {
         self.log_event("FormalParameterDefaultValueExpression");
     }
 
     #[allow(unused_variables)]
     fn handle_valued_formal_parameter(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         equals: TokenId,
         token: TokenId,
         kind: FormalParameterKind,
@@ -3248,25 +3315,25 @@ pub trait Listener: Any {
     }
 
     #[allow(unused_variables)]
-    fn handle_formal_parameter_without_value(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_formal_parameter_without_value(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("FormalParameterWithoutValue");
     }
 
     #[allow(unused_variables)]
-    fn handle_void_keyword(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_void_keyword(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("VoidKeyword");
     }
 
     /// The parser saw a void with type arguments (e.g. void<int>).
     /// This is not valid - an error has already been emitted.
     #[allow(unused_variables)]
-    fn handle_void_keyword_with_type_arguments(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_void_keyword_with_type_arguments(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("handleVoidKeywordWithTypeArguments");
     }
 
     /// Ended by either [endYieldStatement] or [endInvalidYieldStatement].
     #[allow(unused_variables)]
-    fn begin_yield_statement(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_yield_statement(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// One of the two possible corresponding end events for
     /// [beginYieldStatement].
@@ -3274,7 +3341,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_yield_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         yield_token: TokenId,
         star_token: TokenId,
         end_token: TokenId,
@@ -3287,7 +3354,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn end_invalid_yield_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         begin_token: TokenId,
         star_token: TokenId,
         end_token: TokenId,
@@ -3304,7 +3371,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_recoverable_error(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         message: &Message,
         start_token: TokenId,
         end_token: TokenId,
@@ -3319,7 +3386,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_experiment_not_enabled(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         experimental_flag: ExperimentalFlag,
         begin_token: TokenId,
         end_token: TokenId,
@@ -3337,14 +3404,14 @@ pub trait Listener: Any {
     /// by calling [handleRecoverableError] with the message associated
     /// with the error [token].
     #[allow(unused_variables)]
-    fn handle_error_token(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_error_token(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.handle_recoverable_error(tokens, &tokens.assertion_message_of(token), token, token);
     }
 
     #[allow(unused_variables)]
     fn handle_unescape_error(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         message: &Message,
         location: TokenId,
         string_offset: i32,
@@ -3358,12 +3425,17 @@ pub trait Listener: Any {
     /// after [handleExpressionFunctionBody], in which case it signals that the
     /// implicit return statement of the function contained a semantic error.
     #[allow(unused_variables)]
-    fn handle_invalid_statement(&mut self, tokens: &TokenStore, token: TokenId, message: &Message) {
+    fn handle_invalid_statement(
+        &mut self,
+        tokens: &mut TokenStore,
+        token: TokenId,
+        message: &Message,
+    ) {
         self.handle_recoverable_error(tokens, message, token, token);
     }
 
     #[allow(unused_variables)]
-    fn handle_script(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_script(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("Script");
     }
 
@@ -3383,7 +3455,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_type_argument_application(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         open_angle_bracket: TokenId,
     ) {
     }
@@ -3393,7 +3465,7 @@ pub trait Listener: Any {
     /// identifier name.  It is the client's responsibility to report an
     /// appropriate error if the "constructor tearoffs" feature is not enabled.
     #[allow(unused_variables)]
-    fn handle_new_as_identifier(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn handle_new_as_identifier(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     /// Called after the parser has processed a variable declaration statement,
     /// consisting of `METADATA KEYWORD PATTERN EQUALS EXPRESSION SEMICOLON`.
@@ -3404,7 +3476,7 @@ pub trait Listener: Any {
     #[allow(unused_variables)]
     fn handle_pattern_variable_declaration_statement(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         keyword: TokenId,
         equals: TokenId,
         semicolon: TokenId,
@@ -3418,25 +3490,25 @@ pub trait Listener: Any {
     /// PATTERN may only be one of the patterns accepted by the `outerPattern`
     /// grammar rule defined in the patterns spec.
     #[allow(unused_variables)]
-    fn handle_pattern_assignment(&mut self, tokens: &TokenStore, equals: TokenId) {
+    fn handle_pattern_assignment(&mut self, tokens: &mut TokenStore, equals: TokenId) {
         self.log_event("PatternAssignment");
     }
 
     #[allow(unused_variables)]
-    fn handle_dot_shorthand_context(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_dot_shorthand_context(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("DotShorthandContext");
     }
 
     #[allow(unused_variables)]
-    fn handle_dot_shorthand_head(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn handle_dot_shorthand_head(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("DotShorthandHead");
     }
 
     #[allow(unused_variables)]
-    fn begin_const_dot_shorthand(&mut self, tokens: &TokenStore, token: TokenId) {}
+    fn begin_const_dot_shorthand(&mut self, tokens: &mut TokenStore, token: TokenId) {}
 
     #[allow(unused_variables)]
-    fn end_const_dot_shorthand(&mut self, tokens: &TokenStore, token: TokenId) {
+    fn end_const_dot_shorthand(&mut self, tokens: &mut TokenStore, token: TokenId) {
         self.log_event("ConstDotShorthand");
     }
 }

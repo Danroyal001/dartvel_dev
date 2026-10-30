@@ -229,13 +229,13 @@ String rustListener(List<Method> methods) {
   for (Method m in methods) {
     if (!first) sb.writeln();
     first = false;
-    List<String> params = ['&mut self', 'tokens: &TokenStore'];
+    List<String> params = ['&mut self', 'tokens: &mut TokenStore'];
     for (Param p in m.params) {
       params.add('${snake(p.name)}: ${rustType(p)}');
     }
     bool usesTokens =
         m.params.any((p) => p.type == 'Token' || p.type == 'ErrorToken');
-    if (!usesTokens) params[1] = '_tokens: &TokenStore';
+    if (!usesTokens) params[1] = '_tokens: &mut TokenStore';
     sb.writeln('    fn ${snake(m.name)}(${params.join(', ')}) {');
     sb.writeln('        self.start("${m.name}");');
     for (Param p in m.params) {

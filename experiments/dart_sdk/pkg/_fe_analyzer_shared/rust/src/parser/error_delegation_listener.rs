@@ -19,7 +19,7 @@ impl ErrorDelegationListener {
 impl Listener for ErrorDelegationListener {
     fn handle_recoverable_error(
         &mut self,
-        tokens: &TokenStore,
+        tokens: &mut TokenStore,
         message: &Message,
         start_token: TokenId,
         end_token: TokenId,
