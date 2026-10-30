@@ -708,6 +708,14 @@ impl<'a> ConstantEvaluationEngine<'a> {
     /// Dart `computeConstantValue()` of a variable: computes the constants
     /// that [e] depends on and [e], then returns its value.
     pub fn compute_constant_value_of(&self, e: ElementId) -> Option<DartObjectImpl> {
+        // Dart `SuperFormalParameterElementImpl.computeConstantValue()`: a
+        // super parameter without a default value of its own takes the value
+        // of `_superConstructorParameterDefaultValue`, which computes the
+        // super constructor parameter's value (`null` for an optional one
+        // without a default), possibly in another library.
+        if e.tag() == Tag::SuperFormalParameter && self.constant_initializer(e).is_none() {
+            return self.super_constructor_parameter_default_value(e, 0);
+        }
         if self.evaluation_result(e).is_none() {
             crate::constant::compute::compute_constants(self, &[ConstantTarget::Element(e)]);
         }
@@ -715,6 +723,36 @@ impl<'a> ConstantEvaluationEngine<'a> {
             Some(Constant::Value(v)) => Some(v),
             _ => None,
         }
+    }
+
+    /// Dart `SuperFormalParameterElementImpl._superConstructorParameterDefaultValue`
+    /// (`pkg/analyzer/lib/src/dart/element/element.dart`).
+    ///
+    /// [depth] bounds the walk up a chain of super parameters, which a cycle
+    /// of constructors in erroneous code would otherwise make endless.
+    fn super_constructor_parameter_default_value(
+        &self,
+        e: ElementId,
+        depth: usize,
+    ) -> Option<DartObjectImpl> {
+        if depth >= 64 {
+            return None;
+        }
+        let ctx = self.global_ctx();
+        let super_parameter = member::base_element(&ctx, super_constructor_parameter(&ctx, e)?);
+        let super_default = if super_parameter.tag() == Tag::SuperFormalParameter
+            && self.constant_initializer(super_parameter).is_none()
+        {
+            self.super_constructor_parameter_default_value(super_parameter, depth + 1)?
+        } else {
+            self.compute_constant_value_of(super_parameter)?
+        };
+        let ts = TypeSystem::new(ctx);
+        let required_type = ts.extension_type_erasure(variable_type(&ctx, e));
+        if ts.is_subtype_of(super_default.ty, required_type) {
+            return Some(super_default);
+        }
+        None
     }
 
     // -----------------------------------------------------------------
