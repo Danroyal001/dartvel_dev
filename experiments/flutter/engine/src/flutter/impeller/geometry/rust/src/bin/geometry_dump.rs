@@ -1921,6 +1921,7 @@ where
     o.ir(&TRect::<T>::round_out(&nr));
     o.ir(&TRect::<T>::round_in(&nr));
     o.ir(&TRect::<T>::round(&nr));
+    o.m(&a.get_normalizing_transform());
     o.r(&Rect::make(&a));
     o.b(nr.contains_rect_of(&a));
     let mut pts = Vec::new();

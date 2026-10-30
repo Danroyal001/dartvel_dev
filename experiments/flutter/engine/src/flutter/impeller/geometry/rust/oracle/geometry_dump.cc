@@ -1935,6 +1935,7 @@ static void IntRects(Rng& r, int bits, const char* tag, const Rect& fr) {
   IR(TRect<T>::RoundOut(nr));
   IR(TRect<T>::RoundIn(nr));
   IR(TRect<T>::Round(nr));
+  M(a.GetNormalizingTransform());
   R(Rect::Make(a));
   B(nr.Contains(a));
   std::vector<TPoint<T>> pts;
