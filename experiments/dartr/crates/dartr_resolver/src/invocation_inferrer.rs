@@ -602,7 +602,15 @@ impl InvocationInferrer {
     /// The error entity for the generic inferrer (what
     /// `_reportInferenceFailure` reads from the Dart node).
     fn inference_error_entity(&self, rv: &ResolverVisitor<'_>) -> InferenceErrorEntity {
-        let entity = self.error_entity(rv);
+        Self::inference_error_entity_of(rv, self.error_entity(rv))
+    }
+
+    /// The facts `GenericInferrer._reportInferenceFailure` reads from the
+    /// Dart `errorEntity` node [entity].
+    pub(crate) fn inference_error_entity_of(
+        rv: &ResolverVisitor<'_>,
+        entity: NodeId,
+    ) -> InferenceErrorEntity {
         let ast = &*rv.ast;
         let offset = ast.offset(entity) as usize;
         let length = ast.length(entity) as usize;

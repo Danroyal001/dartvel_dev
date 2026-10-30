@@ -527,22 +527,19 @@ impl<'a> ResolverVisitor<'a> {
         error_node: Id<Expression>,
         generic_metadata_is_enabled: bool,
     ) -> Vec<TypeId> {
-        use dartr_typesystem::generic_inferrer::{
-            InferenceErrorEntity, InferenceErrorEntityKind, InferenceFlags,
-        };
+        use dartr_typesystem::generic_inferrer::InferenceFlags;
         let flags = InferenceFlags {
             generic_metadata_is_enabled,
             inference_using_bounds_is_enabled: self.inference_using_bounds_is_enabled(),
             strict_inference: self.unit.options.strict_inference,
         };
-        let entity = InferenceErrorEntity {
-            offset: self.ast.offset(error_node) as usize,
-            length: self.ast.length(error_node) as usize,
-            is_invocation_in_as_expression: false,
-            kind: InferenceErrorEntityKind::Expression {
-                static_type: self.static_type(error_node),
-            },
-        };
+        // Dart passes `errorNode` as the `errorEntity`: a `SimpleIdentifier`
+        // tear-off reports `inference_failure_on_function_invocation` with
+        // the identifier's name, like an invocation does.
+        let entity = crate::invocation_inferrer::InvocationInferrer::inference_error_entity_of(
+            self,
+            error_node.raw(),
+        );
         let mut reported = Vec::new();
         let result = {
             let mut listener = |d: dartr_diagnostics::Diagnostic| reported.push(d);
