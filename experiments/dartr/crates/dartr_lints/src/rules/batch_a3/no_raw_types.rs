@@ -48,9 +48,9 @@ fn check(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
     let Some(resolved) = ctx.resolved else {
         return;
     };
-    if ctx.element(node).is_none() {
+    let Some(element) = ctx.element(node) else {
         return;
-    }
+    };
     let Some(ty) = resolved.tables.annotation_type.get(node).copied() else {
         return;
     };
@@ -69,7 +69,16 @@ fn check(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
             _ => return,
         },
     };
-    if args.contains(&dartr_element::TypeId::DYNAMIC) {
+    if !args.contains(&dartr_element::TypeId::DYNAMIC) {
+        return;
+    }
+    // Dart `element.metadata.hasOptionalTypeArgs` (`@optionalTypeArgs` of
+    // `package:meta`).
+    let element = dartr_typesystem::member::base_element(&resolved.ctx, element);
+    if ctx.has_package_meta_getter(element, "optionalTypeArgs") {
+        return;
+    }
+    {
         let type_display = dartr_element::diagnostics::type_display_string(&resolved.ctx, ty, true);
         ctx.report_node(out, &diag::NO_RAW_TYPES, node, &[&type_display]);
     }
