@@ -58,3 +58,25 @@ fn conditional_basic_task_runner_post_task() {
     assert!(task1_called.load(Ordering::SeqCst));
     assert!(!task2_called.load(Ordering::SeqCst));
 }
+
+// Not upstream: a task posted through a ConditionalBasicTaskRunner that is
+// gone by the time the task runs does not run. Upstream's test keeps its
+// runner alive, so it does not cover the weak reference to the predicate.
+#[test]
+fn conditional_basic_task_runner_drops_tasks_once_destroyed() {
+    let thread = Thread::default();
+    let gate = Arc::new(AutoResetWaitableEvent::new());
+    let g = gate.clone();
+    thread.get_task_runner().post_task(Arc::new(move || g.wait()));
+
+    let called = Arc::new(AtomicBool::new(false));
+    {
+        let runner = ConditionalBasicTaskRunner::new(thread.get_task_runner(), || true);
+        let c = called.clone();
+        runner.post_task(Arc::new(move || c.store(true, Ordering::SeqCst)));
+    }
+    gate.signal();
+    thread.join();
+
+    assert!(!called.load(Ordering::SeqCst));
+}
