@@ -1,0 +1,10 @@
+# Not an upstream file: the Cargo workspace for the Rust port of the Flutter
+# engine, written crate by crate beside the C++ it ports.
+[workspace]
+resolver = "2"
+members = [
+  "engine/src/flutter/fml/rust",
+]
+
+[profile.release]
+debug = false
