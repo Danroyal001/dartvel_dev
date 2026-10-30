@@ -212,6 +212,7 @@ impl<'a> FragmentBuilder<'a> {
         let f = self.f(id);
         f.first_token_offset = Some(first);
         f.name_offset = name_offset;
+        f.node = node;
     }
 
     /// `buildDeclarationFragments`.

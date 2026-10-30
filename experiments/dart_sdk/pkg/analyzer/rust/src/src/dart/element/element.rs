@@ -27,6 +27,7 @@
 
 use std::rc::Rc;
 
+use crate::src::dart::ast::ast_store::{NodeId, NO_NODE};
 use crate::fe_analyzer_shared::types::shared_type::Variance;
 use crate::src::dart::element::r#type::TypeImpl;
 use crate::src::generated::utilities_dart::ParameterKind;
@@ -424,6 +425,9 @@ pub struct FragmentImpl {
     pub induced_getter: FragmentId,
     pub induced_setter: FragmentId,
     /// The members of an instance fragment (`InstanceFragmentImpl`).
+    /// The node that declares this fragment in its unit's tree (`NO_NODE` when
+    /// none does), for the linker to resolve the node's type annotations.
+    pub node: NodeId,
     pub members: Option<Box<InstanceFragmentMembers>>,
 }
 
@@ -458,6 +462,7 @@ impl FragmentImpl {
             default_value_code: None,
             induced_getter: NO_FRAGMENT,
             induced_setter: NO_FRAGMENT,
+            node: NO_NODE,
             members: if kind.is_instance() {
                 Some(Box::default())
             } else {
