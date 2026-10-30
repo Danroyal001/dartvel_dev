@@ -72,8 +72,9 @@ Widget _docsAiPage(BuildContext context) => const DocsArticle(
               'A tool that moves money or changes data takes approval: '
                   'DVToolApproval.required. An agent run stops at it and '
                   'returns a pause with the tool and its arguments; '
-                  'pause.approve() runs it with exactly those. Calling it any '
-                  'other way is DV-AI-010.',
+                  'pause.resume(approved: true) runs it with exactly those and '
+                  'carries the run on, and approved: false tells the model it '
+                  'was declined. Calling it any other way is DV-AI-010.',
             ]),
             DocsNote('Serve your tools over MCP',
                 'DVMcpServer answers tools/list and tools/call for the '
@@ -117,9 +118,8 @@ Widget _docsAiPage(BuildContext context) => const DocsArticle(
                   'parameter with a default is still required.',
               'A tool that returns a type DVJsonCodec cannot encode throws when '
                   'the result is sent.',
-              'A run that stops for a tool needing approval does not resume: '
-                  'approving the pause runs the tool, and the result is not '
-                  'sent back to the model.',
+              'A paused run lives in the process that made it: it cannot be '
+                  'stored, resumed after a restart, or resolved from Studio.',
             ]),
           ],
         ),
