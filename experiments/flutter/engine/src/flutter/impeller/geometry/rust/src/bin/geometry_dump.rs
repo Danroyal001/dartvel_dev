@@ -8,7 +8,10 @@
 
 use std::io::Write;
 
+use impeller_geometry::color::*;
 use impeller_geometry::constants::*;
+use impeller_geometry::half::*;
+use impeller_geometry::vector::*;
 use impeller_geometry::saturated;
 use impeller_geometry::cxx::{self, Num};
 use impeller_geometry::point::*;
@@ -874,11 +877,503 @@ fn suite_size(r: &mut Rng, o: &mut Out, cases: i32) {
     }
 }
 
+// ------------------------------------------------- vector, color, half ---
+
+fn edge_v3(r: &mut Rng) -> Vector3 {
+    let x = edge_f(r);
+    let y = edge_f(r);
+    let z = edge_f(r);
+    Vector3::new(x, y, z)
+}
+fn edge_v4(r: &mut Rng) -> Vector4 {
+    let x = edge_f(r);
+    let y = edge_f(r);
+    let z = edge_f(r);
+    let w = edge_f(r);
+    Vector4::new(x, y, z, w)
+}
+
+impl Out {
+    fn v3(&mut self, v: Vector3) {
+        self.f(v.x);
+        self.f(v.y);
+        self.f(v.z);
+    }
+    fn v4(&mut self, v: Vector4) {
+        self.f(v.x);
+        self.f(v.y);
+        self.f(v.z);
+        self.f(v.w);
+    }
+    fn c(&mut self, c: Color) {
+        self.f(c.red);
+        self.f(c.green);
+        self.f(c.blue);
+        self.f(c.alpha);
+    }
+}
+
+fn suite_vector(r: &mut Rng, o: &mut Out, cases: i32) {
+    for _ in 0..cases {
+        let a = edge_v3(r);
+        let b = edge_v3(r);
+        let s = edge_f(r);
+        let ds = edge_d(r);
+        let is = edge_i(r, 32) as i32;
+        let p = edge_p(r);
+        let sz = edge_s(r);
+        o.tag("v3_ops");
+        o.v3(a);
+        o.v3(b);
+        o.f(s);
+        o.d(ds);
+        o.i(is as i64);
+        o.arrow();
+        o.v3(-a);
+        o.v3(a + b);
+        o.v3(a - b);
+        o.v3(a + s);
+        o.v3(a - s);
+        o.v3(a * b);
+        o.v3(a * s);
+        o.v3(a * ds);
+        o.v3(a * is);
+        o.v3(a / b);
+        o.v3(a / s);
+        o.v3(a / ds);
+        o.v3(a / is);
+        o.v3(s * a);
+        o.v3(ds * a);
+        o.v3(is * a);
+        o.v3(s + a);
+        o.v3(ds + a);
+        o.v3(is + a);
+        o.v3(s - a);
+        o.v3(ds - a);
+        o.v3(is - a);
+        o.v3(s / a);
+        o.v3(ds / a);
+        o.v3(is / a);
+        let mut t = a;
+        t += b;
+        o.v3(t);
+        t = a;
+        t -= b;
+        o.v3(t);
+        t = a;
+        t *= b;
+        o.v3(t);
+        t = a;
+        t *= s;
+        o.v3(t);
+        t = a;
+        t *= ds;
+        o.v3(t);
+        t = a;
+        t *= is;
+        o.v3(t);
+        t = a;
+        t /= b;
+        o.v3(t);
+        t = a;
+        t /= s;
+        o.v3(t);
+        t = a;
+        t /= ds;
+        o.v3(t);
+        t = a;
+        t /= is;
+        o.v3(t);
+        o.b(a == b);
+        o.b(a != b);
+        o.b(a == a);
+        o.end();
+
+        o.tag("v3_methods");
+        o.v3(a);
+        o.v3(b);
+        o.f(s);
+        o.arrow();
+        o.f(a.get_length());
+        o.v3(a.normalize());
+        o.f(a.dot(&b));
+        o.v3(a.abs());
+        o.v3(a.cross(&b));
+        o.v3(a.min(&b));
+        o.v3(a.max(&b));
+        o.v3(a.floor());
+        o.v3(a.ceil());
+        o.v3(a.round());
+        o.v3(a.lerp(&b, s));
+        o.v3(Vector3::combine(&a, s, &b, b.x));
+        o.v3(Vector3::from(p));
+        o.v3(Vector3::from(sz));
+        o.v3(Vector3::new2(s, a.x));
+        o.v3(Vector3::default());
+        o.end();
+
+        let u = edge_v4(r);
+        let v = edge_v4(r);
+        let f0 = edge_f(r);
+        let f1 = edge_f(r);
+        let f2 = edge_f(r);
+        let f3 = edge_f(r);
+        o.tag("v4");
+        o.v4(u);
+        o.v4(v);
+        o.f(s);
+        o.arrow();
+        o.b(u.is_finite());
+        o.v4(u.normalize());
+        o.b(u == v);
+        o.b(u != v);
+        o.b(u == u);
+        o.v4(u + v);
+        o.v4(u - v);
+        o.v4(u * s);
+        o.v4(u * v);
+        o.v4(u.min(&v));
+        o.v4(u.max(&v));
+        o.v4(u.floor());
+        o.v4(u.ceil());
+        o.v4(u.round());
+        o.v4(u.lerp(&v, s));
+        o.p(u.xy());
+        o.v4(Vector4::default());
+        o.v4(Vector4::from(a));
+        o.v4(Vector4::from(p));
+        o.v4(Vector4::from([f0, f1, f2, f3]));
+        o.end();
+    }
+}
+
+fn comp_f(r: &mut Rng) -> f32 {
+    match r.below(10) {
+        0 => 0.0,
+        1 => 1.0,
+        2 => edge_f(r),
+        3 => (r.unit() * 3.0 - 1.0) as f32,
+        _ => r.unit() as f32,
+    }
+}
+fn comp_c(r: &mut Rng) -> Color {
+    let red = comp_f(r);
+    let green = comp_f(r);
+    let blue = comp_f(r);
+    let alpha = comp_f(r);
+    Color::new(red, green, blue, alpha)
+}
+fn unit_c(r: &mut Rng) -> Color {
+    let red = r.unit() as f32;
+    let green = r.unit() as f32;
+    let blue = r.unit() as f32;
+    let alpha = r.unit() as f32;
+    Color::new(red, green, blue, alpha)
+}
+
+fn suite_color(r: &mut Rng, o: &mut Out, cases: i32) {
+    o.tag("named");
+    o.c(Color::white());
+    o.c(Color::black());
+    o.c(Color::white_transparent());
+    o.c(Color::black_transparent());
+    o.c(Color::red());
+    o.c(Color::green());
+    o.c(Color::blue());
+    o.c(Color::alice_blue());
+    o.c(Color::antique_white());
+    o.c(Color::aqua());
+    o.c(Color::aqua_marine());
+    o.c(Color::azure());
+    o.c(Color::beige());
+    o.c(Color::bisque());
+    o.c(Color::blanched_almond());
+    o.c(Color::blue_violet());
+    o.c(Color::brown());
+    o.c(Color::burly_wood());
+    o.c(Color::cadet_blue());
+    o.c(Color::chartreuse());
+    o.c(Color::chocolate());
+    o.c(Color::coral());
+    o.c(Color::cornflower_blue());
+    o.c(Color::cornsilk());
+    o.c(Color::crimson());
+    o.c(Color::cyan());
+    o.c(Color::dark_blue());
+    o.c(Color::dark_cyan());
+    o.c(Color::dark_goldenrod());
+    o.c(Color::dark_gray());
+    o.c(Color::dark_green());
+    o.c(Color::dark_grey());
+    o.c(Color::dark_khaki());
+    o.c(Color::dark_magenta());
+    o.c(Color::dark_olive_green());
+    o.c(Color::dark_orange());
+    o.c(Color::dark_orchid());
+    o.c(Color::dark_red());
+    o.c(Color::dark_salmon());
+    o.c(Color::dark_seagreen());
+    o.c(Color::dark_slate_blue());
+    o.c(Color::dark_slate_gray());
+    o.c(Color::dark_slate_grey());
+    o.c(Color::dark_turquoise());
+    o.c(Color::dark_violet());
+    o.c(Color::deep_pink());
+    o.c(Color::deep_sky_blue());
+    o.c(Color::dim_gray());
+    o.c(Color::dim_grey());
+    o.c(Color::dodger_blue());
+    o.c(Color::firebrick());
+    o.c(Color::floral_white());
+    o.c(Color::forest_green());
+    o.c(Color::fuchsia());
+    o.c(Color::gainsboro());
+    o.c(Color::ghostwhite());
+    o.c(Color::gold());
+    o.c(Color::goldenrod());
+    o.c(Color::gray());
+    o.c(Color::green_yellow());
+    o.c(Color::grey());
+    o.c(Color::honeydew());
+    o.c(Color::hot_pink());
+    o.c(Color::indian_red());
+    o.c(Color::indigo());
+    o.c(Color::ivory());
+    o.c(Color::khaki());
+    o.c(Color::lavender());
+    o.c(Color::lavender_blush());
+    o.c(Color::lawn_green());
+    o.c(Color::lemon_chiffon());
+    o.c(Color::light_blue());
+    o.c(Color::light_coral());
+    o.c(Color::light_cyan());
+    o.c(Color::light_goldenrod_yellow());
+    o.c(Color::light_gray());
+    o.c(Color::light_green());
+    o.c(Color::light_grey());
+    o.c(Color::light_pink());
+    o.c(Color::light_salmon());
+    o.c(Color::light_sea_green());
+    o.c(Color::light_sky_blue());
+    o.c(Color::light_slate_gray());
+    o.c(Color::light_slate_grey());
+    o.c(Color::light_steel_blue());
+    o.c(Color::light_yellow());
+    o.c(Color::lime());
+    o.c(Color::lime_green());
+    o.c(Color::linen());
+    o.c(Color::magenta());
+    o.c(Color::maroon());
+    o.c(Color::medium_aquamarine());
+    o.c(Color::medium_blue());
+    o.c(Color::medium_orchid());
+    o.c(Color::medium_purple());
+    o.c(Color::medium_seagreen());
+    o.c(Color::medium_slate_blue());
+    o.c(Color::medium_spring_green());
+    o.c(Color::medium_turquoise());
+    o.c(Color::medium_violet_red());
+    o.c(Color::midnight_blue());
+    o.c(Color::mint_cream());
+    o.c(Color::misty_rose());
+    o.c(Color::moccasin());
+    o.c(Color::navajo_white());
+    o.c(Color::navy());
+    o.c(Color::old_lace());
+    o.c(Color::olive());
+    o.c(Color::olive_drab());
+    o.c(Color::orange());
+    o.c(Color::orange_red());
+    o.c(Color::orchid());
+    o.c(Color::pale_goldenrod());
+    o.c(Color::pale_green());
+    o.c(Color::pale_turquoise());
+    o.c(Color::pale_violet_red());
+    o.c(Color::papaya_whip());
+    o.c(Color::peachpuff());
+    o.c(Color::peru());
+    o.c(Color::pink());
+    o.c(Color::plum());
+    o.c(Color::powder_blue());
+    o.c(Color::purple());
+    o.c(Color::rosy_brown());
+    o.c(Color::royal_blue());
+    o.c(Color::saddle_brown());
+    o.c(Color::salmon());
+    o.c(Color::sandy_brown());
+    o.c(Color::seagreen());
+    o.c(Color::seashell());
+    o.c(Color::sienna());
+    o.c(Color::silver());
+    o.c(Color::sky_blue());
+    o.c(Color::slate_blue());
+    o.c(Color::slate_gray());
+    o.c(Color::slate_grey());
+    o.c(Color::snow());
+    o.c(Color::spring_green());
+    o.c(Color::steel_blue());
+    o.c(Color::tan());
+    o.c(Color::teal());
+    o.c(Color::thistle());
+    o.c(Color::tomato());
+    o.c(Color::turquoise());
+    o.c(Color::violet());
+    o.c(Color::wheat());
+    o.c(Color::whitesmoke());
+    o.c(Color::yellow());
+    o.c(Color::yellow_green());
+    o.end();
+    o.tag("blend_modes");
+    for m in 0..=BlendMode::kLastMode as u8 {
+        o.s(blend_mode_to_string(BlendMode::from_u8(m).unwrap()));
+    }
+    o.i(BlendMode::kDefaultMode as i64);
+    o.end();
+    for _ in 0..cases {
+        let a = comp_c(r);
+        let b = comp_c(r);
+        let s = edge_f(r);
+        let ds = edge_d(r);
+        let is = edge_i(r, 32) as i32;
+        o.tag("color_ops");
+        o.c(a);
+        o.c(b);
+        o.f(s);
+        o.d(ds);
+        o.i(is as i64);
+        o.arrow();
+        o.c(a + b);
+        o.c(a + s);
+        o.c(a + ds);
+        o.c(a + is);
+        o.c(a - b);
+        o.c(a - s);
+        o.c(a - is);
+        o.c(a * b);
+        o.c(a * s);
+        o.c(a * ds);
+        o.c(a * is);
+        o.c(a / b);
+        o.c(a / s);
+        o.c(a / is);
+        o.c(s + a);
+        o.c(ds - a);
+        o.c(is * a);
+        o.c(s / a);
+        o.b(a == b);
+        o.b(a == a);
+        o.c(a.premultiply());
+        o.c(a.unpremultiply());
+        o.b(a.is_wide_gamut());
+        o.c(Color::lerp(a, b, s));
+        o.c(a.clamp01());
+        o.c(a.with_alpha(s));
+        o.u(Color::to_i_color(a) as u64);
+        o.c(a.linear_to_srgb());
+        o.c(a.srgb_to_linear());
+        o.b(a.is_transparent());
+        o.b(a.is_opaque());
+        o.c(Color::from(Vector4::from(a)));
+        o.v3(Vector3::from(a));
+        o.end();
+
+        o.tag("blend");
+        o.c(a);
+        o.c(b);
+        o.arrow();
+        for m in 0..=BlendMode::kLastMode as u8 {
+            o.c(a.blend(b, BlendMode::from_u8(m).unwrap()));
+        }
+        o.end();
+
+        let mut cm = ColorMatrix::default();
+        for i in 0..20 {
+            cm.array[i] = if r.chance(4) { edge_f(r) } else { (r.unit() * 2.0 - 1.0) as f32 };
+        }
+        o.tag("matrix");
+        for i in 0..20 {
+            o.f(cm.array[i]);
+        }
+        o.arrow();
+        o.c(a.apply_color_matrix(&cm));
+        o.end();
+
+        let u = unit_c(r);
+        let r8 = r.below(256) as u8;
+        let g8 = r.below(256) as u8;
+        let b8 = r.below(256) as u8;
+        let a8 = r.below(256) as u8;
+        o.tag("color8");
+        o.c(u);
+        o.i(r8 as i64);
+        o.i(g8 as i64);
+        o.i(b8 as i64);
+        o.i(a8 as i64);
+        o.arrow();
+        let bytes = u.to_r8g8b8a8();
+        o.i(bytes[0] as i64);
+        o.i(bytes[1] as i64);
+        o.i(bytes[2] as i64);
+        o.i(bytes[3] as i64);
+        o.u(u.to_argb() as u64);
+        o.u(Color::to_i_color(u) as u64);
+        o.c(Color::make_rgba8(r8, g8, b8, a8));
+        o.end();
+
+        let h0 = (r.unit() * 65536.0 - 0.99) as f32;
+        let h1 = (r.unit() * 65536.0) as f32;
+        let h2 = (r.unit() * 100.0) as f32;
+        let h3 = r.unit() as f32;
+        let hd = r.unit() * 65535.0;
+        let hi = r.below(65536) as i32;
+        o.tag("half");
+        o.f(h0);
+        o.f(h1);
+        o.f(h2);
+        o.f(h3);
+        o.d(hd);
+        o.i(hi as i64);
+        o.arrow();
+        o.i(scalar_to_half(h0) as i64);
+        o.i(Half::from_scalar(h1).x as i64);
+        o.i(Half::from_f64(hd).x as i64);
+        o.i(Half::from_int(hi).x as i64);
+        o.i(Half::from_internal(hi as InternalHalf).x as i64);
+        o.b(Half::from_scalar(h1) == Half::from_scalar(h2));
+        let hv4 = HalfVector4::from(Color::new(h0, h1, h2, h3));
+        let hw4 = HalfVector4::from(Vector4::new(h3, h2, h1, h0));
+        let hv3 = HalfVector3::from(Vector3::new(h0, h1, h2));
+        let hv2 = HalfVector2::from(Vector2::new(h2, h3));
+        o.i(hv4.x as i64);
+        o.i(hv4.y as i64);
+        o.i(hv4.z as i64);
+        o.i(hv4.w as i64);
+        o.i(hw4.x as i64);
+        o.i(hw4.w as i64);
+        o.i(hv3.x as i64);
+        o.i(hv3.y as i64);
+        o.i(hv3.z as i64);
+        o.i(hv2.x as i64);
+        o.i(hv2.y as i64);
+        o.b(hv4 == hw4);
+        o.b(hv4 != hw4);
+        o.b(hv3 == HalfVector3::new(hv3.x, hv3.y, hv3.z));
+        o.b(hv2 != HalfVector2::new(hv2.y, hv2.x));
+        o.end();
+    }
+}
+
 // ----------------------------------------------------------------- main ----
 
 type Suite = fn(&mut Rng, &mut Out, i32);
 const SUITES: &[(&str, Suite)] =
-    &[("scalar", suite_scalar), ("point", suite_point), ("size", suite_size)];
+    &[
+        ("scalar", suite_scalar),
+        ("point", suite_point),
+        ("size", suite_size),
+        ("vector", suite_vector),
+        ("color", suite_color),
+    ];
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

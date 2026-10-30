@@ -24,9 +24,12 @@
 #include <string>
 #include <vector>
 
+#include "impeller/geometry/color.h"
 #include "impeller/geometry/constants.h"
+#include "impeller/geometry/half.h"
 #include "impeller/geometry/point.h"
 #include "impeller/geometry/size.h"
+#include "impeller/geometry/vector.h"
 #include "impeller/geometry/saturated_math.h"
 #include "impeller/geometry/scalar.h"
 
@@ -909,6 +912,494 @@ static void SuiteSize(Rng& r, int cases) {
   }
 }
 
+// ------------------------------------------------- vector, color, half ---
+
+static Vector3 EdgeV3(Rng& r) {
+  float x = EdgeF(r);
+  float y = EdgeF(r);
+  float z = EdgeF(r);
+  return Vector3(x, y, z);
+}
+static Vector4 EdgeV4(Rng& r) {
+  float x = EdgeF(r);
+  float y = EdgeF(r);
+  float z = EdgeF(r);
+  float w = EdgeF(r);
+  return Vector4(x, y, z, w);
+}
+static void V3(Vector3 v) {
+  F(v.x);
+  F(v.y);
+  F(v.z);
+}
+static void V4(Vector4 v) {
+  F(v.x);
+  F(v.y);
+  F(v.z);
+  F(v.w);
+}
+
+static void SuiteVector(Rng& r, int cases) {
+  for (int c = 0; c < cases; c++) {
+    Vector3 a = EdgeV3(r);
+    Vector3 b = EdgeV3(r);
+    float s = EdgeF(r);
+    double ds = EdgeD(r);
+    int32_t is = static_cast<int32_t>(EdgeI(r, 32));
+    Point p = EdgeP(r);
+    Size sz = EdgeS(r);
+    Tag("v3_ops");
+    V3(a);
+    V3(b);
+    F(s);
+    D(ds);
+    I(is);
+    Arrow();
+    V3(-a);
+    V3(a + b);
+    V3(a - b);
+    V3(a + s);
+    V3(a - s);
+    V3(a * b);
+    V3(a * s);
+    V3(a * ds);
+    V3(a * is);
+    V3(a / b);
+    V3(a / s);
+    V3(a / ds);
+    V3(a / is);
+    V3(s * a);
+    V3(ds * a);
+    V3(is * a);
+    V3(s + a);
+    V3(ds + a);
+    V3(is + a);
+    V3(s - a);
+    V3(ds - a);
+    V3(is - a);
+    V3(s / a);
+    V3(ds / a);
+    V3(is / a);
+    Vector3 t = a;
+    t += b;
+    V3(t);
+    t = a;
+    t -= b;
+    V3(t);
+    t = a;
+    t *= b;
+    V3(t);
+    t = a;
+    t *= s;
+    V3(t);
+    t = a;
+    t *= ds;
+    V3(t);
+    t = a;
+    t *= is;
+    V3(t);
+    t = a;
+    t /= b;
+    V3(t);
+    t = a;
+    t /= s;
+    V3(t);
+    t = a;
+    t /= ds;
+    V3(t);
+    t = a;
+    t /= is;
+    V3(t);
+    B(a == b);
+    B(a != b);
+    B(a == a);
+    End();
+
+    Tag("v3_methods");
+    V3(a);
+    V3(b);
+    F(s);
+    Arrow();
+    F(a.GetLength());
+    V3(a.Normalize());
+    F(a.Dot(b));
+    V3(a.Abs());
+    V3(a.Cross(b));
+    V3(a.Min(b));
+    V3(a.Max(b));
+    V3(a.Floor());
+    V3(a.Ceil());
+    V3(a.Round());
+    V3(a.Lerp(b, s));
+    V3(Vector3::Combine(a, s, b, b.x));
+    V3(Vector3(p));
+    V3(Vector3(sz));
+    V3(Vector3(s, a.x));
+    V3(Vector3());
+    End();
+
+    Vector4 u = EdgeV4(r);
+    Vector4 v = EdgeV4(r);
+    float f0 = EdgeF(r);
+    float f1 = EdgeF(r);
+    float f2 = EdgeF(r);
+    float f3 = EdgeF(r);
+    Tag("v4");
+    V4(u);
+    V4(v);
+    F(s);
+    Arrow();
+    B(u.IsFinite());
+    V4(u.Normalize());
+    B(u == v);
+    B(u != v);
+    B(u == u);
+    V4(u + v);
+    V4(u - v);
+    V4(u * s);
+    V4(u * v);
+    V4(u.Min(v));
+    V4(u.Max(v));
+    V4(u.Floor());
+    V4(u.Ceil());
+    V4(u.Round());
+    V4(u.Lerp(v, s));
+    P(u.xy());
+    V4(Vector4());
+    V4(Vector4(a));
+    V4(Vector4(p));
+    V4(Vector4(std::array<Scalar, 4>{f0, f1, f2, f3}));
+    End();
+  }
+}
+
+// A color component: usually in [0, 1], sometimes an edge value.
+static float CompF(Rng& r) {
+  switch (r.Below(10)) {
+    case 0: return 0.0f;
+    case 1: return 1.0f;
+    case 2: return EdgeF(r);
+    case 3: return static_cast<float>(r.Unit() * 3.0 - 1.0);
+    default: return static_cast<float>(r.Unit());
+  }
+}
+static Color CompC(Rng& r) {
+  float red = CompF(r);
+  float green = CompF(r);
+  float blue = CompF(r);
+  float alpha = CompF(r);
+  return Color(red, green, blue, alpha);
+}
+// A color in [0, 1], for the conversions to 8 bits (upstream's implicit
+// float-to-uint8_t conversion is undefined outside [0, 255]).
+static Color UnitC(Rng& r) {
+  float red = static_cast<float>(r.Unit());
+  float green = static_cast<float>(r.Unit());
+  float blue = static_cast<float>(r.Unit());
+  float alpha = static_cast<float>(r.Unit());
+  return Color(red, green, blue, alpha);
+}
+static void C(Color c) {
+  F(c.red);
+  F(c.green);
+  F(c.blue);
+  F(c.alpha);
+}
+
+static void SuiteColor(Rng& r, int cases) {
+  Tag("named");
+  C(Color::White());
+  C(Color::Black());
+  C(Color::WhiteTransparent());
+  C(Color::BlackTransparent());
+  C(Color::Red());
+  C(Color::Green());
+  C(Color::Blue());
+  C(Color::AliceBlue());
+  C(Color::AntiqueWhite());
+  C(Color::Aqua());
+  C(Color::AquaMarine());
+  C(Color::Azure());
+  C(Color::Beige());
+  C(Color::Bisque());
+  C(Color::BlanchedAlmond());
+  C(Color::BlueViolet());
+  C(Color::Brown());
+  C(Color::BurlyWood());
+  C(Color::CadetBlue());
+  C(Color::Chartreuse());
+  C(Color::Chocolate());
+  C(Color::Coral());
+  C(Color::CornflowerBlue());
+  C(Color::Cornsilk());
+  C(Color::Crimson());
+  C(Color::Cyan());
+  C(Color::DarkBlue());
+  C(Color::DarkCyan());
+  C(Color::DarkGoldenrod());
+  C(Color::DarkGray());
+  C(Color::DarkGreen());
+  C(Color::DarkGrey());
+  C(Color::DarkKhaki());
+  C(Color::DarkMagenta());
+  C(Color::DarkOliveGreen());
+  C(Color::DarkOrange());
+  C(Color::DarkOrchid());
+  C(Color::DarkRed());
+  C(Color::DarkSalmon());
+  C(Color::DarkSeagreen());
+  C(Color::DarkSlateBlue());
+  C(Color::DarkSlateGray());
+  C(Color::DarkSlateGrey());
+  C(Color::DarkTurquoise());
+  C(Color::DarkViolet());
+  C(Color::DeepPink());
+  C(Color::DeepSkyBlue());
+  C(Color::DimGray());
+  C(Color::DimGrey());
+  C(Color::DodgerBlue());
+  C(Color::Firebrick());
+  C(Color::FloralWhite());
+  C(Color::ForestGreen());
+  C(Color::Fuchsia());
+  C(Color::Gainsboro());
+  C(Color::Ghostwhite());
+  C(Color::Gold());
+  C(Color::Goldenrod());
+  C(Color::Gray());
+  C(Color::GreenYellow());
+  C(Color::Grey());
+  C(Color::Honeydew());
+  C(Color::HotPink());
+  C(Color::IndianRed());
+  C(Color::Indigo());
+  C(Color::Ivory());
+  C(Color::Khaki());
+  C(Color::Lavender());
+  C(Color::LavenderBlush());
+  C(Color::LawnGreen());
+  C(Color::LemonChiffon());
+  C(Color::LightBlue());
+  C(Color::LightCoral());
+  C(Color::LightCyan());
+  C(Color::LightGoldenrodYellow());
+  C(Color::LightGray());
+  C(Color::LightGreen());
+  C(Color::LightGrey());
+  C(Color::LightPink());
+  C(Color::LightSalmon());
+  C(Color::LightSeaGreen());
+  C(Color::LightSkyBlue());
+  C(Color::LightSlateGray());
+  C(Color::LightSlateGrey());
+  C(Color::LightSteelBlue());
+  C(Color::LightYellow());
+  C(Color::Lime());
+  C(Color::LimeGreen());
+  C(Color::Linen());
+  C(Color::Magenta());
+  C(Color::Maroon());
+  C(Color::MediumAquamarine());
+  C(Color::MediumBlue());
+  C(Color::MediumOrchid());
+  C(Color::MediumPurple());
+  C(Color::MediumSeagreen());
+  C(Color::MediumSlateBlue());
+  C(Color::MediumSpringGreen());
+  C(Color::MediumTurquoise());
+  C(Color::MediumVioletRed());
+  C(Color::MidnightBlue());
+  C(Color::MintCream());
+  C(Color::MistyRose());
+  C(Color::Moccasin());
+  C(Color::NavajoWhite());
+  C(Color::Navy());
+  C(Color::OldLace());
+  C(Color::Olive());
+  C(Color::OliveDrab());
+  C(Color::Orange());
+  C(Color::OrangeRed());
+  C(Color::Orchid());
+  C(Color::PaleGoldenrod());
+  C(Color::PaleGreen());
+  C(Color::PaleTurquoise());
+  C(Color::PaleVioletRed());
+  C(Color::PapayaWhip());
+  C(Color::Peachpuff());
+  C(Color::Peru());
+  C(Color::Pink());
+  C(Color::Plum());
+  C(Color::PowderBlue());
+  C(Color::Purple());
+  C(Color::RosyBrown());
+  C(Color::RoyalBlue());
+  C(Color::SaddleBrown());
+  C(Color::Salmon());
+  C(Color::SandyBrown());
+  C(Color::Seagreen());
+  C(Color::Seashell());
+  C(Color::Sienna());
+  C(Color::Silver());
+  C(Color::SkyBlue());
+  C(Color::SlateBlue());
+  C(Color::SlateGray());
+  C(Color::SlateGrey());
+  C(Color::Snow());
+  C(Color::SpringGreen());
+  C(Color::SteelBlue());
+  C(Color::Tan());
+  C(Color::Teal());
+  C(Color::Thistle());
+  C(Color::Tomato());
+  C(Color::Turquoise());
+  C(Color::Violet());
+  C(Color::Wheat());
+  C(Color::Whitesmoke());
+  C(Color::Yellow());
+  C(Color::YellowGreen());
+  End();
+  Tag("blend_modes");
+  for (int m = 0; m <= static_cast<int>(BlendMode::kLastMode); m++) {
+    S(BlendModeToString(static_cast<BlendMode>(m)));
+  }
+  I(static_cast<int>(BlendMode::kDefaultMode));
+  End();
+  for (int c = 0; c < cases; c++) {
+    Color a = CompC(r);
+    Color b = CompC(r);
+    float s = EdgeF(r);
+    double ds = EdgeD(r);
+    int32_t is = static_cast<int32_t>(EdgeI(r, 32));
+    Tag("color_ops");
+    C(a);
+    C(b);
+    F(s);
+    D(ds);
+    I(is);
+    Arrow();
+    C(a + b);
+    C(a + s);
+    C(a + ds);
+    C(a + is);
+    C(a - b);
+    C(a - s);
+    C(a - is);
+    C(a * b);
+    C(a * s);
+    C(a * ds);
+    C(a * is);
+    C(a / b);
+    C(a / s);
+    C(a / is);
+    C(s + a);
+    C(ds - a);
+    C(is * a);
+    C(s / a);
+    B(a == b);
+    B(a == a);
+    C(a.Premultiply());
+    C(a.Unpremultiply());
+    B(a.IsWideGamut());
+    C(Color::Lerp(a, b, s));
+    C(a.Clamp01());
+    C(a.WithAlpha(s));
+    U(Color::ToIColor(a));
+    C(a.LinearToSRGB());
+    C(a.SRGBToLinear());
+    B(a.IsTransparent());
+    B(a.IsOpaque());
+    C(Color(Vector4(a)));
+    V3(Vector3(a));
+    End();
+
+    Tag("blend");
+    C(a);
+    C(b);
+    Arrow();
+    for (int m = 0; m <= static_cast<int>(BlendMode::kLastMode); m++) {
+      C(a.Blend(b, static_cast<BlendMode>(m)));
+    }
+    End();
+
+    ColorMatrix cm;
+    for (int i = 0; i < 20; i++) {
+      cm.array[i] = r.Chance(4) ? EdgeF(r) : static_cast<float>(r.Unit() * 2.0 - 1.0);
+    }
+    Tag("matrix");
+    for (int i = 0; i < 20; i++) {
+      F(cm.array[i]);
+    }
+    Arrow();
+    C(a.ApplyColorMatrix(cm));
+    End();
+
+    Color u = UnitC(r);
+    uint8_t r8 = static_cast<uint8_t>(r.Below(256));
+    uint8_t g8 = static_cast<uint8_t>(r.Below(256));
+    uint8_t b8 = static_cast<uint8_t>(r.Below(256));
+    uint8_t a8 = static_cast<uint8_t>(r.Below(256));
+    Tag("color8");
+    C(u);
+    I(r8);
+    I(g8);
+    I(b8);
+    I(a8);
+    Arrow();
+    auto bytes = u.ToR8G8B8A8();
+    I(bytes[0]);
+    I(bytes[1]);
+    I(bytes[2]);
+    I(bytes[3]);
+    U(u.ToARGB());
+    U(Color::ToIColor(u));
+    C(Color::MakeRGBA8(r8, g8, b8, a8));
+    End();
+
+    // Half: the non-Apple branch, an integer conversion; fed values whose
+    // truncation fits in uint16_t.
+    float h0 = static_cast<float>(r.Unit() * 65536.0 - 0.99);
+    float h1 = static_cast<float>(r.Unit() * 65536.0);
+    float h2 = static_cast<float>(r.Unit() * 100.0);
+    float h3 = static_cast<float>(r.Unit());
+    double hd = r.Unit() * 65535.0;
+    int hi = static_cast<int>(r.Below(65536));
+    Tag("half");
+    F(h0);
+    F(h1);
+    F(h2);
+    F(h3);
+    D(hd);
+    I(hi);
+    Arrow();
+    I(ScalarToHalf(h0));
+    I(Half(h1).x);
+    I(Half(hd).x);
+    I(Half(hi).x);
+    I(Half(static_cast<InternalHalf>(hi)).x);
+    B(Half(h1) == Half(h2));
+    HalfVector4 hv4(Color(h0, h1, h2, h3));
+    HalfVector4 hw4(Vector4(h3, h2, h1, h0));
+    HalfVector3 hv3(Vector3(h0, h1, h2));
+    HalfVector2 hv2(Vector2(h2, h3));
+    I(hv4.x);
+    I(hv4.y);
+    I(hv4.z);
+    I(hv4.w);
+    I(hw4.x);
+    I(hw4.w);
+    I(hv3.x);
+    I(hv3.y);
+    I(hv3.z);
+    I(hv2.x);
+    I(hv2.y);
+    B(hv4 == hw4);
+    B(hv4 != hw4);
+    B(hv3 == HalfVector3(hv3.x, hv3.y, hv3.z));
+    B(hv2 != HalfVector2(hv2.y, hv2.x));
+    End();
+  }
+}
+
 // ----------------------------------------------------------------- main ----
 
 typedef void (*Suite)(Rng&, int);
@@ -920,6 +1411,8 @@ static const NamedSuite kSuites[] = {
     {"scalar", SuiteScalar},
     {"point", SuitePoint},
     {"size", SuiteSize},
+    {"vector", SuiteVector},
+    {"color", SuiteColor},
 };
 
 int main(int argc, char** argv) {

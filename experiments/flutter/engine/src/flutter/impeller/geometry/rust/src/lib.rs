@@ -6,15 +6,18 @@
 // name. See README.md.
 
 #![forbid(unsafe_code)]
-#![allow(non_upper_case_globals, non_snake_case)]
+#![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
+pub mod color;
 pub mod constants;
 pub mod cxx;
+pub mod half;
 pub mod point;
 pub mod print;
 pub mod saturated_math;
 pub mod scalar;
 pub mod size;
 pub mod type_traits;
+pub mod vector;
 
 pub use saturated_math::saturated;
