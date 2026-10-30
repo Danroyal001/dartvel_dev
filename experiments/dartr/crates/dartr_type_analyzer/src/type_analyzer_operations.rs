@@ -939,6 +939,10 @@ pub fn perform_subtype_constraint_generation_internal<G: TypeConstraintGenerator
     if q_kind == SharedTypeKind::Dynamic
         || q_kind == SharedTypeKind::Void
         || q == ops.object_question_type().unwrap_type_view()
+        // Dart `==` ignores a typedef alias (`typedef Value = Object;` makes
+        // `Value?` equal to `Object?`), `TypeId ==` does not.
+        || (ops.is_question_type(q)
+            && ops.is_object(ops.promote_to_non_null(SharedTypeView::new(q))))
     {
         return true;
     }
@@ -950,7 +954,7 @@ pub fn perform_subtype_constraint_generation_internal<G: TypeConstraintGenerator
 
     // If `Q` is `Object`, then the match holds under no constraints:
     //  Only if `P` is non-nullable.
-    if q == ops.object_type().unwrap_type_view() {
+    if q == ops.object_type().unwrap_type_view() || ops.is_object(SharedTypeView::new(q)) {
         return ops.is_non_nullable_internal(p);
     }
 
