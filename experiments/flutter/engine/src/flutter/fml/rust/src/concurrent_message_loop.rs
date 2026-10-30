@@ -16,7 +16,6 @@ use std::thread::ThreadId;
 use crate::closure::closure;
 use crate::fml_dlog_at;
 use crate::task_runner::BasicTaskRunner;
-use crate::thread::{Thread, ThreadConfig};
 
 const FILE: &str = "flutter/fml/concurrent_message_loop.cc";
 
@@ -25,8 +24,10 @@ struct State {
     worker_thread_ids_: Vec<ThreadId>,
     thread_tasks_: HashMap<ThreadId, Vec<closure>>,
     shutdown_: bool,
-    // Not upstream's: workers blocked in the wait (see post_task).
+    // Not upstream's: workers blocked in the wait, and notifications sent to
+    // them that no worker has woken for yet (see post_task).
     waiting_workers_: usize,
+    pending_wakes_: usize,
 }
 
 struct Shared {
@@ -81,19 +82,23 @@ impl ConcurrentMessageLoop {
                 thread_tasks_: HashMap::new(),
                 shutdown_: false,
                 waiting_workers_: 0,
+                pending_wakes_: 0,
             }),
             tasks_condition_: Condvar::new(),
         });
         let mut workers_ = Vec::with_capacity(worker_count_);
         for i in 0..worker_count_ {
             let shared = shared_.clone();
-            workers_.push(std::thread::spawn(move || {
-                Thread::set_current_thread_name(&ThreadConfig::named(&format!(
-                    "io.worker.{}",
-                    i + 1
-                )));
-                worker_main(&shared);
-            }));
+            // Upstream names the thread from inside it
+            // (SetCurrentThreadName); std's builder does the same at the
+            // thread's start, with one prctl where writing
+            // /proc/thread-self/comm takes an open, a write and a close.
+            // Both cut the name at 15 bytes.
+            let worker = std::thread::Builder::new()
+                .name(format!("io.worker.{}", i + 1))
+                .spawn(move || worker_main(&shared))
+                .expect("failed to spawn thread");
+            workers_.push(worker);
         }
         shared_.lock().worker_thread_ids_ = workers_.iter().map(|w| w.thread().id()).collect();
         Arc::new_cyclic(|weak| ConcurrentMessageLoop {
@@ -155,11 +160,16 @@ impl ConcurrentMessageLoop {
         }
 
         state.tasks_.push_back(task);
-        // pthread_cond_signal returns without a system call when no thread
-        // waits; std's Condvar always makes one, so the port skips the
-        // notification itself when no worker is waiting (a worker about to
-        // wait checks for tasks under this lock first, so none is missed).
-        let wake = state.waiting_workers_ > 0;
+        // pthread_cond_signal makes no system call when no thread waits for
+        // the signal; std's Condvar always makes one. So the port notifies
+        // only when a worker is waiting that no earlier notification will
+        // already wake: a woken worker takes tasks until the queue is empty
+        // before it waits again, and a worker about to wait checks the queue
+        // under this lock first, so no task is left without a worker.
+        let wake = state.waiting_workers_ > state.pending_wakes_;
+        if wake {
+            state.pending_wakes_ += 1;
+        }
 
         // Unlock the mutex before notifying the condition variable because that
         // mutex has to be acquired on the other thread anyway. Waiting in this
@@ -192,6 +202,7 @@ fn worker_main(shared: &Shared) {
             state.waiting_workers_ += 1;
             state = shared.tasks_condition_.wait(state).unwrap_or_else(|e| e.into_inner());
             state.waiting_workers_ -= 1;
+            state.pending_wakes_ = state.pending_wakes_.saturating_sub(1);
         }
 
         // Shutdown cannot be read with the task mutex unlocked.
