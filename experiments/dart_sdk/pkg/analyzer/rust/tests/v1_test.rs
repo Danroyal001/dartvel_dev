@@ -283,3 +283,57 @@ fn scoped_name_finder2_top_level_setter() {
     let code = "set foo(int parameter) {\n  var local = 0;\n  new C();\n  var after = 1;\n}\n";
     assert_eq!(scoped_names(code), (vec!["local".into(), "parameter".into()], true));
 }
+
+mod hooks {
+    use super::*;
+    use analyzer::dart::ast::visitor_g::{SimpleAstVisitor2, simple_ast_visitor2};
+    use analyzer::src::dart::ast::ast::Hooked;
+    use analyzer::simple_ast_visitor2;
+
+    /// Records the visit of every node it is asked to visit.
+    struct Names<'l> {
+        log: &'l mut Vec<String>,
+    }
+
+    impl SimpleAstVisitor2 for Names<'_> {
+        fn visit_parsed_unqualified_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+            self.log.push(format!("visit {}", ast.to_source(node)));
+            None
+        }
+
+        fn visit_integer_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+            self.log.push(format!("visit {}", ast.to_source(node)));
+            None
+        }
+    }
+
+    simple_ast_visitor2!(Names<'_>, ());
+
+    #[test]
+    fn visit_children_with_hooks_calls_the_hook_in_place_of_the_visit() {
+        let result = parse("var x = a + 1;");
+        let ast = Ast::new(&result.ast, &result.tokens);
+        let unit = result.unit;
+        let declaration = result.ast.node(unit).as_compilation_unit_impl().declarations2[0];
+        let variable = result.ast.node(declaration).as_top_level_variables_declaration_impl().variables[0];
+        let binary = result.ast.node(variable).as_top_level_variable2_impl().initializer;
+        let mut log = Vec::new();
+        let mut hooked = Vec::new();
+        ast.visit_children_with_hooks(binary, &mut Names { log: &mut log }, &mut |name, child| {
+            if name == "visitRightOperand" {
+                if let Hooked::Node(n) = child {
+                    hooked.push(format!("{name} {}", ast.to_source(n)));
+                }
+                return true;
+            }
+            false
+        });
+        assert_eq!(log, vec!["visit a"]);
+        assert_eq!(hooked, vec!["visitRightOperand 1"]);
+
+        // Without hooks, it is visitChildren2.
+        let mut log = Vec::new();
+        ast.visit_children_with_hooks(binary, &mut Names { log: &mut log }, &mut |_, _| false);
+        assert_eq!(log, vec!["visit a", "visit 1"]);
+    }
+}

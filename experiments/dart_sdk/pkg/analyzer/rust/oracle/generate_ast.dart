@@ -913,6 +913,7 @@ void main(List<String> args) {
   out.writeln();
   out.write(impls);
   writeMutations(concrete, out, errors);
+  writeHooks(concrete, out, errors);
 
   File('${args[1]}.hand.txt').writeAsStringSync(
     '${(handGetters.toList()..sort()).join('\n')}\n',
@@ -2679,4 +2680,159 @@ void writeMutations(List<ClassInfo> concrete, StringBuffer out, List<String> err
   out.write(methods);
   out.writeln('}');
   out.writeln();
+}
+
+// ---------------------------------------------------------------------------
+// `visitChildrenWithHooks`: `visitChildren2` where a hook given for a child
+// is called instead of visiting it. Upstream names each hook as a parameter
+// (`visitExpression2`); here one function receives the hook's name and the
+// child, and returns whether it handled the child.
+// ---------------------------------------------------------------------------
+
+/// Hand translations of `visitChildrenWithHooks`, keyed by class.
+const Map<String, String> handHooks = {
+  // Upstream first throws for a V1 projection.
+  'FunctionExpressionImpl': '''
+ast.check_not_v1_projection(id);
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if self.parameters != NO_NODE && !hooks("visitParameters", Hooked::Node(self.parameters)) {
+            ast.accept2(self.parameters, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }''',
+  'NamedTypeImpl': '''
+ast.check_not_v1_projection(id);
+        if self.import_prefix != NO_NODE && !hooks("visitImportPrefix", Hooked::Node(self.import_prefix)) {
+            ast.accept2(self.import_prefix, visitor);
+        }
+        if self.type_arguments != NO_NODE && !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }''',
+};
+
+List<String> hooksBody(ClassInfo c, Map<String, Field> fields, FunctionBody body) {
+  Never fail(Object what) =>
+      throw StateError('${c.name}.visitChildrenWithHooks: cannot translate $what');
+  if (body is EmptyFunctionBody) return [];
+  if (body is! BlockFunctionBody) fail(body);
+  List<String> out = [];
+  String hooked(IfStatement s, {required bool nullable}) {
+    // if (visitX != null) { visitX(x); } else { x.accept2(visitor); }
+    var cond = s.expression;
+    if (cond is! BinaryExpression || cond.operator.lexeme != '!=') fail(s);
+    String hook = cond.leftOperand.toSource();
+    var elseStatement = s.elseStatement;
+    if (elseStatement == null) fail(s);
+    var accept = (elseStatement is Block ? elseStatement.statements.single : elseStatement)
+        as ExpressionStatement;
+    var call = accept.expression as MethodInvocation;
+    String name = (call.target as SimpleIdentifier).name;
+    Field? f = resolveField(c, fields, name);
+    if (f == null) fail(name);
+    if (f.kind == Kind.nodeList) {
+      return 'if !hooks("$hook", Hooked::List(&self.${f.rustName})) {\n'
+          '            for &element in &self.${f.rustName} {\n'
+          '                ast.accept2(element, visitor);\n'
+          '            }\n'
+          '        }';
+    }
+    String check = nullable || f.nullable ? 'self.${f.rustName} != NO_NODE && ' : '';
+    return 'if $check!hooks("$hook", Hooked::Node(self.${f.rustName})) {\n'
+        '            ast.accept2(self.${f.rustName}, visitor);\n'
+        '        }';
+  }
+
+  for (Statement s in body.block.statements) {
+    if (s is ExpressionStatement &&
+        s.expression.toSource() == '_visitCommentAndAnnotations2(visitor)') {
+      out.add(
+        'ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);',
+      );
+      continue;
+    }
+    if (s is ExpressionStatement && s.expression is ThrowExpression) {
+      out.add(V1Translator(c, fields, 'visitChildrenWithHooks')
+          .throwStatement(s.expression as ThrowExpression));
+      continue;
+    }
+    if (s is IfStatement && s.caseClause != null) {
+      Statement then = s.thenStatement;
+      if (then is Block) then = then.statements.single;
+      out.add(hooked(then as IfStatement, nullable: true));
+      continue;
+    }
+    if (s is IfStatement) {
+      out.add(hooked(s, nullable: false));
+      continue;
+    }
+    fail(s.toSource());
+  }
+  return out;
+}
+
+void writeHooks(List<ClassInfo> concrete, StringBuffer out, List<String> errors) {
+  StringBuffer methods = StringBuffer();
+  out.writeln('/// A child given to a hook of `visitChildrenWithHooks`.');
+  out.writeln('#[derive(Clone, Copy, Debug)]');
+  out.writeln("pub enum Hooked<'a> {");
+  out.writeln('    Node(NodeId),');
+  out.writeln("    List(&'a [NodeId]),");
+  out.writeln('}');
+  out.writeln();
+  out.writeln('impl AstNodeImpl {');
+  out.writeln('    /// `visitChildrenWithHooks(visitor, visitX: ...)`: [hooks] is called');
+  out.writeln('    /// with the name of each hook upstream takes (`visitExpression2`) and');
+  out.writeln('    /// the child, and returns whether it handled the child; a child it');
+  out.writeln('    /// did not handle is visited with [visitor].');
+  out.writeln(
+    "    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {",
+  );
+  out.writeln('        match self {');
+  for (ClassInfo c in concrete) {
+    String bare = c.name.substring(0, c.name.length - 4);
+    if (isV1Only(c)) {
+      out.writeln(
+        '            AstNodeImpl::${c.name}(_) => panic!("StateError: $bare is not in the V2 AST view."),',
+      );
+      continue;
+    }
+    out.writeln(
+      '            AstNodeImpl::${c.name}(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),',
+    );
+    var found = c.lookupMethod('visitChildrenWithHooks');
+    List<String> statements;
+    Map<String, Field> fields = {for (Field f in fieldsOf(c)) f.dartName: f};
+    if (handHooks.containsKey(c.name)) {
+      statements = [handHooks[c.name]!];
+    } else if (found == null) {
+      statements = [];
+    } else {
+      try {
+        statements = hooksBody(c, fields, found.$2);
+      } on StateError catch (e) {
+        errors.add(e.message);
+        statements = ['todo!()'];
+      }
+    }
+    methods.writeln('impl ${c.name} {');
+    methods.writeln('    /// `${c.name}.visitChildrenWithHooks`.');
+    methods.writeln(
+      "    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {",
+    );
+    methods.writeln('        let _ = (ast, id, &visitor, &hooks);');
+    for (String s in statements) {
+      methods.writeln('        $s');
+    }
+    methods.writeln('    }');
+    methods.writeln('}');
+    methods.writeln();
+  }
+  out.writeln('        }');
+  out.writeln('    }');
+  out.writeln('}');
+  out.writeln();
+  out.write(methods);
 }

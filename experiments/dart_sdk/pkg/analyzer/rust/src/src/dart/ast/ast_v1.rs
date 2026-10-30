@@ -3559,3 +3559,16 @@ impl<'a> Ast<'a> {
         AstNodeApi::v2
     }
 }
+
+impl<'a> Ast<'a> {
+    /// `node.visitChildrenWithHooks(visitor, ...)` (see
+    /// `AstNodeImpl::visit_children_with_hooks`).
+    pub fn visit_children_with_hooks<V: crate::src::dart::ast::ast_g::AstVisitor2 + ?Sized>(
+        self,
+        id: NodeId,
+        visitor: &mut V,
+        hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool,
+    ) {
+        self.node(id).visit_children_with_hooks(self, id, visitor, hooks)
+    }
+}

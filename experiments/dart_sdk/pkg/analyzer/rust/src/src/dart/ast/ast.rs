@@ -44358,6 +44358,2884 @@ impl AstStore {
     }
 }
 
+/// A child given to a hook of `visitChildrenWithHooks`.
+#[derive(Clone, Copy, Debug)]
+pub enum Hooked<'a> {
+    Node(NodeId),
+    List(&'a [NodeId]),
+}
+
+impl AstNodeImpl {
+    /// `visitChildrenWithHooks(visitor, visitX: ...)`: [hooks] is called
+    /// with the name of each hook upstream takes (`visitExpression2`) and
+    /// the child, and returns whether it handled the child; a child it
+    /// did not handle is visited with [visitor].
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::AnnotationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::AnonymousBlockBodyImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::AnonymousExpressionBodyImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::AnonymousMethodInvocationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ArgumentListImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::AsExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::AssertInitializerImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::AssertStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::AssignedVariablePatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::AssignmentExpressionImpl(_) => panic!("StateError: AssignmentExpression is not in the V2 AST view."),
+            AstNodeImpl::AwaitExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::BinaryExpressionImpl(_) => panic!("StateError: BinaryExpression is not in the V2 AST view."),
+            AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::BlockClassBodyImpl(_) => panic!("StateError: BlockClassBody is not in the V2 AST view."),
+            AstNodeImpl::BlockEnumBodyImpl(_) => panic!("StateError: BlockEnumBody is not in the V2 AST view."),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::BlockFunctionBodyImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::BlockImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::BooleanLiteralImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::BreakStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CallInvocationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CascadeExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CascadeIndexExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CascadePropertyExtractionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CascadeSectionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CaseClauseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CastPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CatchClauseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CatchClauseParameterImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ClassDeclaration2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ClassDeclarationImpl(_) => panic!("StateError: ClassDeclaration is not in the V2 AST view."),
+            AstNodeImpl::ClassTypeAlias2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ClassTypeAliasImpl(_) => panic!("StateError: ClassTypeAlias is not in the V2 AST view."),
+            AstNodeImpl::CombinatorNameImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CommentImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CommentReferenceComponentImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CommentReferenceImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CompilationUnitImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::CompoundAssignmentImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ConditionalExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ConfigurationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ConstantPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ConstructorDeclaration2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ConstructorDeclarationImpl(_) => panic!("StateError: ConstructorDeclaration is not in the V2 AST view."),
+            AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ConstructorInvocationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ConstructorNameImpl(_) => panic!("StateError: ConstructorName is not in the V2 AST view."),
+            AstNodeImpl::ConstructorReference2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ConstructorReferenceImpl(_) => panic!("StateError: ConstructorReference is not in the V2 AST view."),
+            AstNodeImpl::ConstructorSelectorImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ContinueStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::DeclaredIdentifierImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::DeclaredVariablePatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::DelimitedFormalParametersImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::DirectAssignmentImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::DoStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(_) => panic!("StateError: DotShorthandConstructorInvocation is not in the V2 AST view."),
+            AstNodeImpl::DotShorthandInvocationImpl(_) => panic!("StateError: DotShorthandInvocation is not in the V2 AST view."),
+            AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(_) => panic!("StateError: DotShorthandPropertyAccess is not in the V2 AST view."),
+            AstNodeImpl::DottedNameImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::DoubleLiteralImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::EmptyClassBodyImpl(_) => panic!("StateError: EmptyClassBody is not in the V2 AST view."),
+            AstNodeImpl::EmptyEnumBodyImpl(_) => panic!("StateError: EmptyEnumBody is not in the V2 AST view."),
+            AstNodeImpl::EmptyFunctionBodyImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::EmptyStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::EnumConstantArgumentsImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::EnumConstantDeclarationImpl(_) => panic!("StateError: EnumConstantDeclaration is not in the V2 AST view."),
+            AstNodeImpl::EnumDeclaration2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::EnumDeclarationImpl(_) => panic!("StateError: EnumDeclaration is not in the V2 AST view."),
+            AstNodeImpl::ExportDirectiveImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ExpressionStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ExtendsClauseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ExtensionDeclaration2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ExtensionDeclarationImpl(_) => panic!("StateError: ExtensionDeclaration is not in the V2 AST view."),
+            AstNodeImpl::ExtensionOnClauseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ExtensionOverrideImpl(_) => panic!("StateError: ExtensionOverride is not in the V2 AST view."),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(_) => panic!("StateError: ExtensionTypeDeclaration is not in the V2 AST view."),
+            AstNodeImpl::Field2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::FieldDeclarationImpl(_) => panic!("StateError: FieldDeclaration is not in the V2 AST view."),
+            AstNodeImpl::FieldFormalParameterImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::FieldsDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ForEachPartsWithPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ForElementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ForPartsWithExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ForPartsWithPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ForStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::FormalParameterListImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::FunctionDeclarationImpl(_) => panic!("StateError: FunctionDeclaration is not in the V2 AST view."),
+            AstNodeImpl::FunctionDeclarationStatementImpl(_) => panic!("StateError: FunctionDeclarationStatement is not in the V2 AST view."),
+            AstNodeImpl::FunctionExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::FunctionExpressionInvocationImpl(_) => panic!("StateError: FunctionExpressionInvocation is not in the V2 AST view."),
+            AstNodeImpl::FunctionReferenceImpl(_) => panic!("StateError: FunctionReference is not in the V2 AST view."),
+            AstNodeImpl::FunctionTypeAlias2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::FunctionTypeAliasImpl(_) => panic!("StateError: FunctionTypeAlias is not in the V2 AST view."),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::GenericFunctionTypeImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::GenericTypeAlias2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::GenericTypeAliasImpl(_) => panic!("StateError: GenericTypeAlias is not in the V2 AST view."),
+            AstNodeImpl::GetterDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::GuardedPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::HideCombinatorImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::IfElementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::IfNullAssignmentImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::IfNullImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::IfStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ImplementsClauseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ImplicitCallReferenceImpl(_) => panic!("StateError: ImplicitCallReference is not in the V2 AST view."),
+            AstNodeImpl::ImportDirectiveImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ImportPrefixReferenceImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::IndexExpressionImpl(_) => panic!("StateError: IndexExpression is not in the V2 AST view."),
+            AstNodeImpl::InstanceCreationExpressionImpl(_) => panic!("StateError: InstanceCreationExpression is not in the V2 AST view."),
+            AstNodeImpl::IntegerLiteralImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::InterpolationExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::InterpolationStringImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::InvalidSuperExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::IsExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LabelImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LabelReferenceImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LabeledStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LibraryDirectiveImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ListLiteralImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ListPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LocalFunctionDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LocalVariableImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LocalVariablesDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LogicalAndImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LogicalAndPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LogicalNotImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LogicalOrImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::LogicalOrPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::MapLiteralEntryImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::MapPatternEntryImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::MapPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::MethodDeclaration2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::MethodDeclarationImpl(_) => panic!("StateError: MethodDeclaration is not in the V2 AST view."),
+            AstNodeImpl::MethodInvocationImpl(_) => panic!("StateError: MethodInvocation is not in the V2 AST view."),
+            AstNodeImpl::MixinDeclaration2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::MixinDeclarationImpl(_) => panic!("StateError: MixinDeclaration is not in the V2 AST view."),
+            AstNodeImpl::MixinOnClauseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::NameWithTypeParametersImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::NamedArgumentImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::NamedTypeImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::NativeClauseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::NativeFunctionBodyImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::NullAssertPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::NullAssertionExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::NullAwareElementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::NullCheckPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::NullLiteralImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ObjectPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::OperatorDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ParenthesizedExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ParenthesizedPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ParsedCascadeNameImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ParsedDotShorthandNameImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ParsedNameAccessImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ParsedTypeArgumentsImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ParsedValueArgumentsImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::PartDirectiveImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::PartOfDirectiveImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::PatternAssignmentImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::PatternFieldImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::PatternFieldNameImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::PatternVariableDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::PostfixExpressionImpl(_) => panic!("StateError: PostfixExpression is not in the V2 AST view."),
+            AstNodeImpl::PrefixExpressionImpl(_) => panic!("StateError: PrefixExpression is not in the V2 AST view."),
+            AstNodeImpl::PrefixedIdentifierImpl(_) => panic!("StateError: PrefixedIdentifier is not in the V2 AST view."),
+            AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::PrimaryConstructorBodyImpl(_) => panic!("StateError: PrimaryConstructorBody is not in the V2 AST view."),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::PrimaryConstructorNameImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::PropertyAccessImpl(_) => panic!("StateError: PropertyAccess is not in the V2 AST view."),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RecordLiteralImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RecordPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RecordTypeAnnotationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RegularFormalParameterImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RelationalPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RestPatternElementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::RethrowExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ReturnStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ScriptTagImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SetOrMapLiteralImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SetterDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ShowCombinatorImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SimpleIdentifierImpl(_) => panic!("StateError: SimpleIdentifier is not in the V2 AST view."),
+            AstNodeImpl::SimpleStringLiteralImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SpreadElementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::StringInterpolationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SuperConstructorInvocationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SuperExpressionImpl(_) => panic!("StateError: SuperExpression is not in the V2 AST view."),
+            AstNodeImpl::SuperFormalParameterImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SuperReferenceImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SwitchCaseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SwitchDefaultImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SwitchExpressionCaseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SwitchExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SwitchPatternCaseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SwitchStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::SymbolLiteralImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ThisExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::ThrowExpressionImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::TopLevelVariable2Impl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(_) => panic!("StateError: TopLevelVariableDeclaration is not in the V2 AST view."),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::TryStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::TypeArgumentListImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::TypeParameterImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::TypeParameterListImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::VariableDeclarationImpl(_) => panic!("StateError: VariableDeclaration is not in the V2 AST view."),
+            AstNodeImpl::VariableDeclarationListImpl(_) => panic!("StateError: VariableDeclarationList is not in the V2 AST view."),
+            AstNodeImpl::VariableDeclarationStatementImpl(_) => panic!("StateError: VariableDeclarationStatement is not in the V2 AST view."),
+            AstNodeImpl::WhenClauseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::WhileStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::WildcardPatternImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::WithClauseImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+            AstNodeImpl::YieldStatementImpl(n) => n.visit_children_with_hooks(ast, id, visitor, hooks),
+        }
+    }
+}
+
+impl AdjacentStringsImpl {
+    /// `AdjacentStringsImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitStrings", Hooked::List(&self.strings)) {
+            for &element in &self.strings {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl AnnotationImpl {
+    /// `AnnotationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression", Hooked::Node(self.expression)) {
+            ast.accept2(self.expression, visitor);
+        }
+    }
+}
+
+impl AnonymousBlockBodyImpl {
+    /// `AnonymousBlockBodyImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitBlock", Hooked::Node(self.block)) {
+            ast.accept2(self.block, visitor);
+        }
+    }
+}
+
+impl AnonymousExpressionBodyImpl {
+    /// `AnonymousExpressionBodyImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl AnonymousMethodInvocationImpl {
+    /// `AnonymousMethodInvocationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.target2 != NO_NODE && !hooks("visitTarget2", Hooked::Node(self.target2)) {
+            ast.accept2(self.target2, visitor);
+        }
+        if self.parameters != NO_NODE && !hooks("visitParameters", Hooked::Node(self.parameters)) {
+            ast.accept2(self.parameters, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl ArgumentListImpl {
+    /// `ArgumentListImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitArguments2", Hooked::List(&self.arguments2)) {
+            for &element in &self.arguments2 {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl AsExpressionImpl {
+    /// `AsExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+        if !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+}
+
+impl AssertInitializerImpl {
+    /// `AssertInitializerImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitCondition2", Hooked::Node(self.condition2)) {
+            ast.accept2(self.condition2, visitor);
+        }
+        if self.message2 != NO_NODE && !hooks("visitMessage2", Hooked::Node(self.message2)) {
+            ast.accept2(self.message2, visitor);
+        }
+    }
+}
+
+impl AssertStatementImpl {
+    /// `AssertStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitCondition2", Hooked::Node(self.condition2)) {
+            ast.accept2(self.condition2, visitor);
+        }
+        if self.message2 != NO_NODE && !hooks("visitMessage2", Hooked::Node(self.message2)) {
+            ast.accept2(self.message2, visitor);
+        }
+    }
+}
+
+impl AssignedVariablePatternImpl {
+    /// `AssignedVariablePatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl AwaitExpressionImpl {
+    /// `AwaitExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl BinaryOperatorInvocationImpl {
+    /// `BinaryOperatorInvocationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitLeftOperand", Hooked::Node(self.left_operand)) {
+            ast.accept2(self.left_operand, visitor);
+        }
+        if !hooks("visitRightOperand", Hooked::Node(self.right_operand)) {
+            ast.accept2(self.right_operand, visitor);
+        }
+    }
+}
+
+impl BlockEnumDeclarationBodyImpl {
+    /// `BlockEnumDeclarationBodyImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitConstants", Hooked::List(&self.constants)) {
+            for &element in &self.constants {
+                ast.accept2(element, visitor);
+            }
+        }
+        if !hooks("visitMembers", Hooked::List(&self.members)) {
+            for &element in &self.members {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl BlockFunctionBodyImpl {
+    /// `BlockFunctionBodyImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitBlock", Hooked::Node(self.block)) {
+            ast.accept2(self.block, visitor);
+        }
+    }
+}
+
+impl BlockImpl {
+    /// `BlockImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitStatements2", Hooked::List(&self.statements2)) {
+            for &element in &self.statements2 {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl BlockInstanceDeclarationBodyImpl {
+    /// `BlockInstanceDeclarationBodyImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitMembers", Hooked::List(&self.members)) {
+            for &element in &self.members {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl BooleanLiteralImpl {
+    /// `BooleanLiteralImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl BreakStatementImpl {
+    /// `BreakStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.label != NO_NODE && !hooks("visitLabel", Hooked::Node(self.label)) {
+            ast.accept2(self.label, visitor);
+        }
+    }
+}
+
+impl CallInvocationImpl {
+    /// `CallInvocationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitReceiver", Hooked::Node(self.receiver)) {
+            ast.accept2(self.receiver, visitor);
+        }
+        if self.type_arguments != NO_NODE && !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        if !hooks("visitArgumentList", Hooked::Node(self.argument_list)) {
+            ast.accept2(self.argument_list, visitor);
+        }
+    }
+}
+
+impl CascadeExpressionImpl {
+    /// `CascadeExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitTarget2", Hooked::Node(self.target2)) {
+            ast.accept2(self.target2, visitor);
+        }
+        if !hooks("visitSections", Hooked::List(&self.sections)) {
+            for &element in &self.sections {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl CascadeIndexAssignmentTargetImpl {
+    /// `CascadeIndexAssignmentTargetImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitIndex", Hooked::Node(self.index)) {
+            ast.accept2(self.index, visitor);
+        }
+    }
+}
+
+impl CascadeIndexExpressionImpl {
+    /// `CascadeIndexExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitIndex", Hooked::Node(self.index)) {
+            ast.accept2(self.index, visitor);
+        }
+    }
+}
+
+impl CascadePropertyAssignmentTargetImpl {
+    /// `CascadePropertyAssignmentTargetImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl CascadePropertyExtractionImpl {
+    /// `CascadePropertyExtractionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl CascadeSectionImpl {
+    /// `CascadeSectionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl CaseClauseImpl {
+    /// `CaseClauseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitGuardedPattern", Hooked::Node(self.guarded_pattern)) {
+            ast.accept2(self.guarded_pattern, visitor);
+        }
+    }
+}
+
+impl CastPatternImpl {
+    /// `CastPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitPattern", Hooked::Node(self.pattern)) {
+            ast.accept2(self.pattern, visitor);
+        }
+        if !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+}
+
+impl CatchClauseImpl {
+    /// `CatchClauseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.exception_type != NO_NODE && !hooks("visitExceptionType", Hooked::Node(self.exception_type)) {
+            ast.accept2(self.exception_type, visitor);
+        }
+        if self.exception_parameter != NO_NODE && !hooks("visitExceptionParameter", Hooked::Node(self.exception_parameter)) {
+            ast.accept2(self.exception_parameter, visitor);
+        }
+        if self.stack_trace_parameter != NO_NODE && !hooks("visitStackTraceParameter", Hooked::Node(self.stack_trace_parameter)) {
+            ast.accept2(self.stack_trace_parameter, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl CatchClauseParameterImpl {
+    /// `CatchClauseParameterImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl ClassDeclaration2Impl {
+    /// `ClassDeclaration2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if !hooks("visitNamePart", Hooked::Node(self.name_part)) {
+            ast.accept2(self.name_part, visitor);
+        }
+        if self.extends_clause != NO_NODE && !hooks("visitExtendsClause", Hooked::Node(self.extends_clause)) {
+            ast.accept2(self.extends_clause, visitor);
+        }
+        if self.with_clause != NO_NODE && !hooks("visitWithClause", Hooked::Node(self.with_clause)) {
+            ast.accept2(self.with_clause, visitor);
+        }
+        if self.implements_clause != NO_NODE && !hooks("visitImplementsClause", Hooked::Node(self.implements_clause)) {
+            ast.accept2(self.implements_clause, visitor);
+        }
+        if self.native_clause != NO_NODE && !hooks("visitNativeClause", Hooked::Node(self.native_clause)) {
+            ast.accept2(self.native_clause, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl ClassTypeAlias2Impl {
+    /// `ClassTypeAlias2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if !hooks("visitSuperclass", Hooked::Node(self.superclass)) {
+            ast.accept2(self.superclass, visitor);
+        }
+        if !hooks("visitWithClause", Hooked::Node(self.with_clause)) {
+            ast.accept2(self.with_clause, visitor);
+        }
+        if self.implements_clause != NO_NODE && !hooks("visitImplementsClause", Hooked::Node(self.implements_clause)) {
+            ast.accept2(self.implements_clause, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl CombinatorNameImpl {
+    /// `CombinatorNameImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl CommentImpl {
+    /// `CommentImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl CommentReferenceComponentImpl {
+    /// `CommentReferenceComponentImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl CommentReferenceImpl {
+    /// `CommentReferenceImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitComponents", Hooked::List(&self.components)) {
+            for &element in &self.components {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl CompilationUnitImpl {
+    /// `CompilationUnitImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl CompoundAssignmentImpl {
+    /// `CompoundAssignmentImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitTarget", Hooked::Node(self.target)) {
+            ast.accept2(self.target, visitor);
+        }
+        if !hooks("visitValue", Hooked::Node(self.value)) {
+            ast.accept2(self.value, visitor);
+        }
+    }
+}
+
+impl ConditionalExpressionImpl {
+    /// `ConditionalExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitCondition2", Hooked::Node(self.condition2)) {
+            ast.accept2(self.condition2, visitor);
+        }
+        if !hooks("visitThenExpression2", Hooked::Node(self.then_expression2)) {
+            ast.accept2(self.then_expression2, visitor);
+        }
+        if !hooks("visitElseExpression2", Hooked::Node(self.else_expression2)) {
+            ast.accept2(self.else_expression2, visitor);
+        }
+    }
+}
+
+impl ConfigurationImpl {
+    /// `ConfigurationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitName", Hooked::Node(self.name)) {
+            ast.accept2(self.name, visitor);
+        }
+        if self.value != NO_NODE && !hooks("visitValue", Hooked::Node(self.value)) {
+            ast.accept2(self.value, visitor);
+        }
+        if !hooks("visitUri", Hooked::Node(self.uri)) {
+            ast.accept2(self.uri, visitor);
+        }
+    }
+}
+
+impl ConstantPatternImpl {
+    /// `ConstantPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl ConstructorDeclaration2Impl {
+    /// `ConstructorDeclaration2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if !hooks("visitFormalParameters", Hooked::Node(self.formal_parameters)) {
+            ast.accept2(self.formal_parameters, visitor);
+        }
+        if !hooks("visitInitializers", Hooked::List(&self.initializers)) {
+            for &element in &self.initializers {
+                ast.accept2(element, visitor);
+            }
+        }
+        if self.factory_redirection_target != NO_NODE && !hooks("visitFactoryRedirectionTarget", Hooked::Node(self.factory_redirection_target)) {
+            ast.accept2(self.factory_redirection_target, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl ConstructorFieldInitializerImpl {
+    /// `ConstructorFieldInitializerImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl ConstructorInvocationImpl {
+    /// `ConstructorInvocationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitConstructorReference", Hooked::Node(self.constructor_reference)) {
+            ast.accept2(self.constructor_reference, visitor);
+        }
+        if self.type_arguments != NO_NODE && !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        if !hooks("visitArgumentList", Hooked::Node(self.argument_list)) {
+            ast.accept2(self.argument_list, visitor);
+        }
+    }
+}
+
+impl ConstructorReference2Impl {
+    /// `ConstructorReference2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitTypeReference", Hooked::Node(self.type_reference)) {
+            ast.accept2(self.type_reference, visitor);
+        }
+        if self.selector != NO_NODE && !hooks("visitSelector", Hooked::Node(self.selector)) {
+            ast.accept2(self.selector, visitor);
+        }
+    }
+}
+
+impl ConstructorSelectorImpl {
+    /// `ConstructorSelectorImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl ConstructorTypeReferenceImpl {
+    /// `ConstructorTypeReferenceImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.import_prefix != NO_NODE && !hooks("visitImportPrefix", Hooked::Node(self.import_prefix)) {
+            ast.accept2(self.import_prefix, visitor);
+        }
+        if self.type_arguments != NO_NODE && !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }
+    }
+}
+
+impl ContinueStatementImpl {
+    /// `ContinueStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.label != NO_NODE && !hooks("visitLabel", Hooked::Node(self.label)) {
+            ast.accept2(self.label, visitor);
+        }
+    }
+}
+
+impl DeclaredIdentifierImpl {
+    /// `DeclaredIdentifierImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE && !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+}
+
+impl DeclaredVariablePatternImpl {
+    /// `DeclaredVariablePatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.type_ != NO_NODE && !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+}
+
+impl DelimitedFormalParametersImpl {
+    /// `DelimitedFormalParametersImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitFormalParameters", Hooked::List(&self.formal_parameters)) {
+            for &element in &self.formal_parameters {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl DirectAssignmentImpl {
+    /// `DirectAssignmentImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitTarget", Hooked::Node(self.target)) {
+            ast.accept2(self.target, visitor);
+        }
+        if !hooks("visitValue", Hooked::Node(self.value)) {
+            ast.accept2(self.value, visitor);
+        }
+    }
+}
+
+impl DoStatementImpl {
+    /// `DoStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitBody2", Hooked::Node(self.body2)) {
+            ast.accept2(self.body2, visitor);
+        }
+        if !hooks("visitCondition2", Hooked::Node(self.condition2)) {
+            ast.accept2(self.condition2, visitor);
+        }
+    }
+}
+
+impl DotShorthandConstructorInvocation2Impl {
+    /// `DotShorthandConstructorInvocation2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.type_arguments != NO_NODE && !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        if !hooks("visitArgumentList", Hooked::Node(self.argument_list)) {
+            ast.accept2(self.argument_list, visitor);
+        }
+    }
+}
+
+impl DotShorthandNameExpressionImpl {
+    /// `DotShorthandNameExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl DottedNameImpl {
+    /// `DottedNameImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl DoubleLiteralImpl {
+    /// `DoubleLiteralImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl EmptyFunctionBodyImpl {
+    /// `EmptyFunctionBodyImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl EmptyStatementImpl {
+    /// `EmptyStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl EnumConstantArgumentsImpl {
+    /// `EnumConstantArgumentsImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.type_arguments != NO_NODE && !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        if self.constructor_selector != NO_NODE && !hooks("visitConstructorSelector", Hooked::Node(self.constructor_selector)) {
+            ast.accept2(self.constructor_selector, visitor);
+        }
+        if !hooks("visitArgumentList", Hooked::Node(self.argument_list)) {
+            ast.accept2(self.argument_list, visitor);
+        }
+    }
+}
+
+impl EnumConstantDeclaration2Impl {
+    /// `EnumConstantDeclaration2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.arguments != NO_NODE && !hooks("visitArguments", Hooked::Node(self.arguments)) {
+            ast.accept2(self.arguments, visitor);
+        }
+    }
+}
+
+impl EnumDeclaration2Impl {
+    /// `EnumDeclaration2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if !hooks("visitNamePart", Hooked::Node(self.name_part)) {
+            ast.accept2(self.name_part, visitor);
+        }
+        if self.with_clause != NO_NODE && !hooks("visitWithClause", Hooked::Node(self.with_clause)) {
+            ast.accept2(self.with_clause, visitor);
+        }
+        if self.implements_clause != NO_NODE && !hooks("visitImplementsClause", Hooked::Node(self.implements_clause)) {
+            ast.accept2(self.implements_clause, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl ExportDirectiveImpl {
+    /// `ExportDirectiveImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if !hooks("visitUri", Hooked::Node(self.uri)) {
+            ast.accept2(self.uri, visitor);
+        }
+        if !hooks("visitConfigurations", Hooked::List(&self.configurations)) {
+            for &element in &self.configurations {
+                ast.accept2(element, visitor);
+            }
+        }
+        if !hooks("visitCombinators", Hooked::List(&self.combinators)) {
+            for &element in &self.combinators {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl ExpressionFunctionBodyImpl {
+    /// `ExpressionFunctionBodyImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl ExpressionStatementImpl {
+    /// `ExpressionStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl ExtendsClauseImpl {
+    /// `ExtendsClauseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitSuperclass", Hooked::Node(self.superclass)) {
+            ast.accept2(self.superclass, visitor);
+        }
+    }
+}
+
+impl ExtensionDeclaration2Impl {
+    /// `ExtensionDeclaration2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if self.on_clause != NO_NODE && !hooks("visitOnClause", Hooked::Node(self.on_clause)) {
+            ast.accept2(self.on_clause, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl ExtensionOnClauseImpl {
+    /// `ExtensionOnClauseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExtendedType", Hooked::Node(self.extended_type)) {
+            ast.accept2(self.extended_type, visitor);
+        }
+    }
+}
+
+impl ExtensionTypeDeclaration2Impl {
+    /// `ExtensionTypeDeclaration2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if !hooks("visitNamePart", Hooked::Node(self.name_part)) {
+            ast.accept2(self.name_part, visitor);
+        }
+        if self.implements_clause != NO_NODE && !hooks("visitImplementsClause", Hooked::Node(self.implements_clause)) {
+            ast.accept2(self.implements_clause, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl Field2Impl {
+    /// `Field2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.initializer != NO_NODE && !hooks("visitInitializer", Hooked::Node(self.initializer)) {
+            ast.accept2(self.initializer, visitor);
+        }
+    }
+}
+
+impl FieldFormalParameterImpl {
+    /// `FieldFormalParameterImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE && !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+        if self.function_typed_suffix != NO_NODE && !hooks("visitFunctionTypedSuffix", Hooked::Node(self.function_typed_suffix)) {
+            ast.accept2(self.function_typed_suffix, visitor);
+        }
+        if self.default_clause != NO_NODE && !hooks("visitDefaultClause", Hooked::Node(self.default_clause)) {
+            ast.accept2(self.default_clause, visitor);
+        }
+    }
+}
+
+impl FieldsDeclarationImpl {
+    /// `FieldsDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE && !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+        if !hooks("visitFields", Hooked::List(&self.fields)) {
+            for &element in &self.fields {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl ForEachPartsWithDeclarationImpl {
+    /// `ForEachPartsWithDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitLoopVariable", Hooked::Node(self.loop_variable)) {
+            ast.accept2(self.loop_variable, visitor);
+        }
+        if !hooks("visitIterable2", Hooked::Node(self.iterable2)) {
+            ast.accept2(self.iterable2, visitor);
+        }
+    }
+}
+
+impl ForEachPartsWithIdentifierImpl {
+    /// `ForEachPartsWithIdentifierImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitTarget", Hooked::Node(self.target)) {
+            ast.accept2(self.target, visitor);
+        }
+        if !hooks("visitIterable2", Hooked::Node(self.iterable2)) {
+            ast.accept2(self.iterable2, visitor);
+        }
+    }
+}
+
+impl ForEachPartsWithPatternImpl {
+    /// `ForEachPartsWithPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitMetadata", Hooked::List(&self.metadata)) {
+            for &element in &self.metadata {
+                ast.accept2(element, visitor);
+            }
+        }
+        if !hooks("visitPattern", Hooked::Node(self.pattern)) {
+            ast.accept2(self.pattern, visitor);
+        }
+        if !hooks("visitIterable2", Hooked::Node(self.iterable2)) {
+            ast.accept2(self.iterable2, visitor);
+        }
+    }
+}
+
+impl ForElementImpl {
+    /// `ForElementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitForLoopParts", Hooked::Node(self.for_loop_parts)) {
+            ast.accept2(self.for_loop_parts, visitor);
+        }
+        if !hooks("visitBody2", Hooked::Node(self.body2)) {
+            ast.accept2(self.body2, visitor);
+        }
+    }
+}
+
+impl ForPartsWithDeclarationsImpl {
+    /// `ForPartsWithDeclarationsImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitVariables2", Hooked::Node(self.variables2)) {
+            ast.accept2(self.variables2, visitor);
+        }
+        if self.condition2 != NO_NODE && !hooks("visitCondition2", Hooked::Node(self.condition2)) {
+            ast.accept2(self.condition2, visitor);
+        }
+        if !hooks("visitUpdaters2", Hooked::List(&self.updaters2)) {
+            for &element in &self.updaters2 {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl ForPartsWithExpressionImpl {
+    /// `ForPartsWithExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.initialization2 != NO_NODE && !hooks("visitInitialization2", Hooked::Node(self.initialization2)) {
+            ast.accept2(self.initialization2, visitor);
+        }
+        if self.condition2 != NO_NODE && !hooks("visitCondition2", Hooked::Node(self.condition2)) {
+            ast.accept2(self.condition2, visitor);
+        }
+        if !hooks("visitUpdaters2", Hooked::List(&self.updaters2)) {
+            for &element in &self.updaters2 {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl ForPartsWithPatternImpl {
+    /// `ForPartsWithPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitVariables", Hooked::Node(self.variables)) {
+            ast.accept2(self.variables, visitor);
+        }
+        if self.condition2 != NO_NODE && !hooks("visitCondition2", Hooked::Node(self.condition2)) {
+            ast.accept2(self.condition2, visitor);
+        }
+        if !hooks("visitUpdaters2", Hooked::List(&self.updaters2)) {
+            for &element in &self.updaters2 {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl ForStatementImpl {
+    /// `ForStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitForLoopParts", Hooked::Node(self.for_loop_parts)) {
+            ast.accept2(self.for_loop_parts, visitor);
+        }
+        if !hooks("visitBody2", Hooked::Node(self.body2)) {
+            ast.accept2(self.body2, visitor);
+        }
+    }
+}
+
+impl FormalParameterDefaultClauseImpl {
+    /// `FormalParameterDefaultClauseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitValue2", Hooked::Node(self.value2)) {
+            ast.accept2(self.value2, visitor);
+        }
+    }
+}
+
+impl FormalParameterListImpl {
+    /// `FormalParameterListImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitRequiredPositionalFormalParameters", Hooked::List(&self.required_positional_formal_parameters)) {
+            for &element in &self.required_positional_formal_parameters {
+                ast.accept2(element, visitor);
+            }
+        }
+        if self.delimited_formal_parameters != NO_NODE && !hooks("visitDelimitedFormalParameters", Hooked::Node(self.delimited_formal_parameters)) {
+            ast.accept2(self.delimited_formal_parameters, visitor);
+        }
+    }
+}
+
+impl FunctionExpressionImpl {
+    /// `FunctionExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.check_not_v1_projection(id);
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if self.parameters != NO_NODE && !hooks("visitParameters", Hooked::Node(self.parameters)) {
+            ast.accept2(self.parameters, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl FunctionTypeAlias2Impl {
+    /// `FunctionTypeAlias2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE && !hooks("visitReturnType", Hooked::Node(self.return_type)) {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if !hooks("visitParameters", Hooked::Node(self.parameters)) {
+            ast.accept2(self.parameters, visitor);
+        }
+    }
+}
+
+impl FunctionTypedFormalParameterSuffixImpl {
+    /// `FunctionTypedFormalParameterSuffixImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if !hooks("visitFormalParameters", Hooked::Node(self.formal_parameters)) {
+            ast.accept2(self.formal_parameters, visitor);
+        }
+    }
+}
+
+impl GenericFunctionTypeImpl {
+    /// `GenericFunctionTypeImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.return_type != NO_NODE && !hooks("visitReturnType", Hooked::Node(self.return_type)) {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if !hooks("visitParameters", Hooked::Node(self.parameters)) {
+            ast.accept2(self.parameters, visitor);
+        }
+    }
+}
+
+impl GenericTypeAlias2Impl {
+    /// `GenericTypeAlias2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+}
+
+impl GetterDeclarationImpl {
+    /// `GetterDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE && !hooks("visitReturnType", Hooked::Node(self.return_type)) {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.recovery_formal_parameters != NO_NODE && !hooks("visitRecoveryFormalParameters", Hooked::Node(self.recovery_formal_parameters)) {
+            ast.accept2(self.recovery_formal_parameters, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl GuardedPatternImpl {
+    /// `GuardedPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitPattern", Hooked::Node(self.pattern)) {
+            ast.accept2(self.pattern, visitor);
+        }
+        if self.when_clause != NO_NODE && !hooks("visitWhenClause", Hooked::Node(self.when_clause)) {
+            ast.accept2(self.when_clause, visitor);
+        }
+    }
+}
+
+impl HideCombinatorImpl {
+    /// `HideCombinatorImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitNames", Hooked::List(&self.names)) {
+            for &element in &self.names {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl IfElementImpl {
+    /// `IfElementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+        if self.case_clause != NO_NODE && !hooks("visitCaseClause", Hooked::Node(self.case_clause)) {
+            ast.accept2(self.case_clause, visitor);
+        }
+        if !hooks("visitThenElement2", Hooked::Node(self.then_element2)) {
+            ast.accept2(self.then_element2, visitor);
+        }
+        if self.else_element2 != NO_NODE && !hooks("visitElseElement2", Hooked::Node(self.else_element2)) {
+            ast.accept2(self.else_element2, visitor);
+        }
+    }
+}
+
+impl IfNullAssignmentImpl {
+    /// `IfNullAssignmentImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitTarget", Hooked::Node(self.target)) {
+            ast.accept2(self.target, visitor);
+        }
+        if !hooks("visitValue", Hooked::Node(self.value)) {
+            ast.accept2(self.value, visitor);
+        }
+    }
+}
+
+impl IfNullImpl {
+    /// `IfNullImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitLeftOperand", Hooked::Node(self.left_operand)) {
+            ast.accept2(self.left_operand, visitor);
+        }
+        if !hooks("visitRightOperand", Hooked::Node(self.right_operand)) {
+            ast.accept2(self.right_operand, visitor);
+        }
+    }
+}
+
+impl IfStatementImpl {
+    /// `IfStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+        if self.case_clause != NO_NODE && !hooks("visitCaseClause", Hooked::Node(self.case_clause)) {
+            ast.accept2(self.case_clause, visitor);
+        }
+        if !hooks("visitThenStatement2", Hooked::Node(self.then_statement2)) {
+            ast.accept2(self.then_statement2, visitor);
+        }
+        if self.else_statement2 != NO_NODE && !hooks("visitElseStatement2", Hooked::Node(self.else_statement2)) {
+            ast.accept2(self.else_statement2, visitor);
+        }
+    }
+}
+
+impl ImplementsClauseImpl {
+    /// `ImplementsClauseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitInterfaces", Hooked::List(&self.interfaces)) {
+            for &element in &self.interfaces {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl ImportDirectiveImpl {
+    /// `ImportDirectiveImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if !hooks("visitUri", Hooked::Node(self.uri)) {
+            ast.accept2(self.uri, visitor);
+        }
+        if !hooks("visitConfigurations", Hooked::List(&self.configurations)) {
+            for &element in &self.configurations {
+                ast.accept2(element, visitor);
+            }
+        }
+        if !hooks("visitCombinators", Hooked::List(&self.combinators)) {
+            for &element in &self.combinators {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl ImportPrefixReferenceImpl {
+    /// `ImportPrefixReferenceImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl IncrementOrDecrementExpressionImpl {
+    /// `IncrementOrDecrementExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitTarget", Hooked::Node(self.target)) {
+            ast.accept2(self.target, visitor);
+        }
+    }
+}
+
+impl IntegerLiteralImpl {
+    /// `IntegerLiteralImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl InterpolationExpressionImpl {
+    /// `InterpolationExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl InterpolationStringImpl {
+    /// `InterpolationStringImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl InvalidExpressionAssignmentTargetImpl {
+    /// `InvalidExpressionAssignmentTargetImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression", Hooked::Node(self.expression)) {
+            ast.accept2(self.expression, visitor);
+        }
+    }
+}
+
+impl InvalidSuperAssignmentTargetImpl {
+    /// `InvalidSuperAssignmentTargetImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitSuperReference", Hooked::Node(self.super_reference)) {
+            ast.accept2(self.super_reference, visitor);
+        }
+    }
+}
+
+impl InvalidSuperExpressionImpl {
+    /// `InvalidSuperExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitSuperReference", Hooked::Node(self.super_reference)) {
+            ast.accept2(self.super_reference, visitor);
+        }
+    }
+}
+
+impl IsExpressionImpl {
+    /// `IsExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+        if !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+}
+
+impl LabelImpl {
+    /// `LabelImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl LabelReferenceImpl {
+    /// `LabelReferenceImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl LabeledStatementImpl {
+    /// `LabeledStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitLabels", Hooked::List(&self.labels)) {
+            for &element in &self.labels {
+                ast.accept2(element, visitor);
+            }
+        }
+        if !hooks("visitStatement2", Hooked::Node(self.statement2)) {
+            ast.accept2(self.statement2, visitor);
+        }
+    }
+}
+
+impl LibraryDirectiveImpl {
+    /// `LibraryDirectiveImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.name != NO_NODE && !hooks("visitName", Hooked::Node(self.name)) {
+            ast.accept2(self.name, visitor);
+        }
+    }
+}
+
+impl ListLiteralImpl {
+    /// `ListLiteralImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.type_arguments != NO_NODE && !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        if !hooks("visitElements2", Hooked::List(&self.elements2)) {
+            for &element in &self.elements2 {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl ListPatternImpl {
+    /// `ListPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.type_arguments != NO_NODE && !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        if !hooks("visitElements", Hooked::List(&self.elements)) {
+            for &element in &self.elements {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl LocalFunctionDeclarationImpl {
+    /// `LocalFunctionDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE && !hooks("visitReturnType", Hooked::Node(self.return_type)) {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if !hooks("visitFormalParameters", Hooked::Node(self.formal_parameters)) {
+            ast.accept2(self.formal_parameters, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl LocalVariableImpl {
+    /// `LocalVariableImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.initializer != NO_NODE && !hooks("visitInitializer", Hooked::Node(self.initializer)) {
+            ast.accept2(self.initializer, visitor);
+        }
+    }
+}
+
+impl LocalVariablesDeclarationImpl {
+    /// `LocalVariablesDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE && !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+        if !hooks("visitVariables", Hooked::List(&self.variables)) {
+            for &element in &self.variables {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl LocalVariablesDeclarationStatementImpl {
+    /// `LocalVariablesDeclarationStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitDeclaration", Hooked::Node(self.declaration)) {
+            ast.accept2(self.declaration, visitor);
+        }
+    }
+}
+
+impl LogicalAndImpl {
+    /// `LogicalAndImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitLeftOperand", Hooked::Node(self.left_operand)) {
+            ast.accept2(self.left_operand, visitor);
+        }
+        if !hooks("visitRightOperand", Hooked::Node(self.right_operand)) {
+            ast.accept2(self.right_operand, visitor);
+        }
+    }
+}
+
+impl LogicalAndPatternImpl {
+    /// `LogicalAndPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitLeftOperand", Hooked::Node(self.left_operand)) {
+            ast.accept2(self.left_operand, visitor);
+        }
+        if !hooks("visitRightOperand", Hooked::Node(self.right_operand)) {
+            ast.accept2(self.right_operand, visitor);
+        }
+    }
+}
+
+impl LogicalNotImpl {
+    /// `LogicalNotImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitOperand", Hooked::Node(self.operand)) {
+            ast.accept2(self.operand, visitor);
+        }
+    }
+}
+
+impl LogicalOrImpl {
+    /// `LogicalOrImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitLeftOperand", Hooked::Node(self.left_operand)) {
+            ast.accept2(self.left_operand, visitor);
+        }
+        if !hooks("visitRightOperand", Hooked::Node(self.right_operand)) {
+            ast.accept2(self.right_operand, visitor);
+        }
+    }
+}
+
+impl LogicalOrPatternImpl {
+    /// `LogicalOrPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitLeftOperand", Hooked::Node(self.left_operand)) {
+            ast.accept2(self.left_operand, visitor);
+        }
+        if !hooks("visitRightOperand", Hooked::Node(self.right_operand)) {
+            ast.accept2(self.right_operand, visitor);
+        }
+    }
+}
+
+impl MapLiteralEntryImpl {
+    /// `MapLiteralEntryImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitKey2", Hooked::Node(self.key2)) {
+            ast.accept2(self.key2, visitor);
+        }
+        if !hooks("visitValue2", Hooked::Node(self.value2)) {
+            ast.accept2(self.value2, visitor);
+        }
+    }
+}
+
+impl MapPatternEntryImpl {
+    /// `MapPatternEntryImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitKey2", Hooked::Node(self.key2)) {
+            ast.accept2(self.key2, visitor);
+        }
+        if !hooks("visitValue", Hooked::Node(self.value)) {
+            ast.accept2(self.value, visitor);
+        }
+    }
+}
+
+impl MapPatternImpl {
+    /// `MapPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.type_arguments != NO_NODE && !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        if !hooks("visitElements", Hooked::List(&self.elements)) {
+            for &element in &self.elements {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl MethodDeclaration2Impl {
+    /// `MethodDeclaration2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE && !hooks("visitReturnType", Hooked::Node(self.return_type)) {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if !hooks("visitFormalParameters", Hooked::Node(self.formal_parameters)) {
+            ast.accept2(self.formal_parameters, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl MixinDeclaration2Impl {
+    /// `MixinDeclaration2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if self.on_clause != NO_NODE && !hooks("visitOnClause", Hooked::Node(self.on_clause)) {
+            ast.accept2(self.on_clause, visitor);
+        }
+        if self.implements_clause != NO_NODE && !hooks("visitImplementsClause", Hooked::Node(self.implements_clause)) {
+            ast.accept2(self.implements_clause, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl MixinOnClauseImpl {
+    /// `MixinOnClauseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitSuperclassConstraints", Hooked::List(&self.superclass_constraints)) {
+            for &element in &self.superclass_constraints {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl NameWithTypeParametersImpl {
+    /// `NameWithTypeParametersImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+    }
+}
+
+impl NamedArgumentImpl {
+    /// `NamedArgumentImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitArgumentExpression2", Hooked::Node(self.argument_expression2)) {
+            ast.accept2(self.argument_expression2, visitor);
+        }
+    }
+}
+
+impl NamedTypeImpl {
+    /// `NamedTypeImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.check_not_v1_projection(id);
+        if self.import_prefix != NO_NODE && !hooks("visitImportPrefix", Hooked::Node(self.import_prefix)) {
+            ast.accept2(self.import_prefix, visitor);
+        }
+        if self.type_arguments != NO_NODE && !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }
+    }
+}
+
+impl NativeClauseImpl {
+    /// `NativeClauseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.name != NO_NODE && !hooks("visitName", Hooked::Node(self.name)) {
+            ast.accept2(self.name, visitor);
+        }
+    }
+}
+
+impl NativeFunctionBodyImpl {
+    /// `NativeFunctionBodyImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.string_literal != NO_NODE && !hooks("visitStringLiteral", Hooked::Node(self.string_literal)) {
+            ast.accept2(self.string_literal, visitor);
+        }
+    }
+}
+
+impl NullAssertPatternImpl {
+    /// `NullAssertPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitPattern", Hooked::Node(self.pattern)) {
+            ast.accept2(self.pattern, visitor);
+        }
+    }
+}
+
+impl NullAssertionExpressionImpl {
+    /// `NullAssertionExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitOperand", Hooked::Node(self.operand)) {
+            ast.accept2(self.operand, visitor);
+        }
+    }
+}
+
+impl NullAwareElementImpl {
+    /// `NullAwareElementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitValue2", Hooked::Node(self.value2)) {
+            ast.accept2(self.value2, visitor);
+        }
+    }
+}
+
+impl NullCheckPatternImpl {
+    /// `NullCheckPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitPattern", Hooked::Node(self.pattern)) {
+            ast.accept2(self.pattern, visitor);
+        }
+    }
+}
+
+impl NullLiteralImpl {
+    /// `NullLiteralImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl ObjectPatternImpl {
+    /// `ObjectPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+        if !hooks("visitFields", Hooked::List(&self.fields)) {
+            for &element in &self.fields {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl OperatorDeclarationImpl {
+    /// `OperatorDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE && !hooks("visitReturnType", Hooked::Node(self.return_type)) {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.recovery_type_parameters != NO_NODE && !hooks("visitRecoveryTypeParameters", Hooked::Node(self.recovery_type_parameters)) {
+            ast.accept2(self.recovery_type_parameters, visitor);
+        }
+        if !hooks("visitFormalParameters", Hooked::Node(self.formal_parameters)) {
+            ast.accept2(self.formal_parameters, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl ParenthesizedExpressionImpl {
+    /// `ParenthesizedExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl ParenthesizedPatternImpl {
+    /// `ParenthesizedPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitPattern", Hooked::Node(self.pattern)) {
+            ast.accept2(self.pattern, visitor);
+        }
+    }
+}
+
+impl ParsedCascadeNameImpl {
+    /// `ParsedCascadeNameImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl ParsedDotShorthandExpressionImpl {
+    /// `ParsedDotShorthandExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression", Hooked::Node(self.expression)) {
+            ast.accept2(self.expression, visitor);
+        }
+    }
+}
+
+impl ParsedDotShorthandNameImpl {
+    /// `ParsedDotShorthandNameImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl ParsedNameAccessAssignmentTargetImpl {
+    /// `ParsedNameAccessAssignmentTargetImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitOperand", Hooked::Node(self.operand)) {
+            ast.accept2(self.operand, visitor);
+        }
+    }
+}
+
+impl ParsedNameAccessImpl {
+    /// `ParsedNameAccessImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitOperand", Hooked::Node(self.operand)) {
+            ast.accept2(self.operand, visitor);
+        }
+    }
+}
+
+impl ParsedTypeArgumentsImpl {
+    /// `ParsedTypeArgumentsImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitOperand", Hooked::Node(self.operand)) {
+            ast.accept2(self.operand, visitor);
+        }
+        if !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }
+    }
+}
+
+impl ParsedUnqualifiedNameImpl {
+    /// `ParsedUnqualifiedNameImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl ParsedValueArgumentsImpl {
+    /// `ParsedValueArgumentsImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitOperand", Hooked::Node(self.operand)) {
+            ast.accept2(self.operand, visitor);
+        }
+        if !hooks("visitArgumentList", Hooked::Node(self.argument_list)) {
+            ast.accept2(self.argument_list, visitor);
+        }
+    }
+}
+
+impl PartDirectiveImpl {
+    /// `PartDirectiveImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if !hooks("visitUri", Hooked::Node(self.uri)) {
+            ast.accept2(self.uri, visitor);
+        }
+    }
+}
+
+impl PartOfDirectiveImpl {
+    /// `PartOfDirectiveImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.uri != NO_NODE && !hooks("visitUri", Hooked::Node(self.uri)) {
+            ast.accept2(self.uri, visitor);
+        }
+        if self.library_name != NO_NODE && !hooks("visitLibraryName", Hooked::Node(self.library_name)) {
+            ast.accept2(self.library_name, visitor);
+        }
+    }
+}
+
+impl PatternAssignmentImpl {
+    /// `PatternAssignmentImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitPattern", Hooked::Node(self.pattern)) {
+            ast.accept2(self.pattern, visitor);
+        }
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl PatternFieldImpl {
+    /// `PatternFieldImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.name != NO_NODE && !hooks("visitName", Hooked::Node(self.name)) {
+            ast.accept2(self.name, visitor);
+        }
+        if !hooks("visitPattern", Hooked::Node(self.pattern)) {
+            ast.accept2(self.pattern, visitor);
+        }
+    }
+}
+
+impl PatternFieldNameImpl {
+    /// `PatternFieldNameImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl PatternVariableDeclarationImpl {
+    /// `PatternVariableDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if !hooks("visitPattern", Hooked::Node(self.pattern)) {
+            ast.accept2(self.pattern, visitor);
+        }
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl PatternVariableDeclarationStatementImpl {
+    /// `PatternVariableDeclarationStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitDeclaration", Hooked::Node(self.declaration)) {
+            ast.accept2(self.declaration, visitor);
+        }
+    }
+}
+
+impl PrimaryConstructorBody2Impl {
+    /// `PrimaryConstructorBody2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if !hooks("visitInitializers", Hooked::List(&self.initializers)) {
+            for &element in &self.initializers {
+                ast.accept2(element, visitor);
+            }
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl PrimaryConstructorDeclarationImpl {
+    /// `PrimaryConstructorDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if self.constructor_name != NO_NODE && !hooks("visitConstructorName", Hooked::Node(self.constructor_name)) {
+            ast.accept2(self.constructor_name, visitor);
+        }
+        if !hooks("visitFormalParameters", Hooked::Node(self.formal_parameters)) {
+            ast.accept2(self.formal_parameters, visitor);
+        }
+    }
+}
+
+impl PrimaryConstructorNameImpl {
+    /// `PrimaryConstructorNameImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl ReceiverIndexAssignmentTargetImpl {
+    /// `ReceiverIndexAssignmentTargetImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitReceiver", Hooked::Node(self.receiver)) {
+            ast.accept2(self.receiver, visitor);
+        }
+        if !hooks("visitIndex", Hooked::Node(self.index)) {
+            ast.accept2(self.index, visitor);
+        }
+    }
+}
+
+impl ReceiverIndexExpressionImpl {
+    /// `ReceiverIndexExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitReceiver", Hooked::Node(self.receiver)) {
+            ast.accept2(self.receiver, visitor);
+        }
+        if !hooks("visitIndex", Hooked::Node(self.index)) {
+            ast.accept2(self.index, visitor);
+        }
+    }
+}
+
+impl ReceiverPropertyAssignmentTargetImpl {
+    /// `ReceiverPropertyAssignmentTargetImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitReceiver", Hooked::Node(self.receiver)) {
+            ast.accept2(self.receiver, visitor);
+        }
+    }
+}
+
+impl ReceiverPropertyExtractionImpl {
+    /// `ReceiverPropertyExtractionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitReceiver", Hooked::Node(self.receiver)) {
+            ast.accept2(self.receiver, visitor);
+        }
+    }
+}
+
+impl RecordLiteralImpl {
+    /// `RecordLiteralImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitFields2", Hooked::List(&self.fields2)) {
+            for &element in &self.fields2 {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl RecordLiteralNamedFieldImpl {
+    /// `RecordLiteralNamedFieldImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitFieldExpression2", Hooked::Node(self.field_expression2)) {
+            ast.accept2(self.field_expression2, visitor);
+        }
+    }
+}
+
+impl RecordPatternImpl {
+    /// `RecordPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitFields", Hooked::List(&self.fields)) {
+            for &element in &self.fields {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl RecordTypeAnnotationImpl {
+    /// `RecordTypeAnnotationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitPositionalFields", Hooked::List(&self.positional_fields)) {
+            for &element in &self.positional_fields {
+                ast.accept2(element, visitor);
+            }
+        }
+        if self.named_fields != NO_NODE && !hooks("visitNamedFields", Hooked::Node(self.named_fields)) {
+            ast.accept2(self.named_fields, visitor);
+        }
+    }
+}
+
+impl RecordTypeAnnotationNamedFieldImpl {
+    /// `RecordTypeAnnotationNamedFieldImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitMetadata", Hooked::List(&self.metadata)) {
+            for &element in &self.metadata {
+                ast.accept2(element, visitor);
+            }
+        }
+        if !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+}
+
+impl RecordTypeAnnotationNamedFieldsImpl {
+    /// `RecordTypeAnnotationNamedFieldsImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitFields", Hooked::List(&self.fields)) {
+            for &element in &self.fields {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl RecordTypeAnnotationPositionalFieldImpl {
+    /// `RecordTypeAnnotationPositionalFieldImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitMetadata", Hooked::List(&self.metadata)) {
+            for &element in &self.metadata {
+                ast.accept2(element, visitor);
+            }
+        }
+        if !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+}
+
+impl RedirectingConstructorInvocationImpl {
+    /// `RedirectingConstructorInvocationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.constructor_selector != NO_NODE && !hooks("visitConstructorSelector", Hooked::Node(self.constructor_selector)) {
+            ast.accept2(self.constructor_selector, visitor);
+        }
+        if !hooks("visitArgumentList", Hooked::Node(self.argument_list)) {
+            ast.accept2(self.argument_list, visitor);
+        }
+    }
+}
+
+impl RegularFormalParameterImpl {
+    /// `RegularFormalParameterImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE && !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+        if self.function_typed_suffix != NO_NODE && !hooks("visitFunctionTypedSuffix", Hooked::Node(self.function_typed_suffix)) {
+            ast.accept2(self.function_typed_suffix, visitor);
+        }
+        if self.default_clause != NO_NODE && !hooks("visitDefaultClause", Hooked::Node(self.default_clause)) {
+            ast.accept2(self.default_clause, visitor);
+        }
+    }
+}
+
+impl RelationalPatternImpl {
+    /// `RelationalPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitOperand2", Hooked::Node(self.operand2)) {
+            ast.accept2(self.operand2, visitor);
+        }
+    }
+}
+
+impl RestPatternElementImpl {
+    /// `RestPatternElementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.pattern != NO_NODE && !hooks("visitPattern", Hooked::Node(self.pattern)) {
+            ast.accept2(self.pattern, visitor);
+        }
+    }
+}
+
+impl RethrowExpressionImpl {
+    /// `RethrowExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl ReturnStatementImpl {
+    /// `ReturnStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.expression2 != NO_NODE && !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl ScriptTagImpl {
+    /// `ScriptTagImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl SemicolonEnumDeclarationBodyImpl {
+    /// `SemicolonEnumDeclarationBodyImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl SemicolonInstanceDeclarationBodyImpl {
+    /// `SemicolonInstanceDeclarationBodyImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl SetOrMapLiteralImpl {
+    /// `SetOrMapLiteralImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.type_arguments != NO_NODE && !hooks("visitTypeArguments", Hooked::Node(self.type_arguments)) {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        if !hooks("visitElements2", Hooked::List(&self.elements2)) {
+            for &element in &self.elements2 {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl SetterDeclarationImpl {
+    /// `SetterDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE && !hooks("visitReturnType", Hooked::Node(self.return_type)) {
+            ast.accept2(self.return_type, visitor);
+        }
+        if !hooks("visitFormalParameters", Hooked::Node(self.formal_parameters)) {
+            ast.accept2(self.formal_parameters, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl ShowCombinatorImpl {
+    /// `ShowCombinatorImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitNames", Hooked::List(&self.names)) {
+            for &element in &self.names {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl SimpleStringLiteralImpl {
+    /// `SimpleStringLiteralImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl SpreadElementImpl {
+    /// `SpreadElementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl StringInterpolationImpl {
+    /// `StringInterpolationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitElements", Hooked::List(&self.elements)) {
+            for &element in &self.elements {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl SuperConstructorInvocationImpl {
+    /// `SuperConstructorInvocationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.constructor_selector != NO_NODE && !hooks("visitConstructorSelector", Hooked::Node(self.constructor_selector)) {
+            ast.accept2(self.constructor_selector, visitor);
+        }
+        if !hooks("visitArgumentList", Hooked::Node(self.argument_list)) {
+            ast.accept2(self.argument_list, visitor);
+        }
+    }
+}
+
+impl SuperFormalParameterImpl {
+    /// `SuperFormalParameterImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE && !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+        if self.function_typed_suffix != NO_NODE && !hooks("visitFunctionTypedSuffix", Hooked::Node(self.function_typed_suffix)) {
+            ast.accept2(self.function_typed_suffix, visitor);
+        }
+        if self.default_clause != NO_NODE && !hooks("visitDefaultClause", Hooked::Node(self.default_clause)) {
+            ast.accept2(self.default_clause, visitor);
+        }
+    }
+}
+
+impl SuperReferenceImpl {
+    /// `SuperReferenceImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl SwitchCaseImpl {
+    /// `SwitchCaseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitLabels", Hooked::List(&self.labels)) {
+            for &element in &self.labels {
+                ast.accept2(element, visitor);
+            }
+        }
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+        if !hooks("visitStatements2", Hooked::List(&self.statements2)) {
+            for &element in &self.statements2 {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl SwitchDefaultImpl {
+    /// `SwitchDefaultImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitLabels", Hooked::List(&self.labels)) {
+            for &element in &self.labels {
+                ast.accept2(element, visitor);
+            }
+        }
+        if !hooks("visitStatements2", Hooked::List(&self.statements2)) {
+            for &element in &self.statements2 {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl SwitchExpressionCaseImpl {
+    /// `SwitchExpressionCaseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitGuardedPattern", Hooked::Node(self.guarded_pattern)) {
+            ast.accept2(self.guarded_pattern, visitor);
+        }
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl SwitchExpressionImpl {
+    /// `SwitchExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+        if !hooks("visitCases", Hooked::List(&self.cases)) {
+            for &element in &self.cases {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl SwitchPatternCaseImpl {
+    /// `SwitchPatternCaseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitLabels", Hooked::List(&self.labels)) {
+            for &element in &self.labels {
+                ast.accept2(element, visitor);
+            }
+        }
+        if !hooks("visitGuardedPattern", Hooked::Node(self.guarded_pattern)) {
+            ast.accept2(self.guarded_pattern, visitor);
+        }
+        if !hooks("visitStatements2", Hooked::List(&self.statements2)) {
+            for &element in &self.statements2 {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl SwitchStatementImpl {
+    /// `SwitchStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+        if !hooks("visitMembers", Hooked::List(&self.members)) {
+            for &element in &self.members {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl SymbolLiteralImpl {
+    /// `SymbolLiteralImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl ThisExpressionImpl {
+    /// `ThisExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl ThrowExpressionImpl {
+    /// `ThrowExpressionImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl TopLevelFunctionDeclarationImpl {
+    /// `TopLevelFunctionDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE && !hooks("visitReturnType", Hooked::Node(self.return_type)) {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.type_parameters != NO_NODE && !hooks("visitTypeParameters", Hooked::Node(self.type_parameters)) {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if !hooks("visitFormalParameters", Hooked::Node(self.formal_parameters)) {
+            ast.accept2(self.formal_parameters, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl TopLevelGetterDeclarationImpl {
+    /// `TopLevelGetterDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE && !hooks("visitReturnType", Hooked::Node(self.return_type)) {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.recovery_formal_parameters != NO_NODE && !hooks("visitRecoveryFormalParameters", Hooked::Node(self.recovery_formal_parameters)) {
+            ast.accept2(self.recovery_formal_parameters, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl TopLevelSetterDeclarationImpl {
+    /// `TopLevelSetterDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE && !hooks("visitReturnType", Hooked::Node(self.return_type)) {
+            ast.accept2(self.return_type, visitor);
+        }
+        if !hooks("visitFormalParameters", Hooked::Node(self.formal_parameters)) {
+            ast.accept2(self.formal_parameters, visitor);
+        }
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+    }
+}
+
+impl TopLevelVariable2Impl {
+    /// `TopLevelVariable2Impl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.initializer != NO_NODE && !hooks("visitInitializer", Hooked::Node(self.initializer)) {
+            ast.accept2(self.initializer, visitor);
+        }
+    }
+}
+
+impl TopLevelVariablesDeclarationImpl {
+    /// `TopLevelVariablesDeclarationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE && !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+        if !hooks("visitVariables", Hooked::List(&self.variables)) {
+            for &element in &self.variables {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl TryStatementImpl {
+    /// `TryStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitBody", Hooked::Node(self.body)) {
+            ast.accept2(self.body, visitor);
+        }
+        if !hooks("visitCatchClauses", Hooked::List(&self.catch_clauses)) {
+            for &element in &self.catch_clauses {
+                ast.accept2(element, visitor);
+            }
+        }
+        if self.finally_block != NO_NODE && !hooks("visitFinallyBlock", Hooked::Node(self.finally_block)) {
+            ast.accept2(self.finally_block, visitor);
+        }
+    }
+}
+
+impl TypeArgumentListImpl {
+    /// `TypeArgumentListImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitArguments", Hooked::List(&self.arguments)) {
+            for &element in &self.arguments {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl TypeParameterImpl {
+    /// `TypeParameterImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.bound != NO_NODE && !hooks("visitBound", Hooked::Node(self.bound)) {
+            ast.accept2(self.bound, visitor);
+        }
+    }
+}
+
+impl TypeParameterListImpl {
+    /// `TypeParameterListImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitTypeParameters", Hooked::List(&self.type_parameters)) {
+            for &element in &self.type_parameters {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl UnaryOperatorInvocationImpl {
+    /// `UnaryOperatorInvocationImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitOperand", Hooked::Node(self.operand)) {
+            ast.accept2(self.operand, visitor);
+        }
+    }
+}
+
+impl UnqualifiedNameAssignmentTargetImpl {
+    /// `UnqualifiedNameAssignmentTargetImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+    }
+}
+
+impl WhenClauseImpl {
+    /// `WhenClauseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
+impl WhileStatementImpl {
+    /// `WhileStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitCondition2", Hooked::Node(self.condition2)) {
+            ast.accept2(self.condition2, visitor);
+        }
+        if !hooks("visitBody2", Hooked::Node(self.body2)) {
+            ast.accept2(self.body2, visitor);
+        }
+    }
+}
+
+impl WildcardPatternImpl {
+    /// `WildcardPatternImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if self.type_ != NO_NODE && !hooks("visitType", Hooked::Node(self.type_)) {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+}
+
+impl WithClauseImpl {
+    /// `WithClauseImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitMixinTypes", Hooked::List(&self.mixin_types)) {
+            for &element in &self.mixin_types {
+                ast.accept2(element, visitor);
+            }
+        }
+    }
+}
+
+impl YieldStatementImpl {
+    /// `YieldStatementImpl.visitChildrenWithHooks`.
+    pub fn visit_children_with_hooks<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V, hooks: &mut dyn FnMut(&'static str, Hooked<'_>) -> bool) {
+        let _ = (ast, id, &visitor, &hooks);
+        if !hooks("visitExpression2", Hooked::Node(self.expression2)) {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Written by hand (kept by the generator): members of ast.dart's node classes
 // that upstream writes by hand and that parsing uses.
