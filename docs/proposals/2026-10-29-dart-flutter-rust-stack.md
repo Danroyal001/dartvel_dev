@@ -171,8 +171,9 @@ names of the Dart file it ports and names that file in its first line, so
 upstream changes can be followed file by file.
 
 `dartr` (BSD-3-Clause) is a 1:1 port of exactly this slice, at parity on large
-corpora. Phase 0 decides whether to start from it or to redo the slice under
-this proposal's rules, keeping dartr as a second oracle.
+corpora. Track A starts from it: it is vendored at `experiments/dartr`, and
+the work is to prove its parity against the Dart it ports and close every gap
+that proof finds, rather than to write the slice a second time.
 
 The memory gate applies from the first day, language server included:
 
@@ -580,8 +581,10 @@ cost more than tokens even in the optimistic case.
 
 ## 15. Open questions
 
-1. **dartr for Track A:** start from it, or redo the slice and keep dartr as a
-   second oracle?
+1. **dartr for Track A:** answered on 30 October 2026: start from it. Its
+   formatter matched `dart format` byte for byte on 772 reformatted files at
+   about 7 times the speed, so redoing the slice would buy nothing a parity
+   proof does not.
 2. **The upstream window:** two weeks per stable release to start, or tighter?
 3. **The Dart and Flutter teams:** offer them the differential harnesses?
 4. **Licensing and distribution:** BSD-3-Clause like upstream? Free, or part
