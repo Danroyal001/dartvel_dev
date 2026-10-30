@@ -10,11 +10,11 @@
 // A fragment's default value is kept as the source it is written as
 // (`defaultValueCode`) rather than as the node.
 //
-// Not ported yet, as they need the declared types: metadata, and the
-// fragments of type annotations (`GenericFunctionType` fragments and the
-// formal parameters of function-typed formal parameters), which no list of
-// the element model holds; `visitNamedType` and the clauses that hold types
-// are therefore not visited.
+// Type annotations are visited as upstream visits them, so that generic
+// function types and the formal and type parameters of function-typed
+// formal parameters get their fragments and elements.
+//
+// Not ported yet: metadata.
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -344,7 +344,9 @@ impl<'a> FragmentBuilder<'a> {
             this.visit_body(body);
         });
         self.f(fragment).type_parameters = holder.type_parameters;
-        // The extends, with and implements clauses hold only types.
+        self.visit_clause(n.extends_clause);
+        self.visit_clause(n.with_clause);
+        self.visit_clause(n.implements_clause);
     }
 
     fn visit_class_type_alias2(&mut self, node: NodeId) {
@@ -370,6 +372,9 @@ impl<'a> FragmentBuilder<'a> {
         if type_parameters != NO_NODE {
             self.f(fragment).type_parameters = holder.type_parameters;
         }
+        self.visit_type_annotation(n.superclass);
+        self.visit_clause(n.with_clause);
+        self.visit_clause(n.implements_clause);
     }
 
     fn visit_constructor_declaration2(&mut self, node: NodeId) {
@@ -433,7 +438,8 @@ impl<'a> FragmentBuilder<'a> {
         self.f(fragment).set_flag(fragment_isAugmentation, n.augment_keyword != NO_TOKEN);
 
         self.library.add_top_fragment(self.unit, fragment);
-        // The with and implements clauses hold only types.
+        self.visit_clause(n.with_clause);
+        self.visit_clause(n.implements_clause);
 
         let (name_part, body) = (n.name_part, n.body);
         let (constants, members) = match ast.node(body) {
@@ -488,7 +494,7 @@ impl<'a> FragmentBuilder<'a> {
             this.visit_body(body);
         });
         self.f(fragment).type_parameters = holder.type_parameters;
-        // The on clause holds only a type.
+        self.visit_clause(n.on_clause);
     }
 
     fn visit_extension_type_declaration2(&mut self, node: NodeId) {
@@ -511,6 +517,7 @@ impl<'a> FragmentBuilder<'a> {
             this.visit_body(body);
         });
         self.f(fragment).type_parameters = holder.type_parameters;
+        self.visit_clause(n.implements_clause);
     }
 
     /// `visitFieldFormalParameter`, `visitRegularFormalParameter` and
@@ -577,8 +584,8 @@ impl<'a> FragmentBuilder<'a> {
         f.default_value_code = default_value_code;
         f.set_flag(variableFragment_hasImplicitType, type_ == NO_NODE && suffix == NO_NODE);
         f.set_flag(formalParameterFragment_isOriginDeclaration, true);
-        // The formal parameters of a function-typed suffix belong to its
-        // type.
+        self.build_function_typed_parameter_suffix(fragment, suffix);
+        self.visit_type_annotation(type_);
     }
 
     fn visit_fields_declaration(&mut self, node: NodeId) {
@@ -612,6 +619,7 @@ impl<'a> FragmentBuilder<'a> {
             }
             self.add_child_fragment(fragment);
         }
+        self.visit_type_annotation(n.type_);
     }
 
     /// `visitFormalParameterList`.
@@ -633,12 +641,19 @@ impl<'a> FragmentBuilder<'a> {
         self.library.add_top_fragment(self.unit, fragment);
 
         let type_parameters = n.type_parameters;
+        let (return_type, parameters) = (n.return_type, n.parameters);
         let ((), holder) = self.with_enclosing(fragment, |this| {
             this.visit_type_parameter_list(type_parameters);
-            // The return type and the formal parameters make the aliased
-            // function type.
+            this.visit_type_annotation(return_type);
+            if parameters != NO_NODE {
+                this.visit_formal_parameter_list(parameters);
+            }
         });
         self.f(fragment).type_parameters = holder.type_parameters;
+        let library = self.store.units[self.unit as usize].library;
+        for parameter in holder.formal_parameters {
+            self.store.init_formal_parameter_element(parameter, library);
+        }
     }
 
     fn visit_generic_type_alias2(&mut self, node: NodeId) {
@@ -651,10 +666,12 @@ impl<'a> FragmentBuilder<'a> {
         self.library.add_top_fragment(self.unit, fragment);
 
         let type_parameters = n.type_parameters;
+        let aliased_type = n.type_;
         let ((), holder) = self.with_enclosing(fragment, |this| {
             this.visit_type_parameter_list(type_parameters);
         });
         self.f(fragment).type_parameters = holder.type_parameters;
+        self.visit_type_annotation(aliased_type);
     }
 
     /// `visitGetterDeclaration`, `visitMethodDeclaration2`,
@@ -730,6 +747,7 @@ impl<'a> FragmentBuilder<'a> {
         self.add_child_fragment(fragment);
 
         self.build_executable_element_children(fragment, formal_parameters, type_parameters);
+        self.visit_type_annotation(return_type);
     }
 
     fn visit_mixin_declaration2(&mut self, node: NodeId) {
@@ -749,7 +767,8 @@ impl<'a> FragmentBuilder<'a> {
             this.visit_body(body);
         });
         self.f(fragment).type_parameters = holder.type_parameters;
-        // The on and implements clauses hold only types.
+        self.visit_clause(n.on_clause);
+        self.visit_clause(n.implements_clause);
     }
 
     fn visit_primary_constructor_declaration(&mut self, node: NodeId, declaration: NodeId, body: NodeId) {
@@ -887,6 +906,7 @@ impl<'a> FragmentBuilder<'a> {
 
         let (formal_parameters, type_parameters) = (n.formal_parameters, n.type_parameters);
         self.build_executable_element_children(fragment, formal_parameters, type_parameters);
+        self.visit_type_annotation(n.return_type);
     }
 
     /// `visitTopLevelGetterDeclaration` and `visitTopLevelSetterDeclaration`.
@@ -928,6 +948,7 @@ impl<'a> FragmentBuilder<'a> {
         self.library.add_top_fragment(self.unit, fragment);
 
         self.build_executable_element_children(fragment, formal_parameters, NO_NODE);
+        self.visit_type_annotation(return_type);
     }
 
     fn visit_top_level_variables_declaration(&mut self, node: NodeId) {
@@ -956,6 +977,7 @@ impl<'a> FragmentBuilder<'a> {
             }
             self.library.add_top_fragment(self.unit, fragment);
         }
+        self.visit_type_annotation(n.type_);
     }
 
     /// `visitTypeParameterList` and `visitTypeParameter`.
@@ -971,7 +993,110 @@ impl<'a> FragmentBuilder<'a> {
             let parent = self.enclosing.fragment;
             self.f(fragment).enclosing_fragment = parent;
             self.enclosing.type_parameters.push(fragment);
-            // The bound is a type.
+            self.visit_type_annotation(p.bound);
+        }
+    }
+
+    /// The type annotation [node]: `visitNamedType` (its type arguments),
+    /// `visitGenericFunctionType`, and the record type annotation visits.
+    /// Only generic function types declare fragments.
+    fn visit_type_annotation(&mut self, node: NodeId) {
+        if node == NO_NODE {
+            return;
+        }
+        let ast = self.ast;
+        match ast.node(node) {
+            AstNodeImpl::NamedTypeImpl(n) => {
+                if n.type_arguments != NO_NODE {
+                    for &argument in ast.node(n.type_arguments).as_type_argument_list_impl().arguments.iter() {
+                        self.visit_type_annotation(argument);
+                    }
+                }
+            }
+            AstNodeImpl::GenericFunctionTypeImpl(n) => {
+                let (type_parameters, parameters, return_type) = (n.type_parameters, n.parameters, n.return_type);
+                let fragment = self.new_fragment(FragmentKind::GenericFunctionType, None);
+                // `_libraryFragment.encloseElement(fragment)`.
+                self.f(fragment).node = node;
+                let ((), holder) = self.with_enclosing(fragment, |this| {
+                    this.visit_type_parameter_list(type_parameters);
+                    if parameters != NO_NODE {
+                        this.visit_formal_parameter_list(parameters);
+                    }
+                });
+                let library = self.store.units[self.unit as usize].library;
+                self.f(fragment).type_parameters = holder.type_parameters.clone();
+                self.f(fragment).formal_parameters = holder.formal_parameters.clone();
+                // `GenericFunctionTypeElementImpl(fragment)`, with the
+                // elements of its type and formal parameters.
+                self.store.add_element(ElementKind::GENERIC_FUNCTION_TYPE, fragment, library);
+                for parameter in holder.type_parameters {
+                    self.store.add_element(ElementKind::TYPE_PARAMETER, parameter, library);
+                }
+                for parameter in holder.formal_parameters {
+                    self.store.init_formal_parameter_element(parameter, library);
+                }
+                self.visit_type_annotation(return_type);
+            }
+            AstNodeImpl::RecordTypeAnnotationImpl(n) => {
+                let named_fields = n.named_fields;
+                for &field in n.positional_fields.iter() {
+                    let t = ast.node(field).as_record_type_annotation_positional_field_impl().type_;
+                    self.visit_type_annotation(t);
+                }
+                if named_fields != NO_NODE {
+                    for &field in ast.node(named_fields).as_record_type_annotation_named_fields_impl().fields.iter() {
+                        let t = ast.node(field).as_record_type_annotation_named_field_impl().type_;
+                        self.visit_type_annotation(t);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// The types of a clause: `visitExtendsClause`, `visitWithClause`,
+    /// `visitImplementsClause`, `visitMixinOnClause`,
+    /// `visitExtensionOnClause`.
+    fn visit_clause(&mut self, clause: NodeId) {
+        if clause == NO_NODE {
+            return;
+        }
+        let ast = self.ast;
+        let types: Vec<NodeId> = match ast.node(clause) {
+            AstNodeImpl::ExtendsClauseImpl(c) => vec![c.superclass],
+            AstNodeImpl::WithClauseImpl(c) => c.mixin_types.iter().copied().collect(),
+            AstNodeImpl::ImplementsClauseImpl(c) => c.interfaces.iter().copied().collect(),
+            AstNodeImpl::MixinOnClauseImpl(c) => c.superclass_constraints.iter().copied().collect(),
+            AstNodeImpl::ExtensionOnClauseImpl(c) => vec![c.extended_type],
+            other => panic!("{} is not a clause", other.runtime_type()),
+        };
+        for t in types {
+            self.visit_type_annotation(t);
+        }
+    }
+
+    /// `_buildFunctionTypedParameterSuffix`: the type and formal parameters
+    /// of a function-typed formal parameter get fragments and elements, but
+    /// no list of [fragment] holds them.
+    fn build_function_typed_parameter_suffix(&mut self, fragment: FragmentId, suffix: NodeId) {
+        if suffix == NO_NODE {
+            return;
+        }
+        let s = self.ast.node(suffix).as_function_typed_formal_parameter_suffix_impl();
+        let (type_parameters, formal_parameters) = (s.type_parameters, s.formal_parameters);
+        let ((), holder) = self.with_enclosing(fragment, |this| {
+            this.visit_type_parameter_list(type_parameters);
+            if formal_parameters != NO_NODE {
+                this.visit_formal_parameter_list(formal_parameters);
+            }
+        });
+        let library = self.store.units[self.unit as usize].library;
+        for parameter in holder.type_parameters {
+            self.store.add_element(ElementKind::TYPE_PARAMETER, parameter, library);
+        }
+        for parameter in holder.formal_parameters {
+            self.store.init_formal_parameter_element(parameter, library);
         }
     }
 
