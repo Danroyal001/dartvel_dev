@@ -117,20 +117,28 @@ fn check(c: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
         // changed are synthetic copies
         // (`FormalParameterElementMixinExtension.copyWith`) whose
         // `computeConstantValue()` is `null`.
+        // `_TypeSubstitutor.visitFunctionType` (type_algebra.dart) returns
+        // the function type itself, with its own parameters, when the
+        // substitution was not used (`useCounter == before`): only a
+        // reference to one of the substituted type parameters of the
+        // enclosing interface or extension copies the parameters. The
+        // function's own type parameters are fresh in an inner environment
+        // and do not count.
         let is_substituted_generic_member = |executable: dartr_element::ElementId| {
-            r.ctx
-                .element_data(executable)
-                .and_then(|d| d.enclosing)
-                .is_some_and(|owner| {
-                    owner
-                        .cast::<dartr_element::InterfaceElement>()
-                        .is_some_and(|i| !r.ctx.interface_type_parameters(i).is_empty())
-                        || owner
-                            .cast::<dartr_element::ExtensionElement>()
-                            .is_some_and(|e| !r.ctx.get(e).type_params.is_empty())
-                })
+            let Some(owner) = r.ctx.element_data(executable).and_then(|d| d.enclosing) else {
+                return false;
+            };
+            let substituted: &[EId<dartr_element::TypeParameterElement>] =
+                if let Some(i) = owner.cast::<dartr_element::InterfaceElement>() {
+                    r.ctx.interface_type_parameters(i)
+                } else if let Some(e) = owner.cast::<dartr_element::ExtensionElement>() {
+                    &r.ctx.get(e).type_params
+                } else {
+                    &[]
+                };
+            !substituted.is_empty()
                 && enclosing_function_type(executable)
-                    .is_some_and(|ty| dartr_constant::has_type_parameter_reference(&r.ctx, ty))
+                    .is_some_and(|ty| references_type_parameter(&r.ctx, ty, substituted))
         };
         let synthetic = redirected.is_none()
             && r.ctx
@@ -139,10 +147,21 @@ fn check(c: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
                 .is_some_and(|executable| {
                     c.ast.parent(node).is_some_and(|parent| {
                         if let Some(invocation) = c.ast.cast::<MethodInvocation>(parent) {
+                            // An implicit `this` invocation finds an interface
+                            // member through the scope as a member of
+                            // `thisType` (the identity substitution, which
+                            // `_TypeSubstitutor` counts as a use), and an
+                            // extension member as declared.
                             (c.ast[invocation].target.is_some()
                                 || c.ast[invocation].operator.is_some_and(|op| {
                                     matches!(c.ast.tokens.lexeme(op), ".." | "?..")
-                                }))
+                                })
+                                || r.ctx
+                                    .element_data(executable)
+                                    .and_then(|d| d.enclosing)
+                                    .is_some_and(|owner| {
+                                        owner.is::<dartr_element::InterfaceElement>()
+                                    }))
                                 && is_substituted_generic_member(executable)
                         } else if let Some(invocation) =
                             c.ast
@@ -242,4 +261,54 @@ fn redirected_parameters(
         redirected = further;
     }
     Ok(Some(r.ctx.get(constructor).formal_params.clone()))
+}
+
+/// Whether [ty] references one of [params] (`_TypeSubstitutor.getSubstitute`
+/// finding a mapping, which increments `useCounter`). Type alias arguments
+/// are not visited, as the substitutor maps the aliased type itself.
+fn references_type_parameter(
+    ctx: &dartr_element::Ctx<'_>,
+    ty: dartr_element::TypeId,
+    params: &[EId<dartr_element::TypeParameterElement>],
+) -> bool {
+    use dartr_element::TypeKind;
+    match *ctx.ty(ty) {
+        TypeKind::TypeParameter {
+            param,
+            promoted_bound,
+            ..
+        } => {
+            params.contains(&param)
+                || promoted_bound.is_some_and(|b| references_type_parameter(ctx, b, params))
+        }
+        TypeKind::Interface { args, .. } => ctx
+            .list(args)
+            .iter()
+            .any(|&a| references_type_parameter(ctx, a, params)),
+        TypeKind::Function(f) => {
+            references_type_parameter(ctx, f.ret, params)
+                || ctx.list(f.type_params).iter().any(|&tp| {
+                    ctx.get(tp)
+                        .bound
+                        .get()
+                        .is_some_and(|b| references_type_parameter(ctx, b, params))
+                })
+                || ctx
+                    .list(f.params)
+                    .iter()
+                    .any(|p| references_type_parameter(ctx, p.ty, params))
+        }
+        TypeKind::Record {
+            positional, named, ..
+        } => {
+            ctx.list(positional)
+                .iter()
+                .any(|&t| references_type_parameter(ctx, t, params))
+                || ctx
+                    .list(named)
+                    .iter()
+                    .any(|n| references_type_parameter(ctx, n.ty, params))
+        }
+        _ => false,
+    }
 }
