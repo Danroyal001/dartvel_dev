@@ -2,9 +2,9 @@
 // creates a library's element and its fragments, builds its directives and
 // elements, and keeps its export scope while the linker computes it.
 //
-// The units' parsed trees are dropped once the elements are built: what the
-// element model keeps of them (offsets, default values) is copied into the
-// fragments.
+// The units' parsed trees are kept until the linker detaches them
+// (`Linker._detachNodes`); what the element model keeps of them (offsets,
+// default values) is copied into the fragments.
 
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -176,11 +176,6 @@ impl LibraryBuilder {
         if is_dart_core {
             self.fragments.declare(store, DYNAMIC_ELEMENT);
             self.fragments.declare(store, NEVER_ELEMENT);
-        }
-
-        // The trees are not needed any more.
-        for unit in &mut self.units {
-            unit.parsed = None;
         }
     }
 

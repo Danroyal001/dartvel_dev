@@ -20,6 +20,11 @@ use crate::src::dart::analysis::file_state::{DirectiveUriState, FileId, FileSyst
 use crate::src::dart::element::element::{DirectiveUri, ElementStore, LibraryId};
 use crate::src::summary2::export::{Export, ExportLocation, build_combinators};
 use crate::src::summary2::library_builder::LibraryBuilder;
+use crate::dart::analysis::features::Feature;
+use crate::src::dart::ast::ast_store::{Ast, NO_NODE};
+use crate::src::dart::element::element::{FragmentId, UnitId};
+use crate::src::dart::element::scope::ScopeFeatures;
+use crate::src::summary2::reference_resolver::{LinkingTypes, ReferenceResolver};
 
 /// `Linker`.
 pub struct Linker {
@@ -30,6 +35,10 @@ pub struct Linker {
     pub library_of_file: HashMap<FileId, LibraryId>,
     /// The builder of each library.
     builder_of_library: HashMap<LibraryId, usize>,
+    /// What resolving the outlines' type annotations gives.
+    pub types: LinkingTypes,
+    /// How many of the store's fragments `types` has indexed.
+    indexed_fragments: usize,
 }
 
 impl Linker {
@@ -40,6 +49,8 @@ impl Linker {
             builders: Vec::new(),
             library_of_file: HashMap::new(),
             builder_of_library: HashMap::new(),
+            types: LinkingTypes::default(),
+            indexed_fragments: 0,
         }
     }
 
@@ -88,6 +99,65 @@ impl Linker {
 
         self.build_class_synthetic_constructors(first_new);
         self.build_enum_synthetic_constructors(first_new);
+        self.resolve_types(first_new);
+
+        // `_detachNodes`: the trees are not needed any more.
+        for builder in &mut self.builders[first_new..] {
+            for unit in &mut builder.units {
+                unit.parsed = None;
+            }
+        }
+    }
+
+    /// `_resolveTypes`, so far `LibraryBuilder.resolveTypes`: resolves the
+    /// type annotations of the outlines of the builders from [first_new].
+    pub fn resolve_types(&mut self, first_new: usize) {
+        for (id, fragment) in self.store.fragments.iter().enumerate().skip(self.indexed_fragments) {
+            if fragment.node != NO_NODE {
+                self.types.fragment_of_node.insert((fragment.unit, fragment.node), id as FragmentId);
+            }
+        }
+        self.indexed_fragments = self.store.fragments.len();
+
+        for builder in &self.builders[first_new..] {
+            let (features, primary_constructors) = {
+                let parsed = builder.units[0].parsed.as_ref().unwrap();
+                let feature_set = &parsed.ast.node(parsed.unit).as_compilation_unit_impl().feature_set;
+                (
+                    ScopeFeatures {
+                        wildcard_variables: feature_set.is_enabled(Feature::wildcard_variables),
+                        records: feature_set.is_enabled(Feature::records),
+                    },
+                    feature_set.is_enabled(Feature::primary_constructors),
+                )
+            };
+            // The file that includes each part.
+            let mut enclosing: HashMap<UnitId, UnitId> = HashMap::new();
+            for unit in &builder.units {
+                for part in &self.store.units[unit.fragment as usize].parts {
+                    if let DirectiveUri::WithUnit { unit: part_unit, .. } = part.uri {
+                        enclosing.insert(part_unit, unit.fragment);
+                    }
+                }
+            }
+            for unit in &builder.units {
+                let parent = enclosing.get(&unit.fragment).copied();
+                self.types.scopes.add_library_fragment(&self.store, unit.fragment, parent, features);
+            }
+            for unit in &builder.units {
+                let parsed = unit.parsed.as_ref().unwrap();
+                let ast = Ast::new(&parsed.ast, &parsed.tokens);
+                let mut resolver = ReferenceResolver::new(
+                    &mut self.store,
+                    &mut self.types,
+                    ast,
+                    unit.fragment,
+                    features,
+                    primary_constructors,
+                );
+                resolver.resolve_unit(parsed.unit);
+            }
+        }
     }
 
     /// The library files the imports and exports of [file] and of the parts
