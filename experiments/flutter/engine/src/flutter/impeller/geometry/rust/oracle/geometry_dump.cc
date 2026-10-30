@@ -30,6 +30,7 @@
 #include "impeller/geometry/matrix.h"
 #include "impeller/geometry/matrix_decomposition.h"
 #include "impeller/geometry/quaternion.h"
+#include "impeller/geometry/rect.h"
 #include "impeller/geometry/shear.h"
 #include "impeller/geometry/point.h"
 #include "impeller/geometry/size.h"
@@ -1748,6 +1749,316 @@ static void SuiteMatrix(Rng& r, int cases) {
   }
 }
 
+// ------------------------------------------------------------------ rect ---
+
+static Rect GenR(Rng& r) {
+  switch (r.Below(6)) {
+    case 0: {
+      float l = EdgeF(r), t = EdgeF(r), rr = EdgeF(r), b = EdgeF(r);
+      return Rect::MakeLTRB(l, t, rr, b);
+    }
+    case 1: {
+      float x = SaneF(r), y = SaneF(r), w = SaneF(r), h = SaneF(r);
+      return Rect::MakeXYWH(x, y, w, h);
+    }
+    case 2: {
+      // Shares edges with a sane rect: integers in a small range.
+      float l = static_cast<float>(r.Below(11)) - 5.0f;
+      float t = static_cast<float>(r.Below(11)) - 5.0f;
+      float rr = static_cast<float>(r.Below(11)) - 5.0f;
+      float b = static_cast<float>(r.Below(11)) - 5.0f;
+      return Rect::MakeLTRB(l, t, rr, b);
+    }
+    case 3:
+      return Rect::MakeMaximum();
+    default: {
+      float l = SaneF(r), t = SaneF(r);
+      float w = static_cast<float>(r.Unit() * 100.0);
+      float h = static_cast<float>(r.Unit() * 100.0);
+      return Rect::MakeXYWH(l, t, w, h);
+    }
+  }
+}
+
+template <class T>
+static TRect<T> GenIR(Rng& r, int bits) {
+  switch (r.Below(4)) {
+    case 0: {
+      T l = static_cast<T>(EdgeI(r, bits));
+      T t = static_cast<T>(EdgeI(r, bits));
+      T rr = static_cast<T>(EdgeI(r, bits));
+      T b = static_cast<T>(EdgeI(r, bits));
+      return TRect<T>::MakeLTRB(l, t, rr, b);
+    }
+    case 1: {
+      T x = static_cast<T>(EdgeI(r, bits));
+      T y = static_cast<T>(EdgeI(r, bits));
+      T w = static_cast<T>(EdgeI(r, bits));
+      T h = static_cast<T>(EdgeI(r, bits));
+      return TRect<T>::MakeXYWH(x, y, w, h);
+    }
+    case 2: {
+      T l = static_cast<T>(r.Below(11)) - 5;
+      T t = static_cast<T>(r.Below(11)) - 5;
+      T rr = static_cast<T>(r.Below(11)) - 5;
+      T b = static_cast<T>(r.Below(11)) - 5;
+      return TRect<T>::MakeLTRB(l, t, rr, b);
+    }
+    default:
+      return TRect<T>::MakeMaximum();
+  }
+}
+
+static void R(const Rect& r) {
+  F(r.GetLeft());
+  F(r.GetTop());
+  F(r.GetRight());
+  F(r.GetBottom());
+}
+template <class T>
+static void IR(const TRect<T>& r) {
+  I(r.GetLeft());
+  I(r.GetTop());
+  I(r.GetRight());
+  I(r.GetBottom());
+}
+static void OptR(const std::optional<Rect>& r) {
+  if (r.has_value()) {
+    R(*r);
+  } else {
+    S("none");
+  }
+}
+template <class T>
+static void OptIR(const std::optional<TRect<T>>& r) {
+  if (r.has_value()) {
+    IR(*r);
+  } else {
+    S("none");
+  }
+}
+
+// A float without NaN (rounding a NaN to an integer type is undefined).
+static float NoNaN(float v) {
+  return std::isnan(v) ? 0.0f : v;
+}
+
+template <class T>
+static void IntRects(Rng& r, int bits, const char* tag, const Rect& fr) {
+  TRect<T> a = GenIR<T>(r, bits);
+  TRect<T> b = GenIR<T>(r, bits);
+  T dx = static_cast<T>(EdgeI(r, bits));
+  T dy = static_cast<T>(EdgeI(r, bits));
+  T px = static_cast<T>(EdgeI(r, bits));
+  T py = static_cast<T>(EdgeI(r, bits));
+  T sc = static_cast<T>(EdgeI(r, bits));
+  Rect nr = Rect::MakeLTRB(NoNaN(fr.GetLeft()), NoNaN(fr.GetTop()),
+                           NoNaN(fr.GetRight()), NoNaN(fr.GetBottom()));
+  Tag(tag);
+  IR(a);
+  IR(b);
+  I(dx);
+  I(dy);
+  I(px);
+  I(py);
+  I(sc);
+  R(nr);
+  Arrow();
+  B(a == b);
+  B(a.IsEmpty());
+  B(a.IsSquare());
+  B(a.IsMaximum());
+  IP(a.GetOrigin());
+  ISZ(a.GetSize());
+  I(a.GetX());
+  I(a.GetY());
+  I(a.GetWidth());
+  I(a.GetHeight());
+  IP(a.GetLeftTop());
+  IP(a.GetRightTop());
+  IP(a.GetLeftBottom());
+  IP(a.GetRightBottom());
+  I(a.Area());
+  P(a.GetCenter());
+  for (T v : a.GetXYWH()) {
+    I(v);
+  }
+  IR(a.GetPositive());
+  for (const auto& p : a.GetPoints()) {
+    IP(p);
+  }
+  IR(a.Scale(sc));
+  IR(a.Scale(dx, dy));
+  IR(a.Scale(TPoint<T>(dx, dy)));
+  IR(a.Scale(TSize<T>(dx, dy)));
+  B(a.Contains(TPoint<T>(px, py)));
+  B(a.ContainsInclusive(TPoint<T>(px, py)));
+  B(a.Contains(b));
+  IR(a.Union(b));
+  OptIR(a.Intersection(b));
+  IR(a.IntersectionOrEmpty(b));
+  B(a.IntersectsWithRect(b));
+  OptIR(a.Cutout(b));
+  IR(a.CutoutOrEmpty(b));
+  IR(a.Shift(dx, dy));
+  IR(a.Shift(TPoint<T>(dx, dy)));
+  IR(a.Expand(dx, dy, px, py));
+  IR(a.Expand(dx));
+  IR(a.Expand(dx, dy));
+  IR(a.Expand(TPoint<T>(dx, dy)));
+  IR(a.Expand(TSize<T>(px, py)));
+  IR(a.Project(b));
+  IR(TRect<T>::MakeXYWH(dx, dy, px, py));
+  IR(TRect<T>::MakeWH(dx, dy));
+  IR(TRect<T>::MakeOriginSize(TPoint<T>(dx, dy), TSize<T>(px, py)));
+  IR(TRect<T>::MakeSize(TSize<T>(px, py)));
+  IR(TRect<T>::MakeCircleBounds(TPoint<T>(dx, dy), sc));
+  IR(TRect<T>::MakeEllipseBounds(TPoint<T>(dx, dy), TSize<T>(px, py)));
+  IR(TRect<T>::MakeEllipseBounds(TPoint<T>(dx, dy), TPoint<T>(px, py)));
+  IR(TRect<T>::MakeMaximum());
+  IR(TRect<T>());
+  IR(TRect<T>::RoundOut(nr));
+  IR(TRect<T>::RoundIn(nr));
+  IR(TRect<T>::Round(nr));
+  R(Rect::Make(a));
+  B(nr.Contains(a));
+  std::vector<TPoint<T>> pts;
+  int n = static_cast<int>(r.Below(6));
+  for (int i = 0; i < n; i++) {
+    T x = static_cast<T>(EdgeI(r, bits));
+    T y = static_cast<T>(EdgeI(r, bits));
+    pts.push_back({x, y});
+  }
+  OptIR(TRect<T>::MakePointBounds(pts.begin(), pts.end()));
+  End();
+}
+
+static void SuiteRect(Rng& r, int cases) {
+  for (int c = 0; c < cases; c++) {
+    Rect a = GenR(r);
+    Rect b = GenR(r);
+    float dx = r.Chance(3) ? EdgeF(r) : SaneF(r);
+    float dy = r.Chance(3) ? EdgeF(r) : SaneF(r);
+    float px = r.Chance(3) ? EdgeF(r) : SaneF(r);
+    float py = r.Chance(3) ? EdgeF(r) : SaneF(r);
+    float sc = r.Chance(3) ? EdgeF(r) : SaneF(r);
+    Size sz = EdgeS(r);
+    ISize isz = {EdgeI(r, 64), EdgeI(r, 64)};
+
+    Tag("rect");
+    R(a);
+    R(b);
+    F(dx);
+    F(dy);
+    F(px);
+    F(py);
+    F(sc);
+    SZ(sz);
+    ISZ(isz);
+    Arrow();
+    B(a == b);
+    B(a == a);
+    B(a.IsFinite());
+    B(a.IsEmpty());
+    B(a.IsSquare());
+    B(a.IsMaximum());
+    P(a.GetOrigin());
+    SZ(a.GetSize());
+    F(a.GetX());
+    F(a.GetY());
+    F(a.GetWidth());
+    F(a.GetHeight());
+    P(a.GetLeftTop());
+    P(a.GetRightTop());
+    P(a.GetLeftBottom());
+    P(a.GetRightBottom());
+    F(a.Area());
+    P(a.GetCenter());
+    for (float v : a.GetLTRB()) {
+      F(v);
+    }
+    for (float v : a.GetXYWH()) {
+      F(v);
+    }
+    R(a.GetPositive());
+    for (const auto& p : a.GetPoints()) {
+      P(p);
+    }
+    R(a.Scale(sc));
+    R(a.Scale(dx, dy));
+    R(a.Scale(Point(dx, dy)));
+    R(a.Scale(Size(px, py)));
+    B(a.Contains(Point(px, py)));
+    B(a.ContainsInclusive(Point(px, py)));
+    B(a.Contains(b));
+    R(a.Union(b));
+    OptR(a.Intersection(b));
+    R(a.IntersectionOrEmpty(b));
+    B(a.IntersectsWithRect(b));
+    OptR(a.Cutout(b));
+    R(a.CutoutOrEmpty(b));
+    R(a.Shift(dx, dy));
+    R(a.Shift(Point(dx, dy)));
+    R(a.Expand(dx, dy, px, py));
+    R(a.Expand(dx));
+    R(a.Expand(dx, dy));
+    R(a.Expand(Point(dx, dy)));
+    R(a.Expand(Size(px, py)));
+    R(a.Project(b));
+    R(Rect::MakeXYWH(dx, dy, px, py));
+    R(Rect::MakeWH(dx, dy));
+    R(Rect::MakeOriginSize(Point(dx, dy), Size(px, py)));
+    R(Rect::MakeSize(sz));
+    R(Rect::MakeSize(isz));
+    R(Rect::MakeCircleBounds(Point(dx, dy), sc));
+    R(Rect::MakeEllipseBounds(Point(dx, dy), Size(px, py)));
+    R(Rect::MakeEllipseBounds(Point(dx, dy), Point(px, py)));
+    R(Rect::MakeMaximum());
+    R(Rect());
+    R(Rect::RoundOut(a));
+    R(Rect::RoundIn(a));
+    R(Rect::Round(a));
+    R(Rect::Make(a));
+    std::optional<Rect> oa = r.Chance(3) ? std::nullopt : std::optional<Rect>(a);
+    std::optional<Rect> ob = r.Chance(3) ? std::nullopt : std::optional<Rect>(b);
+    R(Rect::Union(a, ob));
+    R(Rect::Union(oa, b));
+    OptR(Rect::Union(oa, ob));
+    OptR(Rect::Intersection(a, ob));
+    OptR(Rect::Intersection(oa, b));
+    OptR(Rect::Intersection(oa, ob));
+    std::vector<Point> pts;
+    int n = static_cast<int>(r.Below(6));
+    for (int i = 0; i < n; i++) {
+      pts.push_back(r.Chance(4) ? EdgeP(r) : SaneP(r));
+    }
+    OptR(Rect::MakePointBounds(pts.begin(), pts.end()));
+    OptR(Rect::MakePointBounds(pts));
+    End();
+
+    Matrix m = GenM(r);
+    float mw = r.Chance(4) ? EdgeF(r) : static_cast<float>(r.Unit() * 20.0);
+    float mh = r.Chance(4) ? EdgeF(r) : static_cast<float>(r.Unit() * 20.0);
+    Tag("rect_xform");
+    R(a);
+    M(m);
+    F(mw);
+    F(mh);
+    Arrow();
+    for (const auto& p : a.GetTransformedPoints(m)) {
+      P(p);
+    }
+    R(a.TransformBounds(m));
+    R(a.TransformAndClipBounds(m));
+    M(a.GetNormalizingTransform());
+    OptR(a.ExpandToMinTransformedSize(Size(mw, mh), m));
+    End();
+
+    IntRects<int64_t>(r, 64, "irect64", a);
+    IntRects<int32_t>(r, 32, "irect32", b);
+  }
+}
+
 // ----------------------------------------------------------------- main ----
 
 typedef void (*Suite)(Rng&, int);
@@ -1762,6 +2073,7 @@ static const NamedSuite kSuites[] = {
     {"vector", SuiteVector},
     {"color", SuiteColor},
     {"matrix", SuiteMatrix},
+    {"rect", SuiteRect},
 };
 
 int main(int argc, char** argv) {

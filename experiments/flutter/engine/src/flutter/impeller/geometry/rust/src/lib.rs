@@ -17,6 +17,7 @@ pub mod matrix_decomposition;
 pub mod point;
 pub mod print;
 pub mod quaternion;
+pub mod rect;
 pub mod saturated_math;
 pub mod scalar;
 pub mod shear;

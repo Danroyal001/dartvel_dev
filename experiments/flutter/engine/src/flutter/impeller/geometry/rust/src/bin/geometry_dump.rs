@@ -14,6 +14,7 @@ use impeller_geometry::half::*;
 use impeller_geometry::matrix::*;
 use impeller_geometry::matrix_decomposition::*;
 use impeller_geometry::quaternion::*;
+use impeller_geometry::rect::*;
 use impeller_geometry::shear::*;
 use impeller_geometry::vector::*;
 use impeller_geometry::saturated;
@@ -1727,6 +1728,325 @@ fn suite_matrix(r: &mut Rng, o: &mut Out, cases: i32) {
     }
 }
 
+// ------------------------------------------------------------------ rect ---
+
+fn gen_r(r: &mut Rng) -> Rect {
+    match r.below(6) {
+        0 => {
+            let l = edge_f(r);
+            let t = edge_f(r);
+            let rr = edge_f(r);
+            let b = edge_f(r);
+            Rect::make_ltrb(l, t, rr, b)
+        }
+        1 => {
+            let x = sane_f(r);
+            let y = sane_f(r);
+            let w = sane_f(r);
+            let h = sane_f(r);
+            Rect::make_xywh(x, y, w, h)
+        }
+        2 => {
+            let l = r.below(11) as f32 - 5.0;
+            let t = r.below(11) as f32 - 5.0;
+            let rr = r.below(11) as f32 - 5.0;
+            let b = r.below(11) as f32 - 5.0;
+            Rect::make_ltrb(l, t, rr, b)
+        }
+        3 => Rect::make_maximum(),
+        _ => {
+            let l = sane_f(r);
+            let t = sane_f(r);
+            let w = (r.unit() * 100.0) as f32;
+            let h = (r.unit() * 100.0) as f32;
+            Rect::make_xywh(l, t, w, h)
+        }
+    }
+}
+
+fn gen_ir<T: RectNum>(r: &mut Rng, bits: u32) -> TRect<T> {
+    let e = |r: &mut Rng| T::from_i128(edge_i(r, bits) as i128);
+    match r.below(4) {
+        0 => {
+            let l = e(r);
+            let t = e(r);
+            let rr = e(r);
+            let b = e(r);
+            TRect::make_ltrb(l, t, rr, b)
+        }
+        1 => {
+            let x = e(r);
+            let y = e(r);
+            let w = e(r);
+            let h = e(r);
+            TRect::make_xywh(x, y, w, h)
+        }
+        2 => {
+            let s = |r: &mut Rng| T::from_i128(r.below(11) as i128 - 5);
+            let l = s(r);
+            let t = s(r);
+            let rr = s(r);
+            let b = s(r);
+            TRect::make_ltrb(l, t, rr, b)
+        }
+        _ => TRect::make_maximum(),
+    }
+}
+
+impl Out {
+    fn r(&mut self, r: &Rect) {
+        self.f(r.get_left());
+        self.f(r.get_top());
+        self.f(r.get_right());
+        self.f(r.get_bottom());
+    }
+    fn ir<T: RectNum>(&mut self, r: &TRect<T>) {
+        self.i(r.get_left().to_i128() as i64);
+        self.i(r.get_top().to_i128() as i64);
+        self.i(r.get_right().to_i128() as i64);
+        self.i(r.get_bottom().to_i128() as i64);
+    }
+    fn opt_r(&mut self, r: Option<Rect>) {
+        match r {
+            Some(r) => self.r(&r),
+            None => self.s("none"),
+        }
+    }
+    fn opt_ir<T: RectNum>(&mut self, r: Option<TRect<T>>) {
+        match r {
+            Some(r) => self.ir(&r),
+            None => self.s("none"),
+        }
+    }
+}
+
+fn no_nan(v: f32) -> f32 {
+    if v.is_nan() { 0.0 } else { v }
+}
+
+fn int_rects<T: RectNum>(r: &mut Rng, o: &mut Out, bits: u32, tag: &str, fr: &Rect)
+where
+    f32: saturated::SaturatedCast<T>,
+{
+    let a: TRect<T> = gen_ir(r, bits);
+    let b: TRect<T> = gen_ir(r, bits);
+    let e = |r: &mut Rng| T::from_i128(edge_i(r, bits) as i128);
+    let dx = e(r);
+    let dy = e(r);
+    let px = e(r);
+    let py = e(r);
+    let sc = e(r);
+    let nr = Rect::make_ltrb(
+        no_nan(fr.get_left()),
+        no_nan(fr.get_top()),
+        no_nan(fr.get_right()),
+        no_nan(fr.get_bottom()),
+    );
+    o.tag(tag);
+    o.ir(&a);
+    o.ir(&b);
+    for v in [dx, dy, px, py, sc] {
+        o.i(v.to_i128() as i64);
+    }
+    o.r(&nr);
+    o.arrow();
+    o.b(a == b);
+    o.b(a.is_empty());
+    o.b(a.is_square());
+    o.b(a.is_maximum());
+    o.ip(a.get_origin());
+    o.isz(a.get_size());
+    o.i(a.get_x().to_i128() as i64);
+    o.i(a.get_y().to_i128() as i64);
+    o.i(a.get_width().to_i128() as i64);
+    o.i(a.get_height().to_i128() as i64);
+    o.ip(a.get_left_top());
+    o.ip(a.get_right_top());
+    o.ip(a.get_left_bottom());
+    o.ip(a.get_right_bottom());
+    o.i(a.area().to_i128() as i64);
+    o.p(a.get_center());
+    for v in a.get_xywh() {
+        o.i(v.to_i128() as i64);
+    }
+    o.ir(&a.get_positive());
+    for p in a.get_points() {
+        o.ip(p);
+    }
+    o.ir(&a.scale(sc));
+    o.ir(&a.scale_xy(dx, dy));
+    o.ir(&a.scale_point(TPoint::new(dx, dy)));
+    o.ir(&a.scale_size(TSize::new(dx, dy)));
+    o.b(a.contains(&TPoint::new(px, py)));
+    o.b(a.contains_inclusive(&TPoint::new(px, py)));
+    o.b(a.contains_rect(&b));
+    o.ir(&a.union(&b));
+    o.opt_ir(a.intersection(&b));
+    o.ir(&a.intersection_or_empty(&b));
+    o.b(a.intersects_with_rect(&b));
+    o.opt_ir(a.cutout(&b));
+    o.ir(&a.cutout_or_empty(&b));
+    o.ir(&a.shift(dx, dy));
+    o.ir(&a.shift_point(TPoint::new(dx, dy)));
+    o.ir(&a.expand_ltrb(dx, dy, px, py));
+    o.ir(&a.expand(dx));
+    o.ir(&a.expand_xy(dx, dy));
+    o.ir(&a.expand_point(TPoint::new(dx, dy)));
+    o.ir(&a.expand_size(TSize::new(px, py)));
+    o.ir(&a.project(b));
+    o.ir(&TRect::<T>::make_xywh(dx, dy, px, py));
+    o.ir(&TRect::<T>::make_wh(dx, dy));
+    o.ir(&TRect::<T>::make_origin_size(&TPoint::new(dx, dy), &TSize::new(px, py)));
+    o.ir(&TRect::<T>::make_size(&TSize::new(px, py)));
+    o.ir(&TRect::<T>::make_circle_bounds(&TPoint::new(dx, dy), sc));
+    o.ir(&TRect::<T>::make_ellipse_bounds(&TPoint::new(dx, dy), &TSize::new(px, py)));
+    o.ir(&TRect::<T>::make_ellipse_bounds_point(&TPoint::new(dx, dy), &TPoint::new(px, py)));
+    o.ir(&TRect::<T>::make_maximum());
+    o.ir(&TRect::<T>::default());
+    o.ir(&TRect::<T>::round_out(&nr));
+    o.ir(&TRect::<T>::round_in(&nr));
+    o.ir(&TRect::<T>::round(&nr));
+    o.r(&Rect::make(&a));
+    o.b(nr.contains_rect_of(&a));
+    let mut pts = Vec::new();
+    let n = r.below(6);
+    for _ in 0..n {
+        let x = e(r);
+        let y = e(r);
+        pts.push(TPoint::new(x, y));
+    }
+    o.opt_ir(TRect::<T>::make_point_bounds(&pts));
+    o.end();
+}
+
+fn suite_rect(r: &mut Rng, o: &mut Out, cases: i32) {
+    for _ in 0..cases {
+        let a = gen_r(r);
+        let b = gen_r(r);
+        let dx = if r.chance(3) { edge_f(r) } else { sane_f(r) };
+        let dy = if r.chance(3) { edge_f(r) } else { sane_f(r) };
+        let px = if r.chance(3) { edge_f(r) } else { sane_f(r) };
+        let py = if r.chance(3) { edge_f(r) } else { sane_f(r) };
+        let sc = if r.chance(3) { edge_f(r) } else { sane_f(r) };
+        let sz = edge_s(r);
+        let isz = {
+            let w = edge_i(r, 64);
+            let h = edge_i(r, 64);
+            ISize::new(w, h)
+        };
+
+        o.tag("rect");
+        o.r(&a);
+        o.r(&b);
+        for v in [dx, dy, px, py, sc] {
+            o.f(v);
+        }
+        o.sz(sz);
+        o.isz(isz);
+        o.arrow();
+        o.b(a == b);
+        o.b(a == a);
+        o.b(a.is_finite());
+        o.b(a.is_empty());
+        o.b(a.is_square());
+        o.b(a.is_maximum());
+        o.p(a.get_origin());
+        o.sz(a.get_size());
+        o.f(a.get_x());
+        o.f(a.get_y());
+        o.f(a.get_width());
+        o.f(a.get_height());
+        o.p(a.get_left_top());
+        o.p(a.get_right_top());
+        o.p(a.get_left_bottom());
+        o.p(a.get_right_bottom());
+        o.f(a.area());
+        o.p(a.get_center());
+        for v in a.get_ltrb() {
+            o.f(v);
+        }
+        for v in a.get_xywh() {
+            o.f(v);
+        }
+        o.r(&a.get_positive());
+        for p in a.get_points() {
+            o.p(p);
+        }
+        o.r(&a.scale(sc));
+        o.r(&a.scale_xy(dx, dy));
+        o.r(&a.scale_point(Point::new(dx, dy)));
+        o.r(&a.scale_size(Size::new(px, py)));
+        o.b(a.contains(&Point::new(px, py)));
+        o.b(a.contains_inclusive(&Point::new(px, py)));
+        o.b(a.contains_rect(&b));
+        o.r(&a.union(&b));
+        o.opt_r(a.intersection(&b));
+        o.r(&a.intersection_or_empty(&b));
+        o.b(a.intersects_with_rect(&b));
+        o.opt_r(a.cutout(&b));
+        o.r(&a.cutout_or_empty(&b));
+        o.r(&a.shift(dx, dy));
+        o.r(&a.shift_point(Point::new(dx, dy)));
+        o.r(&a.expand_ltrb(dx, dy, px, py));
+        o.r(&a.expand(dx));
+        o.r(&a.expand_xy(dx, dy));
+        o.r(&a.expand_point(Point::new(dx, dy)));
+        o.r(&a.expand_size(Size::new(px, py)));
+        o.r(&a.project(b));
+        o.r(&Rect::make_xywh(dx, dy, px, py));
+        o.r(&Rect::make_wh(dx, dy));
+        o.r(&Rect::make_origin_size(&Point::new(dx, dy), &Size::new(px, py)));
+        o.r(&Rect::make_size(&sz));
+        o.r(&Rect::make_size(&isz));
+        o.r(&Rect::make_circle_bounds(&Point::new(dx, dy), sc));
+        o.r(&Rect::make_ellipse_bounds(&Point::new(dx, dy), &Size::new(px, py)));
+        o.r(&Rect::make_ellipse_bounds_point(&Point::new(dx, dy), &Point::new(px, py)));
+        o.r(&Rect::make_maximum());
+        o.r(&Rect::default());
+        o.r(&Rect::round_out(&a));
+        o.r(&Rect::round_in(&a));
+        o.r(&Rect::round(&a));
+        o.r(&Rect::make(&a));
+        let oa = if r.chance(3) { None } else { Some(a) };
+        let ob = if r.chance(3) { None } else { Some(b) };
+        o.r(&Rect::union_opt_b(&a, ob));
+        o.r(&Rect::union_opt_a(oa, &b));
+        o.opt_r(Rect::union_opt(oa, ob));
+        o.opt_r(Rect::intersection_opt_b(&a, ob));
+        o.opt_r(Rect::intersection_opt_a(oa, &b));
+        o.opt_r(Rect::intersection_opt(oa, ob));
+        let mut pts = Vec::new();
+        let n = r.below(6);
+        for _ in 0..n {
+            pts.push(if r.chance(4) { edge_p(r) } else { sane_p(r) });
+        }
+        o.opt_r(Rect::make_point_bounds(&pts));
+        o.opt_r(Rect::make_point_bounds(&pts));
+        o.end();
+
+        let m = gen_m(r);
+        let mw = if r.chance(4) { edge_f(r) } else { (r.unit() * 20.0) as f32 };
+        let mh = if r.chance(4) { edge_f(r) } else { (r.unit() * 20.0) as f32 };
+        o.tag("rect_xform");
+        o.r(&a);
+        o.m(&m);
+        o.f(mw);
+        o.f(mh);
+        o.arrow();
+        for p in a.get_transformed_points(&m) {
+            o.p(p);
+        }
+        o.r(&a.transform_bounds(&m));
+        o.r(&a.transform_and_clip_bounds(&m));
+        o.m(&a.get_normalizing_transform());
+        o.opt_r(a.expand_to_min_transformed_size(Size::new(mw, mh), &m));
+        o.end();
+
+        int_rects::<i64>(r, o, 64, "irect64", &a);
+        int_rects::<i32>(r, o, 32, "irect32", &b);
+    }
+}
+
 // ----------------------------------------------------------------- main ----
 
 type Suite = fn(&mut Rng, &mut Out, i32);
@@ -1738,6 +2058,7 @@ const SUITES: &[(&str, Suite)] =
         ("vector", suite_vector),
         ("color", suite_color),
         ("matrix", suite_matrix),
+        ("rect", suite_rect),
     ];
 
 fn main() {
