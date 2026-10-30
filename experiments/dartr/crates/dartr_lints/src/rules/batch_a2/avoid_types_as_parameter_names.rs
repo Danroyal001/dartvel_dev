@@ -155,7 +155,30 @@ fn visible_type(
     }
     None
 }
+/// The node whose name scope `resolveNameInScope` (linter
+/// `util/scope.dart`) starts from for `node`: the nearest ancestor that
+/// carries a name scope (`ScopeResolverVisitor.getNodeNameScope`). A
+/// function expression carries none, and its type parameters are only in
+/// scope inside it (`ScopeContext.visitFunctionExpression`), so for its own
+/// parameter list the lookup starts outside it. A function expression that
+/// is the body of a `FunctionDeclaration` is covered by that declaration's
+/// scope, which holds the type parameters.
+fn name_scope_node(context: &LinterContext<'_>, node: NodeId) -> NodeId {
+    match context.ast.parent(node) {
+        Some(parent)
+            if context.ast.kind(parent) == NodeKind::FunctionExpression
+                && context
+                    .ast
+                    .parent(parent)
+                    .is_none_or(|p| context.ast.kind(p) != NodeKind::FunctionDeclaration) =>
+        {
+            context.ast.parent(parent).unwrap_or(node)
+        }
+        _ => node,
+    }
+}
 fn check_parameters(context: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
+    let scope = name_scope_node(context, node);
     let n = &context.ast[context.ast.cast::<FormalParameterList>(node).unwrap()];
     for &parameter in context.ast.list(n.parameters) {
         let Some(p) = context.ast.cast::<RegularFormalParameter>(parameter) else {
@@ -186,7 +209,7 @@ fn check_parameters(context: &LinterContext<'_>, node: NodeId, out: &mut Vec<Dia
         let text = context.ast.tokens.lexeme(name);
         if visible_type(
             context,
-            node,
+            scope,
             text,
             context.declared_element(parameter),
             None,
