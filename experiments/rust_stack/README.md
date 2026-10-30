@@ -101,3 +101,28 @@ implementation here is **2.38M lines, against the proposal's 2.52M**:
 None of these changes the proposal's conclusions. They lower Part 11's
 "Rust to write" by about 5%, and Part 13's token estimate with it, which is
 the kind of correction Phase 0 exists to make before money is spent.
+
+## Speed and memory baseline: 30 October 2026
+
+`baselines/speed-memory-2026-10-30.json`, from `bin/bench.dart`: one
+warm-up run, then five measured runs; the median wall time and the median of
+each run's peak memory. Memory is the summed resident set of the whole
+process tree (`dart analyze` works in a separate analysis server), sampled
+from `/proc` every 50 ms, so it is a floor on the true peak. Dart SDK 3.13.7
+on a 4-core Intel Xeon 2.1 GHz cloud container with nothing else running.
+That is not one of the proposal's named reference machines, so these numbers
+are provisional.
+
+| Tool and corpus | Median wall | Median peak memory |
+|---|---|---|
+| `dart format -o none`, Flutter `packages/flutter/lib` (695 files) | 6.06 s | 199 MB |
+| `dart format -o none`, SDK `pkg/analyzer/lib` | 3.63 s | 255 MB |
+| `dart analyze`, `dart_style`, cold (empty analysis cache each run) | 7.05 s | 630 MB |
+| `dart analyze`, `pub`, cold | 10.48 s | 586 MB |
+| `dart analyze`, `dart_style`, warm (cache kept) | 0.66 s | 183 MB |
+| `dart analyze`, `pub`, warm | 0.97 s | 203 MB |
+
+The cold runs are the comparison for a port: a warm `dart analyze` mostly
+reads its previous results back from `~/.dartServer`, which is a test of the
+cache, not of analysis. Each cold run gets a fresh, empty `HOME`, so nothing
+is deleted to make it cold.
