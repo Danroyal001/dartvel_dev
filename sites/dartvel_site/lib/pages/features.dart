@@ -16,6 +16,15 @@ import '../components/site.dart';
 /// a private one at all.
 const List<(String, String, String)> shipped = <(String, String, String)>[
   (
+    'Testing',
+    '`dartvel test`',
+    'Fakes for auth, queues, mail, storage and AI, generated model '
+        'factories, --impacted for the tests a diff can reach, --evals for '
+        'scored AI evals, and each mounted module\'s generated tests run '
+        'under its id, skipped with the reason where the host cannot carry '
+        'them.',
+  ),
+  (
     'The Golden Path',
     'create to upgrade',
     'One path from dartvel create to production: dev, generate, db migrate, '
@@ -217,14 +226,6 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'Present: a local adapter, structured outputs, embeddings and provider '
         'extension points. Absent: tool approvals, searchable MCP tool '
         'catalogs and per-step agent middleware.',
-  ),
-  (
-    'Testing',
-    '`dartvel test`',
-    'Present: fakes for auth, queues, mail, storage and AI, plus generated '
-        'model factories, --impacted for the tests a diff can reach and '
-        '--evals for scored AI evals. Absent: generated tests for a '
-        'generated module.',
   ),
   (
     'Application Entry',
@@ -706,9 +707,9 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
     Section(
       children: <Widget>[
         Eyebrow('WHAT WORKS TODAY'),
-        Heading('Twenty-five shipped sections.', level: 1),
+        Heading('Twenty-six shipped sections.', level: 1),
         Bullets(<String>[
-          'Seventy-nine more are partial, and each card says what is missing.',
+          'Seventy-eight more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),

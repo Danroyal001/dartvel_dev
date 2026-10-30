@@ -6780,7 +6780,7 @@ one is a framework nobody bumps the version in.
 
 # Testing
 
-Stability: `Draft` · Status: `Partial`
+Stability: `Draft` · Status: `Shipped`
 
 Dartvel has a first-class testing layer.
 
@@ -6839,6 +6839,15 @@ which module it came from. A binding kind that cannot run on the host — JNI
 without a JVM, a web binding without a browser — is **skipped by target rather
 than failed**, and the skip is reported: a silently skipped test is a test that
 passes for the wrong reason.
+
+`dartvel test` runs, after the parent's own suite, every mounted module whose
+source is a path on disk with tests, announcing each by id and naming it when
+it fails; another mode, named files or `--impacted` leave the modules out. A
+generated module's tests sit in a group named by its id, call each operation
+the backend carries that needs no argument, and skip that call with
+`dvModuleHostRefusal`'s reason where the host cannot carry it -- an npm or
+WebAssembly module with no Node, a Swift module off a Mac without `swiftc`, a
+JVM module on the Dart VM.
 
 Built-ins:
 - generated model factories

@@ -988,7 +988,7 @@
     {
       "section": "Testing",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         ".github/workflows/runtime-verification.yml",
         "examples/dartvel_example/integration_test/app_launch_test.dart",
@@ -999,9 +999,13 @@
         "packages/dartvel_cli/test/test_evals_test.dart",
         "packages/dartvel_cli/lib/src/testing/impacted_tests.dart",
         "packages/dartvel_cli/test/test_impacted_test.dart",
-        "packages/dartvel_flutter/test/golden/primitives_golden_test.dart"
+        "packages/dartvel_flutter/test/golden/primitives_golden_test.dart",
+        "packages/dartvel_core/lib/src/modules/module_host_io.dart",
+        "packages/dartvel_core/test/module_host_test.dart",
+        "packages/dartvel_cli/test/module_generated_tests_test.dart",
+        "packages/dartvel_cli/test/test_module_suites_test.dart"
       ],
-      "absent": "Nothing named. Generated factories now carry a sequence, so two create() calls produce two records rather than one repeated identifier, with createMany for list-shaped tests and resetSequence so a snapshot assertion is repeatable. Every test mode resolves, and a mode with no tests reports that it has none and where it looked. dartvel test --evals runs only the AI evals, under test/evals or test/evals_test.dart, where DVAIEval scores and gates them; they sit under test/, so the whole suite runs them too, and a project with none is told so. dartvel test --impacted runs the tests a diff (git, against HEAD, untracked files included) can reach: through what each test imports, transitively and through deleted files, and through the data model and job names and the function and page paths the project graph says the changed files declare, which reaches a function test that calls over HTTP and imports nothing; a change it cannot place (a migration, the pubspec, configuration) runs the whole suite, prose changes run nothing, and it is refused with DV-GEN-001 on a stale generated tree. It does not replay the skipped tests' results from a cache; they are not run. Newly specified and unbuilt: generated tests for a generated module, run in the parent suite under the module id, and skipped by target rather than failed where a binding kind cannot run on the host."
+      "absent": "Nothing named. Generated factories carry a sequence, so two create() calls produce two records rather than one repeated identifier, with createMany for list-shaped tests and resetSequence so a snapshot assertion is repeatable. Every test mode resolves, and a mode with no tests reports that it has none and where it looked. dartvel test --evals runs only the AI evals, under test/evals or test/evals_test.dart, where DVAIEval scores and gates them; they sit under test/, so the whole suite runs them too, and a project with none is told so. dartvel test --impacted runs the tests a diff (git, against HEAD, untracked files included) can reach: through what each test imports, transitively and through deleted files, and through the data model and job names and the function and page paths the project graph says the changed files declare, which reaches a function test that calls over HTTP and imports nothing; a change it cannot place (a migration, the pubspec, configuration) runs the whole suite, prose changes run nothing, and it is refused with DV-GEN-001 on a stale generated tree. It does not replay the skipped tests' results from a cache; they are not run. A module's tests are the parent's: the whole unit suite runs, after the parent's, every mounted module whose source is a path on disk with tests (flutter test for one that depends on Flutter), announcing each by id, carrying the reporter and isolation over and naming the module when its suite fails; another mode, named files or --impacted leave the modules out. A generated module's tests sit in a group named by its id, check its surface and each operation unavailable on the backend, and call each operation the backend carries that needs no argument, skipped with dvModuleHostRefusal's reason where the host cannot carry it: Node for npm and WebAssembly (DARTVEL_NODE before PATH, as the carrier looks), a Mac or swiftc for Swift, and never on the Dart VM for a JVM module, which is reached over JNI on Android. The generated module pubspec declares package:test. Where the section and the code disagree: the module suites run as separate runs inside one dartvel test rather than in one runner process, and the generated tests are VM tests, so a module's web carrier is not exercised by them."
     },
     {
       "section": "Search",
