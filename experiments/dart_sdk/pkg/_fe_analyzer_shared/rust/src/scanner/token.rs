@@ -3489,6 +3489,60 @@ impl TokenStore {
         }
     }
 
+    /// `token.lexeme.startsWith(prefix)` for an ASCII [prefix], without
+    /// building the lexeme (not upstream). An ASCII byte of UTF-8 is always
+    /// the character it encodes, so comparing bytes is comparing characters.
+    pub fn lexeme_starts_with(&self, token: TokenId, prefix: &str) -> bool {
+        self.lexeme_matches(token, prefix, false)
+    }
+
+    /// `token.lexeme == text` for an ASCII [text], without building the
+    /// lexeme (not upstream).
+    pub fn lexeme_equals(&self, token: TokenId, text: &str) -> bool {
+        self.lexeme_matches(token, text, true)
+    }
+
+    /// Whether the lexeme starts with, or when [whole] is, the ASCII [text].
+    fn lexeme_matches(&self, token: TokenId, text: &str, whole: bool) -> bool {
+        debug_assert!(text.is_ascii());
+        let prefix = text.as_bytes();
+        let fits = |len: usize| if whole { len == prefix.len() } else { len >= prefix.len() };
+        let data = self.data(token);
+        assert!(
+            !data.runtime_type.is_error_token(),
+            "ErrorToken has no lexeme"
+        );
+        match data.lexeme() {
+            Lexeme::Fixed => tokenTypesByIndex[data.type_index as usize]
+                .lexeme
+                .as_bytes()
+                .starts_with(prefix),
+            Lexeme::Utf16 { start, end } => match &self.source {
+                SourceText::Utf16(units) => {
+                    let units = &units[start as usize..end as usize];
+                    units.len() >= prefix.len()
+                        && prefix.iter().zip(units).all(|(&b, &u)| b as u16 == u)
+                }
+                SourceText::Utf8(_) => unreachable!("UTF-16 lexeme over a UTF-8 source"),
+            },
+            Lexeme::Utf8 { start, end, .. } => match &self.source {
+                SourceText::Utf8(bytes) => bytes[start as usize..end as usize].starts_with(prefix),
+                SourceText::Utf16(_) => unreachable!("UTF-8 lexeme over a UTF-16 source"),
+            },
+            Lexeme::Owned(index) => {
+                let units = &self.strings[index as usize];
+                units.len() >= prefix.len()
+                    && prefix.iter().zip(units.iter()).all(|(&b, &u)| b as u16 == u)
+            }
+        }
+    }
+
+    /// `token.lexeme == text` for an ASCII [text], without building the
+    /// lexeme (not upstream).
+    pub fn lexeme_equals(&self, token: TokenId, text: &str) -> bool {
+        self.length(token) as usize == text.len() && self.lexeme_starts_with(token, text)
+    }
+
     /// `Token.lexeme`, as UTF-16 code units. An `ErrorToken`'s lexeme throws
     /// upstream; here it panics.
     pub fn lexeme(&self, token: TokenId) -> Vec<u16> {

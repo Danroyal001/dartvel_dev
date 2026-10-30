@@ -164,19 +164,26 @@ fn run_bench(scanner_kind: &str, inputs: &[(PathBuf, String)], rounds: usize) {
 fn dump_file(scanner_kind: &str, bytes: &[u8]) -> String {
     let result = run_scanner(scanner_kind, bytes);
     let store = &result.store;
-    let mut sb = String::new();
-    let _ = writeln!(sb, "scanner={scanner_kind} hasErrors={}", result.has_errors);
+    // The dump is about eight times the source text.
+    let mut sb = String::with_capacity(bytes.len() * 8 + 64);
+    sb.push_str("scanner=");
+    sb.push_str(scanner_kind);
+    sb.push_str(" hasErrors=");
+    sb.push_str(if result.has_errors { "true" } else { "false" });
+    sb.push('\n');
     let mut token = result.tokens;
+    let mut lexeme = Vec::new();
     let mut index = 0;
     loop {
         let mut comment = store.preceding_comments(token);
         while comment != NO_TOKEN {
             sb.push_str("  ");
-            write_token(&mut sb, store, comment);
+            write_token(&mut sb, &mut lexeme, store, comment);
             comment = store.next(comment);
         }
-        let _ = write!(sb, "{index} ");
-        write_token(&mut sb, store, token);
+        push_int(&mut sb, index);
+        sb.push(' ');
+        write_token(&mut sb, &mut lexeme, store, token);
         if store.is_eof(token) {
             break;
         }
@@ -184,54 +191,59 @@ fn dump_file(scanner_kind: &str, bytes: &[u8]) -> String {
         index += 1;
     }
     sb.push_str("lineStarts");
-    for start in &result.line_starts {
-        let _ = write!(sb, " {start}");
+    for &start in &result.line_starts {
+        sb.push(' ');
+        push_int(&mut sb, start as i64);
     }
     sb.push('\n');
     sb
 }
 
-fn write_token(sb: &mut String, store: &TokenStore, token: TokenId) {
+/// Appends `type@offset`.
+fn push_type_at(sb: &mut String, store: &TokenStore, token: TokenId) {
+    sb.push_str(store.type_(token).name);
+    sb.push('@');
+    push_int(sb, store.offset(token) as i64);
+}
+
+fn write_token(sb: &mut String, lexeme: &mut Vec<u16>, store: &TokenStore, token: TokenId) {
     let runtime_type = store.runtime_type(token);
-    let _ = write!(
-        sb,
-        "{} {} @{}",
-        store.type_(token).name,
-        runtime_type.name(),
-        store.offset(token)
-    );
-    let _ = write!(sb, " len={}", store.length(token));
+    sb.push_str(store.type_(token).name);
+    sb.push(' ');
+    sb.push_str(runtime_type.name());
+    sb.push_str(" @");
+    push_int(sb, store.offset(token) as i64);
+    sb.push_str(" len=");
+    push_int(sb, store.length(token) as i64);
     if runtime_type.is_error_token() {
         let _ = write!(sb, " err={}", store.error_code(token));
         if let Some(character) = store.character(token) {
             let _ = write!(sb, " char={character}");
         }
         if let Some(start) = store.start(token) {
-            let _ = write!(sb, " start=\"{}\"", escape(start));
+            sb.push_str(" start=\"");
+            push_escaped(sb, start);
+            sb.push('"');
         }
         if let Some(end_offset) = store.end_offset(token) {
             let _ = write!(sb, " endOffset={end_offset}");
         }
         let begin = store.begin(token);
         if begin != NO_TOKEN {
-            let _ = write!(
-                sb,
-                " begin={}@{}",
-                store.type_(begin).name,
-                store.offset(begin)
-            );
+            sb.push_str(" begin=");
+            push_type_at(sb, store, begin);
         }
         let operator = store.unsupported_operator_token(token);
         if operator != NO_TOKEN {
-            let _ = write!(
-                sb,
-                " operator={}@{}",
-                store.type_(operator).name,
-                store.offset(operator)
-            );
+            sb.push_str(" operator=");
+            push_type_at(sb, store, operator);
         }
     } else {
-        let _ = write!(sb, " lex=\"{}\"", escape(&store.lexeme(token)));
+        sb.push_str(" lex=\"");
+        lexeme.clear();
+        store.write_lexeme(token, lexeme);
+        push_escaped(sb, lexeme);
+        sb.push('"');
     }
     if runtime_type.is_language_version_token() {
         let _ = write!(sb, " version={}.{}", store.major(token), store.minor(token));
@@ -241,7 +253,8 @@ fn write_token(sb: &mut String, store: &TokenStore, token: TokenId) {
         if end == NO_TOKEN {
             sb.push_str(" end=null");
         } else {
-            let _ = write!(sb, " end={}@{}", store.type_(end).name, store.offset(end));
+            sb.push_str(" end=");
+            push_type_at(sb, store, end);
         }
     }
     if store.is_synthetic(token) {
@@ -250,16 +263,41 @@ fn write_token(sb: &mut String, store: &TokenStore, token: TokenId) {
     sb.push('\n');
 }
 
-/// Printable ASCII other than `\` and `"` as is; every other UTF-16 code
-/// unit as `\uXXXX`, as the Dart oracle writes it.
-fn escape(units: &[u16]) -> String {
-    let mut sb = String::with_capacity(units.len());
+/// Appends the decimal digits of [value], without the formatting machinery
+/// that `write!` goes through.
+fn push_int(sb: &mut String, value: i64) {
+    if value < 0 {
+        sb.push('-');
+    }
+    let mut v = value.unsigned_abs();
+    let mut digits = [0u8; 20];
+    let mut i = digits.len();
+    loop {
+        i -= 1;
+        digits[i] = b'0' + (v % 10) as u8;
+        v /= 10;
+        if v == 0 {
+            break;
+        }
+    }
+    for &d in &digits[i..] {
+        sb.push(d as char);
+    }
+}
+
+/// Appends printable ASCII other than `\` and `"` as is, and every other
+/// UTF-16 code unit as `\uXXXX`, as the Dart oracle writes it.
+fn push_escaped(sb: &mut String, units: &[u16]) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    sb.reserve(units.len());
     for &c in units {
         if (0x20..0x7f).contains(&c) && c != 0x5c && c != 0x22 {
             sb.push(c as u8 as char);
         } else {
-            let _ = write!(sb, "\\u{c:04x}");
+            sb.push_str("\\u");
+            for shift in [12, 8, 4, 0] {
+                sb.push(HEX[(c >> shift & 0xf) as usize] as char);
+            }
         }
     }
-    sb
 }

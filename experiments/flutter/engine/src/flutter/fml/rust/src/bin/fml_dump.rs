@@ -987,14 +987,16 @@ fn bench(name: &str, iterations: i32) {
         rounds.push(SW_TOTAL_NS.load(Relaxed) as f64 / 1e3);
     }
     rounds.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    eprintln!(
-        "bench {name} fastest {:.1} us median {:.1} us slowest {:.1} us peak_rss {} KiB check {:016x}",
+    // One write, as the C++ driver's fprintf makes (stderr is unbuffered).
+    let report = format!(
+        "bench {name} fastest {:.1} us median {:.1} us slowest {:.1} us peak_rss {} KiB check {:016x}\n",
         rounds[0],
         rounds[rounds.len() / 2],
         rounds[rounds.len() - 1],
         peak_rss_kib(),
         check
     );
+    let _ = std::io::stderr().write_all(report.as_bytes());
 }
 
 // The suites that call cheap functions (time, strings, hash, paths,
@@ -2573,7 +2575,7 @@ use fml::file::{FilePermission, ScopedTemporaryDirectory};
 use fml::mapping::{DataMapping, FileMapping, MallocMapping, Mapping, NonOwnedMapping, Protection};
 use fml::unique_fd::UniqueFD;
 
-// SAFETY: declarations only, each matching its prototype in <errno.h>, <dlfcn.h> and <signal.h>
+// SAFETY: declarations only, each matching its prototype in <errno.h>, <dlfcn.h>, <signal.h> and <sys/stat.h>
 // for the LP64 Linux/Apple targets this crate builds for; every call
 // below is in its own unsafe block that says why it is sound.
 unsafe extern "C" {
@@ -2582,6 +2584,8 @@ unsafe extern "C" {
     fn dlclose(handle: *mut std::ffi::c_void) -> i32;
     #[link_name = "raise"]
     fn c_raise(sig: i32) -> i32;
+    #[link_name = "chmod"]
+    fn c_chmod(path: *const std::os::raw::c_char, mode: u32) -> i32;
 }
 
 /// `errno = value`, as the C++ driver clears it before a call.
@@ -2722,19 +2726,43 @@ fn printing_visit(dir: &UniqueFD, recursive: bool, stop: bool, stop_at: &[u8]) -
     }
 }
 
-fn os_path(p: &[u8]) -> &std::path::Path {
-    use std::os::unix::ffi::OsStrExt;
-    std::path::Path::new(std::ffi::OsStr::from_bytes(p))
+/// Runs `f` on `path` up to its first NUL as a C string, in a stack buffer
+/// as `std::string::c_str()` gives the C++ driver one without copying.
+fn with_c_path<T>(path: &[u8], f: impl FnOnce(*const std::os::raw::c_char) -> T) -> T {
+    let end = path.iter().position(|&b| b == 0).unwrap_or(path.len());
+    let mut buf = [0u8; 1024];
+    if end < buf.len() {
+        buf[..end].copy_from_slice(&path[..end]);
+        f(buf.as_ptr().cast())
+    } else {
+        let c = std::ffi::CString::new(&path[..end]).unwrap();
+        f(c.as_ptr())
+    }
 }
 
 /// `::chmod(path, mode)`: the return code and errno.
 fn chmod(path: &[u8], mode: u32) -> (i32, i32) {
-    use std::os::unix::fs::PermissionsExt;
-    let end = path.iter().position(|&b| b == 0).unwrap_or(path.len());
-    match std::fs::set_permissions(os_path(&path[..end]), std::fs::Permissions::from_mode(mode)) {
-        Ok(()) => (0, errno()),
-        Err(e) => (-1, e.raw_os_error().unwrap_or(0)),
-    }
+    // SAFETY: `with_c_path` passes a NUL-terminated string that outlives the
+    // call.
+    let rc = with_c_path(path, |p| unsafe { c_chmod(p, mode) });
+    (rc, errno())
+}
+
+/// `::stat(path, &st) == 0 && S_ISDIR(st.st_mode)`.
+fn stat_is_dir(path: &[u8]) -> bool {
+    use fml::platform::posix::libc;
+    let mut st = libc::stat::zeroed();
+    // SAFETY: a NUL-terminated path that outlives the call, and a `struct
+    // stat` laid out as the C library's for `stat` to fill.
+    let rc = with_c_path(path, |p| unsafe { libc::stat_path(p, &mut st) });
+    rc == 0 && libc::s_isdir(st.st_mode as u32)
+}
+
+/// `::access(path, F_OK)`.
+fn access_f_ok(path: &[u8]) -> i32 {
+    use fml::platform::posix::libc;
+    // SAFETY: a NUL-terminated path that outlives the call.
+    with_c_path(path, |p| unsafe { libc::faccessat(libc::AT_FDCWD, p, libc::F_OK, 0) })
 }
 
 fn file_op(c: &mut FileCtx, r: &mut Rng, depth: i32) {
@@ -2932,7 +2960,7 @@ fn file_op(c: &mut FileCtx, r: &mut Rng, depth: i32) {
             let abs = abs_path(c, &path);
             set_errno(0);
             let (rc, e) = chmod(&abs, mode);
-            let dir = rc == 0 && std::fs::metadata(os_path(&abs)).map(|m| m.is_dir()).unwrap_or(false);
+            let dir = rc == 0 && stat_is_dir(&abs);
             p!("  chmod {} {:o} -> {} errno {} dir {}", quoted(&path), mode, rc, e, dir as i32);
             if dir {
                 if depth == 0 {
@@ -2979,7 +3007,7 @@ fn suite_file(r: &mut Rng, cases: i32) {
     p!("");
     make_tree_writable(c.dir.fd());
     drop(c);
-    p!("removed {}", !std::path::Path::new(&root).exists() as i32);
+    p!("removed {}", (access_f_ok(root.as_bytes()) != 0) as i32);
 }
 
 // ----------------------------------------------------------- mapping ------

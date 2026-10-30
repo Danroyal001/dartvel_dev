@@ -127,7 +127,7 @@ fn new_parser(listener: Box<dyn Listener>, result: ScannerResult) -> (Parser, To
 
 fn dump_file(bytes: &[u8]) -> String {
     let result = run_scanner(bytes);
-    let (mut parser, tokens) = new_parser(Box::new(TraceListener::default()), result);
+    let (mut parser, tokens) = new_parser(Box::new(TraceListener::with_capacity(bytes.len() * 16)), result);
     let crashed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         parser.parse_unit(tokens);
     }))
@@ -184,9 +184,18 @@ fn run_bench(inputs: &[(PathBuf, String)], rounds: usize) {
 #[derive(Default)]
 pub struct TraceListener {
     pub out: String,
+    /// A buffer for the lexeme being written.
+    lexeme: Vec<u16>,
 }
 
 impl TraceListener {
+    fn with_capacity(capacity: usize) -> TraceListener {
+        TraceListener {
+            out: String::with_capacity(capacity),
+            lexeme: Vec::new(),
+        }
+    }
+
     fn start(&mut self, name: &str) {
         self.out.push_str(name);
     }
@@ -211,13 +220,14 @@ impl TraceListener {
             );
             return;
         }
-        let _ = write!(
-            self.out,
-            "{}@{}\"{}\"",
-            tokens.type_(token).name,
-            tokens.offset(token),
-            escape(&tokens.lexeme(token))
-        );
+        self.out.push_str(tokens.type_(token).name);
+        self.out.push('@');
+        push_int(&mut self.out, tokens.offset(token) as i64);
+        self.out.push('"');
+        self.lexeme.clear();
+        tokens.write_lexeme(token, &mut self.lexeme);
+        push_escaped(&mut self.out, &self.lexeme);
+        self.out.push('"');
         if tokens.is_synthetic(token) {
             self.out.push('~');
         }
@@ -253,12 +263,44 @@ impl TraceListener {
 /// unit as `\uXXXX`, as the Dart oracle writes it.
 fn escape(units: &[u16]) -> String {
     let mut sb = String::with_capacity(units.len());
+    push_escaped(&mut sb, units);
+    sb
+}
+
+/// [escape], appended to [sb].
+fn push_escaped(sb: &mut String, units: &[u16]) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    sb.reserve(units.len());
     for &c in units {
         if (0x20..0x7f).contains(&c) && c != 0x5c && c != 0x22 {
             sb.push(c as u8 as char);
         } else {
-            let _ = write!(sb, "\\u{c:04x}");
+            sb.push_str("\\u");
+            for shift in [12, 8, 4, 0] {
+                sb.push(HEX[(c >> shift & 0xf) as usize] as char);
+            }
         }
     }
-    sb
+}
+
+/// Appends the decimal digits of [value], without the formatting machinery
+/// that `write!` goes through.
+fn push_int(sb: &mut String, value: i64) {
+    if value < 0 {
+        sb.push('-');
+    }
+    let mut v = value.unsigned_abs();
+    let mut digits = [0u8; 20];
+    let mut i = digits.len();
+    loop {
+        i -= 1;
+        digits[i] = b'0' + (v % 10) as u8;
+        v /= 10;
+        if v == 0 {
+            break;
+        }
+    }
+    for &d in &digits[i..] {
+        sb.push(d as char);
+    }
 }
