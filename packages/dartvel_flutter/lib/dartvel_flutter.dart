@@ -86,6 +86,7 @@ import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 import 'src/state/offline_banner.dart';
 import 'src/state/page_error_boundary.dart';
+import 'src/state/task_tray.dart';
 import 'src/studio/page_document.dart';
 import 'src/studio/studio_app_shortcuts.dart' show DVStudioAppShortcuts;
 import 'src/studio/studio_host.dart' show DVPagePreviewScope;
@@ -11196,6 +11197,17 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
         // over the foot of the page. In a Stack rather than a Column, so the
         // page keeps its layout and its state when the connection drops.
         const Positioned(left: 0, right: 0, bottom: 0, child: DVOfflineBanner()),
+        // And the named work in progress -- uploads, exports, imports --
+        // from the typed progress they report, in a corner of the page and
+        // nothing at all while nothing runs.
+        PositionedDirectional(
+          end: 16,
+          bottom: 56,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: const DVTaskTray(),
+          ),
+        ),
       ],
     );
     if (!selectable || Theme.of(context).platform != TargetPlatform.iOS) {
@@ -11889,6 +11901,11 @@ abstract final class DVFrameworkStrings {
   static const DVTranslationKey collectionLoading =
       DVTranslationKey('dv.collection.loading');
 
+  /// A task in the background-task tray: {label} is the task's name and
+  /// {percent} how much of it is done.
+  static const DVTranslationKey taskProgress =
+      DVTranslationKey('dv.tasks.progress');
+
   /// The catalogue default for each framework key, by key.
   static const Map<String, String> defaults = <String, String>{
     'dv.table.empty': 'No rows',
@@ -11900,6 +11917,7 @@ abstract final class DVFrameworkStrings {
     'dv.empty.nothingMatching': 'No results',
     'dv.empty.nothingVisible': 'Nothing here is visible to you',
     'dv.action.clearFilters': 'Clear filters',
+    'dv.tasks.progress': '{label}, {percent}% done',
     'dv.collection.loading': 'Loading',
     'dv.status.403.title': 'You cannot open this page',
     'dv.status.403.body': 'This page is not available to your account.',
