@@ -78,7 +78,7 @@ impl TaskSource {
     /// Returns the top task based on scheduled time, taking into account
     /// whether the secondary heap has been paused or not.
     pub fn top(&self) -> TopTask<'_> {
-        assert!(!self.is_empty(), "Check failed: !IsEmpty().");
+        crate::fml_check_at!("flutter/fml/task_source.cc", 64, "!IsEmpty()", !self.is_empty());
         if self.secondary_pause_requests_ > 0 || self.secondary_task_queue_.is_empty() {
             let primary_top = self.primary_task_queue_.peek().unwrap();
             TopTask { task_queue_id: self.task_queue_id_, task: primary_top }

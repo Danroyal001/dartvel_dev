@@ -9,6 +9,7 @@
 
 pub mod ref_counted;
 pub mod ref_ptr;
+pub mod task_runner_checker;
 pub mod thread_checker;
 pub mod weak_ptr;
 pub mod weak_ptr_internal;

@@ -11,11 +11,13 @@
 // hands out.
 //
 // TaskRunnerAffineWeakPtr and its factory check the task runner rather than
-// the thread; they need MessageLoop, which is not ported yet.
+// the thread (TaskRunnerChecker), so a pointer may be used on any thread
+// whose queue is merged with its factory's.
 
 use std::sync::{Arc, Weak};
 
 use super::ref_ptr::{RefPtr, make_ref_counted};
+use super::task_runner_checker::DebugTaskRunnerChecker;
 use super::thread_checker::DebugThreadChecker;
 use super::weak_ptr_internal::WeakPtrFlag;
 
@@ -122,6 +124,116 @@ impl<T: ?Sized> WeakPtrFactory<T> {
 }
 
 impl<T: ?Sized> Drop for WeakPtrFactory<T> {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            self.check_thread_safety();
+        }
+        self.flag_.invalidate();
+    }
+}
+/// A weak pointer that can be used in different threads as long as the
+/// threads are belong to the same `TaskRunner`.
+///
+/// It is still not in general thread safe as `WeakPtr`.
+pub struct TaskRunnerAffineWeakPtr<T: ?Sized> {
+    ptr_: Option<Weak<T>>,
+    flag_: RefPtr<WeakPtrFlag>,
+    checker_: DebugTaskRunnerChecker,
+}
+
+impl<T: ?Sized> Default for TaskRunnerAffineWeakPtr<T> {
+    fn default() -> Self {
+        TaskRunnerAffineWeakPtr {
+            ptr_: None,
+            flag_: RefPtr::null(),
+            checker_: DebugTaskRunnerChecker::default(),
+        }
+    }
+}
+
+impl<T: ?Sized> Clone for TaskRunnerAffineWeakPtr<T> {
+    fn clone(&self) -> Self {
+        TaskRunnerAffineWeakPtr {
+            ptr_: self.ptr_.clone(),
+            flag_: self.flag_.clone(),
+            checker_: self.checker_.clone(),
+        }
+    }
+}
+
+impl<T: ?Sized> TaskRunnerAffineWeakPtr<T> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Upcasts, as upstream's converting constructors do.
+    pub fn upcast<U: ?Sized>(
+        self,
+        f: impl FnOnce(Weak<T>) -> Weak<U>,
+    ) -> TaskRunnerAffineWeakPtr<U> {
+        TaskRunnerAffineWeakPtr { ptr_: self.ptr_.map(f), flag_: self.flag_, checker_: self.checker_ }
+    }
+
+    pub fn reset(&mut self) {
+        self.flag_ = RefPtr::null();
+    }
+
+    // The following methods should only be called on the same thread as the
+    // "originating" |TaskRunnerAffineWeakPtrFactory|.
+
+    /// `explicit operator bool`.
+    pub fn as_bool(&self) -> bool {
+        self.check_thread_safety();
+        self.flag_.get().is_some_and(|f| f.is_valid())
+    }
+
+    pub fn get(&self) -> Option<Arc<T>> {
+        self.check_thread_safety();
+        if self.as_bool() { self.ptr_.as_ref().and_then(Weak::upgrade) } else { None }
+    }
+
+    fn check_thread_safety(&self) {
+        self.checker_.dcheck_task_runner_is_current();
+    }
+}
+
+/// A type of `WeakPtrFactory` that produces `TaskRunnerAffineWeakPtr`
+/// instead of `WeakPtr`.
+pub struct TaskRunnerAffineWeakPtrFactory<T: ?Sized> {
+    ptr_: Weak<T>,
+    flag_: RefPtr<WeakPtrFlag>,
+    checker_: DebugTaskRunnerChecker,
+}
+
+impl<T: ?Sized> TaskRunnerAffineWeakPtrFactory<T> {
+    pub fn new(ptr: &Arc<T>) -> Self {
+        Self::from_weak(Arc::downgrade(ptr))
+    }
+
+    pub fn from_weak(ptr: Weak<T>) -> Self {
+        TaskRunnerAffineWeakPtrFactory {
+            ptr_: ptr,
+            flag_: make_ref_counted(WeakPtrFlag::new()),
+            checker_: DebugTaskRunnerChecker::new(),
+        }
+    }
+
+    /// Gets a new weak pointer, which will be valid until this object is
+    /// destroyed.
+    pub fn get_weak_ptr(&self) -> TaskRunnerAffineWeakPtr<T> {
+        TaskRunnerAffineWeakPtr {
+            ptr_: Some(self.ptr_.clone()),
+            flag_: self.flag_.Clone(),
+            checker_: self.checker_.clone(),
+        }
+    }
+
+    fn check_thread_safety(&self) {
+        self.checker_.dcheck_task_runner_is_current();
+    }
+}
+
+impl<T: ?Sized> Drop for TaskRunnerAffineWeakPtrFactory<T> {
     fn drop(&mut self) {
         if !std::thread::panicking() {
             self.check_thread_safety();

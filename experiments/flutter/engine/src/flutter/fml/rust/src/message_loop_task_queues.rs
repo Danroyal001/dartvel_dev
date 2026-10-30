@@ -138,7 +138,7 @@ impl Locked {
         debug_assert!(self.has_pending_tasks_unlocked(owner));
         let entry = self.at(owner);
         if entry.owner_of.is_empty() {
-            assert!(!entry.task_source.is_empty(), "Check failed: !entry->task_source->IsEmpty().");
+            crate::fml_check_at!(FILE, 367, "!entry->task_source->IsEmpty()", !entry.task_source.is_empty());
             return entry.task_source.top();
         }
 
@@ -163,7 +163,8 @@ impl Locked {
         }
         // At least one task at the top because PeekNextTaskUnlocked() is
         // called after HasPendingTasksUnlocked()
-        top_task.expect("Check failed: top_task.has_value().")
+        crate::fml_check_at!(FILE, 393, "top_task.has_value()", top_task.is_some());
+        top_task.expect("checked")
     }
 }
 
@@ -338,9 +339,12 @@ impl MessageLoopTaskQueues {
 
     pub fn set_wakeable(&self, queue_id: TaskQueueId, wakeable: Weak<dyn Wakeable>) {
         let mut guard = self.lock();
-        assert!(
+        crate::fml_check_at!(
+            FILE,
+            207,
+            "!queue_entries_.at(queue_id)->wakeable",
             guard.at(queue_id).wakeable.is_none(),
-            "Check failed: !queue_entries_.at(queue_id)->wakeable. Wakeable can only be set once."
+            "Wakeable can only be set once."
         );
         guard.at_mut(queue_id).wakeable = Some(wakeable);
     }
@@ -377,7 +381,7 @@ impl MessageLoopTaskQueues {
         // Ensure owner_entry->subsumed_by being kUnmerged
         if owner_entry.subsumed_by != kUnmerged {
             fml_log_at!(
-                K_LOG_WARNING,
+                kLogWarning,
                 FILE,
                 229,
                 "Thread merging failed: owner_entry was already subsumed by others, owner={}, subsumed={}, owner->subsumed_by={}",
@@ -390,7 +394,7 @@ impl MessageLoopTaskQueues {
         // Ensure subsumed_entry->owner_of being empty
         if !subsumed_entry.owner_of.is_empty() {
             fml_log_at!(
-                K_LOG_WARNING,
+                kLogWarning,
                 FILE,
                 237,
                 "Thread merging failed: subsumed_entry already owns others, owner={}, subsumed={}, subsumed->owner_of.size()={}",
@@ -403,7 +407,7 @@ impl MessageLoopTaskQueues {
         // Ensure subsumed_entry->subsumed_by being kUnmerged
         if subsumed_entry.subsumed_by != kUnmerged {
             fml_log_at!(
-                K_LOG_WARNING,
+                kLogWarning,
                 FILE,
                 245,
                 "Thread merging failed: subsumed_entry was already subsumed by others, owner={}, subsumed={}, subsumed->subsumed_by={}",
@@ -432,7 +436,7 @@ impl MessageLoopTaskQueues {
         let owner_entry = guard.at(owner);
         if owner_entry.owner_of.is_empty() {
             fml_log_at!(
-                K_LOG_WARNING,
+                kLogWarning,
                 FILE,
                 267,
                 "Thread unmerging failed: owner_entry doesn't own anyone, owner={}, subsumed={}",
@@ -443,7 +447,7 @@ impl MessageLoopTaskQueues {
         }
         if owner_entry.subsumed_by != kUnmerged {
             fml_log_at!(
-                K_LOG_WARNING,
+                kLogWarning,
                 FILE,
                 273,
                 "Thread unmerging failed: owner_entry was subsumed by others, owner={}, subsumed={}, owner_entry->subsumed_by={}",
@@ -455,7 +459,7 @@ impl MessageLoopTaskQueues {
         }
         if guard.at(subsumed).subsumed_by == kUnmerged {
             fml_log_at!(
-                K_LOG_WARNING,
+                kLogWarning,
                 FILE,
                 280,
                 "Thread unmerging failed: subsumed_entry wasn't subsumed by others, owner={}, subsumed={}",
@@ -466,7 +470,7 @@ impl MessageLoopTaskQueues {
         }
         if !owner_entry.owner_of.contains(&subsumed) {
             fml_log_at!(
-                K_LOG_WARNING,
+                kLogWarning,
                 FILE,
                 286,
                 "Thread unmerging failed: owner_entry didn't own the given subsumed queue id, owner={}, subsumed={}",
