@@ -19,3 +19,11 @@ path = "src/bin/ast_dump/main.rs"
 [[test]]
 name = "ast_oracle"
 path = "tests/ast_oracle.rs"
+
+[[test]]
+name = "utilities_test"
+path = "tests/utilities_test.rs"
+
+[[test]]
+name = "visitor_test"
+path = "tests/visitor_test.rs"
