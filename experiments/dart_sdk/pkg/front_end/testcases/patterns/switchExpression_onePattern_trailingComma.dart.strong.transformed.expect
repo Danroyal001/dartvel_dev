@@ -1,0 +1,17 @@
+library;
+import self as self;
+import "dart:core" as core;
+
+static method f(dynamic x) → dynamic
+  return block {
+    core::int #t1;
+    #L1:
+    switch(x) /* dynamic */ {
+      #L2:
+      default:
+        {
+          #t1 = 0;
+          break #L1;
+        }
+    }
+  } =>#t1;

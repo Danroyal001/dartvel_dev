@@ -1,0 +1,281 @@
+// Copyright (c) 2022, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:io';
+
+import 'package:args/args.dart';
+import 'package:frontend_server/resident_frontend_server_utils.dart'
+    show
+        computeCachedDillAndCompilerOptionsPaths,
+        ResidentCompilerInfo,
+        sendAndReceiveResponse;
+import 'package:kernel/binary/tag.dart' show isValidSdkHash;
+import 'package:path/path.dart' as p;
+import 'package:pub/pub.dart';
+
+import 'core.dart';
+import 'resident_frontend_constants.dart';
+import 'resident_frontend_utils.dart';
+import 'sdk.dart';
+import 'unified_analytics.dart';
+
+typedef CompileRequestGeneratorCallback =
+    String Function({
+      required String executable,
+      required String outputDill,
+      required GenerateKernelArguments args,
+      String? packages,
+      String? nativeAssetsYaml,
+    });
+
+class GenerateKernelArguments {
+  final List<String>? defines;
+  final String? verbosity;
+  final List<String>? enabledExperiments;
+  final bool? enableAsserts;
+  final String? packages;
+
+  GenerateKernelArguments(
+    this.defines,
+    this.verbosity,
+    this.enabledExperiments,
+    this.enableAsserts,
+    this.packages,
+  );
+
+  factory GenerateKernelArguments.fromArgResults(List<ArgResults> listOfArgs) {
+    List<String>? defines;
+    String? verbosity;
+    List<String>? enabledExperiments;
+    bool? enableAsserts;
+    String? packages;
+
+    for (ArgResults args in listOfArgs) {
+      if (args.wasParsed(defineOption)) {
+        (defines ??= []).addAll(args.multiOption(defineOption));
+      }
+
+      if (args.options.contains(enableAssertsOption) &&
+          args.wasParsed(enableAssertsOption)) {
+        enableAsserts = args.flag(enableAssertsOption);
+      }
+
+      if (args.wasParsed(enableExperimentOption)) {
+        (enabledExperiments ??= []).addAll(
+          args.multiOption(enableExperimentOption),
+        );
+      }
+
+      if (args.wasParsed(verbosityOption)) {
+        verbosity = args[verbosityOption];
+      }
+
+      if (args.wasParsed('packages')) {
+        packages = args.option('packages');
+      }
+    }
+
+    return GenerateKernelArguments(
+      defines,
+      verbosity,
+      enabledExperiments,
+      enableAsserts,
+      packages,
+    );
+  }
+}
+
+/// Uses the resident frontend compiler to compute a kernel file for
+/// [executable]. Throws a [FrontendCompilerException] if the compilation
+/// fails or if the source code contains compilation errors.
+///
+/// [executable] is expected to contain a path to the dart source file and
+/// a package_config file.
+///
+/// [serverInfoFile] is the location that should be checked to find an existing
+/// Resident Frontend Compiler. If one does not exist, a server is created and
+/// its address and port information is written to this file location.
+///
+/// [args] is the [ArgResults] object that is created by the DartDev commands.
+/// This is where the optional path override for the serverInfoFile is passed
+/// in.
+///
+/// [compileRequestGenerator] is applied to produce a request for the Resident
+/// Frontend Server.
+Future<DartExecutableWithPackageConfig> generateKernel(
+  DartExecutableWithPackageConfig executable,
+  File serverInfoFile,
+  GenerateKernelArguments args,
+  CompileRequestGeneratorCallback compileRequestGenerator, {
+  bool aot = false,
+  String? nativeAssetsYaml,
+}) async {
+  // Locates the package_config.json and cached kernel file, makes sure the
+  // resident frontend server is up and running, and computes a kernel.
+  await ensureCompilationServerIsRunning(serverInfoFile);
+
+  final String? packageConfig;
+  if (args.packages ?? executable.packageConfig case final packages?) {
+    packageConfig = p.absolute(packages);
+  } else {
+    final packageRoot = _packageRootFor(executable);
+    packageConfig = packageRoot != null
+        ? p.join(packageRoot, packageConfigName)
+        : null;
+  }
+
+  final canonicalizedExecutablePath = p.normalize(
+    p.absolute(executable.executable),
+  );
+  final cachedDillPath = computeCachedDillAndCompilerOptionsPaths(
+    canonicalizedExecutablePath,
+  ).cachedDillPath;
+
+  Map<String, dynamic> result;
+  try {
+    result = await sendAndReceiveResponse(
+      compileRequestGenerator(
+        executable: canonicalizedExecutablePath,
+        outputDill: cachedDillPath,
+        packages: packageConfig,
+        args: args,
+        nativeAssetsYaml: nativeAssetsYaml,
+      ),
+      serverInfoFile,
+    );
+  } on FileSystemException catch (e) {
+    throw FrontendCompilerException._(e.message, CompilationIssue.serverError);
+  }
+  if (!result[responseSuccessString]) {
+    if (result.containsKey(responseErrorString)) {
+      if (result['restartMightHelp'] ?? true) {
+        throw FrontendCompilerException._(
+          result[responseErrorString],
+          CompilationIssue.serverError,
+        );
+      } else {
+        throw FrontendCompilerException._(
+          result[responseErrorString],
+          CompilationIssue.serverErrorNoRestart,
+        );
+      }
+    } else {
+      throw FrontendCompilerException._(
+        (result[responseOutputString] as List<dynamic>).join('\n'),
+        CompilationIssue.compilationError,
+      );
+    }
+  }
+  return DartExecutableWithPackageConfig(
+    executable: cachedDillPath,
+    packageConfig: packageConfig,
+  );
+}
+
+/// Ensures that a Resident Frontend Compiler associated with [serverInfoFile]
+/// will be running at the point when the future returned by this function
+/// completes. Throws a [FrontendCompilerException] if starting the server
+/// fails.
+Future<void> ensureCompilationServerIsRunning(
+  File serverInfoFile,
+) async {
+  if (serverInfoFile.existsSync()) {
+    final residentCompilerInfo = ResidentCompilerInfo.fromFile(serverInfoFile);
+    if (residentCompilerInfo.sdkHash != null &&
+        isValidSdkHash(residentCompilerInfo.sdkHash!)) {
+      // There is already a Resident Frontend Compiler associated with
+      // [serverInfoFile] that is running and compatible with the Dart SDK that
+      // the user is currently using.
+      return;
+    } else {
+      log.stdout(
+        'The Dart SDK has been upgraded or downgraded since the Resident '
+        'Frontend Compiler was started, so the Resident Frontend Compiler will '
+        'now be restarted for compatibility reasons.',
+      );
+      await shutDownOrForgetResidentFrontendCompiler(serverInfoFile);
+    }
+  }
+  try {
+    Directory(p.dirname(serverInfoFile.path)).createSync(recursive: true);
+    final Process frontendServerProcess;
+    if (File(sdk.frontendServerAotSnapshot).existsSync()) {
+      frontendServerProcess = await Process.start(
+        sdk.dartAotRuntime,
+        [
+          sdk.frontendServerAotSnapshot,
+          '--resident-info-file-name=${serverInfoFile.absolute.path}',
+        ],
+        workingDirectory: homeDir?.path,
+        mode: ProcessStartMode.detachedWithStdio,
+      );
+    } else {
+      throw StateError('Unable to find snapshot for frontend server');
+    }
+
+    final serverOutput = String.fromCharCodes(
+      await frontendServerProcess.stdout.first,
+    ).trim();
+    if (serverOutput.startsWith('Error')) {
+      throw StateError(serverOutput);
+    }
+    // Prints the server's address and port information
+    log.stdout(serverOutput);
+    log.stdout('');
+    log.stdout(
+      'Run dart compilation-server shutdown to terminate the process.',
+    );
+  } catch (e) {
+    throw FrontendCompilerException._(
+      e.toString(),
+      CompilationIssue.serverCreationError,
+    );
+  }
+}
+
+/// Returns the path to the root of the [executable]'s package, or null
+/// if it is a standalone dart file.
+String? _packageRootFor(DartExecutableWithPackageConfig executable) {
+  Directory currentDirectory = Directory(
+    p.dirname(p.normalize(p.absolute(executable.executable))),
+  );
+
+  while (currentDirectory.parent.path != currentDirectory.path) {
+    if (File(p.join(currentDirectory.path, packageConfigName)).existsSync()) {
+      return currentDirectory.path;
+    }
+    currentDirectory = currentDirectory.parent;
+  }
+  return null;
+}
+
+/// Indicates the type of issue encountered with the
+/// Resident Frontend Compiler
+enum CompilationIssue {
+  /// Communication with the Resident Frontend Compiler failed.
+  serverError,
+
+  /// Communication with the Resident Frontend Compiler failed but where restart
+  /// of the server does not make sense.
+  serverErrorNoRestart,
+
+  /// The Resident Frontend Compiler failed to launch
+  serverCreationError,
+
+  /// There were compilation errors in the Dart source code.
+  compilationError,
+}
+
+/// Indicates an error with the Resident Frontend Compiler.
+class FrontendCompilerException implements Exception {
+  final String message;
+  final CompilationIssue issue;
+
+  FrontendCompilerException._(this.message, this.issue);
+
+  @override
+  String toString() {
+    return 'FrontendCompilerException: $message';
+  }
+}

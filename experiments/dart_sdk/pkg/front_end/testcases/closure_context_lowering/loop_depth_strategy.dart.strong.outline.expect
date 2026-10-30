@@ -1,0 +1,8 @@
+library;
+import self as self;
+import "dart:core" as core;
+
+static method foo(core::List<() → void> functions) → dynamic
+  ;
+static method bar(core::List<() → core::int> functions) → dynamic
+  ;

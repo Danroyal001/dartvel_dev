@@ -1,0 +1,18 @@
+(module $M
+  (type $#Top (struct
+    (field $#classId i32)))
+  (type $JSExternWrapper (sub $#Top (struct
+    (field $#classId i32)
+    (field $_externRef (ref extern)))))
+  (global $".hello world" (import "" "hello world") (ref extern))
+  (global $"\"hello world\"" (ref $JSExternWrapper)
+    (i32.const 67)
+    (global.get $".hello world")
+    (struct.new $JSExternWrapper))
+  (@binaryen.inline 0)
+  (func $main
+    global.get $"\"hello world\""
+    call $print
+  )
+  (func $print (param $var0 (ref $#Top)) <...>)
+)

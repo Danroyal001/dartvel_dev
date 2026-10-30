@@ -1,0 +1,435 @@
+// Copyright (c) 2025, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:test_reflective_loader/test_reflective_loader.dart';
+
+import '../../../../client/completion_driver_test.dart';
+
+void main() {
+  defineReflectiveSuite(() {
+    defineReflectiveTests(PrimaryConstructorDeclarationTest);
+  });
+}
+
+@reflectiveTest
+class PrimaryConstructorDeclarationTest extends AbstractCompletionDriverTest
+    with PrimaryConstructorDeclarationTestCases {}
+
+mixin PrimaryConstructorDeclarationTestCases on AbstractCompletionDriverTest {
+  Future<void> test_afterCovariant() async {
+    await computeSuggestions('''
+class C(covariant ^) {}
+''');
+    assertResponse(r'''
+suggestions
+  dynamic
+    kind: keyword
+  final
+    kind: keyword
+  super
+    kind: keyword
+  this
+    kind: keyword
+  var
+    kind: keyword
+  void
+    kind: keyword
+''');
+  }
+
+  Future<void> test_afterFinal() async {
+    await computeSuggestions('''
+class C(final ^) {}
+''');
+    assertResponse(r'''
+suggestions
+  dynamic
+    kind: keyword
+  void
+    kind: keyword
+''');
+  }
+
+  Future<void> test_afterFinalAndType() async {
+    await computeSuggestions('''
+class C(final int ^) {}
+''');
+    assertResponse(r'''
+suggestions
+''');
+  }
+
+  Future<void> test_afterRequired() async {
+    await computeSuggestions('''
+class C({required ^}) {}
+''');
+    assertResponse(r'''
+suggestions
+  dynamic
+    kind: keyword
+  final
+    kind: keyword
+  super
+    kind: keyword
+  this
+    kind: keyword
+  var
+    kind: keyword
+  void
+    kind: keyword
+''');
+  }
+
+  Future<void> test_afterType() async {
+    await computeSuggestions('''
+class C(int ^) {}
+''');
+    assertResponse(r'''
+suggestions
+''');
+  }
+
+  Future<void> test_afterVar() async {
+    await computeSuggestions('''
+class C(var ^) {}
+''');
+    assertResponse(r'''
+suggestions
+  dynamic
+    kind: keyword
+  void
+    kind: keyword
+''');
+  }
+
+  Future<void> test_afterVarAndType() async {
+    await computeSuggestions('''
+class C(var int ^) {}
+''');
+    assertResponse(r'''
+suggestions
+''');
+  }
+
+  Future<void> test_beforeFirstParameter() async {
+    await computeSuggestions('''
+class C(^) {}
+''');
+    assertResponse(r'''
+suggestions
+  covariant
+    kind: keyword
+  dynamic
+    kind: keyword
+  final
+    kind: keyword
+  super
+    kind: keyword
+  this
+    kind: keyword
+  var
+    kind: keyword
+  void
+    kind: keyword
+''');
+  }
+
+  Future<void> test_beforeLastParameter() async {
+    await computeSuggestions('''
+class C(int x, ^) {}
+''');
+    assertResponse(r'''
+suggestions
+  covariant
+    kind: keyword
+  dynamic
+    kind: keyword
+  final
+    kind: keyword
+  super
+    kind: keyword
+  this
+    kind: keyword
+  var
+    kind: keyword
+  void
+    kind: keyword
+''');
+  }
+
+  Future<void> test_beforeMiddleParameter() async {
+    await computeSuggestions('''
+class C(int x, ^, int z) {}
+''');
+    assertResponse(r'''
+suggestions
+  covariant
+    kind: keyword
+  dynamic
+    kind: keyword
+  final
+    kind: keyword
+  super
+    kind: keyword
+  this
+    kind: keyword
+  var
+    kind: keyword
+  void
+    kind: keyword
+''');
+  }
+
+  Future<void> test_beforeName() async {
+    await computeSuggestions('''
+class ^ C {}
+''');
+    assertResponse(r'''
+suggestions
+  const
+    kind: keyword
+''');
+  }
+
+  Future<void> test_constructorBody_fields() async {
+    await computeSuggestions('''
+class Primary() {
+  late final String f0;
+  this {
+    f^
+  }
+}
+''');
+    assertResponse(r'''
+replacement
+  left: 1
+suggestions
+  f0
+    kind: field
+  if
+    kind: keyword
+  final
+    kind: keyword
+  for
+    kind: keyword
+  false
+    kind: keyword
+''');
+  }
+
+  Future<void> test_constructorBody_primaryConstructorFields() async {
+    await computeSuggestions('''
+class Primary(final String f0) {
+  this {
+    print(f^);
+  }
+}
+''');
+    assertResponse(r'''
+replacement
+  left: 1
+suggestions
+  f0
+    kind: field
+  false
+    kind: keyword
+''');
+  }
+
+  Future<void> test_inFirstParameter() async {
+    await computeSuggestions('''
+class C(a^) {}
+''');
+    assertResponse(r'''
+replacement
+  left: 1
+suggestions
+  covariant
+    kind: keyword
+  dynamic
+    kind: keyword
+  final
+    kind: keyword
+  var
+    kind: keyword
+''');
+  }
+
+  Future<void> test_inFirstParameter_enum() async {
+    await computeSuggestions('''
+enum E(a^) {}
+''');
+    assertResponse(r'''
+replacement
+  left: 1
+suggestions
+  covariant
+    kind: keyword
+  dynamic
+    kind: keyword
+  final
+    kind: keyword
+  var
+    kind: keyword
+''');
+  }
+
+  Future<void> test_inFirstParameter_thisSuper() async {
+    await computeSuggestions('''
+class C(s^) {}
+''');
+    assertResponse(r'''
+replacement
+  left: 1
+suggestions
+  super
+    kind: keyword
+  this
+    kind: keyword
+''');
+  }
+
+  Future<void> test_inFirstParameter_thisSuper_enum() async {
+    await computeSuggestions('''
+enum E(s^) {}
+''');
+    assertResponse(r'''
+replacement
+  left: 1
+suggestions
+  super
+    kind: keyword
+  this
+    kind: keyword
+''');
+  }
+
+  Future<void> test_inFirstParameter_void() async {
+    await computeSuggestions('''
+class C(v^) {}
+''');
+    assertResponse(r'''
+replacement
+  left: 1
+suggestions
+  covariant
+    kind: keyword
+  var
+    kind: keyword
+  void
+    kind: keyword
+''');
+  }
+
+  Future<void> test_inFirstParameter_void_enum() async {
+    await computeSuggestions('''
+enum E(v^) {}
+''');
+    assertResponse(r'''
+replacement
+  left: 1
+suggestions
+  covariant
+    kind: keyword
+  var
+    kind: keyword
+  void
+    kind: keyword
+''');
+  }
+
+  Future<void> test_initializer_last() async {
+    await computeSuggestions('''
+class A(var int f0) {
+  this : ^;
+
+  int f1;
+}
+''');
+    assertResponse(r'''
+suggestions
+  assert
+    kind: keyword
+  f1
+    kind: field
+  super
+    kind: keyword
+  this
+    kind: keyword
+''');
+  }
+
+  Future<void> test_initializer_notLast() async {
+    await computeSuggestions('''
+class A(var int f0) {
+  this : ^, super();
+
+  int f1;
+}
+''');
+    assertResponse(r'''
+suggestions
+  assert
+    kind: keyword
+  f1
+    kind: field
+''');
+  }
+
+  Future<void> test_initializerAssertExpression() async {
+    await computeSuggestions('''
+enum MyEnum(final String f0) {
+  first('123');
+
+  this : assert(f^, 'hello');
+}
+''');
+    assertResponse(r'''
+replacement
+  left: 1
+suggestions
+  false
+    kind: keyword
+  f0
+    kind: field
+''');
+  }
+
+  Future<void> test_noName() async {
+    await computeSuggestions('''
+class ^
+''');
+    assertResponse(r'''
+suggestions
+  const
+    kind: keyword
+''');
+  }
+
+  Future<void> test_superField() async {
+    await computeSuggestions('''
+class C({var int f0});
+
+class D({super.^}) extends C;
+''');
+    assertResponse('''
+suggestions
+  f0
+    kind: parameter
+''');
+  }
+
+  Future<void> test_superParameter() async {
+    await computeSuggestions('''
+class C(int p0);
+
+class D(super.^) extends C;
+''');
+    assertResponse('''
+suggestions
+  p0
+    kind: parameter
+''');
+  }
+}
