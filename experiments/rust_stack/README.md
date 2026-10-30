@@ -145,3 +145,17 @@ Memory is `dartr`'s median peak as a share of Dart's. On these four corpora
 `dartr` passes Part 8's gate for Track A (wall time and peak memory no more
 than Dart's). The gate is every corpus and the language server too, and
 neither has been measured yet, so this is not yet a pass.
+
+### Flutter code
+
+`baselines/dartr-vs-dart-flutter-2026-10-30.json`, cold, three runs, Flutter
+3.47.4 (Dart 3.13.3):
+
+| Corpus | Dart 3.13.3 | dartr | Faster | Memory |
+|---|---|---|---|---|
+| analyze Flutter `packages/flutter` | 54.53 s, 1,462 MB | 13.74 s, 1,296 MB | 4.0× | 89% |
+| analyze Dartvel's 5 Flutter packages, one after another | 103.31 s, 1,369 MB | 14.39 s, 1,085 MB | 7.2× | 79% |
+| analyze `dartvel_flutter` | 28.98 s, 1,382 MB | 7.73 s, 1,077 MB | 3.7× | 78% |
+
+`dartr`'s runs on `packages/flutter` ranged from 9.4 s to 16.1 s while
+another build shared the four cores, so its speed-up there is a floor.

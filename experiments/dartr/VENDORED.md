@@ -62,3 +62,23 @@ Against the formatter Dart 3.13.3 ships, `dart_style` `39edc2d946a5`
   all 75 runs.
 
 No formatter source change was needed to get there.
+
+## Analyzer parity: 30 October 2026
+
+`dartr analyze` against `dart analyze` 3.13.3: identical diagnostics
+(file, offset, length, code, severity and messages) and exit codes on
+
+- `dart_style`, pub, Dartvel's pure-Dart packages and `experiments/`, with
+  their own analysis options and with every lint rule plus `strict-casts`,
+  `strict-inference` and `strict-raw-types`, and 78 packages from the pub
+  cache with every lint;
+- Flutter 3.47.4 (which bundles Dart 3.13.3): `packages/flutter` (410,008
+  diagnostics with every lint), `flutter_test` and `flutter_tools`, and
+  Dartvel's Flutter packages (`dartvel_flutter`, `dartvel_documents`,
+  `dartvel_scene`, `dartvel_windowing`, `dartvel_dev`).
+
+The 16 root causes the comparison found are fixed, each with a project
+under `crates/dartr/tests/fixtures/analyze_driver/lints_parity/` that
+`analyze_parity_lints_parity` compares with Dart; every one of them failed
+before its fix. Not compared yet: Flutter's other packages and pub.dev as a
+whole.
