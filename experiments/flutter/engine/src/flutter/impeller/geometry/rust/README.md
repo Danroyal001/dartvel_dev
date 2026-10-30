@@ -278,7 +278,18 @@ library, C++'s loads libc++ at run time; with its runtime, the C++ driver is
 the larger.
 
 Safety: the crate has no `unsafe` (`#![forbid(unsafe_code)]`). Under Miri
-(`cargo +nightly miri test -p impeller_geometry --lib`, one module at a time) the run is in progress; the result is recorded here when it ends.
+(`cargo +nightly miri test -p impeller_geometry --lib`, one module at a time,
+nightly 2026-10) 344 of the 347 tests ran and Miri reported no undefined
+behaviour. Seven of them fail under Miri's default, which perturbs the
+results of `sin`, `cos`, `log2` and the like by a few ULP on purpose, because
+upstream compares those exactly (`trig` `multiply_by_scalar_radius`,
+`rstransform` `compare_to_matrix`, `matrix` `is_aligned`, `is_aligned_2d`,
+`min_max_scales_2d`, `geometry` `can_generate_mip_counts`,
+`test_decomposition2`); all seven pass with
+`MIRIFLAGS=-Zmiri-deterministic-floats`. The three `arc` tests that sweep
+thousands of angles (`various_start_angles`, `various_end_angles`,
+`various_tiny_arcs_near_quadrant_axis`) did not finish in 25 minutes each
+under the interpreter and were stopped.
 
 Coverage of the library by the unit tests and the oracle (4 seeds),
 measured with `-C instrument-coverage -Zcoverage-options=branch` and LLVM 22's
