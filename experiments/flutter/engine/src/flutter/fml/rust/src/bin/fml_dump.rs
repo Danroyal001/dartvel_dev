@@ -2403,9 +2403,12 @@ fn bench_loop() {
         MessageLoop::ensure_initialized_for_current_thread();
         let loop_ = MessageLoop::get_current();
         const COUNT: usize = 10000;
-        let current = Arc::new(AtomicUsize::new(0));
+        // A static, as the C++ tasks capture a reference: no reference count
+        // is shared between the tasks.
+        static CURRENT: AtomicUsize = AtomicUsize::new(0);
+        let current = &CURRENT;
+        current.store(0, Relaxed);
         for i in 0..COUNT {
-            let current = current.clone();
             loop_.get_task_runner().post_task(Arc::new(move || {
                 current.fetch_add(1, Relaxed);
                 if i + 1 == COUNT {
@@ -2425,9 +2428,11 @@ fn bench_loop() {
 
 fn bench_thread() {
     let thread = Thread::new("bench");
-    let ran = Arc::new(AtomicUsize::new(0));
+    // A static, as the C++ tasks capture a reference (see bench_loop).
+    static RAN: AtomicUsize = AtomicUsize::new(0);
+    let ran = &RAN;
+    ran.store(0, Relaxed);
     for _ in 0..10000 {
-        let ran = ran.clone();
         thread.get_task_runner().post_task(Arc::new(move || {
             ran.fetch_add(1, Relaxed);
         }));
@@ -2441,9 +2446,11 @@ fn bench_thread() {
 fn bench_concurrent() {
     let loop_ = ConcurrentMessageLoop::create(4);
     let runner = loop_.get_task_runner();
-    let latch = Arc::new(CountDownLatch::new(10000));
+    // The C++ tasks capture the latch by reference; a closure here must be
+    // 'static, so the latch is leaked (one per round) rather than shared
+    // through a reference count every task would bump.
+    let latch: &'static CountDownLatch = Box::leak(Box::new(CountDownLatch::new(10000)));
     for _ in 0..10000 {
-        let latch = latch.clone();
         runner.post_task(Arc::new(move || latch.count_down()));
     }
     latch.wait();
