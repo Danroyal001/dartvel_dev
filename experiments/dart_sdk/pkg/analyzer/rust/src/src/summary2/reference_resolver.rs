@@ -409,7 +409,7 @@ impl<'a> ReferenceResolver<'a> {
                 }
                 let field_types = field_types_nodes.iter().map(|&t| self.types.node_type(self.unit, t)).collect();
                 let t = self.add_type_builder(TypeBuilder::Record(RecordTypeBuilder {
-                    node,
+                    node: (self.unit, node),
                     field_types,
                     field_names: names,
                     nullability_suffix: nullability(question),
@@ -532,7 +532,7 @@ impl<'a> ReferenceResolver<'a> {
                     element: element_id.unwrap_or(crate::src::dart::element::element::NO_ELEMENT),
                     arguments,
                     nullability_suffix,
-                    node: Some(node),
+                    node: Some((self.unit, node)),
                     type_: None,
                 }))
             }
@@ -549,7 +549,7 @@ impl<'a> ReferenceResolver<'a> {
             formal_parameters: self.get_parameters(parameters),
             return_type: self.node_type_or_dynamic(return_type),
             nullability_suffix,
-            node: Some(node),
+            node: Some((self.unit, node)),
             type_: None,
         }
     }
