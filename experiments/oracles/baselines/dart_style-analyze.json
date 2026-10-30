@@ -1,0 +1,343 @@
+{
+  "corpus": {
+    "submodule": "experiments/upstream/dart_style",
+    "path": "lib",
+    "revision": "81042caf2e54ac6d080e2b0c70669b52703c0b24"
+  },
+  "command": "cp pubspec_overrides.pinned.yaml pubspec_overrides.yaml && dart pub get && dart run bin/dump.dart ../../experiments/upstream/dart_style/lib --out <dir> --tool analyze",
+  "harness": "dartvel-oracles",
+  "schema": 1,
+  "tool": "analyze",
+  "toolVersions": {
+    "analyzer": {
+      "version": "14.7.0-dev",
+      "source": "path",
+      "revision": "ceea75dd2b82221350529215d00af67db123347b"
+    },
+    "_fe_analyzer_shared": {
+      "version": "110.0.0",
+      "source": "path",
+      "revision": "ceea75dd2b82221350529215d00af67db123347b"
+    }
+  },
+  "dartSdk": "3.13.7",
+  "settings": {
+    "sdk": "running"
+  },
+  "corpusRoots": [
+    "lib"
+  ],
+  "fileCount": 77,
+  "errorCount": 0,
+  "overallSha256": "ecf1e9b31dd4dd0aef8f3e06b546ad6f72f882e0b6e825582fd17036c46e4280",
+  "files": [
+    {
+      "output": "lib/dart_style.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/ast_extensions.dart.diagnostics.jsonl",
+      "sha256": "2cbcabac8a490f0cbdd5f8343ecb84e06fdd330f043ba46a96787f1f2fc0d53e"
+    },
+    {
+      "output": "lib/src/back_end/code.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/back_end/code_writer.dart.diagnostics.jsonl",
+      "sha256": "f23f7f2cc27727b20338a8013933831681fab0f640348804f2e606d0c11daa9f"
+    },
+    {
+      "output": "lib/src/back_end/solution.dart.diagnostics.jsonl",
+      "sha256": "4045854774a5dd2713d326be1eaeee634a6fe2af8764bc69dd019a7fb2a14557"
+    },
+    {
+      "output": "lib/src/back_end/solution_cache.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/back_end/solver.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/cli/analyzer.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/cli/format_command.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/cli/formatter_options.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/cli/io.dart.diagnostics.jsonl",
+      "sha256": "5ff9508e3592e91492f75d5d2ef84ebcad9f169fa28bd7edefab792239360090"
+    },
+    {
+      "output": "lib/src/cli/output.dart.diagnostics.jsonl",
+      "sha256": "da939ac1384dfa4437144360b3bb1eb2bec5329c0006ad9bd26d366591683ba2"
+    },
+    {
+      "output": "lib/src/cli/show.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/cli/summary.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/comment_type.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/constants.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/dart_formatter.dart.diagnostics.jsonl",
+      "sha256": "595082f0094e0c4e87c4a3ef8fda0ed2a0cacf277a35128e7b0cdfb8085c52c6"
+    },
+    {
+      "output": "lib/src/dart_version_history.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/debug.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/exceptions.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/fast_hash.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/front_end/ast_node_visitor.dart.diagnostics.jsonl",
+      "sha256": "1e67a338f318da17cfb6616b9398299b68be0bc4d63fb83b678659ba8f9fdd6c"
+    },
+    {
+      "output": "lib/src/front_end/chain_builder.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/front_end/comment_writer.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/front_end/delimited_list_builder.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/front_end/expression_contents.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/front_end/formatting_style.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/front_end/piece_factory.dart.diagnostics.jsonl",
+      "sha256": "170dcabdfeaf1cd8d511e4620dc91f60885074b0ff53b73bdd18c80a0068e437"
+    },
+    {
+      "output": "lib/src/front_end/piece_writer.dart.diagnostics.jsonl",
+      "sha256": "6e5fae9b2495511f364487b56dcfc38995336a38ff772686b1fa4cfd1c981ab0"
+    },
+    {
+      "output": "lib/src/front_end/sequence_builder.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/front_end/type_builder.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/adjacent.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/assign.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/assign_3_dot_7.dart.diagnostics.jsonl",
+      "sha256": "b9661205605cec4d634f0950b1725a737f32e70788c426a2b4c07a8be5497a77"
+    },
+    {
+      "output": "lib/src/piece/case.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/chain.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/clause.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/constructor.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/control_flow.dart.diagnostics.jsonl",
+      "sha256": "5a1b64ff7949eeecacf40434d41d84aa1dd5cfdf60361c2e0773e4349ff0ff50"
+    },
+    {
+      "output": "lib/src/piece/for.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/grouping.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/if_case.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/infix.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/leading_comment.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/list.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/piece.dart.diagnostics.jsonl",
+      "sha256": "c84c06a8919157ad0429ff3f6d2337efeb0f1af1243035ba7ecb8f9e3d24a61d"
+    },
+    {
+      "output": "lib/src/piece/prefix.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/sequence.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/text.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/type.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/type_parameter_bound.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/type_test.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/piece/variable.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/profile.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/argument_list_visitor.dart.diagnostics.jsonl",
+      "sha256": "aebdee552bf09226294612c8a0229a5af0479efb11024b152b90e1fbaa9bd646"
+    },
+    {
+      "output": "lib/src/short/call_chain_visitor.dart.diagnostics.jsonl",
+      "sha256": "1316c5fe41548e3cf4b1b353244d67e3685cd0a1c08b7697c4e24ab27cc0e977"
+    },
+    {
+      "output": "lib/src/short/chunk.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/chunk_builder.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/line_splitting/line_splitter.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/line_splitting/rule_set.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/line_splitting/solve_state.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/line_splitting/solve_state_queue.dart.diagnostics.jsonl",
+      "sha256": "113ab81761a8df58817f8e7da882a5ead5ce52bd5489eb4ad83bb9898fa9546a"
+    },
+    {
+      "output": "lib/src/short/line_writer.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/marking_scheme.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/nesting_builder.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/nesting_level.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/rule/argument.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/rule/combinator.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/rule/rule.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/rule/type_argument.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/selection.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/source_comment.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/short/source_visitor.dart.diagnostics.jsonl",
+      "sha256": "d71102e96e659a8b5eed6d3691471da44b9608e57ba52b7f9bfa520437a26680"
+    },
+    {
+      "output": "lib/src/source_code.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/string_compare.dart.diagnostics.jsonl",
+      "sha256": "4b4b581ee5baf13af4f6867757fae880ead494eefee5129f39354828a71e93a8"
+    },
+    {
+      "output": "lib/src/testing/benchmark.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "output": "lib/src/testing/test_file.dart.diagnostics.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

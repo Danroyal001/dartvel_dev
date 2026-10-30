@@ -22,6 +22,7 @@ Python still is not, and Dart tooling is still Dart. Rust anywhere outside
 |---|---|
 | [`rust_stack/`](rust_stack/) | Phase 0: measuring what has to be ported, reproducibly |
 | [`dv_dialect/`](dv_dialect/) | Track I: the optional-semicolon `.dv` dialect, converted losslessly to and from Dart |
+| [`oracles/`](oracles/) | Track A's oracle: deterministic dumps of the formatter's output and the analyzer's diagnostics, and the byte-for-byte compare a port is checked with |
 | [`upstream/`](upstream/) | The upstream sources the ports start from and are compared against, as git submodules at pinned commits |
 
 Dartvel's public forks are here too, as git submodules on each repository's
