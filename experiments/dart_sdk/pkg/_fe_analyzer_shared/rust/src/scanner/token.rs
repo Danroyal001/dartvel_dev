@@ -3434,3 +3434,73 @@ impl TokenStore {
         result
     }
 }
+
+// The synthetic token classes the parser's rewriter creates.
+impl TokenStore {
+    /// `new SyntheticBeginToken(type, offset, precedingComment)`.
+    pub fn synthetic_begin_token(
+        &mut self,
+        type_: &TokenType,
+        offset: i32,
+        preceding_comment: TokenId,
+    ) -> TokenId {
+        self.push(
+            TokenRuntimeType::SyntheticBeginToken,
+            type_,
+            offset,
+            preceding_comment,
+            Lexeme::Fixed,
+        )
+    }
+
+    /// `new SyntheticKeywordToken(keyword, offset)`.
+    pub fn synthetic_keyword_token(&mut self, keyword: &Keyword, offset: i32) -> TokenId {
+        self.push(
+            TokenRuntimeType::SyntheticKeywordToken,
+            &keyword.base,
+            offset,
+            NO_TOKEN,
+            Lexeme::Fixed,
+        )
+    }
+
+    /// `new ReplacementToken(type, replacedToken)`: at the replaced token's
+    /// offset and with its comments. `replacedToken` is kept in `a`.
+    pub fn replacement_token(&mut self, type_: &TokenType, replaced_token: TokenId) -> TokenId {
+        let offset = self.offset(replaced_token);
+        let id = self.push(
+            TokenRuntimeType::ReplacementToken,
+            type_,
+            offset,
+            NO_TOKEN,
+            Lexeme::Fixed,
+        );
+        self.data_mut(id).a = replaced_token as i32;
+        let comments = self.preceding_comments(replaced_token);
+        self.set_preceding_comments(id, comments);
+        id
+    }
+
+    /// `new StringToken(type, value, charOffset)`.
+    pub fn string_token(
+        &mut self,
+        type_: &TokenType,
+        value: Vec<u16>,
+        char_offset: i32,
+    ) -> TokenId {
+        let index = self.add_string(value);
+        self.push(
+            TokenRuntimeType::StringToken,
+            type_,
+            char_offset,
+            NO_TOKEN,
+            Lexeme::Owned(index),
+        )
+    }
+
+    /// `ReplacementToken.replacedToken`.
+    pub fn replaced_token(&self, token: TokenId) -> TokenId {
+        debug_assert!(self.runtime_type(token) == TokenRuntimeType::ReplacementToken);
+        self.data(token).a as TokenId
+    }
+}

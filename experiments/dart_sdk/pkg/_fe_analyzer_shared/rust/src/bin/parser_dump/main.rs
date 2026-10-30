@@ -7,8 +7,25 @@
 //
 // Usage: parser_dump [--bench=N] --out <dir> <root>...
 
+// Generated (see oracle/generate_parser_trace.dart), so not reformatted.
+#[rustfmt::skip]
+mod trace_listener;
+
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::time::Instant;
+
+use fe_analyzer_shared::messages::codes::Message;
+use fe_analyzer_shared::parser::experimental_features::{
+    DefaultExperimentalFeatures, ExperimentalFeatures,
+};
+use fe_analyzer_shared::parser::forwarding_listener::{ForwardingListener, NullListener};
+use fe_analyzer_shared::parser::listener::Listener;
+use fe_analyzer_shared::parser::parser_impl::Parser;
+use fe_analyzer_shared::scanner::scanner::{ScannerResult, scan};
+use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId, TokenStore};
 
 fn main() {
     let mut out: Option<String> = None;
@@ -30,6 +47,11 @@ fn main() {
     }
 
     let inputs = corpus_files(&roots);
+
+    if bench > 0 {
+        run_bench(&inputs, bench);
+        return;
+    }
 
     let out = out.unwrap();
     for (path, relative) in &inputs {
@@ -86,7 +108,155 @@ fn walk(root: &Path, dir: &Path, label: &str, files: &mut Vec<(PathBuf, String)>
     }
 }
 
-/// The parser is not ported yet: every trace is empty.
-fn dump_file(_bytes: &[u8]) -> String {
-    String::new()
+fn run_scanner(bytes: &[u8]) -> ScannerResult {
+    let configuration = DefaultExperimentalFeatures.build_scanner_configuration();
+    scan(Rc::from(bytes), Some(configuration), true, || None, true)
+}
+
+fn new_parser(listener: Box<dyn Listener>, result: ScannerResult) -> (Parser, TokenId) {
+    let parser = Parser::new(
+        listener,
+        result.store,
+        true,
+        Box::new(DefaultExperimentalFeatures),
+    );
+    (parser, result.tokens)
+}
+
+fn dump_file(bytes: &[u8]) -> String {
+    let result = run_scanner(bytes);
+    let (mut parser, tokens) = new_parser(Box::new(TraceListener::default()), result);
+    let crashed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        parser.parse_unit(tokens);
+    }))
+    .is_err();
+    // Recovery can leave a forwarding listener installed around the trace
+    // listener, as upstream does.
+    let mut listener: Box<dyn std::any::Any> = parser.listener;
+    loop {
+        match listener.downcast::<TraceListener>() {
+            Ok(trace) => {
+                let mut out = trace.out;
+                if crashed {
+                    out.push_str("crash\n");
+                }
+                return out;
+            }
+            Err(other) => {
+                let forwarding = other
+                    .downcast::<ForwardingListener>()
+                    .expect("trace listener");
+                listener = forwarding.listener.expect("forwarded listener");
+            }
+        }
+    }
+}
+
+/// Scans every file once per round, then parses the token streams with a
+/// listener that does nothing, timing only the parsing, as the Dart oracle
+/// does.
+fn run_bench(inputs: &[(PathBuf, String)], rounds: usize) {
+    let data: Vec<Vec<u8>> = inputs.iter().map(|(p, _)| fs::read(p).unwrap()).collect();
+    let total_bytes: usize = data.iter().map(|b| b.len()).sum();
+    let mut times = Vec::new();
+    for _ in 0..rounds {
+        let streams: Vec<ScannerResult> = data.iter().map(|b| run_scanner(b)).collect();
+        let watch = Instant::now();
+        for result in streams {
+            let (mut parser, tokens) = new_parser(Box::new(NullListener::new()), result);
+            parser.parse_unit(tokens);
+        }
+        times.push(watch.elapsed().as_micros());
+    }
+    times.sort();
+    println!(
+        "rust parser files={} bytes={total_bytes} rounds={rounds} min_us={} median_us={}",
+        data.len(),
+        times[0],
+        times[times.len() / 2]
+    );
+}
+
+/// The listener of the oracle: every event is a line, see
+/// oracle/parser_trace_format.dart.
+#[derive(Default)]
+pub struct TraceListener {
+    pub out: String,
+}
+
+impl TraceListener {
+    fn start(&mut self, name: &str) {
+        self.out.push_str(name);
+    }
+
+    fn end(&mut self) {
+        self.out.push('\n');
+    }
+
+    /// `formatToken`.
+    fn token(&mut self, tokens: &TokenStore, token: TokenId) {
+        self.out.push(' ');
+        if token == NO_TOKEN {
+            self.out.push('-');
+            return;
+        }
+        if tokens.runtime_type(token).is_error_token() {
+            let _ = write!(
+                self.out,
+                "!{}@{}",
+                tokens.error_code(token),
+                tokens.offset(token)
+            );
+            return;
+        }
+        let _ = write!(
+            self.out,
+            "{}@{}\"{}\"",
+            tokens.type_(token).name,
+            tokens.offset(token),
+            escape(&tokens.lexeme(token))
+        );
+        if tokens.is_synthetic(token) {
+            self.out.push('~');
+        }
+    }
+
+    fn value(&mut self, value: impl std::fmt::Display) {
+        let _ = write!(self.out, " {value}");
+    }
+
+    /// `formatString`.
+    fn string(&mut self, value: Option<&str>) {
+        match value {
+            None => self.out.push_str(" -"),
+            Some(value) => {
+                let units: Vec<u16> = value.encode_utf16().collect();
+                let _ = write!(self.out, " \"{}\"", escape(&units));
+            }
+        }
+    }
+
+    /// `formatMessage`.
+    fn message(&mut self, message: &Message) {
+        let problem: Vec<u16> = message.problem_message.encode_utf16().collect();
+        let _ = write!(self.out, " {}\"{}\"", message.code.name, escape(&problem));
+        if let Some(correction) = &message.correction_message {
+            let correction: Vec<u16> = correction.encode_utf16().collect();
+            let _ = write!(self.out, "\"{}\"", escape(&correction));
+        }
+    }
+}
+
+/// Printable ASCII other than `\` and `"` as is; every other UTF-16 code
+/// unit as `\uXXXX`, as the Dart oracle writes it.
+fn escape(units: &[u16]) -> String {
+    let mut sb = String::with_capacity(units.len());
+    for &c in units {
+        if (0x20..0x7f).contains(&c) && c != 0x5c && c != 0x22 {
+            sb.push(c as u8 as char);
+        } else {
+            let _ = write!(sb, "\\u{c:04x}");
+        }
+    }
+    sb
 }

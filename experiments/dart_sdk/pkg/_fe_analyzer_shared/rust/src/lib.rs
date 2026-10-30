@@ -24,5 +24,6 @@
 
 pub mod experiments;
 pub mod messages;
+pub mod parser;
 pub mod scanner;
 pub mod util;
