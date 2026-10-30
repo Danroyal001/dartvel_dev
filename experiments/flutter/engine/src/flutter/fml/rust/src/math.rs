@@ -4,6 +4,8 @@
 // port does the same (`f64 as f32`), since a decimal literal read straight
 // into an f32 can round differently.
 #![allow(non_upper_case_globals)]
+// The literals are upstream's, digit for digit.
+#![allow(clippy::approx_constant, clippy::excessive_precision)]
 
 // e
 pub const kE: f32 = 2.7182818284590452354_f64 as f32;

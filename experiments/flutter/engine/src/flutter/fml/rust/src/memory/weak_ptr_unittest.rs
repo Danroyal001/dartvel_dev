@@ -179,6 +179,27 @@ fn upcast_copy_construction() {
 }
 
 #[test]
+fn upcast_move_construction() {
+    let data = Arc::new(Derived { base: BaseData { member: 0. } });
+    let factory = WeakPtrFactory::new(&data);
+    let ptr = factory.get_weak_ptr();
+    let ptr2 = upcast(ptr);
+    assert_eq!(of(&data), addr(ptr2.get()));
+}
+
+#[test]
+fn upcast_copy_assignment() {
+    let data = Arc::new(Derived { base: BaseData { member: 0. } });
+    let factory = WeakPtrFactory::new(&data);
+    let ptr = factory.get_weak_ptr();
+    let mut ptr2: WeakPtr<dyn Base> = WeakPtr::new();
+    assert!(ptr2.get().is_none());
+    ptr2 = upcast(ptr.clone());
+    assert_eq!(of(&data), addr(ptr.get()));
+    assert_eq!(of(&data), addr(ptr2.get()));
+}
+
+#[test]
 fn upcast_move_assignment() {
     let data = Arc::new(Derived { base: BaseData { member: 0. } });
     let factory = WeakPtrFactory::new(&data);
