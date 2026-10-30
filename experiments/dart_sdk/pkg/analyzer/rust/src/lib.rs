@@ -113,6 +113,7 @@ pub mod src {
     }
     pub mod summary2 {
         pub mod type_builder;
+        pub mod interface_cycles;
         pub mod type_alias;
         pub mod types_builder;
         pub mod default_types_builder;

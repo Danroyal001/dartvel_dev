@@ -96,6 +96,22 @@ impl<'c, 'a> TypesBuilder<'c, 'a> {
         }
         self.set_default_supertypes(libraries);
         self.copy_declaring_formal_parameters_explicit_types(declaring_fields);
+        // `breakInterfaceCycles(_linker, nodes.declarations)`.
+        let mut elements: Vec<ElementId> = Vec::new();
+        for &(unit, node) in declarations {
+            if let Some(&fragment) = self.ctx.fragment_of_node.get(&(unit, node)) {
+                let element = self.ctx.store.fragment(fragment).element;
+                if element != NO_ELEMENT
+                    && matches!(
+                        self.ctx.store.element(element).kind,
+                        ElementKind::CLASS | ElementKind::ENUM | ElementKind::MIXIN | ElementKind::EXTENSION_TYPE
+                    )
+                {
+                    elements.push(element);
+                }
+            }
+        }
+        crate::src::summary2::interface_cycles::break_interface_cycles(self.ctx.store, &elements);
         self.build_enum_children(libraries);
     }
 
