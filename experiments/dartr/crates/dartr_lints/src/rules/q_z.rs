@@ -1822,6 +1822,38 @@ fn unnecessary_raw_strings(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<
     }
 }
 
+/// `StringLexemeHelper._trimInitialWhitespace` (analyzer `ast.dart`): the
+/// first line of a multiline string, when it is only spaces and tabs,
+/// possibly with a `\` before them, is not part of the contents.
+fn trim_initial_whitespace(lexeme: &str, start: usize) -> usize {
+    let bytes = lexeme.as_bytes();
+    let length = bytes.len();
+    let mut index = start;
+    while index < length {
+        match bytes[index] {
+            b'\r' => {
+                if index + 1 < length && bytes[index + 1] == b'\n' {
+                    return index + 2;
+                }
+                return index + 1;
+            }
+            b'\n' => return index + 1,
+            b'\\' => {
+                if index + 1 >= length {
+                    return start;
+                }
+                if !matches!(bytes[index + 1], b'\r' | b'\n' | b'\t' | b' ') {
+                    return start;
+                }
+            }
+            b'\t' | b' ' => {}
+            _ => return start,
+        }
+        index += 1;
+    }
+    start
+}
+
 fn string_content(lexeme: &str) -> Option<(usize, usize, bool, bool)> {
     let raw = lexeme.starts_with('r') || lexeme.starts_with('R');
     let start = usize::from(raw);
@@ -1834,8 +1866,13 @@ fn string_content(lexeme: &str) -> Option<(usize, usize, bool, bool)> {
         .get(start..start + 3)
         .is_some_and(|x| x.iter().all(|q| *q == quote));
     let width = if multiline { 3 } else { 1 };
+    let content_start = if multiline {
+        trim_initial_whitespace(lexeme, start + width)
+    } else {
+        start + width
+    };
     Some((
-        start + width,
+        content_start,
         lexeme.len().saturating_sub(width),
         quote == b'\'',
         multiline,
@@ -1947,7 +1984,13 @@ fn unnecessary_string_escapes(ctx: &LinterContext<'_>, node: NodeId, out: &mut V
                 let token = ctx.ast[part].contents;
                 let lexeme = ctx.ast.tokens.lexeme(token);
                 let start = if index == 0 {
-                    first_start.min(lexeme.len())
+                    // `InterpolationString.contentsOffset` of the first
+                    // element (`StringLexemeHelper` with `isFirst`).
+                    if multiline {
+                        trim_initial_whitespace(lexeme, first_start.min(lexeme.len()))
+                    } else {
+                        first_start.min(lexeme.len())
+                    }
                 } else {
                     0
                 };

@@ -1,0 +1,4 @@
+linter:
+  rules:
+    - unnecessary_string_escapes
+    - use_raw_strings
