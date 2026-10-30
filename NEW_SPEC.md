@@ -12645,7 +12645,9 @@ var c = a + b;
 The design is FFI on native platforms and WebAssembly on the web, handled for
 the developer. What exists today is `DVRust` and `DVRustInt` in
 `dartvel_flutter`, and `DVRustInt` does its arithmetic in Dart. There is no
-Rust behind it yet, and no float, string or struct type.
+Rust behind it yet, and no float, string or struct type. `DV.Rust` stays
+usable from plain Dart and Flutter; `.dv` files take Rust interop further (see
+*The `.dv` Language*).
 
 ---
 
@@ -16774,9 +16776,11 @@ what binds the rest of the specification.
   in peak memory on published benchmarks, and memory-safe outside a counted,
   verified `unsafe` core. A claim without its proof is not made.
 - **Where the code lives.** Everything is in this repository, under
-  `experiments/`: the Rust ports, the pinned upstream Dart SDK and Flutter
-  sources they port from (git submodules under `experiments/upstream/`), and
-  the Dart tooling (measurement, oracle harnesses, the `.dv` dialect). No
+  `experiments/`: the forks of the Dart SDK and Flutter, in-tree at
+  `experiments/dart_sdk` and `experiments/flutter`, with each Rust port
+  written beside the file it replaces; pub and dart_style as git submodules
+  under `experiments/upstream/`; and the Dart tooling (measurement, oracle
+  harnesses, the `.dv` dialect converter). No
   component gets a repository of its own. `experiments/` sits outside the pub
   workspace and every published package, nothing in `packages/` depends on it,
   and it is the One Language Rule's single exception: Rust is allowed there
@@ -16791,8 +16795,86 @@ what binds the rest of the specification.
 
 Deliberately absent: subsets or look-alikes of Dart, rewriting the
 `dart:*` sources or the Flutter framework, removing the GC for programs that
-need one, and optional semicolons in `.dart` files (the dialect is `.dv` only,
-always converted to standard Dart before any other tool sees it).
+need one, and optional semicolons in `.dart` files (they belong to `.dv`;
+see *The `.dv` Language*).
+
+# The `.dv` Language
+
+Stability: `Draft` · Status: `Designed`
+
+Accepted 30 October 2026. Nothing is built yet, and nothing starts before the
+Rust stack side effort reaches full compatibility with Dart and Flutter.
+
+`.dv` is Dartvel's native language, a strict superset of Dart in the way C++ is
+of C: any Dart library renamed to `.dv` compiles and behaves as it did, and on
+top of it come features plain Dart cannot compile, and cannot safely ignore
+either, whether run by the stock toolchain or by Dartvel's Rust one. A
+`.dv` file is never a `.dart` file and is never handed to a Dart compiler.
+Dartvel's toolchain compiles it ahead of time to native code: a shared
+library with a generated C header on native targets, a WebAssembly module on
+the web, or static linking into a Dartvel build. That also gives Dart and
+Flutter something they lack, native libraries written in a Dart-shaped
+language.
+
+## The boundary
+
+- **`.dart` stays plain Dart.** A `.dart` file in a Dartvel project compiles
+  with the stock Dart and Flutter toolchains, byte for byte as it would
+  without Dartvel. No `.dv` feature ever appears in one.
+- **`.dart` reaches `.dv` through FFI.** For every `.dv` library, Dartvel
+  generates a Dart binding over `dart:ffi` (and the web's Wasm interop), shipped
+  as a native asset. In a Dartvel app it is exported from the generated
+  `dartvel_client` barrel. Any plain Dart or Flutter program can load the same
+  shared library and binding without Dartvel installed.
+- **Calls go both ways.** `.dv` code calls back into Dart through generated
+  `NativeCallable`s. Values cross by value (structs, fixed-width numbers) or
+  as owned handles whose lifetime the binding manages, never as raw pointers
+  in application code.
+- **Not `.dv`, because they stay compatible:**
+  - the `dartvel:no-gc` pragma and other `@pragma`s, which plain Dart ignores;
+  - `DV.Rust`, which keeps working from plain Dart and Flutter (`.dv` only goes
+    deeper with it);
+  - anything expressible as an annotation, a generated API or a library.
+- **The grey area.** Optional semicolons need Dartvel's own tooling, but they
+  change nothing a Dart compiler could not run. A `.dv` file that uses only
+  them converts losslessly to and from `.dart` (`experiments/dv_dialect`). A
+  file that uses any feature below cannot be converted, and is compiled
+  natively instead.
+
+## Features
+
+Each one is checked by the compiler, not by convention, and earns its place
+only with a measured claim against the same code in plain Dart.
+
+| Feature | What it is | What it is for | How it is proved |
+|---|---|---|---|
+| `struct` | Value types with several fields and no identity, stored inline in arrays, fields and stack frames, with no object header and no GC | Geometry, colours, matrices, vertices, packets: the millions of tiny objects graphics and data code allocates | Bytes per element and allocation counts; `List<Vec2>` of a million is 16 MB, not about 48 |
+| Fixed-width numbers | `i8`–`i64`, `u8`–`u64`, `f32`, `f64`, and SIMD vectors (`f32x4`, `i32x8` and so on), with wrapping, checked or saturating overflow chosen per operation | Image, audio, codec, ML and maths kernels; layouts identical to Rust's and C's | Memory per field and kernel benchmarks against `int`, `double` and `typed_data` |
+| Ownership | `owned`, `move` and borrows, and destructors that run on scope exit | Files, sockets, GPU textures and native memory freed deterministically, with no use-after-free, double free or leak | Use after move and outliving borrows are compile errors; leak counts in tests are zero |
+| `nogc` as a rule | A function or block the compiler rejects if anything in it, transitively, can allocate or reach the GC | Audio callbacks, frame-critical rendering, input and real-time loops with bounded latency | A compile error on any allocation, and measured worst-case latency. The `.dart` pragma stays a hint; this is the guarantee |
+| Effects | `pure`, `noalloc`, `nothrow` and `const fn`, checked transitively | `const fn` runs at compile time, replacing code generators with faster builds and smaller binaries; `pure` lets the compiler cache and reorder; `nothrow` gives certification analyses control flow they can trust | Violations are compile errors; build time and binary size are measured against the generator they replace |
+| Contracts | `requires`, `ensures` and `invariant`, proved statically where possible and checked at run time otherwise | Certification evidence in the code itself; proved bounds remove run-time checks | A count of proved against checked contracts, and bounds checks eliminated |
+| `unsafe` | The only place raw pointers, unchecked indexing and `extern` declarations are allowed | Everything else is memory-safe by construction, and what is not is in one counted place | The `unsafe` count per library is published with each build |
+| Rust interop | Rust types, traits and crates used directly in `.dv`, with ownership mapped across | `DV.Rust` taken all the way: Rust's ecosystem with no hand-written FFI | No hand-written `unsafe` in the binding, and call overhead measured against `dart:ffi` |
+
+## Rules
+
+- **Zero cost when unused.** A project with no `.dv` file builds an identical
+  binary, at identical speed, whether or not the `.dv` toolchain is installed.
+- **Safe by default.** Outside `unsafe`, a `.dv` program has no undefined
+  behaviour, data race or memory error, and the `unsafe` core is counted and
+  verified as the Rust stack's is.
+- **A stable boundary.** The binding's ABI is generated from the `.dv` source
+  and versioned, so a shared library built by one Dartvel release keeps
+  loading in the next.
+- **No claim without its number.** A feature lands with its benchmark against
+  the plain-Dart equivalent, its proof, and its diagnostics.
+
+Deliberately absent: `.dv` features in `.dart` files, a `.dv`-to-`.dart`
+compiler for native-only features (there is no faithful one), and any change
+to what a plain Dart toolchain accepts.
+
+---
 
 # Mental Model
 

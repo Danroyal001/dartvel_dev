@@ -2291,6 +2291,13 @@
       "absent": "Absent: Tracks A-H, the forks of dart-lang/sdk and flutter/flutter the ports are done in, and the Track D partition measurement. Built: the oracle harnesses; the Phase 0 size measurement and a first cut of the Track I .dv converter, at 99.98% byte-for-byte round trip over 9,941 files of the Dart SDK, Flutter and Dartvel (the two left are deliberate refusals); the rules are not frozen, which needs all of pub.dev."
     },
     {
+      "section": "The `.dv` Language",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": [],
+      "absent": "Accepted 30 October 2026; nothing is built, and nothing starts before the Rust stack side effort is fully compatible with Dart and Flutter. Planned: native compilation of .dv files to a shared library and header, a Wasm module or static linking; a generated dart:ffi binding exported from the dartvel_client barrel and usable from plain Dart; NativeCallable callbacks; struct value types, fixed-width numbers and SIMD, ownership with deterministic destructors, nogc as a compiler rule, pure/noalloc/nothrow/const fn effects, requires/ensures/invariant contracts, counted unsafe, and direct Rust interop; a versioned boundary ABI. The optional-semicolon converter in experiments/dv_dialect exists as a prototype."
+    },
+    {
       "section": "Mental Model",
       "kind": "narrative"
     },
