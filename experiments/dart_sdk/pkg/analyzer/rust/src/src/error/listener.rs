@@ -24,12 +24,12 @@ impl DiagnosticReporter {
 
     /// Reports a diagnostic located by [LocatedDiagnostic].
     pub fn report(&mut self, located_diagnostic: LocatedDiagnostic) {
-        self.report_error(Diagnostic {
-            diagnostic_code: located_diagnostic.code,
-            offset: located_diagnostic.offset,
-            length: located_diagnostic.length,
-            arguments: located_diagnostic.arguments,
-        });
+        self.report_error(Diagnostic::tmp(
+            located_diagnostic.offset,
+            located_diagnostic.length,
+            located_diagnostic.code,
+            &located_diagnostic.arguments,
+        ));
     }
 
     /// Report the given [diagnostic].

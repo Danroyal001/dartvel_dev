@@ -1,10 +1,8 @@
 // Port of lib/src/fasta/error_converter.dart.
 //
-// A `Message` here keeps its code and texts but not its arguments (see
-// _fe_analyzer_shared's codes.rs). The arguments only reach the analyzer's
-// diagnostic as the arguments of its message, which decide whether two
-// diagnostics are equal; the parser's message text, which is made from the
-// same arguments, stands for them.
+// A parser `Message` carries its arguments as strings (see
+// _fe_analyzer_shared's codes.rs), which is how the analyzer's messages are
+// formatted from them.
 
 use fe_analyzer_shared::messages::codes::Message;
 
@@ -23,12 +21,9 @@ pub struct FastaErrorReporter {
     pub diagnostic_reporter: Option<DiagnosticReporter>,
 }
 
-/// The arguments a converted diagnostic carries: the parser's message.
-fn message_key(message: &Message) -> String {
-    match &message.correction_message {
-        Some(correction) => format!("{}\n{}", message.problem_message, correction),
-        None => message.problem_message.to_string(),
-    }
+/// `message.arguments.values.toList()`.
+fn argument_values(message: &Message) -> Vec<String> {
+    message.arguments.iter().map(|(_, value)| value.clone()).collect()
 }
 
 impl FastaErrorReporter {
@@ -53,7 +48,20 @@ impl FastaErrorReporter {
         length: i32,
         message: &Message,
     ) {
-        let key = message_key(message);
+        let argument = |key: &str| -> String {
+            message
+                .arguments
+                .iter()
+                .find(|(k, _)| *k == key)
+                .map(|(_, v)| v.clone())
+                .unwrap_or_else(|| panic!("{} has no argument {key}", message.code))
+        };
+        let lexeme = || argument("lexeme");
+        // `(arguments['unicode'] ?? arguments['character']) as int`
+        let code_point = || match message.arguments.iter().find(|(k, _)| *k == "unicode") {
+            Some((_, v)) => v.clone(),
+            None => argument("character"),
+        };
         match pseudo_shared_code {
             Some(PseudoSharedCode::asyncForInWrongContext) => {
                 self.report(diag::asyncForInWrongContext.at_offset(offset, length));
@@ -67,7 +75,7 @@ impl FastaErrorReporter {
             Some(PseudoSharedCode::builtInIdentifierAsType) => {
                 self.report(
                     diag::builtInIdentifierAsType
-                        .with_arguments(vec![key.clone()])
+                        .with_arguments(vec![lexeme()])
                         .at_offset(offset, length),
                 );
             }
@@ -92,7 +100,7 @@ impl FastaErrorReporter {
             Some(PseudoSharedCode::expectedToken) => {
                 self.report(
                     diag::expectedToken
-                        .with_arguments(vec![key.clone()])
+                        .with_arguments(vec![argument("expected")])
                         .at_offset(offset, length),
                 );
             }
@@ -111,7 +119,7 @@ impl FastaErrorReporter {
             Some(PseudoSharedCode::illegalCharacter) => {
                 self.report(
                     diag::illegalCharacter
-                        .with_arguments(vec![key.clone()])
+                        .with_arguments(vec![code_point()])
                         .at_offset(offset, length),
                 );
             }
@@ -124,7 +132,7 @@ impl FastaErrorReporter {
             Some(PseudoSharedCode::invalidCodePoint) => {
                 self.report(
                     diag::invalidCodePoint
-                        .with_arguments(vec![key.clone()])
+                        .with_arguments(vec!["\\u{...}".to_string()])
                         .at_offset(offset, length),
                 );
             }
@@ -185,7 +193,7 @@ impl FastaErrorReporter {
             Some(PseudoSharedCode::unexpectedToken) => {
                 self.report(
                     diag::unexpectedToken
-                        .with_arguments(vec![key.clone()])
+                        .with_arguments(vec![lexeme()])
                         .at_offset(offset, length),
                 );
             }
@@ -256,7 +264,7 @@ impl FastaErrorReporter {
             }
             self.report(
                 diagnostic_code
-                    .with_arguments(vec![message_key(message)])
+                    .with_arguments(argument_values(message))
                     .at_offset(offset, length),
             );
             return;
@@ -271,7 +279,7 @@ impl FastaErrorReporter {
     /// `_reportByCode`.
     fn report_code(&mut self, offset: i32, length: i32, code: DiagnosticCode, message: &Message) {
         self.report(
-            code.with_arguments(vec![message_key(message)])
+            code.with_arguments(argument_values(message))
                 .at_offset(offset, length),
         );
     }

@@ -2,8 +2,8 @@
 //
 // `Code` keeps only its name: `pseudoSharedCode`, `sharedCode` and
 // `severity` map codes to analyzer codes and CFE severities, which nothing
-// ported uses yet. A `Message` keeps its code and its two texts but not its
-// `arguments` map, whose values are already in the texts. The located and
+// ported uses yet. A `Message` keeps its code, its two texts and the values
+// of its `arguments` map, as the strings they print as. The located and
 // formatted message classes and the JSON round trip are not ported.
 
 use std::borrow::Cow;
@@ -27,6 +27,9 @@ pub struct Message {
     pub code: Code,
     pub problem_message: Cow<'static, str>,
     pub correction_message: Option<Cow<'static, str>>,
+    /// `Message.arguments`, in order, each value as its `toString()`: what
+    /// the analyzer makes its own message from.
+    pub arguments: Vec<(&'static str, String)>,
 }
 
 /// A message without arguments, which is its own code (`MessageCode extends
@@ -50,6 +53,7 @@ impl MessageCode {
             code: self.code(),
             problem_message: Cow::Borrowed(self.problem_message),
             correction_message: self.correction_message.map(Cow::Borrowed),
+            arguments: Vec::new(),
         }
     }
 }

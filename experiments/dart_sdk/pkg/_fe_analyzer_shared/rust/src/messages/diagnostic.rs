@@ -6,8 +6,9 @@
 // `Template` is a constant whose `with_arguments` is the upstream
 // `_withArguments...` function, taking its named arguments positionally in
 // the order upstream declares them, after a `&TokenStore` when one of them
-// is a token. The analyzer and severity mappings are not carried (see
-// codes.rs).
+// is a token; the `Message` it returns carries upstream's `arguments` map,
+// in order, each value as the string it prints as (a token as its lexeme).
+// The analyzer and severity mappings are not carried (see codes.rs).
 #![allow(non_upper_case_globals, non_snake_case)]
 
 use std::borrow::Cow;
@@ -101,6 +102,7 @@ fn _withArgumentsAsciiControlCharacter(character: i64) -> Message {
             "The control character {character_0} can only be used in strings and comments."
         )),
         correction_message: None,
+        arguments: vec![("character", character.to_string())],
     }
 }
 
@@ -171,6 +173,7 @@ fn _withArgumentsBinaryOperatorWrittenOut(
         correction_message: Some(Cow::Owned(format!(
             "Try replacing '{actualOperator_0}' with '{expectedOperator_0}'."
         ))),
+        arguments: vec![("actualOperator", actual_operator.to_string()), ("expectedOperator", expected_operator.to_string())],
     }
 }
 
@@ -195,6 +198,7 @@ fn _withArgumentsBuiltInIdentifierAsType(tokens: &TokenStore, lexeme: TokenId) -
             "The built-in identifier '{lexeme_0}' can't be used as a type."
         )),
         correction_message: None,
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -212,6 +216,7 @@ fn _withArgumentsBuiltInIdentifierInDeclaration(tokens: &TokenStore, lexeme: Tok
         },
         problem_message: Cow::Owned(format!("Can't use '{lexeme_0}' as a name here.")),
         correction_message: None,
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -259,6 +264,7 @@ fn _withArgumentsConflictingModifiers(modifier: &str, earlier_modifier: &str) ->
             "Members can't be declared to be both '{modifier_0}' and '{earlierModifier_0}'."
         )),
         correction_message: Some(Cow::Borrowed("Try removing one of the keywords.")),
+        arguments: vec![("modifier", modifier.to_string()), ("earlierModifier", earlier_modifier.to_string())],
     }
 }
 
@@ -307,6 +313,7 @@ fn _withArgumentsConstFieldWithoutInitializer(name: &str) -> Message {
         correction_message: Some(Cow::Borrowed(
             "Try adding an initializer ('= expression') to the declaration.",
         )),
+        arguments: vec![("name", name.to_string())],
     }
 }
 
@@ -423,6 +430,7 @@ fn _withArgumentsDuplicateLabelInSwitchStatement(label_name: &str) -> Message {
         correction_message: Some(Cow::Borrowed(
             "Try choosing a different name for this label.",
         )),
+        arguments: vec![("labelName", label_name.to_string())],
     }
 }
 
@@ -447,6 +455,7 @@ fn _withArgumentsDuplicatedModifier(tokens: &TokenStore, lexeme: TokenId) -> Mes
         correction_message: Some(Cow::Borrowed(
             "Try removing all but one occurrence of the modifier.",
         )),
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -499,6 +508,7 @@ fn _withArgumentsExpectedAfterButGot(expected: &str) -> Message {
         },
         problem_message: Cow::Owned(format!("Expected '{expected_0}' after this.")),
         correction_message: None,
+        arguments: vec![("expected", expected.to_string())],
     }
 }
 
@@ -527,6 +537,7 @@ fn _withArgumentsExpectedButGot(expected: &str) -> Message {
         },
         problem_message: Cow::Owned(format!("Expected '{expected_0}' before this.")),
         correction_message: None,
+        arguments: vec![("expected", expected.to_string())],
     }
 }
 
@@ -546,6 +557,7 @@ fn _withArgumentsExpectedButGot2(expected: &str, expected2: &str) -> Message {
             "Expected '{expected_0}' or '{expected2_0}' before this."
         )),
         correction_message: None,
+        arguments: vec![("expected", expected.to_string()), ("expected2", expected2.to_string())],
     }
 }
 
@@ -574,6 +586,7 @@ fn _withArgumentsExpectedClassMember(tokens: &TokenStore, lexeme: TokenId) -> Me
         },
         problem_message: Cow::Owned(format!("Expected a class member, but got '{lexeme_0}'.")),
         correction_message: None,
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -590,6 +603,7 @@ fn _withArgumentsExpectedDeclaration(tokens: &TokenStore, lexeme: TokenId) -> Me
         },
         problem_message: Cow::Owned(format!("Expected a declaration, but got '{lexeme_0}'.")),
         correction_message: None,
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -614,6 +628,7 @@ fn _withArgumentsExpectedEnumBody(tokens: &TokenStore, lexeme: TokenId) -> Messa
         correction_message: Some(Cow::Borrowed(
             "An enum definition must have a body with at least one constant name.",
         )),
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -648,6 +663,7 @@ fn _withArgumentsExpectedFunctionBody(tokens: &TokenStore, lexeme: TokenId) -> M
         },
         problem_message: Cow::Owned(format!("Expected a function body, but got '{lexeme_0}'.")),
         correction_message: None,
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -672,6 +688,7 @@ fn _withArgumentsExpectedIdentifier(tokens: &TokenStore, lexeme: TokenId) -> Mes
         correction_message: Some(Cow::Owned(format!(
             "Try inserting an identifier before '{lexeme_0}'."
         ))),
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -693,6 +710,7 @@ fn _withArgumentsExpectedIdentifierButGotKeyword(tokens: &TokenStore, lexeme: To
         correction_message: Some(Cow::Borrowed(
             "Try renaming this to be an identifier that isn't a keyword.",
         )),
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -709,6 +727,7 @@ fn _withArgumentsExpectedInstead(expected: &str) -> Message {
         },
         problem_message: Cow::Owned(format!("Expected '{expected_0}' instead of this.")),
         correction_message: None,
+        arguments: vec![("expected", expected.to_string())],
     }
 }
 
@@ -737,6 +756,7 @@ fn _withArgumentsExpectedString(tokens: &TokenStore, lexeme: TokenId) -> Message
         },
         problem_message: Cow::Owned(format!("Expected a String, but got '{lexeme_0}'.")),
         correction_message: None,
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -765,6 +785,7 @@ fn _withArgumentsExpectedToken(expected: &str) -> Message {
         },
         problem_message: Cow::Owned(format!("Expected to find '{expected_0}'.")),
         correction_message: None,
+        arguments: vec![("expected", expected.to_string())],
     }
 }
 
@@ -787,6 +808,7 @@ fn _withArgumentsExpectedType(tokens: &TokenStore, lexeme: TokenId) -> Message {
         },
         problem_message: Cow::Owned(format!("Expected a type, but got '{lexeme_0}'.")),
         correction_message: None,
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -808,6 +830,7 @@ fn _withArgumentsExperimentNotEnabled(feature_name: &str, enabled_version: &str)
         correction_message: Some(Cow::Owned(format!(
             "Try updating your pubspec.yaml to set the minimum SDK constraint to {enabledVersion_0} or higher, and running 'pub get'."
         ))),
+        arguments: vec![("featureName", feature_name.to_string()), ("enabledVersion", enabled_version.to_string())],
     }
 }
 
@@ -828,6 +851,7 @@ fn _withArgumentsExperimentNotEnabledOffByDefault(feature_name: &str) -> Message
         correction_message: Some(Cow::Owned(format!(
             "Try passing the '--enable-experiment={featureName_0}' command line option."
         ))),
+        arguments: vec![("featureName", feature_name.to_string())],
     }
 }
 
@@ -924,6 +948,7 @@ fn _withArgumentsExtensionTypeWithAbstractMember(
         correction_message: Some(Cow::Owned(format!(
             "Try adding a body to '{methodName_0}'."
         ))),
+        arguments: vec![("methodName", method_name.to_string()), ("extensionTypeName", extension_type_name.to_string())],
     }
 }
 
@@ -998,6 +1023,7 @@ fn _withArgumentsExtraneousModifier(tokens: &TokenStore, lexeme: TokenId) -> Mes
         },
         problem_message: Cow::Owned(format!("Can't have modifier '{lexeme_0}' here.")),
         correction_message: Some(Cow::Owned(format!("Try removing '{lexeme_0}'."))),
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -1014,6 +1040,7 @@ fn _withArgumentsExtraneousModifierInExtension(tokens: &TokenStore, lexeme: Toke
         },
         problem_message: Cow::Owned(format!("Can't have modifier '{lexeme_0}' in an extension.")),
         correction_message: Some(Cow::Owned(format!("Try removing '{lexeme_0}'."))),
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -1036,6 +1063,7 @@ fn _withArgumentsExtraneousModifierInExtensionType(
             "Can't have modifier '{lexeme_0}' in an extension type."
         )),
         correction_message: Some(Cow::Owned(format!("Try removing '{lexeme_0}'."))),
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -1058,6 +1086,7 @@ fn _withArgumentsExtraneousModifierInPrimaryConstructor(
             "Can't have modifier '{lexeme_0}' in a primary constructor."
         )),
         correction_message: Some(Cow::Owned(format!("Try removing '{lexeme_0}'."))),
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -1092,6 +1121,7 @@ fn _withArgumentsFastaCLIArgumentRequired(argument_name: &str) -> Message {
         },
         problem_message: Cow::Owned(format!("Expected value after '{argumentName_0}'.")),
         correction_message: None,
+        arguments: vec![("argumentName", argument_name.to_string())],
     }
 }
 
@@ -1166,6 +1196,7 @@ fn _withArgumentsFinalFieldWithoutInitializer(name: &str) -> Message {
         correction_message: Some(Cow::Borrowed(
             "Try adding an initializer ('= expression') to the declaration.",
         )),
+        arguments: vec![("name", name.to_string())],
     }
 }
 
@@ -1236,6 +1267,7 @@ fn _withArgumentsIllegalPatternAssignmentVariableName(
             "A variable assigned by a pattern assignment can't be named '{variableName_0}'."
         )),
         correction_message: Some(Cow::Borrowed("Choose a different name.")),
+        arguments: vec![("variableName", tokens.lexeme_string(variable_name))],
     }
 }
 
@@ -1254,6 +1286,7 @@ fn _withArgumentsIllegalPatternIdentifierName(tokens: &TokenStore, identifier: T
             "A pattern can't refer to an identifier named '{identifier_0}'."
         )),
         correction_message: Some(Cow::Borrowed("Match the identifier using '==")),
+        arguments: vec![("identifier", tokens.lexeme_string(identifier))],
     }
 }
 
@@ -1275,6 +1308,7 @@ fn _withArgumentsIllegalPatternVariableName(
             "The variable declared by a variable pattern can't be named '{variableName_0}'."
         )),
         correction_message: Some(Cow::Borrowed("Choose a different name.")),
+        arguments: vec![("variableName", tokens.lexeme_string(variable_name))],
     }
 }
 
@@ -1351,6 +1385,7 @@ fn _withArgumentsInternalProblemStackNotEmpty(type_name: &str, stack_contents: &
   {stackContents_0}"
         )),
         correction_message: None,
+        arguments: vec![("typeName", type_name.to_string()), ("stackContents", stack_contents.to_string())],
     }
 }
 
@@ -1368,6 +1403,7 @@ fn _withArgumentsInternalProblemUnhandled(what: &str, r#where: &str) -> Message 
         },
         problem_message: Cow::Owned(format!("Unhandled {what_0} in {where_0}.")),
         correction_message: None,
+        arguments: vec![("what", what.to_string()), ("where", r#where.to_string())],
     }
 }
 
@@ -1384,6 +1420,7 @@ fn _withArgumentsInternalProblemUnsupported(operation: &str) -> Message {
         },
         problem_message: Cow::Owned(format!("Unsupported operation: '{operation_0}'.")),
         correction_message: None,
+        arguments: vec![("operation", operation.to_string())],
     }
 }
 
@@ -1422,6 +1459,7 @@ fn _withArgumentsInvalidConstantPatternBinary(operator_name: &str) -> Message {
         correction_message: Some(Cow::Borrowed(
             "Try wrapping the expression in 'const ( ... )'.",
         )),
+        arguments: vec![("operatorName", operator_name.to_string())],
     }
 }
 
@@ -1472,6 +1510,7 @@ fn _withArgumentsInvalidConstantPatternUnary(operator_name: &str) -> Message {
         correction_message: Some(Cow::Borrowed(
             "Try wrapping the expression in 'const ( ... )'.",
         )),
+        arguments: vec![("operatorName", operator_name.to_string())],
     }
 }
 
@@ -1530,6 +1569,7 @@ fn _withArgumentsInvalidOperator(tokens: &TokenStore, lexeme: TokenId) -> Messag
             "The string '{lexeme_0}' isn't a user-definable operator."
         )),
         correction_message: None,
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -1605,6 +1645,7 @@ fn _withArgumentsLiteralWithClass(tokens: &TokenStore, kind: &str, lexeme: Token
             "A {kind_0} literal can't be prefixed by '{lexeme_0}'."
         )),
         correction_message: Some(Cow::Owned(format!("Try removing '{lexeme_0}'"))),
+        arguments: vec![("kind", kind.to_string()), ("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -1628,6 +1669,7 @@ fn _withArgumentsLiteralWithClassAndNew(
             "A {kind_0} literal can't be prefixed by 'new {lexeme_0}'."
         )),
         correction_message: Some(Cow::Owned(format!("Try removing 'new' and '{lexeme_0}'"))),
+        arguments: vec![("kind", kind.to_string()), ("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -1787,6 +1829,7 @@ fn _withArgumentsModifierOutOfOrder(modifier: &str, expected_later_modifier: &st
             "The modifier '{modifier_0}' should be before the modifier '{expectedLaterModifier_0}'."
         )),
         correction_message: Some(Cow::Borrowed("Try re-ordering the modifiers.")),
+        arguments: vec![("modifier", modifier.to_string()), ("expectedLaterModifier", expected_later_modifier.to_string())],
     }
 }
 
@@ -1808,6 +1851,7 @@ fn _withArgumentsMultipleClauses(definition_kind: &str, clause_kind: &str) -> Me
         correction_message: Some(Cow::Owned(format!(
             "Try combining all of the '{clauseKind_0}' clauses into a single clause."
         ))),
+        arguments: vec![("definitionKind", definition_kind.to_string()), ("clauseKind", clause_kind.to_string())],
     }
 }
 
@@ -1915,6 +1959,7 @@ fn _withArgumentsNonAsciiIdentifier(character: &str, code_point: i64) -> Message
         correction_message: Some(Cow::Borrowed(
             "Try using an US-ASCII letter, a digit, '_' (an underscore), or '$' (a dollar sign).",
         )),
+        arguments: vec![("character", character.to_string()), ("codePoint", code_point.to_string())],
     }
 }
 
@@ -1933,6 +1978,7 @@ fn _withArgumentsNonAsciiWhitespace(code_point: i64) -> Message {
             "The non-ASCII space character {codePoint_0} can only be used in strings and comments."
         )),
         correction_message: None,
+        arguments: vec![("codePoint", code_point.to_string())],
     }
 }
 
@@ -1995,6 +2041,7 @@ fn _withArgumentsOutOfOrderClauses(
         correction_message: Some(Cow::Owned(format!(
             "Try moving the '{expectedEarlierClause_0}' clause before the '{expectedLaterClause_0}' clause."
         ))),
+        arguments: vec![("expectedEarlierClause", expected_earlier_clause.to_string()), ("expectedLaterClause", expected_later_clause.to_string())],
     }
 }
 
@@ -2021,6 +2068,7 @@ fn _withArgumentsPatternAssignmentDeclaresVariable(variable_name: &str) -> Messa
         correction_message: Some(Cow::Borrowed(
             "Try using a preexisting variable or changing the assignment to a pattern variable declaration.",
         )),
+        arguments: vec![("variableName", variable_name.to_string())],
     }
 }
 
@@ -2067,6 +2115,7 @@ fn _withArgumentsPrimaryConstructorBodyWithModifier(modifier: &str) -> Message {
             "A primary constructor body can't have the modifier '{modifier_0}'."
         )),
         correction_message: Some(Cow::Borrowed("Try removing the modifier.")),
+        arguments: vec![("modifier", modifier.to_string())],
     }
 }
 
@@ -2247,6 +2296,7 @@ fn _withArgumentsTypeArgumentsOnTypeVariable(type_variable_name: &str) -> Messag
             "Can't use type arguments with type variable '{typeVariableName_0}'."
         )),
         correction_message: Some(Cow::Borrowed("Try removing the type arguments.")),
+        arguments: vec![("typeVariableName", type_variable_name.to_string())],
     }
 }
 
@@ -2293,6 +2343,7 @@ fn _withArgumentsUnexpectedToken(tokens: &TokenStore, lexeme: TokenId) -> Messag
         },
         problem_message: Cow::Owned(format!("Unexpected token '{lexeme_0}'.")),
         correction_message: None,
+        arguments: vec![("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -2316,6 +2367,7 @@ fn _withArgumentsUnmatchedToken(tokens: &TokenStore, expected: &str, lexeme: Tok
         },
         problem_message: Cow::Owned(format!("Can't find '{expected_0}' to match '{lexeme_0}'.")),
         correction_message: None,
+        arguments: vec![("expected", expected.to_string()), ("lexeme", tokens.lexeme_string(lexeme))],
     }
 }
 
@@ -2332,6 +2384,7 @@ fn _withArgumentsUnspecified(message: &str) -> Message {
         },
         problem_message: Cow::Owned(message_0.to_string()),
         correction_message: None,
+        arguments: vec![("message", message.to_string())],
     }
 }
 
@@ -2348,6 +2401,7 @@ fn _withArgumentsUnsupportedOperator(tokens: &TokenStore, operator: TokenId) -> 
         },
         problem_message: Cow::Owned(format!("The '{operator_0}' operator is not supported.")),
         correction_message: None,
+        arguments: vec![("operator", tokens.lexeme_string(operator))],
     }
 }
 
@@ -2379,6 +2433,7 @@ fn _withArgumentsUnterminatedString(open_quote: &str, expected_close_quote: &str
             "String starting with {openQuote_0} must end with {expectedCloseQuote_0}."
         )),
         correction_message: None,
+        arguments: vec![("openQuote", open_quote.to_string()), ("expectedCloseQuote", expected_close_quote.to_string())],
     }
 }
 

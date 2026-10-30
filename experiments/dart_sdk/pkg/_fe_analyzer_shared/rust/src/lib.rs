@@ -22,6 +22,7 @@
     clippy::new_without_default
 )]
 
+pub mod base;
 pub mod experiments;
 pub mod messages;
 pub mod parser;

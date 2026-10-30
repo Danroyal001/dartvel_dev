@@ -1,9 +1,9 @@
 // Port of lib/src/diagnostic/diagnostic.dart (the parts parsing uses).
 //
-// A diagnostic code keeps its `name` and `uniqueName`. Its message
-// templates are not ported: a diagnostic carries its arguments instead,
-// which is what decides whether two diagnostics are equal (see
-// lib/diagnostic/diagnostic.dart).
+// A diagnostic code keeps its `name`, `uniqueName` and the templates of its
+// problem and correction messages; a diagnostic made from it carries its
+// arguments, as the strings they print as, until the reporter formats the
+// messages (see lib/diagnostic/diagnostic.dart).
 
 /// `DiagnosticCode` (in _fe_analyzer_shared's base/errors.dart), as the
 /// analyzer's codes are.
@@ -11,6 +11,10 @@
 pub struct DiagnosticCode {
     pub name: &'static str,
     pub unique_name: &'static str,
+    /// `problemMessage`: the template of the problem message.
+    pub problem_message: &'static str,
+    /// `correctionMessage`: the template of the correction, if any.
+    pub correction_message: Option<&'static str>,
 }
 
 impl DiagnosticCode {
