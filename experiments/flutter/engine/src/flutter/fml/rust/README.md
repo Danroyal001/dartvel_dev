@@ -121,7 +121,8 @@ every task has run. The one address upstream logs (SharedThreadMerger's
 file-system suites' scratch directory (`/tmp/flutter_<tmp>`), which each run
 makes fresh through `ScopedTemporaryDirectory` and leaves removed. Run as
 root, the permission cases succeed where a user's would fail with EACCES;
-both sides run as the same user, so they agree either way. A driver run that does not finish in
+both sides run as the same user, so they agree either way.
+A driver run that does not finish in
 `FML_ORACLE_TIMEOUT` seconds (300) fails the test, since a port that loses a
 task leaves those suites waiting forever.
 
