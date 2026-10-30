@@ -223,14 +223,22 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
                 'while the page builds replaces that page with a sentence and '
                 'a Try again button, and the detail goes to the log as '
                 'DV-STATE-002. The banner shows while the device reports it '
-                'is offline. A generated table given null rows shows a '
-                'skeleton of its columns, and a DVEmpty says which kind of '
-                'empty a collection is: nothing yet, nothing matching, or '
-                'nothing visible to you.'),
+                'is offline, and a tray in the corner shows each labelled '
+                'DV.Workers run with how much of it is done. A generated '
+                'table, list or card grid given null shows a skeleton of its '
+                'fields, and a DVEmpty says which kind of empty a collection '
+                'is: nothing yet, nothing matching, or nothing visible to '
+                'you. Every application has a status page for 403, 429, 500 '
+                'and 503 beside the 404 and offline pages, and a page whose '
+                'data failed on the server answers 500 with that page while '
+                'the detail goes to the log. dartvel analyze strings reports '
+                'a literal a widget shows where a framework string belongs '
+                '(DV-STATE-003).'),
             DocsStatus('Error, Empty, and Loading States', missing: <String>[
-              'No per-status-code pages beyond the 404 and offline pages.',
-              'No skeleton for the generated list and grid, and no '
-                  'background-task tray.',
+              'Durable jobs report no progress yet, so the tray shows worker '
+                  'runs and not queued jobs.',
+              'The account pages still pass some English through helpers '
+                  'that DV-STATE-003 does not read.',
             ]),
           ],
         ),

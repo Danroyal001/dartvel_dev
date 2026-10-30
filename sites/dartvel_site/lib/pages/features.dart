@@ -617,9 +617,11 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Error, Empty, and Loading States',
     'page.loading.dart',
-    'Present: loading and error companions, an error boundary and an offline '
-        'banner on every page, table skeletons and three kinds of empty. '
-        'Absent: generated status pages per code and a background-task tray.',
+    'Present: loading and error companions, an error boundary, an offline '
+        'banner and a background-task tray on every page, status pages per '
+        'code, skeletons for generated tables, lists and grids, three kinds '
+        'of empty, and DV-STATE-003. Absent: progress from durable jobs in '
+        'the tray.',
   ),
   (
     'Sensitive Model Fields',

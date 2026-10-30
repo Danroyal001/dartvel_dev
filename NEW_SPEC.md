@@ -15081,7 +15081,10 @@ or paint does not pass through it.
 
 Status pages are generated per code. A 404 is not a blank screen; a 500 is not
 a stack trace in front of a customer, and the detail a developer needs goes to
-the log while the visitor gets a sentence.
+the log while the visitor gets a sentence. Every application serves
+`DVStatusPage` at `/403`, `/429`, `/500` and `/503` beside `/404` and
+`/offline`, a server page whose data failed answers 500 with that page, and
+the Apache configuration names each as an error document.
 
 ## Empty is not one state
 
@@ -15108,8 +15111,9 @@ shape of what is coming rather than a spinner — a generated table knows its
 columns before it has rows. The table's is built: `Article.Table(null)` is a
 load in flight, and renders its header and placeholder cells in the model's
 columns, announced once as the framework string `dv.table.loading` — never as
-its empty label, because loading is not empty. The card list and grid have no
-skeleton yet.
+its empty label, because loading is not empty. The card list and grid have
+theirs: `Article.List(null)` and a card grid given null draw `DVSkeletonCards`,
+one placeholder line per field the cards will show.
 
 An offline banner is driven by the connectivity signal Offline-First Models
 defines, and a background-task tray shows uploads, exports and imports from
@@ -15118,7 +15122,10 @@ are the rendering of state the framework already has. The banner is built:
 every page shell shows it while `DV.Platform.network` reports `offline` — not
 `unknown`, which is every target with no binding, and not `metered` — as a
 live region whose words are the framework string `dv.network.offline`. No page
-adds it, and none can be told to. The tray still shows nobody.
+adds it, and none can be told to. The tray is built the same way: every page
+shell renders `DVTrayTasks`, which a `DV.Workers` run given a `label:` joins
+with its `DVProgress`. Durable jobs do not emit typed progress yet, so a queued
+job reaches the tray only by running as a labelled worker run.
 
 ## Diagnostics
 
@@ -15128,8 +15135,10 @@ adds it, and none can be told to. The tray still shows nobody.
 | `DV-STATE-002` | a page threw and its error boundary caught it | `error` |
 | `DV-STATE-003` | a framework string is a literal rather than an i18n key | `warning` (analyze) |
 
-`DV-STATE-003` is the one with work behind it today; `emptyLabel` was its
-first finding, and is fixed.
+`DV-STATE-003` is `dartvel analyze strings`: it reads a package's `lib/`
+lexically and reports each literal a widget shows where a framework string
+belongs. `emptyLabel` was its first finding; `dartvel_flutter`'s own widgets,
+outside its developer tools, now have none.
 
 ## Deliberately absent
 
