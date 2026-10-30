@@ -46,8 +46,9 @@
 // string (`getDisplayString()`) of every declared type: bounds, supertypes,
 // interfaces, mixins, superclass constraints, extended types, aliased types,
 // return types, and the types of variables and parameters. A type that is
-// left to inference (`hasImplicitType`, `hasImplicitReturnType`) is written
-// `implicit`.
+// left to inference (`hasImplicitType`, `hasImplicitReturnType`, and the
+// value parameter of the setter of a variable that has no type of its own)
+// is written `implicit`.
 //
 // Only `dart:` libraries and package libraries are imported.
 
@@ -452,7 +453,14 @@ class ElementDumper {
 
   void executable(int d, ExecutableElementImpl element) {
     typeParameters(d, element.typeParameters);
-    formalParameters(d, element.formalParameters);
+    // The value parameter of the setter a variable induces has the
+    // variable's type, which inference decides when the variable has no
+    // type of its own.
+    var inferredValue =
+        element is SetterElementImpl &&
+        element.isOriginVariable &&
+        element.variable.hasImplicitType;
+    formalParameters(d, element.formalParameters, inferred: inferredValue);
     if (types &&
         element is! ConstructorElementImpl &&
         !(element is PropertyAccessorElementImpl &&
@@ -475,7 +483,11 @@ class ElementDumper {
     }
   }
 
-  void formalParameters(int depth, List<FormalParameterElement> list) {
+  void formalParameters(
+    int depth,
+    List<FormalParameterElement> list, {
+    bool inferred = false,
+  }) {
     for (var e in list) {
       var element = e as FormalParameterElementImpl;
       line(depth, '${element.kind.name} ${name(element.name)}');
@@ -510,7 +522,7 @@ class ElementDumper {
       if (types) {
         line(
           d,
-          'type ${element.hasImplicitType ? 'implicit' : type(element.type)}',
+          'type ${element.hasImplicitType || inferred ? 'implicit' : type(element.type)}',
         );
       }
     }

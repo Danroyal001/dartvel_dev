@@ -16,14 +16,21 @@
 // bits) are the bits of `FragmentImpl::flags`, named as `flagsForTesting`
 // names them.
 //
-// Types, metadata, documentation, code ranges and the members that read
-// resolution are not ported yet: they come with resolving the declared types.
+// The declared types (`type`, `returnType`, `bound`, `aliasedType`,
+// `extendedType`, `supertype`, ...) are kept on the elements, as upstream
+// keeps them: `ElementImpl::type_` holds the one type an element class has,
+// and `ElementImpl::types` the lists and the other state of interface,
+// type parameter and type alias elements. Metadata, documentation, code
+// ranges and the members that read resolution are not ported yet.
 
 #![allow(non_camel_case_types)]
 
 use std::rc::Rc;
 
+use crate::fe_analyzer_shared::types::shared_type::Variance;
+use crate::src::dart::element::r#type::TypeImpl;
 use crate::src::generated::utilities_dart::ParameterKind;
+use crate::src::summary2::type_builder::TypeBuilder;
 
 pub type FragmentId = u32;
 pub type ElementId = u32;
@@ -574,6 +581,40 @@ pub struct ElementImpl {
     pub previous_fragment_of_different_kind: FragmentId,
     /// The members of an instance element.
     pub members: Option<Box<InstanceElementMembers>>,
+    /// The type an element of this class has: `type` of a variable or a
+    /// formal parameter, `returnType` of an executable, `bound` of a type
+    /// parameter, `aliasedType` of a type alias, `extendedType` of an
+    /// extension, `supertype` of an interface element.
+    pub type_: Option<TypeImpl>,
+    /// The other types and type state of interface, type parameter and type
+    /// alias elements.
+    pub types: Option<Box<ElementTypes>>,
+}
+
+/// The types and the type state of interface elements (`mixins`,
+/// `interfaces`, `superclassConstraints`, ...), type parameters
+/// (`defaultType`, `variance`) and type aliases (`hasSelfReference`).
+#[derive(Clone, Debug, Default)]
+pub struct ElementTypes {
+    pub mixins: Vec<TypeImpl>,
+    pub interfaces: Vec<TypeImpl>,
+    pub superclass_constraints: Vec<TypeImpl>,
+    /// `interfaceCycle != null`.
+    pub interface_cycle: bool,
+    /// `ExtensionTypeElementImpl.hasImplementsSelfReference`.
+    pub has_implements_self_reference: bool,
+    /// `ExtensionTypeElementImpl.hasRepresentationSelfReference`.
+    pub has_representation_self_reference: bool,
+    /// `ExtensionTypeElementImpl.typeErasure`.
+    pub type_erasure: Option<TypeImpl>,
+    /// `isSimplyBounded` of interface elements and type aliases.
+    pub is_simply_bounded: bool,
+    /// `TypeParameterElementImpl.defaultType`.
+    pub default_type: Option<TypeImpl>,
+    /// `TypeParameterElementImpl._variance`: `None` for legacy covariance.
+    pub variance: Option<Variance>,
+    /// `TypeAliasElementImpl.hasSelfReference`.
+    pub has_self_reference: bool,
 }
 
 /// The member lists of `InstanceElementImpl` and `InterfaceElementImpl`.
@@ -766,6 +807,8 @@ pub struct ElementStore {
     pub elements: Vec<ElementImpl>,
     pub units: Vec<LibraryFragmentImpl>,
     pub libraries: Vec<LibraryElementImpl>,
+    /// The `TypeBuilder`s of the library cycle being linked.
+    pub type_builders: Vec<TypeBuilder>,
 }
 
 /// `DynamicElementImpl.instance`.
@@ -782,6 +825,7 @@ impl ElementStore {
             elements: Vec::new(),
             units: Vec::new(),
             libraries: Vec::new(),
+            type_builders: Vec::new(),
         };
         for (fragment_kind, kind, name) in [
             (FragmentKind::Dynamic, ElementKind::DYNAMIC, "dynamic"),
@@ -815,6 +859,8 @@ impl ElementStore {
             is_extension_type_member: false,
             previous_fragment_of_different_kind: NO_FRAGMENT,
             members: if is_instance { Some(Box::default()) } else { None },
+            type_: None,
+            types: None,
         });
         self.fragments[fragment as usize].element = id;
         id
@@ -927,6 +973,95 @@ impl ElementStore {
             current = self.fragment(current).next_fragment;
         }
         FragmentKind::FormalParameter
+    }
+
+    /// The `types` of [id], created when first asked for.
+    pub fn types_mut(&mut self, id: ElementId) -> &mut ElementTypes {
+        self.element_mut(id).types.get_or_insert_with(Box::default)
+    }
+
+    /// The `types` of [id], if any were set.
+    pub fn types(&self, id: ElementId) -> Option<&ElementTypes> {
+        self.element(id).types.as_deref()
+    }
+
+    /// Whether [id] is the class [name] of `dart:core`
+    /// (`isDartCoreObject`, `isDartCoreFunction`, ...).
+    pub fn is_dart_core_class(&self, id: ElementId, name: &str) -> bool {
+        let element = self.element(id);
+        element.kind == ElementKind::CLASS
+            && element.name.as_deref() == Some(name)
+            && element.library != NO_LIBRARY
+            && self.libraries[element.library as usize].is_dart_core()
+    }
+
+    /// Whether [id] is the class `Null` of `dart:core`, whose type is
+    /// `NullTypeImpl`.
+    pub fn is_dart_core_null(&self, id: ElementId) -> bool {
+        self.is_dart_core_class(id, "Null")
+    }
+
+    /// Whether [id] is declared by a `dart:` library (`isInSdk`).
+    pub fn is_in_sdk(&self, id: ElementId) -> bool {
+        let library = self.element(id).library;
+        library != NO_LIBRARY && self.libraries[library as usize].uri.starts_with("dart:")
+    }
+
+    /// `TypeParameterElementImpl.synthetic` and `freshCopy`: a type parameter
+    /// element that no fragment declares.
+    pub fn add_synthetic_type_parameter(&mut self, name: Option<Rc<str>>, library: LibraryId) -> ElementId {
+        let id = self.elements.len() as ElementId;
+        self.elements.push(ElementImpl {
+            kind: ElementKind::TYPE_PARAMETER,
+            name,
+            first_fragment: NO_FRAGMENT,
+            library,
+            variable: NO_ELEMENT,
+            getter: NO_ELEMENT,
+            setter: NO_ELEMENT,
+            is_extension_type_member: false,
+            previous_fragment_of_different_kind: NO_FRAGMENT,
+            members: None,
+            type_: None,
+            types: None,
+        });
+        id
+    }
+
+    /// `TypeParameterElementImpl.freshCopy`: a new type parameter with the
+    /// name and the explicit variance of [id], and no bound.
+    pub fn fresh_copy_type_parameter(&mut self, id: ElementId) -> ElementId {
+        let (name, library) = {
+            let e = self.element(id);
+            (e.name.clone(), e.library)
+        };
+        let variance = self.types(id).and_then(|t| t.variance);
+        let fresh = self.add_synthetic_type_parameter(name, library);
+        if variance.is_some() {
+            self.types_mut(fresh).variance = variance;
+        }
+        fresh
+    }
+
+    /// `TypeParameterElementImpl.variance`.
+    pub fn variance(&self, type_parameter: ElementId) -> Variance {
+        self.types(type_parameter).and_then(|t| t.variance).unwrap_or(Variance::covariant)
+    }
+
+    /// `TypeParameterElementImpl.isLegacyCovariant`.
+    pub fn is_legacy_covariant(&self, type_parameter: ElementId) -> bool {
+        self.types(type_parameter).and_then(|t| t.variance).is_none()
+    }
+
+    /// Whether the type parameter [id] is declared by an instance element
+    /// (`enclosingElement is InstanceElement`).
+    pub fn is_instance_type_parameter(&self, id: ElementId) -> bool {
+        let first = self.element(id).first_fragment;
+        if first == NO_FRAGMENT {
+            return false;
+        }
+        let enclosing = self.fragment(first).enclosing_fragment;
+        enclosing != NO_FRAGMENT && self.fragment(enclosing).kind.is_instance()
     }
 }
 
