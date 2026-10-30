@@ -16918,8 +16918,14 @@ import cpp 'third_party/engine.cpp'; // compiled into this library
 `.dv` sees the source's `extern "C"` functions and nothing else, under the
 same rules as `import c`: usable only inside `unsafe` or through a safe
 wrapper, reported separately by `dartvel compile`, and outside every safety
-claim. A C++ exception that reaches that boundary aborts with a diagnostic
-naming the function; it never unwinds into `.dv` frames. A C++ library with a
+claim. The rest of the C++ is not hidden or dropped: it is compiled and
+linked, and runs as the implementation behind those functions; `.dv` just
+cannot call it. Two mistakes are compile errors, each suggesting an
+`extern "C"` shim: a `.cpp` import that declares no `extern "C"` function at
+all, since nothing in it could be called, and a `.dv` reference to a class,
+template, overload or other non-`extern "C"` name from one. A C++ exception
+that reaches that boundary aborts with a diagnostic naming the function; it
+never unwinds into `.dv` frames. A C++ library with a
 C API, or with a thin C shim written over it, needs nothing more.
 
 Templates, classes, overloads and exceptions are not mapped into `.dv`.
