@@ -440,13 +440,24 @@ fn resolve_annotation_invocation(
         // carries the substituted parameter types but retains the raw
         // `FnParam.element`, so attach the substituted elements before
         // recording `Expression.correspondingParameter`.
+        // The function type sorts its named parameters by name, while
+        // `formalParameters` keeps the declaration order: pair each
+        // parameter of the type with the element it was built from, not
+        // with the element at the same index.
         let mut parameters =
             function_type_parameters(rv, Some(member::type_(&rv.ctx, constructor)));
-        for (parameter, element) in parameters
-            .iter_mut()
-            .zip(member::formal_parameters(&rv.ctx, constructor))
-        {
-            parameter.element = Some(element);
+        let elements = member::formal_parameters(&rv.ctx, constructor);
+        for (index, parameter) in parameters.iter_mut().enumerate() {
+            let declared = parameter.element.map(|e| member::base_element(&rv.ctx, e));
+            let element = declared
+                .and_then(|declared| {
+                    elements
+                        .iter()
+                        .copied()
+                        .find(|&e| member::base_element(&rv.ctx, e) == declared)
+                })
+                .or_else(|| elements.get(index).copied());
+            parameter.element = element;
         }
         let corresponding = resolve_arguments_to_parameters(rv, argument_list, &parameters, false);
         record_corresponding_parameters(rv, argument_list, &corresponding);
