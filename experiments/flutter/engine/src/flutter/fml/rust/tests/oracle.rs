@@ -49,6 +49,22 @@ const UPSTREAM_SOURCES: &[&str] = &[
     "flutter/fml/shared_thread_merger.cc",
     "flutter/fml/memory/task_runner_checker.cc",
     "flutter/fml/unique_fd.cc",
+    "flutter/fml/file.cc",
+    "flutter/fml/platform/posix/file_posix.cc",
+    "flutter/fml/mapping.cc",
+    "flutter/fml/platform/posix/mapping_posix.cc",
+    "flutter/fml/paths.cc",
+    "flutter/fml/platform/posix/paths_posix.cc",
+    "flutter/fml/platform/linux/paths_linux.cc",
+    "flutter/fml/platform/posix/native_library_posix.cc",
+    "flutter/fml/command_line.cc",
+    "flutter/fml/platform/posix/command_line_posix.cc",
+    "flutter/fml/safe_math.cc",
+    "flutter/fml/platform/posix/posix_wrappers_posix.cc",
+    "flutter/fml/platform/posix/process_posix.cc",
+    "flutter/fml/cpu_affinity.cc",
+    "flutter/fml/backtrace.cc",
+    "flutter/fml/trace_event.cc",
 ];
 
 /// Headers that stand in for upstream ones the oracle cannot build against,
@@ -57,12 +73,27 @@ const SHIM_DIR: &str = "flutter/fml/rust/oracle/shim";
 
 const SUITES: &[&str] = &[
     "time", "strings", "codec", "hash", "endian", "trie", "queues", "loop", "merger", "thread",
-    "logging",
+    "logging", "file", "mapping", "paths", "cmdline", "misc", "affinity", "native", "trace",
+    "backtrace",
 ];
 
 fn engine_src() -> PathBuf {
     // CARGO_MANIFEST_DIR is engine/src/flutter/fml/rust.
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap()
+}
+
+/// Every file under `dir`, recursively (the shim headers).
+fn files_under(dir: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            out.extend(files_under(&path));
+        } else {
+            out.push(path);
+        }
+    }
+    out
 }
 
 fn env_or(name: &str, default: &str) -> String {
@@ -93,7 +124,8 @@ pub fn build_oracle() -> PathBuf {
     let debug = cfg!(debug_assertions);
     let out = work_dir().join(format!("fml_dump_{stdlib}{}", if debug { "_debug" } else { "" }));
     let driver = src.join("flutter/fml/rust/oracle/fml_dump.cc");
-    let mut inputs: Vec<PathBuf> = vec![driver.clone(), src.join(SHIM_DIR).join("flutter/fml/trace_event.h")];
+    let mut inputs: Vec<PathBuf> = vec![driver.clone()];
+    inputs.extend(files_under(&src.join(SHIM_DIR)));
     inputs.extend(UPSTREAM_SOURCES.iter().map(|s| src.join(s)));
     let newest_input = inputs
         .iter()
@@ -118,7 +150,7 @@ pub fn build_oracle() -> PathBuf {
     }
     cmd.arg("-I").arg(SHIM_DIR).arg("-I").arg(".").arg("-o").arg(&out);
     cmd.arg("flutter/fml/rust/oracle/fml_dump.cc");
-    cmd.args(UPSTREAM_SOURCES).arg("-lpthread");
+    cmd.args(UPSTREAM_SOURCES).arg("-lpthread").arg("-ldl");
     let status = cmd.status().unwrap_or_else(|e| panic!("cannot run {cxx}: {e}"));
     assert!(status.success(), "building the C++ oracle with {cxx} failed");
     out
@@ -172,6 +204,31 @@ fn run(bin: &Path, args: &[&str]) -> (Vec<u8>, Vec<u8>) {
         String::from_utf8_lossy(&out.stderr)
     );
     (out.stdout, out.stderr)
+}
+
+/// The suites' scratch directory, made by fml::CreateTemporaryDirectory as
+/// "/tmp/flutter_" and eight characters mkdtemp picks; each run makes its own.
+const TMP_PREFIX: &[u8] = b"/tmp/flutter_";
+
+/// Masks every "/tmp/flutter_XXXXXXXX" (see TMP_PREFIX) as
+/// "/tmp/flutter_<tmp>": which name mkdtemp picked is not behaviour.
+fn mask_temporary_directories(text: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(text.len());
+    let mut i = 0;
+    while i < text.len() {
+        if text[i..].starts_with(TMP_PREFIX)
+            && text.len() >= i + TMP_PREFIX.len() + 8
+            && text[i + TMP_PREFIX.len()..i + TMP_PREFIX.len() + 8].iter().all(|c| c.is_ascii_alphanumeric())
+        {
+            out.extend_from_slice(TMP_PREFIX);
+            out.extend_from_slice(b"<tmp>");
+            i += TMP_PREFIX.len() + 8;
+        } else {
+            out.push(text[i]);
+            i += 1;
+        }
+    }
+    out
 }
 
 /// Replaces the pointer in SharedThreadMerger::DecrementLease's warning
@@ -230,7 +287,12 @@ fn oracle_matches_upstream() {
             let args = [*suite, seed.as_str(), cases.as_str()];
             let (expected, expected_log) = run(&oracle, &args);
             let (actual, actual_log) = run(&port, &args);
-            let (expected_log, actual_log) = (normalize_log(&expected_log), normalize_log(&actual_log));
+            let (expected_log, actual_log) = (
+                mask_temporary_directories(&normalize_log(&expected_log)),
+                mask_temporary_directories(&normalize_log(&actual_log)),
+            );
+            let (expected, actual) =
+                (mask_temporary_directories(&expected), mask_temporary_directories(&actual));
             compared += expected.len() + expected_log.len();
             if expected != actual {
                 failures.push(format!(
