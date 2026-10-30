@@ -4,6 +4,8 @@ use dartr_ast::*;
 use dartr_diagnostics::{Diagnostic, diag};
 use dartr_typesystem::TypeExt;
 
+use crate::rules::batch_a2::avoid_types_on_closure_parameters::approximate_context_type;
+
 pub fn register(registry: &mut RuleVisitorRegistry) {
     registry.add_instance_creation_expression("prefer_collection_literals", check);
     registry.add_method_invocation("prefer_collection_literals", check);
@@ -22,29 +24,6 @@ fn is_collection_type(
         resolved.ctx.element_name(element.raw()) == Some(name)
             && resolved.ctx.element_library_name(element.raw()) == Some("dart.collection")
     })
-}
-
-fn declared_variable_context_type(
-    ctx: &LinterContext<'_>,
-    node: NodeId,
-) -> Option<dartr_element::TypeId> {
-    let variable = ctx
-        .ast
-        .parent(node)
-        .and_then(|parent| ctx.ast.cast::<VariableDeclaration>(parent))?;
-    if ctx.ast[variable].initializer?.raw() != node {
-        return None;
-    }
-    let list = ctx
-        .ast
-        .parent(variable.raw())
-        .and_then(|parent| ctx.ast.cast::<VariableDeclarationList>(parent))?;
-    let annotation = ctx.ast[list].type_?;
-    ctx.resolved?
-        .tables
-        .annotation_type
-        .get(annotation.raw())
-        .copied()
 }
 
 fn check(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
@@ -77,27 +56,49 @@ fn check(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
             };
             let is_hash_map = is_collection_type(resolved, ty, "LinkedHashMap");
             let is_hash_set = is_collection_type(resolved, ty, "LinkedHashSet");
-            if let Some(context_type) = declared_variable_context_type(ctx, node)
-                && (is_hash_map && is_collection_type(resolved, context_type, "LinkedHashMap")
-                    || is_hash_set && is_collection_type(resolved, context_type, "LinkedHashSet"))
-            {
-                return;
-            }
-            let is_map = resolved.ctx.is_dart_core_map(ty) || is_hash_map;
-            let is_set = resolved.ctx.is_dart_core_set(ty) || is_hash_set;
-            if !is_map && !is_set {
-                return;
-            }
             let constructor = &ctx.ast[n.constructor_name];
             let constructor_name = constructor.name.map(|id| name(ctx, id));
             let args = ctx.ast.list(ctx.ast[n.argument_list].arguments);
-            let should_report = constructor_name.is_none() && args.is_empty()
-                || is_set
-                    && matches!(constructor_name, Some("from" | "of"))
-                    && args.len() == 1
-                    && ctx.ast.kind(args[0]) == NodeKind::ListLiteral;
-            if should_report {
-                ctx.report_node(out, &diag::PREFER_COLLECTION_LITERALS, node, &[]);
+            // Dart: `approximateContextType is InvalidType` returns, and a
+            // context type that is the same collection class allows the call.
+            let allowed_by_context = |class_name: &str| {
+                let context_type = approximate_context_type(ctx, node);
+                context_type.is_some_and(|context_type| {
+                    matches!(
+                        resolved.ctx.ty(context_type),
+                        dartr_element::TypeKind::Invalid
+                    ) || is_collection_type(resolved, context_type, class_name)
+                })
+            };
+            // Maps.
+            if is_hash_map && allowed_by_context("LinkedHashMap") {
+                return;
+            }
+            if resolved.ctx.is_dart_core_map(ty) || is_hash_map {
+                if constructor_name.is_none() && args.is_empty() {
+                    ctx.report_node(out, &diag::PREFER_COLLECTION_LITERALS, node, &[]);
+                }
+                return;
+            }
+            // Sets.
+            if is_hash_set && allowed_by_context("LinkedHashSet") {
+                return;
+            }
+            if resolved.ctx.is_dart_core_set(ty) || is_hash_set {
+                match constructor_name {
+                    // Allow `LinkedHashSet(equals: (a, b) => false, hashCode: (o) => 13)`.
+                    None => {
+                        if args.is_empty() {
+                            ctx.report_node(out, &diag::PREFER_COLLECTION_LITERALS, node, &[]);
+                        }
+                    }
+                    Some("from" | "of") => {
+                        if args.len() == 1 && ctx.ast.kind(args[0]) == NodeKind::ListLiteral {
+                            ctx.report_node(out, &diag::PREFER_COLLECTION_LITERALS, node, &[]);
+                        }
+                    }
+                    Some(_) => {}
+                }
             }
         }
         _ => {}
