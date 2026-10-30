@@ -1,6 +1,6 @@
 // flutter/impeller/geometry/trig_unittests.cc
 
-#![allow(unused_mut, unused_variables, clippy::all)]
+#![allow(unused_mut, unused_variables, unused_parens, unused_imports, unused_assignments, unused_braces, clippy::all)]
 
 use crate::prelude::*;
 use crate::*;

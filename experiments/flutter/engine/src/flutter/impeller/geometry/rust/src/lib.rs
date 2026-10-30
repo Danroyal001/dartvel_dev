@@ -91,3 +91,9 @@ mod size_unittests;
 mod trig_unittests;
 #[cfg(test)]
 mod wangs_formula_unittests;
+#[cfg(test)]
+mod matrix_unittests;
+#[cfg(test)]
+mod rounding_radii_unittests;
+#[cfg(test)]
+mod saturated_math_unittests;
