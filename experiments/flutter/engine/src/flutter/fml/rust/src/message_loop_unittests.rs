@@ -236,3 +236,50 @@ fn can_create_concurrent_message_loop() {
     latch.wait();
     assert!(thread_ids.lock().unwrap().len() >= 1);
 }
+
+// Not upstream: a loop that has been terminated drops what is posted to it.
+// No upstream test covers MessageLoopImpl::PostTask's terminated check.
+#[test]
+fn tasks_posted_after_termination_are_dropped() {
+    std::thread::spawn(|| {
+        MessageLoop::ensure_initialized_for_current_thread();
+        let loop_ = MessageLoop::get_current();
+        let runner = loop_.get_task_runner();
+        runner.post_task(Arc::new(|| MessageLoop::get_current().terminate()));
+        loop_.run();
+        let ran = Arc::new(AtomicBool::new(false));
+        let r = ran.clone();
+        runner.post_task(Arc::new(move || r.store(true, Ordering::SeqCst)));
+        assert_eq!(
+            crate::message_loop_task_queues::MessageLoopTaskQueues::get_instance()
+                .get_num_pending_tasks(runner.get_task_queue_id()),
+            0
+        );
+        loop_.run_expired_tasks_now();
+        assert!(!ran.load(Ordering::SeqCst));
+    })
+    .join()
+    .unwrap();
+}
+
+// Not upstream: a task runner whose queue is merged into the current thread's
+// runs its tasks on this thread. No upstream test covers
+// TaskRunner::RunsTasksOnCurrentThread's use of the merged state.
+#[test]
+fn runs_tasks_on_current_thread_follows_merges() {
+    let other = crate::raster_thread_merger_unittests::TaskQueueWrapper::new();
+    std::thread::spawn(move || {
+        MessageLoop::ensure_initialized_for_current_thread();
+        let own = MessageLoop::get_current().get_task_runner().get_task_queue_id();
+        let runner = other.loop_.get_task_runner();
+        let queues = crate::message_loop_task_queues::MessageLoopTaskQueues::get_instance();
+        assert!(!runner.runs_tasks_on_current_thread());
+        assert!(queues.merge(own, runner.get_task_queue_id()));
+        assert!(runner.runs_tasks_on_current_thread());
+        assert!(queues.unmerge(own, runner.get_task_queue_id()));
+        assert!(!runner.runs_tasks_on_current_thread());
+        drop(other);
+    })
+    .join()
+    .unwrap();
+}
