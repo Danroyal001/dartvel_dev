@@ -337,3 +337,79 @@ mod hooks {
         assert_eq!(log, vec!["visit a", "visit 1"]);
     }
 }
+
+/// `NodeLocator` in the V1 view, on the cases of `NodeLocator2Test` (the
+/// test of the V1 locator upstream was removed with it): offsets between a
+/// declaration's name and its parameters locate the declaration.
+mod node_locator {
+    use super::*;
+    use analyzer::src::dart::ast::utilities::NodeLocator;
+
+    fn assert_locates(source: &str, pattern: &str, expected: &str) {
+        let result = parse(source);
+        let ast = Ast::new(&result.ast, &result.tokens);
+        let start = source.find(pattern).unwrap() as i32;
+        let node = NodeLocator::new(start, None).search_within(ast, result.unit);
+        assert_ne!(node, NO_NODE);
+        assert!(ast.offset(node) <= start, "Node starts after range");
+        assert!(ast.offset(node) + ast.length(node) > start, "Node ends before range");
+        assert_eq!(ast.node(node).runtime_type(), expected);
+    }
+
+    #[test]
+    fn class_after_name_before_type_parameters() {
+        assert_locates("class A<T> {}\n", "<T> {}", "ClassDeclarationImpl");
+    }
+
+    #[test]
+    fn constructor_after_name_before_parameters() {
+        assert_locates("class A {\n  A() {}\n}\n", "() {}", "ConstructorDeclarationImpl");
+    }
+
+    #[test]
+    fn named_constructor_after_name_before_parameters() {
+        assert_locates("class A {\n  A.c() {}\n}\n", "() {}", "ConstructorDeclarationImpl");
+    }
+
+    #[test]
+    fn function_after_name_before_parameters() {
+        assert_locates("void f() {}\n", "() {}", "FunctionDeclarationImpl");
+    }
+
+    #[test]
+    fn function_after_name_before_type_parameters() {
+        assert_locates("void f<T>() {}\n", "<T>() {}", "FunctionDeclarationImpl");
+    }
+
+    #[test]
+    fn method_after_name_before_parameters() {
+        assert_locates("class A {\n  void m() {}\n}\n", "() {}", "MethodDeclarationImpl");
+    }
+
+    #[test]
+    fn method_after_name_before_type_parameters() {
+        assert_locates("class A {\n  void m<T>() {}\n}\n", "<T>() {}", "MethodDeclarationImpl");
+    }
+
+    #[test]
+    fn setter_after_name_before_parameters() {
+        assert_locates("set s(int x) {}\n", "(int x)", "FunctionDeclarationImpl");
+    }
+
+    #[test]
+    fn only_start_offset() {
+        let code = " f() {} ";
+        let result = parse(code);
+        let ast = Ast::new(&result.ast, &result.tokens);
+        let locate = |offset| NodeLocator::new(offset, None).search_within(ast, result.unit);
+        let function = list(ast, result.unit, "declarations")[0];
+        assert_eq!(locate(0), result.unit);
+        assert_eq!(locate(1), function);
+        assert_eq!(locate(2), function);
+        assert_eq!(ast.node(locate(3)).runtime_type(), "FormalParameterListImpl");
+        assert_eq!(locate(4), ast.parent(locate(3)));
+        assert_eq!(ast.node(locate(5)).runtime_type(), "BlockImpl");
+        assert_eq!(locate(7), result.unit);
+        assert_eq!(locate(100), NO_NODE);
+    }
+}
