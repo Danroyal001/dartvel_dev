@@ -2838,7 +2838,9 @@ fn bench(name: &str, rounds: i32) {
             }
             "color" => {
                 for i in 0..kN {
-                    for mode in 0..=BlendMode::kLastMode as u8 {
+                    // An exclusive range, as the C++ loop is `m <= kLastMode` on
+                    // an int: `0..=n` carries an exhaustion flag.
+                    for mode in 0..BlendMode::kLastMode as u8 + 1 {
                         o.f(c0[i].blend(c1[i], BlendMode::from_u8(mode).unwrap()).red);
                     }
                     o.f(c0[i].linear_to_srgb().green);
