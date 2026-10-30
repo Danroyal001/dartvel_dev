@@ -89,6 +89,7 @@ pub mod src {
             pub mod type_schema_elimination;
             pub mod greatest_lower_bound;
             pub mod least_upper_bound;
+            pub mod type_constraint_gatherer;
         }
         pub mod resolver {
             pub mod scope;
