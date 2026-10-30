@@ -51,7 +51,8 @@ git submodule update --init --filter=blob:none experiments/upstream/sdk
 
 `.github/workflows/experiments.yml` analyzes, format-checks and tests every
 Dart experiment with a `test/` directory on each push that touches this
-folder. Rust workspaces get their job when the first one lands.
+folder. The `dartr` job holds the Rust port to its formatter and analyzer
+parity tests.
 
 Side effort: *Side Effort: The Dart and Flutter Stack in Rust* in
 `NEW_SPEC.md`, and [the proposal](../docs/proposals/2026-10-29-dart-flutter-rust-stack.md).

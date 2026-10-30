@@ -47,3 +47,38 @@ jobs:
             exit 1
           fi
           echo "Ran $ran experiment suite(s)."
+
+  # experiments/dartr, the Rust port Track A starts from, held to the two
+  # parity bars it has met: every case in the test data of the dart_style
+  # revision Dart 3.13.3 ships, and dart analyze 3.13.3 on the analyzer
+  # fixture projects. Both tests skip without their reference, so the
+  # reference is installed first and a skip here would be a failure.
+  dartr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.3
+      - name: dart_style test data at Dart 3.13.3's dart_style_rev
+        run: |
+          set -euo pipefail
+          git init -q "$RUNNER_TEMP/dart_style"
+          cd "$RUNNER_TEMP/dart_style"
+          git fetch -q --depth 1 https://github.com/dart-lang/dart_style 39edc2d946a5d7bd1caf6f1695f366b00f7b873c
+          git checkout -q FETCH_HEAD
+      - name: Formatter parity
+        working-directory: experiments/dartr
+        env:
+          DART_STYLE_DIR: ${{ runner.temp }}/dart_style
+        run: |
+          set -euo pipefail
+          cargo test --release -p dartr_format --test format_test_data -- --nocapture 2>&1 | tee "$RUNNER_TEMP/format.log"
+          if grep -q '^skipped' "$RUNNER_TEMP/format.log"; then echo "dart_style test data was not found"; exit 1; fi
+      - name: Analyzer parity
+        working-directory: experiments/dartr
+        run: |
+          set -euo pipefail
+          cargo test --release -p dartr --test analyze_parity -- --nocapture 2>&1 | tee "$RUNNER_TEMP/analyze.log"
+          if grep -q 'skipped: dart 3.13.3 is not on PATH' "$RUNNER_TEMP/analyze.log"; then exit 1; fi
