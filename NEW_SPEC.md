@@ -16811,8 +16811,8 @@ top of it come features plain Dart cannot compile, and cannot safely ignore
 either, whether run by the stock toolchain or by Dartvel's Rust one. A
 `.dv` file is never a `.dart` file and is never handed to a Dart compiler.
 Dartvel's toolchain compiles it ahead of time to native code: a shared
-library with a generated C header on native targets, a WebAssembly module on
-the web, or static linking into a Dartvel build. That also gives Dart and
+library with a generated C header on native targets, a WebAssembly module
+(see *WebAssembly* below), or static linking into a Dartvel build. That also gives Dart and
 Flutter something they lack, native libraries written in a Dart-shaped
 language.
 
@@ -16855,7 +16855,44 @@ only with a measured claim against the same code in plain Dart.
 | Effects | `pure`, `noalloc`, `nothrow` and `const fn`, checked transitively | `const fn` runs at compile time, replacing code generators with faster builds and smaller binaries; `pure` lets the compiler cache and reorder; `nothrow` gives certification analyses control flow they can trust | Violations are compile errors; build time and binary size are measured against the generator they replace |
 | Contracts | `requires`, `ensures` and `invariant`, proved statically where possible and checked at run time otherwise | Certification evidence in the code itself; proved bounds remove run-time checks | A count of proved against checked contracts, and bounds checks eliminated |
 | `unsafe` | The only place raw pointers, unchecked indexing and `extern` declarations are allowed | Everything else is memory-safe by construction, and what is not is in one counted place | The `unsafe` count per library is published with each build |
-| Rust interop | Rust types, traits and crates used directly in `.dv`, with ownership mapped across | `DV.Rust` taken all the way: Rust's ecosystem with no hand-written FFI | No hand-written `unsafe` in the binding, and call overhead measured against `dart:ffi` |
+| Rust source | Rust source files and crates imported directly into a `.dv` file (see *Rust source* below) | `DV.Rust` taken all the way: Rust's ecosystem with no FFI layer at all | No binding code, and call cost equal to a call within Rust |
+
+## Rust source
+
+A `.dv` file imports Rust **source**, not a compiled Rust library:
+
+```dart
+import rust 'src/simd_blur.rs';            // a Rust file in this package
+import rust crate 'image' version '^0.25'; // a crate from crates.io
+```
+
+The Rust code and the `.dv` code go through the same compiler process and end
+up in the same library: types, traits, generics and functions are used
+directly, with ownership and borrows checked across both, inlining across the
+boundary, and no FFI, no header and no marshalling between them. Crates resolve
+through Cargo's registry and lockfile, recorded beside `pubspec.lock`.
+
+This is not the same as using a prebuilt shared library that happens to have
+been written in Rust. That is ordinary FFI: an `extern` declaration in
+`unsafe`, or a binding generated from its C header, exactly as for a C
+library. Importing source is what makes the safe, zero-cost path possible, and
+it is the one `.dv` offers by default.
+
+## WebAssembly
+
+On the web and for WASI, a `.dv` library compiles to plain WebAssembly (core
+Wasm with linear memory) or to WASI, **not** to WasmGC. `.dv` code that uses
+`struct`s, fixed-width numbers, ownership and `nogc` needs no garbage
+collector, so it carries none: smaller modules, no GC pauses, and it runs in
+any Wasm runtime, including WASI hosts, edge runtimes and browsers without
+WasmGC.
+
+A library is compiled to WasmGC only when it actually uses GC-managed Dart
+objects (classes with identity, closures over them, `List`/`Map` of them).
+The compiler decides per library from what the code uses and reports it;
+`dartvel build` names which libraries needed WasmGC and why. A `.dart` app
+compiled to WasmGC calls a plain-Wasm `.dv` module through the same generated
+binding it would use for a native library.
 
 ## Rules
 
