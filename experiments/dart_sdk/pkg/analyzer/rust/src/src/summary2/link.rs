@@ -195,8 +195,10 @@ impl Linker {
         for id in builders {
             ctx.build(id);
         }
-        let libraries: Vec<LibraryId> = linking_libraries.iter().copied().collect();
-        TypesBuilder { ctx: &mut ctx }.build(&declarations, &libraries);
+        let libraries: Vec<LibraryId> = self.builders[first_new..].iter().map(|b| b.element).collect();
+        let declaring_fields: Vec<(FragmentId, FragmentId)> =
+            self.builders[first_new..].iter().flat_map(|b| b.fragments.declaring_fields.clone()).collect();
+        TypesBuilder { ctx: &mut ctx }.build(&declarations, &libraries, &declaring_fields);
     }
 
     /// The library files the imports and exports of [file] and of the parts

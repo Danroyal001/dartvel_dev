@@ -85,11 +85,92 @@ impl<'c, 'a> TypesBuilder<'c, 'a> {
     /// `TypesBuilder.build`, after the default types and the builders:
     /// `_declaration` for every declaration, then `_setDefaultSupertypes`
     /// and `_copyDeclaringFormalParametersExplicitTypes`.
-    pub fn build(&mut self, declarations: &[(UnitId, NodeId)], libraries: &[crate::src::dart::element::element::LibraryId]) {
+    pub fn build(
+        &mut self,
+        declarations: &[(UnitId, NodeId)],
+        libraries: &[crate::src::dart::element::element::LibraryId],
+        declaring_fields: &[(FragmentId, FragmentId)],
+    ) {
         for &(unit, node) in declarations {
             self.declaration(unit, node);
         }
         self.set_default_supertypes(libraries);
+        self.copy_declaring_formal_parameters_explicit_types(declaring_fields);
+        self.build_enum_children(libraries);
+    }
+
+    /// `PropertyInducingElementImpl.type=`: the type, and the return or value
+    /// parameter type of the accessors the variable induces.
+    fn set_variable_type(&mut self, variable: ElementId, t: TypeImpl) {
+        self.set_type(variable, t.clone());
+        let (getter, setter) = {
+            let v = self.ctx.store.element(variable);
+            (v.getter, v.setter)
+        };
+        let is_origin_variable = |this: &Self, accessor: ElementId| {
+            let first = this.ctx.store.element(accessor).first_fragment;
+            this.ctx.store.fragment(first).has_flag(propertyAccessorFragment_isOriginVariable)
+        };
+        if getter != NO_ELEMENT && is_origin_variable(self, getter) {
+            self.set_type(getter, t.clone());
+        }
+        if setter != NO_ELEMENT && is_origin_variable(self, setter) {
+            self.set_type(setter, TypeImpl::Void);
+            let first = self.ctx.store.element(setter).first_fragment;
+            if let Some(&value) = self.ctx.store.fragment(first).formal_parameters.first() {
+                let value_element = self.ctx.store.fragment(value).element;
+                self.set_type(value_element, t);
+            }
+        }
+    }
+
+    /// `_copyDeclaringFormalParametersExplicitTypes`.
+    fn copy_declaring_formal_parameters_explicit_types(&mut self, declaring_fields: &[(FragmentId, FragmentId)]) {
+        for &(field, formal) in declaring_fields {
+            let formal_element = self.ctx.store.fragment(formal).element;
+            let first = self.ctx.store.element(formal_element).first_fragment;
+            if !self.ctx.store.fragment(first).has_flag(variableFragment_hasImplicitType) {
+                let t = self.ctx.store.element(formal_element).type_.clone().unwrap_or(TypeImpl::Dynamic);
+                let field_element = self.ctx.store.fragment(field).element;
+                self.set_variable_type(field_element, t);
+            }
+        }
+    }
+
+    /// `LibraryBuilder.buildEnumChildren`: an enum's supertype is `Enum`
+    /// (`Object` without it), and its `values` field is a list of the enum
+    /// instantiated to bounds.
+    fn build_enum_children(&mut self, libraries: &[crate::src::dart::element::element::LibraryId]) {
+        let store = &*self.ctx.store;
+        let core_class = |name: &str| {
+            let core = store.libraries.iter().position(|l| &*l.uri == "dart:core")?;
+            store.libraries[core].classes.iter().copied().find(|&c| store.element(c).name.as_deref() == Some(name))
+        };
+        let (enum_class, object, list) = (core_class("Enum"), core_class("Object"), core_class("List"));
+        for &library in libraries {
+            let enums = self.ctx.store.libraries[library as usize].enums.clone();
+            for e in enums {
+                if let Some(supertype) = enum_class.or(object) {
+                    self.set_type(e, TypeImpl::interface(supertype, Vec::new(), NullabilitySuffix::none));
+                }
+                let Some(list) = list else { continue };
+                let arguments: Vec<TypeImpl> = self
+                    .ctx
+                    .type_parameters(e)
+                    .iter()
+                    .map(|&p| self.ctx.store.types(p).and_then(|t| t.default_type.clone()).unwrap_or(TypeImpl::Dynamic))
+                    .collect();
+                let enum_type = TypeImpl::interface(e, arguments, NullabilitySuffix::none);
+                let values_type = TypeImpl::interface(list, vec![enum_type], NullabilitySuffix::none);
+                let fields = self.ctx.store.element(e).members().fields.clone();
+                for field in fields {
+                    let first = self.ctx.store.element(field).first_fragment;
+                    if self.ctx.store.fragment(first).has_flag(fieldFragment_isOriginEnumValues) {
+                        self.set_variable_type(field, values_type.clone());
+                    }
+                }
+            }
+        }
     }
 
     /// `_declaration`.
@@ -255,7 +336,7 @@ impl<'c, 'a> TypesBuilder<'c, 'a> {
             let fragment = self.fragment(unit, variable);
             if self.ctx.store.fragment(fragment).previous_fragment == NO_FRAGMENT {
                 let element = self.ctx.store.fragment(fragment).element;
-                self.set_type(element, t.clone());
+                self.set_variable_type(element, t.clone());
             }
         }
     }

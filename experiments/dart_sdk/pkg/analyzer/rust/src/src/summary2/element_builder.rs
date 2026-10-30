@@ -45,6 +45,9 @@ pub struct LibraryFragments {
     /// the order they were first declared.
     pub declared: Vec<(Rc<str>, ElementId)>,
     pub declared_index: HashMap<Rc<str>, usize>,
+    /// `Linker.declaringFormalParameters`: the field fragment and the formal
+    /// parameter fragment of each declaring formal parameter.
+    pub declaring_fields: Vec<(FragmentId, FragmentId)>,
 }
 
 impl LibraryFragments {
@@ -877,6 +880,7 @@ impl<'a> FragmentBuilder<'a> {
                 f.parameter_kind = p.kind;
                 f.private_name = formal_private_name;
                 f.set_flag(fieldFormalParameterFragment_isDeclaring, true);
+                self.library.declaring_fields.push((field, formal));
                 self.declaring_formal_parameters
                     .insert(formal_parameter, DeclaringFormalParameterInfo { formal_fragment: formal });
             }

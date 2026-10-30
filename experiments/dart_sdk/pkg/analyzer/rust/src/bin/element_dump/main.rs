@@ -27,6 +27,9 @@ use analyzer::src::dart::element::element::{
     DirectiveUri, ElementId, ElementKind, ElementStore, FragmentFlag, FragmentId, FragmentKind,
     LibraryId, NamespaceCombinator, NO_ELEMENT, NO_LIBRARY,
 };
+use analyzer::src::dart::element::display_string_builder::display_string;
+use analyzer::src::dart::element::element::ElementTypes;
+use analyzer::src::dart::element::r#type::TypeImpl;
 use analyzer::src::dart::resolver::scope::create_namespace_for_directive;
 use analyzer::src::dart::sdk::sdk::FolderBasedDartSdk;
 use analyzer::src::generated::utilities_dart::ParameterKind;
@@ -60,11 +63,6 @@ fn main() {
     };
     if roots.is_empty() || (out.is_none() && bench == 0) {
         usage();
-    }
-    if types {
-        // Resolving the declared types is not ported yet.
-        eprintln!("element_dump: --types is not ported yet");
-        std::process::exit(70);
     }
     let sdk = std::path::absolute(&sdk).unwrap();
     let packages = std::path::absolute(&packages).unwrap();
@@ -101,7 +99,9 @@ fn main() {
         let Some(library) = library else {
             continue;
         };
-        let dump = ElementDumper::new(&linker.store).dump_library(library);
+        let mut dumper = ElementDumper::new(&linker.store);
+        dumper.types = types;
+        let dump = dumper.dump_library(library);
         let target = PathBuf::from(format!("{out}/{relative}.elements"));
         fs::create_dir_all(target.parent().unwrap()).unwrap();
         fs::write(&target, dump).unwrap();
@@ -213,6 +213,8 @@ struct ElementDumper<'a> {
     store: &'a ElementStore,
     sb: String,
     units: Vec<u32>,
+    /// `--types`: also the declared types.
+    types: bool,
 }
 
 impl<'a> ElementDumper<'a> {
@@ -221,6 +223,7 @@ impl<'a> ElementDumper<'a> {
             store,
             sb: String::new(),
             units: Vec::new(),
+            types: false,
         }
     }
 
@@ -442,6 +445,17 @@ impl<'a> ElementDumper<'a> {
         match e.kind {
             ElementKind::CLASS | ElementKind::ENUM | ElementKind::EXTENSION_TYPE | ElementKind::MIXIN => {
                 self.type_parameters(d, element);
+                if e.kind != ElementKind::MIXIN {
+                    self.type_line(d, "supertype", &e.type_);
+                } else {
+                    self.types_line(d, "superclassConstraints", element, |t| &t.superclass_constraints);
+                }
+                self.types_line(d, "mixins", element, |t| &t.mixins);
+                self.types_line(d, "interfaces", element, |t| &t.interfaces);
+                if e.kind == ElementKind::EXTENSION_TYPE {
+                    let representation = e.members().fields.first().map(|&f| store.element(f).type_.clone()).unwrap_or(None);
+                    self.type_line(d, "representationType", &representation);
+                }
                 let members = e.members();
                 for list in [&members.fields, &members.getters, &members.setters] {
                     for &m in list {
@@ -461,6 +475,7 @@ impl<'a> ElementDumper<'a> {
             }
             ElementKind::EXTENSION => {
                 self.type_parameters(d, element);
+                self.type_line(d, "extendedType", &e.type_);
                 let members = e.members();
                 for list in [&members.fields, &members.getters, &members.setters, &members.methods] {
                     for &m in list {
@@ -468,7 +483,10 @@ impl<'a> ElementDumper<'a> {
                     }
                 }
             }
-            ElementKind::TYPE_ALIAS => self.type_parameters(d, element),
+            ElementKind::TYPE_ALIAS => {
+                self.type_parameters(d, element);
+                self.type_line(d, "aliasedType", &e.type_);
+            }
             ElementKind::GETTER | ElementKind::SETTER => {
                 if e.is_extension_type_member {
                     self.line(d, "isExtensionTypeMember");
@@ -495,14 +513,78 @@ impl<'a> ElementDumper<'a> {
                     let text = format!("setter {}", name(store.element(e.setter).name.as_deref()));
                     self.line(d, &text);
                 }
+                let first = store.fragment(e.first_fragment);
+                if self.types && first.has_flag(FragmentFlag::propertyInducingFragment_isOriginDeclaration) {
+                    let text = if first.has_flag(FragmentFlag::variableFragment_hasImplicitType) {
+                        "type implicit".to_string()
+                    } else {
+                        format!("type {}", self.ty(&e.type_))
+                    };
+                    self.line(d, &text);
+                }
             }
             other => panic!("StateError: {other:?}"),
         }
     }
 
     fn executable(&mut self, depth: usize, element: ElementId) {
+        let store = self.store;
+        let e = store.element(element);
         self.type_parameters(depth, element);
-        self.formal_parameters(depth, element);
+        // The value parameter of the setter a variable induces has the
+        // variable's type, which inference decides when the variable has no
+        // type of its own.
+        let first = store.fragment(e.first_fragment);
+        let inferred_value = e.kind == ElementKind::SETTER
+            && first.has_flag(FragmentFlag::propertyAccessorFragment_isOriginVariable)
+            && {
+                let v = store.element(e.variable);
+                store.fragment(v.first_fragment).has_flag(FragmentFlag::variableFragment_hasImplicitType)
+            };
+        self.formal_parameters(depth, element, inferred_value);
+        let is_accessor = matches!(e.kind, ElementKind::GETTER | ElementKind::SETTER);
+        if self.types
+            && e.kind != ElementKind::CONSTRUCTOR
+            && !(is_accessor && !first.has_flag(FragmentFlag::propertyAccessorFragment_isOriginDeclaration))
+        {
+            let text = if first.has_flag(FragmentFlag::executableFragment_hasImplicitReturnType) {
+                "returnType implicit".to_string()
+            } else {
+                format!("returnType {}", self.ty(&e.type_))
+            };
+            self.line(depth, &text);
+        }
+    }
+
+    /// `type`: the display string, or `-`.
+    fn ty(&self, t: &Option<TypeImpl>) -> String {
+        match t {
+            Some(t) => display_string(self.store, t),
+            None => "-".to_string(),
+        }
+    }
+
+    /// `typeLine`.
+    fn type_line(&mut self, depth: usize, title: &str, t: &Option<TypeImpl>) {
+        if self.types {
+            let text = format!("{title} {}", self.ty(t));
+            self.line(depth, &text);
+        }
+    }
+
+    /// `typesLine`.
+    fn types_line(&mut self, depth: usize, title: &str, element: ElementId, list: fn(&ElementTypes) -> &Vec<TypeImpl>) {
+        let Some(types) = self.store.types(element) else {
+            return;
+        };
+        let list = list(types);
+        if self.types && !list.is_empty() {
+            let text = format!(
+                "{title} {}",
+                list.iter().map(|t| display_string(self.store, t)).collect::<Vec<_>>().join(", ")
+            );
+            self.line(depth, &text);
+        }
     }
 
     fn type_parameters(&mut self, depth: usize, element: ElementId) {
@@ -510,10 +592,15 @@ impl<'a> ElementDumper<'a> {
             let e = self.store.element(parameter);
             self.line(depth, &format!("{} {}", e.kind.name(), name(e.name.as_deref())));
             self.fragments(depth + 1, parameter);
+            let bound = self.store.element(parameter).type_.clone();
+            if self.types && bound.is_some() {
+                let text = format!("bound {}", self.ty(&bound));
+                self.line(depth + 1, &text);
+            }
         }
     }
 
-    fn formal_parameters(&mut self, depth: usize, element: ElementId) {
+    fn formal_parameters(&mut self, depth: usize, element: ElementId, inferred: bool) {
         for parameter in self.store.formal_parameters(element) {
             let store = self.store;
             let e = store.element(parameter);
@@ -545,6 +632,14 @@ impl<'a> ElementDumper<'a> {
             let code = if is_super && is_required { None } else { first.default_value_code.as_ref() };
             if let Some(code) = code {
                 self.line(d, &format!("default {}", name(Some(code))));
+            }
+            if self.types {
+                let text = if first.has_flag(FragmentFlag::variableFragment_hasImplicitType) || inferred {
+                    "type implicit".to_string()
+                } else {
+                    format!("type {}", self.ty(&e.type_))
+                };
+                self.line(d, &text);
             }
         }
     }
