@@ -182,8 +182,8 @@ void main(List<String> args) {
     String module = snake(className);
     String body(Method m, String self) => switch (m.body) {
       'visitChildren' => 'ast.visit_children2(node, $self);\n        None',
-      'null' => 'let _ = (ast, node);\n        None',
-      'throw' => 'throw_(ast, node)',
+      'null' => 'let _ = ($self, ast, node);\n        None',
+      'throw' => 'let _ = $self;\n        throw_(ast, node)',
       String other =>
         '<V as $className>::${snake(other)}($self, ast, node)',
     };
@@ -229,15 +229,16 @@ void main(List<String> args) {
     v.writeln();
     v.writeln('/// Implements `AstVisitor2` for a type that implements');
     v.writeln('/// `$className`: `$module!(Type, R)`, or');
-    v.writeln("/// `$module!([<'a, T>] Type<'a, T>, R)` for a generic type.");
+    v.writeln("/// `$module!(['a, T] Type<'a, T>, R)` for a generic type.");
     v.writeln('#[macro_export]');
     v.writeln('macro_rules! $module {');
-    v.writeln(r'    ($t:ty, $r:ty) => {');
-    v.writeln('        \$crate::$module!([] \$t, \$r);');
-    v.writeln('    };');
-    v.writeln(r'    ([$($g:tt)*] $t:ty, $r:ty) => {');
+    for (var (String pattern, String generics) in [
+      (r'([$($g:tt)*] $t:ty, $r:ty)', r'<$($g)*>'),
+      (r'($t:ty, $r:ty)', ''),
+    ]) {
+    v.writeln('    $pattern => {');
     v.writeln(
-      r'        impl<$($g)*> $crate::src::dart::ast::ast_g::AstVisitor2 for $t {',
+      '        impl$generics \$crate::src::dart::ast::ast_g::AstVisitor2 for \$t {',
     );
     v.writeln(r'            type R = $r;');
     for (String visit in visits) {
@@ -251,6 +252,7 @@ void main(List<String> args) {
     }
     v.writeln('        }');
     v.writeln('    };');
+    }
     v.writeln('}');
   }
   File('$root/rust/src/dart/ast/visitor_g.rs').writeAsStringSync(v.toString());
@@ -326,7 +328,7 @@ void main(List<String> args) {
     }
     r.writeln('}');
     r.writeln();
-    r.writeln("${snake(base)}!([] $name<'_>, ());");
+    r.writeln("${snake(base)}!($name<'_>, ());");
   }
   File('$root/rust/src/bin/ast_dump/recorders.rs').writeAsStringSync(
     r.toString(),

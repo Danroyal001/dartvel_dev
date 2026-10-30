@@ -3393,6 +3393,29 @@ impl TokenStore {
         self.lexeme_text(data.lexeme, data.type_index)
     }
 
+    /// Appends `token.lexeme` to [out] (not upstream: `sink.write(token.lexeme)`
+    /// without building the string first).
+    pub fn write_lexeme(&self, token: TokenId, out: &mut Vec<u16>) {
+        let data = self.data(token);
+        assert!(
+            !data.runtime_type.is_error_token(),
+            "ErrorToken has no lexeme"
+        );
+        match data.lexeme {
+            Lexeme::Fixed => out.extend(
+                tokenTypesByIndex[data.type_index as usize]
+                    .lexeme
+                    .encode_utf16(),
+            ),
+            Lexeme::Utf16 { start, end } => match &self.source {
+                SourceText::Utf16(units) => out.extend_from_slice(&units[start as usize..end as usize]),
+                SourceText::Utf8(_) => unreachable!("UTF-16 lexeme over a UTF-8 source"),
+            },
+            Lexeme::Owned(index) => out.extend_from_slice(&self.strings[index as usize]),
+            lexeme => out.extend(self.lexeme_text(lexeme, data.type_index)),
+        }
+    }
+
     /// `Token.lexeme` as a Rust string (lone surrogates become U+FFFD).
     pub fn lexeme_string(&self, token: TokenId) -> String {
         String::from_utf16_lossy(&self.lexeme(token))

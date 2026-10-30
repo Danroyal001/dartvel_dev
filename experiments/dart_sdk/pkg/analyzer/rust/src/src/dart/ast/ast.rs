@@ -10,8 +10,9 @@
 // `NodeId`s, as tokens live in a `TokenStore`; `NO_NODE` is null.
 // A node whose fields take more than 24 bytes is boxed in the enum, which
 // keeps every node at 32 bytes.
-// `beginToken`, `endToken` and `_childEntities2` are translated from
-// upstream's bodies; `is XImpl` and `as XImpl` are `is_x_impl` and `as_x_impl`.
+// `beginToken`, `endToken`, `_childEntities2`, `accept2`, `visitChildren2`
+// and `precedence` are translated from upstream's bodies, and the children
+// a constructor makes this node the parent of are its node fields; `is XImpl` and `as XImpl` are `is_x_impl` and `as_x_impl`.
 // Classes that exist only in the V1 view of the AST, which upstream projects
 // from these, are not ported.
 #![allow(clippy::all)]
@@ -19,7 +20,9 @@
 
 use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId, TokenStore};
 
-use crate::src::dart::ast::ast_store::{AstStore, ChildEntities, NO_NODE, NodeId, NodeListImpl};
+use crate::dart::ast::precedence::Precedence;
+use crate::src::dart::ast::ast_g::AstVisitor2;
+use crate::src::dart::ast::ast_store::{Ast, AstStore, ChildEntities, NO_NODE, NodeId, NodeListImpl};
 use crate::dart::analysis::features::FeatureSet;
 use crate::dart::ast::doc_comment::{DocDirective, DocImport, MdCodeBlock};
 use crate::dart::element::element::LibraryLanguageVersion;
@@ -4061,6 +4064,715 @@ impl AstNodeImpl {
             AstNodeImpl::WildcardPatternImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::WithClauseImpl(n) => n.child_entities2(ast, tokens, entities),
             AstNodeImpl::YieldStatementImpl(n) => n.child_entities2(ast, tokens, entities),
+        }
+    }
+
+    /// `accept2(visitor)`: the visitor's method for this class.
+    pub fn accept2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) -> Option<V::R> {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(_) => visitor.visit_adjacent_strings(ast, id),
+            AstNodeImpl::AnnotationImpl(_) => visitor.visit_annotation(ast, id),
+            AstNodeImpl::AnonymousBlockBodyImpl(_) => visitor.visit_anonymous_block_body(ast, id),
+            AstNodeImpl::AnonymousExpressionBodyImpl(_) => visitor.visit_anonymous_expression_body(ast, id),
+            AstNodeImpl::AnonymousMethodInvocationImpl(_) => visitor.visit_anonymous_method_invocation(ast, id),
+            AstNodeImpl::ArgumentListImpl(_) => visitor.visit_argument_list(ast, id),
+            AstNodeImpl::AsExpressionImpl(_) => visitor.visit_as_expression(ast, id),
+            AstNodeImpl::AssertInitializerImpl(_) => visitor.visit_assert_initializer(ast, id),
+            AstNodeImpl::AssertStatementImpl(_) => visitor.visit_assert_statement(ast, id),
+            AstNodeImpl::AssignedVariablePatternImpl(_) => visitor.visit_assigned_variable_pattern(ast, id),
+            AstNodeImpl::AwaitExpressionImpl(_) => visitor.visit_await_expression(ast, id),
+            AstNodeImpl::BinaryOperatorInvocationImpl(_) => visitor.visit_binary_operator_invocation(ast, id),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(_) => visitor.visit_block_enum_declaration_body(ast, id),
+            AstNodeImpl::BlockFunctionBodyImpl(_) => visitor.visit_block_function_body(ast, id),
+            AstNodeImpl::BlockImpl(_) => visitor.visit_block(ast, id),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(_) => visitor.visit_block_instance_declaration_body(ast, id),
+            AstNodeImpl::BooleanLiteralImpl(_) => visitor.visit_boolean_literal(ast, id),
+            AstNodeImpl::BreakStatementImpl(_) => visitor.visit_break_statement(ast, id),
+            AstNodeImpl::CallInvocationImpl(_) => visitor.visit_call_invocation(ast, id),
+            AstNodeImpl::CascadeExpressionImpl(_) => visitor.visit_cascade_expression(ast, id),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(_) => visitor.visit_cascade_index_assignment_target(ast, id),
+            AstNodeImpl::CascadeIndexExpressionImpl(_) => visitor.visit_cascade_index_expression(ast, id),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(_) => visitor.visit_cascade_property_assignment_target(ast, id),
+            AstNodeImpl::CascadePropertyExtractionImpl(_) => visitor.visit_cascade_property_extraction(ast, id),
+            AstNodeImpl::CascadeSectionImpl(_) => visitor.visit_cascade_section(ast, id),
+            AstNodeImpl::CaseClauseImpl(_) => visitor.visit_case_clause(ast, id),
+            AstNodeImpl::CastPatternImpl(_) => visitor.visit_cast_pattern(ast, id),
+            AstNodeImpl::CatchClauseImpl(_) => visitor.visit_catch_clause(ast, id),
+            AstNodeImpl::CatchClauseParameterImpl(_) => visitor.visit_catch_clause_parameter(ast, id),
+            AstNodeImpl::ClassDeclaration2Impl(_) => visitor.visit_class_declaration2(ast, id),
+            AstNodeImpl::ClassTypeAlias2Impl(_) => visitor.visit_class_type_alias2(ast, id),
+            AstNodeImpl::CombinatorNameImpl(_) => visitor.visit_combinator_name(ast, id),
+            AstNodeImpl::CommentImpl(_) => visitor.visit_comment(ast, id),
+            AstNodeImpl::CommentReferenceComponentImpl(_) => visitor.visit_comment_reference_component(ast, id),
+            AstNodeImpl::CommentReferenceImpl(_) => visitor.visit_comment_reference(ast, id),
+            AstNodeImpl::CompilationUnitImpl(_) => visitor.visit_compilation_unit(ast, id),
+            AstNodeImpl::CompoundAssignmentImpl(_) => visitor.visit_compound_assignment(ast, id),
+            AstNodeImpl::ConditionalExpressionImpl(_) => visitor.visit_conditional_expression(ast, id),
+            AstNodeImpl::ConfigurationImpl(_) => visitor.visit_configuration(ast, id),
+            AstNodeImpl::ConstantPatternImpl(_) => visitor.visit_constant_pattern(ast, id),
+            AstNodeImpl::ConstructorDeclaration2Impl(_) => visitor.visit_constructor_declaration2(ast, id),
+            AstNodeImpl::ConstructorFieldInitializerImpl(_) => visitor.visit_constructor_field_initializer(ast, id),
+            AstNodeImpl::ConstructorInvocationImpl(_) => visitor.visit_constructor_invocation(ast, id),
+            AstNodeImpl::ConstructorReference2Impl(_) => visitor.visit_constructor_reference2(ast, id),
+            AstNodeImpl::ConstructorSelectorImpl(_) => visitor.visit_constructor_selector(ast, id),
+            AstNodeImpl::ConstructorTypeReferenceImpl(_) => visitor.visit_constructor_type_reference(ast, id),
+            AstNodeImpl::ContinueStatementImpl(_) => visitor.visit_continue_statement(ast, id),
+            AstNodeImpl::DeclaredIdentifierImpl(_) => visitor.visit_declared_identifier(ast, id),
+            AstNodeImpl::DeclaredVariablePatternImpl(_) => visitor.visit_declared_variable_pattern(ast, id),
+            AstNodeImpl::DelimitedFormalParametersImpl(_) => visitor.visit_delimited_formal_parameters(ast, id),
+            AstNodeImpl::DirectAssignmentImpl(_) => visitor.visit_direct_assignment(ast, id),
+            AstNodeImpl::DoStatementImpl(_) => visitor.visit_do_statement(ast, id),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(_) => visitor.visit_dot_shorthand_constructor_invocation2(ast, id),
+            AstNodeImpl::DotShorthandNameExpressionImpl(_) => visitor.visit_dot_shorthand_name_expression(ast, id),
+            AstNodeImpl::DottedNameImpl(_) => visitor.visit_dotted_name(ast, id),
+            AstNodeImpl::DoubleLiteralImpl(_) => visitor.visit_double_literal(ast, id),
+            AstNodeImpl::EmptyFunctionBodyImpl(_) => visitor.visit_empty_function_body(ast, id),
+            AstNodeImpl::EmptyStatementImpl(_) => visitor.visit_empty_statement(ast, id),
+            AstNodeImpl::EnumConstantArgumentsImpl(_) => visitor.visit_enum_constant_arguments(ast, id),
+            AstNodeImpl::EnumConstantDeclaration2Impl(_) => visitor.visit_enum_constant_declaration2(ast, id),
+            AstNodeImpl::EnumDeclaration2Impl(_) => visitor.visit_enum_declaration2(ast, id),
+            AstNodeImpl::ExportDirectiveImpl(_) => visitor.visit_export_directive(ast, id),
+            AstNodeImpl::ExpressionFunctionBodyImpl(_) => visitor.visit_expression_function_body(ast, id),
+            AstNodeImpl::ExpressionStatementImpl(_) => visitor.visit_expression_statement(ast, id),
+            AstNodeImpl::ExtendsClauseImpl(_) => visitor.visit_extends_clause(ast, id),
+            AstNodeImpl::ExtensionDeclaration2Impl(_) => visitor.visit_extension_declaration2(ast, id),
+            AstNodeImpl::ExtensionOnClauseImpl(_) => visitor.visit_extension_on_clause(ast, id),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(_) => visitor.visit_extension_type_declaration2(ast, id),
+            AstNodeImpl::Field2Impl(_) => visitor.visit_field2(ast, id),
+            AstNodeImpl::FieldFormalParameterImpl(_) => visitor.visit_field_formal_parameter(ast, id),
+            AstNodeImpl::FieldsDeclarationImpl(_) => visitor.visit_fields_declaration(ast, id),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(_) => visitor.visit_for_each_parts_with_declaration(ast, id),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(_) => visitor.visit_for_each_parts_with_identifier(ast, id),
+            AstNodeImpl::ForEachPartsWithPatternImpl(_) => visitor.visit_for_each_parts_with_pattern(ast, id),
+            AstNodeImpl::ForElementImpl(_) => visitor.visit_for_element(ast, id),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(_) => visitor.visit_for_parts_with_declarations(ast, id),
+            AstNodeImpl::ForPartsWithExpressionImpl(_) => visitor.visit_for_parts_with_expression(ast, id),
+            AstNodeImpl::ForPartsWithPatternImpl(_) => visitor.visit_for_parts_with_pattern(ast, id),
+            AstNodeImpl::ForStatementImpl(_) => visitor.visit_for_statement(ast, id),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(_) => visitor.visit_formal_parameter_default_clause(ast, id),
+            AstNodeImpl::FormalParameterListImpl(_) => visitor.visit_formal_parameter_list(ast, id),
+            AstNodeImpl::FunctionExpressionImpl(_) => visitor.visit_function_expression(ast, id),
+            AstNodeImpl::FunctionTypeAlias2Impl(_) => visitor.visit_function_type_alias2(ast, id),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(_) => visitor.visit_function_typed_formal_parameter_suffix(ast, id),
+            AstNodeImpl::GenericFunctionTypeImpl(_) => visitor.visit_generic_function_type(ast, id),
+            AstNodeImpl::GenericTypeAlias2Impl(_) => visitor.visit_generic_type_alias2(ast, id),
+            AstNodeImpl::GetterDeclarationImpl(_) => visitor.visit_getter_declaration(ast, id),
+            AstNodeImpl::GuardedPatternImpl(_) => visitor.visit_guarded_pattern(ast, id),
+            AstNodeImpl::HideCombinatorImpl(_) => visitor.visit_hide_combinator(ast, id),
+            AstNodeImpl::IfElementImpl(_) => visitor.visit_if_element(ast, id),
+            AstNodeImpl::IfNullAssignmentImpl(_) => visitor.visit_if_null_assignment(ast, id),
+            AstNodeImpl::IfNullImpl(_) => visitor.visit_if_null(ast, id),
+            AstNodeImpl::IfStatementImpl(_) => visitor.visit_if_statement(ast, id),
+            AstNodeImpl::ImplementsClauseImpl(_) => visitor.visit_implements_clause(ast, id),
+            AstNodeImpl::ImportDirectiveImpl(_) => visitor.visit_import_directive(ast, id),
+            AstNodeImpl::ImportPrefixReferenceImpl(_) => visitor.visit_import_prefix_reference(ast, id),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(_) => visitor.visit_increment_or_decrement_expression(ast, id),
+            AstNodeImpl::IntegerLiteralImpl(_) => visitor.visit_integer_literal(ast, id),
+            AstNodeImpl::InterpolationExpressionImpl(_) => visitor.visit_interpolation_expression(ast, id),
+            AstNodeImpl::InterpolationStringImpl(_) => visitor.visit_interpolation_string(ast, id),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(_) => visitor.visit_invalid_expression_assignment_target(ast, id),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(_) => visitor.visit_invalid_super_assignment_target(ast, id),
+            AstNodeImpl::InvalidSuperExpressionImpl(_) => visitor.visit_invalid_super_expression(ast, id),
+            AstNodeImpl::IsExpressionImpl(_) => visitor.visit_is_expression(ast, id),
+            AstNodeImpl::LabelImpl(_) => visitor.visit_label(ast, id),
+            AstNodeImpl::LabelReferenceImpl(_) => visitor.visit_label_reference(ast, id),
+            AstNodeImpl::LabeledStatementImpl(_) => visitor.visit_labeled_statement(ast, id),
+            AstNodeImpl::LibraryDirectiveImpl(_) => visitor.visit_library_directive(ast, id),
+            AstNodeImpl::ListLiteralImpl(_) => visitor.visit_list_literal(ast, id),
+            AstNodeImpl::ListPatternImpl(_) => visitor.visit_list_pattern(ast, id),
+            AstNodeImpl::LocalFunctionDeclarationImpl(_) => visitor.visit_local_function_declaration(ast, id),
+            AstNodeImpl::LocalVariableImpl(_) => visitor.visit_local_variable(ast, id),
+            AstNodeImpl::LocalVariablesDeclarationImpl(_) => visitor.visit_local_variables_declaration(ast, id),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(_) => visitor.visit_local_variables_declaration_statement(ast, id),
+            AstNodeImpl::LogicalAndImpl(_) => visitor.visit_logical_and(ast, id),
+            AstNodeImpl::LogicalAndPatternImpl(_) => visitor.visit_logical_and_pattern(ast, id),
+            AstNodeImpl::LogicalNotImpl(_) => visitor.visit_logical_not(ast, id),
+            AstNodeImpl::LogicalOrImpl(_) => visitor.visit_logical_or(ast, id),
+            AstNodeImpl::LogicalOrPatternImpl(_) => visitor.visit_logical_or_pattern(ast, id),
+            AstNodeImpl::MapLiteralEntryImpl(_) => visitor.visit_map_literal_entry(ast, id),
+            AstNodeImpl::MapPatternEntryImpl(_) => visitor.visit_map_pattern_entry(ast, id),
+            AstNodeImpl::MapPatternImpl(_) => visitor.visit_map_pattern(ast, id),
+            AstNodeImpl::MethodDeclaration2Impl(_) => visitor.visit_method_declaration2(ast, id),
+            AstNodeImpl::MixinDeclaration2Impl(_) => visitor.visit_mixin_declaration2(ast, id),
+            AstNodeImpl::MixinOnClauseImpl(_) => visitor.visit_mixin_on_clause(ast, id),
+            AstNodeImpl::NameWithTypeParametersImpl(_) => visitor.visit_name_with_type_parameters(ast, id),
+            AstNodeImpl::NamedArgumentImpl(_) => visitor.visit_named_argument(ast, id),
+            AstNodeImpl::NamedTypeImpl(_) => visitor.visit_named_type(ast, id),
+            AstNodeImpl::NativeClauseImpl(_) => visitor.visit_native_clause(ast, id),
+            AstNodeImpl::NativeFunctionBodyImpl(_) => visitor.visit_native_function_body(ast, id),
+            AstNodeImpl::NullAssertPatternImpl(_) => visitor.visit_null_assert_pattern(ast, id),
+            AstNodeImpl::NullAssertionExpressionImpl(_) => visitor.visit_null_assertion_expression(ast, id),
+            AstNodeImpl::NullAwareElementImpl(_) => visitor.visit_null_aware_element(ast, id),
+            AstNodeImpl::NullCheckPatternImpl(_) => visitor.visit_null_check_pattern(ast, id),
+            AstNodeImpl::NullLiteralImpl(_) => visitor.visit_null_literal(ast, id),
+            AstNodeImpl::ObjectPatternImpl(_) => visitor.visit_object_pattern(ast, id),
+            AstNodeImpl::OperatorDeclarationImpl(_) => visitor.visit_operator_declaration(ast, id),
+            AstNodeImpl::ParenthesizedExpressionImpl(_) => visitor.visit_parenthesized_expression(ast, id),
+            AstNodeImpl::ParenthesizedPatternImpl(_) => visitor.visit_parenthesized_pattern(ast, id),
+            AstNodeImpl::ParsedCascadeNameImpl(_) => visitor.visit_parsed_cascade_name(ast, id),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(_) => visitor.visit_parsed_dot_shorthand_expression(ast, id),
+            AstNodeImpl::ParsedDotShorthandNameImpl(_) => visitor.visit_parsed_dot_shorthand_name(ast, id),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(_) => visitor.visit_parsed_name_access_assignment_target(ast, id),
+            AstNodeImpl::ParsedNameAccessImpl(_) => visitor.visit_parsed_name_access(ast, id),
+            AstNodeImpl::ParsedTypeArgumentsImpl(_) => visitor.visit_parsed_type_arguments(ast, id),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(_) => visitor.visit_parsed_unqualified_name(ast, id),
+            AstNodeImpl::ParsedValueArgumentsImpl(_) => visitor.visit_parsed_value_arguments(ast, id),
+            AstNodeImpl::PartDirectiveImpl(_) => visitor.visit_part_directive(ast, id),
+            AstNodeImpl::PartOfDirectiveImpl(_) => visitor.visit_part_of_directive(ast, id),
+            AstNodeImpl::PatternAssignmentImpl(_) => visitor.visit_pattern_assignment(ast, id),
+            AstNodeImpl::PatternFieldImpl(_) => visitor.visit_pattern_field(ast, id),
+            AstNodeImpl::PatternFieldNameImpl(_) => visitor.visit_pattern_field_name(ast, id),
+            AstNodeImpl::PatternVariableDeclarationImpl(_) => visitor.visit_pattern_variable_declaration(ast, id),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(_) => visitor.visit_pattern_variable_declaration_statement(ast, id),
+            AstNodeImpl::PrimaryConstructorBody2Impl(_) => visitor.visit_primary_constructor_body2(ast, id),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(_) => visitor.visit_primary_constructor_declaration(ast, id),
+            AstNodeImpl::PrimaryConstructorNameImpl(_) => visitor.visit_primary_constructor_name(ast, id),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(_) => visitor.visit_receiver_index_assignment_target(ast, id),
+            AstNodeImpl::ReceiverIndexExpressionImpl(_) => visitor.visit_receiver_index_expression(ast, id),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(_) => visitor.visit_receiver_property_assignment_target(ast, id),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(_) => visitor.visit_receiver_property_extraction(ast, id),
+            AstNodeImpl::RecordLiteralImpl(_) => visitor.visit_record_literal(ast, id),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(_) => visitor.visit_record_literal_named_field(ast, id),
+            AstNodeImpl::RecordPatternImpl(_) => visitor.visit_record_pattern(ast, id),
+            AstNodeImpl::RecordTypeAnnotationImpl(_) => visitor.visit_record_type_annotation(ast, id),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(_) => visitor.visit_record_type_annotation_named_field(ast, id),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(_) => visitor.visit_record_type_annotation_named_fields(ast, id),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(_) => visitor.visit_record_type_annotation_positional_field(ast, id),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(_) => visitor.visit_redirecting_constructor_invocation(ast, id),
+            AstNodeImpl::RegularFormalParameterImpl(_) => visitor.visit_regular_formal_parameter(ast, id),
+            AstNodeImpl::RelationalPatternImpl(_) => visitor.visit_relational_pattern(ast, id),
+            AstNodeImpl::RestPatternElementImpl(_) => visitor.visit_rest_pattern_element(ast, id),
+            AstNodeImpl::RethrowExpressionImpl(_) => visitor.visit_rethrow_expression(ast, id),
+            AstNodeImpl::ReturnStatementImpl(_) => visitor.visit_return_statement(ast, id),
+            AstNodeImpl::ScriptTagImpl(_) => visitor.visit_script_tag(ast, id),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(_) => visitor.visit_semicolon_enum_declaration_body(ast, id),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(_) => visitor.visit_semicolon_instance_declaration_body(ast, id),
+            AstNodeImpl::SetOrMapLiteralImpl(_) => visitor.visit_set_or_map_literal(ast, id),
+            AstNodeImpl::SetterDeclarationImpl(_) => visitor.visit_setter_declaration(ast, id),
+            AstNodeImpl::ShowCombinatorImpl(_) => visitor.visit_show_combinator(ast, id),
+            AstNodeImpl::SimpleStringLiteralImpl(_) => visitor.visit_simple_string_literal(ast, id),
+            AstNodeImpl::SpreadElementImpl(_) => visitor.visit_spread_element(ast, id),
+            AstNodeImpl::StringInterpolationImpl(_) => visitor.visit_string_interpolation(ast, id),
+            AstNodeImpl::SuperConstructorInvocationImpl(_) => visitor.visit_super_constructor_invocation(ast, id),
+            AstNodeImpl::SuperFormalParameterImpl(_) => visitor.visit_super_formal_parameter(ast, id),
+            AstNodeImpl::SuperReferenceImpl(_) => visitor.visit_super_reference(ast, id),
+            AstNodeImpl::SwitchCaseImpl(_) => visitor.visit_switch_case(ast, id),
+            AstNodeImpl::SwitchDefaultImpl(_) => visitor.visit_switch_default(ast, id),
+            AstNodeImpl::SwitchExpressionCaseImpl(_) => visitor.visit_switch_expression_case(ast, id),
+            AstNodeImpl::SwitchExpressionImpl(_) => visitor.visit_switch_expression(ast, id),
+            AstNodeImpl::SwitchPatternCaseImpl(_) => visitor.visit_switch_pattern_case(ast, id),
+            AstNodeImpl::SwitchStatementImpl(_) => visitor.visit_switch_statement(ast, id),
+            AstNodeImpl::SymbolLiteralImpl(_) => visitor.visit_symbol_literal(ast, id),
+            AstNodeImpl::ThisExpressionImpl(_) => visitor.visit_this_expression(ast, id),
+            AstNodeImpl::ThrowExpressionImpl(_) => visitor.visit_throw_expression(ast, id),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(_) => visitor.visit_top_level_function_declaration(ast, id),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(_) => visitor.visit_top_level_getter_declaration(ast, id),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(_) => visitor.visit_top_level_setter_declaration(ast, id),
+            AstNodeImpl::TopLevelVariable2Impl(_) => visitor.visit_top_level_variable2(ast, id),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(_) => visitor.visit_top_level_variables_declaration(ast, id),
+            AstNodeImpl::TryStatementImpl(_) => visitor.visit_try_statement(ast, id),
+            AstNodeImpl::TypeArgumentListImpl(_) => visitor.visit_type_argument_list(ast, id),
+            AstNodeImpl::TypeParameterImpl(_) => visitor.visit_type_parameter(ast, id),
+            AstNodeImpl::TypeParameterListImpl(_) => visitor.visit_type_parameter_list(ast, id),
+            AstNodeImpl::UnaryOperatorInvocationImpl(_) => visitor.visit_unary_operator_invocation(ast, id),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(_) => visitor.visit_unqualified_name_assignment_target(ast, id),
+            AstNodeImpl::WhenClauseImpl(_) => visitor.visit_when_clause(ast, id),
+            AstNodeImpl::WhileStatementImpl(_) => visitor.visit_while_statement(ast, id),
+            AstNodeImpl::WildcardPatternImpl(_) => visitor.visit_wildcard_pattern(ast, id),
+            AstNodeImpl::WithClauseImpl(_) => visitor.visit_with_clause(ast, id),
+            AstNodeImpl::YieldStatementImpl(_) => visitor.visit_yield_statement(ast, id),
+        }
+    }
+
+    /// `visitChildren2(visitor)`.
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::AnnotationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::AnonymousBlockBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::AnonymousExpressionBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::AnonymousMethodInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ArgumentListImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::AsExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::AssertInitializerImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::AssertStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::AssignedVariablePatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::AwaitExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::BlockFunctionBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::BlockImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::BooleanLiteralImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::BreakStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CallInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CascadeExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CascadeIndexExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CascadePropertyExtractionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CascadeSectionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CaseClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CastPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CatchClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CatchClauseParameterImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ClassDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ClassTypeAlias2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CombinatorNameImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CommentImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CommentReferenceComponentImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CommentReferenceImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CompilationUnitImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::CompoundAssignmentImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConditionalExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConfigurationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConstantPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConstructorDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConstructorInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConstructorReference2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConstructorSelectorImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ContinueStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DeclaredIdentifierImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DeclaredVariablePatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DelimitedFormalParametersImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DirectAssignmentImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DoStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DottedNameImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::DoubleLiteralImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::EmptyFunctionBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::EmptyStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::EnumConstantArgumentsImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::EnumDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ExportDirectiveImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ExpressionStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ExtendsClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ExtensionDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ExtensionOnClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::Field2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FieldFormalParameterImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FieldsDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ForEachPartsWithPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ForElementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ForPartsWithExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ForPartsWithPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ForStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FormalParameterListImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FunctionExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FunctionTypeAlias2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::GenericFunctionTypeImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::GenericTypeAlias2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::GetterDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::GuardedPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::HideCombinatorImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::IfElementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::IfNullAssignmentImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::IfNullImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::IfStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ImplementsClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ImportDirectiveImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ImportPrefixReferenceImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::IntegerLiteralImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::InterpolationExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::InterpolationStringImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::InvalidSuperExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::IsExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LabelImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LabelReferenceImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LabeledStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LibraryDirectiveImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ListLiteralImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ListPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LocalFunctionDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LocalVariableImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LocalVariablesDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LogicalAndImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LogicalAndPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LogicalNotImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LogicalOrImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::LogicalOrPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::MapLiteralEntryImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::MapPatternEntryImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::MapPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::MethodDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::MixinDeclaration2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::MixinOnClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::NameWithTypeParametersImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::NamedArgumentImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::NamedTypeImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::NativeClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::NativeFunctionBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::NullAssertPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::NullAssertionExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::NullAwareElementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::NullCheckPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::NullLiteralImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ObjectPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::OperatorDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ParenthesizedExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ParenthesizedPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ParsedCascadeNameImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ParsedDotShorthandNameImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ParsedNameAccessImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ParsedTypeArgumentsImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ParsedValueArgumentsImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PartDirectiveImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PartOfDirectiveImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PatternAssignmentImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PatternFieldImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PatternFieldNameImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PatternVariableDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::PrimaryConstructorNameImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RecordLiteralImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RecordPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RecordTypeAnnotationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RegularFormalParameterImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RelationalPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RestPatternElementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::RethrowExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ReturnStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ScriptTagImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SetOrMapLiteralImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SetterDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ShowCombinatorImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SimpleStringLiteralImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SpreadElementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::StringInterpolationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SuperConstructorInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SuperFormalParameterImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SuperReferenceImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SwitchCaseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SwitchDefaultImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SwitchExpressionCaseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SwitchExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SwitchPatternCaseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SwitchStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::SymbolLiteralImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ThisExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::ThrowExpressionImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::TopLevelVariable2Impl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::TryStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::TypeArgumentListImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::TypeParameterImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::TypeParameterListImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::WhenClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::WhileStatementImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::WildcardPatternImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::WithClauseImpl(n) => n.visit_children2(ast, visitor),
+            AstNodeImpl::YieldStatementImpl(n) => n.visit_children2(ast, visitor),
+        }
+    }
+
+    /// The nodes the constructor makes this node the parent of.
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::AnnotationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::AnonymousBlockBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::AnonymousExpressionBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::AnonymousMethodInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ArgumentListImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::AsExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::AssertInitializerImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::AssertStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::AssignedVariablePatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::AwaitExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::BlockFunctionBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::BlockImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::BooleanLiteralImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::BreakStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CallInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CascadeExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CascadeIndexExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CascadePropertyExtractionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CascadeSectionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CaseClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CastPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CatchClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CatchClauseParameterImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ClassDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ClassTypeAlias2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CombinatorNameImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CommentImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CommentReferenceComponentImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CommentReferenceImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CompilationUnitImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::CompoundAssignmentImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConditionalExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConfigurationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConstantPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConstructorDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConstructorFieldInitializerImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConstructorInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConstructorReference2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConstructorSelectorImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ConstructorTypeReferenceImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ContinueStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DeclaredIdentifierImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DeclaredVariablePatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DelimitedFormalParametersImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DirectAssignmentImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DoStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DottedNameImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::DoubleLiteralImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::EmptyFunctionBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::EmptyStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::EnumConstantArgumentsImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::EnumConstantDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::EnumDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ExportDirectiveImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ExpressionFunctionBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ExpressionStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ExtendsClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ExtensionDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ExtensionOnClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::Field2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FieldFormalParameterImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FieldsDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ForEachPartsWithPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ForElementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ForPartsWithExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ForPartsWithPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ForStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FormalParameterListImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FunctionExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FunctionTypeAlias2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::GenericFunctionTypeImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::GenericTypeAlias2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::GetterDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::GuardedPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::HideCombinatorImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::IfElementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::IfNullAssignmentImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::IfNullImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::IfStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ImplementsClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ImportDirectiveImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ImportPrefixReferenceImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::IntegerLiteralImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::InterpolationExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::InterpolationStringImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::InvalidSuperExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::IsExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LabelImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LabelReferenceImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LabeledStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LibraryDirectiveImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ListLiteralImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ListPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LocalFunctionDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LocalVariableImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LocalVariablesDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LogicalAndImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LogicalAndPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LogicalNotImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LogicalOrImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::LogicalOrPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::MapLiteralEntryImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::MapPatternEntryImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::MapPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::MethodDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::MixinDeclaration2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::MixinOnClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::NameWithTypeParametersImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::NamedArgumentImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::NamedTypeImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::NativeClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::NativeFunctionBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::NullAssertPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::NullAssertionExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::NullAwareElementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::NullCheckPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::NullLiteralImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ObjectPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::OperatorDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ParenthesizedExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ParenthesizedPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ParsedCascadeNameImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ParsedDotShorthandNameImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ParsedNameAccessImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ParsedTypeArgumentsImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ParsedValueArgumentsImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PartDirectiveImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PartOfDirectiveImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PatternAssignmentImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PatternFieldImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PatternFieldNameImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PatternVariableDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PrimaryConstructorBody2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::PrimaryConstructorNameImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RecordLiteralImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RecordPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RecordTypeAnnotationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RegularFormalParameterImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RelationalPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RestPatternElementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::RethrowExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ReturnStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ScriptTagImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SetOrMapLiteralImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SetterDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ShowCombinatorImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SimpleStringLiteralImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SpreadElementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::StringInterpolationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SuperConstructorInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SuperFormalParameterImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SuperReferenceImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SwitchCaseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SwitchDefaultImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SwitchExpressionCaseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SwitchExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SwitchPatternCaseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SwitchStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::SymbolLiteralImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ThisExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::ThrowExpressionImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::TopLevelVariable2Impl(n) => n.for_each_child_node(f),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::TryStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::TypeArgumentListImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::TypeParameterImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::TypeParameterListImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::WhenClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::WhileStatementImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::WildcardPatternImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::WithClauseImpl(n) => n.for_each_child_node(f),
+            AstNodeImpl::YieldStatementImpl(n) => n.for_each_child_node(f),
+        }
+    }
+
+    /// `(this as ExpressionImpl).precedence`.
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        match self {
+            AstNodeImpl::AdjacentStringsImpl(n) => n.precedence(ast),
+            AstNodeImpl::AnonymousMethodInvocationImpl(n) => n.precedence(ast),
+            AstNodeImpl::AsExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::AwaitExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::BinaryOperatorInvocationImpl(n) => n.precedence(ast),
+            AstNodeImpl::BooleanLiteralImpl(n) => n.precedence(ast),
+            AstNodeImpl::CallInvocationImpl(n) => n.precedence(ast),
+            AstNodeImpl::CascadeExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::CascadeIndexExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::CascadePropertyExtractionImpl(n) => n.precedence(ast),
+            AstNodeImpl::CompoundAssignmentImpl(n) => n.precedence(ast),
+            AstNodeImpl::ConditionalExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::ConstructorInvocationImpl(n) => n.precedence(ast),
+            AstNodeImpl::DirectAssignmentImpl(n) => n.precedence(ast),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(n) => n.precedence(ast),
+            AstNodeImpl::DotShorthandNameExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::DoubleLiteralImpl(n) => n.precedence(ast),
+            AstNodeImpl::FunctionExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::IfNullAssignmentImpl(n) => n.precedence(ast),
+            AstNodeImpl::IfNullImpl(n) => n.precedence(ast),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::IntegerLiteralImpl(n) => n.precedence(ast),
+            AstNodeImpl::InvalidSuperExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::IsExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::ListLiteralImpl(n) => n.precedence(ast),
+            AstNodeImpl::LogicalAndImpl(n) => n.precedence(ast),
+            AstNodeImpl::LogicalNotImpl(n) => n.precedence(ast),
+            AstNodeImpl::LogicalOrImpl(n) => n.precedence(ast),
+            AstNodeImpl::NullAssertionExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::NullLiteralImpl(n) => n.precedence(ast),
+            AstNodeImpl::ParenthesizedExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::ParsedCascadeNameImpl(n) => n.precedence(ast),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::ParsedDotShorthandNameImpl(n) => n.precedence(ast),
+            AstNodeImpl::ParsedNameAccessImpl(n) => n.precedence(ast),
+            AstNodeImpl::ParsedTypeArgumentsImpl(n) => n.precedence(ast),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => n.precedence(ast),
+            AstNodeImpl::ParsedValueArgumentsImpl(n) => n.precedence(ast),
+            AstNodeImpl::PatternAssignmentImpl(n) => n.precedence(ast),
+            AstNodeImpl::ReceiverIndexExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(n) => n.precedence(ast),
+            AstNodeImpl::RecordLiteralImpl(n) => n.precedence(ast),
+            AstNodeImpl::RethrowExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::SetOrMapLiteralImpl(n) => n.precedence(ast),
+            AstNodeImpl::SimpleStringLiteralImpl(n) => n.precedence(ast),
+            AstNodeImpl::StringInterpolationImpl(n) => n.precedence(ast),
+            AstNodeImpl::SwitchExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::SymbolLiteralImpl(n) => n.precedence(ast),
+            AstNodeImpl::ThisExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::ThrowExpressionImpl(n) => n.precedence(ast),
+            AstNodeImpl::UnaryOperatorInvocationImpl(n) => n.precedence(ast),
+            _ => panic!("{} has no precedence", self.runtime_type()),
         }
     }
 
@@ -10104,6 +10816,22 @@ impl AdjacentStringsImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node_list("strings", &self.strings);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.strings {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.strings {
+            f(element);
+        }
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
+    }
 }
 
 impl AnnotationImpl {
@@ -10119,6 +10847,14 @@ impl AnnotationImpl {
         entities.add_token("atSign", self.at_sign);
         entities.add_node("expression", self.expression);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression);
+    }
 }
 
 impl AnonymousBlockBodyImpl {
@@ -10132,6 +10868,14 @@ impl AnonymousBlockBodyImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node("block", self.block);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.block, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.block);
     }
 }
 
@@ -10147,6 +10891,14 @@ impl AnonymousExpressionBodyImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("functionDefinition", self.function_definition);
         entities.add_node("expression2", self.expression2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
     }
 }
 
@@ -10168,6 +10920,26 @@ impl AnonymousMethodInvocationImpl {
         entities.add_node("parameters", self.parameters);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.target2 != NO_NODE {
+            ast.accept2(self.target2, visitor);
+        }
+        if self.parameters != NO_NODE {
+            ast.accept2(self.parameters, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.target2);
+        f(self.parameters);
+        f(self.body);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
+    }
 }
 
 impl ArgumentListImpl {
@@ -10184,6 +10956,18 @@ impl ArgumentListImpl {
         entities.add_node_list("arguments2", &self.arguments2);
         entities.add_token("rightParenthesis", self.right_parenthesis);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.arguments2 {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.arguments2 {
+            f(element);
+        }
+    }
 }
 
 impl AsExpressionImpl {
@@ -10199,6 +10983,20 @@ impl AsExpressionImpl {
         entities.add_node("expression2", self.expression2);
         entities.add_token("asOperator", self.as_operator);
         entities.add_node("type", self.type_);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+        ast.accept2(self.type_, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+        f(self.type_);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::relational
     }
 }
 
@@ -10218,6 +11016,18 @@ impl AssertInitializerImpl {
         entities.add_token("comma", self.comma);
         entities.add_node("message2", self.message2);
         entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.condition2, visitor);
+        if self.message2 != NO_NODE {
+            ast.accept2(self.message2, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.condition2);
+        f(self.message2);
     }
 }
 
@@ -10239,6 +11049,18 @@ impl AssertStatementImpl {
         entities.add_token("rightParenthesis", self.right_parenthesis);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.condition2, visitor);
+        if self.message2 != NO_NODE {
+            ast.accept2(self.message2, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.condition2);
+        f(self.message2);
+    }
 }
 
 impl AssignedVariablePatternImpl {
@@ -10252,6 +11074,14 @@ impl AssignedVariablePatternImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -10268,6 +11098,18 @@ impl AwaitExpressionImpl {
         entities.add_token("awaitKeyword", self.await_keyword);
         entities.add_node("expression2", self.expression2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::prefix
+    }
 }
 
 impl BinaryOperatorInvocationImpl {
@@ -10283,6 +11125,20 @@ impl BinaryOperatorInvocationImpl {
         entities.add_node("leftOperand", self.left_operand);
         entities.add_token("operator", self.operator_);
         entities.add_node("rightOperand", self.right_operand);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.left_operand, visitor);
+        ast.accept2(self.right_operand, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.left_operand);
+        f(self.right_operand);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::for_token_type(ast.tokens.type_(self.operator_))
     }
 }
 
@@ -10301,6 +11157,24 @@ impl BlockEnumDeclarationBodyImpl {
         entities.add_token("membersSeparator", self.members_separator);
         entities.add_node_list("members", &self.members);
         entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.constants {
+            ast.accept2(element, visitor);
+        }
+        for &element in &self.members {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.constants {
+            f(element);
+        }
+        for &element in &self.members {
+            f(element);
+        }
     }
 }
 
@@ -10324,6 +11198,14 @@ impl BlockFunctionBodyImpl {
         entities.add_token("star", self.star);
         entities.add_node("block", self.block);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.block, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.block);
+    }
 }
 
 impl BlockImpl {
@@ -10339,6 +11221,18 @@ impl BlockImpl {
         entities.add_token("leftBracket", self.left_bracket);
         entities.add_node_list("statements2", &self.statements2);
         entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.statements2 {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.statements2 {
+            f(element);
+        }
     }
 }
 
@@ -10356,6 +11250,18 @@ impl BlockInstanceDeclarationBodyImpl {
         entities.add_node_list("members", &self.members);
         entities.add_token("rightBracket", self.right_bracket);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.members {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.members {
+            f(element);
+        }
+    }
 }
 
 impl BooleanLiteralImpl {
@@ -10369,6 +11275,18 @@ impl BooleanLiteralImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("literal", self.literal);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
     }
 }
 
@@ -10386,6 +11304,16 @@ impl BreakStatementImpl {
         entities.add_node("label", self.label);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.label != NO_NODE {
+            ast.accept2(self.label, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.label);
+    }
 }
 
 impl CallInvocationImpl {
@@ -10401,6 +11329,24 @@ impl CallInvocationImpl {
         entities.add_node("receiver", self.receiver);
         entities.add_node("typeArguments", self.type_arguments);
         entities.add_node("argumentList", self.argument_list);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.receiver, visitor);
+        if self.type_arguments != NO_NODE {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        ast.accept2(self.argument_list, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_arguments);
+        f(self.argument_list);
+        f(self.receiver);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
     }
 }
 
@@ -10423,6 +11369,24 @@ impl CascadeExpressionImpl {
         entities.add_node("target2", self.target2);
         entities.add_node_list("sections", &self.sections);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.target2, visitor);
+        for &element in &self.sections {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.target2);
+        for &element in &self.sections {
+            f(element);
+        }
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::cascade
+    }
 }
 
 impl CascadeIndexAssignmentTargetImpl {
@@ -10438,6 +11402,14 @@ impl CascadeIndexAssignmentTargetImpl {
         entities.add_token("leftBracket", self.left_bracket);
         entities.add_node("index", self.index);
         entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.index, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.index);
     }
 }
 
@@ -10455,6 +11427,18 @@ impl CascadeIndexExpressionImpl {
         entities.add_node("index", self.index);
         entities.add_token("rightBracket", self.right_bracket);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.index, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.index);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
+    }
 }
 
 impl CascadePropertyAssignmentTargetImpl {
@@ -10469,6 +11453,14 @@ impl CascadePropertyAssignmentTargetImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
 }
 
 impl CascadePropertyExtractionImpl {
@@ -10482,6 +11474,18 @@ impl CascadePropertyExtractionImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
     }
 }
 
@@ -10501,6 +11505,14 @@ impl CascadeSectionImpl {
         }
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.body);
+    }
 }
 
 impl CaseClauseImpl {
@@ -10515,6 +11527,14 @@ impl CaseClauseImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("caseKeyword", self.case_keyword);
         entities.add_node("guardedPattern", self.guarded_pattern);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.guarded_pattern, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.guarded_pattern);
     }
 }
 
@@ -10531,6 +11551,16 @@ impl CastPatternImpl {
         entities.add_node("pattern", self.pattern);
         entities.add_token("asToken", self.as_token);
         entities.add_node("type", self.type_);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.pattern, visitor);
+        ast.accept2(self.type_, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.pattern);
+        f(self.type_);
     }
 }
 
@@ -10578,6 +11608,26 @@ impl CatchClauseImpl {
         entities.add_token("rightParenthesis", self.right_parenthesis);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.exception_type != NO_NODE {
+            ast.accept2(self.exception_type, visitor);
+        }
+        if self.exception_parameter != NO_NODE {
+            ast.accept2(self.exception_parameter, visitor);
+        }
+        if self.stack_trace_parameter != NO_NODE {
+            ast.accept2(self.stack_trace_parameter, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.exception_type);
+        f(self.exception_parameter);
+        f(self.stack_trace_parameter);
+        f(self.body);
+    }
 }
 
 impl CatchClauseParameterImpl {
@@ -10591,6 +11641,14 @@ impl CatchClauseParameterImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -10656,6 +11714,37 @@ impl ClassDeclaration2Impl {
         entities.add_node("implementsClause", self.implements_clause);
         entities.add_node("nativeClause", self.native_clause);
         entities.add_node("body", self.body);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        ast.accept2(self.name_part, visitor);
+        if self.extends_clause != NO_NODE {
+            ast.accept2(self.extends_clause, visitor);
+        }
+        if self.with_clause != NO_NODE {
+            ast.accept2(self.with_clause, visitor);
+        }
+        if self.implements_clause != NO_NODE {
+            ast.accept2(self.implements_clause, visitor);
+        }
+        if self.native_clause != NO_NODE {
+            ast.accept2(self.native_clause, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.name_part);
+        f(self.extends_clause);
+        f(self.with_clause);
+        f(self.implements_clause);
+        f(self.native_clause);
+        f(self.body);
     }
 }
 
@@ -10723,6 +11812,31 @@ impl ClassTypeAlias2Impl {
         entities.add_node("implementsClause", self.implements_clause);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        ast.accept2(self.superclass, visitor);
+        ast.accept2(self.with_clause, visitor);
+        if self.implements_clause != NO_NODE {
+            ast.accept2(self.implements_clause, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_parameters);
+        f(self.superclass);
+        f(self.with_clause);
+        f(self.implements_clause);
+        f(self.body);
+    }
 }
 
 impl CombinatorNameImpl {
@@ -10736,6 +11850,14 @@ impl CombinatorNameImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -10751,6 +11873,18 @@ impl CommentImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node_list("references", &self.references);
         entities.add_token_list("tokens", &self.tokens);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.references {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.references {
+            f(element);
+        }
     }
 }
 
@@ -10773,6 +11907,14 @@ impl CommentReferenceComponentImpl {
         entities.add_token("period", self.period);
         entities.add_token("operatorKeyword", self.operator_keyword);
         entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -10800,6 +11942,18 @@ impl CommentReferenceImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node_list("components", &self.components);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.components {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.components {
+            f(element);
+        }
+    }
 }
 
 impl CompilationUnitImpl {
@@ -10816,6 +11970,39 @@ impl CompilationUnitImpl {
         entities.add_node_list("directives", &self.directives);
         entities.add_node_list("declarations2", &self.declarations2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.script_tag != NO_NODE {
+            ast.accept2(self.script_tag, visitor);
+        }
+        // _directivesAreBeforeDeclarations
+        let before = self.directives.is_empty()
+            || self.declarations2.is_empty()
+            || ast.offset(self.directives[self.directives.len() - 1])
+                < ast.offset(self.declarations2[0]);
+        if before {
+            for &element in &self.directives {
+                ast.accept2(element, visitor);
+            }
+            for &element in &self.declarations2 {
+                ast.accept2(element, visitor);
+            }
+        } else {
+            for child in ast.sorted_by_offset(&[&self.directives[..], &self.declarations2[..]]) {
+                ast.accept2(child, visitor);
+            }
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.script_tag);
+        for &element in &self.directives {
+            f(element);
+        }
+        for &element in &self.declarations2 {
+            f(element);
+        }
+    }
 }
 
 impl CompoundAssignmentImpl {
@@ -10831,6 +12018,20 @@ impl CompoundAssignmentImpl {
         entities.add_node("target", self.target);
         entities.add_token("operator", self.operator_);
         entities.add_node("value", self.value);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.target, visitor);
+        ast.accept2(self.value, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.target);
+        f(self.value);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::assignment
     }
 }
 
@@ -10849,6 +12050,22 @@ impl ConditionalExpressionImpl {
         entities.add_node("thenExpression2", self.then_expression2);
         entities.add_token("colon", self.colon);
         entities.add_node("elseExpression2", self.else_expression2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.condition2, visitor);
+        ast.accept2(self.then_expression2, visitor);
+        ast.accept2(self.else_expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.condition2);
+        f(self.then_expression2);
+        f(self.else_expression2);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::conditional
     }
 }
 
@@ -10870,6 +12087,20 @@ impl ConfigurationImpl {
         entities.add_token("rightParenthesis", self.right_parenthesis);
         entities.add_node("uri", self.uri);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.name, visitor);
+        if self.value != NO_NODE {
+            ast.accept2(self.value, visitor);
+        }
+        ast.accept2(self.uri, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.name);
+        f(self.value);
+        f(self.uri);
+    }
 }
 
 impl ConstantPatternImpl {
@@ -10887,6 +12118,14 @@ impl ConstantPatternImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("constKeyword", self.const_keyword);
         entities.add_node("expression2", self.expression2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
     }
 }
 
@@ -10946,6 +12185,31 @@ impl ConstructorDeclaration2Impl {
         entities.add_node("factoryRedirectionTarget", self.factory_redirection_target);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        ast.accept2(self.formal_parameters, visitor);
+        for &element in &self.initializers {
+            ast.accept2(element, visitor);
+        }
+        if self.factory_redirection_target != NO_NODE {
+            ast.accept2(self.factory_redirection_target, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.formal_parameters);
+        for &element in &self.initializers {
+            f(element);
+        }
+        f(self.factory_redirection_target);
+        f(self.body);
+    }
 }
 
 impl ConstructorFieldInitializerImpl {
@@ -10970,6 +12234,14 @@ impl ConstructorFieldInitializerImpl {
         entities.add_token("equals", self.equals);
         entities.add_node("expression2", self.expression2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+    }
 }
 
 impl ConstructorInvocationImpl {
@@ -10990,6 +12262,24 @@ impl ConstructorInvocationImpl {
         entities.add_node("typeArguments", self.type_arguments);
         entities.add_node("argumentList", self.argument_list);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.constructor_reference, visitor);
+        if self.type_arguments != NO_NODE {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        ast.accept2(self.argument_list, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.constructor_reference);
+        f(self.type_arguments);
+        f(self.argument_list);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
+    }
 }
 
 impl ConstructorReference2Impl {
@@ -11008,6 +12298,18 @@ impl ConstructorReference2Impl {
         entities.add_node("typeReference", self.type_reference);
         entities.add_node("selector", self.selector);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.type_reference, visitor);
+        if self.selector != NO_NODE {
+            ast.accept2(self.selector, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_reference);
+        f(self.selector);
+    }
 }
 
 impl ConstructorSelectorImpl {
@@ -11022,6 +12324,14 @@ impl ConstructorSelectorImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("period", self.period);
         entities.add_token("name2", self.name2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -11045,6 +12355,20 @@ impl ConstructorTypeReferenceImpl {
         entities.add_token("name", self.name);
         entities.add_node("typeArguments", self.type_arguments);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.import_prefix != NO_NODE {
+            ast.accept2(self.import_prefix, visitor);
+        }
+        if self.type_arguments != NO_NODE {
+            ast.accept2(self.type_arguments, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.import_prefix);
+        f(self.type_arguments);
+    }
 }
 
 impl ContinueStatementImpl {
@@ -11060,6 +12384,16 @@ impl ContinueStatementImpl {
         entities.add_token("continueKeyword", self.continue_keyword);
         entities.add_node("label", self.label);
         entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.label != NO_NODE {
+            ast.accept2(self.label, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.label);
     }
 }
 
@@ -11100,6 +12434,21 @@ impl DeclaredIdentifierImpl {
         entities.add_node("type", self.type_);
         entities.add_token("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_);
+    }
 }
 
 impl DeclaredVariablePatternImpl {
@@ -11122,6 +12471,16 @@ impl DeclaredVariablePatternImpl {
         entities.add_node("type", self.type_);
         entities.add_token("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_ != NO_NODE {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_);
+    }
 }
 
 impl DelimitedFormalParametersImpl {
@@ -11138,6 +12497,18 @@ impl DelimitedFormalParametersImpl {
         entities.add_node_list("formalParameters", &self.formal_parameters);
         entities.add_token("rightDelimiter", self.right_delimiter);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.formal_parameters {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.formal_parameters {
+            f(element);
+        }
+    }
 }
 
 impl DirectAssignmentImpl {
@@ -11153,6 +12524,20 @@ impl DirectAssignmentImpl {
         entities.add_node("target", self.target);
         entities.add_token("operator", self.operator_);
         entities.add_node("value", self.value);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.target, visitor);
+        ast.accept2(self.value, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.target);
+        f(self.value);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::assignment
     }
 }
 
@@ -11173,6 +12558,16 @@ impl DoStatementImpl {
         entities.add_node("condition2", self.condition2);
         entities.add_token("rightParenthesis", self.right_parenthesis);
         entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.body2, visitor);
+        ast.accept2(self.condition2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.body2);
+        f(self.condition2);
     }
 }
 
@@ -11195,6 +12590,22 @@ impl DotShorthandConstructorInvocation2Impl {
         entities.add_node("typeArguments", self.type_arguments);
         entities.add_node("argumentList", self.argument_list);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_arguments != NO_NODE {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        ast.accept2(self.argument_list, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_arguments);
+        f(self.argument_list);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
+    }
 }
 
 impl DotShorthandNameExpressionImpl {
@@ -11210,6 +12621,18 @@ impl DotShorthandNameExpressionImpl {
         entities.add_token("period", self.period);
         entities.add_token("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
+    }
 }
 
 impl DottedNameImpl {
@@ -11223,6 +12646,14 @@ impl DottedNameImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token_list("tokens", &self.tokens);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -11238,6 +12669,18 @@ impl DoubleLiteralImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("literal", self.literal);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
+    }
 }
 
 impl EmptyFunctionBodyImpl {
@@ -11252,6 +12695,14 @@ impl EmptyFunctionBodyImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
 }
 
 impl EmptyStatementImpl {
@@ -11265,6 +12716,14 @@ impl EmptyStatementImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -11287,6 +12746,22 @@ impl EnumConstantArgumentsImpl {
         entities.add_node("typeArguments", self.type_arguments);
         entities.add_node("constructorSelector", self.constructor_selector);
         entities.add_node("argumentList", self.argument_list);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_arguments != NO_NODE {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        if self.constructor_selector != NO_NODE {
+            ast.accept2(self.constructor_selector, visitor);
+        }
+        ast.accept2(self.argument_list, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_arguments);
+        f(self.constructor_selector);
+        f(self.argument_list);
     }
 }
 
@@ -11327,6 +12802,21 @@ impl EnumConstantDeclaration2Impl {
         entities.add_token("name", self.name);
         entities.add_node("arguments", self.arguments);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.arguments != NO_NODE {
+            ast.accept2(self.arguments, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.arguments);
+    }
 }
 
 impl EnumDeclaration2Impl {
@@ -11366,6 +12856,29 @@ impl EnumDeclaration2Impl {
         entities.add_node("implementsClause", self.implements_clause);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        ast.accept2(self.name_part, visitor);
+        if self.with_clause != NO_NODE {
+            ast.accept2(self.with_clause, visitor);
+        }
+        if self.implements_clause != NO_NODE {
+            ast.accept2(self.implements_clause, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.name_part);
+        f(self.with_clause);
+        f(self.implements_clause);
+        f(self.body);
+    }
 }
 
 impl ExportDirectiveImpl {
@@ -11401,6 +12914,31 @@ impl ExportDirectiveImpl {
         entities.add_node_list("combinators", &self.combinators);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        ast.accept2(self.uri, visitor);
+        for &element in &self.configurations {
+            ast.accept2(element, visitor);
+        }
+        for &element in &self.combinators {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.uri);
+        for &element in &self.configurations {
+            f(element);
+        }
+        for &element in &self.combinators {
+            f(element);
+        }
+    }
 }
 
 impl ExpressionFunctionBodyImpl {
@@ -11428,6 +12966,14 @@ impl ExpressionFunctionBodyImpl {
         entities.add_node("expression2", self.expression2);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+    }
 }
 
 impl ExpressionStatementImpl {
@@ -11446,6 +12992,14 @@ impl ExpressionStatementImpl {
         entities.add_node("expression2", self.expression2);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+    }
 }
 
 impl ExtendsClauseImpl {
@@ -11460,6 +13014,14 @@ impl ExtendsClauseImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("extendsKeyword", self.extends_keyword);
         entities.add_node("superclass", self.superclass);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.superclass, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.superclass);
     }
 }
 
@@ -11501,6 +13063,27 @@ impl ExtensionDeclaration2Impl {
         entities.add_node("onClause", self.on_clause);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if self.on_clause != NO_NODE {
+            ast.accept2(self.on_clause, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_parameters);
+        f(self.on_clause);
+        f(self.body);
+    }
 }
 
 impl ExtensionOnClauseImpl {
@@ -11515,6 +13098,14 @@ impl ExtensionOnClauseImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("onKeyword", self.on_keyword);
         entities.add_node("extendedType", self.extended_type);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.extended_type, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.extended_type);
     }
 }
 
@@ -11555,6 +13146,25 @@ impl ExtensionTypeDeclaration2Impl {
         entities.add_node("implementsClause", self.implements_clause);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        ast.accept2(self.name_part, visitor);
+        if self.implements_clause != NO_NODE {
+            ast.accept2(self.implements_clause, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.name_part);
+        f(self.implements_clause);
+        f(self.body);
+    }
 }
 
 impl Field2Impl {
@@ -11576,6 +13186,16 @@ impl Field2Impl {
         entities.add_token("name", self.name);
         entities.add_token("equals", self.equals);
         entities.add_node("initializer", self.initializer);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.initializer != NO_NODE {
+            ast.accept2(self.initializer, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.initializer);
     }
 }
 
@@ -11633,6 +13253,29 @@ impl FieldFormalParameterImpl {
         entities.add_token("name", self.name);
         entities.add_node("functionTypedSuffix", self.function_typed_suffix);
         entities.add_node("defaultClause", self.default_clause);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE {
+            ast.accept2(self.type_, visitor);
+        }
+        if self.function_typed_suffix != NO_NODE {
+            ast.accept2(self.function_typed_suffix, visitor);
+        }
+        if self.default_clause != NO_NODE {
+            ast.accept2(self.default_clause, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_);
+        f(self.function_typed_suffix);
+        f(self.default_clause);
     }
 }
 
@@ -11695,6 +13338,27 @@ impl FieldsDeclarationImpl {
         entities.add_node_list("fields", &self.fields);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE {
+            ast.accept2(self.type_, visitor);
+        }
+        for &element in &self.fields {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_);
+        for &element in &self.fields {
+            f(element);
+        }
+    }
 }
 
 impl ForEachPartsWithDeclarationImpl {
@@ -11711,6 +13375,16 @@ impl ForEachPartsWithDeclarationImpl {
         entities.add_token("inKeyword", self.in_keyword);
         entities.add_node("iterable2", self.iterable2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.loop_variable, visitor);
+        ast.accept2(self.iterable2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.iterable2);
+        f(self.loop_variable);
+    }
 }
 
 impl ForEachPartsWithIdentifierImpl {
@@ -11726,6 +13400,16 @@ impl ForEachPartsWithIdentifierImpl {
         entities.add_node("target", self.target);
         entities.add_token("inKeyword", self.in_keyword);
         entities.add_node("iterable2", self.iterable2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.target, visitor);
+        ast.accept2(self.iterable2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.iterable2);
+        f(self.target);
     }
 }
 
@@ -11751,6 +13435,22 @@ impl ForEachPartsWithPatternImpl {
         entities.add_token("inKeyword", self.in_keyword);
         entities.add_node("iterable2", self.iterable2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.metadata {
+            ast.accept2(element, visitor);
+        }
+        ast.accept2(self.pattern, visitor);
+        ast.accept2(self.iterable2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.iterable2);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.pattern);
+    }
 }
 
 impl ForElementImpl {
@@ -11772,6 +13472,16 @@ impl ForElementImpl {
         entities.add_node("forLoopParts", self.for_loop_parts);
         entities.add_token("rightParenthesis", self.right_parenthesis);
         entities.add_node("body2", self.body2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.for_loop_parts, visitor);
+        ast.accept2(self.body2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.for_loop_parts);
+        f(self.body2);
     }
 }
 
@@ -11796,6 +13506,24 @@ impl ForPartsWithDeclarationsImpl {
         entities.add_node("condition2", self.condition2);
         entities.add_token("rightSeparator", self.right_separator);
         entities.add_node_list("updaters2", &self.updaters2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.variables2, visitor);
+        if self.condition2 != NO_NODE {
+            ast.accept2(self.condition2, visitor);
+        }
+        for &element in &self.updaters2 {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.condition2);
+        for &element in &self.updaters2 {
+            f(element);
+        }
+        f(self.variables2);
     }
 }
 
@@ -11824,6 +13552,26 @@ impl ForPartsWithExpressionImpl {
         entities.add_token("rightSeparator", self.right_separator);
         entities.add_node_list("updaters2", &self.updaters2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.initialization2 != NO_NODE {
+            ast.accept2(self.initialization2, visitor);
+        }
+        if self.condition2 != NO_NODE {
+            ast.accept2(self.condition2, visitor);
+        }
+        for &element in &self.updaters2 {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.condition2);
+        for &element in &self.updaters2 {
+            f(element);
+        }
+        f(self.initialization2);
+    }
 }
 
 impl ForPartsWithPatternImpl {
@@ -11848,6 +13596,24 @@ impl ForPartsWithPatternImpl {
         entities.add_token("rightSeparator", self.right_separator);
         entities.add_node_list("updaters2", &self.updaters2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.variables, visitor);
+        if self.condition2 != NO_NODE {
+            ast.accept2(self.condition2, visitor);
+        }
+        for &element in &self.updaters2 {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.condition2);
+        for &element in &self.updaters2 {
+            f(element);
+        }
+        f(self.variables);
+    }
 }
 
 impl ForStatementImpl {
@@ -11870,6 +13636,16 @@ impl ForStatementImpl {
         entities.add_token("rightParenthesis", self.right_parenthesis);
         entities.add_node("body2", self.body2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.for_loop_parts, visitor);
+        ast.accept2(self.body2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.for_loop_parts);
+        f(self.body2);
+    }
 }
 
 impl FormalParameterDefaultClauseImpl {
@@ -11884,6 +13660,14 @@ impl FormalParameterDefaultClauseImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("separator", self.separator);
         entities.add_node("value2", self.value2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.value2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.value2);
     }
 }
 
@@ -11901,6 +13685,22 @@ impl FormalParameterListImpl {
         entities.add_node_list("requiredPositionalFormalParameters", &self.required_positional_formal_parameters);
         entities.add_node("delimitedFormalParameters", self.delimited_formal_parameters);
         entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.required_positional_formal_parameters {
+            ast.accept2(element, visitor);
+        }
+        if self.delimited_formal_parameters != NO_NODE {
+            ast.accept2(self.delimited_formal_parameters, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.required_positional_formal_parameters {
+            f(element);
+        }
+        f(self.delimited_formal_parameters);
     }
 }
 
@@ -11923,6 +13723,26 @@ impl FunctionExpressionImpl {
         entities.add_node("typeParameters", self.type_parameters);
         entities.add_node("parameters", self.parameters);
         entities.add_node("body", self.body);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if self.parameters != NO_NODE {
+            ast.accept2(self.parameters, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_parameters);
+        f(self.parameters);
+        f(self.body);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
     }
 }
 
@@ -11964,6 +13784,27 @@ impl FunctionTypeAlias2Impl {
         entities.add_node("parameters", self.parameters);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        ast.accept2(self.parameters, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.return_type);
+        f(self.type_parameters);
+        f(self.parameters);
+    }
 }
 
 impl FunctionTypedFormalParameterSuffixImpl {
@@ -11985,6 +13826,18 @@ impl FunctionTypedFormalParameterSuffixImpl {
         entities.add_node("typeParameters", self.type_parameters);
         entities.add_node("formalParameters", self.formal_parameters);
         entities.add_token("question", self.question);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        ast.accept2(self.formal_parameters, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_parameters);
+        f(self.formal_parameters);
     }
 }
 
@@ -12009,6 +13862,22 @@ impl GenericFunctionTypeImpl {
         entities.add_node("typeParameters", self.type_parameters);
         entities.add_node("parameters", self.parameters);
         entities.add_token("question", self.question);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.return_type != NO_NODE {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        ast.accept2(self.parameters, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.return_type);
+        f(self.type_parameters);
+        f(self.parameters);
     }
 }
 
@@ -12049,6 +13918,23 @@ impl GenericTypeAlias2Impl {
         entities.add_token("equals", self.equals);
         entities.add_node("type", self.type_);
         entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        ast.accept2(self.type_, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_parameters);
+        f(self.type_);
     }
 }
 
@@ -12100,6 +13986,27 @@ impl GetterDeclarationImpl {
         entities.add_node("recoveryFormalParameters", self.recovery_formal_parameters);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.recovery_formal_parameters != NO_NODE {
+            ast.accept2(self.recovery_formal_parameters, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.return_type);
+        f(self.recovery_formal_parameters);
+        f(self.body);
+    }
 }
 
 impl GuardedPatternImpl {
@@ -12117,6 +14024,18 @@ impl GuardedPatternImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node("pattern", self.pattern);
         entities.add_node("whenClause", self.when_clause);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.pattern, visitor);
+        if self.when_clause != NO_NODE {
+            ast.accept2(self.when_clause, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.pattern);
+        f(self.when_clause);
     }
 }
 
@@ -12138,6 +14057,18 @@ impl HideCombinatorImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("keyword", self.keyword);
         entities.add_node_list("names", &self.names);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.names {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.names {
+            f(element);
+        }
     }
 }
 
@@ -12166,6 +14097,24 @@ impl IfElementImpl {
         entities.add_token("elseKeyword", self.else_keyword);
         entities.add_node("elseElement2", self.else_element2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+        if self.case_clause != NO_NODE {
+            ast.accept2(self.case_clause, visitor);
+        }
+        ast.accept2(self.then_element2, visitor);
+        if self.else_element2 != NO_NODE {
+            ast.accept2(self.else_element2, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+        f(self.case_clause);
+        f(self.then_element2);
+        f(self.else_element2);
+    }
 }
 
 impl IfNullAssignmentImpl {
@@ -12182,6 +14131,20 @@ impl IfNullAssignmentImpl {
         entities.add_token("operator", self.operator_);
         entities.add_node("value", self.value);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.target, visitor);
+        ast.accept2(self.value, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.target);
+        f(self.value);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::assignment
+    }
 }
 
 impl IfNullImpl {
@@ -12197,6 +14160,20 @@ impl IfNullImpl {
         entities.add_node("leftOperand", self.left_operand);
         entities.add_token("operator", self.operator_);
         entities.add_node("rightOperand", self.right_operand);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.left_operand, visitor);
+        ast.accept2(self.right_operand, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.left_operand);
+        f(self.right_operand);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::ifNull
     }
 }
 
@@ -12225,6 +14202,24 @@ impl IfStatementImpl {
         entities.add_token("elseKeyword", self.else_keyword);
         entities.add_node("elseStatement2", self.else_statement2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+        if self.case_clause != NO_NODE {
+            ast.accept2(self.case_clause, visitor);
+        }
+        ast.accept2(self.then_statement2, visitor);
+        if self.else_statement2 != NO_NODE {
+            ast.accept2(self.else_statement2, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+        f(self.case_clause);
+        f(self.then_statement2);
+        f(self.else_statement2);
+    }
 }
 
 impl ImplementsClauseImpl {
@@ -12245,6 +14240,18 @@ impl ImplementsClauseImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("implementsKeyword", self.implements_keyword);
         entities.add_node_list("interfaces", &self.interfaces);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.interfaces {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.interfaces {
+            f(element);
+        }
     }
 }
 
@@ -12284,6 +14291,31 @@ impl ImportDirectiveImpl {
         entities.add_node_list("combinators", &self.combinators);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        ast.accept2(self.uri, visitor);
+        for &element in &self.configurations {
+            ast.accept2(element, visitor);
+        }
+        for &element in &self.combinators {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.uri);
+        for &element in &self.configurations {
+            f(element);
+        }
+        for &element in &self.combinators {
+            f(element);
+        }
+    }
 }
 
 impl ImportPrefixReferenceImpl {
@@ -12298,6 +14330,14 @@ impl ImportPrefixReferenceImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("name", self.name);
         entities.add_token("period", self.period);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -12328,6 +14368,21 @@ impl IncrementOrDecrementExpressionImpl {
             }
         }
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.target, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.target);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        match self.position {
+            IncrementOrDecrementPosition::prefix => Precedence::prefix,
+            IncrementOrDecrementPosition::postfix => Precedence::postfix,
+        }
+    }
 }
 
 impl IntegerLiteralImpl {
@@ -12341,6 +14396,18 @@ impl IntegerLiteralImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("literal", self.literal);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
     }
 }
 
@@ -12361,6 +14428,14 @@ impl InterpolationExpressionImpl {
         entities.add_node("expression2", self.expression2);
         entities.add_token("rightBracket", self.right_bracket);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+    }
 }
 
 impl InterpolationStringImpl {
@@ -12374,6 +14449,14 @@ impl InterpolationStringImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("contents", self.contents);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -12389,6 +14472,14 @@ impl InvalidExpressionAssignmentTargetImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node("expression", self.expression);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression);
+    }
 }
 
 impl InvalidSuperAssignmentTargetImpl {
@@ -12403,6 +14494,14 @@ impl InvalidSuperAssignmentTargetImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node("superReference", self.super_reference);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.super_reference, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.super_reference);
+    }
 }
 
 impl InvalidSuperExpressionImpl {
@@ -12416,6 +14515,18 @@ impl InvalidSuperExpressionImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node("superReference", self.super_reference);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.super_reference, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.super_reference);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
     }
 }
 
@@ -12434,6 +14545,20 @@ impl IsExpressionImpl {
         entities.add_token("notOperator", self.not_operator);
         entities.add_node("type", self.type_);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+        ast.accept2(self.type_, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+        f(self.type_);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::relational
+    }
 }
 
 impl LabelImpl {
@@ -12449,6 +14574,14 @@ impl LabelImpl {
         entities.add_token("name", self.name);
         entities.add_token("colon", self.colon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
 }
 
 impl LabelReferenceImpl {
@@ -12462,6 +14595,14 @@ impl LabelReferenceImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -12483,6 +14624,20 @@ impl LabeledStatementImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node_list("labels", &self.labels);
         entities.add_node("statement2", self.statement2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.labels {
+            ast.accept2(element, visitor);
+        }
+        ast.accept2(self.statement2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.labels {
+            f(element);
+        }
+        f(self.statement2);
     }
 }
 
@@ -12517,6 +14672,21 @@ impl LibraryDirectiveImpl {
         entities.add_node("name", self.name);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.name != NO_NODE {
+            ast.accept2(self.name, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.name);
+    }
 }
 
 impl ListLiteralImpl {
@@ -12541,6 +14711,26 @@ impl ListLiteralImpl {
         entities.add_node_list("elements2", &self.elements2);
         entities.add_token("rightBracket", self.right_bracket);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_arguments != NO_NODE {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        for &element in &self.elements2 {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_arguments);
+        for &element in &self.elements2 {
+            f(element);
+        }
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
+    }
 }
 
 impl ListPatternImpl {
@@ -12560,6 +14750,22 @@ impl ListPatternImpl {
         entities.add_token("leftBracket", self.left_bracket);
         entities.add_node_list("elements", &self.elements);
         entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_arguments != NO_NODE {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        for &element in &self.elements {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_arguments);
+        for &element in &self.elements {
+            f(element);
+        }
     }
 }
 
@@ -12599,6 +14805,29 @@ impl LocalFunctionDeclarationImpl {
         entities.add_node("formalParameters", self.formal_parameters);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        ast.accept2(self.formal_parameters, visitor);
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.return_type);
+        f(self.type_parameters);
+        f(self.formal_parameters);
+        f(self.body);
+    }
 }
 
 impl LocalVariableImpl {
@@ -12620,6 +14849,16 @@ impl LocalVariableImpl {
         entities.add_token("name", self.name);
         entities.add_token("equals", self.equals);
         entities.add_node("initializer", self.initializer);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.initializer != NO_NODE {
+            ast.accept2(self.initializer, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.initializer);
     }
 }
 
@@ -12685,6 +14924,27 @@ impl LocalVariablesDeclarationImpl {
         entities.add_node("type", self.type_);
         entities.add_node_list("variables", &self.variables);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE {
+            ast.accept2(self.type_, visitor);
+        }
+        for &element in &self.variables {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_);
+        for &element in &self.variables {
+            f(element);
+        }
+    }
 }
 
 impl LocalVariablesDeclarationStatementImpl {
@@ -12699,6 +14959,14 @@ impl LocalVariablesDeclarationStatementImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node("declaration", self.declaration);
         entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.declaration, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.declaration);
     }
 }
 
@@ -12716,6 +14984,20 @@ impl LogicalAndImpl {
         entities.add_token("operator", self.operator_);
         entities.add_node("rightOperand", self.right_operand);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.left_operand, visitor);
+        ast.accept2(self.right_operand, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.left_operand);
+        f(self.right_operand);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::logicalAnd
+    }
 }
 
 impl LogicalAndPatternImpl {
@@ -12732,6 +15014,16 @@ impl LogicalAndPatternImpl {
         entities.add_token("operator", self.operator_);
         entities.add_node("rightOperand", self.right_operand);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.left_operand, visitor);
+        ast.accept2(self.right_operand, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.left_operand);
+        f(self.right_operand);
+    }
 }
 
 impl LogicalNotImpl {
@@ -12746,6 +15038,18 @@ impl LogicalNotImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("operator", self.operator_);
         entities.add_node("operand", self.operand);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.operand, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.operand);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::prefix
     }
 }
 
@@ -12763,6 +15067,20 @@ impl LogicalOrImpl {
         entities.add_token("operator", self.operator_);
         entities.add_node("rightOperand", self.right_operand);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.left_operand, visitor);
+        ast.accept2(self.right_operand, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.left_operand);
+        f(self.right_operand);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::logicalOr
+    }
 }
 
 impl LogicalOrPatternImpl {
@@ -12778,6 +15096,16 @@ impl LogicalOrPatternImpl {
         entities.add_node("leftOperand", self.left_operand);
         entities.add_token("operator", self.operator_);
         entities.add_node("rightOperand", self.right_operand);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.left_operand, visitor);
+        ast.accept2(self.right_operand, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.left_operand);
+        f(self.right_operand);
     }
 }
 
@@ -12800,6 +15128,16 @@ impl MapLiteralEntryImpl {
         entities.add_token("valueQuestion", self.value_question);
         entities.add_node("value2", self.value2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.key2, visitor);
+        ast.accept2(self.value2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.key2);
+        f(self.value2);
+    }
 }
 
 impl MapPatternEntryImpl {
@@ -12815,6 +15153,16 @@ impl MapPatternEntryImpl {
         entities.add_node("key2", self.key2);
         entities.add_token("separator", self.separator);
         entities.add_node("value", self.value);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.key2, visitor);
+        ast.accept2(self.value, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.key2);
+        f(self.value);
     }
 }
 
@@ -12835,6 +15183,22 @@ impl MapPatternImpl {
         entities.add_token("leftBracket", self.left_bracket);
         entities.add_node_list("elements", &self.elements);
         entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_arguments != NO_NODE {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        for &element in &self.elements {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_arguments);
+        for &element in &self.elements {
+            f(element);
+        }
     }
 }
 
@@ -12886,6 +15250,29 @@ impl MethodDeclaration2Impl {
         entities.add_node("formalParameters", self.formal_parameters);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        ast.accept2(self.formal_parameters, visitor);
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.return_type);
+        f(self.type_parameters);
+        f(self.formal_parameters);
+        f(self.body);
+    }
 }
 
 impl MixinDeclaration2Impl {
@@ -12930,6 +15317,31 @@ impl MixinDeclaration2Impl {
         entities.add_node("implementsClause", self.implements_clause);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if self.on_clause != NO_NODE {
+            ast.accept2(self.on_clause, visitor);
+        }
+        if self.implements_clause != NO_NODE {
+            ast.accept2(self.implements_clause, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_parameters);
+        f(self.on_clause);
+        f(self.implements_clause);
+        f(self.body);
+    }
 }
 
 impl MixinOnClauseImpl {
@@ -12951,6 +15363,18 @@ impl MixinOnClauseImpl {
         entities.add_token("onKeyword", self.on_keyword);
         entities.add_node_list("superclassConstraints", &self.superclass_constraints);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.superclass_constraints {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.superclass_constraints {
+            f(element);
+        }
+    }
 }
 
 impl NameWithTypeParametersImpl {
@@ -12969,6 +15393,16 @@ impl NameWithTypeParametersImpl {
         entities.add_token("typeName", self.type_name);
         entities.add_node("typeParameters", self.type_parameters);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_parameters);
+    }
 }
 
 impl NamedArgumentImpl {
@@ -12984,6 +15418,14 @@ impl NamedArgumentImpl {
         entities.add_token("name", self.name);
         entities.add_token("colon", self.colon);
         entities.add_node("argumentExpression2", self.argument_expression2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.argument_expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.argument_expression2);
     }
 }
 
@@ -13011,6 +15453,20 @@ impl NamedTypeImpl {
         entities.add_node("typeArguments", self.type_arguments);
         entities.add_token("question", self.question);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.import_prefix != NO_NODE {
+            ast.accept2(self.import_prefix, visitor);
+        }
+        if self.type_arguments != NO_NODE {
+            ast.accept2(self.type_arguments, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.import_prefix);
+        f(self.type_arguments);
+    }
 }
 
 impl NativeClauseImpl {
@@ -13029,6 +15485,16 @@ impl NativeClauseImpl {
         entities.add_token("nativeKeyword", self.native_keyword);
         entities.add_node("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.name != NO_NODE {
+            ast.accept2(self.name, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.name);
+    }
 }
 
 impl NativeFunctionBodyImpl {
@@ -13045,6 +15511,16 @@ impl NativeFunctionBodyImpl {
         entities.add_node("stringLiteral", self.string_literal);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.string_literal != NO_NODE {
+            ast.accept2(self.string_literal, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.string_literal);
+    }
 }
 
 impl NullAssertPatternImpl {
@@ -13059,6 +15535,14 @@ impl NullAssertPatternImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node("pattern", self.pattern);
         entities.add_token("operator", self.operator_);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.pattern, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.pattern);
     }
 }
 
@@ -13075,6 +15559,18 @@ impl NullAssertionExpressionImpl {
         entities.add_node("operand", self.operand);
         entities.add_token("operator", self.operator_);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.operand, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.operand);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
+    }
 }
 
 impl NullAwareElementImpl {
@@ -13089,6 +15585,14 @@ impl NullAwareElementImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("question", self.question);
         entities.add_node("value2", self.value2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.value2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.value2);
     }
 }
 
@@ -13105,6 +15609,14 @@ impl NullCheckPatternImpl {
         entities.add_node("pattern", self.pattern);
         entities.add_token("operator", self.operator_);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.pattern, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.pattern);
+    }
 }
 
 impl NullLiteralImpl {
@@ -13118,6 +15630,18 @@ impl NullLiteralImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("literal", self.literal);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
     }
 }
 
@@ -13135,6 +15659,20 @@ impl ObjectPatternImpl {
         entities.add_token("leftParenthesis", self.left_parenthesis);
         entities.add_node_list("fields", &self.fields);
         entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.type_, visitor);
+        for &element in &self.fields {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_);
+        for &element in &self.fields {
+            f(element);
+        }
     }
 }
 
@@ -13186,6 +15724,29 @@ impl OperatorDeclarationImpl {
         entities.add_node("formalParameters", self.formal_parameters);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.recovery_type_parameters != NO_NODE {
+            ast.accept2(self.recovery_type_parameters, visitor);
+        }
+        ast.accept2(self.formal_parameters, visitor);
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.return_type);
+        f(self.recovery_type_parameters);
+        f(self.formal_parameters);
+        f(self.body);
+    }
 }
 
 impl ParenthesizedExpressionImpl {
@@ -13201,6 +15762,18 @@ impl ParenthesizedExpressionImpl {
         entities.add_token("leftParenthesis", self.left_parenthesis);
         entities.add_node("expression2", self.expression2);
         entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
     }
 }
 
@@ -13218,6 +15791,14 @@ impl ParenthesizedPatternImpl {
         entities.add_node("pattern", self.pattern);
         entities.add_token("rightParenthesis", self.right_parenthesis);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.pattern, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.pattern);
+    }
 }
 
 impl ParsedCascadeNameImpl {
@@ -13232,6 +15813,18 @@ impl ParsedCascadeNameImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
+    }
 }
 
 impl ParsedDotShorthandExpressionImpl {
@@ -13245,6 +15838,18 @@ impl ParsedDotShorthandExpressionImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node("expression", self.expression);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        ast.precedence(self.expression)
     }
 }
 
@@ -13261,6 +15866,18 @@ impl ParsedDotShorthandNameImpl {
         entities.add_token("period", self.period);
         entities.add_token("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
+    }
 }
 
 impl ParsedNameAccessAssignmentTargetImpl {
@@ -13276,6 +15893,14 @@ impl ParsedNameAccessAssignmentTargetImpl {
         entities.add_node("operand", self.operand);
         entities.add_token("operator", self.operator_);
         entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.operand, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.operand);
     }
 }
 
@@ -13304,6 +15929,18 @@ impl ParsedNameAccessImpl {
         entities.add_token("operator", self.operator_);
         entities.add_token("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.operand, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.operand);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
+    }
 }
 
 impl ParsedTypeArgumentsImpl {
@@ -13330,6 +15967,20 @@ impl ParsedTypeArgumentsImpl {
         entities.add_node("operand", self.operand);
         entities.add_node("typeArguments", self.type_arguments);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.operand, visitor);
+        ast.accept2(self.type_arguments, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.operand);
+        f(self.type_arguments);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
+    }
 }
 
 impl ParsedUnqualifiedNameImpl {
@@ -13343,6 +15994,18 @@ impl ParsedUnqualifiedNameImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
     }
 }
 
@@ -13369,6 +16032,20 @@ impl ParsedValueArgumentsImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node("operand", self.operand);
         entities.add_node("argumentList", self.argument_list);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.operand, visitor);
+        ast.accept2(self.argument_list, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.operand);
+        f(self.argument_list);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
     }
 }
 
@@ -13402,6 +16079,19 @@ impl PartDirectiveImpl {
         entities.add_token("partKeyword", self.part_keyword);
         entities.add_node("uri", self.uri);
         entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        ast.accept2(self.uri, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.uri);
     }
 }
 
@@ -13438,6 +16128,25 @@ impl PartOfDirectiveImpl {
         entities.add_node("libraryName", self.library_name);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.uri != NO_NODE {
+            ast.accept2(self.uri, visitor);
+        }
+        if self.library_name != NO_NODE {
+            ast.accept2(self.library_name, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.uri);
+        f(self.library_name);
+    }
 }
 
 impl PatternAssignmentImpl {
@@ -13453,6 +16162,20 @@ impl PatternAssignmentImpl {
         entities.add_node("pattern", self.pattern);
         entities.add_token("equals", self.equals);
         entities.add_node("expression2", self.expression2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.pattern, visitor);
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.pattern);
+        f(self.expression2);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::assignment
     }
 }
 
@@ -13472,6 +16195,18 @@ impl PatternFieldImpl {
         entities.add_node("name", self.name);
         entities.add_node("pattern", self.pattern);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.name != NO_NODE {
+            ast.accept2(self.name, visitor);
+        }
+        ast.accept2(self.pattern, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.name);
+        f(self.pattern);
+    }
 }
 
 impl PatternFieldNameImpl {
@@ -13489,6 +16224,14 @@ impl PatternFieldNameImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("name", self.name);
         entities.add_token("colon", self.colon);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -13524,6 +16267,21 @@ impl PatternVariableDeclarationImpl {
         entities.add_token("equals", self.equals);
         entities.add_node("expression2", self.expression2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        ast.accept2(self.pattern, visitor);
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.pattern);
+        f(self.expression2);
+    }
 }
 
 impl PatternVariableDeclarationStatementImpl {
@@ -13538,6 +16296,14 @@ impl PatternVariableDeclarationStatementImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node("declaration", self.declaration);
         entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.declaration, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.declaration);
     }
 }
 
@@ -13577,6 +16343,25 @@ impl PrimaryConstructorBody2Impl {
         entities.add_node_list("initializers", &self.initializers);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        for &element in &self.initializers {
+            ast.accept2(element, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        for &element in &self.initializers {
+            f(element);
+        }
+        f(self.body);
+    }
 }
 
 impl PrimaryConstructorDeclarationImpl {
@@ -13598,6 +16383,22 @@ impl PrimaryConstructorDeclarationImpl {
         entities.add_node("constructorName", self.constructor_name);
         entities.add_node("formalParameters", self.formal_parameters);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if self.constructor_name != NO_NODE {
+            ast.accept2(self.constructor_name, visitor);
+        }
+        ast.accept2(self.formal_parameters, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_parameters);
+        f(self.constructor_name);
+        f(self.formal_parameters);
+    }
 }
 
 impl PrimaryConstructorNameImpl {
@@ -13612,6 +16413,14 @@ impl PrimaryConstructorNameImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("period", self.period);
         entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -13631,6 +16440,16 @@ impl ReceiverIndexAssignmentTargetImpl {
         entities.add_node("index", self.index);
         entities.add_token("rightBracket", self.right_bracket);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.receiver, visitor);
+        ast.accept2(self.index, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.index);
+        f(self.receiver);
+    }
 }
 
 impl ReceiverIndexExpressionImpl {
@@ -13649,6 +16468,20 @@ impl ReceiverIndexExpressionImpl {
         entities.add_node("index", self.index);
         entities.add_token("rightBracket", self.right_bracket);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.receiver, visitor);
+        ast.accept2(self.index, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.index);
+        f(self.receiver);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
+    }
 }
 
 impl ReceiverPropertyAssignmentTargetImpl {
@@ -13665,6 +16498,14 @@ impl ReceiverPropertyAssignmentTargetImpl {
         entities.add_token("operator", self.operator_);
         entities.add_token("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.receiver, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.receiver);
+    }
 }
 
 impl ReceiverPropertyExtractionImpl {
@@ -13680,6 +16521,18 @@ impl ReceiverPropertyExtractionImpl {
         entities.add_node("receiver", self.receiver);
         entities.add_token("operator", self.operator_);
         entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.receiver, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.receiver);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::postfix
     }
 }
 
@@ -13701,6 +16554,22 @@ impl RecordLiteralImpl {
         entities.add_node_list("fields2", &self.fields2);
         entities.add_token("rightParenthesis", self.right_parenthesis);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.fields2 {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.fields2 {
+            f(element);
+        }
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
+    }
 }
 
 impl RecordLiteralNamedFieldImpl {
@@ -13717,6 +16586,14 @@ impl RecordLiteralNamedFieldImpl {
         entities.add_token("colon", self.colon);
         entities.add_node("fieldExpression2", self.field_expression2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.field_expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.field_expression2);
+    }
 }
 
 impl RecordPatternImpl {
@@ -13732,6 +16609,18 @@ impl RecordPatternImpl {
         entities.add_token("leftParenthesis", self.left_parenthesis);
         entities.add_node_list("fields", &self.fields);
         entities.add_token("rightParenthesis", self.right_parenthesis);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.fields {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.fields {
+            f(element);
+        }
     }
 }
 
@@ -13753,6 +16642,22 @@ impl RecordTypeAnnotationImpl {
         entities.add_node("namedFields", self.named_fields);
         entities.add_token("rightParenthesis", self.right_parenthesis);
         entities.add_token("question", self.question);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.positional_fields {
+            ast.accept2(element, visitor);
+        }
+        if self.named_fields != NO_NODE {
+            ast.accept2(self.named_fields, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.positional_fields {
+            f(element);
+        }
+        f(self.named_fields);
     }
 }
 
@@ -13776,6 +16681,20 @@ impl RecordTypeAnnotationNamedFieldImpl {
         entities.add_node("type", self.type_);
         entities.add_token("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.metadata {
+            ast.accept2(element, visitor);
+        }
+        ast.accept2(self.type_, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_);
+    }
 }
 
 impl RecordTypeAnnotationNamedFieldsImpl {
@@ -13791,6 +16710,18 @@ impl RecordTypeAnnotationNamedFieldsImpl {
         entities.add_token("leftBracket", self.left_bracket);
         entities.add_node_list("fields", &self.fields);
         entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.fields {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.fields {
+            f(element);
+        }
     }
 }
 
@@ -13817,6 +16748,20 @@ impl RecordTypeAnnotationPositionalFieldImpl {
         entities.add_node("type", self.type_);
         entities.add_token("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.metadata {
+            ast.accept2(element, visitor);
+        }
+        ast.accept2(self.type_, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_);
+    }
 }
 
 impl RedirectingConstructorInvocationImpl {
@@ -13832,6 +16777,18 @@ impl RedirectingConstructorInvocationImpl {
         entities.add_token("thisKeyword", self.this_keyword);
         entities.add_node("constructorSelector", self.constructor_selector);
         entities.add_node("argumentList", self.argument_list);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.constructor_selector != NO_NODE {
+            ast.accept2(self.constructor_selector, visitor);
+        }
+        ast.accept2(self.argument_list, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.constructor_selector);
+        f(self.argument_list);
     }
 }
 
@@ -13912,6 +16869,29 @@ impl RegularFormalParameterImpl {
         entities.add_node("functionTypedSuffix", self.function_typed_suffix);
         entities.add_node("defaultClause", self.default_clause);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE {
+            ast.accept2(self.type_, visitor);
+        }
+        if self.function_typed_suffix != NO_NODE {
+            ast.accept2(self.function_typed_suffix, visitor);
+        }
+        if self.default_clause != NO_NODE {
+            ast.accept2(self.default_clause, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_);
+        f(self.function_typed_suffix);
+        f(self.default_clause);
+    }
 }
 
 impl RelationalPatternImpl {
@@ -13926,6 +16906,14 @@ impl RelationalPatternImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("operator", self.operator_);
         entities.add_node("operand2", self.operand2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.operand2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.operand2);
     }
 }
 
@@ -13945,6 +16933,16 @@ impl RestPatternElementImpl {
         entities.add_token("operator", self.operator_);
         entities.add_node("pattern", self.pattern);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.pattern != NO_NODE {
+            ast.accept2(self.pattern, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.pattern);
+    }
 }
 
 impl RethrowExpressionImpl {
@@ -13958,6 +16956,18 @@ impl RethrowExpressionImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("rethrowKeyword", self.rethrow_keyword);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::assignment
     }
 }
 
@@ -13975,6 +16985,16 @@ impl ReturnStatementImpl {
         entities.add_node("expression2", self.expression2);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.expression2 != NO_NODE {
+            ast.accept2(self.expression2, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+    }
 }
 
 impl ScriptTagImpl {
@@ -13988,6 +17008,14 @@ impl ScriptTagImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("scriptTag", self.script_tag);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -14003,6 +17031,14 @@ impl SemicolonEnumDeclarationBodyImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
 }
 
 impl SemicolonInstanceDeclarationBodyImpl {
@@ -14016,6 +17052,14 @@ impl SemicolonInstanceDeclarationBodyImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -14040,6 +17084,26 @@ impl SetOrMapLiteralImpl {
         entities.add_token("leftBracket", self.left_bracket);
         entities.add_node_list("elements2", &self.elements2);
         entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_arguments != NO_NODE {
+            ast.accept2(self.type_arguments, visitor);
+        }
+        for &element in &self.elements2 {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_arguments);
+        for &element in &self.elements2 {
+            f(element);
+        }
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
     }
 }
 
@@ -14091,6 +17155,25 @@ impl SetterDeclarationImpl {
         entities.add_node("formalParameters", self.formal_parameters);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE {
+            ast.accept2(self.return_type, visitor);
+        }
+        ast.accept2(self.formal_parameters, visitor);
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.return_type);
+        f(self.formal_parameters);
+        f(self.body);
+    }
 }
 
 impl ShowCombinatorImpl {
@@ -14112,6 +17195,18 @@ impl ShowCombinatorImpl {
         entities.add_token("keyword", self.keyword);
         entities.add_node_list("names", &self.names);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.names {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.names {
+            f(element);
+        }
+    }
 }
 
 impl SimpleStringLiteralImpl {
@@ -14125,6 +17220,18 @@ impl SimpleStringLiteralImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("literal", self.literal);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
     }
 }
 
@@ -14140,6 +17247,14 @@ impl SpreadElementImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("spreadOperator", self.spread_operator);
         entities.add_node("expression2", self.expression2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
     }
 }
 
@@ -14167,6 +17282,22 @@ impl StringInterpolationImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_node_list("elements", &self.elements);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.elements {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.elements {
+            f(element);
+        }
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
+    }
 }
 
 impl SuperConstructorInvocationImpl {
@@ -14182,6 +17313,18 @@ impl SuperConstructorInvocationImpl {
         entities.add_token("superKeyword", self.super_keyword);
         entities.add_node("constructorSelector", self.constructor_selector);
         entities.add_node("argumentList", self.argument_list);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.constructor_selector != NO_NODE {
+            ast.accept2(self.constructor_selector, visitor);
+        }
+        ast.accept2(self.argument_list, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.constructor_selector);
+        f(self.argument_list);
     }
 }
 
@@ -14240,6 +17383,29 @@ impl SuperFormalParameterImpl {
         entities.add_node("functionTypedSuffix", self.function_typed_suffix);
         entities.add_node("defaultClause", self.default_clause);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE {
+            ast.accept2(self.type_, visitor);
+        }
+        if self.function_typed_suffix != NO_NODE {
+            ast.accept2(self.function_typed_suffix, visitor);
+        }
+        if self.default_clause != NO_NODE {
+            ast.accept2(self.default_clause, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_);
+        f(self.function_typed_suffix);
+        f(self.default_clause);
+    }
 }
 
 impl SuperReferenceImpl {
@@ -14253,6 +17419,14 @@ impl SuperReferenceImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("superKeyword", self.super_keyword);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -14284,6 +17458,26 @@ impl SwitchCaseImpl {
         entities.add_token("colon", self.colon);
         entities.add_node_list("statements2", &self.statements2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.labels {
+            ast.accept2(element, visitor);
+        }
+        ast.accept2(self.expression2, visitor);
+        for &element in &self.statements2 {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.labels {
+            f(element);
+        }
+        for &element in &self.statements2 {
+            f(element);
+        }
+        f(self.expression2);
+    }
 }
 
 impl SwitchDefaultImpl {
@@ -14313,6 +17507,24 @@ impl SwitchDefaultImpl {
         entities.add_token("colon", self.colon);
         entities.add_node_list("statements2", &self.statements2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.labels {
+            ast.accept2(element, visitor);
+        }
+        for &element in &self.statements2 {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.labels {
+            f(element);
+        }
+        for &element in &self.statements2 {
+            f(element);
+        }
+    }
 }
 
 impl SwitchExpressionCaseImpl {
@@ -14328,6 +17540,16 @@ impl SwitchExpressionCaseImpl {
         entities.add_node("guardedPattern", self.guarded_pattern);
         entities.add_token("arrow", self.arrow);
         entities.add_node("expression2", self.expression2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.guarded_pattern, visitor);
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.guarded_pattern);
+        f(self.expression2);
     }
 }
 
@@ -14348,6 +17570,24 @@ impl SwitchExpressionImpl {
         entities.add_token("leftBracket", self.left_bracket);
         entities.add_node_list("cases", &self.cases);
         entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+        for &element in &self.cases {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+        for &element in &self.cases {
+            f(element);
+        }
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
     }
 }
 
@@ -14379,6 +17619,26 @@ impl SwitchPatternCaseImpl {
         entities.add_token("colon", self.colon);
         entities.add_node_list("statements2", &self.statements2);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.labels {
+            ast.accept2(element, visitor);
+        }
+        ast.accept2(self.guarded_pattern, visitor);
+        for &element in &self.statements2 {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.labels {
+            f(element);
+        }
+        for &element in &self.statements2 {
+            f(element);
+        }
+        f(self.guarded_pattern);
+    }
 }
 
 impl SwitchStatementImpl {
@@ -14399,6 +17659,20 @@ impl SwitchStatementImpl {
         entities.add_node_list("members", &self.members);
         entities.add_token("rightBracket", self.right_bracket);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+        for &element in &self.members {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+        for &element in &self.members {
+            f(element);
+        }
+    }
 }
 
 impl SymbolLiteralImpl {
@@ -14414,6 +17688,18 @@ impl SymbolLiteralImpl {
         entities.add_token("poundSign", self.pound_sign);
         entities.add_token_list("components", &self.components);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
+    }
 }
 
 impl ThisExpressionImpl {
@@ -14427,6 +17713,18 @@ impl ThisExpressionImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("thisKeyword", self.this_keyword);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::primary
     }
 }
 
@@ -14442,6 +17740,18 @@ impl ThrowExpressionImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("throwKeyword", self.throw_keyword);
         entities.add_node("expression2", self.expression2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::assignment
     }
 }
 
@@ -14489,6 +17799,29 @@ impl TopLevelFunctionDeclarationImpl {
         entities.add_node("formalParameters", self.formal_parameters);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        ast.accept2(self.formal_parameters, visitor);
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.return_type);
+        f(self.type_parameters);
+        f(self.formal_parameters);
+        f(self.body);
+    }
 }
 
 impl TopLevelGetterDeclarationImpl {
@@ -14534,6 +17867,27 @@ impl TopLevelGetterDeclarationImpl {
         entities.add_token("name", self.name);
         entities.add_node("recoveryFormalParameters", self.recovery_formal_parameters);
         entities.add_node("body", self.body);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE {
+            ast.accept2(self.return_type, visitor);
+        }
+        if self.recovery_formal_parameters != NO_NODE {
+            ast.accept2(self.recovery_formal_parameters, visitor);
+        }
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.return_type);
+        f(self.recovery_formal_parameters);
+        f(self.body);
     }
 }
 
@@ -14581,6 +17935,25 @@ impl TopLevelSetterDeclarationImpl {
         entities.add_node("formalParameters", self.formal_parameters);
         entities.add_node("body", self.body);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.return_type != NO_NODE {
+            ast.accept2(self.return_type, visitor);
+        }
+        ast.accept2(self.formal_parameters, visitor);
+        ast.accept2(self.body, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.return_type);
+        f(self.formal_parameters);
+        f(self.body);
+    }
 }
 
 impl TopLevelVariable2Impl {
@@ -14602,6 +17975,16 @@ impl TopLevelVariable2Impl {
         entities.add_token("name", self.name);
         entities.add_token("equals", self.equals);
         entities.add_node("initializer", self.initializer);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.initializer != NO_NODE {
+            ast.accept2(self.initializer, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.initializer);
     }
 }
 
@@ -14665,6 +18048,27 @@ impl TopLevelVariablesDeclarationImpl {
         entities.add_node_list("variables", &self.variables);
         entities.add_token("semicolon", self.semicolon);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.type_ != NO_NODE {
+            ast.accept2(self.type_, visitor);
+        }
+        for &element in &self.variables {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.type_);
+        for &element in &self.variables {
+            f(element);
+        }
+    }
 }
 
 impl TryStatementImpl {
@@ -14695,6 +18099,24 @@ impl TryStatementImpl {
         entities.add_token("finallyKeyword", self.finally_keyword);
         entities.add_node("finallyBlock", self.finally_block);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.body, visitor);
+        for &element in &self.catch_clauses {
+            ast.accept2(element, visitor);
+        }
+        if self.finally_block != NO_NODE {
+            ast.accept2(self.finally_block, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.body);
+        for &element in &self.catch_clauses {
+            f(element);
+        }
+        f(self.finally_block);
+    }
 }
 
 impl TypeArgumentListImpl {
@@ -14710,6 +18132,18 @@ impl TypeArgumentListImpl {
         entities.add_token("leftBracket", self.left_bracket);
         entities.add_node_list("arguments", &self.arguments);
         entities.add_token("rightBracket", self.right_bracket);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.arguments {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.arguments {
+            f(element);
+        }
     }
 }
 
@@ -14754,6 +18188,21 @@ impl TypeParameterImpl {
         entities.add_token("extendsKeyword", self.extends_keyword);
         entities.add_node("bound", self.bound);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.visit_comment_and_annotations2(self.documentation_comment, &self.metadata, visitor);
+        if self.bound != NO_NODE {
+            ast.accept2(self.bound, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.documentation_comment);
+        for &element in &self.metadata {
+            f(element);
+        }
+        f(self.bound);
+    }
 }
 
 impl TypeParameterListImpl {
@@ -14770,6 +18219,18 @@ impl TypeParameterListImpl {
         entities.add_node_list("typeParameters", &self.type_parameters);
         entities.add_token("rightBracket", self.right_bracket);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.type_parameters {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.type_parameters {
+            f(element);
+        }
+    }
 }
 
 impl UnaryOperatorInvocationImpl {
@@ -14785,6 +18246,18 @@ impl UnaryOperatorInvocationImpl {
         entities.add_token("operator", self.operator_);
         entities.add_node("operand", self.operand);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.operand, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.operand);
+    }
+
+    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {
+        Precedence::prefix
+    }
 }
 
 impl UnqualifiedNameAssignmentTargetImpl {
@@ -14798,6 +18271,14 @@ impl UnqualifiedNameAssignmentTargetImpl {
 
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("name", self.name);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        let _ = (ast, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        let _ = f;
     }
 }
 
@@ -14813,6 +18294,14 @@ impl WhenClauseImpl {
     pub fn child_entities2<'a>(&'a self, ast: &AstStore, tokens: &TokenStore, entities: &mut ChildEntities<'a>) {
         entities.add_token("whenKeyword", self.when_keyword);
         entities.add_node("expression2", self.expression2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
     }
 }
 
@@ -14831,6 +18320,16 @@ impl WhileStatementImpl {
         entities.add_node("condition2", self.condition2);
         entities.add_token("rightParenthesis", self.right_parenthesis);
         entities.add_node("body2", self.body2);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.condition2, visitor);
+        ast.accept2(self.body2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.condition2);
+        f(self.body2);
     }
 }
 
@@ -14854,6 +18353,16 @@ impl WildcardPatternImpl {
         entities.add_node("type", self.type_);
         entities.add_token("name", self.name);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        if self.type_ != NO_NODE {
+            ast.accept2(self.type_, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.type_);
+    }
 }
 
 impl WithClauseImpl {
@@ -14875,6 +18384,18 @@ impl WithClauseImpl {
         entities.add_token("withKeyword", self.with_keyword);
         entities.add_node_list("mixinTypes", &self.mixin_types);
     }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        for &element in &self.mixin_types {
+            ast.accept2(element, visitor);
+        }
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        for &element in &self.mixin_types {
+            f(element);
+        }
+    }
 }
 
 impl YieldStatementImpl {
@@ -14891,6 +18412,14 @@ impl YieldStatementImpl {
         entities.add_token("star", self.star);
         entities.add_node("expression2", self.expression2);
         entities.add_token("semicolon", self.semicolon);
+    }
+
+    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {
+        ast.accept2(self.expression2, visitor);
+    }
+
+    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {
+        f(self.expression2);
     }
 }
 

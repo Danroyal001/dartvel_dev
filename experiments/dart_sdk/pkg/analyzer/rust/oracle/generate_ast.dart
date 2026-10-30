@@ -192,6 +192,28 @@ class ClassInfo {
 
   /// The body of member [name] (a getter), as Dart looks it up from this
   /// class, and the class declaring it.
+  /// The body of method [name], as Dart looks it up from this class.
+  (ClassInfo, FunctionBody)? lookupMethod(String name, {bool skipSelf = false}) {
+    bool first = true;
+    for (ClassInfo c in lookupChain) {
+      if (first && skipSelf) {
+        first = false;
+        continue;
+      }
+      first = false;
+      for (ClassMember m in c.members) {
+        if (m is MethodDeclaration &&
+            !m.isGetter &&
+            !m.isSetter &&
+            m.name.lexeme == name) {
+          if (m.body is EmptyFunctionBody) continue;
+          return (c, m.body);
+        }
+      }
+    }
+    return null;
+  }
+
   (ClassInfo, FunctionBody)? lookupGetter(String name, {bool skipSelf = false}) {
     bool first = true;
     for (ClassInfo c in lookupChain) {
@@ -703,6 +725,7 @@ void main(List<String> args) {
     } on StateError catch (e) {
       errors.add(e.message);
     }
+    writeV2Members(c, byName, impls, errors);
     impls.writeln('}');
     impls.writeln();
   }
@@ -771,6 +794,8 @@ void main(List<String> args) {
   out.writeln('        }');
   out.writeln('    }');
   out.writeln();
+
+  writeV2Dispatch(concrete, out);
 
   // Accessors that stand for `as XImpl` casts.
   for (ClassInfo c in concrete) {
@@ -857,8 +882,9 @@ const String header = '''
 // `NodeId`s, as tokens live in a `TokenStore`; `NO_NODE` is null.
 // A node whose fields take more than 24 bytes is boxed in the enum, which
 // keeps every node at 32 bytes.
-// `beginToken`, `endToken` and `_childEntities2` are translated from
-// upstream's bodies; `is XImpl` and `as XImpl` are `is_x_impl` and `as_x_impl`.
+// `beginToken`, `endToken`, `_childEntities2`, `accept2`, `visitChildren2`
+// and `precedence` are translated from upstream's bodies, and the children
+// a constructor makes this node the parent of are its node fields; `is XImpl` and `as XImpl` are `is_x_impl` and `as_x_impl`.
 // Classes that exist only in the V1 view of the AST, which upstream projects
 // from these, are not ported.
 #![allow(clippy::all)]
@@ -866,7 +892,9 @@ const String header = '''
 
 use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId, TokenStore};
 
-use crate::src::dart::ast::ast_store::{AstStore, ChildEntities, NO_NODE, NodeId, NodeListImpl};
+use crate::dart::ast::precedence::Precedence;
+use crate::src::dart::ast::ast_g::AstVisitor2;
+use crate::src::dart::ast::ast_store::{Ast, AstStore, ChildEntities, NO_NODE, NodeId, NodeListImpl};
 use crate::dart::analysis::features::FeatureSet;
 use crate::dart::ast::doc_comment::{DocDirective, DocImport, MdCodeBlock};
 use crate::dart::element::element::LibraryLanguageVersion;
@@ -918,3 +946,405 @@ int structSize(ClassInfo c) {
 /// than most nodes would make every node as large, since an enum is as large
 /// as its largest variant.
 bool isBoxed(ClassInfo c) => structSize(c) > 24;
+
+/// Hand translations of `visitChildren2` bodies: Rust statements.
+const Map<String, String> handVisitChildren = {
+  // Upstream first throws for a V1 projection, which is never built here.
+  'FunctionExpressionImpl': '''
+if self.type_parameters != NO_NODE {
+            ast.accept2(self.type_parameters, visitor);
+        }
+        if self.parameters != NO_NODE {
+            ast.accept2(self.parameters, visitor);
+        }
+        ast.accept2(self.body, visitor);''',
+  // Upstream first throws when the node was made from a constructor type
+  // reference, which only the V1 view does.
+  'NamedTypeImpl': '''
+if self.import_prefix != NO_NODE {
+            ast.accept2(self.import_prefix, visitor);
+        }
+        if self.type_arguments != NO_NODE {
+            ast.accept2(self.type_arguments, visitor);
+        }''',
+  'CompilationUnitImpl': '''
+if self.script_tag != NO_NODE {
+            ast.accept2(self.script_tag, visitor);
+        }
+        // _directivesAreBeforeDeclarations
+        let before = self.directives.is_empty()
+            || self.declarations2.is_empty()
+            || ast.offset(self.directives[self.directives.len() - 1])
+                < ast.offset(self.declarations2[0]);
+        if before {
+            for &element in &self.directives {
+                ast.accept2(element, visitor);
+            }
+            for &element in &self.declarations2 {
+                ast.accept2(element, visitor);
+            }
+        } else {
+            for child in ast.sorted_by_offset(&[&self.directives[..], &self.declarations2[..]]) {
+                ast.accept2(child, visitor);
+            }
+        }''',
+};
+
+/// Hand translations of `accept2`: the visit method.
+const Map<String, String> handAccept = {
+  'FunctionExpressionImpl': 'visitFunctionExpression',
+  'NamedTypeImpl': 'visitNamedType',
+};
+
+/// Hand translations of `precedence` getters, keyed by the declaring class.
+const Map<String, String> handPrecedence = {
+  'BinaryOperatorInvocationImpl':
+      'Precedence::for_token_type(ast.tokens.type_(self.operator_))',
+  'IncrementOrDecrementExpressionImpl': '''
+match self.position {
+            IncrementOrDecrementPosition::prefix => Precedence::prefix,
+            IncrementOrDecrementPosition::postfix => Precedence::postfix,
+        }''',
+  'ParsedDotShorthandExpressionImpl': 'ast.precedence(self.expression)',
+  'TypeLiteralImpl': '''
+let type_ = ast.node(self.type_).as_named_type_impl();
+        if type_.type_arguments != NO_NODE {
+            Precedence::postfix
+        } else if type_.import_prefix != NO_NODE {
+            Precedence::postfix
+        } else {
+            Precedence::primary
+        }''',
+};
+
+/// The field a getter or field named [name] of [c] reads: the field itself,
+/// or the one a getter `=> _x` returns.
+Field? resolveField(ClassInfo c, Map<String, Field> fields, String name) {
+  String bare = name.startsWith('_') ? name.substring(1) : name;
+  Field? f = fields[bare];
+  if (f != null) return f;
+  var getter = c.lookupGetter(name);
+  if (getter != null) {
+    var body = getter.$2;
+    if (body is ExpressionFunctionBody && body.expression is SimpleIdentifier) {
+      String target = (body.expression as SimpleIdentifier).name;
+      if (target != name) return resolveField(c, fields, target);
+    }
+  }
+  return null;
+}
+
+/// `visitChildren2` of [c]: Rust statements visiting its children.
+List<String> visitChildrenBody(
+  ClassInfo c,
+  Map<String, Field> fields,
+  ClassInfo owner,
+  FunctionBody body,
+) {
+  Never fail(Object what) =>
+      throw StateError('${c.name}.visitChildren2: cannot translate $what');
+  if (body is! BlockFunctionBody) fail(body);
+  List<String> out = [];
+  for (Statement s in body.block.statements) {
+    if (s is! ExpressionStatement || s.expression is! MethodInvocation) {
+      fail(s);
+    }
+    var call = s.expression as MethodInvocation;
+    var target = call.target;
+    String method = call.methodName.name;
+    if (target is SuperExpression && method == 'visitChildren2') {
+      var found = owner.lookupMethod('visitChildren2', skipSelf: true);
+      if (found != null) {
+        out.addAll(visitChildrenBody(c, fields, found.$1, found.$2));
+      }
+      continue;
+    }
+    if (target == null && method == '_visitCommentAndAnnotations2') {
+      out.add(
+        'ast.visit_comment_and_annotations2('
+        'self.documentation_comment, &self.metadata, visitor);',
+      );
+      continue;
+    }
+    if (method != 'accept2' || target is! SimpleIdentifier) fail(s);
+    Field? f = resolveField(c, fields, target.name);
+    if (f == null) fail(s);
+    switch (f.kind) {
+      case Kind.node:
+        if (f.nullable || call.operator?.lexeme == '?.') {
+          out.add(
+            'if self.${f.rustName} != NO_NODE {\n'
+            '            ast.accept2(self.${f.rustName}, visitor);\n'
+            '        }',
+          );
+        } else {
+          out.add('ast.accept2(self.${f.rustName}, visitor);');
+        }
+      case Kind.nodeList:
+        out.add(
+          'for &element in &self.${f.rustName} {\n'
+          '            ast.accept2(element, visitor);\n'
+          '        }',
+        );
+      default:
+        fail(s);
+    }
+  }
+  return out;
+}
+
+/// `precedence` of [c], or null when [c] has none (it is not an expression).
+String? precedenceBody(ClassInfo c, Map<String, Field> fields) {
+  for (ClassInfo owner in c.lookupChain) {
+    for (ClassMember m in owner.members) {
+      if (m is MethodDeclaration && m.isGetter && m.name.lexeme == 'precedence') {
+        if (m.body is EmptyFunctionBody) continue;
+        if (m.returnType?.toSource() != 'Precedence') return null;
+        String? hand = handPrecedence[owner.name];
+        if (hand != null) return hand;
+        var body = m.body;
+        if (body is ExpressionFunctionBody) {
+          var e = body.expression;
+          if (e is PrefixedIdentifier && e.prefix.name == 'Precedence') {
+            return 'Precedence::${e.identifier.name}';
+          }
+        }
+        throw StateError('${c.name}.precedence: cannot translate $body');
+      }
+    }
+  }
+  return null;
+}
+
+void writeV2Members(
+  ClassInfo c,
+  Map<String, Field> fields,
+  StringBuffer impls,
+  List<String> errors,
+) {
+  // accept2
+  var accept = c.lookupMethod('accept2');
+  String? visit;
+  if (accept != null && accept.$2 is ExpressionFunctionBody) {
+    var e = (accept.$2 as ExpressionFunctionBody).expression;
+    if (e is MethodInvocation &&
+        e.target is SimpleIdentifier &&
+        (e.target as SimpleIdentifier).name == 'visitor') {
+      visit = e.methodName.name;
+    }
+  }
+  visit ??= handAccept[c.name];
+  if (visit == null) {
+    errors.add('${c.name}.accept2: cannot translate');
+  } else {
+    acceptMethods[c.name] = visit;
+  }
+
+  // visitChildren2
+  try {
+    List<String> statements;
+    if (handVisitChildren.containsKey(c.name)) {
+      statements = [handVisitChildren[c.name]!];
+    } else {
+      var found = c.lookupMethod('visitChildren2');
+      statements = found == null
+          ? []
+          : visitChildrenBody(c, fields, found.$1, found.$2);
+    }
+    impls.writeln();
+    impls.writeln(
+      "    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {",
+    );
+    if (statements.isEmpty) impls.writeln('        let _ = (ast, visitor);');
+    for (String s in statements) {
+      impls.writeln('        $s');
+    }
+    impls.writeln('    }');
+  } on StateError catch (e) {
+    errors.add(e.message);
+  }
+
+  // The children the constructor makes this node the parent of.
+  impls.writeln();
+  impls.writeln('    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {');
+  bool any = false;
+  List<String> parented;
+  try {
+    parented = parentedFields(c, c);
+  } on StateError catch (e) {
+    errors.add(e.message);
+    parented = [];
+  }
+  for (String name in parented) {
+    Field? field = fields[name];
+    if (field == null) {
+      errors.add('${c.name}: parented field $name is not stored');
+      continue;
+    }
+    if (field.kind == Kind.node) {
+      impls.writeln('        f(self.${field.rustName});');
+      any = true;
+    } else if (field.kind == Kind.nodeList) {
+      impls.writeln('        for &element in &self.${field.rustName} {');
+      impls.writeln('            f(element);');
+      impls.writeln('        }');
+      any = true;
+    }
+  }
+  if (!any) impls.writeln('        let _ = f;');
+  impls.writeln('    }');
+
+  try {
+    String? precedence = precedenceBody(c, fields);
+    if (precedence != null) {
+      precedenceClasses.add(c.name);
+      impls.writeln();
+      impls.writeln("    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {");
+      impls.writeln('        $precedence');
+      impls.writeln('    }');
+    }
+  } on StateError catch (e) {
+    errors.add(e.message);
+  }
+}
+
+final Map<String, String> acceptMethods = {};
+final Set<String> precedenceClasses = {};
+
+void writeV2Dispatch(List<ClassInfo> concrete, StringBuffer out) {
+  out.writeln('    /// `accept2(visitor)`: the visitor\'s method for this class.');
+  out.writeln(
+    "    pub fn accept2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) -> Option<V::R> {",
+  );
+  out.writeln('        match self {');
+  for (ClassInfo c in concrete) {
+    String? visit = acceptMethods[c.name];
+    if (visit == null) continue;
+    out.writeln(
+      '            AstNodeImpl::${c.name}(_) => visitor.${snakeVisit(visit)}(ast, id),',
+    );
+  }
+  out.writeln('        }');
+  out.writeln('    }');
+  out.writeln();
+  out.writeln('    /// `visitChildren2(visitor)`.');
+  out.writeln(
+    "    pub fn visit_children2<V: AstVisitor2 + ?Sized>(&self, ast: Ast<'_>, visitor: &mut V) {",
+  );
+  out.writeln('        match self {');
+  for (ClassInfo c in concrete) {
+    out.writeln(
+      '            AstNodeImpl::${c.name}(n) => n.visit_children2(ast, visitor),',
+    );
+  }
+  out.writeln('        }');
+  out.writeln('    }');
+  out.writeln();
+  out.writeln('    /// The nodes the constructor makes this node the parent of.');
+  out.writeln(
+    '    pub fn for_each_child_node(&self, f: &mut impl FnMut(NodeId)) {',
+  );
+  out.writeln('        match self {');
+  for (ClassInfo c in concrete) {
+    out.writeln(
+      '            AstNodeImpl::${c.name}(n) => n.for_each_child_node(f),',
+    );
+  }
+  out.writeln('        }');
+  out.writeln('    }');
+  out.writeln();
+  out.writeln('    /// `(this as ExpressionImpl).precedence`.');
+  out.writeln("    pub fn precedence(&self, ast: Ast<'_>) -> Precedence {");
+  out.writeln('        match self {');
+  for (ClassInfo c in concrete) {
+    if (!precedenceClasses.contains(c.name)) continue;
+    out.writeln(
+      '            AstNodeImpl::${c.name}(n) => n.precedence(ast),',
+    );
+  }
+  out.writeln(
+    '            _ => panic!("{} has no precedence", self.runtime_type()),',
+  );
+  out.writeln('        }');
+  out.writeln('    }');
+  out.writeln();
+}
+
+/// `visitFooBar2` as the Rust method `visit_foo_bar2`.
+String snakeVisit(String name) {
+  StringBuffer sb = StringBuffer();
+  for (int i = 0; i < name.length; i++) {
+    String c = name[i];
+    if (c.toUpperCase() == c && c.toLowerCase() != c) {
+      if (i > 0) sb.write('_');
+      sb.write(c.toLowerCase());
+    } else {
+      sb.write(c);
+    }
+  }
+  return sb.toString();
+}
+
+/// The fields whose nodes the constructor of [owner] (run for [c]) makes
+/// the node the parent of in the V2 view, in order.
+List<String> parentedFields(ClassInfo c, ClassInfo owner) {
+  ConstructorDeclaration? ctor = owner.unnamedConstructor;
+  if (ctor == null) return [];
+  Never fail(Object what) =>
+      throw StateError('${c.name}: constructor of ${owner.name}: $what');
+  String bare(String name) => name.startsWith('_') ? name.substring(1) : name;
+  List<String> result = [];
+  bool hasSuper =
+      ctor.parameters.parameters.any((p) => p is SuperFormalParameter) ||
+      ctor.initializers.any((i) => i is SuperConstructorInvocation);
+  if (hasSuper && owner.superclass != null) {
+    ClassInfo? superInfo = classes[owner.superclass];
+    if (superInfo != null) result.addAll(parentedFields(c, superInfo));
+  }
+  var body = ctor.body;
+  if (body is EmptyFunctionBody) return result;
+  if (body is! BlockFunctionBody) fail(body);
+  for (Statement s in body.block.statements) {
+    String source = s.toSource();
+    // Assertions, the V1 view and the API override set no V2 parent.
+    if (s is AssertStatement ||
+        (!source.contains('_becomeParentOf2') &&
+            !source.contains('_becomeParentOf12') &&
+            !source.contains('_initialize') &&
+            (source.contains('_becomeParentOf1(') ||
+                source.contains('._astNodeApiOverride = ')))) {
+      continue;
+    }
+    if (s is! ExpressionStatement || s.expression is! MethodInvocation) {
+      fail(s.toSource());
+    }
+    var call = s.expression as MethodInvocation;
+    String method = call.methodName.name;
+    var args = call.argumentList.arguments;
+    switch (method) {
+      case '_becomeParentOf12' ||
+          '_becomeParentOf2' ||
+          '_becomeParentOf2AndExisting1' ||
+          '_becomeParentOfOwnedView':
+        var arg = args.single;
+        if (arg is! SimpleIdentifier) fail(s.toSource());
+        result.add(bare(arg.name));
+      case '_becomeParentOf1':
+        // The V1 view only.
+        break;
+      case '_initialize' || '_initializeProjected':
+        var target = call.target;
+        String name = switch (target) {
+          PropertyAccess(:var propertyName) => propertyName.name,
+          SimpleIdentifier(:var name) => name,
+          _ => fail(s.toSource()),
+        };
+        result.add(bare(name));
+      case '_initializeCommentAndAnnotations':
+        result.addAll(['documentationComment', 'metadata']);
+      default:
+        fail(s.toSource());
+    }
+  }
+  return result;
+}

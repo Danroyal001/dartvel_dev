@@ -10,6 +10,7 @@
 // `--api` writes the API dump instead of the tree (see api.rs).
 
 mod api;
+mod recorders;
 
 use std::fmt::Write as _;
 use std::fs;
@@ -59,6 +60,10 @@ fn main() {
         return;
     }
 
+    if api {
+        // A panic stands for an upstream exception, which the dump records.
+        std::panic::set_hook(Box::new(|_| {}));
+    }
     let out = out.unwrap();
     for (path, relative) in &inputs {
         let source = read_source(path);

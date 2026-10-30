@@ -10,13 +10,20 @@
 #![allow(clippy::all)]
 #![allow(non_upper_case_globals, non_snake_case)]
 
+#[macro_use]
 pub mod dart {
     pub mod analysis {
         pub mod features;
         pub mod utilities;
     }
+    #[macro_use]
     pub mod ast {
         pub mod doc_comment;
+        pub mod precedence;
+        #[rustfmt::skip]
+        #[macro_use]
+        pub mod visitor_g;
+        pub mod visitor;
     }
     pub mod element {
         pub mod element;
@@ -43,7 +50,11 @@ pub mod src {
         pub mod ast {
             #[rustfmt::skip]
             pub mod ast;
+            #[rustfmt::skip]
+            pub mod ast_g;
             pub mod ast_store;
+            pub mod to_source_visitor;
+            pub mod utilities;
         }
         pub mod scanner {
             pub mod scanner;

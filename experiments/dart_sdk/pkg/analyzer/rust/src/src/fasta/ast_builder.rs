@@ -1204,10 +1204,13 @@ impl AstBuilder {
                     self.n_mut(types)
                         .as_parsed_type_arguments_impl_mut()
                         .operand = access;
+                    // The setter's `_becomeParentOf2(operand)`.
+                    self.ast.become_parent_of2(types, access);
                 } else {
                     self.n_mut(identifier_or_invoke)
                         .as_parsed_value_arguments_impl_mut()
                         .operand = access;
+                    self.ast.become_parent_of2(identifier_or_invoke, access);
                 }
                 self.push_node(identifier_or_invoke);
             }
@@ -5282,6 +5285,8 @@ impl Listener for AstBuilder {
         p.extends_keyword = extends_or_super;
         p.bound = bound;
         p.variance_keyword = variance;
+        // The setter's `_becomeParentOf12(bound)`.
+        self.ast.become_parent_of2(type_parameter, bound);
     }
 
     fn end_type_variables(
@@ -5884,10 +5889,13 @@ impl Listener for AstBuilder {
                     self.n_mut(types)
                         .as_parsed_type_arguments_impl_mut()
                         .operand = head;
+                    // The setter's `_becomeParentOf2(operand)`.
+                    self.ast.become_parent_of2(types, head);
                 } else {
                     self.n_mut(operand)
                         .as_parsed_value_arguments_impl_mut()
                         .operand = head;
+                    self.ast.become_parent_of2(operand, head);
                 }
                 self.push_node(operand);
             }
