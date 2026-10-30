@@ -274,18 +274,24 @@ void main() {
     });
 
     test('it cannot fail the dev loop over documentation', () async {
-      // A read-only project directory is not a reason to refuse to start.
-      final Directory locked = Directory.systemTemp.createTempSync('dartvel_ro_');
+      // A project where an agent file cannot be written is not a reason to
+      // refuse to start. The write is made impossible by putting a directory
+      // where the file goes: a read-only directory was the old way, and it
+      // stops nobody running as root -- a container, a CI image -- so there
+      // the sync succeeded and the test failed for a reason that had nothing
+      // to do with the code.
+      final Directory blocked = Directory.systemTemp.createTempSync('dartvel_ro_');
       addTearDown(() {
-        if (locked.existsSync()) locked.deleteSync(recursive: true);
+        if (blocked.existsSync()) blocked.deleteSync(recursive: true);
       });
-      Process.runSync('chmod', <String>['555', locked.path]);
+      Directory(p.join(blocked.path, 'AGENTS.md')).createSync();
 
       final DVAgentDocsSyncResult result =
-          await dvSyncAgentDocs(root: locked.path, projectName: 'probe');
+          await dvSyncAgentDocs(root: blocked.path, projectName: 'probe');
 
-      Process.runSync('chmod', <String>['755', locked.path]);
-      expect(result.failed, isNotEmpty);
+      expect(result.failed, contains('AGENTS.md'));
+      // Everything else it could write, it wrote.
+      expect(result.created, isNotEmpty);
     });
   });
 }
