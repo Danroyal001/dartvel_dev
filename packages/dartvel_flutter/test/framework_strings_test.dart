@@ -64,6 +64,24 @@ void main() {
       // is missing stays visibly missing.
       expect(DV.I18n.t(const DVTranslationKey('app.checkout')), 'app.checkout');
     });
+
+    test('a value is substituted once, never read again as a placeholder', () {
+      // A cell's text is the reader's own data. Substituting each argument
+      // in turn over the growing result read a value containing "{row}" as
+      // the next placeholder, so the announced text silently became
+      // something the data never said.
+      DV.I18n.load(const DVTranslationCatalog(
+        locale: LocaleTag.enUS,
+        messages: <DVTranslationKey, String>{
+          DVTranslationKey('app.cell'): '{value}, row {row}',
+        },
+      ));
+      expect(
+        DV.I18n.t(const DVTranslationKey('app.cell'),
+            args: <String, String>{'value': 'see {row}', 'row': '3'}),
+        'see {row}, row 3',
+      );
+    });
   });
 
   group('an empty DVTable', () {

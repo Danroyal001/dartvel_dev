@@ -11899,12 +11899,15 @@ class DVI18n {
     _plurals.clear();
   }
 
+  /// One pass over [template]: a placeholder is replaced by its argument and
+  /// the argument is never read again, so a value that itself contains
+  /// `{row}` -- a reader's own data -- is shown as written.
   String _interpolate(String template, Map<String, String> args) {
-    var result = template;
-    for (final entry in args.entries) {
-      result = result.replaceAll('{${entry.key}}', entry.value);
-    }
-    return result;
+    if (args.isEmpty) return template;
+    return template.replaceAllMapped(
+      RegExp(r'\{([^{}]+)\}'),
+      (Match m) => args[m[1]] ?? m[0]!,
+    );
   }
 }
 
