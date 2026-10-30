@@ -365,24 +365,16 @@ impl<T: RectNum> TRect<T> {
     #[inline(always)]
     pub fn union(&self, o: &Self) -> Self {
         // Upstream returns `o` if this is empty, else this if `o` is empty,
-        // else the min/max bounds. Chosen field by field, so that the choice
-        // is a select rather than a branch on unpredictable data.
-        let (self_empty, o_empty) = (self.is_empty(), o.is_empty());
-        let pick = |mine: T, theirs: T, both: T| {
-            if self_empty {
-                theirs
-            } else if o_empty {
-                mine
-            } else {
-                both
-            }
-        };
-        TRect::raw(
-            pick(self.left_, o.left_, cxx::min(self.left_, o.left_)),
-            pick(self.top_, o.top_, cxx::min(self.top_, o.top_)),
-            pick(self.right_, o.right_, cxx::max(self.right_, o.right_)),
-            pick(self.bottom_, o.bottom_, cxx::max(self.bottom_, o.bottom_)),
-        )
+        // else the min/max bounds. All three are formed first, so that the
+        // choice is a select rather than a branch on unpredictable data.
+        let both = TRect::raw(
+            cxx::min(self.left_, o.left_),
+            cxx::min(self.top_, o.top_),
+            cxx::max(self.right_, o.right_),
+            cxx::max(self.bottom_, o.bottom_),
+        );
+        let r = if o.is_empty() { *self } else { both };
+        if self.is_empty() { *o } else { r }
     }
 
     pub fn intersection(&self, o: &Self) -> Option<Self> {
@@ -526,19 +518,19 @@ impl<T: RectNum> TRect<T> {
     #[inline(always)]
     pub fn round_out<U: RectNum + SaturatedCast<T>>(r: &TRect<U>) -> Self {
         TRect::make_ltrb(
-            saturated::cast(r.get_left().floor_c()),
-            saturated::cast(r.get_top().floor_c()),
-            saturated::cast(r.get_right().ceil_c()),
-            saturated::cast(r.get_bottom().ceil_c()),
+            r.get_left().saturated_cast_floor(),
+            r.get_top().saturated_cast_floor(),
+            r.get_right().saturated_cast_ceil(),
+            r.get_bottom().saturated_cast_ceil(),
         )
     }
 
     pub fn round_in<U: RectNum + SaturatedCast<T>>(r: &TRect<U>) -> Self {
         TRect::make_ltrb(
-            saturated::cast(r.get_left().ceil_c()),
-            saturated::cast(r.get_top().ceil_c()),
-            saturated::cast(r.get_right().floor_c()),
-            saturated::cast(r.get_bottom().floor_c()),
+            r.get_left().saturated_cast_ceil(),
+            r.get_top().saturated_cast_ceil(),
+            r.get_right().saturated_cast_floor(),
+            r.get_bottom().saturated_cast_floor(),
         )
     }
 

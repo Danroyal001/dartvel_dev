@@ -5,7 +5,7 @@
 // `SaturatedArith` (signed integers and floats) and `SaturatedCast<To>`.
 
 pub mod saturated {
-    use crate::cxx::clamp;
+    use crate::cxx::{Num, clamp};
     use crate::scalar::Scalar;
 
     pub trait SaturatedArith: Copy {
@@ -102,6 +102,25 @@ pub mod saturated {
     /// `saturated::Cast<From, To>`.
     pub trait SaturatedCast<To>: Copy {
         fn saturated_cast(self) -> To;
+
+        /// `saturated::Cast<From, To>(floor(v))`, as RoundOut and RoundIn
+        /// write it.
+        #[inline(always)]
+        fn saturated_cast_floor(self) -> To
+        where
+            Self: Num,
+        {
+            self.floor_c().saturated_cast()
+        }
+
+        /// `saturated::Cast<From, To>(ceil(v))`.
+        #[inline(always)]
+        fn saturated_cast_ceil(self) -> To
+        where
+            Self: Num,
+        {
+            self.ceil_c().saturated_cast()
+        }
     }
 
     macro_rules! same {
@@ -125,6 +144,23 @@ pub mod saturated {
                     // values at both ends, and gives 0 for NaN, as upstream's
                     // CastingNaNScalarToSignedIntProducesZero expects.
                     self as $si
+                }
+
+                // The same integer, computed in the integer domain: truncate
+                // (saturating, NaN to 0), then step down where that rounded
+                // up. Below 2^p the truncation is exact to compare; above it
+                // the value is integral, so it compares equal; past the
+                // integer range the step saturates, as floor then Cast does.
+                #[inline(always)]
+                fn saturated_cast_floor(self) -> $si {
+                    let i = self as $si;
+                    if (i as $fp) > self { i.saturating_sub(1) } else { i }
+                }
+
+                #[inline(always)]
+                fn saturated_cast_ceil(self) -> $si {
+                    let i = self as $si;
+                    if (i as $fp) < self { i.saturating_add(1) } else { i }
                 }
             }
         )*};
@@ -154,5 +190,50 @@ pub mod saturated {
     #[inline(always)]
     pub fn cast<F: SaturatedCast<T>, T>(v: F) -> T {
         v.saturated_cast()
+    }
+}
+
+#[cfg(test)]
+mod fused_rounding_tests {
+    // Not upstream tests: `saturated_cast_floor`/`_ceil` fuse RoundOut's and
+    // RoundIn's `saturated::Cast(floor(v))` and `Cast(ceil(v))`, so they must
+    // give the same integer for every float.
+    use super::saturated::SaturatedCast;
+    use crate::cxx::Num;
+
+    fn values() -> Vec<f64> {
+        let mut v = vec![
+            0.0, -0.0, 0.5, -0.5, 1.0, -1.0, 1.5, -1.5, 0.99999994, -0.99999994, 8388607.5,
+            -8388607.5, 8388608.0, -8388608.0, 127.0, 127.5, 128.0, -128.0, -128.5, -129.0,
+            32767.5, -32768.5, 2147483520.0, 2147483647.0, 2147483648.0, -2147483648.0,
+            -2147483649.0, 9.2233715e18, 9.223372e18, -9.223372e18, -9.3e18, 1e30, -1e30,
+            f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 4503599627370495.5, -4503599627370495.5,
+        ];
+        let mut s: u64 = 99;
+        for _ in 0..if cfg!(miri) { 300 } else { 100_000 } {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            v.push(f32::from_bits((s >> 32) as u32) as f64);
+            v.push(f64::from_bits(s));
+            v.push(((s >> 40) as i32 as f64) * 0.25);
+        }
+        v
+    }
+
+    macro_rules! check {
+        ($fp:ty => $($si:ty),*) => {$(
+            for x in values() {
+                let x = x as $fp;
+                let floor: $si = x.floor_c().saturated_cast();
+                let ceil: $si = x.ceil_c().saturated_cast();
+                assert_eq!(<$fp as SaturatedCast<$si>>::saturated_cast_floor(x), floor, "floor {x:e}");
+                assert_eq!(<$fp as SaturatedCast<$si>>::saturated_cast_ceil(x), ceil, "ceil {x:e}");
+            }
+        )*};
+    }
+
+    #[test]
+    fn fused_floor_and_ceil_casts_match_floor_then_cast() {
+        check!(f32 => i8, i16, i32, i64);
+        check!(f64 => i8, i16, i32, i64);
     }
 }
