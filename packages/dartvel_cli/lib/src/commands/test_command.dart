@@ -56,6 +56,12 @@ class TestCommand extends Command<void> {
             'Run tests with per-file isolation by forcing single concurrency.',
       )
       ..addFlag(
+        'evals',
+        defaultsTo: false,
+        help: 'Run only the AI evals, under test/evals: golden transcripts '
+            'scored and gated by DVAIEval. The whole suite runs them too.',
+      )
+      ..addFlag(
         'update-goldens',
         defaultsTo: false,
         help: 'Update golden snapshot files for golden UI tests.',
@@ -72,7 +78,17 @@ class TestCommand extends Command<void> {
   Future<void> run() async {
     final Directory root = Directory(_root ?? Directory.current.path);
     final rest = argResults?.rest ?? const <String>[];
-    final mode = rest.isEmpty ? 'unit' : rest.first;
+    final bool evals = argResults?['evals'] == true;
+    if (evals && rest.isNotEmpty && rest.first != 'unit' &&
+        !rest.first.startsWith('-')) {
+      throw UsageException(
+        '--evals runs the evals; it does not combine with the "${rest.first}" mode.',
+        usage,
+      );
+    }
+    // The evals are a mode of their own: their own directory, and nothing
+    // else. They sit under test/, so the whole suite runs them as well.
+    final mode = evals ? 'evals' : rest.isEmpty ? 'unit' : rest.first;
     if (!const <String>{
       'unit',
       'e2e',
@@ -80,13 +96,16 @@ class TestCommand extends Command<void> {
       'native',
       'accessibility',
       'release',
+      'evals',
     }.contains(mode)) {
       throw UsageException(
         'Unknown test mode "$mode". Use unit, e2e, golden, native, accessibility, or release.',
         usage,
       );
     }
-    final forwarded = rest.skip(rest.isEmpty ? 0 : 1).toList(growable: false);
+    final forwarded = rest
+        .skip(rest.isEmpty || (evals && rest.first != 'unit') ? 0 : 1)
+        .toList(growable: false);
 
     // Reported before anything runs. Without this the command either failed
     // on a directory that was never there or, once that was fixed, ran the
@@ -277,6 +296,11 @@ List<String> _candidatesForMode(String mode) => switch (mode) {
           'test/a11y',
           'test/accessibility_test.dart',
           'test/a11y_test.dart',
+        ],
+      // AI Operations' golden transcripts, scored and gated by DVAIEval.
+      'evals' => const <String>[
+          'test/evals',
+          'test/evals_test.dart',
         ],
       'release' => const <String>[
           'test/release',

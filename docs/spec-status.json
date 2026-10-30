@@ -996,9 +996,10 @@
         "packages/dartvel_cli/test/model_factory_generation_test.dart",
         "packages/dartvel_cli/test/test_command_test.dart",
         "packages/dartvel_cli/test/test_modes_test.dart",
+        "packages/dartvel_cli/test/test_evals_test.dart",
         "packages/dartvel_flutter/test/golden/primitives_golden_test.dart"
       ],
-      "absent": "Nothing named. Generated factories now carry a sequence, so two create() calls produce two records rather than one repeated identifier, with createMany for list-shaped tests and resetSequence so a snapshot assertion is repeatable. Every test mode resolves, and a mode with no tests reports that it has none and where it looked Newly specified and unbuilt: dartvel test --impacted, answered from the project graph rather than from coverage traces and refused on a dirty generated tree; dartvel test --evals; generated tests for a generated module, run in the parent suite under the module id, and skipped by target rather than failed where a binding kind cannot run on the host."
+      "absent": "Nothing named. Generated factories now carry a sequence, so two create() calls produce two records rather than one repeated identifier, with createMany for list-shaped tests and resetSequence so a snapshot assertion is repeatable. Every test mode resolves, and a mode with no tests reports that it has none and where it looked. dartvel test --evals runs only the AI evals, under test/evals or test/evals_test.dart, where DVAIEval scores and gates them; they sit under test/, so the whole suite runs them too, and a project with none is told so Newly specified and unbuilt: dartvel test --impacted, answered from the project graph rather than from coverage traces and refused on a dirty generated tree; generated tests for a generated module, run in the parent suite under the module id, and skipped by target rather than failed where a binding kind cannot run on the host."
     },
     {
       "section": "Search",

@@ -6817,6 +6817,11 @@ the suite, scored by both deterministic and model scorers, and gated on the
 declared threshold. An eval that only runs when somebody remembers is not a
 gate.
 
+The evals live in `test/evals` (or `test/evals_test.dart`), where `DVAIEval`
+scores and gates them. `--evals` runs those alone; because they sit under
+`test/`, plain `dartvel test` runs them with everything else. A project with
+no evals is told so and where they would go.
+
 ## A module's tests are the parent's tests
 
 A generated module ships generated tests covering its surface, and a module's
