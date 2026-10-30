@@ -90,11 +90,28 @@ pub fn register(
                 simple_directive_paths,
             );
         }
-        "slash_for_doc_comments" => registry.add(
-            NodeKind::Comment,
-            "slash_for_doc_comments",
-            slash_for_doc_comments,
-        ),
+        "slash_for_doc_comments" => {
+            for kind in [
+                NodeKind::ClassDeclaration,
+                NodeKind::ClassTypeAlias,
+                NodeKind::CompilationUnit,
+                NodeKind::ConstructorDeclaration,
+                NodeKind::EnumConstantDeclaration,
+                NodeKind::EnumDeclaration,
+                NodeKind::ExtensionDeclaration,
+                NodeKind::FieldDeclaration,
+                NodeKind::FunctionDeclaration,
+                NodeKind::FunctionDeclarationStatement,
+                NodeKind::FunctionTypeAlias,
+                NodeKind::GenericTypeAlias,
+                NodeKind::MethodDeclaration,
+                NodeKind::MixinDeclaration,
+                NodeKind::PrimaryConstructorBody,
+                NodeKind::TopLevelVariableDeclaration,
+            ] {
+                registry.add(kind, "slash_for_doc_comments", slash_for_doc_comments);
+            }
+        }
         "sort_constructors_first" => {
             registry.add(
                 NodeKind::ClassDeclaration,
@@ -933,12 +950,50 @@ mod url_path {
     }
 }
 
+/// Dart `slash_for_doc_comments.dart` `_Visitor`: the documentation
+/// comment of each registered declaration, of the first directive only
+/// (`visitCompilationUnit`), and the first comment before a local function
+/// (`visitFunctionDeclarationStatement`, `beginToken.precedingComments`).
+/// Directives after the first, extension types, parameters and other
+/// commented nodes are not checked.
 fn slash_for_doc_comments(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
-    let comment = &ctx.ast[Id::<Comment>::from_raw(node)];
-    if let Some(&token) = ctx.ast.token_list(comment.tokens).first()
+    macro_rules! doc {
+        ($node:expr; $($t:ident),*) => {
+            match ctx.ast.kind($node) {
+                $(NodeKind::$t => ctx.ast[Id::<$t>::from_raw($node)].documentation_comment,)*
+                _ => None,
+            }
+        };
+    }
+    let comment = match ctx.ast.kind(node) {
+        NodeKind::CompilationUnit => {
+            let unit = &ctx.ast[Id::<CompilationUnit>::from_raw(node)];
+            let Some(&first) = ctx.ast.list_raw(unit.directives).first() else {
+                return;
+            };
+            doc!(first; ExportDirective, ImportDirective, LibraryDirective, PartDirective,
+                PartOfDirective)
+        }
+        NodeKind::FunctionDeclarationStatement => {
+            let begin = ctx.ast.begin_token(node);
+            if let Some(comment) = ctx.ast.tokens.get(begin).preceding_comments.get()
+                && ctx.ast.tokens.lexeme(comment).starts_with("/**")
+            {
+                ctx.report_token(out, &diag::SLASH_FOR_DOC_COMMENTS, comment, &[]);
+            }
+            return;
+        }
+        _ => doc!(node; ClassDeclaration, ClassTypeAlias, ConstructorDeclaration,
+            EnumConstantDeclaration, EnumDeclaration, ExtensionDeclaration, FieldDeclaration,
+            FunctionDeclaration, FunctionTypeAlias, GenericTypeAlias, MethodDeclaration,
+            MixinDeclaration, PrimaryConstructorBody, TopLevelVariableDeclaration),
+    };
+    // `isJavaStyle`.
+    if let Some(comment) = comment
+        && let Some(&token) = ctx.ast.token_list(ctx.ast[comment].tokens).first()
         && ctx.ast.tokens.lexeme(token).starts_with("/**")
     {
-        ctx.report_node(out, &diag::SLASH_FOR_DOC_COMMENTS, node, &[]);
+        ctx.report_node(out, &diag::SLASH_FOR_DOC_COMMENTS, comment, &[]);
     }
 }
 
