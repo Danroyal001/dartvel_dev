@@ -12,8 +12,7 @@
 //     --out <dir> <root>...
 //
 // `--api` writes the API dump (see dumpApi below) instead of the tree; with
-// `--bench=N` it times `toSource` of every unit instead of parsing.| --retain] \
-//     --out <dir> <root>...
+// `--bench=N` it times `toSource` of every unit instead of parsing.
 //
 // The package config is written by tests/ast_oracle.rs (see ../README.md):
 // the analyzer's dependencies that are not in this checkout come from the
