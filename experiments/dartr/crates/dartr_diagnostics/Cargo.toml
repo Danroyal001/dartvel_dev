@@ -1,0 +1,11 @@
+[package]
+name = "dartr_diagnostics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+serde_json.workspace = true
+pretty_assertions.workspace = true

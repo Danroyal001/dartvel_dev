@@ -1,0 +1,135 @@
+//! `difftest <mode> <path-or-dir>...`: compares `dartr dump <mode>` with the
+//! Dart oracle. See the crate documentation.
+
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+use clap::Parser;
+use dartr_difftest::{Options, parse_codes, run};
+
+#[derive(Parser)]
+#[command(
+    name = "difftest",
+    about = "Compare `dartr dump <mode>` with the Dart analyzer oracle"
+)]
+struct Cli {
+    /// Dump mode: tokens, events, ast, elements, interface, resolved or
+    /// resolved-el.
+    mode: String,
+    /// Dart files or directories (searched recursively).
+    #[arg(required = true)]
+    paths: Vec<PathBuf>,
+    /// Number of batches to run in parallel.
+    #[arg(long, short = 'j', default_value_t = default_jobs())]
+    jobs: usize,
+    /// Files per batch (default: files / jobs).
+    #[arg(long, default_value_t = 0)]
+    batch_size: usize,
+    /// Write the oracle and dartr output of each differing file to this
+    /// directory.
+    #[arg(long)]
+    write_failures: Option<PathBuf>,
+    /// The dartr binary (default: `dartr` next to this binary).
+    #[arg(long)]
+    dartr: Option<PathBuf>,
+    /// The oracle command, for example `dart run tools/oracle/bin/oracle.dart`
+    /// (default: the oracle compiled to target/oracle/oracle).
+    #[arg(long)]
+    oracle: Option<String>,
+    /// Replace the `"type"` of every JSON object with `"inf": true` by
+    /// `"<inferred>"` on both sides before the comparison.
+    #[arg(long)]
+    mask_inferred: bool,
+    /// Compare only the entries of these node kinds (comma separated, for
+    /// example `SimpleIdentifier,NamedType`) in the `types` / `nodes` lists
+    /// of modes `resolved` and `resolved-el`.
+    #[arg(long, value_delimiter = ',')]
+    kinds: Vec<String>,
+    /// Remove the diagnostics before the comparison.
+    #[arg(long)]
+    no_diagnostics: bool,
+    /// Keep only the diagnostics with these codes (comma separated, as the
+    /// `"code"` of the diagnostics JSON, for example
+    /// `const_eval_throws_exception`) on both sides before the comparison,
+    /// and print a table per code (oracle, matched, dartr-only).
+    #[arg(long, value_delimiter = ',')]
+    codes: Vec<String>,
+    /// Like `--codes`, with the codes read from a file: one code per line;
+    /// empty lines and lines that start with `#` are ignored. Can be given
+    /// with `--codes` (the sets are joined).
+    #[arg(long)]
+    codes_file: Option<PathBuf>,
+    /// Mode `elements`: pass `--with-const` to the oracle and to `dartr dump`
+    /// (adds the constant value `"const"` to const variables).
+    #[arg(long)]
+    with_const: bool,
+    /// Time limit per input file in seconds (a batch gets 60 s plus this
+    /// per file; 0 = no limit).
+    #[arg(long, default_value_t = 10)]
+    timeout_per_file: u64,
+    /// Number of differing files to report.
+    #[arg(long, default_value_t = 20)]
+    max_report: usize,
+}
+
+fn default_jobs() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+}
+
+fn main() -> anyhow::Result<ExitCode> {
+    let cli = Cli::parse();
+    let dartr = match cli.dartr {
+        Some(p) => p,
+        None => std::env::current_exe()?
+            .with_file_name(format!("dartr{}", std::env::consts::EXE_SUFFIX)),
+    };
+    let mut codes: std::collections::BTreeSet<String> = cli
+        .codes
+        .iter()
+        .map(|c| c.trim().to_string())
+        .filter(|c| !c.is_empty())
+        .collect();
+    if let Some(path) = &cli.codes_file {
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("reading {}: {e}", path.display()))?;
+        let file_codes = parse_codes(&text);
+        if file_codes.is_empty() {
+            anyhow::bail!("no codes in {}", path.display());
+        }
+        codes.extend(file_codes);
+    }
+    let mut extra_args = Vec::new();
+    if cli.with_const {
+        extra_args.push("--with-const".to_string());
+    }
+    let options = Options {
+        mode: cli.mode,
+        inputs: cli.paths,
+        jobs: cli.jobs,
+        batch_size: cli.batch_size,
+        write_failures: cli.write_failures,
+        dartr,
+        oracle: cli
+            .oracle
+            .map(|s| s.split_whitespace().map(str::to_string).collect())
+            .unwrap_or_default(),
+        mask_inferred: cli.mask_inferred,
+        kinds: cli.kinds,
+        no_diagnostics: cli.no_diagnostics,
+        codes,
+        extra_args,
+        timeout_per_file: cli.timeout_per_file,
+    };
+    let report = run(&options)?;
+    print!("{}", report.difference_report(cli.max_report));
+    print!("{}", report.kind_report());
+    print!("{}", report.code_report());
+    print!("{}", report.summary());
+    Ok(if report.different() == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
+}

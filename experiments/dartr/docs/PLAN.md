@@ -1,0 +1,142 @@
+# dartr: plan
+
+dartr is a port of the Dart analyzer (`pkg/analyzer`, `pkg/_fe_analyzer_shared`,
+`pkg/linter`, and the parts of `pkg/analysis_server` that clients use) to Rust.
+
+## Goals
+
+1. Same output as the Dart analyzer of the pinned SDK version (`3.13.3`) for the
+   same input: same diagnostics (code, severity, offset, length, message).
+2. Drop-in use by every analyzer client:
+   - command line: `dartr analyze` with the options, output formats
+     (`default`, `machine`, `json`) and exit codes of `dart analyze`;
+   - editors: `dartr language-server` (LSP, with the Dart LSP extensions that
+     Dart-Code and other clients use) and the legacy analysis server protocol
+     (`--protocol=analyzer`, used by IntelliJ);
+   - VS Code: Dart-Code runs `dart.analyzerPath` with the Dart VM (`dart <path> --lsp ...`),
+     so it cannot start a native binary. dartr ships `tools/shim/dartr_shim.dart`: it starts
+     `dartr language-server` with the same arguments and forwards stdin/stdout/stderr and the
+     exit code. `dart.analyzerPath` points to the shim (or its AOT/JIT snapshot).
+   - `flutter analyze` uses LSP (`$/progress`, `publishDiagnostics`); IntelliJ uses the legacy
+     protocol through `<sdk>/bin/dart language-server --protocol=analyzer` (no custom binary
+     setting: needs an SDK wrapper). Details: `docs/research/editor-integration.md`.
+3. Faster than the Dart analyzer. Benchmarks before (baseline, `bench/`) and after.
+
+## Reference version
+
+- `third_party/dart-sdk` is a sparse checkout of the SDK at tag `3.13.3`
+  (`tools/fetch_sdk.sh`). It must match `dart --version`.
+- Ported code keeps the structure and names of the Dart code where possible.
+  Every ported file starts with a comment that names its Dart source file.
+  This makes it possible to follow upstream changes file by file.
+
+## Correctness: differential tests
+
+`tools/oracle` is a Dart program that uses the pinned `package:analyzer` and
+writes JSON Lines. `dartr dump <mode>` writes the same format.
+
+| mode       | content                                                            |
+|------------|--------------------------------------------------------------------|
+| `tokens`   | scanner only (no parser): token stream (kind, offset, length, lexeme, synthetic, comments), scanner diagnostics |
+| `events`   | parser events: every listener call of the shared parser, recoverable errors, token stream after parsing (`tools/oracle/bin/events.dart`) |
+| `ast`      | unresolved AST as ordered child entities (`childEntities`), parse diagnostics |
+| `resolved` | per resolved library and unit: diagnostics, static type of each expression with its node kind, `staticInvokeType` and `typeArgumentTypes` of invocations (`tools/oracle/bin/resolved_el.dart`, design §5.4) |
+| `resolved-el` | per resolved library and unit: the element of each `SimpleIdentifier`, `NamedType` and `ConstructorName`, with a reference format for local elements (`tools/oracle/bin/resolved_el.dart`, design §5.4) |
+| `elements` | element model of each library (`tools/oracle/bin/elements.dart`, design §5.1) |
+| `interface`| `InheritanceManager3` interfaces of the classes of each library (`tools/oracle/bin/interface.dart`, design §5.2) |
+
+The test corpus:
+
+- `third_party/dart-sdk/tests/language` (many files with intentional errors: recovery),
+- `third_party/dart-sdk/sdk/lib`, `pkg/analyzer/lib`,
+- Flutter packages (`$FLUTTER_ROOT/packages/*`) and the pub cache.
+
+`difftest <mode> <path-or-dir>...` (crate `dartr_difftest`; build with
+`cargo build --release`, then `target/release/difftest tokens <dirs>`) runs
+both in parallel batches and reports the first difference of each differing
+file and a parity percentage (`--jobs`, `--write-failures <dir>`). The oracle
+is compiled to `target/oracle/oracle` on first use.
+
+For `resolved` and `resolved-el` the report also has a parity table per node
+kind (oracle entries, entries that dartr has with the same value, dartr
+entries) and the number of resolver panics (a panic is written as a
+`"panic"` key of the unit or line, it does not stop the dump). Options:
+`--kinds K1,K2` compares only the entries of these node kinds,
+`--no-diagnostics` removes the diagnostics before the comparison:
+
+```sh
+target/release/difftest resolved-el third_party/dart-sdk/tests/language dart:core --no-diagnostics
+target/release/difftest resolved third_party/dart-sdk/tests/language --no-diagnostics --kinds IntegerLiteral,SimpleStringLiteral
+```
+
+Determinism: `dartr dump` uses one rayon pool; `RAYON_NUM_THREADS` sets its
+size. The output must not depend on it:
+
+```sh
+ls third_party/dart-sdk/tests/language/closure/*.dart > /tmp/inputs.txt; echo dart:core >> /tmp/inputs.txt
+for n in 1 16; do RAYON_NUM_THREADS=$n target/release/dartr dump resolved-el < /tmp/inputs.txt > /tmp/out.$n.jsonl; done
+cmp /tmp/out.1.jsonl /tmp/out.16.jsonl
+```
+
+`cargo test --release -p dartr --test difftest_resolved` runs this check for
+both modes on the fixtures and `dart:core`.
+
+## Architecture
+
+| crate               | Dart source                                                    |
+|---------------------|----------------------------------------------------------------|
+| `dartr_syntax`      | `_fe_analyzer_shared/lib/src/scanner` (tokens, scanner)        |
+| `dartr_diagnostics` | generated from `messages.yaml` of `_fe_analyzer_shared`, `analyzer`, `linter` |
+| `dartr_ast`         | `analyzer/lib/src/dart/ast` (AST nodes, visitors)              |
+| `dartr_parser`      | `_fe_analyzer_shared/lib/src/parser`                           |
+| `dartr_ast_builder` | `analyzer/lib/src/fasta` (`ast_builder.dart`, `doc_comment_builder.dart`, `error_converter.dart`), `stack_listener.dart`, `parseString` |
+| `dartr_yaml`        | `package:yaml` 3.1.4 scanner, parser, loader, node styles and source spans |
+| `dartr_project`     | package_config, pubspec, `analysis_options.yaml`, context discovery, SDK location |
+| `dartr_semantics`   | elements, types, type system, inheritance, resolution, inference, flow analysis, constants, error verifiers |
+| `dartr_lints`       | `pkg/linter` rules                                             |
+| `dartr_link`        | `analyzer/lib/src/summary2`: element builder, scopes, type builders, defaults, outlines (`dartr dump elements`) |
+| `dartr_driver`      | analysis driver: file state, caches, library cycles, parallel analysis, incremental updates |
+| `dartr_server`      | LSP server and legacy analysis server protocol                 |
+| `dartr_format`      | `package:dart_style` at the SDK's `dart_style_rev` (`third_party/dart_style`): tall style (`front_end`, `piece`, `back_end`, language >= 3.7), short style (`short`, language <= 3.6), `dart format` CLI (`dartr format`) |
+| `dartr`             | binary: `analyze`, `language-server`, `dump`                   |
+
+Data model rules:
+
+- Source text, tokens and AST nodes of a file live in arenas owned by that file.
+  References are typed indices, not `Rc` graphs.
+- Elements and types of a library are built once per library cycle and are
+  immutable after that. Libraries of one cycle are resolved in parallel with
+  other independent cycles (rayon).
+- No global mutable state. A cache key is the content hash of the inputs.
+
+## Phases
+
+| # | phase | done when |
+|---|-------|-----------|
+| 0 | infrastructure: oracle, baseline benchmarks, workspace | yes |
+| 1 | scanner | 100% token parity on corpus |
+| 2 | diagnostics codegen | all codes of the 3 `messages.yaml` files, message formatting |
+| 3 | AST + parser + AST builder | 100% AST + parse-diagnostic parity on corpus |
+| 4 | project model | same contexts, options and package resolution as `dart analyze` |
+| 5 | element model + type model + type system | element dumps match |
+| 6 | resolution, type inference, flow analysis | `resolved` types parity |
+| 7 | error verifiers, constants, hints, warnings, ignore comments | `resolved` diagnostics parity |
+| 8 | lints | all lint rules, `dart analyze` parity with lints enabled |
+| 9 | `dartr analyze` CLI | output and exit code parity  (CLI, formats, exit codes, ignore comments, `errors:` done in `dartr_cli`; diagnostics from the analysis driver (`DriverProvider`, parse-only behind `--dartr-parse-only`); parity: `crates/dartr/tests/analyze_parity.rs`, `tools/analyze_parity.py`, `tools/analyze_compare.py`) |
+| 10 | LSP server, then legacy subset (`dart analyze`/`dart fix`), then full legacy (IntelliJ) | Dart-Code works through the shim; `flutter analyze` works; LSP request parity |
+| 11 | performance | benchmark report vs baseline |
+
+## Formatter
+
+`dartr format` and LSP `textDocument/formatting`, `rangeFormatting`, `onTypeFormatting`
+use `dartr_format`. Parity: `cargo test -p dartr_format --test format_test_data`
+(dart_style `test/tall/**`, `test/short/**`), `cargo test -p dartr --test format_parity`
+(CLI against `dart format`), the formatting steps of `crates/dartr/tests/lsp_parity.rs`,
+and `tools/format_parity.py` on corpora (copies the corpus, compares `-o json` output).
+
+## Analyzer plugins (done)
+
+`dartr analyze` runs new-style analyzer plugins (`plugins:` in `analysis_options.yaml`) out of
+process through a Dart bridge (`crates/dartr_plugins`); visible-app's `jaspr_lints` diagnostics
+match `dart analyze`. Not done: legacy plugins (`analyzer: plugins:`) and plugins in the
+language server. Research: `docs/research/analyzer-plugins.md`.

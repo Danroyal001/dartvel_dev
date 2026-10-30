@@ -1,0 +1,50 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "BSD-3-Clause"
+
+[workspace.dependencies]
+dartr_lints = { path = "crates/dartr_lints" }
+dartr_syntax = { path = "crates/dartr_syntax" }
+dartr_ast = { path = "crates/dartr_ast" }
+dartr_parser = { path = "crates/dartr_parser" }
+dartr_ast_builder = { path = "crates/dartr_ast_builder" }
+dartr_diagnostics = { path = "crates/dartr_diagnostics" }
+dartr_yaml = { path = "crates/dartr_yaml" }
+dartr_project = { path = "crates/dartr_project" }
+dartr_element = { path = "crates/dartr_element" }
+dartr_flow = { path = "crates/dartr_flow" }
+dartr_mini_ast = { path = "crates/dartr_mini_ast" }
+dartr_type_analyzer = { path = "crates/dartr_type_analyzer" }
+dartr_link = { path = "crates/dartr_link" }
+dartr_driver = { path = "crates/dartr_driver" }
+dartr_cli = { path = "crates/dartr_cli" }
+dartr_constant = { path = "crates/dartr_constant" }
+dartr_typesystem = { path = "crates/dartr_typesystem" }
+dartr_resolver = { path = "crates/dartr_resolver" }
+dartr_server = { path = "crates/dartr_server" }
+dartr_format = { path = "crates/dartr_format" }
+dartr_plugins = { path = "crates/dartr_plugins" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive"] }
+rayon = "1.12.0"
+notify = "8.2.0"
+rustc-hash = "2.1.3"
+pretty_assertions = "1.4.1"
+boxcar = "0.2.14"
+hashbrown = "0.17.1"
+imbl = "7.0.2"
+regress = "0.12.0"
+indexmap = "2.14.2"
+parking_lot = "0.12.5"
+
+[profile.release]
+debug = 1
+lto = "thin"
+codegen-units = 4
