@@ -27,3 +27,11 @@ path = "tests/utilities_test.rs"
 [[test]]
 name = "visitor_test"
 path = "tests/visitor_test.rs"
+
+[[bin]]
+name = "element_dump"
+path = "src/bin/element_dump/main.rs"
+
+[[test]]
+name = "element_oracle"
+path = "tests/element_oracle.rs"
