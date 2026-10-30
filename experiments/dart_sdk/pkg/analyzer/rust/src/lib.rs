@@ -86,6 +86,9 @@ pub mod src {
             pub mod class_hierarchy;
             pub mod subtype;
             pub mod least_greatest_closure;
+            pub mod type_schema_elimination;
+            pub mod greatest_lower_bound;
+            pub mod least_upper_bound;
         }
         pub mod resolver {
             pub mod scope;

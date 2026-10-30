@@ -20,14 +20,14 @@ use crate::src::dart::element::type_system::{
 use crate::fe_analyzer_shared::types::shared_type::Variance;
 
 /// `TypeSystemImpl._maxTypeOperationDepth`.
-const MAX_TYPE_OPERATION_DEPTH: usize = 100;
+pub(crate) const MAX_TYPE_OPERATION_DEPTH: usize = 100;
 
 /// The type system state the relation needs: the store, the class
 /// hierarchy, and the operation depth.
 pub struct TypeSystem<'a> {
     pub store: &'a mut ElementStore,
     pub hierarchy: &'a mut ClassHierarchy,
-    depth: usize,
+    pub(crate) depth: usize,
 }
 
 impl<'a> TypeSystem<'a> {

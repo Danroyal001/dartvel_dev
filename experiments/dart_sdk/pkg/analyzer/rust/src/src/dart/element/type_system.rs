@@ -224,3 +224,171 @@ fn non_nullable(store: &ElementStore, t: &TypeImpl, visited: &mut Vec<ElementId>
         _ => true,
     }
 }
+
+/// `typeProvider.futureOrType`: `FutureOr<argument>`.
+pub fn future_or_type(store: &ElementStore, argument: TypeImpl) -> TypeImpl {
+    let future_or = sdk_class(store, "dart:async", "FutureOr").expect("dart:async declares FutureOr");
+    TypeImpl::interface(future_or, vec![argument], NullabilitySuffix::none)
+}
+
+/// `isDartAsyncFuture`.
+pub fn is_future(store: &ElementStore, t: &TypeImpl) -> bool {
+    t.as_interface().is_some_and(|i| is_sdk_class(store, i.element, "dart:async", "Future"))
+}
+
+/// `isDartCoreFunction`.
+pub fn is_function_class(store: &ElementStore, t: &TypeImpl) -> bool {
+    t.as_interface().is_some_and(|i| store.is_dart_core_class(i.element, "Function"))
+}
+
+/// `isDartCoreRecord`.
+pub fn is_record_class(store: &ElementStore, t: &TypeImpl) -> bool {
+    t.as_interface().is_some_and(|i| store.is_dart_core_class(i.element, "Record"))
+}
+
+/// `isDartCoreNull`, which `Never?` is too.
+pub fn is_dart_core_null(store: &ElementStore, t: &TypeImpl) -> bool {
+    matches!(t, TypeImpl::Never(NullabilitySuffix::question)) || is_null_class(store, t)
+}
+
+/// `TypeSystemImpl.isNull`.
+pub fn is_null(store: &ElementStore, t: &TypeImpl) -> bool {
+    if is_dart_core_null(store, t) {
+        return true;
+    }
+    if other_nullability(t) == NullabilitySuffix::question {
+        return is_bottom(store, &without_nullability(t));
+    }
+    false
+}
+
+/// `TypeSystemImpl.isMoreTop`.
+pub fn is_more_top(store: &ElementStore, t: &TypeImpl, s: &TypeImpl) -> bool {
+    let (t_nullability, s_nullability) = (other_nullability(t), other_nullability(s));
+    if matches!(t, TypeImpl::Void) {
+        return true;
+    }
+    if matches!(s, TypeImpl::Void) {
+        return false;
+    }
+    if matches!(t, TypeImpl::Dynamic | TypeImpl::Invalid) {
+        return true;
+    }
+    if matches!(s, TypeImpl::Dynamic | TypeImpl::Invalid) {
+        return false;
+    }
+    if t_nullability == NullabilitySuffix::none && is_object_class(store, t) {
+        return true;
+    }
+    if s_nullability == NullabilitySuffix::none && is_object_class(store, s) {
+        return false;
+    }
+    if t_nullability == NullabilitySuffix::question && s_nullability == NullabilitySuffix::question {
+        return is_more_top(store, &without_nullability(t), &without_nullability(s));
+    }
+    if s_nullability == NullabilitySuffix::question {
+        return true;
+    }
+    if t_nullability == NullabilitySuffix::question {
+        return false;
+    }
+    if is_future_or(store, t) && is_future_or(store, s) {
+        let t2 = &t.as_interface().unwrap().type_arguments[0];
+        let s2 = &s.as_interface().unwrap().type_arguments[0];
+        return is_more_top(store, t2, s2);
+    }
+    false
+}
+
+/// `TypeSystemImpl.isMoreBottom`.
+pub fn is_more_bottom(store: &ElementStore, t: &TypeImpl, s: &TypeImpl) -> bool {
+    let (t_nullability, s_nullability) = (other_nullability(t), other_nullability(s));
+    if matches!(t, TypeImpl::Never(NullabilitySuffix::none)) {
+        return true;
+    }
+    if matches!(s, TypeImpl::Never(NullabilitySuffix::none)) {
+        return false;
+    }
+    if t_nullability == NullabilitySuffix::none && is_dart_core_null(store, t) {
+        return true;
+    }
+    if s_nullability == NullabilitySuffix::none && is_dart_core_null(store, s) {
+        return false;
+    }
+    if t_nullability == NullabilitySuffix::question && s_nullability == NullabilitySuffix::question {
+        return is_more_bottom(store, &without_nullability(t), &without_nullability(s));
+    }
+    if s_nullability == NullabilitySuffix::question {
+        return true;
+    }
+    if t_nullability == NullabilitySuffix::question {
+        return false;
+    }
+    if let (TypeImpl::TypeParameter(tp), TypeImpl::TypeParameter(sp)) = (t, s) {
+        match (&tp.promoted_bound, &sp.promoted_bound) {
+            (Some(a), Some(b)) => return is_more_bottom(store, a, b),
+            (Some(_), None) => return true,
+            (None, Some(_)) => return false,
+            (None, None) => {}
+        }
+        let t_bound = store.element(tp.element).type_.clone().unwrap_or(TypeImpl::Dynamic);
+        let s_bound = store.element(sp.element).type_.clone().unwrap_or(TypeImpl::Dynamic);
+        return is_more_bottom(store, &t_bound, &s_bound);
+    }
+    false
+}
+
+/// `TypeSystemImpl.promoteToNonNull`.
+pub fn promote_to_non_null(store: &ElementStore, t: &TypeImpl) -> TypeImpl {
+    if is_dart_core_null(store, t) {
+        return TypeImpl::Never(NullabilitySuffix::none);
+    }
+    if let TypeImpl::TypeParameter(p) = t {
+        if let Some(promoted_bound) = &p.promoted_bound {
+            let promoted_bound = promote_to_non_null(store, promoted_bound);
+            return TypeImpl::promoted_type_parameter(p.element, NullabilitySuffix::none, promoted_bound);
+        }
+        // `identical(promotedBound, element.bound)`: the bound unchanged by
+        // promotion means no promoted bound.
+        return match store.element(p.element).type_.clone() {
+            Some(bound) => {
+                let promoted = promote_to_non_null(store, &bound);
+                if promotion_is_identity(&bound, &promoted) {
+                    TypeImpl::type_parameter(p.element, NullabilitySuffix::none)
+                } else {
+                    TypeImpl::promoted_type_parameter(p.element, NullabilitySuffix::none, promoted)
+                }
+            }
+            None => TypeImpl::promoted_type_parameter(
+                p.element,
+                NullabilitySuffix::none,
+                object_type(store, NullabilitySuffix::none),
+            ),
+        };
+    }
+    without_nullability(t)
+}
+
+/// Whether `promoteToNonNull` returned its argument itself: upstream's
+/// `withNullability` returns `this` when the nullability does not change,
+/// and a type parameter type is always rebuilt.
+fn promotion_is_identity(before: &TypeImpl, after: &TypeImpl) -> bool {
+    use std::rc::Rc;
+    match (before, after) {
+        (TypeImpl::Interface(a), TypeImpl::Interface(b)) => Rc::ptr_eq(a, b),
+        (TypeImpl::Function(a), TypeImpl::Function(b)) => Rc::ptr_eq(a, b),
+        (TypeImpl::Record(a), TypeImpl::Record(b)) => Rc::ptr_eq(a, b),
+        (TypeImpl::TypeParameter(_), _) => false,
+        (TypeImpl::Never(a), TypeImpl::Never(b)) => a == b,
+        (TypeImpl::Dynamic, TypeImpl::Dynamic)
+        | (TypeImpl::Void, TypeImpl::Void)
+        | (TypeImpl::Invalid, TypeImpl::Invalid)
+        | (TypeImpl::Unknown, TypeImpl::Unknown) => true,
+        _ => false,
+    }
+}
+
+/// `String.compareTo` of parameter names.
+pub fn compare_names(a: &str, b: &str) -> std::cmp::Ordering {
+    crate::src::dart::element::r#type::compare_strings(a, b)
+}
