@@ -104,24 +104,28 @@ pub fn import_tokens(tokens: &mut TokenStore, result: ScannerResult, offset_delt
     let remap = |t: TokenId| if t == NO_TOKEN { NO_TOKEN } else { t + base };
     for (index, data) in source.tokens.iter().enumerate() {
         let mut data = data.clone();
-        data.lexeme = match data.lexeme {
+        let lexeme = match data.lexeme() {
             Lexeme::Fixed => Lexeme::Fixed,
             other => {
                 let text = source.lexeme_text(other, data.type_index);
                 Lexeme::Owned(tokens.add_string(text))
             }
         };
+        data.set_lexeme(lexeme);
         data.next = remap(data.next);
         data.previous = remap(data.previous);
-        data.preceding_comments = remap(data.preceding_comments);
         data.end_token = remap(data.end_token);
-        data.parent = remap(data.parent);
-        data.before_synthetic = remap(data.before_synthetic);
+        if data.has_extras {
+            let mut extras = source.extras[&(index as TokenId)];
+            extras.preceding_comments = remap(extras.preceding_comments);
+            extras.parent = remap(extras.parent);
+            extras.before_synthetic = remap(extras.before_synthetic);
+            tokens.extras.insert(base + index as TokenId, extras);
+        }
         let runtime_type = data.runtime_type;
         if offset_delta != 0 && !runtime_type.is_comment_token() && !runtime_type.is_error_token() {
             data.offset += offset_delta;
         }
-        let _ = index;
         tokens.tokens.push(data);
     }
     remap(result.tokens)

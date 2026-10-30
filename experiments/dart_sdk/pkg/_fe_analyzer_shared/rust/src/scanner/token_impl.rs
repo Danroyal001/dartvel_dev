@@ -161,7 +161,7 @@ impl TokenStore {
             },
         );
         self.versions.push((major, minor));
-        self.data_mut(id).a = (self.versions.len() - 1) as i32;
+        self.extras_mut(id).a = (self.versions.len() - 1) as i32;
         id
     }
 
@@ -187,20 +187,20 @@ impl TokenStore {
             },
         );
         self.versions.push((major, minor));
-        self.data_mut(id).a = (self.versions.len() - 1) as i32;
+        self.extras_mut(id).a = (self.versions.len() - 1) as i32;
         id
     }
 
     /// `LanguageVersionToken.major`.
     pub fn major(&self, token: TokenId) -> i64 {
         debug_assert!(self.runtime_type(token).is_language_version_token());
-        self.versions[self.data(token).a as usize].0
+        self.versions[self.extras(token).a as usize].0
     }
 
     /// `LanguageVersionToken.minor`.
     pub fn minor(&self, token: TokenId) -> i64 {
         debug_assert!(self.runtime_type(token).is_language_version_token());
-        self.versions[self.data(token).a as usize].1
+        self.versions[self.extras(token).a as usize].1
     }
 }
 

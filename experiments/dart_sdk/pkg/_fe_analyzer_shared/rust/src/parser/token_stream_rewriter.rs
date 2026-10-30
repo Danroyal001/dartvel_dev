@@ -349,7 +349,7 @@ impl TokenStreamChange {
             TokenStreamChange::EndGroup { set_on, end_group } => s.set_end_group(set_on, end_group),
             TokenStreamChange::Offset { set_on, offset } => s.set_offset(set_on, offset),
             TokenStreamChange::PrecedingComments { set_on, comment } => {
-                s.data_mut(set_on).preceding_comments = comment;
+                s.extras_mut(set_on).preceding_comments = comment;
             }
             TokenStreamChange::Previous { set_on, previous } => {
                 s.set_previous_field(set_on, previous)

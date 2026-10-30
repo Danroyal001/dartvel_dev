@@ -470,22 +470,25 @@ fn run_retain(inputs: &[(PathBuf, String)]) {
     let mut node_bytes = 0usize;
     let mut token_count = 0usize;
     let mut token_bytes = 0usize;
+    let mut token_capacity = 0usize;
     for r in &results {
         nodes += r.ast.nodes.len();
         node_bytes +=
             r.ast.nodes.capacity() * std::mem::size_of::<AstNodeImpl>() + r.ast.list_heap_bytes();
         token_count += r.tokens.tokens.len();
+        token_capacity += r.tokens.tokens.capacity();
         token_bytes += r.tokens.tokens.capacity()
             * std::mem::size_of::<fe_analyzer_shared::scanner::token::TokenData>()
             + r.tokens.strings.iter().map(|s| s.len() * 2).sum::<usize>();
     }
     println!(
         "rust retain files={} rss_sources={before} rss_parsed={after} delta={} max_rss={} \
-         nodes={nodes} node_bytes={node_bytes} node_size={} tokens={token_count} token_bytes={token_bytes}",
+         nodes={nodes} node_bytes={node_bytes} node_size={} tokens={token_count} token_bytes={token_bytes} token_size={} token_capacity={token_capacity}",
         results.len(),
         after - before,
         status_bytes("VmHWM"),
-        std::mem::size_of::<AstNodeImpl>()
+        std::mem::size_of::<AstNodeImpl>(),
+        std::mem::size_of::<fe_analyzer_shared::scanner::token::TokenData>(),
     );
 }
 

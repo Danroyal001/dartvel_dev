@@ -2912,9 +2912,12 @@ impl Default for SourceText {
 /// runtime type:
 ///
 /// * `end_token`: `BeginToken.endToken`.
-/// * `parent`: `CommentToken.parent`.
-/// * `before_synthetic`: the synthetic classes' `beforeSynthetic`.
-/// * `a`: `SyntheticStringToken._length` (-1 for null);
+/// * `extras` (in [TokenStore::extras], when `has_extras`): the fields
+///   few tokens use, which keeps a token at 28 bytes:
+///   * `preceding_comments`: `Token.precedingComments`.
+///   * `parent`: `CommentToken.parent`.
+///   * `before_synthetic`: the synthetic classes' `beforeSynthetic`.
+///   * `a`: `SyntheticStringToken._length` (-1 for null);
 ///   `LanguageVersionToken` (an index into [TokenStore::versions]); `ErrorToken.character`;
 ///   `UnterminatedString.endOffset` and `UnterminatedToken.endOffset`;
 ///   `UnsupportedOperator.token` and `UnmatchedToken.begin` (a `TokenId`).
@@ -2925,16 +2928,104 @@ impl Default for SourceText {
 pub struct TokenData {
     pub type_index: u8,
     pub runtime_type: TokenRuntimeType,
+    /// Whether [TokenStore::extras] holds fields of this token.
+    pub has_extras: bool,
     pub offset: i32,
     pub next: TokenId,
     pub previous: TokenId,
-    pub preceding_comments: TokenId,
     pub end_token: TokenId,
+    /// The [Lexeme], packed (see [TokenData::lexeme]).
+    lexeme: [u32; 2],
+}
+
+impl TokenData {
+    /// The lexeme: the first word holds a start or an index, the second
+    /// the kind in its top two bits, then for UTF-8 whether it is ASCII
+    /// only, then the length.
+    #[inline(always)]
+    pub fn lexeme(&self) -> Lexeme {
+        let [first, second] = self.lexeme;
+        match second >> 30 {
+            0 => Lexeme::Fixed,
+            1 => Lexeme::Utf16 {
+                start: first,
+                end: first + (second & 0x3fff_ffff),
+            },
+            2 => Lexeme::Utf8 {
+                start: first,
+                end: first + (second & 0x1fff_ffff),
+                ascii_only: second & 0x2000_0000 != 0,
+            },
+            _ => Lexeme::Owned(first),
+        }
+    }
+
+    /// Sets the lexeme.
+    pub fn set_lexeme(&mut self, lexeme: Lexeme) {
+        self.lexeme = TokenData::pack(lexeme);
+    }
+
+    #[inline(always)]
+    fn pack(lexeme: Lexeme) -> [u32; 2] {
+        match lexeme {
+            Lexeme::Fixed => [0, 0],
+            Lexeme::Utf16 { start, end } => {
+                debug_assert!(end - start < 0x4000_0000);
+                [start, 1 << 30 | (end - start)]
+            }
+            Lexeme::Utf8 {
+                start,
+                end,
+                ascii_only,
+            } => {
+                debug_assert!(end - start < 0x2000_0000);
+                [start, 2 << 30 | (ascii_only as u32) << 29 | (end - start)]
+            }
+            Lexeme::Owned(index) => [index, 3 << 30],
+        }
+    }
+}
+
+/// The fields of a token that few tokens use (see [TokenData]).
+#[derive(Clone, Copy, Debug)]
+pub struct TokenExtras {
+    pub preceding_comments: TokenId,
     pub parent: TokenId,
     pub before_synthetic: TokenId,
-    pub lexeme: Lexeme,
     pub a: i32,
     pub b: i32,
+}
+
+impl Default for TokenExtras {
+    fn default() -> Self {
+        TokenExtras {
+            preceding_comments: NO_TOKEN,
+            parent: NO_TOKEN,
+            before_synthetic: NO_TOKEN,
+            a: 0,
+            b: 0,
+        }
+    }
+}
+
+/// Hashes a [TokenId] as itself: the ids are distinct small integers.
+#[derive(Default)]
+pub struct TokenIdHasher(u64);
+
+impl std::hash::Hasher for TokenIdHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.0 = self.0.rotate_left(8) ^ b as u64;
+        }
+    }
+
+    fn write_u32(&mut self, value: u32) {
+        self.0 = (value as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    }
 }
 
 /// The arena every token of one scan lives in.
@@ -2945,6 +3036,8 @@ pub struct TokenStore {
     /// `LanguageVersionToken.major` and `.minor`, which are Dart `int`s.
     pub versions: Vec<(i64, i64)>,
     pub source: SourceText,
+    /// The fields few tokens use, of the tokens that use them.
+    pub extras: std::collections::HashMap<TokenId, TokenExtras, std::hash::BuildHasherDefault<TokenIdHasher>>,
 }
 
 impl TokenStore {
@@ -2954,6 +3047,7 @@ impl TokenStore {
             strings: Vec::new(),
             versions: Vec::new(),
             source,
+            extras: Default::default(),
         }
     }
 
@@ -2965,6 +3059,21 @@ impl TokenStore {
     #[inline(always)]
     pub fn data_mut(&mut self, token: TokenId) -> &mut TokenData {
         &mut self.tokens[token as usize]
+    }
+
+    /// The fields few tokens use (defaults where the token has none).
+    #[inline(always)]
+    pub fn extras(&self, token: TokenId) -> TokenExtras {
+        if !self.tokens[token as usize].has_extras {
+            return TokenExtras::default();
+        }
+        self.extras[&token]
+    }
+
+    /// The fields few tokens use, to set them.
+    pub fn extras_mut(&mut self, token: TokenId) -> &mut TokenExtras {
+        self.tokens[token as usize].has_extras = true;
+        self.extras.entry(token).or_default()
     }
 
     /// Allocates a token. `SimpleToken`'s constructor also points every
@@ -2983,27 +3092,25 @@ impl TokenStore {
         self.tokens.push(TokenData {
             type_index: type_.index as u8,
             runtime_type,
+            has_extras: false,
             offset,
             next: NO_TOKEN,
             previous: NO_TOKEN,
-            preceding_comments,
             end_token: NO_TOKEN,
-            parent: NO_TOKEN,
-            before_synthetic: NO_TOKEN,
-            lexeme,
-            a: 0,
-            b: 0,
+            lexeme: TokenData::pack(lexeme),
         });
-        self.set_comment_parent(preceding_comments, id);
+        if preceding_comments != NO_TOKEN {
+            self.extras_mut(id).preceding_comments = preceding_comments;
+            self.set_comment_parent(preceding_comments, id);
+        }
         id
     }
 
     #[inline]
     fn set_comment_parent(&mut self, mut comment: TokenId, parent: TokenId) {
         while comment != NO_TOKEN {
-            let data = &mut self.tokens[comment as usize];
-            data.parent = parent;
-            comment = data.next;
+            self.extras_mut(comment).parent = parent;
+            comment = self.tokens[comment as usize].next;
         }
     }
 
@@ -3107,7 +3214,7 @@ impl TokenStore {
             NO_TOKEN,
             value,
         );
-        self.data_mut(id).a = length.unwrap_or(-1);
+        self.extras_mut(id).a = length.unwrap_or(-1);
         id
     }
 
@@ -3185,17 +3292,17 @@ impl TokenStore {
 
     #[inline(always)]
     pub fn preceding_comments(&self, token: TokenId) -> TokenId {
-        self.data(token).preceding_comments
+        self.extras(token).preceding_comments
     }
 
     pub fn set_preceding_comments(&mut self, token: TokenId, comment: TokenId) {
-        self.data_mut(token).preceding_comments = comment;
+        self.extras_mut(token).preceding_comments = comment;
         self.set_comment_parent(comment, token);
     }
 
     /// `CommentToken.parent`.
     pub fn parent(&self, comment: TokenId) -> TokenId {
-        self.data(comment).parent
+        self.extras(comment).parent
     }
 
     /// `Token.endGroup`: `BeginToken.endToken`, null for other tokens.
@@ -3223,7 +3330,7 @@ impl TokenStore {
             | SyntheticKeywordToken
             | SyntheticStringToken
             | SyntheticToken
-            | ReplacementToken => self.data(token).before_synthetic,
+            | ReplacementToken => self.extras(token).before_synthetic,
             _ => NO_TOKEN,
         }
     }
@@ -3239,7 +3346,7 @@ impl TokenStore {
                 | SyntheticToken
                 | ReplacementToken
         ) {
-            self.data_mut(token).before_synthetic = previous;
+            self.extras_mut(token).before_synthetic = previous;
         }
     }
 
@@ -3312,7 +3419,7 @@ impl TokenStore {
         let data = self.data(token);
         match data.runtime_type {
             SyntheticBeginToken | SyntheticKeywordToken | SyntheticToken | ReplacementToken => 0,
-            SyntheticStringToken if data.a >= 0 => data.a,
+            SyntheticStringToken if self.extras(token).a >= 0 => self.extras(token).a,
             UnterminatedString => self.char_count(token),
             EncodingErrorToken
             | NonAsciiIdentifierToken
@@ -3321,7 +3428,7 @@ impl TokenStore {
             | UnsupportedOperator
             | UnterminatedToken
             | UnmatchedToken => 1,
-            _ => self.lexeme_length(data.lexeme, data.type_index),
+            _ => self.lexeme_length(data.lexeme(), data.type_index),
         }
     }
 
@@ -3330,7 +3437,7 @@ impl TokenStore {
         let data = self.data(token);
         match data.runtime_type {
             TokenRuntimeType::UnterminatedString | TokenRuntimeType::UnterminatedToken => {
-                data.a - data.offset
+                self.extras(token).a - data.offset
             }
             _ => self.length(token),
         }
@@ -3390,7 +3497,7 @@ impl TokenStore {
             !data.runtime_type.is_error_token(),
             "ErrorToken has no lexeme"
         );
-        self.lexeme_text(data.lexeme, data.type_index)
+        self.lexeme_text(data.lexeme(), data.type_index)
     }
 
     /// Appends `token.lexeme` to [out] (not upstream: `sink.write(token.lexeme)`
@@ -3401,7 +3508,7 @@ impl TokenStore {
             !data.runtime_type.is_error_token(),
             "ErrorToken has no lexeme"
         );
-        match data.lexeme {
+        match data.lexeme() {
             Lexeme::Fixed => out.extend(
                 tokenTypesByIndex[data.type_index as usize]
                     .lexeme
@@ -3498,7 +3605,7 @@ impl TokenStore {
             NO_TOKEN,
             Lexeme::Fixed,
         );
-        self.data_mut(id).a = replaced_token as i32;
+        self.extras_mut(id).a = replaced_token as i32;
         let comments = self.preceding_comments(replaced_token);
         self.set_preceding_comments(id, comments);
         id
@@ -3524,6 +3631,6 @@ impl TokenStore {
     /// `ReplacementToken.replacedToken`.
     pub fn replaced_token(&self, token: TokenId) -> TokenId {
         debug_assert!(self.runtime_type(token) == TokenRuntimeType::ReplacementToken);
-        self.data(token).a as TokenId
+        self.extras(token).a as TokenId
     }
 }

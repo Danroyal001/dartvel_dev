@@ -111,14 +111,14 @@ impl TokenStore {
         offset: i32,
     ) -> TokenId {
         let id = self.error_token(runtime_type, offset);
-        self.data_mut(id).a = character;
+        self.extras_mut(id).a = character;
         id
     }
 
     /// `new UnsupportedOperator(token, charOffset)`.
     pub fn unsupported_operator(&mut self, token: TokenId, char_offset: i32) -> TokenId {
         let id = self.error_token(TokenRuntimeType::UnsupportedOperator, char_offset);
-        self.data_mut(id).a = token as i32;
+        self.extras_mut(id).a = token as i32;
         id
     }
 
@@ -131,9 +131,9 @@ impl TokenStore {
     ) -> TokenId {
         let index = self.add_string(start.encode_utf16().collect());
         let id = self.error_token(TokenRuntimeType::UnterminatedString, char_offset);
-        let data = self.data_mut(id);
-        data.a = end_offset;
-        data.b = index as i32;
+        let extras = self.extras_mut(id);
+        extras.a = end_offset;
+        extras.b = index as i32;
         id
     }
 
@@ -145,9 +145,9 @@ impl TokenStore {
         end_offset: i32,
     ) -> TokenId {
         let id = self.error_token(TokenRuntimeType::UnterminatedToken, char_offset);
-        let data = self.data_mut(id);
-        data.a = end_offset;
-        data.b = message as i32;
+        let extras = self.extras_mut(id);
+        extras.a = end_offset;
+        extras.b = message as i32;
         id
     }
 
@@ -155,7 +155,7 @@ impl TokenStore {
     pub fn unmatched_token(&mut self, begin: TokenId) -> TokenId {
         let offset = self.char_offset(begin);
         let id = self.error_token(TokenRuntimeType::UnmatchedToken, offset);
-        self.data_mut(id).a = begin as i32;
+        self.extras_mut(id).a = begin as i32;
         id
     }
 
@@ -181,7 +181,7 @@ impl TokenStore {
     pub fn assertion_message(&self, token: TokenId) -> Option<ScannerMessage> {
         match self.runtime_type(token) {
             TokenRuntimeType::UnterminatedToken => {
-                Some(ScannerMessage::from_index(self.data(token).b))
+                Some(ScannerMessage::from_index(self.extras(token).b))
             }
             _ => None,
         }
@@ -192,7 +192,7 @@ impl TokenStore {
         use TokenRuntimeType::*;
         match self.runtime_type(token) {
             NonAsciiIdentifierToken | NonAsciiWhitespaceToken | AsciiControlCharacterToken => {
-                Some(self.data(token).a)
+                Some(self.extras(token).a)
             }
             _ => None,
         }
@@ -202,7 +202,7 @@ impl TokenStore {
     pub fn start(&self, token: TokenId) -> Option<&[u16]> {
         match self.runtime_type(token) {
             TokenRuntimeType::UnterminatedString => {
-                Some(&self.strings[self.data(token).b as usize])
+                Some(&self.strings[self.extras(token).b as usize])
             }
             _ => None,
         }
@@ -212,7 +212,7 @@ impl TokenStore {
     pub fn end_offset(&self, token: TokenId) -> Option<i32> {
         match self.runtime_type(token) {
             TokenRuntimeType::UnterminatedString | TokenRuntimeType::UnterminatedToken => {
-                Some(self.data(token).a)
+                Some(self.extras(token).a)
             }
             _ => None,
         }
@@ -221,7 +221,7 @@ impl TokenStore {
     /// `ErrorToken.begin`.
     pub fn begin(&self, token: TokenId) -> TokenId {
         match self.runtime_type(token) {
-            TokenRuntimeType::UnmatchedToken => self.data(token).a as TokenId,
+            TokenRuntimeType::UnmatchedToken => self.extras(token).a as TokenId,
             _ => NO_TOKEN,
         }
     }
@@ -229,7 +229,7 @@ impl TokenStore {
     /// `UnsupportedOperator.token`.
     pub fn unsupported_operator_token(&self, token: TokenId) -> TokenId {
         match self.runtime_type(token) {
-            TokenRuntimeType::UnsupportedOperator => self.data(token).a as TokenId,
+            TokenRuntimeType::UnsupportedOperator => self.extras(token).a as TokenId,
             _ => NO_TOKEN,
         }
     }
@@ -242,17 +242,17 @@ impl TokenStore {
         match self.runtime_type(token) {
             EncodingErrorToken => diag::encoding.message(),
             NonAsciiIdentifierToken => {
-                let character = self.data(token).a;
+                let character = self.extras(token).a;
                 (diag::nonAsciiIdentifier.with_arguments)(
                     &String::from_utf16_lossy(&code_point_to_utf16(character)),
                     character as i64,
                 )
             }
             NonAsciiWhitespaceToken => {
-                (diag::nonAsciiWhitespace.with_arguments)(self.data(token).a as i64)
+                (diag::nonAsciiWhitespace.with_arguments)(self.extras(token).a as i64)
             }
             AsciiControlCharacterToken => {
-                (diag::asciiControlCharacter.with_arguments)(self.data(token).a as i64)
+                (diag::asciiControlCharacter.with_arguments)(self.extras(token).a as i64)
             }
             UnsupportedOperator => (diag::unsupportedOperator.with_arguments)(
                 self,
