@@ -1052,13 +1052,7 @@ impl AstVisitor for Contributor<'_, '_> {
     }
 
     fn visit_index_expression(&mut self, ast: &Ast, node: Id<IndexExpression>) {
-        let element = self
-            .tables
-            .write_element
-            .get(node.raw())
-            .or_else(|| self.tables.read_element.get(node.raw()))
-            .or_else(|| self.tables.element.get(node.raw()))
-            .map(|&e| self.base(e));
+        let element = support::index_write_or_read_element(self.ctx, ast, self.tables, node);
         if element.is_some_and(|e| e.tag() == Tag::Method) {
             self.record_token(element, RelationKind::IsInvokedBy, ast[node].left_bracket);
         }

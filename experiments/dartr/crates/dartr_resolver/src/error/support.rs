@@ -12,10 +12,10 @@
 
 use dartr_ast::{
     AssignedVariablePattern, Ast, CastPattern, ClassNamePart, CommentReference, CompilationUnit,
-    DeclaredVariablePattern, ExportDirective, Id, ImportDirective, Label, NameWithTypeParameters,
-    NamedArgument, NodeId, NullAssertPattern, NullCheckPattern, ParenthesizedPattern,
-    PostfixExpression, PrefixExpression, PrefixedIdentifier, PrimaryConstructorDeclaration,
-    PropertyAccess, SimpleIdentifier, Statement, SwitchMember,
+    DeclaredVariablePattern, ExportDirective, Id, ImportDirective, IndexExpression, Label,
+    NameWithTypeParameters, NamedArgument, NodeId, NullAssertPattern, NullCheckPattern,
+    ParenthesizedPattern, PostfixExpression, PrefixExpression, PrefixedIdentifier,
+    PrimaryConstructorDeclaration, PropertyAccess, SimpleIdentifier, Statement, SwitchMember,
 };
 use dartr_element::{
     Ctx, DirectiveUri, EId, ElemRef, ElementId, LibraryElement, LibraryExport, LibraryImport,
@@ -132,6 +132,16 @@ pub fn write_or_read_element(
     ast: &Ast,
     tables: &ResolutionTables,
     node: Id<SimpleIdentifier>,
+) -> Option<ElementId> {
+    write_element_of_parent(ctx, ast, tables, node.raw()).or_else(|| element_of(ctx, tables, node))
+}
+
+/// Dart `IndexExpression.writeOrReadElement` (`IndexExpressionExtension`).
+pub fn index_write_or_read_element(
+    ctx: &Ctx<'_>,
+    ast: &Ast,
+    tables: &ResolutionTables,
+    node: Id<IndexExpression>,
 ) -> Option<ElementId> {
     write_element_of_parent(ctx, ast, tables, node.raw()).or_else(|| element_of(ctx, tables, node))
 }

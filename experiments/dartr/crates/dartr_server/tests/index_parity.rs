@@ -125,3 +125,79 @@ fn prefixed_identifier_creates_the_element_info_before_the_prefix() {
     );
     assert_eq!(elements, expected);
 }
+
+/// The relations of the index of [file], as `<element> <kind> <offset>
+/// <length> <qualified>` (element as in [index_elements]).
+fn index_relations(root: &std::path::Path, file: &str) -> Option<Vec<String>> {
+    let elements = index_elements(root, file)?;
+    let root_str = root.to_string_lossy().to_string();
+    let collection = AnalysisContextCollection::new(&[root_str], &CollectionOptions::default());
+    let path = root.join(file).to_string_lossy().to_string();
+    let mut session = DriverSession::default();
+    let library = session.resolved_library(&collection, &path).unwrap();
+    let unit_index = library.unit_index(&path).unwrap();
+    let sink = dartr_element::NoopSink;
+    let ctx = library.ctx(unit_index, &sink);
+    let unit = &library.library.units[unit_index];
+    let index = dartr_server::index::index_unit(&ctx, &unit.ast, &unit.tables, unit.unit);
+    Some(
+        index
+            .relations
+            .iter()
+            .map(|r| {
+                format!(
+                    "{} {:?} {} {} {}",
+                    elements[r.element], r.kind, r.offset, r.length, r.is_qualified
+                )
+            })
+            .collect(),
+    )
+}
+
+/// Dart `visitIndexExpression` records `IS_INVOKED_BY` of
+/// `node.writeOrReadElement`, which is the `writeElement` of the
+/// assignment, postfix or prefix expression the index expression is the
+/// target of (`[]=`), else the index expression's own `element` (`[]`).
+#[test]
+fn index_expression_records_the_write_element() {
+    let root = temp_project(
+        "index_write",
+        &[(
+            "lib/main.dart",
+            "void f(List<int> l, Map<String, int> m) {\n  l[0] = 1;\n  m['a'] = 2;\n  \
+             m['b'] = m['b']! + 3;\n  l[1] += 4;\n  l[2]++;\n  l[3];\n}\n"
+                .to_string(),
+        )],
+    );
+    let Some(relations) = index_relations(&root, "lib/main.dart") else {
+        eprintln!("skipped: no Dart SDK");
+        let _ = std::fs::remove_dir_all(&root);
+        return;
+    };
+    let _ = std::fs::remove_dir_all(&root);
+    let expected = [
+        "sdk List|| NotSynthetic IsReferencedBy 7 4 false",
+        "sdk List|[]| NotSynthetic IsInvokedBy 118 1 true",
+        "sdk List|[]=| NotSynthetic IsInvokedBy 45 1 true",
+        "sdk List|[]=| NotSynthetic IsInvokedBy 95 1 true",
+        "sdk List|[]=| NotSynthetic IsInvokedBy 108 1 true",
+        "sdk Map|| NotSynthetic IsReferencedBy 20 3 false",
+        "sdk Map|[]| NotSynthetic IsInvokedBy 80 1 true",
+        "sdk Map|[]=| NotSynthetic IsInvokedBy 57 1 true",
+        "sdk Map|[]=| NotSynthetic IsInvokedBy 71 1 true",
+        "sdk String|| NotSynthetic IsReferencedBy 24 6 false",
+        "main.dart f||l NotSynthetic IsReadBy 44 1 false",
+        "main.dart f||l NotSynthetic IsReadBy 94 1 false",
+        "main.dart f||l NotSynthetic IsReadBy 107 1 false",
+        "main.dart f||l NotSynthetic IsReadBy 117 1 false",
+        "main.dart f||m NotSynthetic IsReadBy 56 1 false",
+        "main.dart f||m NotSynthetic IsReadBy 70 1 false",
+        "main.dart f||m NotSynthetic IsReadBy 79 1 false",
+        "sdk int|| NotSynthetic IsReferencedBy 12 3 false",
+        "sdk int|| NotSynthetic IsReferencedBy 32 3 false",
+        "sdk num|+| NotSynthetic IsInvokedBy 87 1 true",
+        "sdk num|+| NotSynthetic IsInvokedBy 99 2 true",
+        "sdk num|+| NotSynthetic IsInvokedBy 111 2 true",
+    ];
+    assert_eq!(relations, expected);
+}
