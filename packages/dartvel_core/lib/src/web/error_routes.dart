@@ -26,7 +26,22 @@ const String dvNotFoundRoute = '/404';
 /// The route a navigation that could not reach the network lands on.
 const String dvOfflineRoute = '/offline';
 
-/// Whether [path] is one of the two error routes.
+/// The status codes, other than not-found, that get a page of their own.
+///
+/// Status pages are generated per code: a 500 is not a stack trace in front
+/// of a customer, and the detail a developer needs goes to the log while the
+/// visitor gets a sentence. These are the codes a server answers a page
+/// request with -- a refusal, a rate limit, a failure, a server that is down
+/// for a deploy. 404 is not among them because it has [dvNotFoundRoute],
+/// whose page names the path that was asked for.
+const Set<int> dvStatusPageCodes = <int>{403, 429, 500, 503};
+
+/// The route of [code]'s status page, or null when nothing generates one.
+String? dvStatusPageRoute(int code) =>
+    dvStatusPageCodes.contains(code) ? '/$code' : null;
+
+/// Whether [path] is one of the error routes: not-found, offline, or a
+/// status page.
 ///
 /// Reads the path as the request was written, because that is all a build
 /// gets: the same page is asked about as `/offline`, as `/offline/` by a
@@ -48,7 +63,9 @@ bool dvIsErrorPageRoute(String path) {
   while (route.endsWith('/')) {
     route = route.substring(0, route.length - 1);
   }
-  return route == dvNotFoundRoute || route == dvOfflineRoute;
+  if (route == dvNotFoundRoute || route == dvOfflineRoute) return true;
+  final int? code = route.length == 4 ? int.tryParse(route.substring(1)) : null;
+  return code != null && dvStatusPageRoute(code) == route;
 }
 
 /// Where the offline page sends a person once the network is back: the page
