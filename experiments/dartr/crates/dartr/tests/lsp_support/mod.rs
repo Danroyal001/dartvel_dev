@@ -6,7 +6,7 @@
 #![allow(dead_code)]
 
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
@@ -104,6 +104,8 @@ pub struct LspClient {
     pub show_message_choice: Option<usize>,
     /// The program that was started (for failure messages).
     program: String,
+    /// What the server wrote to stderr so far.
+    stderr: std::sync::Arc<std::sync::Mutex<String>>,
 }
 
 impl LspClient {
@@ -141,9 +143,16 @@ impl LspClient {
                 }
             }
         });
+        let stderr_text = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let stderr_sink = stderr_text.clone();
         thread::spawn(move || {
-            let mut s = String::new();
-            let _ = BufReader::new(stderr).read_to_string(&mut s);
+            let mut reader = BufReader::new(stderr);
+            let mut line = String::new();
+            while reader.read_line(&mut line).is_ok_and(|n| n > 0) {
+                stderr_sink.lock().unwrap().push_str(&line);
+                line.clear();
+            }
+            let s = stderr_sink.lock().unwrap();
             if !s.trim().is_empty() {
                 eprintln!("[server stderr] {s}");
             }
@@ -163,7 +172,13 @@ impl LspClient {
             configuration: json!({}),
             show_message_choice: None,
             program: program.to_string(),
+            stderr: stderr_text,
         }
+    }
+
+    /// What the server wrote to stderr so far.
+    pub fn stderr(&self) -> String {
+        self.stderr.lock().unwrap().clone()
     }
 
     /// The process id of the server.

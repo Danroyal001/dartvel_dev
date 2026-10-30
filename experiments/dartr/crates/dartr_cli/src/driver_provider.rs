@@ -95,6 +95,20 @@ pub fn take_internal_errors() -> Vec<String> {
     )
 }
 
+/// Writes the internal errors of the analysis and of the lint rules since
+/// the last call to stderr, the log of a language server (its protocol
+/// output stays as Dart's), and forgets them.
+pub fn log_internal_errors() {
+    let lints = dartr_lints::take_internal_errors();
+    for error in lints
+        .iter()
+        .map(ToString::to_string)
+        .chain(take_internal_errors())
+    {
+        eprintln!("dartr: {error}");
+    }
+}
+
 /// The settings of the files of one context, by analysis options folder
 /// (Dart `AnalysisOptionsMap.getOptions`), owned so that the analysis
 /// threads can read them.

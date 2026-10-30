@@ -345,6 +345,7 @@ pub fn run(options: ServerOptions, input: Box<dyn Read + Send>, channel: Channel
             }
         }
         server.run_analysis();
+        dartr_cli::driver_provider::log_internal_errors();
     }
 }
 

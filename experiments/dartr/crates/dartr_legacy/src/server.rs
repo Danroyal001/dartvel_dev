@@ -435,6 +435,7 @@ pub fn run<R: BufRead, W: Write>(options: ServerOptions, input: R, channel: Chan
                 }
             }
         }
+        dartr_cli::driver_provider::log_internal_errors();
     }
 }
 
