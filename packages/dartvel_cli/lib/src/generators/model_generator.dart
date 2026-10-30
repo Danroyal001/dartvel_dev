@@ -763,10 +763,21 @@ class ModelGenerator {
         sb.writeln('      DVForm<$className>(model, onSubmit);');
         sb.writeln();
         sb.writeln('  /// Generated lazy list component for [$className].');
+        sb.writeln('  ///');
+        sb.writeln('  /// [empty] is which empty an empty list is, and what it');
+        sb.writeln('  /// offers; nothing yet, with no action, by default.');
         sb.writeln('  static Widget List(');
         sb.writeln('    Iterable<$className> models, {');
         sb.writeln('    Widget Function($className)? builder,');
+        sb.writeln('    DVEmpty? empty,');
         sb.writeln('  }) {');
+        // An empty list rendered nothing at all, which is indistinguishable
+        // from one that failed to load.
+        sb.writeln('    if (models.isEmpty) {');
+        sb.writeln(
+          "      return DVEmptyView(empty ?? const DVEmpty.nothingYet(), collection: '$className');",
+        );
+        sb.writeln('    }');
         sb.writeln('    final itemBuilder = builder ?? Card;');
         sb.writeln(
           '    return DVBox.builder<$className>(models, itemBuilder);',
@@ -791,6 +802,7 @@ class ModelGenerator {
         sb.writeln('    Iterable<$className>? models, {');
         sb.writeln('    int columns = 2,');
         sb.writeln('    Widget Function($className)? builder,');
+        sb.writeln('    DVEmpty? empty,');
         sb.writeln('  }) {');
         sb.writeln('    if (builder != null) {');
         sb.writeln(
@@ -804,6 +816,7 @@ class ModelGenerator {
             '    return DVTable<$className>(');
         sb.writeln('      models?.toList(growable: false) ?? <$className>[],');
         sb.writeln('      loading: models == null,');
+        sb.writeln('      empty: empty ?? const DVEmpty.nothingYet(),');
         sb.writeln('      columns: <DVTableColumn<$className>>[');
         for (final field in fields) {
           final name = field['name']!;

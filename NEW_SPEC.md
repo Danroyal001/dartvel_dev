@@ -15078,8 +15078,8 @@ The distinction generated components make, because the answers differ:
 
 The three are `DVEmpty.nothingYet(action: ...)`, `DVEmpty.nothingMatching(onClear:
 ...)` and `DVEmpty.nothingVisible()`, which `DVTable` takes as `empty:`, each
-worded by its own framework string. The generated collections do not take the
-slot yet.
+worded by its own framework string. The generated `List` and `Table` take it
+as `empty:`, nothing yet by default.
 
 ## Loading
 

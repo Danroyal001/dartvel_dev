@@ -125,6 +125,28 @@ void main() {
     expect(table, contains('models?.toList(growable: false) ?? <Person>[]'));
   });
 
+  test('the table takes a typed empty-state slot, nothing yet by default', () {
+    // Nothing yet is what an empty generated collection is unless the
+    // caller says otherwise, so one that declares no action is the one
+    // DV-STATE-001 reports.
+    expect(table, contains('DVEmpty? empty'));
+    expect(table, contains('empty: empty ?? const DVEmpty.nothingYet()'));
+  });
+
+  test('so does the list, which says so rather than rendering nothing', () {
+    final int start = generated.indexOf('static Widget List(');
+    final String list =
+        generated.substring(start, generated.indexOf('static Widget Table', start));
+    expect(list, contains('DVEmpty? empty'));
+    expect(list, contains('if (models.isEmpty)'));
+    expect(
+      list,
+      contains(
+        "DVEmptyView(empty ?? const DVEmpty.nothingYet(), collection: 'Person')",
+      ),
+    );
+  });
+
   test('a builder still gives the card grid, for callers that want it', () {
     // The old behaviour stays reachable rather than being removed from under
     // anyone using it.
