@@ -2087,7 +2087,7 @@ impl<'a> Ast<'a> {
 
     /// The members of a `MethodDeclarationV1OriginImpl` its projection
     /// reads.
-    pub(crate) fn method_origin_parts(self, node: NodeId) -> MethodOriginParts {
+    pub fn method_origin_parts(self, node: NodeId) -> MethodOriginParts {
         use AstNodeImpl as N;
         match self.node(node) {
             N::MethodDeclaration2Impl(o) => MethodOriginParts {
@@ -2248,7 +2248,7 @@ impl<'a> Ast<'a> {
 }
 
 /// The members of a `MethodDeclarationV1OriginImpl` its projection reads.
-pub(crate) struct MethodOriginParts {
+pub struct MethodOriginParts {
     pub augment_keyword: TokenId,
     pub external_keyword: TokenId,
     pub static_keyword: TokenId,
@@ -3536,5 +3536,26 @@ impl crate::src::dart::ast::ast_store::AstStore {
             }
         }
         self.attach_child("_becomeParentOf12", tokens, parent, child);
+    }
+}
+
+impl<'a> Ast<'a> {
+    /// `_astNodeApi` of a `ConstructorSelectorImpl` the parse built: the
+    /// AstBuilder makes the selectors of constructor references with
+    /// `ConstructorSelectorImpl.v2`, and the constructors of
+    /// `SuperConstructorInvocationImpl` and
+    /// `RedirectingConstructorInvocationImpl` override theirs to `v2`; only
+    /// the selector of enum constant arguments is shared.
+    pub fn constructor_selector_api(self, id: NodeId) -> AstNodeApi {
+        if id >= V1_BASE {
+            return AstNodeApi::shared;
+        }
+        let parent = self.parent2(id);
+        if parent != NO_NODE {
+            if let AstNodeImpl::EnumConstantArgumentsImpl(_) = self.node(parent) {
+                return AstNodeApi::shared;
+            }
+        }
+        AstNodeApi::v2
     }
 }

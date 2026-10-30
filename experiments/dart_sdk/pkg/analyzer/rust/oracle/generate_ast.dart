@@ -2072,6 +2072,11 @@ const Map<String, String> handV1 = {};
 
 /// The value of `_astNodeApi` of [c], as Rust.
 String apiOf(ClassInfo c) {
+  if (c.name == 'ConstructorSelectorImpl') {
+    // `_astNodeApiOverride ?? AstNodeApi.shared`, where the AstBuilder and
+    // the constructors of the invocations set the override.
+    return 'ast.constructor_selector_api(id)';
+  }
   var found = c.lookupGetter('_astNodeApi');
   if (found == null) return 'AstNodeApi::shared';
   var body = found.$2;
@@ -2313,6 +2318,18 @@ void writeV1Dispatch(List<ClassInfo> concrete, StringBuffer out) {
 // node the parent of the new child as the constructor does.
 // ---------------------------------------------------------------------------
 
+/// The source of the body of the setter [setter] of [c].
+String setterBody(ClassInfo c, String setter) {
+  for (ClassInfo owner in c.lookupChain) {
+    for (ClassMember m in owner.members) {
+      if (m is MethodDeclaration && m.isSetter && m.name.lexeme == setter) {
+        return m.body.toSource();
+      }
+    }
+  }
+  return '';
+}
+
 /// The parent helper a setter of [field] in [c] calls: `_becomeParentOf2`,
 /// `_becomeParentOf12`, `_becomeParentOf2AndExisting1` or the owned view's.
 String setterHelper(ClassInfo c, String setter) {
@@ -2472,8 +2489,9 @@ class MutationTranslator {
           String setter = assignment.leftHandSide.toSource();
           var value = assignment.rightHandSide;
           String helper = setterHelper(c, setter);
+          String setterSource = setterBody(c, setter);
           String extra = switch (setter) {
-            'constructorSelector' =>
+            _ when setterSource.contains('_astNodeApiOverride = AstNodeApi.v2') =>
               '\n            self.set_api_override(new_, AstNodeApi::v2);',
             'delimitedFormalParameters' =>
               '\n            for p in self.node(new_).as_delimited_formal_parameters_impl().formal_parameters.clone() {\n'

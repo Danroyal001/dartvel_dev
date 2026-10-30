@@ -6347,7 +6347,7 @@ impl AstNodeImpl {
             AstNodeImpl::ConstructorNameImpl(_) => AstNodeApi::v1,
             AstNodeImpl::ConstructorReference2Impl(_) => AstNodeApi::v2,
             AstNodeImpl::ConstructorReferenceImpl(_) => AstNodeApi::v1,
-            AstNodeImpl::ConstructorSelectorImpl(_) => AstNodeApi::shared,
+            AstNodeImpl::ConstructorSelectorImpl(_) => ast.constructor_selector_api(id),
             AstNodeImpl::ConstructorTypeReferenceImpl(_) => AstNodeApi::v2,
             AstNodeImpl::ContinueStatementImpl(_) => AstNodeApi::shared,
             AstNodeImpl::DeclaredIdentifierImpl(_) => AstNodeApi::shared,
@@ -37377,7 +37377,6 @@ impl AstStore {
             }
             self.node_mut(parent).as_enum_constant_arguments_impl_mut().constructor_selector = new_;
             self.attach_child("_becomeParentOf12", tokens, parent, new_);
-            self.set_api_override(new_, AstNodeApi::v2);
             return;
         }
         if self.node(parent).as_enum_constant_arguments_impl().argument_list == old {

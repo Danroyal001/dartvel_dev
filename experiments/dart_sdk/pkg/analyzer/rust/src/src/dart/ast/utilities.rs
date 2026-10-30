@@ -1,7 +1,7 @@
 // Port of lib/src/dart/ast/utilities.dart (`NodeLocator`, `NodeLocator2`).
 //
-// `ScopedNameFinder` and `ScopedNameFinder2` are not ported: they need
-// elements. Where upstream catches an exception thrown while visiting and
+// `ScopedNameFinder2` is ported; `ScopedNameFinder`, its V1 counterpart, is
+// not. Where upstream catches an exception thrown while visiting and
 // logs it, the port catches the panic and logs nothing; `NodeLocator2` has
 // nothing that throws.
 
@@ -359,3 +359,258 @@ impl UnifyingAstVisitor for NodeLocator {
 }
 
 unifying_ast_visitor!(NodeLocator, ());
+
+/// Traverses the AST from the node up to the root, collecting the names of
+/// the local variables and parameters in scope at [position], and the
+/// declaration that contains it. Start it with
+/// `ast.accept2(node, &mut finder)` on the node covering the position.
+pub struct ScopedNameFinder2 {
+    /// `_declarationNode`.
+    declaration_node: NodeId,
+
+    /// `immediateChild`: the node the search came from.
+    pub immediate_child: NodeId,
+
+    /// `_locals`, in the order they were added (a Dart `Set` is ordered).
+    locals: Vec<Vec<u16>>,
+
+    /// `_referenceIsWithinLocalFunction`.
+    reference_is_within_local_function: bool,
+
+    /// The offset of the reference.
+    pub position: i32,
+}
+
+impl ScopedNameFinder2 {
+    pub fn new(position: i32) -> ScopedNameFinder2 {
+        ScopedNameFinder2 {
+            declaration_node: NO_NODE,
+            immediate_child: NO_NODE,
+            locals: Vec::new(),
+            reference_is_within_local_function: false,
+            position,
+        }
+    }
+
+    /// `declaration`.
+    pub fn declaration(&self) -> NodeId {
+        self.declaration_node
+    }
+
+    /// `locals`.
+    pub fn locals(&self) -> Vec<String> {
+        self.locals.iter().map(|l| String::from_utf16_lossy(l)).collect()
+    }
+
+    /// `_addParameters(formalParameterList.allFormalParameters)`.
+    fn add_parameters(&mut self, ast: Ast<'_>, formal_parameter_list: NodeId) {
+        for parameter in ast.store.all_formal_parameters(formal_parameter_list) {
+            let name = match ast.node(parameter) {
+                AstNodeImpl::RegularFormalParameterImpl(p) => p.name,
+                AstNodeImpl::FieldFormalParameterImpl(p) => p.name,
+                AstNodeImpl::SuperFormalParameterImpl(p) => p.name,
+                other => panic!("{} is not a formal parameter", other.runtime_type()),
+            };
+            self.add_to_scope(ast, name);
+        }
+    }
+
+    /// `_addStatementNames(statement)`.
+    fn add_statement_names(&mut self, ast: Ast<'_>, statement: NodeId) {
+        match ast.node(statement) {
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(s) => {
+                let declaration = ast.node(s.declaration).as_local_variables_declaration_impl();
+                for &variable in &declaration.variables {
+                    self.add_to_scope(ast, ast.node(variable).as_local_variable_impl().name);
+                }
+            }
+            AstNodeImpl::LocalFunctionDeclarationImpl(f) if !self.reference_is_within_local_function => {
+                self.add_to_scope(ast, f.name);
+            }
+            _ => {}
+        }
+    }
+
+    /// `_addToScope(identifier)`.
+    fn add_to_scope(&mut self, ast: Ast<'_>, identifier: fe_analyzer_shared::scanner::token::TokenId) {
+        if identifier != fe_analyzer_shared::scanner::token::NO_TOKEN && self.is_in_range(ast, identifier) {
+            let lexeme = ast.tokens.lexeme(identifier);
+            if !self.locals.contains(&lexeme) {
+                self.locals.push(lexeme);
+            }
+        }
+    }
+
+    /// `_checkStatements(statements)`.
+    fn check_statements(&mut self, ast: Ast<'_>, statements: &[NodeId]) {
+        for &statement in statements {
+            if statement == self.immediate_child {
+                return;
+            }
+            self.add_statement_names(ast, statement);
+        }
+    }
+
+    /// `_isInRange(token)`.
+    fn is_in_range(&self, ast: Ast<'_>, token: fe_analyzer_shared::scanner::token::TokenId) -> bool {
+        if self.position < 0 {
+            // if source position is not set then all nodes are in range
+            return true;
+        }
+        ast.tokens.end(token) < self.position
+    }
+
+    /// `_visitMethodDeclaration(node)`.
+    fn visit_method_declaration_origin(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        self.declaration_node = node;
+        let parameters = ast.method_origin_parts(node).written_formal_parameters;
+        if parameters != NO_NODE && self.immediate_child != parameters {
+            self.add_parameters(ast, parameters);
+        }
+        None
+    }
+
+    /// `_declarationNode = node` and the parameters of a top-level
+    /// function, getter or setter.
+    fn visit_top_level_executable(&mut self, ast: Ast<'_>, node: NodeId, parameters: NodeId) -> Option<()> {
+        self.declaration_node = node;
+        if parameters != NO_NODE && self.immediate_child != parameters {
+            self.add_parameters(ast, parameters);
+        }
+        None
+    }
+}
+
+impl UnifyingAstVisitor2 for ScopedNameFinder2 {
+    fn visit_block(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        let statements = ast.node(node).as_block_impl().statements2.clone();
+        self.check_statements(ast, &statements);
+        UnifyingAstVisitor2::visit_node(self, ast, node)
+    }
+
+    fn visit_catch_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        let n = ast.node(node).as_catch_clause_impl();
+        for parameter in [n.exception_parameter, n.stack_trace_parameter] {
+            if parameter != NO_NODE {
+                self.add_to_scope(ast, ast.node(parameter).as_catch_clause_parameter_impl().name);
+            }
+        }
+        UnifyingAstVisitor2::visit_node(self, ast, node)
+    }
+
+    fn visit_class_type_alias2(&mut self, _ast: Ast<'_>, node: NodeId) -> Option<()> {
+        self.declaration_node = node;
+        None
+    }
+
+    fn visit_constructor_declaration2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        let parameters = ast.node(node).as_constructor_declaration2_impl().formal_parameters;
+        if self.immediate_child != parameters {
+            self.add_parameters(ast, parameters);
+        }
+        self.declaration_node = node;
+        None
+    }
+
+    fn visit_fields_declaration(&mut self, _ast: Ast<'_>, node: NodeId) -> Option<()> {
+        self.declaration_node = node;
+        None
+    }
+
+    fn visit_for_each_parts_with_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        let loop_variable = ast.node(node).as_for_each_parts_with_declaration_impl().loop_variable;
+        self.add_to_scope(ast, ast.node(loop_variable).as_declared_identifier_impl().name);
+        UnifyingAstVisitor2::visit_node(self, ast, node)
+    }
+
+    fn visit_for_parts_with_declarations(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        let variables2 = ast.node(node).as_for_parts_with_declarations_impl().variables2;
+        for &variable in &ast.node(variables2).as_local_variables_declaration_impl().variables {
+            self.add_to_scope(ast, ast.node(variable).as_local_variable_impl().name);
+        }
+        UnifyingAstVisitor2::visit_node(self, ast, node)
+    }
+
+    fn visit_function_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        let parameters = ast.node(node).as_function_expression_impl().parameters;
+        if parameters != NO_NODE && self.immediate_child != parameters {
+            self.add_parameters(ast, parameters);
+        }
+        UnifyingAstVisitor2::visit_node(self, ast, node)
+    }
+
+    fn visit_function_type_alias2(&mut self, _ast: Ast<'_>, node: NodeId) -> Option<()> {
+        self.declaration_node = node;
+        None
+    }
+
+    fn visit_generic_type_alias2(&mut self, _ast: Ast<'_>, node: NodeId) -> Option<()> {
+        self.declaration_node = node;
+        None
+    }
+
+    fn visit_getter_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        self.visit_method_declaration_origin(ast, node)
+    }
+
+    fn visit_local_function_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        let parameters = ast.node(node).as_local_function_declaration_impl().formal_parameters;
+        if self.immediate_child != parameters {
+            self.add_parameters(ast, parameters);
+        }
+        self.reference_is_within_local_function = true;
+        UnifyingAstVisitor2::visit_node(self, ast, node)
+    }
+
+    fn visit_method_declaration2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        self.visit_method_declaration_origin(ast, node)
+    }
+
+    fn visit_node(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        let statements = match ast.node(node) {
+            AstNodeImpl::SwitchCaseImpl(n) => Some(n.statements2.clone()),
+            AstNodeImpl::SwitchDefaultImpl(n) => Some(n.statements2.clone()),
+            AstNodeImpl::SwitchPatternCaseImpl(n) => Some(n.statements2.clone()),
+            _ => None,
+        };
+        if let Some(statements) = statements {
+            self.check_statements(ast, &statements);
+        }
+        self.immediate_child = node;
+        let parent = ast.parent2(node);
+        if parent != NO_NODE {
+            ast.accept2(parent, self);
+        }
+        None
+    }
+
+    fn visit_operator_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        self.visit_method_declaration_origin(ast, node)
+    }
+
+    fn visit_setter_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        self.visit_method_declaration_origin(ast, node)
+    }
+
+    fn visit_top_level_function_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        let parameters = ast.node(node).as_top_level_function_declaration_impl().formal_parameters;
+        self.visit_top_level_executable(ast, node, parameters)
+    }
+
+    fn visit_top_level_getter_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        let parameters = ast.node(node).as_top_level_getter_declaration_impl().recovery_formal_parameters;
+        self.visit_top_level_executable(ast, node, parameters)
+    }
+
+    fn visit_top_level_setter_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<()> {
+        let parameters = ast.node(node).as_top_level_setter_declaration_impl().formal_parameters;
+        self.visit_top_level_executable(ast, node, parameters)
+    }
+
+    fn visit_top_level_variables_declaration(&mut self, _ast: Ast<'_>, node: NodeId) -> Option<()> {
+        self.declaration_node = node;
+        None
+    }
+}
+
+unifying_ast_visitor2!(ScopedNameFinder2, ());
