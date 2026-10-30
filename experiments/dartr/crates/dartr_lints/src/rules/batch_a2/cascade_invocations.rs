@@ -4,7 +4,7 @@ use crate::{LinterContext, RuleVisitorRegistry};
 use dartr_ast::*;
 use dartr_diagnostics::{Diagnostic, diag};
 use dartr_element::{
-    ElementId, FieldElement, FormalParameterElement, FragmentFlags, GetterElement,
+    ElemRef, ElementId, FieldElement, FormalParameterElement, FragmentFlags, GetterElement,
     LocalVariableElement, SetterElement, Tag, TopLevelVariableElement,
 };
 
@@ -28,7 +28,7 @@ struct Cascadable {
     can_be_cascaded: bool,
 }
 /// Dart `AstNodeNullableExtension.canonicalElement` (linter `extensions.dart`).
-fn canonical(context: &LinterContext<'_>, node: NodeId) -> Option<ElementId> {
+fn canonical_ref(context: &LinterContext<'_>, node: NodeId) -> Option<ElemRef> {
     if !Expression::test(context.ast.kind(node)) {
         return None;
     }
@@ -36,14 +36,34 @@ fn canonical(context: &LinterContext<'_>, node: NodeId) -> Option<ElementId> {
     while let Some(p) = context.ast.cast::<ParenthesizedExpression>(node) {
         node = context.ast[p].expression.raw();
     }
-    let element = if Identifier::test(context.ast.kind(node)) {
+    if Identifier::test(context.ast.kind(node)) {
         context.element(node)
     } else if let Some(access) = context.ast.cast::<PropertyAccess>(node) {
         context.element(context.ast[access].property_name)
     } else {
         None
-    };
-    element.and_then(|e| super::helpers::base_element(context, e))
+    }
+}
+
+/// [canonical_ref] as an element that can be compared with Dart `==`.
+///
+/// Dart creates a fresh `SubstitutedElementImpl` (`GetterElementImpl.substitute`
+/// and the like) for each reference to a member of a generic type whose
+/// signature mentions the type parameters, and does not override `==`
+/// (`pkg/analyzer/lib/src/dart/element/member.dart`), so such a reference is
+/// never `==` to another one. `None` gives the same answer: every comparison
+/// in this rule requires a non-null element.
+fn canonical(context: &LinterContext<'_>, node: NodeId) -> Option<ElementId> {
+    match canonical_ref(context, node)? {
+        ElemRef::Base(element) => Some(element),
+        ElemRef::Member(_) => None,
+    }
+}
+
+/// The base element of [canonical_ref]: what Dart reads through a member
+/// (`isStatic`, `enclosingElement`, the element kind).
+fn canonical_base(context: &LinterContext<'_>, node: NodeId) -> Option<ElementId> {
+    canonical_ref(context, node).and_then(|e| super::helpers::base_element(context, e))
 }
 
 fn property_variable(context: &LinterContext<'_>, element: ElementId) -> Option<ElementId> {
@@ -138,7 +158,7 @@ fn box_for(context: &LinterContext<'_>, statement: NodeId) -> Cascadable {
             let executable = n
                 .operator
                 .filter(|&t| context.ast.tokens.lexeme(t) == ".")
-                .and_then(|_| canonical(context, n.method_name.raw()))
+                .and_then(|_| canonical_base(context, n.method_name.raw()))
                 .filter(|&e| {
                     matches!(
                         e.tag(),
@@ -247,6 +267,7 @@ fn references(context: &LinterContext<'_>, root: NodeId, target: ElementId) -> b
     let mut pending = vec![root];
     while let Some(node) = pending.pop() {
         let node_element = canonical(context, node);
+        let node_base_element = canonical_base(context, node);
         if node_element == Some(target) {
             return true;
         }
@@ -257,7 +278,7 @@ fn references(context: &LinterContext<'_>, root: NodeId, target: ElementId) -> b
             if context.ast.kind(node) == NodeKind::FunctionExpression {
                 return true;
             }
-            if let Some(element) = node_element
+            if let Some(element) = node_base_element
                 && matches!(
                     element.tag(),
                     Tag::Method
