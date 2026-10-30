@@ -7,22 +7,23 @@ compared with this one.
 
 ## Running it
 
-The upstream sources are the submodules under `experiments/upstream/`,
-pinned to the commits this baseline was measured at. Fetch them from the
-repository root (blobless; about 1 GB once checked out), then measure:
+The Dart SDK and Flutter are the in-tree forks at `experiments/dart_sdk` and
+`experiments/flutter`; pub and dart_style are the submodules under
+`experiments/upstream/`. All four are pinned to the commits this baseline was
+measured at. Fetch the submodules from the repository root, then measure:
 
 ```sh
 git submodule update --init --filter=blob:none experiments/upstream
 cd experiments/rust_stack
 dart pub get
 dart run bin/measure.dart \
-  --sdk ../upstream/sdk --flutter ../upstream/flutter \
+  --sdk ../dart_sdk --flutter ../flutter \
   --pub ../upstream/pub --dart_style ../upstream/dart_style \
   --json baselines/sizes-$(date +%F).json
 ```
 
-To measure a newer upstream, move the submodules to the new commits first,
-so the pins and the numbers always agree.
+To measure a newer upstream, merge it into the forks and move the submodules
+first, so the pins and the numbers always agree.
 
 It prints the proposal's Part 2 table and writes exact numbers, with the
 commit of each checkout, to the JSON file. A checkout you leave out is listed

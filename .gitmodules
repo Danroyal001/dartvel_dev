@@ -2,10 +2,6 @@
 	path = experiments/upstream/sdk
 	url = https://github.com/dart-lang/sdk
 	shallow = true
-[submodule "experiments/upstream/flutter"]
-	path = experiments/upstream/flutter
-	url = https://github.com/flutter/flutter
-	shallow = true
 [submodule "experiments/upstream/pub"]
 	path = experiments/upstream/pub
 	url = https://github.com/dart-lang/pub

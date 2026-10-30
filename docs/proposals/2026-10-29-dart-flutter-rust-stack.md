@@ -4,9 +4,10 @@
 here is built.** This is the full
 programme. `NEW_SPEC.md` carries a short summary as *Side Effort: The Dart and
 Flutter Stack in Rust*, with the usual labels. It does not change any Dartvel
-package. Everything it builds lives in `dartvel_dev` under `experiments/`: the
-Rust ports, the pinned upstream Dart SDK and Flutter sources they port from,
-and the Dart tooling. No component gets a repository of its own. Part 10
+package. Everything it builds lives in `dartvel_dev` under `experiments/`: forks
+of the Dart SDK and Flutter kept in-tree (`experiments/dart_sdk`,
+`experiments/flutter`), with each Rust port written beside the file it
+replaces, and the Dart tooling. No component gets a repository of its own. Part 10
 lists the edits the specification needs once a component ships.
 Parts 11–13 give the effort, the timeline, the token cost and the prompts to
 run it with.
@@ -396,11 +397,12 @@ two conflict.
 
 ## 10. How this ties into Dartvel
 
-- **Everything lives in `dartvel_dev`, under `experiments/`.** The Rust ports,
-  one Cargo workspace per track, sit beside the Dart tooling; the pinned
-  upstream sources (`dart-lang/sdk`, `flutter/flutter`, `dart-lang/pub`,
-  `dart-lang/dart_style`) are git submodules there, at the commits the work is
-  measured and ported against. No component gets its own repository.
+- **Everything lives in `dartvel_dev`, under `experiments/`.** `dart-lang/sdk`
+  and `flutter/flutter` are forked in-tree at `experiments/dart_sdk` and
+  `experiments/flutter`, at the commits the work is measured and ported
+  against, and each Rust port is written inside its fork, beside the file it
+  replaces, with one Cargo workspace at each fork's root. `dart-lang/pub` and
+  `dart-lang/dart_style` are git submodules under `experiments/upstream/`. No component gets its own repository.
   `experiments/` is the one exception to the One Language Rule: Rust is
   allowed there and nowhere else, and nothing in `packages/` may depend on it
   until a component graduates.
@@ -610,12 +612,14 @@ Your job is to plan, assign, verify and merge. You never port code yourself.
 The upstream reference is pinned:
 - dart-lang/sdk at [COMMIT], flutter/flutter at [COMMIT],
   dart-lang/pub at [COMMIT], dart-lang/dart_style at [COMMIT].
-- It is checked out as the git submodules under experiments/upstream/ in
-  Danroyal001/dartvel_dev. It must build and pass its own tests before you
+- The Dart SDK and Flutter are the in-tree forks at experiments/dart_sdk and
+  experiments/flutter in Danroyal001/dartvel_dev; pub and dart_style are git
+  submodules under experiments/upstream/. It must build and pass its own tests before you
   assign any unit.
 
-The port lives in Danroyal001/dartvel_dev under experiments/[TRACK DIR], one
-Cargo workspace. Nothing outside experiments/ may depend on it. Each Rust file names the
+The port lives in its fork in Danroyal001/dartvel_dev, experiments/dart_sdk
+or experiments/flutter, beside the files it ports, in the Cargo workspace at
+that fork's root. Nothing outside experiments/ may depend on it. Each Rust file names the
 upstream file it ports in its first line and keeps that file's structure and
 names, so upstream changes can be followed file by file.
 
