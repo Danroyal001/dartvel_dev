@@ -120,16 +120,16 @@ fn usage() -> ! {
 fn link_corpus(sdk: &Path, packages: &Path, inputs: &[(PathBuf, String)]) -> (Linker, Vec<Option<LibraryId>>) {
     let fs = FileSystemState::new(FolderBasedDartSdk::new(sdk), parse_package_config_json_file(packages));
     let mut linker = Linker::new(fs);
-    let files: Vec<_> = inputs
+    // One file at a time, as the oracle asks for them: which file is read
+    // first can matter (see `FileSystemState.unlinked_is_dart_core`).
+    let libraries = inputs
         .iter()
         .map(|(path, _)| {
             let uri = linker.fs.path_to_uri(path);
-            linker.fs.get_file_for_uri(&uri).expect("a corpus file has a URI")
+            let file = linker.fs.get_file_for_uri(&uri).expect("a corpus file has a URI");
+            linker.library_for(file)
         })
         .collect();
-    let library_files: Vec<_> = files.iter().copied().filter(|f| linker.fs.is_library(*f)).collect();
-    linker.link(&library_files);
-    let libraries = files.iter().map(|f| linker.library_for(*f)).collect();
     (linker, libraries)
 }
 

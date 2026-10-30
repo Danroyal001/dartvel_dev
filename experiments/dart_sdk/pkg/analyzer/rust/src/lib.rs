@@ -101,6 +101,7 @@ pub mod src {
         pub mod export;
         pub mod library_builder;
         pub mod link;
+        pub mod not_serializable_nodes;
     }
     pub mod utilities {
         pub mod uri_cache;

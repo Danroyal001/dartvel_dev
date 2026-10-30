@@ -9,6 +9,7 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
+use crate::dart::analysis::features::Feature;
 use crate::dart::analysis::utilities::ParseStringResult;
 use crate::src::dart::analysis::file_state::{DirectiveUriState, FileId, FileSystemState, UnlinkedCombinator};
 use crate::src::dart::ast::ast::AstNodeImpl;
@@ -148,10 +149,21 @@ impl LibraryBuilder {
         let defining_unit = self.units[0].fragment;
         self.build_directives(store, fs, self.file, defining_unit, true, library_of_file);
 
+        // `_libraryBuilder.element.featureSet`: the defining unit's.
+        let (primary_constructors, private_named_parameters) = {
+            let parsed = self.units[0].parsed.as_ref().unwrap();
+            let feature_set = &parsed.ast.node(parsed.unit).as_compilation_unit_impl().feature_set;
+            (
+                feature_set.is_enabled(Feature::primary_constructors),
+                feature_set.is_enabled(Feature::private_named_parameters),
+            )
+        };
         for linking_unit in &self.units {
             let parsed = linking_unit.parsed.as_ref().unwrap();
             let ast = Ast::new(&parsed.ast, &parsed.tokens);
             let mut builder = FragmentBuilder::new(store, &mut self.fragments, ast, linking_unit.fragment);
+            builder.primary_constructors = primary_constructors;
+            builder.private_named_parameters = private_named_parameters;
             builder.build_declaration_fragments(parsed.unit);
         }
 

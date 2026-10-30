@@ -142,6 +142,13 @@ pub struct FileSystemState {
     pub files: Vec<FileState>,
     path_to_file: HashMap<PathBuf, FileId>,
     uri_to_file: HashMap<Rc<str>, FileId>,
+    /// The `isDartCore` of the unlinked data of each content: upstream keys
+    /// the unlinked data of a file by its content (`_unlinkedKey`: the
+    /// feature set, the language version, the content hash and whether
+    /// the file exists), not by its URI, so a copy of `dart:core`'s
+    /// defining file read after `dart:core` is a `dart:core` too, and gets no
+    /// implicit import of it. Ported as is.
+    unlinked_is_dart_core: HashMap<(u64, usize, bool), bool>,
 }
 
 impl FileSystemState {
@@ -152,6 +159,7 @@ impl FileSystemState {
             files: Vec::new(),
             path_to_file: HashMap::new(),
             uri_to_file: HashMap::new(),
+            unlinked_is_dart_core: HashMap::new(),
         }
     }
 
@@ -214,12 +222,19 @@ impl FileSystemState {
     fn new_file(&mut self, path: PathBuf, uri: Rc<str>) -> FileId {
         let id = self.files.len() as FileId;
         let (exists, content) = match std::fs::read(&path) {
-            Ok(bytes) => (true, String::from_utf8_lossy(&bytes).into_owned()),
+            Ok(bytes) => (true, read_as_string(&bytes)),
             Err(_) => (false, String::new()),
         };
         let units: Vec<u16> = content.encode_utf16().collect();
         let parsed = parse_string(Rc::from(units), None, path.to_str());
-        let unlinked = serialize_ast_unlinked2(&parsed, &uri);
+        let mut unlinked = serialize_ast_unlinked2(&parsed, &uri);
+        let key = {
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            content.hash(&mut hasher);
+            (hasher.finish(), content.len(), exists)
+        };
+        unlinked.is_dart_core = *self.unlinked_is_dart_core.entry(key).or_insert(unlinked.is_dart_core);
         self.path_to_file.insert(path.clone(), id);
         self.uri_to_file.insert(uri.clone(), id);
         self.files.push(FileState {
@@ -317,10 +332,20 @@ impl FileSystemState {
             return parsed;
         }
         let content = std::fs::read(&self.files[file as usize].path)
-            .map(|b| String::from_utf8_lossy(&b).into_owned())
+            .map(|b| read_as_string(&b))
             .unwrap_or_default();
         let units: Vec<u16> = content.encode_utf16().collect();
         parse_string(Rc::from(units), None, self.files[file as usize].path.to_str())
+    }
+}
+
+/// `File.readAsStringSync`: UTF-8, without a leading byte order mark, as
+/// `dart:convert`'s decoder drops it.
+fn read_as_string(bytes: &[u8]) -> String {
+    let content = String::from_utf8_lossy(bytes);
+    match content.strip_prefix('\u{FEFF}') {
+        Some(rest) => rest.to_string(),
+        None => content.into_owned(),
     }
 }
 

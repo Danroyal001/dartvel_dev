@@ -30,6 +30,7 @@ use crate::src::dart::element::element::{
     LibraryId, NO_ELEMENT, NO_FRAGMENT, UnitId,
 };
 use crate::src::generated::utilities_dart::ParameterKind;
+use crate::src::summary2::not_serializable_nodes::serializable_source;
 
 use FragmentFlag::*;
 
@@ -98,6 +99,10 @@ pub struct FragmentBuilder<'a> {
     enclosing: EnclosingContext,
     /// `Linker.declaringFormalParameters`, for this unit's nodes.
     declaring_formal_parameters: HashMap<NodeId, DeclaringFormalParameterInfo>,
+    /// Whether the library's feature set enables primary constructors and
+    /// private named parameters.
+    pub primary_constructors: bool,
+    pub private_named_parameters: bool,
 }
 
 fn name_of(ast: Ast<'_>, token: TokenId) -> Option<Rc<str>> {
@@ -186,6 +191,8 @@ impl<'a> FragmentBuilder<'a> {
                 type_parameters: Vec::new(),
             },
             declaring_formal_parameters: HashMap::new(),
+            primary_constructors: true,
+            private_named_parameters: true,
         }
     }
 
@@ -392,6 +399,7 @@ impl<'a> FragmentBuilder<'a> {
             None
         };
         let enclosing_is_enum = self.store.fragment(self.enclosing.fragment).kind == FragmentKind::Enum;
+        let primary_constructors = self.primary_constructors;
         let f = self.f(fragment);
         f.set_flag(constructorFragment_isOriginDeclaration, true);
         f.set_flag(fragment_isAugmentation, n.augment_keyword != NO_TOKEN);
@@ -401,8 +409,7 @@ impl<'a> FragmentBuilder<'a> {
         f.set_flag(constructorFragment_isRedirecting, is_redirecting);
         f.set_flag(fragment_isComplete, is_complete);
         f.type_name = type_name;
-        // Primary constructors are enabled at the latest language version.
-        if enclosing_is_enum && f.is_generative() {
+        if enclosing_is_enum && f.is_generative() && primary_constructors {
             f.set_flag(constructorFragment_isConst, true);
         }
 
@@ -518,7 +525,7 @@ impl<'a> FragmentBuilder<'a> {
                 // name; the original private name is kept separately.
                 let mut private_name = None;
                 if let Some(n) = &name {
-                    if is_named(kind) {
+                    if is_named(kind) && self.private_named_parameters {
                         if let Some(public_name) = corresponding_public_name(n) {
                             private_name = name.clone();
                             name = Some(Rc::from(public_name));
@@ -560,7 +567,8 @@ impl<'a> FragmentBuilder<'a> {
 
         let default_value_code = if default_clause != NO_NODE {
             let value = ast.node(default_clause).as_formal_parameter_default_clause_impl().value2;
-            Some(Rc::from(ast.to_source(value)))
+            // What a summary keeps of it (detach_nodes.dart).
+            Some(Rc::from(serializable_source(ast, value)))
         } else {
             None
         };
@@ -837,7 +845,7 @@ impl<'a> FragmentBuilder<'a> {
                 let mut formal_name = name;
                 let mut formal_private_name = None;
                 if let Some(n) = &formal_name {
-                    if is_named(p.kind) {
+                    if is_named(p.kind) && self.private_named_parameters {
                         if let Some(public_name) = corresponding_public_name(n) {
                             formal_private_name = formal_name.clone();
                             formal_name = Some(Rc::from(public_name));
