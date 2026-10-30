@@ -25,6 +25,8 @@
 #include <vector>
 
 #include "impeller/geometry/constants.h"
+#include "impeller/geometry/point.h"
+#include "impeller/geometry/size.h"
 #include "impeller/geometry/saturated_math.h"
 #include "impeller/geometry/scalar.h"
 
@@ -169,11 +171,22 @@ static std::string line;
 
 static void Tag(const char* t) { line = t; }
 static void F(float v) {
+  // IEEE 754 leaves the sign and payload of an arithmetic NaN unspecified
+  // and LLVM treats them as nondeterministic (it may rewrite a - b as
+  // a + -b), so a NaN prints as its class; every other value as its bits.
+  if (std::isnan(v)) {
+    line += " nan";
+    return;
+  }
   char b[16];
   std::snprintf(b, sizeof b, " %08x", Bits(v));
   line += b;
 }
 static void D(double v) {
+  if (std::isnan(v)) {
+    line += " nan";
+    return;
+  }
   char b[24];
   std::snprintf(b, sizeof b, " %016" PRIx64, Bits64(v));
   line += b;
@@ -375,6 +388,527 @@ static void SuiteScalar(Rng& r, int cases) {
   }
 }
 
+// ------------------------------------------------------- point and size ---
+
+// A finite float in (-0.5, 0.5), for scaling integer points without leaving
+// their range (out-of-range float-to-integer conversion is undefined).
+static float SmallF(Rng& r) {
+  return static_cast<float>(r.Unit() - 0.5);
+}
+
+// An integer that is a safe divisor: never 0, and never -1 (INT_MIN / -1
+// traps).
+static int64_t DivisorI(Rng& r, int bits) {
+  int64_t v = EdgeI(r, bits);
+  return (v == 0 || v == -1) ? 2 : v;
+}
+
+// An integer within ±2^28, whose squares and products of two stay exact.
+static int64_t ModI(Rng& r) {
+  return static_cast<int64_t>(r.Below(1 << 29)) - (1 << 28);
+}
+
+static Point EdgeP(Rng& r) {
+  float x = EdgeF(r);
+  float y = EdgeF(r);
+  return {x, y};
+}
+static Size EdgeS(Rng& r) {
+  float w = EdgeF(r);
+  float h = EdgeF(r);
+  return {w, h};
+}
+template <class T>
+static TPoint<T> EdgeIP(Rng& r, int bits) {
+  T x = static_cast<T>(EdgeI(r, bits));
+  T y = static_cast<T>(EdgeI(r, bits));
+  return {x, y};
+}
+template <class T>
+static TPoint<T> DivisorIP(Rng& r, int bits) {
+  T x = static_cast<T>(DivisorI(r, bits));
+  T y = static_cast<T>(DivisorI(r, bits));
+  return {x, y};
+}
+static IPoint ModIP(Rng& r) {
+  int64_t x = ModI(r);
+  int64_t y = ModI(r);
+  return {x, y};
+}
+
+static void P(Point p) {
+  F(p.x);
+  F(p.y);
+}
+template <class T>
+static void IP(TPoint<T> p) {
+  I(static_cast<int64_t>(p.x));
+  I(static_cast<int64_t>(p.y));
+}
+static void SZ(Size s) {
+  F(s.width);
+  F(s.height);
+}
+template <class T>
+static void ISZ(TSize<T> s) {
+  I(static_cast<int64_t>(s.width));
+  I(static_cast<int64_t>(s.height));
+}
+
+static void SuitePoint(Rng& r, int cases) {
+  for (int c = 0; c < cases; c++) {
+    Point a = EdgeP(r);
+    Point b = EdgeP(r);
+    Point pc = EdgeP(r);
+    float s = EdgeF(r);
+    double ds = EdgeD(r);
+    int32_t is = static_cast<int32_t>(EdgeI(r, 32));
+    Size sz = EdgeS(r);
+
+    Tag("pt_ops");
+    P(a);
+    P(b);
+    F(s);
+    D(ds);
+    I(is);
+    SZ(sz);
+    Arrow();
+    P(-a);
+    P(a + b);
+    P(a - b);
+    P(a * b);
+    P(a / b);
+    P(a * s);
+    P(a * ds);
+    P(a * is);
+    P(a / s);
+    P(a / ds);
+    P(a / is);
+    P(s * a);
+    P(ds * a);
+    P(is * a);
+    P(s / a);
+    P(ds / a);
+    P(is / a);
+    P(a + sz);
+    P(a - sz);
+    P(a * sz);
+    P(a / sz);
+    P(sz + a);
+    P(sz - a);
+    P(sz * a);
+    P(sz / a);
+    P(a - s);
+    B(a == b);
+    B(a != b);
+    B(a == a);
+    B(a != a);
+    End();
+
+    Tag("pt_assign");
+    Point t = a;
+    t += b;
+    P(t);
+    t = a;
+    t += sz;
+    P(t);
+    t = a;
+    t -= b;
+    P(t);
+    t = a;
+    t -= sz;
+    P(t);
+    t = a;
+    t *= b;
+    P(t);
+    t = a;
+    t *= sz;
+    P(t);
+    t = a;
+    t *= s;
+    P(t);
+    t = a;
+    t *= ds;
+    P(t);
+    t = a;
+    t *= is;
+    P(t);
+    t = a;
+    t /= b;
+    P(t);
+    t = a;
+    t /= sz;
+    P(t);
+    t = a;
+    t /= s;
+    P(t);
+    t = a;
+    t /= ds;
+    P(t);
+    t = a;
+    t /= is;
+    P(t);
+    End();
+
+    Tag("pt_methods");
+    P(a);
+    P(b);
+    P(pc);
+    F(s);
+    Arrow();
+    F(a.GetDistanceSquared(b));
+    P(a.Min(b));
+    P(a.Max(b));
+    P(a.Floor());
+    P(a.Ceil());
+    P(a.Round());
+    F(a.GetDistance(b));
+    F(a.GetLengthSquared());
+    F(a.GetLength());
+    F(a.GetDistanceToSegmentSquared(b, pc));
+    F(a.GetDistanceToSegment(b, pc));
+    P(a.Normalize());
+    P(a.Abs());
+    F(a.Cross(b));
+    F(Point::Cross(a, b, pc));
+    F(a.Dot(b));
+    P(a.Reflect(b));
+    P(a.Rotate(Radians(s)));
+    P(a.PerpendicularRight());
+    P(a.PerpendicularLeft());
+    F(a.AngleTo(b).radians);
+    P(a.Lerp(b, s));
+    B(a.IsZero());
+    B(a.IsFinite());
+    P(Point::Round(a));
+    P(Point::MakeXY(a.y, a.x));
+    P(Point(sz));
+    End();
+
+    // Segments with sane coordinates, where the three branches are all
+    // taken.
+    {
+      float x0 = SaneF(r), y0 = SaneF(r), x1 = SaneF(r), y1 = SaneF(r),
+            x2 = SaneF(r), y2 = SaneF(r);
+      Point p{x0, y0}, p0{x1, y1}, p1{x2, y2};
+      Tag("pt_segment");
+      P(p);
+      P(p0);
+      P(p1);
+      Arrow();
+      F(p.GetDistanceToSegmentSquared(p0, p1));
+      F(p.GetDistanceToSegment(p0, p1));
+      F(p.GetDistance(p0));
+      P(p.Normalize());
+      F(p.AngleTo(p0).radians);
+      End();
+    }
+
+    // int64_t points.
+    IPoint ia = EdgeIP<int64_t>(r, 64);
+    IPoint ib = EdgeIP<int64_t>(r, 64);
+    IPoint id = DivisorIP<int64_t>(r, 64);
+    IPoint ma = ModIP(r);
+    IPoint mb = ModIP(r);
+    IPoint mc = ModIP(r);
+    int64_t dv = DivisorI(r, 64);
+    int32_t dv32 = static_cast<int32_t>(DivisorI(r, 32));
+    float fs = SmallF(r);
+    double dfs = SmallF(r);
+    float fd = static_cast<float>(1.0 + r.Unit());
+    ISize isz = {EdgeI(r, 64), EdgeI(r, 64)};
+    ISize idsz = {DivisorI(r, 64), DivisorI(r, 64)};
+    float mfx = SaneF(r) * 1000.0f;
+    float mfy = SaneF(r) * 1000.0f;
+    Point mf{mfx, mfy};
+
+    Tag("ipt_ops");
+    IP(ia);
+    IP(ib);
+    IP(id);
+    I(dv);
+    I(dv32);
+    F(fs);
+    D(dfs);
+    F(fd);
+    ISZ(isz);
+    Arrow();
+    IP(-ia);
+    IP(ia + ib);
+    IP(ia - ib);
+    IP(ia * ib);
+    IP(ia / id);
+    IP(ia * dv);
+    IP(ia * dv32);
+    IP(ia * fs);
+    IP(ia * dfs);
+    IP(ia / dv);
+    IP(ia / dv32);
+    IP(ma / fd);
+    IP(dv * ia);
+    IP(fs * ia);
+    IP(dv / id);
+    IP(ia + isz);
+    IP(ia - isz);
+    IP(ia * isz);
+    IP(ia / idsz);
+    IP(isz + ia);
+    IP(isz - ia);
+    IP(isz / id);
+    IP(ia - dv);
+    B(ia == ib);
+    B(ia != ib);
+    P(a + ia);
+    P(ia + a);
+    P(a - ia);
+    P(ia - a);
+    P(a * ia);
+    P(ia * a);
+    P(a / ia);
+    P(ia / a);
+    P(Point(ia));
+    IP(IPoint(mf));
+    IP(IPoint::Round(mf));
+    P(Point::Round(ia));
+    End();
+
+    Tag("ipt_assign");
+    IPoint it = ia;
+    it += ib;
+    IP(it);
+    it = ia;
+    it += isz;
+    IP(it);
+    it = ia;
+    it -= ib;
+    IP(it);
+    it = ia;
+    it *= ib;
+    IP(it);
+    it = ia;
+    it *= dv32;
+    IP(it);
+    it = ia;
+    it /= id;
+    IP(it);
+    it = ia;
+    it /= dv;
+    IP(it);
+    it = ia;
+    it /= idsz;
+    IP(it);
+    End();
+
+    Tag("ipt_methods");
+    IP(ma);
+    IP(mb);
+    IP(mc);
+    F(fs);
+    Arrow();
+    I(ma.GetDistanceSquared(mb));
+    I(ma.GetDistance(mb));
+    I(ma.GetDistanceToSegmentSquared(mb, mc));
+    I(ma.GetDistanceToSegment(mb, mc));
+    IP(ma.Lerp(mb, fs));
+    IP(ia.Min(ib));
+    IP(ia.Max(ib));
+    F(ia.GetLengthSquared());
+    F(ia.GetLength());
+    I(ia.Cross(ib));
+    I(IPoint::Cross(ia, ib, id));
+    I(ia.Dot(ib));
+    IP(ia.Reflect(ib));
+    IP(ia.PerpendicularRight());
+    IP(ia.PerpendicularLeft());
+    B(ia.IsZero());
+    B(IPoint().IsZero());
+    End();
+
+    // int32_t and uint32_t points.
+    IPoint32 ja = EdgeIP<int32_t>(r, 32);
+    IPoint32 jb = EdgeIP<int32_t>(r, 32);
+    IPoint32 jd = DivisorIP<int32_t>(r, 32);
+    UintPoint32 ua = EdgeIP<uint32_t>(r, 32);
+    UintPoint32 ub = EdgeIP<uint32_t>(r, 32);
+    UintPoint32 ud = DivisorIP<uint32_t>(r, 32);
+    int64_t j64 = EdgeI(r, 64);
+    Tag("ipt32");
+    IP(ja);
+    IP(jb);
+    IP(jd);
+    IP(ua);
+    IP(ub);
+    IP(ud);
+    I(j64);
+    Arrow();
+    IP(-ja);
+    IP(ja + jb);
+    IP(ja - jb);
+    IP(ja * jb);
+    IP(ja / jd);
+    IP(ja * j64);
+    IP(ja * dv32);
+    IP(ja * fs);
+    IP(ja / dv32);
+    IP(ja - jb.x);
+    I(ja.Cross(jb));
+    I(ja.Dot(jb));
+    F(ja.GetLengthSquared());
+    IP(ja.Min(jb));
+    IP(ja.Max(jb));
+    P(a + ja);
+    P(ja - a);
+    P(a / ja);
+    IP(-ua);
+    IP(ua + ub);
+    IP(ua - ub);
+    IP(ua * ub);
+    IP(ua / ud);
+    IP(ua * dv32);
+    IP(ua / dv32);
+    IP(ua * j64);
+    I(ua.Cross(ub));
+    I(ua.Dot(ub));
+    F(ua.GetLengthSquared());
+    IP(ua.Min(ub));
+    IP(ua.Max(ub));
+    IP(ua.PerpendicularLeft());
+    P(a * ua);
+    P(Point(ua));
+    IP(IPoint32(ia));
+    IP(UintPoint32(ja));
+    End();
+  }
+}
+
+static bool MipCountDefined(Size s) {
+  // log2 of a size below 0.5 is -1 or less, and of an infinite one inf;
+  // either converted to size_t is undefined.
+  return s.IsEmpty() ||
+         (std::min(s.width, s.height) > 0.5f &&
+          !(std::isinf(s.width) && std::isinf(s.height)));
+}
+
+static void SuiteSize(Rng& r, int cases) {
+  for (int c = 0; c < cases; c++) {
+    Size a = EdgeS(r);
+    Size b = EdgeS(r);
+    float s = EdgeF(r);
+    double ds = EdgeD(r);
+    int32_t is = static_cast<int32_t>(EdgeI(r, 32));
+
+    Tag("size_ops");
+    SZ(a);
+    SZ(b);
+    F(s);
+    D(ds);
+    I(is);
+    Arrow();
+    SZ(a * s);
+    SZ(a / s);
+    SZ(a / b);
+    SZ(a + b);
+    SZ(a - b);
+    SZ(-a);
+    SZ(s * a);
+    SZ(ds * a);
+    SZ(is * a);
+    SZ(s / a);
+    SZ(ds / a);
+    SZ(is / a);
+    Size t = a;
+    t *= s;
+    SZ(t);
+    t = a;
+    t *= ds;
+    SZ(t);
+    t = a;
+    t *= is;
+    SZ(t);
+    B(a == b);
+    B(a != b);
+    B(a == a);
+    End();
+
+    Tag("size_methods");
+    SZ(a);
+    SZ(b);
+    Arrow();
+    SZ(a.Min(b));
+    SZ(a.Max(b));
+    F(a.MinDimension());
+    F(a.MaxDimension());
+    SZ(a.Abs());
+    SZ(a.Floor());
+    SZ(a.Ceil());
+    SZ(a.Round());
+    F(a.Area());
+    B(a.IsEmpty());
+    B(a.IsFinite());
+    B(a.IsSquare());
+    SZ(Size::Ceil(a));
+    if (MipCountDefined(a)) {
+      U(a.MipCount());
+    }
+    SZ(Size(s));
+    SZ(Size::MakeWH(s, a.width));
+    SZ(Size::Infinite());
+    SZ(Size());
+    End();
+
+    ISize ia = {EdgeI(r, 64), EdgeI(r, 64)};
+    ISize ib = {EdgeI(r, 64), EdgeI(r, 64)};
+    ISize id = {DivisorI(r, 64), DivisorI(r, 64)};
+    int64_t mw = ModI(r);
+    int64_t mh = ModI(r);
+    ISize32 ja = {static_cast<int32_t>(EdgeI(r, 32)),
+                  static_cast<int32_t>(EdgeI(r, 32))};
+    ISize32 jb = {static_cast<int32_t>(EdgeI(r, 32)),
+                  static_cast<int32_t>(EdgeI(r, 32))};
+    float mfw = SaneF(r) * 1000.0f;
+    float mfh = SaneF(r) * 1000.0f;
+    Tag("isize");
+    ISZ(ia);
+    ISZ(ib);
+    ISZ(id);
+    I(mw);
+    I(mh);
+    ISZ(ja);
+    ISZ(jb);
+    F(mfw);
+    F(mfh);
+    Arrow();
+    ISZ(ia + ib);
+    ISZ(ia - ib);
+    ISZ(-ia);
+    ISZ(ia / id);
+    I(ia.Area());
+    ISZ(ia.Min(ib));
+    ISZ(ia.Max(ib));
+    I(ia.MinDimension());
+    I(ia.MaxDimension());
+    B(ia.IsEmpty());
+    B(ia.IsSquare());
+    B(ia == ib);
+    B(ia != ib);
+    U(ia.MipCount());
+    U(ISize(mw, mh).MipCount());
+    ISize it = ia;
+    it *= is;
+    ISZ(it);
+    ISZ(ISize::Ceil(Size(mfw, mfh)));
+    ISZ(ISize(Size(mfw, mfh)));
+    SZ(Size(ia));
+    ISZ(ISize::Infinite());
+    ISZ(ja + jb);
+    ISZ(ja - jb);
+    I(ja.Area());
+    ISZ(ISize32(ia));
+    U(ja.MipCount());
+    End();
+  }
+}
+
 // ----------------------------------------------------------------- main ----
 
 typedef void (*Suite)(Rng&, int);
@@ -384,6 +918,8 @@ struct NamedSuite {
 };
 static const NamedSuite kSuites[] = {
     {"scalar", SuiteScalar},
+    {"point", SuitePoint},
+    {"size", SuiteSize},
 };
 
 int main(int argc, char** argv) {

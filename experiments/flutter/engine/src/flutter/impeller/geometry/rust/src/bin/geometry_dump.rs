@@ -10,7 +10,10 @@ use std::io::Write;
 
 use impeller_geometry::constants::*;
 use impeller_geometry::saturated;
+use impeller_geometry::cxx::{self, Num};
+use impeller_geometry::point::*;
 use impeller_geometry::scalar::*;
+use impeller_geometry::size::*;
 
 // ---------------------------------------------------------------- rng ------
 
@@ -137,11 +140,20 @@ impl Out {
         self.line.clear();
         self.line.push_str(t);
     }
+    // A NaN prints as its class (see oracle/geometry_dump.cc).
     fn f(&mut self, v: f32) {
+        if v.is_nan() {
+            self.line.push_str(" nan");
+            return;
+        }
         use std::fmt::Write;
         let _ = write!(self.line, " {:08x}", v.to_bits());
     }
     fn d(&mut self, v: f64) {
+        if v.is_nan() {
+            self.line.push_str(" nan");
+            return;
+        }
         use std::fmt::Write;
         let _ = write!(self.line, " {:016x}", v.to_bits());
     }
@@ -325,10 +337,548 @@ fn suite_scalar(r: &mut Rng, o: &mut Out, cases: i32) {
     }
 }
 
+// ------------------------------------------------------- point and size ---
+
+fn small_f(r: &mut Rng) -> f32 {
+    (r.unit() - 0.5) as f32
+}
+
+fn divisor_i(r: &mut Rng, bits: u32) -> i64 {
+    let v = edge_i(r, bits);
+    if v == 0 || v == -1 { 2 } else { v }
+}
+
+fn mod_i(r: &mut Rng) -> i64 {
+    r.below(1 << 29) as i64 - (1 << 28)
+}
+
+fn edge_p(r: &mut Rng) -> Point {
+    let x = edge_f(r);
+    let y = edge_f(r);
+    Point::new(x, y)
+}
+fn edge_s(r: &mut Rng) -> Size {
+    let w = edge_f(r);
+    let h = edge_f(r);
+    Size::new(w, h)
+}
+fn edge_ip<T: Num>(r: &mut Rng, bits: u32) -> TPoint<T> {
+    let x = T::from_i128(edge_i(r, bits) as i128);
+    let y = T::from_i128(edge_i(r, bits) as i128);
+    TPoint::new(x, y)
+}
+fn divisor_ip<T: Num>(r: &mut Rng, bits: u32) -> TPoint<T> {
+    let x = T::from_i128(divisor_i(r, bits) as i128);
+    let y = T::from_i128(divisor_i(r, bits) as i128);
+    TPoint::new(x, y)
+}
+fn mod_ip(r: &mut Rng) -> IPoint {
+    let x = mod_i(r);
+    let y = mod_i(r);
+    IPoint::new(x, y)
+}
+
+impl Out {
+    fn p(&mut self, p: Point) {
+        self.f(p.x);
+        self.f(p.y);
+    }
+    fn ip<T: Num>(&mut self, p: TPoint<T>) {
+        self.i(p.x.to_i128() as i64);
+        self.i(p.y.to_i128() as i64);
+    }
+    fn sz(&mut self, s: Size) {
+        self.f(s.width);
+        self.f(s.height);
+    }
+    fn isz<T: Num>(&mut self, s: TSize<T>) {
+        self.i(s.width.to_i128() as i64);
+        self.i(s.height.to_i128() as i64);
+    }
+}
+
+fn suite_point(r: &mut Rng, o: &mut Out, cases: i32) {
+    for _ in 0..cases {
+        let a = edge_p(r);
+        let b = edge_p(r);
+        let pc = edge_p(r);
+        let s = edge_f(r);
+        let ds = edge_d(r);
+        let is = edge_i(r, 32) as i32;
+        let sz = edge_s(r);
+
+        o.tag("pt_ops");
+        o.p(a);
+        o.p(b);
+        o.f(s);
+        o.d(ds);
+        o.i(is as i64);
+        o.sz(sz);
+        o.arrow();
+        o.p(-a);
+        o.p(a + b);
+        o.p(a - b);
+        o.p(a * b);
+        o.p(a / b);
+        o.p(a * s);
+        o.p(a * ds);
+        o.p(a * is);
+        o.p(a / s);
+        o.p(a / ds);
+        o.p(a / is);
+        o.p(s * a);
+        o.p(ds * a);
+        o.p(is * a);
+        o.p(s / a);
+        o.p(ds / a);
+        o.p(is / a);
+        o.p(a + sz);
+        o.p(a - sz);
+        o.p(a * sz);
+        o.p(a / sz);
+        o.p(sz + a);
+        o.p(sz - a);
+        o.p(sz * a);
+        o.p(sz / a);
+        o.p(a.sub_value(s));
+        o.b(a == b);
+        o.b(a != b);
+        o.b(a == a);
+        o.b(a != a);
+        o.end();
+
+        o.tag("pt_assign");
+        let mut t = a;
+        t += b;
+        o.p(t);
+        t = a;
+        t += sz;
+        o.p(t);
+        t = a;
+        t -= b;
+        o.p(t);
+        t = a;
+        t -= sz;
+        o.p(t);
+        t = a;
+        t *= b;
+        o.p(t);
+        t = a;
+        t *= sz;
+        o.p(t);
+        t = a;
+        t *= s;
+        o.p(t);
+        t = a;
+        t *= ds;
+        o.p(t);
+        t = a;
+        t *= is;
+        o.p(t);
+        t = a;
+        t /= b;
+        o.p(t);
+        t = a;
+        t /= sz;
+        o.p(t);
+        t = a;
+        t /= s;
+        o.p(t);
+        t = a;
+        t /= ds;
+        o.p(t);
+        t = a;
+        t /= is;
+        o.p(t);
+        o.end();
+
+        o.tag("pt_methods");
+        o.p(a);
+        o.p(b);
+        o.p(pc);
+        o.f(s);
+        o.arrow();
+        o.f(a.get_distance_squared(&b));
+        o.p(a.min(&b));
+        o.p(a.max(&b));
+        o.p(a.floor());
+        o.p(a.ceil());
+        o.p(a.round());
+        o.f(a.get_distance(&b));
+        o.f(a.get_length_squared());
+        o.f(a.get_length());
+        o.f(a.get_distance_to_segment_squared(b, pc));
+        o.f(a.get_distance_to_segment(b, pc));
+        o.p(a.normalize());
+        o.p(a.abs());
+        o.f(a.cross(&b));
+        o.f(Point::cross3(&a, &b, &pc));
+        o.f(a.dot(&b));
+        o.p(a.reflect(&b));
+        o.p(a.rotate(&Radians::new(s)));
+        o.p(a.perpendicular_right());
+        o.p(a.perpendicular_left());
+        o.f(a.angle_to(&b).radians);
+        o.p(a.lerp(&b, s));
+        o.b(a.is_zero());
+        o.b(a.is_finite());
+        o.p(Point::round_from(a));
+        o.p(Point::make_xy(a.y, a.x));
+        o.p(Point::from_size(sz));
+        o.end();
+
+        {
+            let x0 = sane_f(r);
+            let y0 = sane_f(r);
+            let x1 = sane_f(r);
+            let y1 = sane_f(r);
+            let x2 = sane_f(r);
+            let y2 = sane_f(r);
+            let (p, p0, p1) = (Point::new(x0, y0), Point::new(x1, y1), Point::new(x2, y2));
+            o.tag("pt_segment");
+            o.p(p);
+            o.p(p0);
+            o.p(p1);
+            o.arrow();
+            o.f(p.get_distance_to_segment_squared(p0, p1));
+            o.f(p.get_distance_to_segment(p0, p1));
+            o.f(p.get_distance(&p0));
+            o.p(p.normalize());
+            o.f(p.angle_to(&p0).radians);
+            o.end();
+        }
+
+        let ia: IPoint = edge_ip(r, 64);
+        let ib: IPoint = edge_ip(r, 64);
+        let id: IPoint = divisor_ip(r, 64);
+        let ma = mod_ip(r);
+        let mb = mod_ip(r);
+        let mc = mod_ip(r);
+        let dv = divisor_i(r, 64);
+        let dv32 = divisor_i(r, 32) as i32;
+        let fs = small_f(r);
+        let dfs = small_f(r) as f64;
+        let fd = (1.0 + r.unit()) as f32;
+        let isz = {
+            let w = edge_i(r, 64);
+            let h = edge_i(r, 64);
+            ISize::new(w, h)
+        };
+        let idsz = {
+            let w = divisor_i(r, 64);
+            let h = divisor_i(r, 64);
+            ISize::new(w, h)
+        };
+        let mfx = sane_f(r) * 1000.0;
+        let mfy = sane_f(r) * 1000.0;
+        let mf = Point::new(mfx, mfy);
+
+        o.tag("ipt_ops");
+        o.ip(ia);
+        o.ip(ib);
+        o.ip(id);
+        o.i(dv);
+        o.i(dv32 as i64);
+        o.f(fs);
+        o.d(dfs);
+        o.f(fd);
+        o.isz(isz);
+        o.arrow();
+        o.ip(-ia);
+        o.ip(ia + ib);
+        o.ip(ia - ib);
+        o.ip(ia * ib);
+        o.ip(ia / id);
+        o.ip(ia * dv);
+        o.ip(ia * dv32);
+        o.ip(ia * fs);
+        o.ip(ia * dfs);
+        o.ip(ia / dv);
+        o.ip(ia / dv32);
+        o.ip(ma / fd);
+        o.ip(dv * ia);
+        o.ip(fs * ia);
+        o.ip(dv / id);
+        o.ip(ia + isz);
+        o.ip(ia - isz);
+        o.ip(ia * isz);
+        o.ip(ia / idsz);
+        o.ip(isz + ia);
+        o.ip(isz - ia);
+        o.ip(isz / id);
+        o.ip(ia.sub_value(dv));
+        o.b(ia == ib);
+        o.b(ia != ib);
+        o.p(a + ia);
+        o.p(ia + a);
+        o.p(a - ia);
+        o.p(ia - a);
+        o.p(a * ia);
+        o.p(ia * a);
+        o.p(a / ia);
+        o.p(ia / a);
+        o.p(Point::from_point(ia));
+        o.ip(IPoint::from_point(mf));
+        o.ip(IPoint::round_from(mf));
+        o.p(Point::round_from(ia));
+        o.end();
+
+        o.tag("ipt_assign");
+        let mut it = ia;
+        it += ib;
+        o.ip(it);
+        it = ia;
+        it += isz;
+        o.ip(it);
+        it = ia;
+        it -= ib;
+        o.ip(it);
+        it = ia;
+        it *= ib;
+        o.ip(it);
+        it = ia;
+        it *= dv32;
+        o.ip(it);
+        it = ia;
+        it /= id;
+        o.ip(it);
+        it = ia;
+        it /= dv;
+        o.ip(it);
+        it = ia;
+        it /= idsz;
+        o.ip(it);
+        o.end();
+
+        o.tag("ipt_methods");
+        o.ip(ma);
+        o.ip(mb);
+        o.ip(mc);
+        o.f(fs);
+        o.arrow();
+        o.i(ma.get_distance_squared(&mb));
+        o.i(ma.get_distance(&mb));
+        o.i(ma.get_distance_to_segment_squared(mb, mc));
+        o.i(ma.get_distance_to_segment(mb, mc));
+        o.ip(ma.lerp(&mb, fs));
+        o.ip(ia.min(&ib));
+        o.ip(ia.max(&ib));
+        o.f(ia.get_length_squared());
+        o.f(ia.get_length());
+        o.i(ia.cross(&ib));
+        o.i(IPoint::cross3(&ia, &ib, &id));
+        o.i(ia.dot(&ib));
+        o.ip(ia.reflect(&ib));
+        o.ip(ia.perpendicular_right());
+        o.ip(ia.perpendicular_left());
+        o.b(ia.is_zero());
+        o.b(IPoint::default().is_zero());
+        o.end();
+
+        let ja: IPoint32 = edge_ip(r, 32);
+        let jb: IPoint32 = edge_ip(r, 32);
+        let jd: IPoint32 = divisor_ip(r, 32);
+        let ua: UintPoint32 = edge_ip(r, 32);
+        let ub: UintPoint32 = edge_ip(r, 32);
+        let ud: UintPoint32 = divisor_ip(r, 32);
+        let j64 = edge_i(r, 64);
+        o.tag("ipt32");
+        o.ip(ja);
+        o.ip(jb);
+        o.ip(jd);
+        o.ip(ua);
+        o.ip(ub);
+        o.ip(ud);
+        o.i(j64);
+        o.arrow();
+        o.ip(-ja);
+        o.ip(ja + jb);
+        o.ip(ja - jb);
+        o.ip(ja * jb);
+        o.ip(ja / jd);
+        o.ip(ja * j64);
+        o.ip(ja * dv32);
+        o.ip(ja * fs);
+        o.ip(ja / dv32);
+        o.ip(ja.sub_value(jb.x));
+        o.i(ja.cross(&jb) as i64);
+        o.i(ja.dot(&jb) as i64);
+        o.f(ja.get_length_squared());
+        o.ip(ja.min(&jb));
+        o.ip(ja.max(&jb));
+        o.p(a + ja);
+        o.p(ja - a);
+        o.p(a / ja);
+        o.ip(-ua);
+        o.ip(ua + ub);
+        o.ip(ua - ub);
+        o.ip(ua * ub);
+        o.ip(ua / ud);
+        o.ip(ua * dv32);
+        o.ip(ua / dv32);
+        o.ip(ua * j64);
+        o.i(ua.cross(&ub) as i64);
+        o.i(ua.dot(&ub) as i64);
+        o.f(ua.get_length_squared());
+        o.ip(ua.min(&ub));
+        o.ip(ua.max(&ub));
+        o.ip(ua.perpendicular_left());
+        o.p(a * ua);
+        o.p(Point::from_point(ua));
+        o.ip(IPoint32::from_point(ia));
+        o.ip(UintPoint32::from_point(ja));
+        o.end();
+    }
+}
+
+fn mip_count_defined(s: Size) -> bool {
+    s.is_empty()
+        || (cxx::min(s.width, s.height) > 0.5 && !(s.width.is_infinite() && s.height.is_infinite()))
+}
+
+fn suite_size(r: &mut Rng, o: &mut Out, cases: i32) {
+    for _ in 0..cases {
+        let a = edge_s(r);
+        let b = edge_s(r);
+        let s = edge_f(r);
+        let ds = edge_d(r);
+        let is = edge_i(r, 32) as i32;
+
+        o.tag("size_ops");
+        o.sz(a);
+        o.sz(b);
+        o.f(s);
+        o.d(ds);
+        o.i(is as i64);
+        o.arrow();
+        o.sz(a * s);
+        o.sz(a / s);
+        o.sz(a / b);
+        o.sz(a + b);
+        o.sz(a - b);
+        o.sz(-a);
+        o.sz(s * a);
+        o.sz(ds * a);
+        o.sz(is * a);
+        o.sz(s / a);
+        o.sz(ds / a);
+        o.sz(is / a);
+        let mut t = a;
+        t *= s;
+        o.sz(t);
+        t = a;
+        t *= ds;
+        o.sz(t);
+        t = a;
+        t *= is;
+        o.sz(t);
+        o.b(a == b);
+        o.b(a != b);
+        o.b(a == a);
+        o.end();
+
+        o.tag("size_methods");
+        o.sz(a);
+        o.sz(b);
+        o.arrow();
+        o.sz(a.min(&b));
+        o.sz(a.max(&b));
+        o.f(a.min_dimension());
+        o.f(a.max_dimension());
+        o.sz(a.abs());
+        o.sz(a.floor());
+        o.sz(a.ceil());
+        o.sz(a.round());
+        o.f(a.area());
+        o.b(a.is_empty());
+        o.b(a.is_finite());
+        o.b(a.is_square());
+        o.sz(Size::ceil_from(a));
+        if mip_count_defined(a) {
+            o.u(a.mip_count() as u64);
+        }
+        o.sz(Size::splat(s));
+        o.sz(Size::make_wh(s, a.width));
+        o.sz(Size::infinite());
+        o.sz(Size::default());
+        o.end();
+
+        let ia = {
+            let w = edge_i(r, 64);
+            let h = edge_i(r, 64);
+            ISize::new(w, h)
+        };
+        let ib = {
+            let w = edge_i(r, 64);
+            let h = edge_i(r, 64);
+            ISize::new(w, h)
+        };
+        let id = {
+            let w = divisor_i(r, 64);
+            let h = divisor_i(r, 64);
+            ISize::new(w, h)
+        };
+        let mw = mod_i(r);
+        let mh = mod_i(r);
+        let ja = {
+            let w = edge_i(r, 32) as i32;
+            let h = edge_i(r, 32) as i32;
+            ISize32::new(w, h)
+        };
+        let jb = {
+            let w = edge_i(r, 32) as i32;
+            let h = edge_i(r, 32) as i32;
+            ISize32::new(w, h)
+        };
+        let mfw = sane_f(r) * 1000.0;
+        let mfh = sane_f(r) * 1000.0;
+        o.tag("isize");
+        o.isz(ia);
+        o.isz(ib);
+        o.isz(id);
+        o.i(mw);
+        o.i(mh);
+        o.isz(ja);
+        o.isz(jb);
+        o.f(mfw);
+        o.f(mfh);
+        o.arrow();
+        o.isz(ia + ib);
+        o.isz(ia - ib);
+        o.isz(-ia);
+        o.isz(ia / id);
+        o.i(ia.area());
+        o.isz(ia.min(&ib));
+        o.isz(ia.max(&ib));
+        o.i(ia.min_dimension());
+        o.i(ia.max_dimension());
+        o.b(ia.is_empty());
+        o.b(ia.is_square());
+        o.b(ia == ib);
+        o.b(ia != ib);
+        o.u(ia.mip_count() as u64);
+        o.u(ISize::new(mw, mh).mip_count() as u64);
+        let mut it = ia;
+        it *= is;
+        o.isz(it);
+        o.isz(ISize::ceil_from(Size::new(mfw, mfh)));
+        o.isz(ISize::from_size(Size::new(mfw, mfh)));
+        o.sz(Size::from_size(ia));
+        o.isz(ISize::infinite());
+        o.isz(ja + jb);
+        o.isz(ja - jb);
+        o.i(ja.area() as i64);
+        o.isz(ISize32::from_size(ia));
+        o.u(ja.mip_count() as u64);
+        o.end();
+    }
+}
+
 // ----------------------------------------------------------------- main ----
 
 type Suite = fn(&mut Rng, &mut Out, i32);
-const SUITES: &[(&str, Suite)] = &[("scalar", suite_scalar)];
+const SUITES: &[(&str, Suite)] =
+    &[("scalar", suite_scalar), ("point", suite_point), ("size", suite_size)];
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

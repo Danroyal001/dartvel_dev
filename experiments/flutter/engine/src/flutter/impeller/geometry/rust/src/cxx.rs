@@ -208,11 +208,20 @@ pub trait Num: Copy + PartialOrd + Default + Debug + 'static {
     }
     #[doc(hidden)]
     fn neg_fix(self, original: Self) -> Self;
-    /// `std::floor`, `std::ceil`, `std::round`, `std::fabs` of the value as
-    /// the type's own overload computes it (integers go through double).
-    fn floor_t(self) -> f64;
-    fn ceil_t(self) -> f64;
-    fn round_t(self) -> f64;
+    /// `std::floor`, `std::ceil`, `std::round` and `std::fabs` of a float, in
+    /// its own type (an integer is returned unchanged: upstream only
+    /// instantiates these on floats).
+    fn floor(self) -> Self;
+    fn ceil(self) -> Self;
+    fn round(self) -> Self;
+    fn fabs(self) -> Self;
+    /// `std::sqrt` of the value: `sqrtf` for float, `sqrt` for double, and
+    /// `sqrt((double)x)` for an integer, converted back.
+    fn sqrt_t(self) -> Self;
+    /// `std::isfinite` (integers are finite).
+    fn is_finite_t(self) -> bool;
+    /// `out << self` with a default `std::ostream`.
+    fn cxx_fmt(self) -> String;
 }
 
 macro_rules! impl_num_int {
@@ -249,15 +258,13 @@ macro_rules! impl_num_int {
             fn neg_fix(self, _original: Self) -> Self {
                 self
             }
-            fn floor_t(self) -> f64 {
-                self as f64
-            }
-            fn ceil_t(self) -> f64 {
-                self as f64
-            }
-            fn round_t(self) -> f64 {
-                self as f64
-            }
+            fn floor(self) -> Self { self }
+            fn ceil(self) -> Self { self }
+            fn round(self) -> Self { self }
+            fn fabs(self) -> Self { self }
+            fn sqrt_t(self) -> Self { (self as f64).sqrt() as $t }
+            fn is_finite_t(self) -> bool { true }
+            fn cxx_fmt(self) -> String { self.to_string() }
         }
     };
 }
@@ -305,17 +312,46 @@ macro_rules! impl_num_float {
             fn neg_fix(self, original: Self) -> Self {
                 -original
             }
-            fn floor_t(self) -> f64 {
-                self.floor() as f64
-            }
-            fn ceil_t(self) -> f64 {
-                self.ceil() as f64
-            }
-            fn round_t(self) -> f64 {
-                self.round() as f64
-            }
+            fn floor(self) -> Self { <$t>::floor(self) }
+            fn ceil(self) -> Self { <$t>::ceil(self) }
+            fn round(self) -> Self { <$t>::round(self) }
+            fn fabs(self) -> Self { <$t>::abs(self) }
+            fn sqrt_t(self) -> Self { <$t>::sqrt(self) }
+            fn is_finite_t(self) -> bool { <$t>::is_finite(self) }
+            fn cxx_fmt(self) -> String { crate::print::g(self) }
         }
     };
 }
 impl_num_float!(f32, F32);
 impl_num_float!(f64, F64);
+
+/// `static_cast<T>(u)`.
+#[inline(always)]
+pub fn conv<U: Num, T: Num>(u: U) -> T {
+    match T::KIND {
+        Kind::F32 => T::from_f32(u.to_f32()),
+        Kind::F64 => T::from_f64(u.to_f64()),
+        _ => {
+            if U::KIND.is_float() {
+                T::from_f64(u.to_f64())
+            } else {
+                T::from_i128(u.to_i128())
+            }
+        }
+    }
+}
+
+/// `static_cast<T>(std::round(u))` (and `ceil`, `floor`): a float is rounded
+/// in its own type; an integer goes through `double`.
+#[inline(always)]
+pub fn round_to<U: Num, T: Num>(u: U) -> T {
+    if U::KIND.is_float() { conv(u.round()) } else { T::from_f64(u.to_f64()) }
+}
+#[inline(always)]
+pub fn ceil_to<U: Num, T: Num>(u: U) -> T {
+    if U::KIND.is_float() { conv(u.ceil()) } else { T::from_f64(u.to_f64()) }
+}
+#[inline(always)]
+pub fn floor_to<U: Num, T: Num>(u: U) -> T {
+    if U::KIND.is_float() { conv(u.floor()) } else { T::from_f64(u.to_f64()) }
+}

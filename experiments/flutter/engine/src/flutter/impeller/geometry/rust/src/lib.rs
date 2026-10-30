@@ -10,9 +10,11 @@
 
 pub mod constants;
 pub mod cxx;
+pub mod point;
 pub mod print;
 pub mod saturated_math;
 pub mod scalar;
+pub mod size;
 pub mod type_traits;
 
 pub use saturated_math::saturated;
