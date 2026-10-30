@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:watcher/watcher.dart';
 
+import '../testing/impacted_tests.dart';
 import '../utils/logger.dart';
 
 class TestCommand extends Command<void> {
@@ -17,7 +18,7 @@ class TestCommand extends Command<void> {
   /// [root] is the project; null reads the working directory when the command
   /// runs. A test passes its own, because that directory is one value shared
   /// by every suite in the process.
-  TestCommand({this._root}) {
+  TestCommand({this._root, this._impact = const DartvelImpactSource()}) {
     argParser
       ..addFlag(
         'flutter',
@@ -56,6 +57,14 @@ class TestCommand extends Command<void> {
             'Run tests with per-file isolation by forcing single concurrency.',
       )
       ..addFlag(
+        'impacted',
+        defaultsTo: false,
+        help: 'Run only the tests this diff can reach: what each test '
+            'imports, and the data models, functions, routes and jobs the '
+            'changed files declare. Refused on a stale generated tree '
+            '(DV-GEN-001). A change it cannot place runs the whole suite.',
+      )
+      ..addFlag(
         'evals',
         defaultsTo: false,
         help: 'Run only the AI evals, under test/evals: golden transcripts '
@@ -73,6 +82,9 @@ class TestCommand extends Command<void> {
   }
 
   final String? _root;
+
+  /// Where `--impacted` reads the diff and the generated tree's state.
+  final DartvelImpactSource _impact;
 
   @override
   Future<void> run() async {
@@ -132,8 +144,32 @@ class TestCommand extends Command<void> {
       forwardedArgs: forwarded,
       root: root,
     );
+    DartvelTestInvocation run = invocation;
+    if (argResults?['impacted'] == true) {
+      final List<String> stale = await _impact.staleGenerated(root.path);
+      if (stale.isNotEmpty) {
+        // An impact map from a stale graph is confidently wrong about what
+        // it skipped, which is worse than no map.
+        throw UsageException(
+          'DV-GEN-001: generated output is stale (${stale.join(', ')}); '
+          'run dartvel generate before dartvel test --impacted.',
+          usage,
+        );
+      }
+      final Set<String>? impacted = await DartvelImpactedTests.select(
+        root: root.path,
+        changed: await _impact.changed(root.path),
+      );
+      if (impacted != null) {
+        if (impacted.isEmpty) {
+          stdout.writeln('[dartvel] No tests are reached by this diff.');
+          return;
+        }
+        run = invocation.retarget(impacted.toList()..sort());
+      }
+    }
     if (argResults?['dry-run'] == true) {
-      stdout.writeln(invocation.printable);
+      stdout.writeln(run.printable);
       return;
     }
     if (argResults?['watch'] == true) {
@@ -141,8 +177,8 @@ class TestCommand extends Command<void> {
       return;
     }
     final process = await Process.start(
-      invocation.executable,
-      invocation.arguments,
+      run.executable,
+      run.arguments,
       // The resolved arguments are relative to the project, so the runner is
       // started in it rather than wherever this process happens to be.
       workingDirectory: root.path,

@@ -6810,6 +6810,15 @@ of the previous run, and every one of them changes which tests matter.
 computed from a stale graph is worse than no impact map, because it is
 confidently wrong about what it skipped.
 
+What is built: the diff is git's, against `HEAD`, with untracked files. A test
+is reached through what it imports, transitively, deleted files included, and
+through the data model and job names and the function and page paths the
+project graph says the changed files declare — so a function test that calls
+over HTTP and imports nothing is still reached. A change the query cannot
+place — a migration, the pubspec, configuration — runs the whole suite, and
+prose runs nothing. The skipped tests are not run; replaying their results
+from a cache is not built.
+
 ## Evals are tests
 
 `dartvel test --evals` runs the golden tests *AI Operations* defines as part of
