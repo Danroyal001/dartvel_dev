@@ -9,5 +9,5 @@ members = ["pkg/_fe_analyzer_shared/rust", "pkg/analyzer/rust"]
 
 [profile.release]
 debug = false
-lto = "thin"
+lto = "fat"
 codegen-units = 1
