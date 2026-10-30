@@ -15,7 +15,8 @@ starts from (the proposal's open question 1, answered: start from it).
 
 Under the One Language Rule, which refuses Python everywhere in `dartvel_dev`:
 
-- the Python tools: `tools/*.py`, `tools/codegen/*.py`, `bench/*.py`, and
+- the Python tools: `tools/*.py`, `tools/codegen/*.py`, `bench/*.py`,
+  `bench/memory.sh` (it runs `python3` inline), and
   `crates/dartr_server/tests/fixtures/minimal_edits/generate.py`. The code
   the codegen scripts generated is committed and kept; regenerating it means
   porting those scripts to Dart first. The Dart comparison tools in
