@@ -240,3 +240,80 @@ fn use_on_another_thread_fails_the_thread_check() {
     let result = std::thread::spawn(move || ptr.as_bool()).join();
     assert!(result.is_err());
 }
+
+mod task_runner_affine_weak_ptr_test {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use crate::memory::weak_ptr::TaskRunnerAffineWeakPtrFactory;
+    use crate::message_loop::MessageLoop;
+    use crate::raster_thread_merger::RasterThreadMerger;
+    use crate::raster_thread_merger_unittests::TaskQueueWrapper;
+    use crate::synchronization::waitable_event::AutoResetWaitableEvent;
+
+    #[test]
+    fn should_not_crash_if_running_on_the_same_task_runner() {
+        let queue1 = TaskQueueWrapper::new();
+
+        let slot: Arc<std::sync::Mutex<Option<MessageLoop>>> = Arc::default();
+        let latch2 = Arc::new(AutoResetWaitableEvent::new());
+        let term2 = Arc::new(AutoResetWaitableEvent::new());
+        let loop2_task_finish_latch = Arc::new(AutoResetWaitableEvent::new());
+        let loop2_task_start_latch = Arc::new(AutoResetWaitableEvent::new());
+        let matched = Arc::new(AtomicBool::new(false));
+        let thread2 = {
+            let (slot, latch2, term2, finish, start, matched) = (
+                slot.clone(),
+                latch2.clone(),
+                term2.clone(),
+                loop2_task_finish_latch.clone(),
+                loop2_task_start_latch.clone(),
+                matched.clone(),
+            );
+            std::thread::spawn(move || {
+                MessageLoop::ensure_initialized_for_current_thread();
+                let data = Arc::new(0i32);
+                let factory = Arc::new(TaskRunnerAffineWeakPtrFactory::new(&data));
+                let loop2 = MessageLoop::get_current();
+                *slot.lock().unwrap() = Some(loop2.clone());
+
+                let f = factory.clone();
+                let d = data.clone();
+                loop2.get_task_runner().post_task(Arc::new(move || {
+                    latch2.signal();
+                    start.wait();
+                    let ptr = f.get_weak_ptr();
+                    matched.store(ptr.get().is_some_and(|p| *p == *d), Ordering::SeqCst);
+                    finish.signal();
+                }));
+                loop2.run();
+                term2.wait();
+                drop(factory);
+            })
+        };
+
+        latch2.wait();
+        let loop2 = slot.lock().unwrap().take().unwrap();
+        let qid1 = queue1.get_task_queue_id();
+        let qid2 = loop2.get_task_runner().get_task_queue_id();
+        let raster_thread_merger = RasterThreadMerger::new(qid1, qid2);
+        const K_NUM_FRAMES_MERGED: usize = 5;
+
+        raster_thread_merger.merge_with_lease(K_NUM_FRAMES_MERGED);
+
+        loop2_task_start_latch.signal();
+        loop2_task_finish_latch.wait();
+
+        for _ in 0..K_NUM_FRAMES_MERGED {
+            assert!(raster_thread_merger.is_merged());
+            raster_thread_merger.decrement_lease();
+        }
+
+        assert!(!raster_thread_merger.is_merged());
+        loop2.terminate();
+
+        term2.signal();
+        thread2.join().unwrap();
+        assert!(matched.load(Ordering::SeqCst));
+    }
+}

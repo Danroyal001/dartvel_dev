@@ -51,12 +51,22 @@ mod hash_combine_unittests;
 #[cfg(test)]
 mod hex_codec_unittest;
 #[cfg(test)]
+mod logging_unittests;
+#[cfg(test)]
 mod math_unittests;
+#[cfg(test)]
+mod message_loop_unittests;
 #[cfg(test)]
 mod message_loop_task_queues_merge_unmerge_unittests;
 #[cfg(test)]
 mod message_loop_task_queues_unittests;
 #[cfg(test)]
+mod raster_thread_merger_unittests;
+#[cfg(test)]
 mod string_conversion_unittests;
 #[cfg(test)]
+mod task_runner_util_unittests;
+#[cfg(test)]
 mod task_source_unittests;
+#[cfg(test)]
+mod thread_unittests;

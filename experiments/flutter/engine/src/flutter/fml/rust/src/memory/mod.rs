@@ -17,4 +17,6 @@ pub mod weak_ptr_internal;
 #[cfg(test)]
 mod ref_counted_unittest;
 #[cfg(test)]
+mod task_runner_checker_unittest;
+#[cfg(test)]
 mod weak_ptr_unittest;
