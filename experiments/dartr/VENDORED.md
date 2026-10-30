@@ -77,7 +77,7 @@ No formatter source change was needed to get there.
   Dartvel's Flutter packages (`dartvel_flutter`, `dartvel_documents`,
   `dartvel_scene`, `dartvel_windowing`, `dartvel_dev`).
 
-The 16 root causes the comparison found are fixed, each with a project
+Every difference the comparison found is fixed, and each fix has a project
 under `crates/dartr/tests/fixtures/analyze_driver/lints_parity/` that
 `analyze_parity_lints_parity` compares with Dart; every one of them failed
 before its fix. Not compared yet: Flutter's other packages and pub.dev as a
