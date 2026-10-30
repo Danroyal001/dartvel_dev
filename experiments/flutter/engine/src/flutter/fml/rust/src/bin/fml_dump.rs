@@ -15,7 +15,14 @@ use fml::endianness::{big_endian_to_arch, byte_swap, little_endian_to_arch};
 use fml::hash_combine::ByteString;
 use fml::hex_codec::hex_encode;
 use fml::string_conversion::{join, path_to_utf8, try_utf16_to_utf8, try_utf8_to_utf16};
+use fml::message_loop_task_queues::MessageLoopTaskQueues;
+use fml::synchronization::count_down_latch::CountDownLatch;
+use fml::task_queue_id::TaskQueueId;
+use fml::task_source_grade::TaskSourceGrade;
+use fml::wakeable::Wakeable;
 use fml::{hash_combine, hash_combine_seed};
+use std::collections::BTreeMap;
+use std::sync::{Arc, Weak};
 
 use fml::time::time_delta::{
     TimeDelta, kDefaultFrameBudget, refresh_rate_to_frame_budget, timespec,
@@ -467,7 +474,7 @@ fn suite_hash(r: &mut Rng, cases: i32) {
         let t = ByteString(&t);
         let f = gen_f32(r);
         let g = gen_f64(r);
-        let grade = r.below(3) as i32;
+        let grade = grade_of(r.below(3));
         let u8v = r.next() as u8;
         let i16v = r.next() as i16;
         let ch = r.next() as i8;
@@ -539,6 +546,287 @@ fn suite_trie(r: &mut Rng, cases: i32) {
     }
 }
 
+// ------------------------------------------------------------- queues ------
+
+fn grade_of(n: u64) -> TaskSourceGrade {
+    match n {
+        0 => TaskSourceGrade::kUserInteraction,
+        1 => TaskSourceGrade::kDartEventLoop,
+        _ => TaskSourceGrade::kUnspecified,
+    }
+}
+
+struct Recorder {
+    queue_: usize,
+}
+
+impl Wakeable for Recorder {
+    fn wake_up(&self, time_point: TimePoint) {
+        p!("  wake {} {}", self.queue_, time_point.to_epoch_delta().to_nanoseconds());
+    }
+}
+
+fn gen_target(r: &mut Rng) -> TimePoint {
+    match r.below(16) {
+        0 => TimePoint::max(),
+        1 => TimePoint::min(),
+        _ => TimePoint::from_ticks(r.below(100) as i64),
+    }
+}
+
+fn suite_queues(r: &mut Rng, cases: i32) {
+    let queues = MessageLoopTaskQueues::get_instance();
+    let mut task_counter = 0;
+    for i in 0..cases {
+        p!("case {i}");
+        let mut recorders: Vec<Arc<Recorder>> = Vec::new();
+        let mut live: Vec<TaskQueueId> = Vec::new();
+        let mut subsumed_by: BTreeMap<TaskQueueId, TaskQueueId> = BTreeMap::new();
+        let mut pauses: BTreeMap<TaskQueueId, i32> = BTreeMap::new();
+        let pick = |r: &mut Rng, live: &Vec<TaskQueueId>| live[r.below(live.len() as u64) as usize];
+        let ops = 10 + r.below(60) as i32;
+        for _ in 0..ops {
+            let kind = if live.is_empty() { 0 } else { r.below(20) };
+            match kind {
+                0 | 1 => {
+                    if live.len() >= 6 {
+                        continue;
+                    }
+                    let q = queues.create_task_queue();
+                    live.push(q);
+                    p!("create {q}");
+                    if r.chance(2) {
+                        recorders.push(Arc::new(Recorder { queue_: q.value() }));
+                        p!("wakeable {q}");
+                        let weak: Weak<dyn Wakeable> =
+                            Arc::downgrade(recorders.last().unwrap()) as Weak<dyn Wakeable>;
+                        queues.set_wakeable(q, weak);
+                    }
+                }
+                2..=6 => {
+                    let q = pick(r, &live);
+                    let t = gen_target(r);
+                    let grade = grade_of(r.below(3));
+                    let id = task_counter;
+                    task_counter += 1;
+                    p!("reg {q} task{id} {} {}", t.to_epoch_delta().to_nanoseconds(), grade as i32);
+                    queues.register_task(q, Arc::new(move || p!("  run task{id}")), t, grade);
+                }
+                7..=9 => {
+                    let q = pick(r, &live);
+                    let from = if r.chance(8) {
+                        TimePoint::max()
+                    } else {
+                        TimePoint::from_ticks(r.below(120) as i64)
+                    };
+                    p!("next {q} {}", from.to_epoch_delta().to_nanoseconds());
+                    match queues.get_next_task_to_run(q, from) {
+                        Some(task) => {
+                            task();
+                            let grade = MessageLoopTaskQueues::get_current_task_source_grade();
+                            p!("  grade {}", grade as i32);
+                        }
+                        None => p!("  none"),
+                    }
+                }
+                10 => {
+                    let q = pick(r, &live);
+                    let has = queues.has_pending_tasks(q) as i32;
+                    let num = queues.get_num_pending_tasks(q);
+                    p!("pending {q} {has} {num}");
+                }
+                11 => {
+                    let a = pick(r, &live);
+                    let b = pick(r, &live);
+                    p!("merge {a} {b}");
+                    let ok = queues.merge(a, b);
+                    p!("  -> {}", ok as i32);
+                    if ok && a != b {
+                        subsumed_by.insert(b, a);
+                    }
+                }
+                12 => {
+                    let a = pick(r, &live);
+                    let b = pick(r, &live);
+                    p!("unmerge {a} {b}");
+                    let ok = queues.unmerge(a, b);
+                    p!("  -> {}", ok as i32);
+                    if ok {
+                        subsumed_by.remove(&b);
+                    }
+                }
+                13 => {
+                    let a = pick(r, &live);
+                    let b = pick(r, &live);
+                    let owns = queues.owns(a, b) as i32;
+                    let set = queues.get_subsumed_task_queue_id(a);
+                    w!("owns {a} {b} {owns} [");
+                    for s in set {
+                        w!(" {s}");
+                    }
+                    p!(" ]");
+                }
+                14 => {
+                    let q = pick(r, &live);
+                    let pause = *pauses.entry(q).or_insert(0) == 0 || r.chance(2);
+                    p!("{} {q}", if pause { "pause" } else { "resume" });
+                    if pause {
+                        *pauses.get_mut(&q).unwrap() += 1;
+                        queues.pause_secondary_source(q);
+                    } else {
+                        *pauses.get_mut(&q).unwrap() -= 1;
+                        queues.resume_secondary_source(q);
+                    }
+                }
+                15 => {
+                    let q = pick(r, &live);
+                    let key = r.below(5) as isize - 1;
+                    let qv = q.value();
+                    p!("observe {qv} {key}");
+                    queues.add_task_observer(q, key, Arc::new(move || p!("  obs {qv} {key}")));
+                }
+                16 => {
+                    let q = pick(r, &live);
+                    let key = r.below(5) as isize - 1;
+                    p!("unobserve {q} {key}");
+                    queues.remove_task_observer(q, key);
+                }
+                17 => {
+                    let q = pick(r, &live);
+                    p!("notify {q}");
+                    for observer in queues.get_observers_to_notify(q) {
+                        observer();
+                    }
+                }
+                18 => {
+                    let q = pick(r, &live);
+                    if subsumed_by.contains_key(&q) {
+                        continue;
+                    }
+                    p!("dispose_tasks {q}");
+                    queues.dispose_tasks(q);
+                }
+                _ => {
+                    let q = pick(r, &live);
+                    if subsumed_by.contains_key(&q) {
+                        continue;
+                    }
+                    p!("dispose {q}");
+                    queues.dispose(q);
+                    let mut kept = Vec::new();
+                    for &l in &live {
+                        let gone = l == q || subsumed_by.get(&l) == Some(&q);
+                        if gone {
+                            subsumed_by.remove(&l);
+                        } else {
+                            kept.push(l);
+                        }
+                    }
+                    live = kept;
+                }
+            }
+        }
+        for &q in &live {
+            if !subsumed_by.contains_key(&q) {
+                queues.dispose(q);
+            }
+        }
+        drop(recorders);
+    }
+}
+
+// -------------------------------------------------------------- bench ------
+
+// flutter/fml/message_loop_task_queues_benchmark.cc, BM_RegisterAndGetTasks,
+// one iteration of its loop body.
+fn bench_register_and_get_tasks() {
+    let task_queue = MessageLoopTaskQueues::get_instance();
+    const NUM_TASK_QUEUES: usize = 10;
+    const NUM_TASKS_PER_QUEUE: i32 = 100;
+    let past = TimePoint::now();
+    for _ in 0..NUM_TASK_QUEUES {
+        task_queue.create_task_queue();
+    }
+    let tasks_registered = CountDownLatch::new(NUM_TASK_QUEUES);
+    let tasks_done = CountDownLatch::new(NUM_TASK_QUEUES);
+    std::thread::scope(|s| {
+        for i in 0..NUM_TASK_QUEUES {
+            let (tasks_registered, tasks_done) = (&tasks_registered, &tasks_done);
+            s.spawn(move || {
+                let task_runner_id = i;
+                for _ in 0..NUM_TASKS_PER_QUEUE {
+                    task_queue.register_task(
+                        TaskQueueId::new(task_runner_id),
+                        Arc::new(|| {}),
+                        past,
+                        TaskSourceGrade::kUnspecified,
+                    );
+                }
+                tasks_registered.count_down();
+                tasks_registered.wait();
+                let now = TimePoint::now();
+                let mut num_invocations = 0;
+                loop {
+                    let invocation =
+                        task_queue.get_next_task_to_run(TaskQueueId::new(task_runner_id), now);
+                    if invocation.is_none() {
+                        break;
+                    }
+                    num_invocations += 1;
+                }
+                if num_invocations != NUM_TASKS_PER_QUEUE {
+                    std::process::abort();
+                }
+                tasks_done.count_down();
+            });
+        }
+        tasks_done.wait();
+    });
+}
+
+fn peak_rss_kib() -> i64 {
+    let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
+        return -1;
+    };
+    status
+        .lines()
+        .find_map(|l| l.strip_prefix("VmHWM:"))
+        .and_then(|v| v.trim().trim_end_matches("kB").trim().parse().ok())
+        .unwrap_or(-1)
+}
+
+fn bench(name: &str, iterations: i32) {
+    let mut rounds = Vec::new();
+    for i in 0..iterations {
+        let start = std::time::Instant::now();
+        if name == "queues" {
+            bench_register_and_get_tasks();
+        } else {
+            let mut r = Rng { s: i as u64 };
+            match name {
+                "time" => suite_time(&mut r, 20000),
+                "strings" => suite_strings(&mut r, 20000),
+                "hash" => suite_hash(&mut r, 20000),
+                "dispatch" => suite_queues(&mut r, 2000),
+                _ => {
+                    eprintln!("unknown bench {name}");
+                    std::process::exit(2);
+                }
+            }
+            // Output goes to /dev/null in the C++ driver; drop it here.
+            OUT.lock().unwrap().clear();
+        }
+        rounds.push(start.elapsed().as_secs_f64() * 1e6);
+    }
+    rounds.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    eprintln!(
+        "bench {name} fastest {:.1} us median {:.1} us peak_rss {} KiB",
+        rounds[0],
+        rounds[rounds.len() / 2],
+        peak_rss_kib()
+    );
+}
+
 // -------------------------------------------------------------- main -------
 
 fn run_suite(suite: &str, r: &mut Rng, cases: i32) -> bool {
@@ -568,6 +856,10 @@ fn run_suite(suite: &str, r: &mut Rng, cases: i32) -> bool {
         known = true;
         suite_trie(r, cases);
     }
+    if all || suite == "queues" {
+        known = true;
+        suite_queues(r, cases);
+    }
     known
 }
 
@@ -578,6 +870,10 @@ fn main() {
         std::process::exit(2);
     }
     let suite = args[1].as_str();
+    if suite == "bench" {
+        bench(&args[2], args[3].parse().unwrap_or(1));
+        return;
+    }
     let mut r = Rng { s: args[2].parse().unwrap_or(0) };
     let cases: i32 = args[3].parse().unwrap_or(0);
     if !run_suite(suite, &mut r, cases) {
