@@ -98,7 +98,7 @@ mod rounding_radii_unittests;
 #[cfg(test)]
 mod saturated_math_unittests;
 #[cfg(test)]
-// mod arc_unittests;
+mod arc_unittests;
 #[cfg(test)]
 mod geometry_unittests;
 #[cfg(test)]
