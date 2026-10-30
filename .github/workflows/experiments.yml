@@ -97,6 +97,6 @@ jobs:
           DARTR_DART_SDK_SOURCE: ${{ runner.temp }}/dart-sdk
         run: |
           set -euo pipefail
-          cargo test --release -p dartr --test lint_internal_errors
+          cargo test --release -p dartr --test lint_internal_errors --test resolver_internal_errors
           cargo test --release -p dartr_lints --test differential
           cargo test --release -p dartr --test 'difftest_*'
