@@ -1065,6 +1065,14 @@ impl<'a> TypeSystem<'a> {
         crate::least_upper_bound::LeastUpperBoundHelper::new(*self).get_least_upper_bound(t1, t2)
     }
 
+    /// `leastUpperBound(t1, t2)` of two types that are distinct Dart objects
+    /// even when equal (see
+    /// [`crate::least_upper_bound::LeastUpperBoundHelper::get_least_upper_bound_of_distinct`]).
+    pub fn least_upper_bound_of_distinct(&self, t1: TypeId, t2: TypeId) -> TypeId {
+        crate::least_upper_bound::LeastUpperBoundHelper::new(*self)
+            .get_least_upper_bound_of_distinct(t1, t2)
+    }
+
     /// `matchSupertypeConstraints(typeParameters, srcTypes, destTypes, ...)`:
     /// attempts to find the appropriate substitution for the
     /// [type_parameters] that can be applied to [src_types] to make it equal

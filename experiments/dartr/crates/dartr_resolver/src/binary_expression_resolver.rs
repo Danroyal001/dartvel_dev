@@ -218,7 +218,13 @@ fn resolve_if_null(rv: &mut ResolverVisitor<'_>, node: Id<BinaryExpression>, con
 
     // - Let `T` be `UP(NonNull(T1), T2)`.
     let non_null_t1 = ts.promote_to_non_null(t1);
-    let t = ts.least_upper_bound(non_null_t1, t2);
+    // `TypeSystemImpl.promoteToNonNull` builds a new `TypeParameterTypeImpl`
+    // for a type parameter type, which is never `identical` to `T2`.
+    let t = if matches!(rv.ctx.ty(t1), TypeKind::TypeParameter { .. }) {
+        ts.least_upper_bound_of_distinct(non_null_t1, t2)
+    } else {
+        ts.least_upper_bound(non_null_t1, t2)
+    };
 
     // - Let `S` be the greatest closure of `K`.
     let s = ts.greatest_closure_of_schema(context_type);

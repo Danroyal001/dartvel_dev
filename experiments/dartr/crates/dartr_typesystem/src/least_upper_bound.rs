@@ -504,6 +504,20 @@ impl<'a> LeastUpperBoundHelper<'a> {
     /// See `resources/type-system/upper-lower-bounds.md`
     #[allow(non_snake_case)]
     pub fn get_least_upper_bound(&self, T1: TypeId, T2: TypeId) -> TypeId {
+        self.least_upper_bound(T1, T2, false)
+    }
+
+    /// `getLeastUpperBound(T1, T2)` of two types the caller knows are
+    /// distinct Dart objects even when they are equal, such as
+    /// `promoteToNonNull` of a type parameter type, which always builds a
+    /// new `TypeParameterTypeImpl`: `identical(T1, T2)` is false for them.
+    #[allow(non_snake_case)]
+    pub fn get_least_upper_bound_of_distinct(&self, T1: TypeId, T2: TypeId) -> TypeId {
+        self.least_upper_bound(T1, T2, true)
+    }
+
+    #[allow(non_snake_case)]
+    fn least_upper_bound(&self, T1: TypeId, T2: TypeId, distinct: bool) -> TypeId {
         let _guard = crate::recursion_guard::enter("UP");
         let ts = self.type_system;
         let ctx = self.ctx();
@@ -514,7 +528,7 @@ impl<'a> LeastUpperBoundHelper<'a> {
         // example the types of `x!` and `y!`, or of two declarations), and
         // the record and function cases below build a new type without the
         // alias. Interned equal types with an alias go there too.
-        if T1 == T2 && !Self::is_aliased_record_or_function(&ctx, T1) {
+        if T1 == T2 && !distinct && !Self::is_aliased_record_or_function(&ctx, T1) {
             return T1;
         }
 
