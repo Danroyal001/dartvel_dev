@@ -113,6 +113,7 @@ pub mod src {
     }
     pub mod summary2 {
         pub mod type_builder;
+        pub mod default_types_builder;
         pub mod reference_resolver;
         pub mod element_builder;
         pub mod export;
