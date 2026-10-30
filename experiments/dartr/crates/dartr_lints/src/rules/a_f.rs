@@ -1355,7 +1355,8 @@ fn report_directive(
         c.report_node(out, code, node, args);
     }
 }
-fn check_directive_group(
+/// Dart `_checkDartDirectiveGoFirst`, for one kind of directive.
+fn check_dart_directive_go_first(
     c: &LinterContext<'_>,
     out: &mut Vec<Diagnostic>,
     items: &[(NodeId, String)],
@@ -1380,6 +1381,16 @@ fn check_directive_group(
             );
         }
     }
+}
+
+/// Dart `_checkPackageDirectiveBeforeRelative`, for one kind of directive.
+fn check_package_directive_before_relative(
+    c: &LinterContext<'_>,
+    out: &mut Vec<Diagnostic>,
+    items: &[(NodeId, String)],
+    kind: &str,
+    linted: &mut Vec<NodeId>,
+) {
     let non_dart: Vec<_> = items
         .iter()
         .filter(|(_, uri)| !uri.starts_with("dart:"))
@@ -1402,7 +1413,19 @@ fn check_directive_group(
             );
         }
     }
-    for category in 0..3 {
+}
+
+/// Dart `_checkSectionInOrder` for the section of [items] in [category]
+/// (0: `dart:`, 1: relative, 2: `package:`), as
+/// `_checkDirectiveSectionOrderedAlphabetically` calls it.
+fn check_section_in_order(
+    c: &LinterContext<'_>,
+    out: &mut Vec<Diagnostic>,
+    items: &[(NodeId, String)],
+    category: usize,
+    linted: &mut Vec<NodeId>,
+) {
+    {
         let filtered: Vec<_> = items
             .iter()
             .filter(|(_, uri)| match category {
@@ -1447,9 +1470,14 @@ fn directives_ordering(c: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagno
             _ => {}
         }
     }
+    // Dart `_Visitor.visitCompilationUnit`: the checks run in this order and
+    // each directive is reported once (`lintedNodes`), so the first check
+    // that flags a directive decides its message.
     let mut linted = vec![];
-    check_directive_group(c, out, &imports, "import", &mut linted);
-    check_directive_group(c, out, &exports, "export", &mut linted);
+    check_dart_directive_go_first(c, out, &imports, "import", &mut linted);
+    check_dart_directive_go_first(c, out, &exports, "export", &mut linted);
+    check_package_directive_before_relative(c, out, &imports, "import", &mut linted);
+    check_package_directive_before_relative(c, out, &exports, "export", &mut linted);
     let mut index = directives.len();
     while index > 0 && c.ast.kind(directives[index - 1]) == NodeKind::PartDirective {
         index -= 1
@@ -1468,6 +1496,10 @@ fn directives_ordering(c: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagno
                 &mut linted,
             );
         }
+    }
+    for category in 0..3 {
+        check_section_in_order(c, out, &imports, category, &mut linted);
+        check_section_in_order(c, out, &exports, category, &mut linted);
     }
     // Doc imports have their own AST arena, so perform the same ordering and report their absolute source ranges directly.
     for directive in directives {
