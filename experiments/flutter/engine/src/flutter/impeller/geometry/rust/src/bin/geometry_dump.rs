@@ -14,7 +14,15 @@ use impeller_geometry::half::*;
 use impeller_geometry::matrix::*;
 use impeller_geometry::matrix_decomposition::*;
 use impeller_geometry::quaternion::*;
+use impeller_geometry::gradient::*;
+use impeller_geometry::rational::*;
 use impeller_geometry::rect::*;
+use impeller_geometry::rstransform::*;
+use impeller_geometry::separated_vector::*;
+use impeller_geometry::sigma::*;
+use impeller_geometry::stroke_parameters::*;
+use impeller_geometry::trig::*;
+use impeller_geometry::wangs_formula::*;
 use impeller_geometry::shear::*;
 use impeller_geometry::vector::*;
 use impeller_geometry::saturated;
@@ -2047,6 +2055,216 @@ fn suite_rect(r: &mut Rng, o: &mut Out, cases: i32) {
     }
 }
 
+// ------------------------------------------------------------------ misc ---
+
+fn suite_misc(r: &mut Rng, o: &mut Out, cases: i32) {
+    for _ in 0..cases {
+        let angle = if r.chance(3) { edge_f(r) } else { sane_f(r) };
+        let tc = edge_d(r);
+        let ts = edge_d(r);
+        let v = if r.chance(3) { edge_p(r) } else { sane_p(r) };
+        let rad = edge_d(r);
+        let sz = edge_s(r);
+        o.tag("trig");
+        o.f(angle);
+        o.d(tc);
+        o.d(ts);
+        o.p(v);
+        o.d(rad);
+        o.sz(sz);
+        o.arrow();
+        let t = Trig::from_radians(Radians::new(angle));
+        o.d(t.cos);
+        o.d(t.sin);
+        o.p(t * v);
+        o.p(t * rad);
+        o.p(t * sz);
+        let n = -t;
+        o.d(n.cos);
+        o.d(n.sin);
+        let u = Trig::new(tc, ts);
+        o.p(u * v);
+        o.p(u * rad);
+        o.p(u * sz);
+        o.end();
+
+        let sg = edge_f(r);
+        o.tag("sigma");
+        o.f(sg);
+        o.arrow();
+        o.f(Radius::from(Sigma::new(sg)).radius);
+        o.f(Sigma::from(Radius::new(sg)).sigma);
+        o.f(Sigma::default().sigma);
+        o.f(Radius::default().radius);
+        o.f(kKernelRadiusPerSigma);
+        o.end();
+
+        let d0 = if r.chance(3) { edge_p(r) } else { sane_p(r) };
+        let d1 = if r.chance(3) { edge_p(r) } else { sane_p(r) };
+        let mag = edge_f(r);
+        o.tag("separated");
+        o.p(d0);
+        o.p(d1);
+        o.f(mag);
+        o.arrow();
+        let s0 = SeparatedVector2::from_vector(d0);
+        let s1 = SeparatedVector2::from_vector(d1);
+        let s2 = SeparatedVector2::new(d0, mag);
+        let s3 = SeparatedVector2::default();
+        o.p(s0.direction);
+        o.f(s0.magnitude);
+        o.p(s0.get_vector());
+        o.p(s0.get_direction());
+        o.f(s0.get_alignment(&s1));
+        o.f(s0.angle_to(&s1).radians);
+        o.f(s0.cross(&s1));
+        o.p(s2.get_vector());
+        o.f(s2.get_alignment(&s0));
+        o.p(s3.direction);
+        o.f(s3.magnitude);
+        o.end();
+
+        let mut num = edge_i(r, 32) as i32;
+        let mut den = edge_i(r, 32) as u32;
+        let mut num2 =
+            if r.chance(2) { num.wrapping_mul(r.below(5) as i32) } else { edge_i(r, 32) as i32 };
+        let mut den2 =
+            if r.chance(2) { den.wrapping_mul(r.below(5) as u32) } else { edge_i(r, 32) as u32 };
+        if r.chance(4) {
+            num = r.below(21) as i32 - 10;
+            den = r.below(10) as u32;
+            num2 = r.below(21) as i32 - 10;
+            den2 = r.below(10) as u32;
+        }
+        let ra = Rational::new(num, den);
+        let rb = Rational::new(num2, den2);
+        o.tag("rational");
+        o.i(num as i64);
+        o.u(den as u64);
+        o.i(num2 as i64);
+        o.u(den2 as u64);
+        o.arrow();
+        o.i(ra.get_numerator() as i64);
+        o.u(ra.get_denominator() as u64);
+        o.b(ra == rb);
+        o.b(ra.lt(&rb));
+        o.b(rb.lt(&ra));
+        o.u(ra.get_hash());
+        o.f(ra.to_scalar());
+        let inv = ra.invert();
+        o.i(inv.get_numerator() as i64);
+        o.u(inv.get_denominator() as u64);
+        let one = Rational::from_int(num);
+        o.u(one.get_denominator() as u64);
+        o.end();
+
+        let origin = if r.chance(3) { edge_p(r) } else { sane_p(r) };
+        let scale = if r.chance(3) { edge_f(r) } else { sane_f(r) };
+        let w = if r.chance(3) { edge_f(r) } else { sane_f(r) };
+        let h = if r.chance(3) { edge_f(r) } else { sane_f(r) };
+        let c0 = edge_f(r);
+        let c1 = edge_f(r);
+        o.tag("rstransform");
+        o.p(origin);
+        o.f(scale);
+        o.f(angle);
+        o.f(w);
+        o.f(h);
+        o.f(c0);
+        o.f(c1);
+        o.arrow();
+        let rst = RSTransform::make(origin, scale, Radians::new(angle));
+        o.f(rst.scaled_cos);
+        o.f(rst.scaled_sin);
+        o.f(rst.translate_x);
+        o.f(rst.translate_y);
+        o.b(rst.is_axis_aligned());
+        o.m(&rst.get_matrix());
+        for p in rst.get_quad(w, h) {
+            o.p(p);
+        }
+        for p in rst.get_quad_size(Size::new(h, w)) {
+            o.p(p);
+        }
+        o.opt_r(rst.get_bounds(w, h));
+        o.opt_r(rst.get_bounds_size(Size::new(h, w)));
+        let raw = RSTransform::new(c0, c1, w, h);
+        o.b(raw.is_axis_aligned());
+        o.m(&raw.get_matrix());
+        o.opt_r(raw.get_bounds(scale, scale));
+        let def = RSTransform::default();
+        o.f(def.scaled_cos);
+        o.f(def.scaled_sin);
+        o.end();
+
+        let p0 = if r.chance(4) { edge_p(r) } else { sane_p(r) };
+        let p1 = if r.chance(4) { edge_p(r) } else { sane_p(r) };
+        let p2 = if r.chance(4) { edge_p(r) } else { sane_p(r) };
+        let p3 = if r.chance(4) { edge_p(r) } else { sane_p(r) };
+        let sf = if r.chance(4) { edge_f(r) } else { (r.unit() * 4.0) as f32 };
+        let cw = if r.chance(4) { edge_f(r) } else { (r.unit() * 2.0) as f32 };
+        o.tag("wangs");
+        o.p(p0);
+        o.p(p1);
+        o.p(p2);
+        o.p(p3);
+        o.f(sf);
+        o.f(cw);
+        o.arrow();
+        o.f(compute_cubic_subdivisions(sf, p0, p1, p2, p3));
+        o.f(compute_quadradic_subdivisions(sf, p0, p1, p2));
+        o.f(compute_conic_subdivisions(sf, p0, p1, p2, cw));
+        o.end();
+
+        let nc = 2 + r.below(7) as usize;
+        let mut colors = Vec::new();
+        let mut stops: Vec<f32> = Vec::new();
+        for _ in 0..nc {
+            colors.push(comp_c(r));
+        }
+        if nc == 2 && r.chance(2) {
+            let s0 = edge_f(r);
+            let s1 = edge_f(r);
+            stops = vec![s0, s1];
+        } else {
+            stops.push(0.0);
+            for _ in 1..nc - 1 {
+                let prev = *stops.last().unwrap();
+                let step = match r.below(4) {
+                    0 => 0.0,
+                    1 => (r.unit() * 1e-3) as f32,
+                    _ => (r.unit() * (1.0 - prev as f64) * 0.5) as f32,
+                };
+                stops.push(cxx::min(1.0, prev + step));
+            }
+            stops.push(1.0);
+        }
+        o.tag("gradient");
+        for i in 0..colors.len() {
+            o.c(colors[i]);
+            o.f(stops[i]);
+        }
+        o.arrow();
+        let g = create_gradient_buffer(&colors, &stops);
+        o.u(g.colors.len() as u64);
+        for col in &g.colors {
+            o.c(*col);
+        }
+        o.end();
+
+        let sp = StrokeParameters::default();
+        let sq = StrokeParameters { width: w, cap: Cap::kRound, join: Join::kBevel, miter_limit: h };
+        o.tag("stroke");
+        o.f(sp.width);
+        o.i(sp.cap as i64);
+        o.i(sp.join as i64);
+        o.f(sp.miter_limit);
+        o.b(sp == sq);
+        o.b(sq == sq);
+        o.end();
+    }
+}
+
 // ----------------------------------------------------------------- main ----
 
 type Suite = fn(&mut Rng, &mut Out, i32);
@@ -2059,6 +2277,7 @@ const SUITES: &[(&str, Suite)] =
         ("color", suite_color),
         ("matrix", suite_matrix),
         ("rect", suite_rect),
+        ("misc", suite_misc),
     ];
 
 fn main() {

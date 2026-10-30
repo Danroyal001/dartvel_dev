@@ -26,11 +26,19 @@
 
 #include "impeller/geometry/color.h"
 #include "impeller/geometry/constants.h"
+#include "impeller/geometry/gradient.h"
 #include "impeller/geometry/half.h"
 #include "impeller/geometry/matrix.h"
 #include "impeller/geometry/matrix_decomposition.h"
 #include "impeller/geometry/quaternion.h"
+#include "impeller/geometry/rational.h"
 #include "impeller/geometry/rect.h"
+#include "impeller/geometry/rstransform.h"
+#include "impeller/geometry/separated_vector.h"
+#include "impeller/geometry/sigma.h"
+#include "impeller/geometry/stroke_parameters.h"
+#include "impeller/geometry/trig.h"
+#include "impeller/geometry/wangs_formula.h"
 #include "impeller/geometry/shear.h"
 #include "impeller/geometry/point.h"
 #include "impeller/geometry/size.h"
@@ -2059,6 +2067,219 @@ static void SuiteRect(Rng& r, int cases) {
   }
 }
 
+// ------------------------------------------------------------------ misc ---
+
+static void SuiteMisc(Rng& r, int cases) {
+  for (int c = 0; c < cases; c++) {
+    float angle = r.Chance(3) ? EdgeF(r) : SaneF(r);
+    double tc = EdgeD(r);
+    double ts = EdgeD(r);
+    Point v = r.Chance(3) ? EdgeP(r) : SaneP(r);
+    double rad = EdgeD(r);
+    Size sz = EdgeS(r);
+    Tag("trig");
+    F(angle);
+    D(tc);
+    D(ts);
+    P(v);
+    D(rad);
+    SZ(sz);
+    Arrow();
+    Trig t(Radians{angle});
+    D(t.cos);
+    D(t.sin);
+    P(t * v);
+    P(t * rad);
+    P(t * sz);
+    Trig n = -t;
+    D(n.cos);
+    D(n.sin);
+    Trig u(tc, ts);
+    P(u * v);
+    P(u * rad);
+    P(u * sz);
+    End();
+
+    float sg = EdgeF(r);
+    Tag("sigma");
+    F(sg);
+    Arrow();
+    F(Radius(Sigma(sg)).radius);
+    F(Sigma(Radius(sg)).sigma);
+    F(Sigma().sigma);
+    F(Radius().radius);
+    F(kKernelRadiusPerSigma);
+    End();
+
+    Point d0 = r.Chance(3) ? EdgeP(r) : SaneP(r);
+    Point d1 = r.Chance(3) ? EdgeP(r) : SaneP(r);
+    float mag = EdgeF(r);
+    Tag("separated");
+    P(d0);
+    P(d1);
+    F(mag);
+    Arrow();
+    SeparatedVector2 s0(d0);
+    SeparatedVector2 s1(d1);
+    SeparatedVector2 s2(d0, mag);
+    SeparatedVector2 s3;
+    P(s0.direction);
+    F(s0.magnitude);
+    P(s0.GetVector());
+    P(s0.GetDirection());
+    F(s0.GetAlignment(s1));
+    F(s0.AngleTo(s1).radians);
+    F(s0.Cross(s1));
+    P(s2.GetVector());
+    F(s2.GetAlignment(s0));
+    P(s3.direction);
+    F(s3.magnitude);
+    End();
+
+    int32_t num = static_cast<int32_t>(EdgeI(r, 32));
+    uint32_t den = static_cast<uint32_t>(EdgeI(r, 32));
+    int32_t num2 = r.Chance(2) ? num * static_cast<int32_t>(r.Below(5))
+                               : static_cast<int32_t>(EdgeI(r, 32));
+    uint32_t den2 = r.Chance(2) ? den * static_cast<uint32_t>(r.Below(5))
+                                : static_cast<uint32_t>(EdgeI(r, 32));
+    if (r.Chance(4)) {
+      num = static_cast<int32_t>(r.Below(21)) - 10;
+      den = static_cast<uint32_t>(r.Below(10));
+      num2 = static_cast<int32_t>(r.Below(21)) - 10;
+      den2 = static_cast<uint32_t>(r.Below(10));
+    }
+    Rational ra(num, den);
+    Rational rb(num2, den2);
+    Tag("rational");
+    I(num);
+    U(den);
+    I(num2);
+    U(den2);
+    Arrow();
+    I(ra.GetNumerator());
+    U(ra.GetDenominator());
+    B(ra == rb);
+    B(ra < rb);
+    B(rb < ra);
+    U(ra.GetHash());
+    F(static_cast<Scalar>(ra));
+    Rational inv = ra.Invert();
+    I(inv.GetNumerator());
+    U(inv.GetDenominator());
+    Rational one(num);
+    U(one.GetDenominator());
+    End();
+
+    Point origin = r.Chance(3) ? EdgeP(r) : SaneP(r);
+    float scale = r.Chance(3) ? EdgeF(r) : SaneF(r);
+    float w = r.Chance(3) ? EdgeF(r) : SaneF(r);
+    float h = r.Chance(3) ? EdgeF(r) : SaneF(r);
+    float c0 = EdgeF(r), c1 = EdgeF(r);
+    Tag("rstransform");
+    P(origin);
+    F(scale);
+    F(angle);
+    F(w);
+    F(h);
+    F(c0);
+    F(c1);
+    Arrow();
+    RSTransform rst = RSTransform::Make(origin, scale, Radians{angle});
+    F(rst.scaled_cos);
+    F(rst.scaled_sin);
+    F(rst.translate_x);
+    F(rst.translate_y);
+    B(rst.IsAxisAligned());
+    M(rst.GetMatrix());
+    for (const auto& p : rst.GetQuad(w, h)) {
+      P(p);
+    }
+    for (const auto& p : rst.GetQuad(Size(h, w))) {
+      P(p);
+    }
+    OptR(rst.GetBounds(w, h));
+    OptR(rst.GetBounds(Size(h, w)));
+    RSTransform raw(c0, c1, w, h);
+    B(raw.IsAxisAligned());
+    M(raw.GetMatrix());
+    OptR(raw.GetBounds(scale, scale));
+    RSTransform def;
+    F(def.scaled_cos);
+    F(def.scaled_sin);
+    End();
+
+    Point p0 = r.Chance(4) ? EdgeP(r) : SaneP(r);
+    Point p1 = r.Chance(4) ? EdgeP(r) : SaneP(r);
+    Point p2 = r.Chance(4) ? EdgeP(r) : SaneP(r);
+    Point p3 = r.Chance(4) ? EdgeP(r) : SaneP(r);
+    float sf = r.Chance(4) ? EdgeF(r) : static_cast<float>(r.Unit() * 4.0);
+    float cw = r.Chance(4) ? EdgeF(r) : static_cast<float>(r.Unit() * 2.0);
+    Tag("wangs");
+    P(p0);
+    P(p1);
+    P(p2);
+    P(p3);
+    F(sf);
+    F(cw);
+    Arrow();
+    F(ComputeCubicSubdivisions(sf, p0, p1, p2, p3));
+    F(ComputeQuadradicSubdivisions(sf, p0, p1, p2));
+    F(ComputeConicSubdivisions(sf, p0, p1, p2, cw));
+    End();
+
+    // Gradients: 2 to 8 colors; stops sorted, from 0 to 1 when there are
+    // more than two (upstream reads past the colors otherwise).
+    int nc = 2 + static_cast<int>(r.Below(7));
+    std::vector<Color> colors;
+    std::vector<Scalar> stops;
+    for (int i = 0; i < nc; i++) {
+      colors.push_back(CompC(r));
+    }
+    if (nc == 2 && r.Chance(2)) {
+      float s0 = EdgeF(r);
+      float s1 = EdgeF(r);
+      stops = {s0, s1};
+    } else {
+      stops.push_back(0.0f);
+      for (int i = 1; i < nc - 1; i++) {
+        float prev = stops.back();
+        float step;
+        switch (r.Below(4)) {
+          case 0: step = 0.0f; break;
+          case 1: step = static_cast<float>(r.Unit() * 1e-3); break;
+          default: step = static_cast<float>(r.Unit() * (1.0 - prev) * 0.5); break;
+        }
+        stops.push_back(std::min(1.0f, prev + step));
+      }
+      stops.push_back(1.0f);
+    }
+    Tag("gradient");
+    for (size_t i = 0; i < colors.size(); i++) {
+      C(colors[i]);
+      F(stops[i]);
+    }
+    Arrow();
+    GradientData g = CreateGradientBuffer(colors, stops);
+    U(g.colors.size());
+    for (const auto& col : g.colors) {
+      C(col);
+    }
+    End();
+
+    StrokeParameters sp;
+    StrokeParameters sq{.width = w, .cap = Cap::kRound, .join = Join::kBevel,
+                        .miter_limit = h};
+    Tag("stroke");
+    F(sp.width);
+    I(static_cast<int>(sp.cap));
+    I(static_cast<int>(sp.join));
+    F(sp.miter_limit);
+    B(sp == sq);
+    B(sq == sq);
+    End();
+  }
+}
+
 // ----------------------------------------------------------------- main ----
 
 typedef void (*Suite)(Rng&, int);
@@ -2074,6 +2295,7 @@ static const NamedSuite kSuites[] = {
     {"color", SuiteColor},
     {"matrix", SuiteMatrix},
     {"rect", SuiteRect},
+    {"misc", SuiteMisc},
 };
 
 int main(int argc, char** argv) {

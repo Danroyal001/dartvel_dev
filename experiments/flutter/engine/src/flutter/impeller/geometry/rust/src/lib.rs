@@ -11,18 +11,26 @@
 pub mod color;
 pub mod constants;
 pub mod cxx;
+pub mod gradient;
 pub mod half;
 pub mod matrix;
 pub mod matrix_decomposition;
 pub mod point;
 pub mod print;
 pub mod quaternion;
+pub mod rational;
 pub mod rect;
+pub mod rstransform;
 pub mod saturated_math;
 pub mod scalar;
+pub mod separated_vector;
 pub mod shear;
+pub mod sigma;
 pub mod size;
+pub mod stroke_parameters;
+pub mod trig;
 pub mod type_traits;
 pub mod vector;
+pub mod wangs_formula;
 
 pub use saturated_math::saturated;
