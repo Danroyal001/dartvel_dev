@@ -14,7 +14,7 @@ fe_analyzer_shared = { path = "../../_fe_analyzer_shared/rust" }
 
 [[bin]]
 name = "ast_dump"
-path = "src/bin/ast_dump.rs"
+path = "src/bin/ast_dump/main.rs"
 
 [[test]]
 name = "ast_oracle"

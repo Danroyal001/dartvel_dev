@@ -40,17 +40,24 @@ import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/doc_comment.dart';
 import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/ast/utilities.dart';
+
+import 'ast_api_recorders.g.dart';
 
 void main(List<String> args) {
   String? out;
   int bench = 0;
   bool retain = false;
+  bool api = false;
   List<String> roots = [];
   for (int i = 0; i < args.length; i++) {
     String arg = args[i];
     if (arg.startsWith('--bench=')) {
       bench = int.parse(arg.substring('--bench='.length));
+    } else if (arg == '--api') {
+      api = true;
     } else if (arg == '--retain') {
       retain = true;
     } else if (arg == '--out') {
@@ -61,13 +68,17 @@ void main(List<String> args) {
   }
   if (roots.isEmpty || (out == null && bench == 0 && !retain)) {
     stderr.writeln(
-      'usage: ast_dump.dart [--bench=N | --retain] --out <dir> <root>...',
+      'usage: ast_dump.dart [--api] [--bench=N | --retain] --out| --retain] --out <dir> <root>...',
     );
     exit(64);
   }
 
   List<(String, String)> inputs = corpusFiles(roots);
 
+  if (bench > 0 && api) {
+    runToSourceBench(inputs, bench);
+    return;
+  }
   if (bench > 0) {
     runBench(inputs, bench);
     return;
@@ -79,8 +90,8 @@ void main(List<String> args) {
 
   for (var (String path, String relative) in inputs) {
     String source = readSource(path);
-    String dump = dumpFile(source);
-    File target = new File('$out/$relative.ast');
+    String dump = api ? dumpApi(source) : dumpFile(source);
+    File target = new File('$out/$relative.${api ? 'api' : 'ast'}');
     target.parent.createSync(recursive: true);
     target.writeAsBytesSync(utf8.encode(dump));
   }
@@ -326,5 +337,223 @@ void runRetain(List<(String, String)> inputs) {
   stdout.writeln(
     'dart retain files=${results.length} rss_sources=$before '
     'rss_parsed=$after delta=${after - before} max_rss=${ProcessInfo.maxRss}',
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The API oracle (`--api`): what the public AST API returns on the tree.
+//
+// Every node is numbered in the pre-order of the tree dump (the named child
+// entities). The dump of a file is:
+//
+//   toSource "<the unit's toSource>"
+//   node <i> <runtime type> v=<visit method> p=<parent2> s=<toSource>
+//     ... one line per node; `v` is the AstVisitor2 method `accept2` calls,
+//     `p` the number of `parent2` (`-` for null, `?<type>` for a node that
+//     is not numbered), `s` the node's toSource, quoted when at most 60
+//     code units long and `#<length>:<FNV-1a 64 of the code units>`
+//     otherwise.
+//   recursive <visits>   the nodes a RecursiveAstVisitor2 visits from the
+//                        unit, in order
+//   unifying <visits>    the same for UnifyingAstVisitor2.visitNode
+//   delegating <visits>  the visits of a SimpleAstVisitor2 delegate of a
+//                        DelegatingAstVisitor2
+//   locate <a>-<b> <n>   NodeLocator2(a, b).searchWithin(unit) at offsets
+//                        drawn from a generator seeded by the file length
+//   diagnostic <uniqueName>@<offset>+<length> "<message>" "<correction>"
+//
+// A visit list is node numbers, `<i>:<method>` when the method is not the
+// node's `v`, with runs of consecutive numbers as `<a>-<b>`. Anything that
+// throws prints `!throw` in place of its value.
+// ---------------------------------------------------------------------------
+
+String guard(String Function() f) {
+  try {
+    return f();
+  } catch (_) {
+    return '!throw';
+  }
+}
+
+String fnv(String s) {
+  int h = 0xcbf29ce484222325;
+  for (int i = 0; i < s.length; i++) {
+    h ^= s.codeUnitAt(i);
+    h *= 0x100000001b3;
+  }
+  return '${(h >>> 32).toRadixString(16).padLeft(8, '0')}'
+      '${(h & 0xffffffff).toRadixString(16).padLeft(8, '0')}';
+}
+
+String summary(String s) =>
+    s.length <= 60 ? '"${escape(s)}"' : '#${s.length}:${fnv(s)}';
+
+class UnifyingRecorder extends UnifyingAstVisitor2<void> {
+  final void Function(String, AstNode) log;
+
+  UnifyingRecorder(this.log);
+
+  @override
+  void visitNode(AstNode node) {
+    log('visitNode', node);
+    super.visitNode(node);
+  }
+}
+
+/// Number of every node: the pre-order of the named child entities.
+List<AstNodeImpl> numberNodes(AstNodeImpl unit) {
+  List<AstNodeImpl> nodes = [];
+  void visit(AstNodeImpl node) {
+    nodes.add(node);
+    for (ChildEntity child in node.namedChildEntities2) {
+      Object value = child.value;
+      if (value is AstNodeImpl) {
+        visit(value);
+      } else if (value is List) {
+        for (Object? element in value) {
+          if (element is AstNodeImpl) visit(element);
+        }
+      }
+    }
+  }
+
+  visit(unit);
+  return nodes;
+}
+
+String dumpApi(String source) {
+  StringBuffer sb = new StringBuffer();
+  ParseStringResult result;
+  try {
+    result = parseString(content: source, throwIfDiagnostics: false);
+  } catch (e) {
+    sb.write('crash\n');
+    return sb.toString();
+  }
+  AstNodeImpl unit = result.unit as AstNodeImpl;
+  List<AstNodeImpl> nodes = numberNodes(unit);
+  Map<AstNode, int> index = new Map.identity();
+  for (int i = 0; i < nodes.length; i++) {
+    index[nodes[i]] = i;
+  }
+  String ref(AstNode? node) {
+    if (node == null) return '-';
+    int? i = index[node];
+    return i == null ? '?${node.runtimeType}' : '$i';
+  }
+
+  sb.write('toSource ${guard(() => '"${escape(unit.toSource())}"')}\n');
+  List<String> dispatch = [];
+  for (int i = 0; i < nodes.length; i++) {
+    AstNodeImpl node = nodes[i];
+    String v = guard(() {
+      String name = '-';
+      node.accept2(new SimpleRecorder((String visit, _) => name = visit));
+      return name;
+    });
+    dispatch.add(v);
+    String p = guard(() => ref(node.parent2));
+    String s = guard(() => summary(node.toSource()));
+    sb.write('node $i ${node.runtimeType} v=$v p=$p s=$s\n');
+  }
+
+  String visits(void Function(void Function(String, AstNode)) run) {
+    List<String> entries = [];
+    int? runStart;
+    int? runEnd;
+    void flush() {
+      if (runStart != null) {
+        entries.add(runStart == runEnd ? '$runStart' : '$runStart-$runEnd');
+        runStart = null;
+      }
+    }
+
+    void log(String visit, AstNode node) {
+      int? i = index[node];
+      if (i != null && (visit == 'visitNode' || visit == dispatch[i])) {
+        if (runStart != null && runEnd! + 1 == i) {
+          runEnd = i;
+          return;
+        }
+        flush();
+        runStart = i;
+        runEnd = i;
+        return;
+      }
+      flush();
+      entries.add('${i ?? '?${node.runtimeType}'}:$visit');
+    }
+
+    try {
+      run(log);
+    } catch (_) {
+      flush();
+      entries.add('!throw');
+    }
+    flush();
+    return entries.join(' ');
+  }
+
+  sb.write(
+    'recursive ${visits((log) => unit.accept2(new RecursiveRecorder(log)))}\n',
+  );
+  sb.write(
+    'unifying ${visits((log) => unit.accept2(new UnifyingRecorder(log)))}\n',
+  );
+  sb.write(
+    'delegating ${visits((log) => unit.accept2(new DelegatingAstVisitor2<void>([new SimpleRecorder(log)])))}\n',
+  );
+
+  int length = source.length;
+  int seed = length;
+  int next() {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed;
+  }
+
+  for (int k = 0; k < 32; k++) {
+    int a = next() % (length + 1);
+    int b = k < 16 ? a : a + next() % 40;
+    String found = guard(() => ref(new NodeLocator2(a, b).searchWithin(unit)));
+    sb.write('locate $a-$b $found\n');
+  }
+
+  for (Diagnostic diagnostic in result.errors) {
+    String? correction = diagnostic.correctionMessage;
+    sb.write(
+      'diagnostic ${diagnostic.diagnosticCode.uniqueName}'
+      '@${diagnostic.offset}+${diagnostic.length}'
+      ' "${escape(diagnostic.message)}"'
+      ' ${correction == null ? '-' : '"${escape(correction)}"'}\n',
+    );
+  }
+  return sb.toString();
+}
+
+/// Parses every file once, then calls `toSource` on every unit [rounds]
+/// times, timing only `toSource`.
+void runToSourceBench(List<(String, String)> inputs, int rounds) {
+  List<CompilationUnit> units = [
+    for (var (String path, _) in inputs)
+      parseString(content: readSource(path), throwIfDiagnostics: false).unit,
+  ];
+  Stopwatch watch = new Stopwatch();
+  List<int> times = [];
+  int chars = 0;
+  for (int round = 0; round < rounds; round++) {
+    watch
+      ..reset()
+      ..start();
+    for (CompilationUnit unit in units) {
+      chars += unit.toSource().length;
+    }
+    watch.stop();
+    times.add(watch.elapsedMicroseconds);
+  }
+  times.sort();
+  stdout.writeln(
+    'dart toSource files=${units.length} rounds=$rounds '
+    'min_us=${times.first} median_us=${times[times.length ~/ 2]} '
+    'chars=$chars max_rss=${ProcessInfo.maxRss}',
   );
 }

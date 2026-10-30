@@ -5,7 +5,11 @@
 // oracle writes for the analyzer, so the two outputs can be compared byte
 // for byte.
 //
-// Usage: ast_dump [--bench=N | --retain] --out <dir> <root>...
+// Usage: ast_dump [--api] [--bench=N | --retain] --out <dir> <root>...
+//
+// `--api` writes the API dump instead of the tree (see api.rs).
+
+mod api;
 
 use std::fmt::Write as _;
 use std::fs;
@@ -23,11 +27,14 @@ fn main() {
     let mut out: Option<String> = None;
     let mut bench = 0usize;
     let mut retain = false;
+    let mut api = false;
     let mut roots: Vec<String> = Vec::new();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         if let Some(n) = arg.strip_prefix("--bench=") {
             bench = n.parse().expect("--bench=N");
+        } else if arg == "--api" {
+            api = true;
         } else if arg == "--retain" {
             retain = true;
         } else if arg == "--out" {
@@ -55,8 +62,9 @@ fn main() {
     let out = out.unwrap();
     for (path, relative) in &inputs {
         let source = read_source(path);
-        let dump = dump_file(source);
-        let target = PathBuf::from(format!("{out}/{relative}.ast"));
+        let dump = if api { api::dump_api(source) } else { dump_file(source) };
+        let extension = if api { "api" } else { "ast" };
+        let target = PathBuf::from(format!("{out}/{relative}.{extension}"));
         fs::create_dir_all(target.parent().unwrap()).expect("create output directory");
         fs::write(&target, dump).expect("write dump");
     }

@@ -3,8 +3,10 @@
 //
 // Runs the Dart oracle (rust/oracle/ast_dump.dart, on the upstream
 // analyzer's `parseString`) and the Rust `ast_dump` binary over the same
-// corpus, and fails unless every dump (the whole tree and the parse
-// diagnostics) is byte for byte identical.
+// corpus, and fails unless every dump is byte for byte identical: the tree
+// dump (the whole tree and the parse diagnostics) and the API dump
+// (`--api`: toSource, parents, visitors, NodeLocator2 and the diagnostics'
+// messages).
 //
 // The analyzer imports packages that this checkout does not contain (they
 // come from the SDK's DEPS, not from pkg/); the test writes a package config
@@ -206,9 +208,10 @@ fn compare(expected: &Path, actual: &Path) -> (usize, usize, String) {
     (expected_files.len(), differences, report)
 }
 
-#[test]
-fn syntax_trees_are_identical_to_upstream() {
-    let work = work_dir();
+/// Runs both dumpers over the corpus with [flags] and fails unless every
+/// dump is identical.
+fn check(name: &str, flags: &[&str]) {
+    let work = work_dir().join(name);
     fs::create_dir_all(&work).unwrap();
     let package_config = write_package_config(&work);
     let roots = corpus();
@@ -220,15 +223,17 @@ fn syntax_trees_are_identical_to_upstream() {
         .current_dir(sdk_root())
         .arg(format!("--packages={}", package_config.display()))
         .arg("pkg/analyzer/rust/oracle/ast_dump.dart")
+        .args(flags)
         .arg("--out")
         .arg(&dart_out)
         .args(&roots));
     run(Command::new(env!("CARGO_BIN_EXE_ast_dump"))
+        .args(flags)
         .arg("--out")
         .arg(&rust_out)
         .args(&roots));
     let (files, differences, report) = compare(&dart_out, &rust_out);
-    eprintln!("ast: {files} files, {differences} differences");
+    eprintln!("{name}: {files} files, {differences} differences");
     if differences == 0 {
         let _ = fs::remove_dir_all(&dart_out);
         let _ = fs::remove_dir_all(&rust_out);
@@ -237,4 +242,18 @@ fn syntax_trees_are_identical_to_upstream() {
         differences == 0,
         "{differences} of {files} files differ\n{report}"
     );
+}
+
+#[test]
+fn syntax_trees_are_identical_to_upstream() {
+    check("ast", &[]);
+}
+
+/// The public API on the tree: toSource of the unit and of every node, the
+/// parent of every node, the visit order of the V2 visitors, NodeLocator2
+/// at seeded offsets and the full text of every diagnostic (the `--api`
+/// dump, see oracle/ast_dump.dart).
+#[test]
+fn api_results_are_identical_to_upstream() {
+    check("api", &["--api"]);
 }
