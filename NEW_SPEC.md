@@ -16757,9 +16757,11 @@ for byte. Track A starts from `dartr`, a Rust port of the Dart 3.13.3
 analyzer, formatter and language server vendored at `experiments/dartr`. Its
 formatter passes every case in dart_style's own test data and matches `dart
 format` byte for byte on 17,304 reformatted files, and `dartr analyze`
-matches `dart analyze` on the projects compared so far, at 5 to 8 times the
-speed and less peak memory. The language server, and every other track, are
-not yet held to parity.
+matches `dart analyze` on the projects compared so far, Flutter 3.47.4's
+`packages/flutter` among them, at 4 to 8 times the speed and less peak
+memory. `dartr language-server` answers a scripted session over dart_style
+and pub as Dart 3.13.3 does on every request kind, finishes analysis 4 to 5
+times sooner and peaks lower. Every other track is not yet held to parity.
 
 A side effort, run beside the Roadmap and never ahead of it: a 1:1 port of the
 Dart and Flutter implementation stack to Rust. The full programme is
