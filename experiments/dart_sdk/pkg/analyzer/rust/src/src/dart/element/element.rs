@@ -1006,6 +1006,17 @@ impl ElementStore {
         self.is_dart_core_class(id, "Null")
     }
 
+    /// `typeProvider.objectType.element`: the `Object` class of `dart:core`,
+    /// when `dart:core` is in the store.
+    pub fn dart_core_object(&self) -> Option<ElementId> {
+        let core = self.libraries.iter().position(|l| &*l.uri == "dart:core")?;
+        self.libraries[core]
+            .classes
+            .iter()
+            .copied()
+            .find(|&c| self.element(c).name.as_deref() == Some("Object"))
+    }
+
     /// Whether [id] is declared by a `dart:` library (`isInSdk`).
     pub fn is_in_sdk(&self, id: ElementId) -> bool {
         let library = self.element(id).library;

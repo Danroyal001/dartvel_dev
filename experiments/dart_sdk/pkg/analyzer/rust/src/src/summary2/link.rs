@@ -27,6 +27,7 @@ use crate::src::dart::element::scope::ScopeFeatures;
 use crate::src::summary2::reference_resolver::{LinkingTypes, ReferenceResolver};
 use crate::src::summary2::default_types_builder::build_default_types;
 use crate::src::summary2::type_builder::BuildContext;
+use crate::src::summary2::types_builder::TypesBuilder;
 use crate::src::dart::ast::ast_store::NodeId;
 use std::collections::HashSet;
 
@@ -194,6 +195,8 @@ impl Linker {
         for id in builders {
             ctx.build(id);
         }
+        let libraries: Vec<LibraryId> = linking_libraries.iter().copied().collect();
+        TypesBuilder { ctx: &mut ctx }.build(&declarations, &libraries);
     }
 
     /// The library files the imports and exports of [file] and of the parts
