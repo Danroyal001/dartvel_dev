@@ -595,6 +595,16 @@ fn check_for_inconsistent_language_version_override(
     visit_part_directives(verifiers, 0, library_override, &mut Vec::new());
 }
 
+/// Panics when `DARTR_RESOLVER_PANIC_FOR_TESTING` names [step], so tests can
+/// check that a panic in the analysis is reported rather than lost.
+pub fn panic_for_testing(step: &str) {
+    static STEP: std::sync::LazyLock<Option<String>> =
+        std::sync::LazyLock::new(|| std::env::var("DARTR_RESOLVER_PANIC_FOR_TESTING").ok());
+    if STEP.as_deref() == Some(step) {
+        panic!("panic injected into {step} by DARTR_RESOLVER_PANIC_FOR_TESTING");
+    }
+}
+
 /// Runs [step] on each unit that resolved without a panic; a panic of the
 /// step is recorded for the unit.
 fn unit_step(
@@ -607,7 +617,10 @@ fn unit_step(
         if panics[v.index].is_some() {
             continue;
         }
-        if let Err(e) = catch_unwind(AssertUnwindSafe(|| step(v))) {
+        if let Err(e) = catch_unwind(AssertUnwindSafe(|| {
+            panic_for_testing(name);
+            step(v)
+        })) {
             panics[v.index] = Some(format!("{name}: {}", panic_message(&*e)));
         }
     }
@@ -625,7 +638,10 @@ fn library_step(
         // Dart: an exception in resolution aborts the library analysis.
         return;
     }
-    if let Err(e) = catch_unwind(AssertUnwindSafe(|| step(verifiers))) {
+    if let Err(e) = catch_unwind(AssertUnwindSafe(|| {
+        panic_for_testing(name);
+        step(verifiers)
+    })) {
         if let Some(slot) = panics.first_mut() {
             *slot = Some(format!("{name}: {}", panic_message(&*e)));
         }

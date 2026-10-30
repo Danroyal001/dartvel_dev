@@ -321,8 +321,13 @@ fn run_parsed(
     // rules still report). Dart only logs such an exception to its
     // instrumentation log; dartr says so on stderr and exits with 4
     // (dartdev `_Result.crash`) even when issues were found, because the
-    // exit code of the severities is computed from an incomplete set.
-    let internal_errors = dartr_lints::take_internal_errors();
+    // exit code of the severities is computed from an incomplete set. A
+    // panic in the resolver or the driver is reported the same way.
+    let internal_errors: Vec<String> = dartr_lints::take_internal_errors()
+        .iter()
+        .map(ToString::to_string)
+        .chain(crate::driver_provider::take_internal_errors())
+        .collect();
     for error in &internal_errors {
         let _ = writeln!(stderr, "dartr: {error}");
     }

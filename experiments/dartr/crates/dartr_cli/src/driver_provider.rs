@@ -23,8 +23,10 @@
 //! Fallbacks to the parse-only pipeline (the file still gets its parse
 //! diagnostics, lints and ignore handling): a part file without a library
 //! (Dart analyzes it as a library of its own), a context whose linking
-//! panics, a library whose analysis panics. `DARTR_DEBUG_DRIVER=1` writes
-//! these cases and the resolver panics of units to stderr.
+//! panics, a library whose analysis panics. These panics, and a step of a
+//! unit's analysis that panicked, are internal errors
+//! ([take_internal_errors]): `dartr analyze` reports them and exits 4.
+//! `DARTR_DEBUG_DRIVER=1` also writes the fallbacks to stderr.
 
 use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -71,6 +73,26 @@ impl DiagnosticsProvider for DriverProvider {
 
 fn debug() -> bool {
     std::env::var_os("DARTR_DEBUG_DRIVER").is_some()
+}
+
+static INTERNAL_ERRORS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// Records a panic in the analysis, whose diagnostics are then incomplete.
+fn report_internal_error(message: String) {
+    INTERNAL_ERRORS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .push(message);
+}
+
+/// The panics in the analysis since the last call, each a line naming the
+/// file (Dart reports an exception in its analysis as a server error).
+pub fn take_internal_errors() -> Vec<String> {
+    std::mem::take(
+        &mut *INTERNAL_ERRORS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+    )
 }
 
 /// The settings of the files of one context, by analysis options folder
@@ -397,12 +419,12 @@ impl DriverSession {
                 Err(e) => {
                     // The driver state is not consistent after a panic:
                     // drop it.
-                    if debug() {
-                        eprintln!(
-                            "dartr: driver panic in context {context}: {}",
-                            panic_message(&*e)
-                        );
-                    }
+                    report_internal_error(format!(
+                        "internal error: the analysis of the context of {} ({} files) panicked: {}",
+                        files.first().map_or("", |f| &*f.path),
+                        files.len(),
+                        panic_message(&*e)
+                    ));
                     fallback.extend(files);
                 }
             }
@@ -2060,9 +2082,10 @@ where
     let mut resolved = match result {
         Ok(resolved) => resolved,
         Err(message) => {
-            if debug() {
-                eprintln!("dartr: analysis panic in {}: {message}", first.path);
-            }
+            report_internal_error(format!(
+                "internal error: the analysis of the library {} panicked: {message}",
+                first.path
+            ));
             return fallback();
         }
     };
@@ -2136,10 +2159,11 @@ where
             continue;
         };
         let unit = &mut resolved.units[index];
-        if let Some(panic) = &unit.panic
-            && debug()
-        {
-            eprintln!("dartr: resolver panic in {}: {panic}", unit.path);
+        if let Some(panic) = &unit.panic {
+            report_internal_error(format!(
+                "internal error: the analysis of {} panicked in {panic}",
+                unit.path
+            ));
         }
         let parsed = &units[index].parsed;
         let (settings, _) = options.for_path(&file.path);

@@ -167,6 +167,7 @@ impl Driver {
                         doc_import_libraries: doc_imports.clone(),
                     };
                     let result = catch_unwind(AssertUnwindSafe(|| {
+                        dartr_resolver::library_analyzer::panic_for_testing("analyze_library");
                         analyze_library_with_unignorable(&input, unignorable)
                     }))
                     .map_err(panic_message);
