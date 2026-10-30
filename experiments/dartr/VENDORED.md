@@ -43,10 +43,10 @@ Against the formatter Dart 3.13.3 ships, `dart_style` `39edc2d946a5`
   language version it covers.
 - **Real code**, reformatted to 40, 60 and 120 columns and formatted back
   with each package's own settings by `dart format` 3.13.3 and by
-  `examples/format_cli.rs`: 6,153 files per width from the SDK's `pkg/`
+  `examples/format_cli.rs`: 5,768 files per width from the SDK's `pkg/`
   (analyzer, analysis server, front end, shared front end, compiler, kernel,
   linter, dart2wasm, DDC, dartdev, DDS, vm), `sdk/lib`, pub, Flutter's
-  `flutter` and `flutter_tools`, and Dartvel's `packages/`. All 18,459
+  `flutter` and `flutter_tools`, and Dartvel's `packages/`. All 17,304
   compares are byte-identical, and stdout, stderr and exit codes match in
   all 75 runs.
 
