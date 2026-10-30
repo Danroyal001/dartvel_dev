@@ -1,7 +1,6 @@
 /// File storage adapters behind `DV.FileStorage`.
 library dartvel_core.storage.adapters;
 
-
 import '../http/aws_sigv4.dart';
 import '../http/transport.dart';
 
@@ -46,7 +45,7 @@ abstract class DVFileStorageAdapter {
 
 /// Process-local storage. The default, and what `DV.FileStorage` used
 /// exclusively before adapters existed.
-class DVMemoryFileStorageAdapter implements DVFileStorageAdapter {
+class DVMemoryFileStorageAdapter implements DVStreamingFileStorageAdapter {
   final Map<String, List<int>> _objects = <String, List<int>>{};
 
   @override
@@ -74,6 +73,25 @@ class DVMemoryFileStorageAdapter implements DVFileStorageAdapter {
       List<String>.unmodifiable(
         _objects.keys.where((key) => key.startsWith(prefix)).toList()..sort(),
       );
+
+  @override
+  Future<void> putStream(
+    String key,
+    Stream<List<int>> bytes, {
+    String? contentType,
+  }) async {
+    // Collected aside and stored at the end, so a stream that fails part
+    // way leaves what the key held before.
+    final List<int> whole = <int>[];
+    await for (final List<int> chunk in bytes) {
+      whole.addAll(chunk);
+    }
+    _objects[key] = whole;
+  }
+
+  @override
+  Future<Stream<List<int>>> getStream(String key) async =>
+      Stream<List<int>>.value(await get(key));
 }
 
 /// S3 and S3-compatible object stores (AWS S3, Cloudflare R2, MinIO),
@@ -101,8 +119,8 @@ class S3FileStorageAdapter implements DVFileStorageAdapter {
     this.usePathStyle = true,
     this.transport = dvSendHttpRequest,
     DateTime Function()? now,
-  })  : endpoint = endpoint ?? Uri.https('s3.$region.amazonaws.com'),
-        now = now ?? DateTime.now;
+  }) : endpoint = endpoint ?? Uri.https('s3.$region.amazonaws.com'),
+       now = now ?? DateTime.now;
 
   @override
   Future<void> put(String key, List<int> bytes, {String? contentType}) async {
@@ -143,10 +161,12 @@ class S3FileStorageAdapter implements DVFileStorageAdapter {
 
   @override
   Future<List<String>> list({String prefix = ''}) async {
-    final url = _bucketUrl().replace(queryParameters: <String, String>{
-      'list-type': '2',
-      if (prefix.isNotEmpty) 'prefix': prefix,
-    });
+    final url = _bucketUrl().replace(
+      queryParameters: <String, String>{
+        'list-type': '2',
+        if (prefix.isNotEmpty) 'prefix': prefix,
+      },
+    );
     final response = await _send('GET', url);
     _ensure(response, 'list', prefix);
     return parseListKeys(response.body);
@@ -157,11 +177,11 @@ class S3FileStorageAdapter implements DVFileStorageAdapter {
   /// This reads the one element it needs rather than pulling in an XML parser.
   /// Basic entities are unescaped, since keys may legitimately contain `&`.
   static List<String> parseListKeys(String xml) => List<String>.unmodifiable(
-        RegExp(r'<Key>(.*?)</Key>', dotAll: true)
-            .allMatches(xml)
-            .map((match) => _unescapeXml(match.group(1)!))
-            .toList(),
-      );
+    RegExp(
+      r'<Key>(.*?)</Key>',
+      dotAll: true,
+    ).allMatches(xml).map((match) => _unescapeXml(match.group(1)!)).toList(),
+  );
 
   static String _unescapeXml(String value) => value
       .replaceAll('&lt;', '<')
@@ -190,24 +210,26 @@ class S3FileStorageAdapter implements DVFileStorageAdapter {
     List<int> body = const <int>[],
     Map<String, String> extraHeaders = const <String, String>{},
   }) {
-    return transport(DVHttpRequest(
-      url: url,
-      method: method,
-      headers: <String, String>{
-        ...extraHeaders,
-        ...DVAwsSigV4.signedHeaders(
-          method: method,
-          url: url,
-          headers: extraHeaders,
-          body: body,
-          credentials: credentials,
-          region: region,
-          service: 's3',
-          timestamp: now(),
-        ),
-      },
-      body: body,
-    ));
+    return transport(
+      DVHttpRequest(
+        url: url,
+        method: method,
+        headers: <String, String>{
+          ...extraHeaders,
+          ...DVAwsSigV4.signedHeaders(
+            method: method,
+            url: url,
+            headers: extraHeaders,
+            body: body,
+            credentials: credentials,
+            region: region,
+            service: 's3',
+            timestamp: now(),
+          ),
+        },
+        body: body,
+      ),
+    );
   }
 
   void _ensure(DVHttpResponse response, String operation, String key) {
@@ -222,4 +244,54 @@ class S3FileStorageAdapter implements DVFileStorageAdapter {
           : response.body,
     );
   }
+}
+
+/// An adapter that moves an object as a stream, so neither side holds all of
+/// it at once.
+///
+/// A separate interface rather than two more members on
+/// [DVFileStorageAdapter], which applications and packages implement: adding
+/// to that would break every adapter written before streams existed. One that
+/// does not stream still works through [dvPutStream] and [dvGetStream], which
+/// buffer for it.
+abstract interface class DVStreamingFileStorageAdapter
+    implements DVFileStorageAdapter {
+  /// Stores [bytes] under [key]. All or nothing: a stream that fails part way
+  /// leaves whatever [key] held before, and the error is rethrown.
+  Future<void> putStream(
+    String key,
+    Stream<List<int>> bytes, {
+    String? contentType,
+  });
+
+  /// The object under [key] as a stream. A missing object fails this future
+  /// with a 404 [DVFileStorageException], before any byte is streamed.
+  Future<Stream<List<int>>> getStream(String key);
+}
+
+/// Stores [bytes] under [key] through [adapter], streaming when it streams
+/// and otherwise collecting the whole object and putting it once.
+Future<void> dvPutStream(
+  DVFileStorageAdapter adapter,
+  String key,
+  Stream<List<int>> bytes, {
+  String? contentType,
+}) async {
+  if (adapter is DVStreamingFileStorageAdapter) {
+    return adapter.putStream(key, bytes, contentType: contentType);
+  }
+  final List<int> whole = <int>[];
+  await for (final List<int> chunk in bytes) {
+    whole.addAll(chunk);
+  }
+  await adapter.put(key, whole, contentType: contentType);
+}
+
+/// The object under [key] in [adapter] as a stream.
+Future<Stream<List<int>>> dvGetStream(
+  DVFileStorageAdapter adapter,
+  String key,
+) async {
+  if (adapter is DVStreamingFileStorageAdapter) return adapter.getStream(key);
+  return Stream<List<int>>.value(await adapter.get(key));
 }

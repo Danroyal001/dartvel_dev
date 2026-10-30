@@ -19,7 +19,7 @@ import 'adapters.dart';
 /// else's data — a request names the file it wants — so a key that climbs out
 /// of the root is refused rather than resolved. Without that, `../` in a key
 /// reads or overwrites anything the process can reach.
-class DVLocalFileStorageAdapter implements DVFileStorageAdapter {
+class DVLocalFileStorageAdapter implements DVStreamingFileStorageAdapter {
   DVLocalFileStorageAdapter({required this.root});
 
   /// The directory every key is inside. Created on first write.
@@ -74,9 +74,12 @@ class DVLocalFileStorageAdapter implements DVFileStorageAdapter {
     final Directory directory = Directory(root);
     if (!directory.existsSync()) return const <String>[];
     final List<String> keys = <String>[
-      for (final FileSystemEntity entity
-          in directory.listSync(recursive: true, followLinks: false))
-        if (entity is File)
+      for (final FileSystemEntity entity in directory.listSync(
+        recursive: true,
+        followLinks: false,
+      ))
+        if (entity is File &&
+            !p.basename(entity.path).startsWith(_partialPrefix))
           // Keys are posix-shaped whatever the platform writes, so the same
           // key reaches the same file on Windows as on Linux.
           p.posix.joinAll(p.split(p.relative(entity.path, from: root))),
@@ -86,5 +89,51 @@ class DVLocalFileStorageAdapter implements DVFileStorageAdapter {
       for (final String key in keys)
         if (key.startsWith(prefix)) key,
     ];
+  }
+
+  /// Where a streamed write lands until it has finished. Hidden from [list]
+  /// so a write in progress is not an object.
+  static const String _partialPrefix = '.dartvel-partial-';
+
+  @override
+  Future<void> putStream(
+    String key,
+    Stream<List<int>> bytes, {
+    String? contentType,
+  }) async {
+    final File file = File(_pathFor(key, 'put'));
+    await file.parent.create(recursive: true);
+    // Written beside the target and renamed over it at the end: a rename in
+    // one directory is atomic, so a reader sees the old file or the new one,
+    // and a stream that fails part way leaves the old one.
+    final File partial = File(
+      p.join(
+        file.parent.path,
+        '$_partialPrefix${DateTime.now().microsecondsSinceEpoch}-'
+        '${p.basename(file.path)}',
+      ),
+    );
+    final IOSink sink = partial.openWrite();
+    try {
+      await sink.addStream(bytes);
+      await sink.flush();
+      await sink.close();
+    } catch (_) {
+      await sink.close().catchError((Object _) {});
+      if (partial.existsSync()) await partial.delete();
+      rethrow;
+    }
+    await partial.rename(file.path);
+  }
+
+  @override
+  Future<Stream<List<int>>> getStream(String key) async {
+    final File file = File(_pathFor(key, 'get'));
+    // Asked now, so a missing file fails the call rather than the stream a
+    // response has already started sending.
+    if (!file.existsSync()) {
+      throw DVFileStorageException('local', 'get', key, statusCode: 404);
+    }
+    return file.openRead();
   }
 }
