@@ -1,4 +1,0 @@
-analyzer:
-  exclude: [excluded/**]
-  optional-checks:
-    chrome-os-manifest-checks: true

@@ -1,6 +1,0 @@
-include: included.yaml
-
-linter:
-  rules:
-    always_use_package_imports: true
-    prefer_relative_imports: false

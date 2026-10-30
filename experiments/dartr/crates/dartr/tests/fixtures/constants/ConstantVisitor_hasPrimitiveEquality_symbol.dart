@@ -1,2 +1,0 @@
-
-const v = #foo.bar;

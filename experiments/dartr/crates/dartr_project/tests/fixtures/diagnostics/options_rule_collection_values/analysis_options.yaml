@@ -1,4 +1,0 @@
-linter:
-  rules:
-    avoid_print: [1, {x: true}]
-    prefer_single_quotes: {invalid: true}

@@ -1,8 +1,0 @@
-analyzer:
-  language:
-    strict-casts: true
-linter:
-  rules:
-    - always_specify_types
-    - avoid_dynamic_calls
-    - prefer_final_locals

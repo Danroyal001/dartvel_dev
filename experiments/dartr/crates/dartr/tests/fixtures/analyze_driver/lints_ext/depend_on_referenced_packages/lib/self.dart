@@ -1,1 +1,0 @@
-int selfVal = 0;

@@ -1,8 +1,0 @@
-// Ported from pkg/analyzer/test/src/summary/top_level_inference_test.dart
-// (test_method_OK_single_extends_direct_notGeneric_positional).
-class A {
-  String m(int a, [double b]) {}
-}
-class B extends A {
-  m(a, [b]) {}
-}

@@ -2286,17 +2286,9 @@
         "experiments/rust_stack/test/line_count_test.dart",
         "experiments/rust_stack/baselines/sizes-2026-10-29.json",
         "experiments/dv_dialect/README.md",
-        "experiments/dv_dialect/test/dialect_test.dart",
-        "experiments/dartr/VENDORED.md",
-        "experiments/dartr/crates/dartr_format/tests/format_test_data.rs",
-        "experiments/dartr/crates/dartr/tests/analyze_parity.rs",
-        "experiments/rust_stack/baselines/dartr-vs-dart-2026-10-30.json",
-        "experiments/rust_stack/baselines/dartr-vs-dart-flutter-2026-10-30.json",
-        "experiments/dartr/crates/dartr_server/tests/index_parity.rs",
-        "experiments/dartr/tools/lsp_differential.dart",
-        "experiments/rust_stack/baselines/dartr-vs-dart-lsp-2026-10-30.json"
+        "experiments/dv_dialect/test/dialect_test.dart"
       ],
-      "absent": "Absent: Tracks B-H, analyzer parity on pub.dev as a whole and Flutter's other packages, language server parity beyond the two projects measured, and the Track D partition measurement. Built: Track A's starting point, dartr (a Rust port of the Dart 3.13.3 analyzer, formatter and language server) vendored under experiments/dartr, with its formatter passing all of dart_style's test data and matching dart format on 17,304 files, dart analyze parity on the projects compared, Flutter's packages/flutter, flutter_test and flutter_tools among them, language server parity and lower peak memory on a scripted session over dart_style and pub, and speed and memory baselines against Dart; the oracle harnesses; the Phase 0 size measurement and a first cut of the Track I .dv converter, at 99.98% byte-for-byte round trip over 9,941 files of the Dart SDK, Flutter and Dartvel (the two left are deliberate refusals); the rules are not frozen, which needs all of pub.dev."
+      "absent": "Absent: Tracks A-H, the forks of dart-lang/sdk and flutter/flutter the ports are done in, and the Track D partition measurement. Built: the oracle harnesses; the Phase 0 size measurement and a first cut of the Track I .dv converter, at 99.98% byte-for-byte round trip over 9,941 files of the Dart SDK, Flutter and Dartvel (the two left are deliberate refusals); the rules are not frozen, which needs all of pub.dev."
     },
     {
       "section": "Mental Model",

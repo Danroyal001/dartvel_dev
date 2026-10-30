@@ -1,4 +1,0 @@
-class A() {
-  @deprecated
-  this;
-}

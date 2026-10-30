@@ -1,2 +1,0 @@
-@deprecated
-export 'origin.dart';

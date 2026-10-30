@@ -1,7 +1,0 @@
-{
-  "configVersion": 2,
-  "packages": [
-    {"name": "inner", "rootUri": "../", "packageUri": "lib/", "languageVersion": "2.19"},
-    {"name": "nested", "rootUri": "../../../", "packageUri": "lib/"}
-  ]
-}

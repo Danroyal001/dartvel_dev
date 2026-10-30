@@ -1,3 +1,0 @@
-include: base.yaml
-analyzer:
-  plugins: second

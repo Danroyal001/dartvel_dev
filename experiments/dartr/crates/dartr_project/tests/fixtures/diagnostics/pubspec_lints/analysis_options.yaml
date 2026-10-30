@@ -1,2 +1,0 @@
-linter:
-  rules: [sort_pub_dependencies, secure_pubspec_urls, unnecessary_pubspec_overrides]

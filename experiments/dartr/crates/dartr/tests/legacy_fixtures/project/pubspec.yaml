@@ -1,4 +1,0 @@
-name: legacy_parity_fixture
-author: Deprecated Author
-environment:
-  sdk: ^3.13.0

@@ -1,3 +1,0 @@
-linter:
-  rules:
-    - dangling_library_doc_comments

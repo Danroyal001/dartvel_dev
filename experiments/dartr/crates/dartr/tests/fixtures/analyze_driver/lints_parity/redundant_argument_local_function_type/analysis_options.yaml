@@ -1,4 +1,0 @@
-linter:
-  rules:
-    - avoid_redundant_argument_values
-    - prefer_final_locals

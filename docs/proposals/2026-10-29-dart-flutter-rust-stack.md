@@ -170,10 +170,10 @@ A 1:1 port of `pkg/analyzer`, `pkg/analysis_server`, `pkg/linter`,
 names of the Dart file it ports and names that file in its first line, so
 upstream changes can be followed file by file.
 
-`dartr` (BSD-3-Clause) is a 1:1 port of exactly this slice, at parity on large
-corpora. Track A starts from it: it is vendored at `experiments/dartr`, and
-the work is to prove its parity against the Dart it ports and close every gap
-that proof finds, rather than to write the slice a second time.
+Track A is ported from the Dart SDK itself, in the same fork of
+`dart-lang/sdk` as every other Dart track, not from a third-party port.
+`dartr` (BSD-3-Clause) ports this slice independently; it is prior art only
+and is not vendored or built on.
 
 The memory gate applies from the first day, language server included:
 
@@ -581,10 +581,9 @@ cost more than tokens even in the optimistic case.
 
 ## 15. Open questions
 
-1. **dartr for Track A:** answered on 30 October 2026: start from it. Its
-   formatter matched `dart format` byte for byte on 772 reformatted files at
-   about 7 times the speed, so redoing the slice would buy nothing a parity
-   proof does not.
+1. **dartr for Track A:** answered on 30 October 2026: no. The port is of
+   the Dart SDK and Flutter themselves, done in forks of `dart-lang/sdk` and
+   `flutter/flutter`; dartr and dartc stay prior art.
 2. **The upstream window:** two weeks per stable release to start, or tighter?
 3. **The Dart and Flutter teams:** offer them the differential harnesses?
 4. **Licensing and distribution:** BSD-3-Clause like upstream? Free, or part

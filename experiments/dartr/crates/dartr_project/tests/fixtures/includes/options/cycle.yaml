@@ -1,5 +1,0 @@
-include: base.yaml
-analyzer:
-  enable-experiment:
-    - variance
-linter: invalid

@@ -1,5 +1,0 @@
-version: 1
-extra: 1
-42: x
-[a, b]: y
-transforms: not a list

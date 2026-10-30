@@ -1,3 +1,0 @@
-analyzer:
-  optional-checks:
-    chrome-os-manifest-checks: true
