@@ -75,6 +75,8 @@ pub struct V1State {
     cache: RefCell<HashMap<(NodeId, u8), NodeId>>,
     /// `_astNodeApiOverride` of the nodes that have one.
     api_override: RefCell<HashMap<NodeId, AstNodeApi>>,
+    /// `_parent2` of the projection objects that a mutation gave one.
+    pub parents2: RefCell<HashMap<NodeId, NodeId>>,
     /// The number of projection objects.
     count: Cell<usize>,
 }
@@ -369,7 +371,7 @@ impl<'a> Ast<'a> {
     /// has none).
     pub fn parent2(self, id: NodeId) -> NodeId {
         if id >= V1_BASE {
-            return NO_NODE;
+            return self.store.v1.parents2.borrow().get(&id).copied().unwrap_or(NO_NODE);
         }
         self.store.parents[id as usize]
     }
@@ -406,12 +408,18 @@ impl<'a> Ast<'a> {
     /// `node.accept2(visitor)`.
     #[inline]
     pub fn accept2<V: AstVisitor2 + ?Sized>(self, id: NodeId, visitor: &mut V) -> Option<V::R> {
+        if id >= V1_BASE {
+            self.check_not_v1_projection(id);
+        }
         self.node(id).accept2(self, id, visitor)
     }
 
     /// `node.visitChildren2(visitor)`.
     #[inline]
     pub fn visit_children2<V: AstVisitor2 + ?Sized>(self, id: NodeId, visitor: &mut V) {
+        if id >= V1_BASE {
+            self.check_not_v1_projection(id);
+        }
         self.node(id).visit_children2(self, visitor)
     }
 

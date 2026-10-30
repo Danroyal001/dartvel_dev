@@ -65,7 +65,7 @@ fn main() {
         return;
     }
 
-    if api {
+    if api && std::env::var_os("AST_PANICS").is_none() {
         // A panic stands for an upstream exception, which the dump records.
         std::panic::set_hook(Box::new(|_| {}));
     }

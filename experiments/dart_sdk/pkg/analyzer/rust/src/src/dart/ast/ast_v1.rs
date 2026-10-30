@@ -54,6 +54,12 @@ pub mod slot {
     pub const ANNOTATION_PERIOD: u8 = 12;
     pub const ANNOTATION_CONSTRUCTOR_NAME: u8 = 13;
     pub const ANNOTATION_ARGUMENTS: u8 = 14;
+    /// The `importPrefix` and `typeArguments` a projected `NamedTypeImpl`
+    /// was given by `replaceChild` or `removeChild` (`NULL` for null).
+    pub const IMPORT_PREFIX: u8 = 15;
+    pub const TYPE_ARGUMENTS: u8 = 16;
+    /// A null value in a slot that can hold one.
+    pub const NULL: u32 = u32::MAX - 2;
 }
 
 /// `V1Projection.toV1X`, as the `Ast` method that ports it.
@@ -2496,16 +2502,15 @@ impl ConstructorDeclarationImpl {
 
     pub fn first_token_after_comment_and_metadata_hand(&self, ast: Ast<'_>) -> TokenId {
         let o = ast.node(self.v1_projection_origin).as_constructor_declaration2_impl();
-        for token in [
+        let first = ast.tokens.lexically_first(&[
             self.augment_keyword,
             self.external_keyword,
             o.const_keyword,
             self.factory_keyword,
             self.new_keyword,
-        ] {
-            if token != NO_TOKEN {
-                return token;
-            }
+        ]);
+        if first != NO_TOKEN {
+            return first;
         }
         // typeName
         if o.type_name != NO_TOKEN {
@@ -3114,19 +3119,20 @@ impl MethodDeclarationImpl {
     }
 
     pub fn first_token_after_comment_and_metadata_hand(&self, ast: Ast<'_>) -> TokenId {
-        for token in [self.augment_keyword, self.external_keyword, self.modifier_keyword] {
-            if token != NO_TOKEN {
-                return token;
-            }
+        if self.augment_keyword != NO_TOKEN {
+            return self.augment_keyword;
+        }
+        let first = ast.tokens.lexically_first(&[self.external_keyword, self.modifier_keyword]);
+        if first != NO_TOKEN {
+            return first;
         }
         let return_type = self.return_type(ast, NO_NODE);
         if return_type != NO_NODE {
             return ast.begin_token(return_type);
         }
-        for token in [self.property_keyword, self.operator_keyword] {
-            if token != NO_TOKEN {
-                return token;
-            }
+        let first = ast.tokens.lexically_first(&[self.property_keyword, self.operator_keyword]);
+        if first != NO_TOKEN {
+            return first;
         }
         self.name
     }
@@ -3184,6 +3190,11 @@ impl MethodInvocationImpl {
 
 impl NamedTypeImpl {
     pub fn import_prefix(&self, ast: Ast<'_>, id: NodeId) -> NodeId {
+        let set = ast.store.v1_cached(id, slot::IMPORT_PREFIX);
+        if set != NO_NODE {
+            let value = if set == slot::NULL { NO_NODE } else { set };
+            return ast.become_parent_of1(id, value);
+        }
         if ast.api(id) != AstNodeApi::v1 {
             return self.import_prefix;
         }
@@ -3197,6 +3208,11 @@ impl NamedTypeImpl {
     }
 
     pub fn type_arguments(&self, ast: Ast<'_>, id: NodeId) -> NodeId {
+        let set = ast.store.v1_cached(id, slot::TYPE_ARGUMENTS);
+        if set != NO_NODE {
+            let value = if set == slot::NULL { NO_NODE } else { set };
+            return ast.become_parent_of1(id, value);
+        }
         if ast.api(id) != AstNodeApi::v1 {
             return self.type_arguments;
         }
@@ -3438,7 +3454,11 @@ impl crate::src::dart::ast::ast_store::AstStore {
         if child == NO_NODE {
             return;
         }
-        self.parents[child as usize] = parent;
+        if child >= V1_BASE {
+            self.v1.parents2.borrow_mut().insert(child, parent);
+        } else {
+            self.parents[child as usize] = parent;
+        }
         let ast = Ast::new(self, tokens);
         let helper = match helper {
             "_becomeParentOfOwnedView" => match ast.api(parent) {
@@ -3464,5 +3484,57 @@ impl crate::src::dart::ast::ast_store::AstStore {
             }
             other => panic!("unknown parent helper {other}"),
         }
+    }
+}
+
+impl<'a> Ast<'a> {
+    /// Whether [id] is a projection object of a shared class built from a
+    /// canonical node (`_constructorTypeReferenceOrigin` of a `NamedType`,
+    /// `_v1ProjectionOrigin` of a `FunctionExpression`).
+    pub fn has_v1_origin(self, id: NodeId) -> bool {
+        id >= V1_BASE && self.store.v1_cached(id, slot::ORIGIN) != NO_NODE
+    }
+
+    /// The V2 members of `NamedTypeImpl` and `FunctionExpressionImpl` throw
+    /// first for a projection with an origin.
+    pub fn check_not_v1_projection(self, id: NodeId) {
+        if self.has_v1_origin(id) {
+            match self.node(id) {
+                AstNodeImpl::NamedTypeImpl(_) => panic!("StateError: NamedType is not in the V2 AST view."),
+                AstNodeImpl::FunctionExpressionImpl(_) => {
+                    panic!("StateError: FunctionExpression is not in the V2 AST view.")
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+impl crate::src::dart::ast::ast_store::AstStore {
+    /// The setters `importPrefix` ([prefix]) and `typeArguments` of
+    /// `NamedTypeImpl`: a projection with an origin throws, another
+    /// projection keeps the value in a slot, and a parsed node in its field.
+    pub fn set_named_type_child(
+        &mut self,
+        tokens: &fe_analyzer_shared::scanner::token::TokenStore,
+        parent: NodeId,
+        prefix: bool,
+        child: NodeId,
+    ) {
+        if Ast::new(self, tokens).has_v1_origin(parent) {
+            panic!("UnsupportedError: A V1 projection cannot be mutated.");
+        }
+        if parent >= V1_BASE {
+            let slot = if prefix { slot::IMPORT_PREFIX } else { slot::TYPE_ARGUMENTS };
+            self.set_v1_cached(parent, slot, if child == NO_NODE { slot::NULL } else { child });
+        } else {
+            let n = self.node_mut(parent).as_named_type_impl_mut();
+            if prefix {
+                n.import_prefix = child;
+            } else {
+                n.type_arguments = child;
+            }
+        }
+        self.attach_child("_becomeParentOf12", tokens, parent, child);
     }
 }

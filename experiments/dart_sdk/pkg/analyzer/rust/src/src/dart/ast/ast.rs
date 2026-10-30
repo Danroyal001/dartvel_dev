@@ -23554,7 +23554,7 @@ impl FunctionExpressionImpl {
 
     pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
         let _ = (ast, id, range_offset, range_end);
-        if id >= V1_BASE {
+        if ast.has_v1_origin(id) {
             panic!("StateError: FunctionExpression is not in the V2 AST view.");
         }
         {
@@ -28287,7 +28287,7 @@ impl NamedTypeImpl {
 
     pub fn child_containing_range2(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
         let _ = (ast, id, range_offset, range_end);
-        if id >= V1_BASE {
+        if ast.has_v1_origin(id) {
             panic!("StateError: NamedType is not in the V2 AST view.");
         }
         {
@@ -39443,23 +39443,24 @@ impl AstStore {
     /// `NamedTypeImpl.replaceChild`.
     fn replace_child_named_type_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
         let _ = tokens;
-        if self.node(parent).as_named_type_impl().import_prefix == old {
+        let ast = Ast::new(self, tokens);
+        let n = self.node(parent).as_named_type_impl();
+        let import_prefix = if parent >= V1_BASE { n.import_prefix(ast, parent) } else { n.import_prefix };
+        if import_prefix == old {
             if !self.node(new_).is_import_prefix_reference_impl() {
                 panic!("TypeError");
             }
-            self.node_mut(parent).as_named_type_impl_mut().import_prefix = new_;
-            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            self.set_named_type_child(tokens, parent, true, new_);
             return;
         }
-        if self.node(parent).as_named_type_impl().type_arguments == old {
+        let ast = Ast::new(self, tokens);
+        let n = self.node(parent).as_named_type_impl();
+        let type_arguments = if parent >= V1_BASE { n.type_arguments(ast, parent) } else { n.type_arguments };
+        if type_arguments == old {
             if !self.node(new_).is_type_argument_list_impl() {
                 panic!("TypeError");
             }
-            self.node_mut(parent).as_named_type_impl_mut().type_arguments = new_;
-            self.attach_child("_becomeParentOf12", tokens, parent, new_);
-            return;
-        }
-        if old == new_ {
+            self.set_named_type_child(tokens, parent, false, new_);
             return;
         }
         panic!("ArgumentError: The old node is not a child of this node.");
@@ -43287,12 +43288,18 @@ impl AstStore {
     /// `NamedTypeImpl.removeChild`.
     fn remove_child_named_type_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
         let _ = tokens;
-        if self.node(parent).as_named_type_impl().import_prefix == old {
-            self.node_mut(parent).as_named_type_impl_mut().import_prefix = NO_NODE;
+        let ast = Ast::new(self, tokens);
+        let n = self.node(parent).as_named_type_impl();
+        let import_prefix = if parent >= V1_BASE { n.import_prefix(ast, parent) } else { n.import_prefix };
+        if import_prefix == old {
+            self.set_named_type_child(tokens, parent, true, NO_NODE);
             return;
         }
-        if self.node(parent).as_named_type_impl().type_arguments == old {
-            self.node_mut(parent).as_named_type_impl_mut().type_arguments = NO_NODE;
+        let ast = Ast::new(self, tokens);
+        let n = self.node(parent).as_named_type_impl();
+        let type_arguments = if parent >= V1_BASE { n.type_arguments(ast, parent) } else { n.type_arguments };
+        if type_arguments == old {
+            self.set_named_type_child(tokens, parent, false, NO_NODE);
             return;
         }
         panic!("ArgumentError: The old node is not a child of this node.");

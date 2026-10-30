@@ -1954,7 +1954,7 @@ class V1Translator {
         Statement then = s.thenStatement;
         if (then is Block) then = then.statements.single;
         out.add(
-          'if id >= V1_BASE {\n'
+          'if ast.has_v1_origin(id) {\n'
           '            ${throwStatement((then as ExpressionStatement).expression as ThrowExpression)}\n'
           '        }',
         );
@@ -2545,6 +2545,46 @@ class MutationTranslator {
 
 /// Hand translations of mutations, keyed by `Class.member`.
 const Map<String, String> handMutations = {
+  // A projection object is mutated through the slots of the store
+  // (`AstStore::set_named_type_child`); one with an origin throws.
+  'NamedTypeImpl.replaceChild': '''
+let ast = Ast::new(self, tokens);
+        let n = self.node(parent).as_named_type_impl();
+        let import_prefix = if parent >= V1_BASE { n.import_prefix(ast, parent) } else { n.import_prefix };
+        if import_prefix == old {
+            if !self.node(new_).is_import_prefix_reference_impl() {
+                panic!("TypeError");
+            }
+            self.set_named_type_child(tokens, parent, true, new_);
+            return;
+        }
+        let ast = Ast::new(self, tokens);
+        let n = self.node(parent).as_named_type_impl();
+        let type_arguments = if parent >= V1_BASE { n.type_arguments(ast, parent) } else { n.type_arguments };
+        if type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.set_named_type_child(tokens, parent, false, new_);
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");''',
+  'NamedTypeImpl.removeChild': '''
+let ast = Ast::new(self, tokens);
+        let n = self.node(parent).as_named_type_impl();
+        let import_prefix = if parent >= V1_BASE { n.import_prefix(ast, parent) } else { n.import_prefix };
+        if import_prefix == old {
+            self.set_named_type_child(tokens, parent, true, NO_NODE);
+            return;
+        }
+        let ast = Ast::new(self, tokens);
+        let n = self.node(parent).as_named_type_impl();
+        let type_arguments = if parent >= V1_BASE { n.type_arguments(ast, parent) } else { n.type_arguments };
+        if type_arguments == old {
+            self.set_named_type_child(tokens, parent, false, NO_NODE);
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");''',
   // Upstream throws first for a V1 projection (an origin), else mutates
   // the slots as generated.
   'CascadeSectionImpl.replaceChild': '''
