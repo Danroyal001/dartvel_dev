@@ -92,13 +92,106 @@ namespace {
 
 // ---------------------------------------------------------------- rng ------
 
+// ------------------------------------------------------- bench clock ------
+//
+// In bench mode the suites run against a stopwatch that only the ported code
+// should run under (src/bin/fml_dump.rs mirrors this): output is not
+// formatted at all (g_quiet: the QPRINTF family does not even evaluate its
+// arguments), the random stream is read from a tape that is refilled with
+// the clock stopped, and the driver's own set-up (input generators, threads
+// it spawns) pauses the clock. Pauses nest.
+
+bool g_quiet = false;
+#define QPRINTF(...) (g_quiet ? 0 : std::printf(__VA_ARGS__))
+#define QFPUTS(...) (g_quiet ? 0 : std::fputs(__VA_ARGS__))
+#define QFPUTC(...) (g_quiet ? 0 : std::fputc(__VA_ARGS__))
+
+std::atomic<size_t> g_sw_depth{1};
+std::atomic<uint64_t> g_sw_total_ns{0};
+std::atomic<uint64_t> g_sw_start_ns{0};
+
+uint64_t SwNowNs() {
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
+
+void SwReset() {
+  g_sw_depth.store(1, std::memory_order_relaxed);
+  g_sw_total_ns.store(0, std::memory_order_relaxed);
+}
+
+// Stops the clock (it may already be stopped; pauses nest).
+void SwPause() {
+  if (g_sw_depth.load(std::memory_order_relaxed) == 0) {
+    uint64_t elapsed = SwNowNs() - g_sw_start_ns.load(std::memory_order_relaxed);
+    g_sw_total_ns.store(g_sw_total_ns.load(std::memory_order_relaxed) + elapsed,
+                        std::memory_order_relaxed);
+  }
+  g_sw_depth.store(g_sw_depth.load(std::memory_order_relaxed) + 1,
+                   std::memory_order_relaxed);
+}
+
+// Undoes one SwPause; the clock runs again when none is left.
+void SwResume() {
+  size_t depth = g_sw_depth.load(std::memory_order_relaxed) - 1;
+  g_sw_depth.store(depth, std::memory_order_relaxed);
+  if (depth == 0) {
+    g_sw_start_ns.store(SwNowNs(), std::memory_order_relaxed);
+  }
+}
+
+uint64_t SplitMix(uint64_t& s) {
+  uint64_t z = (s += 0x9e3779b97f4a7c15ULL);
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+  return z ^ (z >> 31);
+}
+
+constexpr size_t kTapeLen = 4096;
+bool g_tape_on = false;
+uint64_t g_tape[kTapeLen];
+size_t g_tape_pos = kTapeLen;
+uint64_t g_tape_seed = 0;
+// Draws taken from the tape this round, reported to check that both drivers
+// took the same path.
+uint64_t g_tape_draws = 0;
+
+void TapeStart(uint64_t seed) {
+  g_tape_seed = seed;
+  g_tape_pos = kTapeLen;
+  g_tape_draws = 0;
+  g_tape_on = true;
+}
+
+[[gnu::cold, gnu::noinline]] void TapeRefill() {
+  SwPause();
+  for (auto& slot : g_tape) {
+    slot = SplitMix(g_tape_seed);
+  }
+  g_tape_pos = 0;
+  g_tape_draws += kTapeLen;
+  SwResume();
+}
+
+uint64_t TapeNext() {
+  if (g_tape_pos == kTapeLen) {
+    TapeRefill();
+  }
+  return g_tape[g_tape_pos++];
+}
+
+uint64_t TapeUsed() {
+  return g_tape_draws - (kTapeLen - g_tape_pos);
+}
+
 struct Rng {
   uint64_t s;
   uint64_t Next() {
-    uint64_t z = (s += 0x9e3779b97f4a7c15ULL);
-    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
-    return z ^ (z >> 31);
+    if (g_tape_on) {
+      return TapeNext();
+    }
+    return SplitMix(s);
   }
   uint64_t Below(uint64_t n) { return Next() % n; }
   bool Chance(uint64_t one_in) { return Below(one_in) == 0; }
@@ -146,22 +239,28 @@ uint64_t Bits(double d) {
 }
 
 void PrintHex(const std::string& s) {
+  if (g_quiet) {
+    return;
+  }
   if (s.empty()) {
-    std::fputs("-", stdout);
+    QFPUTS("-", stdout);
     return;
   }
   for (unsigned char c : s) {
-    std::printf("%02x", c);
+    QPRINTF("%02x", c);
   }
 }
 
 void PrintHex16(const std::u16string& s) {
+  if (g_quiet) {
+    return;
+  }
   if (s.empty()) {
-    std::fputs("-", stdout);
+    QFPUTS("-", stdout);
     return;
   }
   for (char16_t c : s) {
-    std::printf("%04x", static_cast<unsigned>(c));
+    QPRINTF("%04x", static_cast<unsigned>(c));
   }
 }
 
@@ -175,63 +274,63 @@ int Cmp(auto a, auto b) {
 void SuiteTime(Rng& r, int cases) {
   using fml::TimeDelta;
   using fml::TimePoint;
-  std::printf("frame_budget %016" PRIx64 "\n",
+  QPRINTF("frame_budget %016" PRIx64 "\n",
               Bits(fml::kDefaultFrameBudget.count()));
   for (int i = 0; i < cases; i++) {
     int64_t a = EdgeI64(r);
     int64_t b = EdgeI64(r);
-    std::printf("case %d a=%" PRId64 " b=%" PRId64 "\n", i, a, b);
-    std::printf("from %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 "\n",
+    QPRINTF("case %d a=%" PRId64 " b=%" PRId64 "\n", i, a, b);
+    QPRINTF("from %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 "\n",
                 TimeDelta::FromNanoseconds(a).ToNanoseconds(),
                 TimeDelta::FromMicroseconds(a).ToNanoseconds(),
                 TimeDelta::FromMilliseconds(a).ToNanoseconds(),
                 TimeDelta::FromSeconds(a).ToNanoseconds());
     TimeDelta da = TimeDelta::FromNanoseconds(a);
     TimeDelta db = TimeDelta::FromNanoseconds(b);
-    std::printf("to %" PRId64 " %" PRId64 " %" PRId64 "\n",
+    QPRINTF("to %" PRId64 " %" PRId64 " %" PRId64 "\n",
                 da.ToMicroseconds(), da.ToMilliseconds(), da.ToSeconds());
-    std::printf("tof %016" PRIx64 " %016" PRIx64 " %016" PRIx64
+    QPRINTF("tof %016" PRIx64 " %016" PRIx64 " %016" PRIx64
                 " %016" PRIx64 "\n",
                 Bits(da.ToNanosecondsF()), Bits(da.ToMicrosecondsF()),
                 Bits(da.ToMillisecondsF()), Bits(da.ToSecondsF()));
-    std::printf("add %" PRId64 " sub %" PRId64 " mul %" PRId64 "\n",
+    QPRINTF("add %" PRId64 " sub %" PRId64 " mul %" PRId64 "\n",
                 (da + db).ToNanoseconds(), (da - db).ToNanoseconds(),
                 (da * b).ToNanoseconds());
     if (b != 0 && !(a == kI64Min && b == -1)) {
-      std::printf("div %" PRId64 " divd %" PRId64 " mod %" PRId64 "\n",
+      QPRINTF("div %" PRId64 " divd %" PRId64 " mod %" PRId64 "\n",
                   (da / b).ToNanoseconds(), da / db, (da % db).ToNanoseconds());
     } else {
-      std::printf("div skip\n");
+      QPRINTF("div skip\n");
     }
-    std::printf("cmp %d %d %d %d\n", Cmp(da, db), da == db ? 1 : 0,
+    QPRINTF("cmp %d %d %d %d\n", Cmp(da, db), da == db ? 1 : 0,
                 da < db ? 1 : 0, da >= db ? 1 : 0);
     struct timespec ts{};
     ts.tv_sec = static_cast<time_t>(a);
     ts.tv_nsec = static_cast<long>(b % 1000000000);
-    std::printf("fromts %" PRId64 "\n",
+    QPRINTF("fromts %" PRId64 "\n",
                 TimeDelta::FromTimespec(ts).ToNanoseconds());
     struct timespec out = da.ToTimespec();
-    std::printf("tots %" PRId64 " %" PRId64 "\n",
+    QPRINTF("tots %" PRId64 " %" PRId64 "\n",
                 static_cast<int64_t>(out.tv_sec),
                 static_cast<int64_t>(out.tv_nsec));
     TimePoint pa = TimePoint::FromTicks(a);
     TimePoint pb = TimePoint::FromEpochDelta(db);
-    std::printf("tp %" PRId64 " %" PRId64 " %" PRId64 " %d\n",
+    QPRINTF("tp %" PRId64 " %" PRId64 " %" PRId64 " %d\n",
                 (pa - pb).ToNanoseconds(),
                 (pa + db).ToEpochDelta().ToNanoseconds(),
                 (pa - db).ToEpochDelta().ToNanoseconds(), Cmp(pa, pb));
     double s = BoundedF64(r, 9.0e9);
     double m = BoundedF64(r, 9.0e12);
-    std::printf("fromf %" PRId64 " %" PRId64 "\n",
+    QPRINTF("fromf %" PRId64 " %" PRId64 "\n",
                 TimeDelta::FromSecondsF(s).ToNanoseconds(),
                 TimeDelta::FromMillisecondsF(m).ToNanoseconds());
     int64_t hz = static_cast<int64_t>(r.Below(240)) + 1;
     double hzf = BoundedF64(r, 240.0);
-    std::printf("budget %016" PRIx64 " %016" PRIx64 "\n",
+    QPRINTF("budget %016" PRIx64 " %016" PRIx64 "\n",
                 Bits(fml::RefreshRateToFrameBudget(hz).count()),
                 Bits(fml::RefreshRateToFrameBudget(hzf).count()));
   }
-  std::printf("minmax %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 "\n",
+  QPRINTF("minmax %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 "\n",
               TimeDelta::Min().ToNanoseconds(),
               TimeDelta::Max().ToNanoseconds(),
               TimePoint::Min().ToEpochDelta().ToNanoseconds(),
@@ -342,28 +441,28 @@ std::string GenBytes(Rng& r, int max_len) {
 
 void SuiteStrings(Rng& r, int cases) {
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     std::u16string u16 = GenUtf16(r);
-    std::fputs("u16 ", stdout);
+    QFPUTS("u16 ", stdout);
     PrintHex16(u16);
-    std::fputs(" -> ", stdout);
+    QFPUTS(" -> ", stdout);
     try {
       PrintHex(fml::Utf16ToUtf8(u16));
     } catch (const std::range_error&) {
-      std::fputs("ERR", stdout);
+      QFPUTS("ERR", stdout);
     }
-    std::fputs("\n", stdout);
+    QFPUTS("\n", stdout);
 
     std::string u8 = GenUtf8(r);
-    std::fputs("u8 ", stdout);
+    QFPUTS("u8 ", stdout);
     PrintHex(u8);
-    std::fputs(" -> ", stdout);
+    QFPUTS(" -> ", stdout);
     try {
       PrintHex16(fml::Utf8ToUtf16(u8));
     } catch (const std::range_error&) {
-      std::fputs("ERR", stdout);
+      QFPUTS("ERR", stdout);
     }
-    std::fputs("\n", stdout);
+    QFPUTS("\n", stdout);
 
     std::vector<std::string> parts;
     int n = static_cast<int>(r.Below(5));
@@ -377,14 +476,14 @@ void SuiteStrings(Rng& r, int cases) {
     }
     static const char* kDelims[] = {",", ", ", "", "--"};
     const char* delim = kDelims[r.Below(4)];
-    std::fputs("join ", stdout);
+    QFPUTS("join ", stdout);
     PrintHex(fml::Join(parts, delim));
-    std::fputs("\n", stdout);
+    QFPUTS("\n", stdout);
 
     std::string path_bytes = GenBytes(r, 8);
-    std::fputs("path ", stdout);
+    QFPUTS("path ", stdout);
     PrintHex(fml::PathToUtf8(std::filesystem::path(path_bytes)));
-    std::fputs("\n", stdout);
+    QFPUTS("\n", stdout);
   }
 }
 
@@ -408,29 +507,29 @@ std::string GenBase32Text(Rng& r) {
 
 void SuiteCodec(Rng& r, int cases) {
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     std::string bytes = GenBytes(r, 20);
     auto enc = fml::Base32Encode(bytes);
-    std::fputs("b32e ", stdout);
+    QFPUTS("b32e ", stdout);
     PrintHex(bytes);
-    std::printf(" -> %d ", enc.first ? 1 : 0);
+    QPRINTF(" -> %d ", enc.first ? 1 : 0);
     PrintHex(enc.second);
     auto round = fml::Base32Decode(enc.second);
-    std::printf(" rt %d ", round.first ? 1 : 0);
+    QPRINTF(" rt %d ", round.first ? 1 : 0);
     PrintHex(round.second);
-    std::fputs("\n", stdout);
+    QFPUTS("\n", stdout);
 
     std::string text = GenBase32Text(r);
     auto dec = fml::Base32Decode(text);
-    std::fputs("b32d ", stdout);
+    QFPUTS("b32d ", stdout);
     PrintHex(text);
-    std::printf(" -> %d ", dec.first ? 1 : 0);
+    QPRINTF(" -> %d ", dec.first ? 1 : 0);
     PrintHex(dec.second);
-    std::fputs("\n", stdout);
+    QFPUTS("\n", stdout);
 
-    std::fputs("hex ", stdout);
+    QFPUTS("hex ", stdout);
     PrintHex(fml::HexEncode(bytes));
-    std::fputs("\n", stdout);
+    QFPUTS("\n", stdout);
   }
 }
 
@@ -480,9 +579,9 @@ double GenF64(Rng& r) {
 }
 
 void SuiteHash(Rng& r, int cases) {
-  std::printf("empty %016zx\n", fml::HashCombine());
+  QPRINTF("empty %016zx\n", fml::HashCombine());
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     int a = static_cast<int>(r.Next());
     int64_t b = EdgeI64(r);
     uint32_t c = static_cast<uint32_t>(r.Next());
@@ -497,14 +596,14 @@ void SuiteHash(Rng& r, int cases) {
     char ch = static_cast<char>(r.Next());
     uint64_t u64 = r.Next();
     size_t seed = r.Next();
-    std::printf("h1 %016zx\n", fml::HashCombine(a));
-    std::printf("h2 %016zx\n", fml::HashCombine(b, c, d));
-    std::printf("h3 %016zx\n", fml::HashCombine(s));
-    std::printf("h4 %016zx\n", fml::HashCombine(t));
-    std::printf("h5 %016zx\n", fml::HashCombine(s, a, f, g));
-    std::printf("h6 %016zx\n", fml::HashCombine(grade, u8, i16, ch, u64));
+    QPRINTF("h1 %016zx\n", fml::HashCombine(a));
+    QPRINTF("h2 %016zx\n", fml::HashCombine(b, c, d));
+    QPRINTF("h3 %016zx\n", fml::HashCombine(s));
+    QPRINTF("h4 %016zx\n", fml::HashCombine(t));
+    QPRINTF("h5 %016zx\n", fml::HashCombine(s, a, f, g));
+    QPRINTF("h6 %016zx\n", fml::HashCombine(grade, u8, i16, ch, u64));
     fml::HashCombineSeed(seed, a, s);
-    std::printf("h7 %016zx\n", seed);
+    QPRINTF("h7 %016zx\n", seed);
   }
 }
 
@@ -513,16 +612,16 @@ void SuiteHash(Rng& r, int cases) {
 void SuiteEndian(Rng& r, int cases) {
   for (int i = 0; i < cases; i++) {
     uint64_t x = r.Next();
-    std::printf("x %016" PRIx64 " %02x %04x %08x %016" PRIx64 "\n", x,
+    QPRINTF("x %016" PRIx64 " %02x %04x %08x %016" PRIx64 "\n", x,
                 fml::ByteSwap(static_cast<uint8_t>(x)),
                 fml::ByteSwap(static_cast<uint16_t>(x)),
                 fml::ByteSwap(static_cast<uint32_t>(x)),
                 fml::ByteSwap(static_cast<uint64_t>(x)));
-    std::printf("s %d %d %" PRId64 "\n",
+    QPRINTF("s %d %d %" PRId64 "\n",
                 fml::ByteSwap(static_cast<int16_t>(x)),
                 fml::ByteSwap(static_cast<int32_t>(x)),
                 fml::ByteSwap(static_cast<int64_t>(x)));
-    std::printf("be %08x %016" PRIx64 " le %08x %016" PRIx64 "\n",
+    QPRINTF("be %08x %016" PRIx64 " le %08x %016" PRIx64 "\n",
                 fml::BigEndianToArch(static_cast<uint32_t>(x)),
                 fml::BigEndianToArch(x),
                 fml::LittleEndianToArch(static_cast<uint32_t>(x)),
@@ -544,7 +643,7 @@ std::string GenTrieWord(Rng& r, const char* alphabet, int alphabet_len,
 
 void SuiteTrie(Rng& r, int cases) {
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     fml::AsciiTrie trie;
     if (!r.Chance(8)) {
       std::vector<std::string> entries;
@@ -552,16 +651,16 @@ void SuiteTrie(Rng& r, int cases) {
       for (int j = 0; j < n; j++) {
         entries.push_back(GenTrieWord(r, "abc", 3, 4));
       }
-      std::fputs("fill", stdout);
+      QFPUTS("fill", stdout);
       for (const auto& e : entries) {
-        std::printf(" '%s'", e.c_str());
+        QPRINTF(" '%s'", e.c_str());
       }
-      std::fputs("\n", stdout);
+      QFPUTS("\n", stdout);
       trie.Fill(entries);
     }
     for (int j = 0; j < 8; j++) {
       std::string q = GenTrieWord(r, "abcd", 4, 5);
-      std::printf("q '%s' %d\n", q.c_str(), trie.Query(q.c_str()) ? 1 : 0);
+      QPRINTF("q '%s' %d\n", q.c_str(), trie.Query(q.c_str()) ? 1 : 0);
     }
   }
 }
@@ -572,7 +671,7 @@ class Recorder : public fml::Wakeable {
  public:
   explicit Recorder(size_t queue) : queue_(queue) {}
   void WakeUp(fml::TimePoint time_point) override {
-    std::printf("  wake %zu %" PRId64 "\n", queue_,
+    QPRINTF("  wake %zu %" PRId64 "\n", queue_,
                 time_point.ToEpochDelta().ToNanoseconds());
   }
 
@@ -592,7 +691,7 @@ void SuiteQueues(Rng& r, int cases) {
   auto* queues = fml::MessageLoopTaskQueues::GetInstance();
   int task_counter = 0;
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     std::vector<std::unique_ptr<Recorder>> recorders;
     std::vector<fml::TaskQueueId> live;
     std::map<size_t, size_t> subsumed_by;  // queue -> owner
@@ -612,10 +711,10 @@ void SuiteQueues(Rng& r, int cases) {
           }
           fml::TaskQueueId q = queues->CreateTaskQueue();
           live.push_back(q);
-          std::printf("create %zu\n", static_cast<size_t>(q));
+          QPRINTF("create %zu\n", static_cast<size_t>(q));
           if (r.Chance(2)) {
             recorders.push_back(std::make_unique<Recorder>(q));
-            std::printf("wakeable %zu\n", static_cast<size_t>(q));
+            QPRINTF("wakeable %zu\n", static_cast<size_t>(q));
             queues->SetWakeable(q, recorders.back().get());
           }
           break;
@@ -629,11 +728,11 @@ void SuiteQueues(Rng& r, int cases) {
           fml::TimePoint t = GenTarget(r);
           auto grade = static_cast<fml::TaskSourceGrade>(r.Below(3));
           int id = task_counter++;
-          std::printf("reg %zu task%d %" PRId64 " %d\n", static_cast<size_t>(q),
+          QPRINTF("reg %zu task%d %" PRId64 " %d\n", static_cast<size_t>(q),
                       id, t.ToEpochDelta().ToNanoseconds(),
                       static_cast<int>(grade));
           queues->RegisterTask(
-              q, [id]() { std::printf("  run task%d\n", id); }, t, grade);
+              q, [id]() { QPRINTF("  run task%d\n", id); }, t, grade);
           break;
         }
         case 7:
@@ -644,22 +743,22 @@ void SuiteQueues(Rng& r, int cases) {
               r.Chance(8) ? fml::TimePoint::Max()
                           : fml::TimePoint::FromTicks(
                                 static_cast<int64_t>(r.Below(120)));
-          std::printf("next %zu %" PRId64 "\n", static_cast<size_t>(q),
+          QPRINTF("next %zu %" PRId64 "\n", static_cast<size_t>(q),
                       from.ToEpochDelta().ToNanoseconds());
           fml::closure task = queues->GetNextTaskToRun(q, from);
           if (task) {
             task();
-            std::printf("  grade %d\n",
+            QPRINTF("  grade %d\n",
                         static_cast<int>(fml::MessageLoopTaskQueues::
                                              GetCurrentTaskSourceGrade()));
           } else {
-            std::printf("  none\n");
+            QPRINTF("  none\n");
           }
           break;
         }
         case 10: {
           fml::TaskQueueId q = pick();
-          std::printf("pending %zu %d %zu\n", static_cast<size_t>(q),
+          QPRINTF("pending %zu %d %zu\n", static_cast<size_t>(q),
                       queues->HasPendingTasks(q) ? 1 : 0,
                       queues->GetNumPendingTasks(q));
           break;
@@ -667,10 +766,10 @@ void SuiteQueues(Rng& r, int cases) {
         case 11: {
           fml::TaskQueueId a = pick();
           fml::TaskQueueId b = pick();
-          std::printf("merge %zu %zu\n", static_cast<size_t>(a),
+          QPRINTF("merge %zu %zu\n", static_cast<size_t>(a),
                       static_cast<size_t>(b));
           bool ok = queues->Merge(a, b);
-          std::printf("  -> %d\n", ok ? 1 : 0);
+          QPRINTF("  -> %d\n", ok ? 1 : 0);
           if (ok && a != b) {
             subsumed_by[b] = a;
           }
@@ -679,10 +778,10 @@ void SuiteQueues(Rng& r, int cases) {
         case 12: {
           fml::TaskQueueId a = pick();
           fml::TaskQueueId b = pick();
-          std::printf("unmerge %zu %zu\n", static_cast<size_t>(a),
+          QPRINTF("unmerge %zu %zu\n", static_cast<size_t>(a),
                       static_cast<size_t>(b));
           bool ok = queues->Unmerge(a, b);
-          std::printf("  -> %d\n", ok ? 1 : 0);
+          QPRINTF("  -> %d\n", ok ? 1 : 0);
           if (ok) {
             subsumed_by.erase(b);
           }
@@ -691,18 +790,18 @@ void SuiteQueues(Rng& r, int cases) {
         case 13: {
           fml::TaskQueueId a = pick();
           fml::TaskQueueId b = pick();
-          std::printf("owns %zu %zu %d [", static_cast<size_t>(a),
+          QPRINTF("owns %zu %zu %d [", static_cast<size_t>(a),
                       static_cast<size_t>(b), queues->Owns(a, b) ? 1 : 0);
           for (auto s : queues->GetSubsumedTaskQueueId(a)) {
-            std::printf(" %zu", static_cast<size_t>(s));
+            QPRINTF(" %zu", static_cast<size_t>(s));
           }
-          std::printf(" ]\n");
+          QPRINTF(" ]\n");
           break;
         }
         case 14: {
           fml::TaskQueueId q = pick();
           bool pause = pauses[q] == 0 || r.Chance(2);
-          std::printf("%s %zu\n", pause ? "pause" : "resume",
+          QPRINTF("%s %zu\n", pause ? "pause" : "resume",
                       static_cast<size_t>(q));
           if (pause) {
             pauses[q]++;
@@ -717,23 +816,23 @@ void SuiteQueues(Rng& r, int cases) {
           fml::TaskQueueId q = pick();
           intptr_t key = static_cast<intptr_t>(r.Below(5)) - 1;
           size_t qv = q;
-          std::printf("observe %zu %" PRIdPTR "\n", qv, key);
+          QPRINTF("observe %zu %" PRIdPTR "\n", qv, key);
           queues->AddTaskObserver(q, key, [qv, key]() {
-            std::printf("  obs %zu %" PRIdPTR "\n", qv, key);
+            QPRINTF("  obs %zu %" PRIdPTR "\n", qv, key);
           });
           break;
         }
         case 16: {
           fml::TaskQueueId q = pick();
           intptr_t key = static_cast<intptr_t>(r.Below(5)) - 1;
-          std::printf("unobserve %zu %" PRIdPTR "\n", static_cast<size_t>(q),
+          QPRINTF("unobserve %zu %" PRIdPTR "\n", static_cast<size_t>(q),
                       key);
           queues->RemoveTaskObserver(q, key);
           break;
         }
         case 17: {
           fml::TaskQueueId q = pick();
-          std::printf("notify %zu\n", static_cast<size_t>(q));
+          QPRINTF("notify %zu\n", static_cast<size_t>(q));
           for (const auto& observer : queues->GetObserversToNotify(q)) {
             observer();
           }
@@ -744,7 +843,7 @@ void SuiteQueues(Rng& r, int cases) {
           if (!is_unmerged(q)) {
             break;
           }
-          std::printf("dispose_tasks %zu\n", static_cast<size_t>(q));
+          QPRINTF("dispose_tasks %zu\n", static_cast<size_t>(q));
           queues->DisposeTasks(q);
           break;
         }
@@ -753,7 +852,7 @@ void SuiteQueues(Rng& r, int cases) {
           if (!is_unmerged(q)) {
             break;
           }
-          std::printf("dispose %zu\n", static_cast<size_t>(q));
+          QPRINTF("dispose %zu\n", static_cast<size_t>(q));
           queues->Dispose(q);
           std::vector<fml::TaskQueueId> kept;
           for (auto l : live) {
@@ -831,12 +930,12 @@ void PostLoopTask(LoopCtx* c, const char* indent) {
   switch (r.Below(7)) {
     case 0:
     case 1:
-      std::printf("%spost t%d\n", indent, id);
+      QPRINTF("%spost t%d\n", indent, id);
       runner->PostTask(MakeLoopTask(c, id));
       break;
     case 2: {
       int64_t d = static_cast<int64_t>(r.Below(40)) - 8;
-      std::printf("%sdelay t%d %" PRId64 "\n", indent, id, d);
+      QPRINTF("%sdelay t%d %" PRId64 "\n", indent, id, d);
       runner->PostDelayedTask(MakeLoopTask(c, id),
                               fml::TimeDelta::FromNanoseconds(d));
       break;
@@ -847,21 +946,21 @@ void PostLoopTask(LoopCtx* c, const char* indent) {
                        : fml::TimePoint::FromTicks(
                              PeekNow() + static_cast<int64_t>(r.Below(60)) -
                              15);
-      std::printf("%sat t%d %" PRId64 "\n", indent, id,
+      QPRINTF("%sat t%d %" PRId64 "\n", indent, id,
                   t.ToEpochDelta().ToNanoseconds());
       runner->PostTaskForTime(MakeLoopTask(c, id), t);
       break;
     }
     case 4:
-      std::printf("%snow-or-post t%d\n", indent, id);
+      QPRINTF("%snow-or-post t%d\n", indent, id);
       fml::TaskRunner::RunNowOrPostTask(runner, MakeLoopTask(c, id));
       break;
     case 5:
-      std::printf("%snow-and-flush t%d\n", indent, id);
+      QPRINTF("%snow-and-flush t%d\n", indent, id);
       fml::TaskRunner::RunNowAndFlushMessages(runner, MakeLoopTask(c, id));
       break;
     default: {
-      std::printf("%spost-queues t%d\n", indent, id);
+      QPRINTF("%spost-queues t%d\n", indent, id);
       fml::MessageLoopTaskQueues::GetInstance()->RegisterTask(
           fml::MessageLoop::GetCurrentTaskQueueId(), MakeLoopTask(c, id),
           fml::TimePoint::FromTicks(PeekNow()),
@@ -874,12 +973,12 @@ void PostLoopTask(LoopCtx* c, const char* indent) {
 void AddLoopObserver(Rng& r, const char* indent) {
   intptr_t key = static_cast<intptr_t>(r.Below(4));
   if (r.Chance(3)) {
-    std::printf("%sunobserve %" PRIdPTR "\n", indent, key);
+    QPRINTF("%sunobserve %" PRIdPTR "\n", indent, key);
     fml::MessageLoop::GetCurrent().RemoveTaskObserver(key);
   } else {
-    std::printf("%sobserve %" PRIdPTR "\n", indent, key);
+    QPRINTF("%sobserve %" PRIdPTR "\n", indent, key);
     fml::MessageLoop::GetCurrent().AddTaskObserver(
-        key, [key]() { std::printf("    obs %" PRIdPTR "\n", key); });
+        key, [key]() { QPRINTF("    obs %" PRIdPTR "\n", key); });
   }
 }
 
@@ -887,7 +986,7 @@ fml::closure MakeLoopTask(LoopCtx* c, int id) {
   return [c, id]() {
     Rng& r = *c->r;
     auto runner = fml::MessageLoop::GetCurrent().GetTaskRunner();
-    std::printf("  run t%d @%" PRId64 " on %d\n", id, PeekNow(),
+    QPRINTF("  run t%d @%" PRId64 " on %d\n", id, PeekNow(),
                 runner->RunsTasksOnCurrentThread() ? 1 : 0);
     switch (r.Below(12)) {
       case 0:
@@ -904,25 +1003,25 @@ fml::closure MakeLoopTask(LoopCtx* c, int id) {
         break;
       case 5: {
         int64_t jump = static_cast<int64_t>(r.Below(25));
-        std::printf("   jump %" PRId64 "\n", jump);
+        QPRINTF("   jump %" PRId64 "\n", jump);
         g_fake_now += jump;
         break;
       }
       case 6:
         if (r.Chance(4)) {
-          std::printf("   nested flush\n");
+          QPRINTF("   nested flush\n");
           fml::MessageLoop::GetCurrent().RunExpiredTasksNow();
-          std::printf("   nested done\n");
+          QPRINTF("   nested done\n");
         }
         break;
       case 7:
         if (r.Chance(6)) {
-          std::printf("   terminate\n");
+          QPRINTF("   terminate\n");
           fml::MessageLoop::GetCurrent().Terminate();
         }
         break;
       case 8:
-        std::printf("   pending %zu\n",
+        QPRINTF("   pending %zu\n",
                     fml::MessageLoopTaskQueues::GetInstance()
                         ->GetNumPendingTasks(runner->GetTaskQueueId()));
         break;
@@ -938,12 +1037,12 @@ void LoopCase(Rng& r, int i) {
   LoopCtx c;
   c.r = &r;
   c.budget = 10 + static_cast<int>(r.Below(40));
-  std::printf("case %d now %" PRId64 " step %" PRId64 " budget %d\n", i,
+  QPRINTF("case %d now %" PRId64 " step %" PRId64 " budget %d\n", i,
               PeekNow(), g_fake_step.load(), c.budget);
   fml::MessageLoop::EnsureInitializedForCurrentThread();
   auto& loop = fml::MessageLoop::GetCurrent();
   auto runner = loop.GetTaskRunner();
-  std::printf("init %d %d\n",
+  QPRINTF("init %d %d\n",
               fml::MessageLoop::IsInitializedForCurrentThread() ? 1 : 0,
               runner->RunsTasksOnCurrentThread() ? 1 : 0);
   int setup = 1 + static_cast<int>(r.Below(8));
@@ -953,7 +1052,7 @@ void LoopCase(Rng& r, int i) {
         AddLoopObserver(r, "");
         break;
       case 1:
-        std::printf("poll @%" PRId64 "\n", PeekNow());
+        QPRINTF("poll @%" PRId64 "\n", PeekNow());
         loop.RunExpiredTasksNow();
         break;
       default:
@@ -962,19 +1061,19 @@ void LoopCase(Rng& r, int i) {
     }
   }
   int64_t end = PeekNow() + 20 + static_cast<int64_t>(r.Below(150));
-  std::printf("end at %" PRId64 "\n", end);
+  QPRINTF("end at %" PRId64 "\n", end);
   runner->PostTaskForTime(
       [end]() {
-        std::printf("  end @%" PRId64 "\n", PeekNow());
+        QPRINTF("  end @%" PRId64 "\n", PeekNow());
         fml::MessageLoop::GetCurrent().Terminate();
       },
       fml::TimePoint::FromTicks(end));
   loop.Run();
-  std::printf("ran @%" PRId64 " pending %zu\n", PeekNow(),
+  QPRINTF("ran @%" PRId64 " pending %zu\n", PeekNow(),
               fml::MessageLoopTaskQueues::GetInstance()->GetNumPendingTasks(
                   runner->GetTaskQueueId()));
-  runner->PostTask([]() { std::printf("  never\n"); });
-  std::printf("after terminate pending %zu\n",
+  runner->PostTask([]() { QPRINTF("  never\n"); });
+  QPRINTF("after terminate pending %zu\n",
               fml::MessageLoopTaskQueues::GetInstance()->GetNumPendingTasks(
                   runner->GetTaskQueueId()));
   loop.RunExpiredTasksNow();
@@ -1084,11 +1183,11 @@ void CreateMerger(MergerCtx& c, const char* indent) {
   bool shares = parent >= 0 && merger->GetSharedRasterThreadMerger().get() ==
                                    parent_merger->GetSharedRasterThreadMerger()
                                        .get();
-  std::printf("%screate m%d pair %d parent %d shares %d\n", indent, index,
+  QPRINTF("%screate m%d pair %d parent %d shares %d\n", indent, index,
               pair, parent, shares ? 1 : 0);
   if (r.Chance(2)) {
     merger->SetMergeUnmergeCallback(
-        [index]() { std::printf("    callback m%d\n", index); });
+        [index]() { QPRINTF("    callback m%d\n", index); });
   }
   c.mergers.push_back(MergerEntry{pair, shared, merger});
 }
@@ -1109,7 +1208,7 @@ void MergerOp(MergerCtx& c, const char* indent) {
     case 0:
     case 1: {
       size_t lease = 1 + r.Below(4);
-      std::printf("%smerge m%d %zu\n", indent, m, lease);
+      QPRINTF("%smerge m%d %zu\n", indent, m, lease);
       merger->MergeWithLease(lease);
       if (!same && s.enabled && !s.Merged()) {
         c.queue_merged[raster] = true;
@@ -1137,9 +1236,9 @@ void MergerOp(MergerCtx& c, const char* indent) {
           c.queue_merged[raster] = false;
         }
       }
-      std::printf("%sdecrement m%d\n", indent, m);
+      QPRINTF("%sdecrement m%d\n", indent, m);
       auto status = merger->DecrementLease();
-      std::printf("%s  -> %d\n", indent, static_cast<int>(status));
+      QPRINTF("%s  -> %d\n", indent, static_cast<int>(status));
       break;
     }
     case 4: {
@@ -1147,7 +1246,7 @@ void MergerOp(MergerCtx& c, const char* indent) {
       if (!same && s.enabled && !s.Merged()) {
         break;  // FML_DCHECK(IsMergedUnSafe()) in debug builds.
       }
-      std::printf("%sextend m%d %zu\n", indent, m, lease);
+      QPRINTF("%sextend m%d %zu\n", indent, m, lease);
       merger->ExtendLeaseTo(lease);
       if (!same && s.enabled) {
         s.leases[m] = lease;
@@ -1166,13 +1265,13 @@ void MergerOp(MergerCtx& c, const char* indent) {
           c.queue_merged[raster] = false;
         }
       }
-      std::printf("%sunmerge m%d\n", indent, m);
+      QPRINTF("%sunmerge m%d\n", indent, m);
       merger->UnMergeNowIfLastOne();
       break;
     }
     case 6: {
       bool enable = r.Chance(2);
-      std::printf("%s%s m%d\n", indent, enable ? "enable" : "disable", m);
+      QPRINTF("%s%s m%d\n", indent, enable ? "enable" : "disable", m);
       if (enable) {
         merger->Enable();
       } else {
@@ -1183,13 +1282,13 @@ void MergerOp(MergerCtx& c, const char* indent) {
     }
     case 7: {
       bool merged = merger->IsMerged();
-      std::printf("%squery m%d merged %d enabled %d raster %d platform %d\n",
+      QPRINTF("%squery m%d merged %d enabled %d raster %d platform %d\n",
                   indent, m, merged ? 1 : 0, merger->IsEnabled() ? 1 : 0,
                   merger->IsOnRasterizingThread() ? 1 : 0,
                   merger->IsOnPlatformThread() ? 1 : 0);
       if (merged) {
         merger->WaitUntilMerged();
-        std::printf("%s  waited\n", indent);
+        QPRINTF("%s  waited\n", indent);
       }
       break;
     }
@@ -1213,7 +1312,7 @@ void PostMergerTask(MergerCtx& c, const char* indent) {
   switch (r.Below(5)) {
     case 0:
     case 1:
-      std::printf("%spost t%d to %s\n", indent, id, kLoopNames[q]);
+      QPRINTF("%spost t%d to %s\n", indent, id, kLoopNames[q]);
       runner->PostTask(MakeMergerTask(&c, id, q));
       break;
     case 2: {
@@ -1222,21 +1321,21 @@ void PostMergerTask(MergerCtx& c, const char* indent) {
                        : fml::TimePoint::FromTicks(
                              PeekNow() + static_cast<int64_t>(r.Below(30)) -
                              10);
-      std::printf("%sat t%d to %s %" PRId64 "\n", indent, id, kLoopNames[q],
+      QPRINTF("%sat t%d to %s %" PRId64 "\n", indent, id, kLoopNames[q],
                   t.ToEpochDelta().ToNanoseconds());
       runner->PostTaskForTime(MakeMergerTask(&c, id, q), t);
       break;
     }
     case 3: {
       int64_t d = static_cast<int64_t>(r.Below(20)) - 5;
-      std::printf("%sdelay t%d to %s %" PRId64 "\n", indent, id,
+      QPRINTF("%sdelay t%d to %s %" PRId64 "\n", indent, id,
                   kLoopNames[q], d);
       runner->PostDelayedTask(MakeMergerTask(&c, id, q),
                               fml::TimeDelta::FromNanoseconds(d));
       break;
     }
     default:
-      std::printf("%snow-or-post t%d to %s\n", indent, id, kLoopNames[q]);
+      QPRINTF("%snow-or-post t%d to %s\n", indent, id, kLoopNames[q]);
       fml::TaskRunner::RunNowOrPostTask(runner, MakeMergerTask(&c, id, q));
       break;
   }
@@ -1245,7 +1344,7 @@ void PostMergerTask(MergerCtx& c, const char* indent) {
 fml::closure MakeMergerTask(MergerCtx* c, int id, int queue) {
   return [c, id, queue]() {
     Rng& r = *c->r;
-    std::printf("  run t%d of %s flushing %s @%" PRId64 "\n", id,
+    QPRINTF("  run t%d of %s flushing %s @%" PRId64 "\n", id,
                 kLoopNames[queue], kLoopNames[c->flushing], PeekNow());
     switch (r.Below(6)) {
       case 0:
@@ -1266,18 +1365,21 @@ void MergerCase(Rng& r, int i) {
   SetFakeClock(100 + static_cast<int64_t>(r.Below(50)),
                1 + static_cast<int64_t>(r.Below(3)));
   fml::MessageLoop::EnsureInitializedForCurrentThread();
-  ParkedLoop r1;
-  ParkedLoop r2;
+  // The parked threads are the driver's: spawning them is not timed.
+  SwPause();
+  auto r1 = std::make_unique<ParkedLoop>();
+  auto r2 = std::make_unique<ParkedLoop>();
+  SwResume();
   MergerCtx c;
   c.r = &r;
   c.loops[0] = &fml::MessageLoop::GetCurrent();
-  c.loops[1] = r1.loop;
-  c.loops[2] = r2.loop;
+  c.loops[1] = r1->loop;
+  c.loops[2] = r2->loop;
   for (int q = 0; q < 3; q++) {
     c.ids[q] = c.loops[q]->GetTaskRunner()->GetTaskQueueId();
   }
   c.budget = 10 + static_cast<int>(r.Below(40));
-  std::printf("case %d now %" PRId64 " budget %d\n", i, PeekNow(), c.budget);
+  QPRINTF("case %d now %" PRId64 " budget %d\n", i, PeekNow(), c.budget);
   auto* queues = fml::MessageLoopTaskQueues::GetInstance();
   int ops = 10 + static_cast<int>(r.Below(50));
   for (int op = 0; op < ops; op++) {
@@ -1292,7 +1394,7 @@ void MergerCase(Rng& r, int i) {
       case 5: {
         int q = static_cast<int>(r.Below(3));
         c.flushing = q;
-        std::printf("flush %s @%" PRId64 "\n", kLoopNames[q], PeekNow());
+        QPRINTF("flush %s @%" PRId64 "\n", kLoopNames[q], PeekNow());
         c.loops[q]->RunExpiredTasksNow();
         c.flushing = 3;
         break;
@@ -1305,47 +1407,44 @@ void MergerCase(Rng& r, int i) {
         int q = static_cast<int>(r.Below(3));
         intptr_t key = static_cast<intptr_t>(r.Below(3));
         if (r.Chance(3)) {
-          std::printf("unobserve %s %" PRIdPTR "\n", kLoopNames[q], key);
+          QPRINTF("unobserve %s %" PRIdPTR "\n", kLoopNames[q], key);
           queues->RemoveTaskObserver(c.ids[q], key);
         } else {
-          std::printf("observe %s %" PRIdPTR "\n", kLoopNames[q], key);
+          QPRINTF("observe %s %" PRIdPTR "\n", kLoopNames[q], key);
           queues->AddTaskObserver(c.ids[q], key, [q, key]() {
-            std::printf("    obs %s %" PRIdPTR "\n", kLoopNames[q], key);
+            QPRINTF("    obs %s %" PRIdPTR "\n", kLoopNames[q], key);
           });
         }
         break;
       }
       case 9: {
-        std::printf("state");
+        QPRINTF("state");
         for (int q = 0; q < 3; q++) {
-          std::printf(" %s:%d/%zu/%d", kLoopNames[q],
-                      queues->HasPendingTasks(c.ids[q]) ? 1 : 0,
-                      queues->GetNumPendingTasks(c.ids[q]),
-                      c.loops[q]->GetTaskRunner()->RunsTasksOnCurrentThread()
-                          ? 1
-                          : 0);
+          bool has = queues->HasPendingTasks(c.ids[q]);
+          size_t num = queues->GetNumPendingTasks(c.ids[q]);
+          bool runs = c.loops[q]->GetTaskRunner()->RunsTasksOnCurrentThread();
+          QPRINTF(" %s:%d/%zu/%d", kLoopNames[q], has ? 1 : 0, num,
+                  runs ? 1 : 0);
         }
-        std::printf(" owns %d %d same %d %d\n",
-                    queues->Owns(c.ids[0], c.ids[1]) ? 1 : 0,
-                    queues->Owns(c.ids[0], c.ids[2]) ? 1 : 0,
-                    fml::TaskRunnerChecker::RunsOnTheSameThread(c.ids[1],
-                                                                c.ids[0])
-                        ? 1
-                        : 0,
-                    fml::TaskRunnerChecker::RunsOnTheSameThread(c.ids[2],
-                                                                c.ids[1])
-                        ? 1
-                        : 0);
+        bool owns1 = queues->Owns(c.ids[0], c.ids[1]);
+        bool owns2 = queues->Owns(c.ids[0], c.ids[2]);
+        bool same1 =
+            fml::TaskRunnerChecker::RunsOnTheSameThread(c.ids[1], c.ids[0]);
+        bool same2 =
+            fml::TaskRunnerChecker::RunsOnTheSameThread(c.ids[2], c.ids[1]);
+        QPRINTF(" owns %d %d same %d %d\n", owns1 ? 1 : 0, owns2 ? 1 : 0,
+                same1 ? 1 : 0, same2 ? 1 : 0);
         break;
       }
       case 10: {
         fml::TaskRunnerChecker checker;
-        std::printf("checker %d\n", checker.RunsOnCreationTaskRunner() ? 1 : 0);
+        bool on = checker.RunsOnCreationTaskRunner();
+        QPRINTF("checker %d\n", on ? 1 : 0);
         break;
       }
       default: {
         int64_t jump = static_cast<int64_t>(r.Below(15));
-        std::printf("jump %" PRId64 "\n", jump);
+        QPRINTF("jump %" PRId64 "\n", jump);
         g_fake_now += jump;
         break;
       }
@@ -1353,11 +1452,11 @@ void MergerCase(Rng& r, int i) {
   }
   for (int q = 1; q < 3; q++) {
     if (c.queue_merged[q]) {
-      std::printf("final unmerge %s %d\n", kLoopNames[q],
+      QPRINTF("final unmerge %s %d\n", kLoopNames[q],
                   queues->Unmerge(c.ids[0], c.ids[q]) ? 1 : 0);
     }
   }
-  std::printf("final pending %zu %zu %zu\n",
+  QPRINTF("final pending %zu %zu %zu\n",
               queues->GetNumPendingTasks(c.ids[0]),
               queues->GetNumPendingTasks(c.ids[1]),
               queues->GetNumPendingTasks(c.ids[2]));
@@ -1365,12 +1464,23 @@ void MergerCase(Rng& r, int i) {
     queues->DisposeTasks(c.ids[q]);
   }
   c.mergers.clear();
+  SwPause();
+  r2.reset();
+  r1.reset();
+  SwResume();
 }
 
 void SuiteMerger(Rng& r, int cases) {
   for (int i = 0; i < cases; i++) {
-    std::thread thread([&r, i]() { MergerCase(r, i); });
+    // The case runs on a fresh thread; only its body is timed.
+    SwPause();
+    std::thread thread([&r, i]() {
+      SwResume();
+      MergerCase(r, i);
+      SwPause();
+    });
     thread.join();
+    SwResume();
   }
   fml::TimePoint::SetClockSource(nullptr);
 }
@@ -1466,7 +1576,7 @@ fml::closure MakeThreadTask(ThreadCtx* c, int id, int child_action) {
 }
 
 void ThreadNameConfigSetter(const fml::Thread::ThreadConfig& config) {
-  std::printf("  setter %s %d\n", config.name.c_str(),
+  QPRINTF("  setter %s %d\n", config.name.c_str(),
               static_cast<int>(config.priority));
   fml::Thread::SetCurrentThreadName(config);
 }
@@ -1483,7 +1593,7 @@ void ConcurrentCase(Rng& r) {
   size_t workers = r.Below(5);
   auto loop = fml::ConcurrentMessageLoop::Create(workers);
   size_t count = loop->GetWorkerCount();
-  std::printf("concurrent %zu -> %zu\n", workers, count);
+  QPRINTF("concurrent %zu -> %zu\n", workers, count);
   auto runner = loop->GetTaskRunner();
   size_t tasks = r.Below(30);
   fml::CountDownLatch latch(tasks);
@@ -1505,7 +1615,7 @@ void ConcurrentCase(Rng& r) {
     });
   }
   latch.Wait();
-  std::printf("  ran %zu inside %zu names %d outside %d\n", tasks, inside,
+  QPRINTF("  ran %zu inside %zu names %d outside %d\n", tasks, inside,
               names_ok ? 1 : 0, loop->RunsTasksOnCurrentThread() ? 1 : 0);
   fml::CountDownLatch all(count);
   std::vector<std::string> names;
@@ -1518,47 +1628,47 @@ void ConcurrentCase(Rng& r) {
   });
   all.Wait();
   std::sort(names.begin(), names.end());
-  std::printf("  all");
+  QPRINTF("  all");
   for (const auto& name : names) {
-    std::printf(" %s", name.c_str());
+    QPRINTF(" %s", name.c_str());
   }
-  std::printf("\n");
+  QPRINTF("\n");
   if (r.Chance(2)) {
     loop->Terminate();
     std::string where;
     runner->PostTask([&]() { where = CurrentThreadName(); });
-    std::printf("  after terminate caller %d\n",
+    QPRINTF("  after terminate caller %d\n",
                 where == CurrentThreadName() ? 1 : 0);
   }
   loop.reset();
   bool ran = false;
   runner->PostTask([&]() { ran = true; });
-  std::printf("  after death ran %d\n", ran ? 1 : 0);
+  QPRINTF("  after death ran %d\n", ran ? 1 : 0);
 }
 
 void ThreadCase(Rng& r, int i) {
   ThreadCtx c;
   c.r = &r;
   int n = 1 + static_cast<int>(r.Below(3));
-  std::printf("case %d threads %d\n", i, n);
+  QPRINTF("case %d threads %d\n", i, n);
   std::vector<int> kinds;
   for (int t = 0; t < n; t++) {
     kinds.push_back(static_cast<int>(r.Below(3)));
     switch (kinds.back()) {
       case 0:
-        std::printf("thread %d default\n", t);
+        QPRINTF("thread %d default\n", t);
         c.threads.push_back(std::make_unique<fml::Thread>());
         break;
       case 1: {
         std::string name = RandomThreadName(r);
-        std::printf("thread %d named %s\n", t, name.c_str());
+        QPRINTF("thread %d named %s\n", t, name.c_str());
         c.threads.push_back(std::make_unique<fml::Thread>(name));
         break;
       }
       default: {
         std::string name = RandomThreadName(r);
         auto priority = static_cast<fml::Thread::ThreadPriority>(r.Below(4));
-        std::printf("thread %d config %s %d\n", t, name.c_str(),
+        QPRINTF("thread %d config %s %d\n", t, name.c_str(),
                     static_cast<int>(priority));
         c.threads.push_back(std::make_unique<fml::Thread>(
             ThreadNameConfigSetter,
@@ -1580,7 +1690,7 @@ void ThreadCase(Rng& r, int i) {
       latch.Signal();
     });
     latch.Wait();
-    std::printf("name %d %s\n", t, name.c_str());
+    QPRINTF("name %d %s\n", t, name.c_str());
   }
   int rounds = 1 + static_cast<int>(r.Below(4));
   for (int round = 0; round < rounds; round++) {
@@ -1601,17 +1711,17 @@ void ThreadCase(Rng& r, int i) {
       auto task = MakeThreadTask(&c, id, child);
       switch (r.Below(6)) {
         case 0:
-          std::printf("post t%d to %d\n", id, t);
+          QPRINTF("post t%d to %d\n", id, t);
           c.pending.Add();
           c.runners[t]->PostTask(task);
           break;
         case 1:
-          std::printf("now-or-post t%d to %d\n", id, t);
+          QPRINTF("now-or-post t%d to %d\n", id, t);
           c.pending.Add();
           fml::TaskRunner::RunNowOrPostTask(c.runners[t], task);
           break;
         case 2: {
-          std::printf("wrapper t%d to %d\n", id, t);
+          QPRINTF("wrapper t%d to %d\n", id, t);
           c.pending.Add();
           fml::WrapperBasicTaskRunner wrapper(c.runners[t]);
           wrapper.PostTask(task);
@@ -1619,7 +1729,7 @@ void ThreadCase(Rng& r, int i) {
         }
         case 3: {
           bool usable = r.Chance(2);
-          std::printf("conditional t%d to %d %d\n", id, t, usable ? 1 : 0);
+          QPRINTF("conditional t%d to %d %d\n", id, t, usable ? 1 : 0);
           // Kept alive until the round ends: the task checks the predicate
           // through a weak reference when it runs.
           conditionals.push_back(
@@ -1634,14 +1744,14 @@ void ThreadCase(Rng& r, int i) {
         case 4: {
           // The runner, and the predicate it owns, dies before the gated
           // thread gets to the task, which must then not run.
-          std::printf("conditional-dead t%d to %d\n", id, t);
+          QPRINTF("conditional-dead t%d to %d\n", id, t);
           fml::ConditionalBasicTaskRunner conditional(c.runners[t],
                                                       []() { return true; });
           conditional.PostTask(task);
           break;
         }
         default:
-          std::printf("for-time t%d to %d\n", id, t);
+          QPRINTF("for-time t%d to %d\n", id, t);
           c.pending.Add();
           c.runners[t]->PostTaskForTime(task, fml::TimePoint::Now());
           break;
@@ -1662,25 +1772,25 @@ void ThreadCase(Rng& r, int i) {
     std::scoped_lock lock(c.trace_mutex);
     for (auto& [t, lines] : c.traces) {
       for (const auto& line : lines) {
-        std::printf("  %d: %s\n", t, line.c_str());
+        QPRINTF("  %d: %s\n", t, line.c_str());
       }
     }
     c.traces.clear();
-    std::printf("main runs");
+    QPRINTF("main runs");
     for (auto& runner : c.runners) {
-      std::printf(" %d", runner->RunsTasksOnCurrentThread() ? 1 : 0);
+      QPRINTF(" %d", runner->RunsTasksOnCurrentThread() ? 1 : 0);
     }
-    std::printf("\n");
+    QPRINTF("\n");
   }
   for (int t = 0; t < n; t++) {
     if (r.Chance(2)) {
-      std::printf("join %d\n", t);
+      QPRINTF("join %d\n", t);
       c.threads[t]->Join();
       if (r.Chance(2)) {
         c.threads[t]->Join();
       }
-      c.runners[t]->PostTask([]() { std::printf("never\n"); });
-      std::printf("  pending %zu\n",
+      c.runners[t]->PostTask([]() { QPRINTF("never\n"); });
+      QPRINTF("  pending %zu\n",
                   fml::MessageLoopTaskQueues::GetInstance()->GetNumPendingTasks(
                       c.runners[t]->GetTaskQueueId()));
     }
@@ -1692,7 +1802,7 @@ void ThreadCase(Rng& r, int i) {
 }
 
 void SuiteThread(Rng& r, int cases) {
-  std::printf("default stack %zu\n", fml::Thread::GetDefaultStackSize());
+  QPRINTF("default stack %zu\n", fml::Thread::GetDefaultStackSize());
   for (int i = 0; i < cases; i++) {
     ThreadCase(r, i);
   }
@@ -1718,13 +1828,16 @@ std::string RandomLogText(Rng& r) {
 }
 
 void PrintEscaped(const std::string& s) {
+  if (g_quiet) {
+    return;
+  }
   for (char ch : s) {
     if (ch == '\n') {
-      std::fputs("\\n", stdout);
+      QFPUTS("\\n", stdout);
     } else if (ch == '\t') {
-      std::fputs("\\t", stdout);
+      QFPUTS("\\t", stdout);
     } else {
-      std::fputc(ch, stdout);
+      QFPUTC(ch, stdout);
     }
   }
 }
@@ -1735,7 +1848,7 @@ void EmitLog(Rng& r, fml::LogSeverity severity, bool capture) {
   int line = static_cast<int>(r.Below(500));
   bool condition = r.Chance(3);
   std::string text = RandomLogText(r);
-  std::printf("  emit %d %s %d %d %d\n", severity, file, line,
+  QPRINTF("  emit %d %s %d %d %d\n", severity, file, line,
               condition ? 1 : 0, capture ? 1 : 0);
   std::fflush(stdout);
   fml::testing::LogCapture log_capture_slot;
@@ -1748,9 +1861,9 @@ void EmitLog(Rng& r, fml::LogSeverity severity, bool capture) {
     message.stream() << text;
   }
   if (capture) {
-    std::printf("  captured ");
+    QPRINTF("  captured ");
     PrintEscaped(log_capture_slot.str());
-    std::printf("\n");
+    QPRINTF("\n");
   }
 }
 
@@ -1758,7 +1871,7 @@ void FatalChild(uint64_t seed) {
   Rng r{seed};
   fml::LogSeverity severity = 4 + static_cast<int>(r.Below(3));
   EmitLog(r, severity, r.Chance(3));
-  std::printf("survived\n");
+  QPRINTF("survived\n");
 }
 
 void RunFatalChild(uint64_t seed) {
@@ -1788,23 +1901,23 @@ void RunFatalChild(uint64_t seed) {
   close(err[0]);
   int status = 0;
   waitpid(pid, &status, 0);
-  std::printf("  child %s %d stderr ",
+  QPRINTF("  child %s %d stderr ",
               WIFSIGNALED(status) ? "signal" : "exit",
               WIFSIGNALED(status) ? WTERMSIG(status) : WEXITSTATUS(status));
   PrintEscaped(out);
-  std::printf("\n");
+  QPRINTF("\n");
 }
 
 void SuiteLogging(Rng& r, int cases) {
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     switch (r.Below(8)) {
       case 0:
       case 1: {
         fml::LogSettings settings;
         settings.min_log_level = static_cast<int>(r.Below(10)) - 3;
         fml::SetLogSettings(settings);
-        std::printf("  set %d -> %d min %d vlog %d\n", settings.min_log_level,
+        QPRINTF("  set %d -> %d min %d vlog %d\n", settings.min_log_level,
                     fml::GetLogSettings().min_log_level, fml::GetMinLogLevel(),
                     fml::GetVlogVerbosity());
         break;
@@ -1815,11 +1928,11 @@ void SuiteLogging(Rng& r, int cases) {
         int before = fml::GetMinLogLevel();
         {
           fml::ScopedSetLogSettings scoped(settings);
-          std::printf("  scoped %d -> min %d vlog %d\n",
+          QPRINTF("  scoped %d -> min %d vlog %d\n",
                       settings.min_log_level, fml::GetMinLogLevel(),
                       fml::GetVlogVerbosity());
         }
-        std::printf("  restored %d %d\n", before, fml::GetMinLogLevel());
+        QPRINTF("  restored %d %d\n", before, fml::GetMinLogLevel());
         break;
       }
       case 3:
@@ -1831,7 +1944,7 @@ void SuiteLogging(Rng& r, int cases) {
         fml::LogSeverity severity = vlog ? -level : level;
         bool on = vlog ? level <= fml::GetVlogVerbosity()
                        : fml::ShouldCreateLogMessage(severity);
-        std::printf("  %s %d on %d\n", vlog ? "vlog" : "log", level,
+        QPRINTF("  %s %d on %d\n", vlog ? "vlog" : "log", level,
                     on ? 1 : 0);
         if (on) {
           EmitLog(r, severity, r.Chance(2));
@@ -1843,7 +1956,7 @@ void SuiteLogging(Rng& r, int cases) {
         fml::LogSeverity severity = r.Chance(2) ? 5 + static_cast<int>(r.Below(3))
                                                : -static_cast<int>(r.Below(12));
         if (severity >= fml::kLogFatal) {
-          std::printf("  fatal\n");
+          QPRINTF("  fatal\n");
           RunFatalChild(r.Next());
         } else {
           EmitLog(r, severity, r.Chance(2));
@@ -1852,7 +1965,7 @@ void SuiteLogging(Rng& r, int cases) {
       }
       default:
         if (r.Chance(4)) {
-          std::printf("  fatal\n");
+          QPRINTF("  fatal\n");
           RunFatalChild(r.Next());
         }
         break;
@@ -1872,15 +1985,18 @@ void SuiteLogging(Rng& r, int cases) {
 // Bytes between quotes; anything outside printable ASCII, and the quote and
 // the backslash, as \xNN.
 void PrintQuoted(const std::string& s) {
-  std::fputc('"', stdout);
+  if (g_quiet) {
+    return;
+  }
+  QFPUTC('"', stdout);
   for (unsigned char c : s) {
     if (c < 0x20 || c > 0x7e || c == '"' || c == '\\') {
-      std::printf("\\x%02x", c);
+      QPRINTF("\\x%02x", c);
     } else {
-      std::fputc(c, stdout);
+      QFPUTC(c, stdout);
     }
   }
-  std::fputc('"', stdout);
+  QFPUTC('"', stdout);
 }
 
 uint64_t Fnv1a(const uint8_t* data, size_t size) {
@@ -1893,10 +2009,12 @@ uint64_t Fnv1a(const uint8_t* data, size_t size) {
 }
 
 std::vector<uint8_t> GenData(Rng& r, uint64_t max_len) {
+  SwPause();
   std::vector<uint8_t> data(r.Below(max_len + 1));
   for (auto& b : data) {
     b = static_cast<uint8_t>(r.Next());
   }
+  SwResume();
   return data;
 }
 
@@ -1908,7 +2026,16 @@ const char* const kFileNames[] = {"a",   "b",      "c.txt", "d",
                                   "a.temp"};
 constexpr uint64_t kFileNameCount = 12;
 
+std::string GenRelPathUntimed(Rng& r);
+
 std::string GenRelPath(Rng& r) {
+  SwPause();
+  std::string path = GenRelPathUntimed(r);
+  SwResume();
+  return path;
+}
+
+std::string GenRelPathUntimed(Rng& r) {
   switch (r.Below(12)) {
     case 0:
       return std::string(256, 'n');  // longer than NAME_MAX
@@ -1968,7 +2095,7 @@ bool PrintingVisit(const fml::UniqueFD& dir, bool recursive, bool stop,
                    const std::string& stop_at) {
   fml::FileVisitor visitor = [&](const fml::UniqueFD& directory,
                                  const std::string& filename) {
-    std::printf(" ");
+    QPRINTF(" ");
     PrintQuoted(filename);
     return !(stop && filename == stop_at);
   };
@@ -2008,10 +2135,10 @@ void FileOp(FileCtx& c, Rng& r, int depth) {
                                        Perm(perm));
       }
       int e = errno;
-      std::printf("  %s %s ", directory ? "opendir" : "open",
+      QPRINTF("  %s %s ", directory ? "opendir" : "open",
                   read_only ? "ro" : abs ? "abs" : kBaseNames[b]);
       PrintQuoted(path);
-      std::printf(" c%d p%d -> s%d %d errno %d\n", create ? 1 : 0,
+      QPRINTF(" c%d p%d -> s%d %d errno %d\n", create ? 1 : 0,
                   static_cast<int>(perm), slot, fd.is_valid() ? 1 : 0, e);
       c.slots[slot] = std::move(fd);
       break;
@@ -2029,12 +2156,12 @@ void FileOp(FileCtx& c, Rng& r, int depth) {
       errno = 0;
       auto fd = fml::CreateDirectory(Base(c, b), components, Perm(perm));
       int e = errno;
-      std::printf("  mkdirs %s", kBaseNames[b]);
+      QPRINTF("  mkdirs %s", kBaseNames[b]);
       for (const auto& component : components) {
-        std::printf(" ");
+        QPRINTF(" ");
         PrintQuoted(component);
       }
-      std::printf(" p%d -> s%d %d errno %d\n", static_cast<int>(perm), slot,
+      QPRINTF(" p%d -> s%d %d errno %d\n", static_cast<int>(perm), slot,
                   fd.is_valid() ? 1 : 0, e);
       c.slots[slot] = std::move(fd);
       break;
@@ -2048,9 +2175,9 @@ void FileOp(FileCtx& c, Rng& r, int depth) {
       bool exists = fml::FileExists(Base(c, b), path.c_str());
       bool exists_abs = fml::FileExists(c.dir.fd(), Abs(c, path).c_str());
       bool is_file = fml::IsFile(Abs(c, path));
-      std::printf("  query %s ", kBaseNames[b]);
+      QPRINTF("  query %s ", kBaseNames[b]);
       PrintQuoted(path);
-      std::printf(" s%d dir %d %d exists %d %d file %d\n", slot, is_dir_fd,
+      QPRINTF(" s%d dir %d %d exists %d %d file %d\n", slot, is_dir_fd,
                   is_dir, exists, exists_abs, is_file);
       break;
     }
@@ -2060,7 +2187,7 @@ void FileOp(FileCtx& c, Rng& r, int depth) {
       errno = 0;
       bool ok = fml::TruncateFile(c.slots[slot], size);
       int e = errno;
-      std::printf("  truncate s%d %zu -> %d errno %d\n", slot, size, ok, e);
+      QPRINTF("  truncate s%d %zu -> %d errno %d\n", slot, size, ok, e);
       break;
     }
     case 7:
@@ -2076,10 +2203,10 @@ void FileOp(FileCtx& c, Rng& r, int depth) {
                     : (abs ? fml::UnlinkFile(Abs(c, path).c_str())
                            : fml::UnlinkFile(Base(c, b), path.c_str()));
       int e = errno;
-      std::printf("  %s %s ", directory ? "rmdir" : "unlink",
+      QPRINTF("  %s %s ", directory ? "rmdir" : "unlink",
                   abs ? "abs" : kBaseNames[b]);
       PrintQuoted(path);
-      std::printf(" -> %d errno %d\n", ok, e);
+      QPRINTF(" -> %d errno %d\n", ok, e);
       break;
     }
     case 9: {
@@ -2093,9 +2220,9 @@ void FileOp(FileCtx& c, Rng& r, int depth) {
           abs ? c.dir.fd() : Base(c, b),
           abs ? Abs(c, path).c_str() : path.c_str(), mapping);
       int e = errno;
-      std::printf("  write %s ", abs ? "abs" : kBaseNames[b]);
+      QPRINTF("  write %s ", abs ? "abs" : kBaseNames[b]);
       PrintQuoted(path);
-      std::printf(" %zu %016" PRIx64 " -> %d errno %d\n", data.size(),
+      QPRINTF(" %zu %016" PRIx64 " -> %d errno %d\n", data.size(),
                   Fnv1a(data.data(), data.size()), ok, e);
       break;
     }
@@ -2105,9 +2232,9 @@ void FileOp(FileCtx& c, Rng& r, int depth) {
       int b = GenBase(r);
       bool stop = r.Chance(3);
       std::string stop_at = kFileNames[r.Below(kFileNameCount)];
-      std::printf("  visit%s %s", recursive ? "-r" : "", kBaseNames[b]);
+      QPRINTF("  visit%s %s", recursive ? "-r" : "", kBaseNames[b]);
       bool ok = PrintingVisit(Base(c, b), recursive, stop, stop_at);
-      std::printf(" -> %d\n", ok);
+      QPRINTF(" -> %d\n", ok);
       break;
     }
     case 12: {
@@ -2119,9 +2246,9 @@ void FileOp(FileCtx& c, Rng& r, int depth) {
                                                          path.c_str())
                       : fml::RemoveFilesInDirectory(Base(c, b));
       int e = errno;
-      std::printf("  %s %s ", whole ? "rmtree" : "empty", kBaseNames[b]);
+      QPRINTF("  %s %s ", whole ? "rmtree" : "empty", kBaseNames[b]);
       PrintQuoted(whole ? path : std::string());
-      std::printf(" -> %d errno %d\n", ok, e);
+      QPRINTF(" -> %d errno %d\n", ok, e);
       break;
     }
     case 13: {
@@ -2130,7 +2257,7 @@ void FileOp(FileCtx& c, Rng& r, int depth) {
       errno = 0;
       auto fd = fml::Duplicate(c.slots[from].get());
       int e = errno;
-      std::printf("  dup s%d -> s%d %d errno %d dir %d\n", from, to,
+      QPRINTF("  dup s%d -> s%d %d errno %d dir %d\n", from, to,
                   fd.is_valid(), e, fml::IsDirectory(fd));
       c.slots[to] = std::move(fd);
       break;
@@ -2140,7 +2267,7 @@ void FileOp(FileCtx& c, Rng& r, int depth) {
       errno = 0;
       fml::FileMapping mapping(c.slots[slot]);
       int e = errno;
-      std::printf("  map s%d valid %d size %zu null %d errno %d fnv %016" PRIx64
+      QPRINTF("  map s%d valid %d size %zu null %d errno %d fnv %016" PRIx64
                   "\n",
                   slot, mapping.IsValid(), mapping.GetSize(),
                   mapping.GetMapping() == nullptr, e,
@@ -2158,9 +2285,9 @@ void FileOp(FileCtx& c, Rng& r, int depth) {
       int e = errno;
       struct stat st = {};
       bool dir = rc == 0 && ::stat(abs.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
-      std::printf("  chmod ");
+      QPRINTF("  chmod ");
       PrintQuoted(path);
-      std::printf(" %o -> %d errno %d dir %d\n", mode, rc, e, dir);
+      QPRINTF(" %o -> %d errno %d dir %d\n", mode, rc, e, dir);
       if (dir) {
         // One operation under the changed mode, then back to rwx so that the
         // directory can be cleaned.
@@ -2193,19 +2320,19 @@ void MakeTreeWritable(const fml::UniqueFD& dir) {
 void SuiteFile(Rng& r, int cases) {
   auto c = std::make_unique<FileCtx>();
   const std::string& root = c->dir.path();
-  std::printf("root %s %d %zu valid %d\n", root.c_str(),
+  QPRINTF("root %s %d %zu valid %d\n", root.c_str(),
               root.rfind("/tmp/flutter_", 0) == 0, root.size(),
               c->dir.fd().is_valid());
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     FileOp(*c, r, 0);
   }
-  std::printf("tree");
+  QPRINTF("tree");
   PrintingVisit(c->dir.fd(), true, false, "");
-  std::printf("\n");
+  QPRINTF("\n");
   MakeTreeWritable(c->dir.fd());
   c.reset();
-  std::printf("removed %d\n", ::access(root.c_str(), F_OK) != 0);
+  QPRINTF("removed %d\n", ::access(root.c_str(), F_OK) != 0);
 }
 
 // ----------------------------------------------------------- mapping ------
@@ -2219,7 +2346,7 @@ const uint8_t* StaticBytes() {
 }
 
 void PrintMapping(const fml::Mapping& m) {
-  std::printf(" size %zu null %d dontneed %d fnv %016" PRIx64, m.GetSize(),
+  QPRINTF(" size %zu null %d dontneed %d fnv %016" PRIx64, m.GetSize(),
               m.GetMapping() == nullptr, m.IsDontNeedSafe(),
               Fnv1a(m.GetMapping(), m.GetSize()));
 }
@@ -2266,10 +2393,10 @@ std::unique_ptr<fml::FileMapping> MakeFileMapping(
 
 void SuiteMapping(Rng& r, int cases) {
   fml::ScopedTemporaryDirectory dir;
-  std::printf("root %s\n", dir.path().c_str());
+  QPRINTF("root %s\n", dir.path().c_str());
   const uint8_t* bytes = StaticBytes();
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     switch (r.Below(10)) {
       case 0: {
         auto data = GenData(r, 64);
@@ -2278,9 +2405,9 @@ void SuiteMapping(Rng& r, int cases) {
             from_string ? std::make_unique<fml::DataMapping>(
                               std::string(data.begin(), data.end()))
                         : std::make_unique<fml::DataMapping>(std::move(data));
-        std::printf("  data %d", from_string);
+        QPRINTF("  data %d", from_string);
         PrintMapping(*m);
-        std::printf("\n");
+        QPRINTF("\n");
         break;
       }
       case 1: {
@@ -2295,20 +2422,20 @@ void SuiteMapping(Rng& r, int cases) {
               data, size,
               release ? fml::NonOwnedMapping::ReleaseProc(
                             [bytes](const uint8_t* d, size_t s) {
-                              std::printf("  release %ld %zu\n",
+                              QPRINTF("  release %ld %zu\n",
                                           d ? static_cast<long>(d - bytes) : -1L,
                                           s);
                             })
                       : nullptr,
               dontneed);
-          std::printf("  nonowned %d %" PRIu64 " same %d", null, offset,
+          QPRINTF("  nonowned %d %" PRIu64 " same %d", null, offset,
                       m.GetMapping() == data);
           if (null) {
-            std::printf(" size %zu dontneed %d\n", m.GetSize(),
+            QPRINTF(" size %zu dontneed %d\n", m.GetSize(),
                         m.IsDontNeedSafe());
           } else {
             PrintMapping(m);
-            std::printf("\n");
+            QPRINTF("\n");
           }
         }
         break;
@@ -2318,31 +2445,31 @@ void SuiteMapping(Rng& r, int cases) {
         auto data = GenData(r, 64);
         if (kind == 0) {
           fml::MallocMapping m;
-          std::printf("  malloc empty");
+          QPRINTF("  malloc empty");
           PrintMapping(m);
-          std::printf("\n");
+          QPRINTF("\n");
           break;
         }
         fml::MallocMapping m =
             fml::MallocMapping::Copy(data.data(), data.data() + data.size());
-        std::printf("  malloc copy");
+        QPRINTF("  malloc copy");
         PrintMapping(m);
-        std::printf("\n");
+        QPRINTF("\n");
         if (kind == 2) {
           size_t size = m.GetSize();
           uint8_t* released = m.Release();
-          std::printf("  released %d fnv %016" PRIx64 " now",
+          QPRINTF("  released %d fnv %016" PRIx64 " now",
                       released == nullptr, Fnv1a(released, size));
           std::free(released);
           PrintMapping(m);
-          std::printf("\n");
+          QPRINTF("\n");
         } else if (kind == 3) {
           fml::MallocMapping moved(std::move(m));
-          std::printf("  moved");
+          QPRINTF("  moved");
           PrintMapping(moved);
-          std::printf(" from");
+          QPRINTF(" from");
           PrintMapping(m);
-          std::printf("\n");
+          QPRINTF("\n");
         }
         break;
       }
@@ -2374,19 +2501,19 @@ void SuiteMapping(Rng& r, int cases) {
         auto m = MakeFileMapping(fd, protection);
         int e = errno;
         int flags = ProtectionFlags(protection);
-        std::printf("  file %s %d %zu p%d prot", name.c_str(), rewrite,
+        QPRINTF("  file %s %d %zu p%d prot", name.c_str(), rewrite,
                     data.size(), static_cast<int>(perm));
         for (auto p : protection) {
-          std::printf("%d", static_cast<int>(p));
+          QPRINTF("%d", static_cast<int>(p));
         }
-        std::printf(" valid %d size %zu null %d mutable-null %d dontneed %d "
+        QPRINTF(" valid %d size %zu null %d mutable-null %d dontneed %d "
                     "errno %d",
                     m->IsValid(), m->GetSize(), m->GetMapping() == nullptr,
                     m->GetMutableMapping() == nullptr, m->IsDontNeedSafe(), e);
         if (m->GetMapping() != nullptr && (flags & PROT_READ)) {
-          std::printf(" fnv %016" PRIx64, Fnv1a(m->GetMapping(), m->GetSize()));
+          QPRINTF(" fnv %016" PRIx64, Fnv1a(m->GetMapping(), m->GetSize()));
         }
-        std::printf("\n");
+        QPRINTF("\n");
         uint64_t offset = r.Below(m->GetSize() + 1);
         uint64_t length = std::min<uint64_t>(r.Below(16) + 1,
                                              m->GetSize() - offset);
@@ -2396,7 +2523,7 @@ void SuiteMapping(Rng& r, int cases) {
           std::memset(m->GetMutableMapping() + offset, fill, length);
           m.reset();
           auto check = fml::FileMapping::CreateReadOnly(dir.fd(), name);
-          std::printf("  wrote %" PRIu64 " %" PRIu64 " reread %d fnv %016" PRIx64
+          QPRINTF("  wrote %" PRIu64 " %" PRIu64 " reread %d fnv %016" PRIx64
                       "\n",
                       offset, length, check != nullptr,
                       check ? Fnv1a(check->GetMapping(), check->GetSize()) : 0);
@@ -2435,14 +2562,14 @@ void SuiteMapping(Rng& r, int cases) {
             break;
         }
         int e = errno;
-        std::printf("  factory %d ", static_cast<int>(kind));
+        QPRINTF("  factory %d ", static_cast<int>(kind));
         PrintQuoted(name);
-        std::printf(" -> %d errno %d", m != nullptr, e);
+        QPRINTF(" -> %d errno %d", m != nullptr, e);
         if (m) {
-          std::printf(" valid %d", m->IsValid());
+          QPRINTF(" valid %d", m->IsValid());
           PrintMapping(*m);
         }
-        std::printf("\n");
+        QPRINTF("\n");
         break;
       }
       default: {
@@ -2451,7 +2578,7 @@ void SuiteMapping(Rng& r, int cases) {
         errno = 0;
         fml::FileMapping m(directory ? dir.fd() : invalid);
         int e = errno;
-        std::printf("  file %s valid %d size %zu null %d errno %d\n",
+        QPRINTF("  file %s valid %d size %zu null %d errno %d\n",
                     directory ? "dir" : "invalid", m.IsValid(), m.GetSize(),
                     m.GetMapping() == nullptr, e);
         break;
@@ -2506,7 +2633,7 @@ void SuitePaths(Rng& r, int cases) {
     std::abort();
   }
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     switch (r.Below(6)) {
       case 0: {
         std::vector<std::string> c(r.Below(5));
@@ -2531,32 +2658,32 @@ void SuitePaths(Rng& r, int cases) {
             joined = fml::paths::JoinPaths({c[0], c[1], c[2], c[3]});
             break;
         }
-        std::printf("  join");
+        QPRINTF("  join");
         for (const auto& s : c) {
-          std::printf(" ");
+          QPRINTF(" ");
           PrintQuoted(s);
         }
-        std::printf(" -> ");
+        QPRINTF(" -> ");
         PrintQuoted(joined);
-        std::printf("\n");
+        QPRINTF("\n");
         break;
       }
       case 1: {
         std::string path = GenPathText(r);
-        std::printf("  dirname ");
+        QPRINTF("  dirname ");
         PrintQuoted(path);
-        std::printf(" -> ");
+        QPRINTF(" -> ");
         PrintQuoted(fml::paths::GetDirectoryName(path));
-        std::printf("\n");
+        QPRINTF("\n");
         break;
       }
       case 2: {
         std::string text = GenUriText(r);
-        std::printf("  sanitize ");
+        QPRINTF("  sanitize ");
         PrintQuoted(text);
-        std::printf(" -> ");
+        QPRINTF(" -> ");
         PrintQuoted(fml::paths::SanitizeURIEscapedCharacters(text));
-        std::printf("\n");
+        QPRINTF("\n");
         break;
       }
       case 3: {
@@ -2564,11 +2691,11 @@ void SuitePaths(Rng& r, int cases) {
                                                 ""};
         std::string uri = kPrefixes[r.Below(4)];
         uri += GenUriText(r);
-        std::printf("  from-uri ");
+        QPRINTF("  from-uri ");
         PrintQuoted(uri);
-        std::printf(" -> ");
+        QPRINTF(" -> ");
         PrintQuoted(fml::paths::FromURI(uri));
-        std::printf("\n");
+        QPRINTF("\n");
         break;
       }
       case 4: {
@@ -2576,17 +2703,17 @@ void SuitePaths(Rng& r, int cases) {
         std::string path = kind == 0   ? std::string()
                            : kind == 1 ? "/" + GenPathText(r)
                                        : GenPathText(r);
-        std::printf("  absolute ");
+        QPRINTF("  absolute ");
         PrintQuoted(path);
-        std::printf(" -> ");
+        QPRINTF(" -> ");
         PrintQuoted(fml::paths::AbsolutePath(path));
-        std::printf("\n");
+        QPRINTF("\n");
         break;
       }
       default: {
         auto exe = fml::paths::GetExecutablePath();
         auto exe_dir = fml::paths::GetExecutableDirectoryPath();
-        std::printf("  exe %d %d dir %d %d caches %d\n", exe.first,
+        QPRINTF("  exe %d %d dir %d %d caches %d\n", exe.first,
                     !exe.second.empty() && exe.second[0] == '/',
                     exe_dir.first,
                     exe_dir.second == fml::paths::GetDirectoryName(exe.second),
@@ -2613,26 +2740,26 @@ const std::string kOptionNames[] = {"a", "b", "", "=", std::string("a\0b", 3),
                                     "x", "\xc3\xa9", "a=1"};
 
 void PrintCommandLine(const fml::CommandLine& cl) {
-  std::printf(" argv0 %d ", cl.has_argv0());
+  QPRINTF(" argv0 %d ", cl.has_argv0());
   PrintQuoted(cl.argv0());
-  std::printf(" opts");
+  QPRINTF(" opts");
   for (const auto& option : cl.options()) {
-    std::printf(" ");
+    QPRINTF(" ");
     PrintQuoted(option.name);
-    std::printf("=");
+    QPRINTF("=");
     PrintQuoted(option.value);
   }
-  std::printf(" pos");
+  QPRINTF(" pos");
   for (const auto& arg : cl.positional_args()) {
-    std::printf(" ");
+    QPRINTF(" ");
     PrintQuoted(arg);
   }
-  std::printf("\n");
+  QPRINTF("\n");
 }
 
 void SuiteCmdline(Rng& r, int cases) {
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     std::vector<std::string> argv(r.Below(7));
     for (auto& arg : argv) {
       arg = kArgTokens[r.Below(kArgTokenCount)];
@@ -2640,7 +2767,7 @@ void SuiteCmdline(Rng& r, int cases) {
     std::vector<std::string>::const_iterator first;
     auto cl = fml::CommandLineFromIteratorsFindFirstPositionalArg(
         argv.cbegin(), argv.cend(), &first);
-    std::printf("  parse first %ld", static_cast<long>(first - argv.cbegin()));
+    QPRINTF("  parse first %ld", static_cast<long>(first - argv.cbegin()));
     PrintCommandLine(cl);
     for (int q = 0; q < 3; q++) {
       const std::string& name = kOptionNames[r.Below(8)];
@@ -2650,31 +2777,31 @@ void SuiteCmdline(Rng& r, int cases) {
       bool got = cl.GetOptionValue(name, &value);
       auto values = cl.GetOptionValues(name);
       std::string with_default = cl.GetOptionValueWithDefault(name, "dflt");
-      std::printf("  query ");
+      QPRINTF("  query ");
       PrintQuoted(name);
-      std::printf(" has %d %zu got %d ", has, index, got);
+      QPRINTF(" has %d %zu got %d ", has, index, got);
       PrintQuoted(value);
-      std::printf(" values");
+      QPRINTF(" values");
       for (auto v : values) {
-        std::printf(" ");
+        QPRINTF(" ");
         PrintQuoted(std::string(v));
       }
-      std::printf(" default ");
+      QPRINTF(" default ");
       PrintQuoted(with_default);
-      std::printf("\n");
+      QPRINTF("\n");
     }
     auto args = fml::CommandLineToArgv(cl);
-    std::printf("  argv");
+    QPRINTF("  argv");
     for (const auto& arg : args) {
-      std::printf(" ");
+      QPRINTF(" ");
       PrintQuoted(arg);
     }
     auto again = fml::CommandLineFromIterators(args.begin(), args.end());
-    std::printf(" roundtrip %d\n", again == cl);
+    QPRINTF(" roundtrip %d\n", again == cl);
     size_t k = r.Below(argv.size() + 1);
     auto with0 = fml::CommandLineFromIteratorsWithArgv0("p0", argv.cbegin() + k,
                                                         argv.cend());
-    std::printf("  with-argv0 %zu", k);
+    QPRINTF("  with-argv0 %zu", k);
     PrintCommandLine(with0);
     fml::CommandLine built(cl.argv0(), cl.options(), cl.positional_args());
     fml::CommandLine copy = cl;
@@ -2682,7 +2809,7 @@ void SuiteCmdline(Rng& r, int cases) {
     fml::CommandLine assigned;
     bool empty_equal = assigned == cl;
     assigned = moved;
-    std::printf("  components %d %d copy %d empty %d assigned %d\n",
+    QPRINTF("  components %d %d copy %d empty %d assigned %d\n",
                 built == cl, built.HasOption("a"), moved == cl, empty_equal,
                 assigned == cl);
   }
@@ -2709,7 +2836,7 @@ uint64_t GenU64(Rng& r) {
 
 void SuiteMisc(Rng& r, int cases) {
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     switch (r.Below(5)) {
       case 0:
       case 1: {
@@ -2729,9 +2856,9 @@ void SuiteMisc(Rng& r, int cases) {
           for (auto [k, v] : entries) {
             m[k] = v;
           }
-          std::printf("  map visits");
+          QPRINTF("  map visits");
           fml::erase_if(m, [&](std::map<int, int>::iterator it) {
-            std::printf(" %d", it->first);
+            QPRINTF(" %d", it->first);
             return (it->first + it->second) % mod == rem;
           });
           result = m;
@@ -2740,17 +2867,17 @@ void SuiteMisc(Rng& r, int cases) {
           for (auto [k, v] : entries) {
             m[k] = v;
           }
-          std::printf("  unordered");
+          QPRINTF("  unordered");
           fml::erase_if(m, [&](std::unordered_map<int, int>::iterator it) {
             return (it->first + it->second) % mod == rem;
           });
           result = std::map<int, int>(m.begin(), m.end());
         }
-        std::printf(" keep");
+        QPRINTF(" keep");
         for (auto [k, v] : result) {
-          std::printf(" %d:%d", k, v);
+          QPRINTF(" %d:%d", k, v);
         }
-        std::printf("\n");
+        QPRINTF("\n");
         break;
       }
       case 2: {
@@ -2760,7 +2887,7 @@ void SuiteMisc(Rng& r, int cases) {
           uint64_t x = GenU64(r);
           uint64_t y = GenU64(r);
           size_t product = safe.mul(x, y);
-          std::printf("  mul %" PRIu64 " %" PRIu64 " = %zu overflow %d\n", x, y,
+          QPRINTF("  mul %" PRIu64 " %" PRIu64 " = %zu overflow %d\n", x, y,
                       product, safe.overflow_detected());
         }
         break;
@@ -2768,16 +2895,16 @@ void SuiteMisc(Rng& r, int cases) {
       case 3: {
         std::string text = GenPathText(r);
         char* copy = fml::strdup(text.c_str());
-        std::printf("  strdup ");
+        QPRINTF("  strdup ");
         PrintQuoted(text);
-        std::printf(" -> ");
+        QPRINTF(" -> ");
         PrintQuoted(copy);
-        std::printf(" %d\n", copy != text.c_str());
+        QPRINTF(" %d\n", copy != text.c_str());
         std::free(copy);
         break;
       }
       default:
-        std::printf("  pid %d\n", fml::GetCurrentProcId() == ::getpid());
+        QPRINTF("  pid %d\n", fml::GetCurrentProcId() == ::getpid());
         break;
     }
   }
@@ -2823,34 +2950,34 @@ std::string GenNumberText(Rng& r) {
 
 void SuiteAffinity(Rng& r, int cases) {
   fml::ScopedTemporaryDirectory dir;
-  std::printf("efficiency-count %d request",
+  QPRINTF("efficiency-count %d request",
               fml::EfficiencyCoreCount().has_value());
   for (int a = 0; a < 4; a++) {
-    std::printf(" %d",
+    QPRINTF(" %d",
                 fml::RequestAffinity(static_cast<fml::CpuAffinity>(a)));
   }
-  std::printf("\n");
+  QPRINTF("\n");
   static const int64_t kSpeeds[] = {1,  2,       3,       1800000, 2400000,
                                     -1, 0, kI64Max, kI64Min};
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     if (r.Chance(2)) {
       std::vector<fml::CpuIndexAndSpeed> speeds(r.Below(7));
-      std::printf("  tracker");
+      QPRINTF("  tracker");
       for (auto& s : speeds) {
         s.index = r.Below(8);
         s.speed = kSpeeds[r.Below(9)];
-        std::printf(" %zu:%" PRId64, s.index, s.speed);
+        QPRINTF(" %zu:%" PRId64, s.index, s.speed);
       }
       fml::CPUSpeedTracker tracker(speeds);
-      std::printf(" valid %d\n", tracker.IsValid());
+      QPRINTF(" valid %d\n", tracker.IsValid());
       for (int a = 0; a < 4; a++) {
-        std::printf("    %s", kAffinityNames[a]);
+        QPRINTF("    %s", kAffinityNames[a]);
         for (size_t index :
              tracker.GetIndices(static_cast<fml::CpuAffinity>(a))) {
-          std::printf(" %zu", index);
+          QPRINTF(" %zu", index);
         }
-        std::printf("\n");
+        QPRINTF("\n");
       }
     } else {
       uint64_t kind = r.Below(8);
@@ -2871,9 +2998,9 @@ void SuiteAffinity(Rng& r, int cases) {
         }
       }
       auto value = fml::ReadIntFromFile(path);
-      std::printf("  read %d ", static_cast<int>(kind));
+      QPRINTF("  read %d ", static_cast<int>(kind));
       PrintQuoted(text);
-      std::printf(" -> %d %" PRId64 "\n", value.has_value(),
+      QPRINTF(" -> %d %" PRId64 "\n", value.has_value(),
                   value.value_or(0));
     }
   }
@@ -2887,9 +3014,9 @@ const char* const kSymbols[] = {"strlen", "malloc", "IO_putc", "_IO_putc",
 void ResolveSome(Rng& r, const fml::RefPtr<fml::NativeLibrary>& lib) {
   for (int s = 0; s < 2; s++) {
     const char* symbol = kSymbols[r.Below(6)];
-    std::printf("    resolve ");
+    QPRINTF("    resolve ");
     PrintQuoted(symbol);
-    std::printf(" -> %d\n", lib->ResolveSymbol(symbol) != nullptr);
+    QPRINTF(" -> %d\n", lib->ResolveSymbol(symbol) != nullptr);
   }
 }
 
@@ -2906,14 +3033,14 @@ void SuiteNative(Rng& r, int cases) {
                                    "libpthread.so.0"};
   auto libc = fml::NativeLibrary::Create("libc.so.6");
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     switch (r.Below(5)) {
       case 0: {
         const std::string& path = libraries[r.Below(7)];
         auto lib = fml::NativeLibrary::Create(path.c_str());
-        std::printf("  create ");
+        QPRINTF("  create ");
         PrintQuoted(path);
-        std::printf(" -> %d\n", static_cast<bool>(lib));
+        QPRINTF(" -> %d\n", static_cast<bool>(lib));
         if (lib) {
           ResolveSome(r, lib);
         }
@@ -2921,9 +3048,9 @@ void SuiteNative(Rng& r, int cases) {
       }
       case 1: {
         auto lib = fml::NativeLibrary::CreateForCurrentProcess();
-        std::printf("  process %d\n", static_cast<bool>(lib));
+        QPRINTF("  process %d\n", static_cast<bool>(lib));
         ResolveSome(r, lib);
-        std::printf("    same-strlen %d\n",
+        QPRINTF("    same-strlen %d\n",
                     lib->ResolveSymbol("strlen") ==
                         libc->ResolveSymbol("strlen"));
         break;
@@ -2934,12 +3061,12 @@ void SuiteNative(Rng& r, int cases) {
         void* handle = null ? nullptr : ::dlopen("libm.so.6", RTLD_NOW);
         {
           auto lib = fml::NativeLibrary::CreateWithHandle(handle, close);
-          std::printf("  handle %d close %d -> %d", null, close,
+          QPRINTF("  handle %d close %d -> %d", null, close,
                       static_cast<bool>(lib));
           if (lib) {
-            std::printf(" cos %d", lib->ResolveSymbol("cos") != nullptr);
+            QPRINTF(" cos %d", lib->ResolveSymbol("cos") != nullptr);
           }
-          std::printf("\n");
+          QPRINTF("\n");
         }
         if (handle != nullptr && !close) {
           ::dlclose(handle);
@@ -2955,9 +3082,9 @@ void SuiteNative(Rng& r, int cases) {
             : which == 1 ? fml::NativeLibrary::CreateForCurrentProcess()
                          : libc;
         fml::SymbolMapping m(lib, null_name ? nullptr : symbol);
-        std::printf("  symbol %d ", static_cast<int>(which));
+        QPRINTF("  symbol %d ", static_cast<int>(which));
         PrintQuoted(null_name ? std::string("<null>") : std::string(symbol));
-        std::printf(" size %zu null %d dontneed %d\n", m.GetSize(),
+        QPRINTF(" size %zu null %d dontneed %d\n", m.GetSize(),
                     m.GetMapping() == nullptr, m.IsDontNeedSafe());
         break;
       }
@@ -2967,10 +3094,10 @@ void SuiteNative(Rng& r, int cases) {
             libc->ResolveFunction<size_t (*)(const char*)>("strlen");
         auto missing =
             libc->ResolveFunction<size_t (*)(const char*)>("no_such_symbol");
-        std::printf("  call %d %d ", strlen_fn.has_value(),
+        QPRINTF("  call %d %d ", strlen_fn.has_value(),
                     missing.has_value());
         PrintQuoted(text);
-        std::printf(" -> %zu\n", strlen_fn.value()(text.c_str()));
+        QPRINTF(" -> %zu\n", strlen_fn.value()(text.c_str()));
         break;
       }
     }
@@ -2988,21 +3115,21 @@ void PrintTraceEvent(const char* label,
                      intptr_t argument_count,
                      const char** argument_names,
                      const char** argument_values) {
-  std::printf("    event %d ", static_cast<int>(type));
+  QPRINTF("    event %d ", static_cast<int>(type));
   PrintQuoted(label);
-  std::printf(" %" PRId64 " %" PRId64 " flows", timestamp0,
+  QPRINTF(" %" PRId64 " %" PRId64 " flows", timestamp0,
               timestamp1_or_async_id);
   for (intptr_t i = 0; i < flow_id_count; i++) {
-    std::printf(" %" PRId64, flow_ids[i]);
+    QPRINTF(" %" PRId64, flow_ids[i]);
   }
-  std::printf(" args");
+  QPRINTF(" args");
   for (intptr_t i = 0; i < argument_count; i++) {
-    std::printf(" ");
+    QPRINTF(" ");
     PrintQuoted(argument_names[i]);
-    std::printf("=");
+    QPRINTF("=");
     PrintQuoted(argument_values[i]);
   }
-  std::printf("\n");
+  QPRINTF("\n");
 }
 
 int64_t g_trace_clock = 0;
@@ -3040,17 +3167,17 @@ fml::TimePoint GenTracePoint(Rng& r) {
 void SuiteTrace(Rng& r, int cases) {
   fml::tracing::TraceSetTimelineMicrosSource(CountingMicros);
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     switch (r.Below(16)) {
       case 0: {
         std::vector<std::string> allowlist(r.Below(4));
-        std::printf("  allow");
+        QPRINTF("  allow");
         for (auto& word : allowlist) {
           word = kTraceWords[r.Below(6)];
-          std::printf(" ");
+          QPRINTF(" ");
           PrintQuoted(word);
         }
-        std::printf("\n");
+        QPRINTF("\n");
         fml::tracing::TraceSetAllowlist(allowlist);
         break;
       }
@@ -3058,34 +3185,34 @@ void SuiteTrace(Rng& r, int cases) {
         bool set = !r.Chance(3);
         fml::tracing::TraceSetTimelineEventHandler(set ? PrintTraceEvent
                                                        : nullptr);
-        std::printf("  handler %d %d\n", set,
-                    fml::tracing::TraceHasTimelineEventHandler());
+        bool has = fml::tracing::TraceHasTimelineEventHandler();
+        QPRINTF("  handler %d %d\n", set, has);
         break;
       }
       case 2: {
         bool counting = !r.Chance(4);
         fml::tracing::TraceSetTimelineMicrosSource(
             counting ? CountingMicros : ConstantMicros);
-        std::printf("  micros %d %" PRId64 "\n", counting,
-                    fml::tracing::TraceGetTimelineMicros());
+        int64_t micros = fml::tracing::TraceGetTimelineMicros();
+        QPRINTF("  micros %d %" PRId64 "\n", counting, micros);
         break;
       }
       case 3: {
         const char* label = TraceLabel(r);
-        std::printf("  event0\n");
+        QPRINTF("  event0\n");
         {
           TRACE_EVENT0("flutter", label);
-          std::printf("  inside\n");
+          QPRINTF("  inside\n");
         }
         break;
       }
       case 4: {
         const char* label = TraceLabel(r);
         const char* value = TraceLabel(r);
-        std::printf("  event1\n");
+        QPRINTF("  event1\n");
         {
           TRACE_EVENT1("flutter", label, "k", value);
-          std::printf("  inside\n");
+          QPRINTF("  inside\n");
         }
         break;
       }
@@ -3093,10 +3220,10 @@ void SuiteTrace(Rng& r, int cases) {
         const char* label = TraceLabel(r);
         const char* v1 = TraceLabel(r);
         const char* v2 = TraceLabel(r);
-        std::printf("  event2\n");
+        QPRINTF("  event2\n");
         {
           TRACE_EVENT2("flutter", label, "k1", v1, "k2", v2);
-          std::printf("  inside\n");
+          QPRINTF("  inside\n");
         }
         break;
       }
@@ -3106,29 +3233,29 @@ void SuiteTrace(Rng& r, int cases) {
         int64_t n = EdgeI64(r);
         double d = GenTraceDouble(r);
         fml::TimePoint t = GenTracePoint(r);
-        std::printf("  fml-event %d\n", static_cast<int>(form));
+        QPRINTF("  fml-event %d\n", static_cast<int>(form));
         switch (form) {
           case 0: {
             FML_TRACE_EVENT("flutter", label, "i", static_cast<int>(n));
-            std::printf("  inside\n");
+            QPRINTF("  inside\n");
             break;
           }
           case 1: {
             FML_TRACE_EVENT("flutter", label, "s", std::string(TraceLabel(r)),
                             "d", d);
-            std::printf("  inside\n");
+            QPRINTF("  inside\n");
             break;
           }
           case 2: {
             FML_TRACE_EVENT("flutter", label, "b", n % 2 == 0, "c", "chars",
                             "t", t);
-            std::printf("  inside\n");
+            QPRINTF("  inside\n");
             break;
           }
           default: {
             FML_TRACE_EVENT("flutter", label, "u", static_cast<uint64_t>(n),
                             "f", static_cast<float>(d), "n", n);
-            std::printf("  inside\n");
+            QPRINTF("  inside\n");
             break;
           }
         }
@@ -3140,7 +3267,7 @@ void SuiteTrace(Rng& r, int cases) {
         bool two = r.Chance(2);
         int64_t n = EdgeI64(r);
         double d = GenTraceDouble(r);
-        std::printf("  counter %d\n", two);
+        QPRINTF("  counter %d\n", two);
         if (two) {
           FML_TRACE_COUNTER("flutter", label, id, "x", d, "y", "str");
         } else {
@@ -3153,7 +3280,7 @@ void SuiteTrace(Rng& r, int cases) {
         int64_t id = EdgeI64(r);
         const char* value = TraceLabel(r);
         uint64_t which = r.Below(4);
-        std::printf("  async %d\n", static_cast<int>(which));
+        QPRINTF("  async %d\n", static_cast<int>(which));
         switch (which) {
           case 0:
             TRACE_EVENT_ASYNC_BEGIN0("flutter", label, id);
@@ -3178,7 +3305,7 @@ void SuiteTrace(Rng& r, int cases) {
         const char* v1 = TraceLabel(r);
         const char* v2 = TraceLabel(r);
         uint64_t which = r.Below(3);
-        std::printf("  instant %d\n", static_cast<int>(which));
+        QPRINTF("  instant %d\n", static_cast<int>(which));
         switch (which) {
           case 0:
             TRACE_EVENT_INSTANT0("flutter", label);
@@ -3196,7 +3323,7 @@ void SuiteTrace(Rng& r, int cases) {
         const char* label = TraceLabel(r);
         int64_t id = EdgeI64(r);
         uint64_t which = r.Below(3);
-        std::printf("  flow %d\n", static_cast<int>(which));
+        QPRINTF("  flow %d\n", static_cast<int>(which));
         switch (which) {
           case 0:
             TRACE_FLOW_BEGIN("flutter", label, id);
@@ -3215,7 +3342,7 @@ void SuiteTrace(Rng& r, int cases) {
         fml::TimePoint begin = GenTracePoint(r);
         fml::TimePoint end = GenTracePoint(r);
         bool args = r.Chance(2);
-        std::printf("  complete %d\n", args);
+        QPRINTF("  complete %d\n", args);
         if (args) {
           fml::tracing::TraceEventAsyncComplete("flutter", label, begin, end,
                                                 "k", "v");
@@ -3231,7 +3358,7 @@ void SuiteTrace(Rng& r, int cases) {
         bool named_step = r.Chance(2);
         bool end = r.Chance(2);
         bool move = r.Chance(3);
-        std::printf("  traceflow %d %d %d %d\n", static_cast<int>(steps),
+        QPRINTF("  traceflow %d %d %d %d\n", static_cast<int>(steps),
                     named_step, end, move);
         fml::tracing::TraceFlow flow(label);
         for (uint64_t s = 0; s < steps; s++) {
@@ -3255,13 +3382,13 @@ void SuiteTrace(Rng& r, int cases) {
         }
         bool one = r.Chance(2);
         const char* value = TraceLabel(r);
-        std::printf("  with-flows %zu %d\n", count, one);
+        QPRINTF("  with-flows %zu %d\n", count, one);
         if (one) {
           TRACE_EVENT1_WITH_FLOW_IDS("flutter", label, count, ids, "k", value);
-          std::printf("  inside\n");
+          QPRINTF("  inside\n");
         } else {
           TRACE_EVENT0_WITH_FLOW_IDS("flutter", label, count, ids);
-          std::printf("  inside\n");
+          QPRINTF("  inside\n");
         }
         break;
       }
@@ -3269,15 +3396,16 @@ void SuiteTrace(Rng& r, int cases) {
         const char* label = TraceLabel(r);
         int a = static_cast<int>(EdgeI64(r));
         int64_t b = EdgeI64(r);
-        std::printf("  event2-int\n");
+        QPRINTF("  event2-int\n");
         {
           TRACE_EVENT2_INT("flutter", label, "a", a, "b", b);
-          std::printf("  inside\n");
+          QPRINTF("  inside\n");
         }
         break;
       }
       default: {
-        std::printf("  openfile nonce %zu\n", fml::tracing::TraceNonce());
+        size_t nonce = fml::tracing::TraceNonce();
+        QPRINTF("  openfile nonce %zu\n", nonce);
         fml::OpenFile("/nonexistent-fml-oracle", false,
                       fml::FilePermission::kRead);
         break;
@@ -3340,7 +3468,7 @@ const int kCrashSignals[] = {SIGABRT, SIGFPE,  SIGTERM, SIGSEGV,
 void CrashChild(int signal) {
   fml::InstallCrashHandler();
   ::raise(signal);
-  std::printf("survived\n");
+  QPRINTF("survived\n");
 }
 
 void RunCrashChild(int signal) {
@@ -3379,24 +3507,24 @@ void RunCrashChild(int signal) {
   if (tail) {
     frames.resize(frames.size() - 1);
   }
-  std::printf("  child %s %d ", WIFSIGNALED(status) ? "signal" : "exit",
+  QPRINTF("  child %s %d ", WIFSIGNALED(status) ? "signal" : "exit",
               WIFSIGNALED(status) ? WTERMSIG(status) : WEXITSTATUS(status));
   PrintEscaped(header);
-  std::printf(" frames %s tail %d\n", BacktraceShape(frames).c_str(), tail);
+  QPRINTF(" frames %s tail %d\n", BacktraceShape(frames).c_str(), tail);
 }
 
 void SuiteBacktrace(Rng& r, int cases) {
-  std::printf("supported %d\n", fml::IsCrashHandlingSupported());
+  QPRINTF("supported %d\n", fml::IsCrashHandlingSupported());
   for (int i = 0; i < cases; i++) {
-    std::printf("case %d\n", i);
+    QPRINTF("case %d\n", i);
     if (r.Chance(4)) {
       int signal = kCrashSignals[r.Below(8)];
-      std::printf("  crash %d\n", signal);
+      QPRINTF("  crash %d\n", signal);
       RunCrashChild(signal);
     } else {
       static const size_t kOffsets[] = {0, 1, 2, 3, 300};
       size_t offset = kOffsets[r.Below(5)];
-      std::printf("  here %zu %s\n", offset,
+      QPRINTF("  here %zu %s\n", offset,
                   BacktraceShape(DeepBacktrace(8, offset)).c_str());
     }
   }
@@ -3407,7 +3535,9 @@ void SuiteBacktrace(Rng& r, int cases) {
 // flutter/fml/message_loop_unittests.cc's NonDelayedTasksAreRunInOrder at
 // 10000 tasks: post them, then run the loop until the last one terminates it.
 void BenchLoop() {
+  // Only the loop's thread is timed, not spawning and joining it.
   std::thread thread([]() {
+    SwResume();
     fml::MessageLoop::EnsureInitializedForCurrentThread();
     auto& loop = fml::MessageLoop::GetCurrent();
     const size_t count = 10000;
@@ -3421,6 +3551,7 @@ void BenchLoop() {
       });
     }
     loop.Run();
+    SwPause();
     if (current != count) {
       std::abort();
     }
@@ -3513,53 +3644,456 @@ long PeakRssKiB() {
   return kib;
 }
 
-// Silences a suite's stdout for benchmarking by pointing it at /dev/null.
+// The suites that call cheap functions (time, strings, hash, paths,
+// cmdline) are benchmarked as kernels: a chunk of inputs is drawn with the
+// clock stopped, then only the ported calls run while it runs, each result
+// folded into a checksum that both drivers must agree on (so neither can
+// drop the work). The same inputs, calls and folds as src/bin/fml_dump.rs.
+
+constexpr size_t kChunk = 1000;
+
+inline void Fold(uint64_t& h, uint64_t v) {
+  h = ((h << 5) | (h >> 59)) ^ v;
+}
+
+struct TimeIn {
+  int64_t a, b;
+  double s, m;
+  int64_t hz;
+  double hzf;
+};
+
+uint64_t KernelTime(Rng& r, size_t cases) {
+  using fml::TimeDelta;
+  using fml::TimePoint;
+  uint64_t h = 0;
+  std::vector<TimeIn> input;
+  input.reserve(kChunk);
+  for (size_t done = 0; done < cases;) {
+    size_t n = std::min(kChunk, cases - done);
+    input.clear();
+    for (size_t i = 0; i < n; i++) {
+      TimeIn c;
+      c.a = EdgeI64(r);
+      c.b = EdgeI64(r);
+      c.s = BoundedF64(r, 9.0e9);
+      c.m = BoundedF64(r, 9.0e12);
+      c.hz = static_cast<int64_t>(r.Below(240)) + 1;
+      c.hzf = BoundedF64(r, 240.0);
+      input.push_back(c);
+    }
+    SwResume();
+    for (const TimeIn& c : input) {
+      int64_t a = c.a, b = c.b;
+      Fold(h, TimeDelta::FromNanoseconds(a).ToNanoseconds());
+      Fold(h, TimeDelta::FromMicroseconds(a).ToNanoseconds());
+      Fold(h, TimeDelta::FromMilliseconds(a).ToNanoseconds());
+      Fold(h, TimeDelta::FromSeconds(a).ToNanoseconds());
+      TimeDelta da = TimeDelta::FromNanoseconds(a);
+      TimeDelta db = TimeDelta::FromNanoseconds(b);
+      Fold(h, da.ToMicroseconds());
+      Fold(h, da.ToMilliseconds());
+      Fold(h, da.ToSeconds());
+      Fold(h, Bits(da.ToNanosecondsF()));
+      Fold(h, Bits(da.ToMicrosecondsF()));
+      Fold(h, Bits(da.ToMillisecondsF()));
+      Fold(h, Bits(da.ToSecondsF()));
+      Fold(h, (da + db).ToNanoseconds());
+      Fold(h, (da - db).ToNanoseconds());
+      Fold(h, (da * b).ToNanoseconds());
+      if (b != 0 && !(a == kI64Min && b == -1)) {
+        Fold(h, (da / b).ToNanoseconds());
+        Fold(h, da / db);
+        Fold(h, (da % db).ToNanoseconds());
+      }
+      Fold(h, static_cast<uint64_t>(static_cast<int64_t>(Cmp(da, db))));
+      Fold(h, da == db);
+      Fold(h, da < db);
+      Fold(h, da >= db);
+      struct timespec ts{};
+      ts.tv_sec = static_cast<time_t>(a);
+      ts.tv_nsec = static_cast<long>(b % 1000000000);
+      Fold(h, TimeDelta::FromTimespec(ts).ToNanoseconds());
+      struct timespec out = da.ToTimespec();
+      Fold(h, static_cast<int64_t>(out.tv_sec));
+      Fold(h, static_cast<int64_t>(out.tv_nsec));
+      TimePoint pa = TimePoint::FromTicks(a);
+      TimePoint pb = TimePoint::FromEpochDelta(db);
+      Fold(h, (pa - pb).ToNanoseconds());
+      Fold(h, (pa + db).ToEpochDelta().ToNanoseconds());
+      Fold(h, (pa - db).ToEpochDelta().ToNanoseconds());
+      Fold(h, static_cast<uint64_t>(static_cast<int64_t>(Cmp(pa, pb))));
+      Fold(h, TimeDelta::FromSecondsF(c.s).ToNanoseconds());
+      Fold(h, TimeDelta::FromMillisecondsF(c.m).ToNanoseconds());
+      Fold(h, Bits(fml::RefreshRateToFrameBudget(c.hz).count()));
+      Fold(h, Bits(fml::RefreshRateToFrameBudget(c.hzf).count()));
+    }
+    SwPause();
+    done += n;
+  }
+  return h;
+}
+
+struct StringsIn {
+  std::u16string u16;
+  std::string u8;
+  std::vector<std::string> parts;
+  const char* delim;
+  std::filesystem::path path;
+};
+
+uint64_t KernelStrings(Rng& r, size_t cases) {
+  uint64_t h = 0;
+  std::vector<StringsIn> input;
+  input.reserve(kChunk);
+  for (size_t done = 0; done < cases;) {
+    size_t n = std::min(kChunk, cases - done);
+    input.clear();
+    for (size_t i = 0; i < n; i++) {
+      StringsIn c;
+      c.u16 = GenUtf16(r);
+      c.u8 = GenUtf8(r);
+      int count = static_cast<int>(r.Below(5));
+      for (int j = 0; j < count; j++) {
+        std::string part;
+        int len = static_cast<int>(r.Below(4));
+        for (int k = 0; k < len; k++) {
+          part.push_back(static_cast<char>('a' + r.Below(26)));
+        }
+        c.parts.push_back(part);
+      }
+      static const char* kDelims[] = {",", ", ", "", "--"};
+      c.delim = kDelims[r.Below(4)];
+      c.path = std::filesystem::path(GenBytes(r, 8));
+      input.push_back(std::move(c));
+    }
+    SwResume();
+    for (const StringsIn& c : input) {
+      try {
+        Fold(h, fml::Utf16ToUtf8(c.u16).size());
+      } catch (const std::range_error&) {
+        Fold(h, ~uint64_t{0});
+      }
+      try {
+        Fold(h, fml::Utf8ToUtf16(c.u8).size());
+      } catch (const std::range_error&) {
+        Fold(h, ~uint64_t{0});
+      }
+      Fold(h, fml::Join(c.parts, c.delim).size());
+      Fold(h, fml::PathToUtf8(c.path).size());
+    }
+    SwPause();
+    done += n;
+  }
+  return h;
+}
+
+struct HashIn {
+  int a;
+  int64_t b;
+  uint32_t c;
+  bool d;
+  std::string s, t;
+  float f;
+  double g;
+  fml::TaskSourceGrade grade;
+  uint8_t u8;
+  int16_t i16;
+  char ch;
+  uint64_t u64;
+  size_t seed;
+};
+
+uint64_t KernelHash(Rng& r, size_t cases) {
+  uint64_t h = fml::HashCombine();
+  std::vector<HashIn> input;
+  input.reserve(kChunk);
+  for (size_t done = 0; done < cases;) {
+    size_t n = std::min(kChunk, cases - done);
+    input.clear();
+    for (size_t i = 0; i < n; i++) {
+      HashIn c;
+      c.a = static_cast<int>(r.Next());
+      c.b = EdgeI64(r);
+      c.c = static_cast<uint32_t>(r.Next());
+      c.d = r.Chance(2);
+      c.s = GenHashString(r);
+      c.t = GenBytes(r, 80);
+      c.f = GenF32(r);
+      c.g = GenF64(r);
+      c.grade = static_cast<fml::TaskSourceGrade>(r.Below(3));
+      c.u8 = static_cast<uint8_t>(r.Next());
+      c.i16 = static_cast<int16_t>(r.Next());
+      c.ch = static_cast<char>(r.Next());
+      c.u64 = r.Next();
+      c.seed = r.Next();
+      input.push_back(std::move(c));
+    }
+    SwResume();
+    for (const HashIn& c : input) {
+      Fold(h, fml::HashCombine(c.a));
+      Fold(h, fml::HashCombine(c.b, c.c, c.d));
+      Fold(h, fml::HashCombine(c.s));
+      Fold(h, fml::HashCombine(c.t));
+      Fold(h, fml::HashCombine(c.s, c.a, c.f, c.g));
+      Fold(h, fml::HashCombine(c.grade, c.u8, c.i16, c.ch, c.u64));
+      size_t seed = c.seed;
+      fml::HashCombineSeed(seed, c.a, c.s);
+      Fold(h, seed);
+    }
+    SwPause();
+    done += n;
+  }
+  return h;
+}
+
+struct PathsIn {
+  uint64_t kind;
+  std::vector<std::string> c;
+};
+
+uint64_t KernelPaths(Rng& r, size_t cases) {
+  fml::ScopedTemporaryDirectory dir;
+  std::string original = std::filesystem::current_path().string();
+  if (::chdir(dir.path().c_str()) != 0) {
+    std::abort();
+  }
+  uint64_t h = 0;
+  std::vector<PathsIn> input;
+  input.reserve(kChunk);
+  for (size_t done = 0; done < cases;) {
+    size_t n = std::min(kChunk, cases - done);
+    input.clear();
+    for (size_t i = 0; i < n; i++) {
+      PathsIn in;
+      in.kind = r.Below(6);
+      switch (in.kind) {
+        case 0: {
+          uint64_t count = r.Below(5);
+          for (uint64_t k = 0; k < count; k++) {
+            in.c.push_back(GenPathText(r));
+          }
+          break;
+        }
+        case 1:
+          in.c.push_back(GenPathText(r));
+          break;
+        case 2:
+          in.c.push_back(GenUriText(r));
+          break;
+        case 3: {
+          static const char* const kPrefixes[] = {"file://", "file:/",
+                                                  "FILE://", ""};
+          std::string uri = kPrefixes[r.Below(4)];
+          uri += GenUriText(r);
+          in.c.push_back(uri);
+          break;
+        }
+        case 4: {
+          uint64_t kind = r.Below(3);
+          in.c.push_back(kind == 0   ? std::string()
+                         : kind == 1 ? "/" + GenPathText(r)
+                                     : GenPathText(r));
+          break;
+        }
+        default:
+          break;
+      }
+      input.push_back(std::move(in));
+    }
+    SwResume();
+    for (const PathsIn& in : input) {
+      const auto& c = in.c;
+      switch (in.kind) {
+        case 0:
+          switch (c.size()) {
+            case 0:
+              Fold(h, fml::paths::JoinPaths({}).size());
+              break;
+            case 1:
+              Fold(h, fml::paths::JoinPaths({c[0]}).size());
+              break;
+            case 2:
+              Fold(h, fml::paths::JoinPaths({c[0], c[1]}).size());
+              break;
+            case 3:
+              Fold(h, fml::paths::JoinPaths({c[0], c[1], c[2]}).size());
+              break;
+            default:
+              Fold(h, fml::paths::JoinPaths({c[0], c[1], c[2], c[3]}).size());
+              break;
+          }
+          break;
+        case 1:
+          Fold(h, fml::paths::GetDirectoryName(c[0]).size());
+          break;
+        case 2:
+          Fold(h, fml::paths::SanitizeURIEscapedCharacters(c[0]).size());
+          break;
+        case 3:
+          Fold(h, fml::paths::FromURI(c[0]).size());
+          break;
+        case 4:
+          Fold(h, fml::paths::AbsolutePath(c[0]).size());
+          break;
+        default: {
+          auto exe = fml::paths::GetExecutablePath();
+          auto exe_dir = fml::paths::GetExecutableDirectoryPath();
+          Fold(h, exe.first);
+          Fold(h, !exe.second.empty() && exe.second[0] == '/');
+          Fold(h, exe_dir.first);
+          Fold(h, exe_dir.second == fml::paths::GetDirectoryName(exe.second));
+          Fold(h, fml::paths::GetCachesDirectory().is_valid());
+          break;
+        }
+      }
+    }
+    SwPause();
+    done += n;
+  }
+  if (::chdir(original.c_str()) != 0) {
+    std::abort();
+  }
+  return h;
+}
+
+struct CmdlineIn {
+  std::vector<std::string> argv;
+  const std::string* names[3];
+  std::string values[3];
+  size_t k;
+};
+
+uint64_t KernelCmdline(Rng& r, size_t cases) {
+  uint64_t h = 0;
+  std::vector<CmdlineIn> input;
+  input.reserve(kChunk);
+  for (size_t done = 0; done < cases;) {
+    size_t n = std::min(kChunk, cases - done);
+    input.clear();
+    for (size_t i = 0; i < n; i++) {
+      CmdlineIn c;
+      c.argv.resize(r.Below(7));
+      for (auto& arg : c.argv) {
+        arg = kArgTokens[r.Below(kArgTokenCount)];
+      }
+      for (auto& name : c.names) {
+        name = &kOptionNames[r.Below(8)];
+      }
+      c.k = r.Below(c.argv.size() + 1);
+      for (auto& value : c.values) {
+        value = "untouched";
+      }
+      input.push_back(std::move(c));
+    }
+    SwResume();
+    for (CmdlineIn& c : input) {
+      std::vector<std::string>::const_iterator first;
+      auto cl = fml::CommandLineFromIteratorsFindFirstPositionalArg(
+          c.argv.cbegin(), c.argv.cend(), &first);
+      Fold(h, first - c.argv.cbegin());
+      for (int q = 0; q < 3; q++) {
+        const std::string& name = *c.names[q];
+        size_t index = 12345;
+        cl.HasOption(name, &index);
+        Fold(h, index);
+        Fold(h, cl.GetOptionValue(name, &c.values[q]));
+        Fold(h, c.values[q].size());
+        Fold(h, cl.GetOptionValues(name).size());
+        Fold(h, cl.GetOptionValueWithDefault(name, "dflt").size());
+      }
+      auto args = fml::CommandLineToArgv(cl);
+      Fold(h, args.size());
+      auto again = fml::CommandLineFromIterators(args.begin(), args.end());
+      Fold(h, again == cl);
+      auto with0 = fml::CommandLineFromIteratorsWithArgv0(
+          "p0", c.argv.cbegin() + c.k, c.argv.cend());
+      Fold(h, with0.options().size());
+      Fold(h, with0.positional_args().size());
+      fml::CommandLine built(cl.argv0(), cl.options(), cl.positional_args());
+      fml::CommandLine copy = cl;
+      fml::CommandLine moved = std::move(copy);
+      fml::CommandLine assigned;
+      bool empty_equal = assigned == cl;
+      assigned = moved;
+      Fold(h, built == cl);
+      Fold(h, built.HasOption("a"));
+      Fold(h, moved == cl);
+      Fold(h, empty_equal);
+      Fold(h, assigned == cl);
+    }
+    SwPause();
+    done += n;
+  }
+  return h;
+}
+
+// Runs `name` `iterations` times and reports the fastest, median and slowest
+// round of the stopwatch (only the ported code runs under it; see the bench
+// clock above), the process's peak RSS, and a check value both drivers must
+// agree on: a kernel's checksum, or for a suite the number of random draws it
+// took.
 void Bench(const std::string& name, int iterations) {
+  g_quiet = true;
   std::vector<double> rounds;
+  uint64_t check = 0;
   for (int i = 0; i < iterations; i++) {
-    auto start = std::chrono::steady_clock::now();
+    SwReset();
+    Rng r{static_cast<uint64_t>(i)};
+    auto timed = [](void (*f)()) {
+      SwResume();
+      f();
+      SwPause();
+    };
+    auto suite = [&](auto run) {
+      TapeStart(static_cast<uint64_t>(i));
+      Rng tape{0};
+      SwResume();
+      run(tape);
+      SwPause();
+      check = TapeUsed();
+      g_tape_on = false;
+    };
     if (name == "queues") {
-      BenchRegisterAndGetTasks();
+      timed(BenchRegisterAndGetTasks);
     } else if (name == "loop") {
       BenchLoop();
     } else if (name == "thread") {
-      BenchThread();
+      timed(BenchThread);
     } else if (name == "concurrent") {
-      BenchConcurrent();
+      timed(BenchConcurrent);
+    } else if (name == "time") {
+      check = KernelTime(r, 20000);
+    } else if (name == "strings") {
+      check = KernelStrings(r, 20000);
+    } else if (name == "hash") {
+      check = KernelHash(r, 20000);
+    } else if (name == "paths") {
+      check = KernelPaths(r, 20000);
+    } else if (name == "cmdline") {
+      check = KernelCmdline(r, 20000);
+    } else if (name == "dispatch") {
+      suite([](Rng& t) { SuiteQueues(t, 2000); });
+    } else if (name == "merger") {
+      suite([](Rng& t) { SuiteMerger(t, 200); });
+    } else if (name == "file") {
+      suite([](Rng& t) { SuiteFile(t, 250); });
+    } else if (name == "mapping") {
+      suite([](Rng& t) { SuiteMapping(t, 2000); });
+    } else if (name == "trace") {
+      suite([](Rng& t) { SuiteTrace(t, 20000); });
     } else {
-      Rng r{static_cast<uint64_t>(i)};
-      if (name == "time") {
-        SuiteTime(r, 20000);
-      } else if (name == "strings") {
-        SuiteStrings(r, 20000);
-      } else if (name == "hash") {
-        SuiteHash(r, 20000);
-      } else if (name == "dispatch") {
-        SuiteQueues(r, 2000);
-      } else if (name == "merger") {
-        SuiteMerger(r, 200);
-      } else if (name == "file") {
-        SuiteFile(r, 250);
-      } else if (name == "mapping") {
-        SuiteMapping(r, 2000);
-      } else if (name == "paths") {
-        SuitePaths(r, 20000);
-      } else if (name == "cmdline") {
-        SuiteCmdline(r, 20000);
-      } else if (name == "trace") {
-        SuiteTrace(r, 20000);
-      } else {
-        std::fprintf(stderr, "unknown bench %s\n", name.c_str());
-        std::exit(2);
-      }
+      std::fprintf(stderr, "unknown bench %s\n", name.c_str());
+      std::exit(2);
     }
-    auto end = std::chrono::steady_clock::now();
-    rounds.push_back(std::chrono::duration<double, std::micro>(end - start).count());
+    rounds.push_back(g_sw_total_ns.load(std::memory_order_relaxed) / 1e3);
   }
   std::sort(rounds.begin(), rounds.end());
-  std::fprintf(stderr, "bench %s fastest %.1f us median %.1f us peak_rss %ld KiB\n",
+  std::fprintf(stderr,
+               "bench %s fastest %.1f us median %.1f us slowest %.1f us "
+               "peak_rss %ld KiB check %016" PRIx64 "\n",
                name.c_str(), rounds.front(), rounds[rounds.size() / 2],
-               PeakRssKiB());
+               rounds.back(), PeakRssKiB(), check);
 }
 
 }  // namespace

@@ -32,6 +32,7 @@ use fml::{hash_combine, hash_combine_seed};
 use std::collections::BTreeMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI64;
+use std::sync::atomic::AtomicU64;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::{Relaxed, SeqCst};
 use std::sync::{Arc, Condvar, Mutex, Weak};
@@ -64,13 +65,20 @@ struct Rng {
     s: u64,
 }
 
+fn splitmix(s: &mut u64) -> u64 {
+    *s = s.wrapping_add(0x9e3779b97f4a7c15);
+    let mut z = *s;
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+    z ^ (z >> 31)
+}
+
 impl Rng {
     fn next(&mut self) -> u64 {
-        self.s = self.s.wrapping_add(0x9e3779b97f4a7c15);
-        let mut z = self.s;
-        z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
-        z ^ (z >> 31)
+        if TAPE_ON.load(Relaxed) {
+            return tape_next();
+        }
+        splitmix(&mut self.s)
     }
     fn below(&mut self, n: u64) -> u64 {
         self.next() % n
@@ -78,6 +86,99 @@ impl Rng {
     fn chance(&mut self, one_in: u64) -> bool {
         self.below(one_in) == 0
     }
+}
+
+// ------------------------------------------------------- bench clock ------
+//
+// In bench mode the suites run against a stopwatch that only the ported code
+// should run under (see oracle/fml_dump.cc, which this mirrors): output is
+// not formatted at all (QUIET), the random stream is read from a tape that is
+// refilled with the clock stopped, and the driver's own set-up (input
+// generators, threads it spawns) pauses the clock. Pauses nest.
+
+static QUIET: AtomicBool = AtomicBool::new(false);
+static SW_DEPTH: AtomicUsize = AtomicUsize::new(1);
+static SW_TOTAL_NS: AtomicU64 = AtomicU64::new(0);
+static SW_START_NS: AtomicU64 = AtomicU64::new(0);
+static SW_BASE: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+fn sw_now_ns() -> u64 {
+    SW_BASE.get_or_init(std::time::Instant::now).elapsed().as_nanos() as u64
+}
+
+fn sw_reset() {
+    SW_DEPTH.store(1, Relaxed);
+    SW_TOTAL_NS.store(0, Relaxed);
+}
+
+/// Stops the clock (it may already be stopped; pauses nest).
+fn sw_pause() {
+    if SW_DEPTH.load(Relaxed) == 0 {
+        let elapsed = sw_now_ns() - SW_START_NS.load(Relaxed);
+        SW_TOTAL_NS.store(SW_TOTAL_NS.load(Relaxed) + elapsed, Relaxed);
+    }
+    SW_DEPTH.store(SW_DEPTH.load(Relaxed) + 1, Relaxed);
+}
+
+/// Undoes one sw_pause; the clock runs again when none is left.
+fn sw_resume() {
+    let depth = SW_DEPTH.load(Relaxed) - 1;
+    SW_DEPTH.store(depth, Relaxed);
+    if depth == 0 {
+        SW_START_NS.store(sw_now_ns(), Relaxed);
+    }
+}
+
+/// Runs `f` with the clock stopped.
+fn untimed<T>(f: impl FnOnce() -> T) -> T {
+    sw_pause();
+    let v = f();
+    sw_resume();
+    v
+}
+
+const TAPE_LEN: usize = 4096;
+static TAPE_ON: AtomicBool = AtomicBool::new(false);
+static TAPE: [AtomicU64; TAPE_LEN] = [const { AtomicU64::new(0) }; TAPE_LEN];
+static TAPE_POS: AtomicUsize = AtomicUsize::new(TAPE_LEN);
+static TAPE_SEED: AtomicU64 = AtomicU64::new(0);
+// Draws taken from the tape this round, reported to check that both drivers
+// took the same path.
+static TAPE_DRAWS: AtomicU64 = AtomicU64::new(0);
+
+fn tape_start(seed: u64) {
+    TAPE_SEED.store(seed, Relaxed);
+    TAPE_POS.store(TAPE_LEN, Relaxed);
+    TAPE_DRAWS.store(0, Relaxed);
+    TAPE_ON.store(true, Relaxed);
+}
+
+#[cold]
+#[inline(never)]
+fn tape_refill() {
+    sw_pause();
+    let mut s = TAPE_SEED.load(Relaxed);
+    for slot in &TAPE {
+        slot.store(splitmix(&mut s), Relaxed);
+    }
+    TAPE_SEED.store(s, Relaxed);
+    TAPE_POS.store(0, Relaxed);
+    TAPE_DRAWS.store(TAPE_DRAWS.load(Relaxed) + TAPE_LEN as u64, Relaxed);
+    sw_resume();
+}
+
+fn tape_next() -> u64 {
+    if TAPE_POS.load(Relaxed) == TAPE_LEN {
+        tape_refill();
+    }
+    let pos = TAPE_POS.load(Relaxed);
+    TAPE_POS.store(pos + 1, Relaxed);
+    TAPE[pos].load(Relaxed)
+}
+
+/// Draws taken this round.
+fn tape_used() -> u64 {
+    TAPE_DRAWS.load(Relaxed) - (TAPE_LEN - TAPE_POS.load(Relaxed)) as u64
 }
 
 fn edge_i64(r: &mut Rng) -> i64 {
@@ -120,30 +221,24 @@ fn cmp<T: Ord>(a: T, b: T) -> i32 {
 }
 
 // Everything goes through one buffer, as C++ stdio does, so output printed
-// from inside a task closure lands in order.
+// from inside a task closure lands in order. In bench mode (QUIET) nothing is
+// formatted: the arguments are not even evaluated, as in the C++ driver.
 static OUT: std::sync::Mutex<Vec<u8>> = std::sync::Mutex::new(Vec::new());
-// Set in bench mode, where output is formatted and dropped, as the C++ driver
-// formats it into /dev/null.
-static DISCARD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-fn discard_if_benching(out: &mut Vec<u8>) {
-    if out.len() > 4096 && DISCARD.load(std::sync::atomic::Ordering::Relaxed) {
-        out.clear();
-    }
-}
 
 macro_rules! w {
     ($($arg:tt)*) => {{
-        let mut out = OUT.lock().unwrap();
-        write!(out, $($arg)*).unwrap();
-        discard_if_benching(&mut out);
+        if !QUIET.load(Relaxed) {
+            let mut out = OUT.lock().unwrap();
+            write!(out, $($arg)*).unwrap();
+        }
     }};
 }
 macro_rules! p {
     ($($arg:tt)*) => {{
-        let mut out = OUT.lock().unwrap();
-        writeln!(out, $($arg)*).unwrap();
-        discard_if_benching(&mut out);
+        if !QUIET.load(Relaxed) {
+            let mut out = OUT.lock().unwrap();
+            writeln!(out, $($arg)*).unwrap();
+        }
     }};
 }
 
@@ -835,49 +930,391 @@ fn peak_rss_kib() -> i64 {
         .unwrap_or(-1)
 }
 
+/// Runs `name` `iterations` times and reports the fastest, median and
+/// slowest round of the stopwatch (only the ported code runs under it; see
+/// the bench clock above), the process's peak RSS, and a check value both
+/// drivers must agree on: a kernel's checksum, or for a suite the number of
+/// random draws it took.
 fn bench(name: &str, iterations: i32) {
-    DISCARD.store(true, std::sync::atomic::Ordering::Relaxed);
+    QUIET.store(true, Relaxed);
     let mut rounds = Vec::new();
+    let mut check = 0u64;
     for i in 0..iterations {
-        let start = std::time::Instant::now();
-        if name == "queues" {
-            bench_register_and_get_tasks();
-        } else if name == "loop" {
-            bench_loop();
-        } else if name == "thread" {
-            bench_thread();
-        } else if name == "concurrent" {
-            bench_concurrent();
-        } else {
-            let mut r = Rng { s: i as u64 };
-            match name {
-                "time" => suite_time(&mut r, 20000),
-                "strings" => suite_strings(&mut r, 20000),
-                "hash" => suite_hash(&mut r, 20000),
-                "dispatch" => suite_queues(&mut r, 2000),
-                "merger" => suite_merger(&mut r, 200),
-                "file" => suite_file(&mut r, 250),
-                "mapping" => suite_mapping(&mut r, 2000),
-                "paths" => suite_paths(&mut r, 20000),
-                "cmdline" => suite_cmdline(&mut r, 20000),
-                "trace" => suite_trace(&mut r, 20000),
-                _ => {
-                    eprintln!("unknown bench {name}");
-                    std::process::exit(2);
-                }
+        sw_reset();
+        let mut r = Rng { s: i as u64 };
+        let timed = |f: &dyn Fn()| {
+            sw_resume();
+            f();
+            sw_pause();
+        };
+        let suite = |run: &dyn Fn(&mut Rng), check: &mut u64| {
+            tape_start(i as u64);
+            sw_resume();
+            run(&mut Rng { s: 0 });
+            sw_pause();
+            *check = tape_used();
+            TAPE_ON.store(false, Relaxed);
+        };
+        match name {
+            "queues" => timed(&bench_register_and_get_tasks),
+            "loop" => bench_loop(),
+            "thread" => timed(&bench_thread),
+            "concurrent" => timed(&bench_concurrent),
+            "time" => check = kernel_time(&mut r, 20000),
+            "strings" => check = kernel_strings(&mut r, 20000),
+            "hash" => check = kernel_hash(&mut r, 20000),
+            "paths" => check = kernel_paths(&mut r, 20000),
+            "cmdline" => check = kernel_cmdline(&mut r, 20000),
+            "dispatch" => suite(&|r| suite_queues(r, 2000), &mut check),
+            "merger" => suite(&|r| suite_merger(r, 200), &mut check),
+            "file" => suite(&|r| suite_file(r, 250), &mut check),
+            "mapping" => suite(&|r| suite_mapping(r, 2000), &mut check),
+            "trace" => suite(&|r| suite_trace(r, 20000), &mut check),
+            _ => {
+                eprintln!("unknown bench {name}");
+                std::process::exit(2);
             }
-            // Output goes to /dev/null in the C++ driver; drop it here.
-            OUT.lock().unwrap().clear();
         }
-        rounds.push(start.elapsed().as_secs_f64() * 1e6);
+        rounds.push(SW_TOTAL_NS.load(Relaxed) as f64 / 1e3);
     }
     rounds.sort_by(|a, b| a.partial_cmp(b).unwrap());
     eprintln!(
-        "bench {name} fastest {:.1} us median {:.1} us peak_rss {} KiB",
+        "bench {name} fastest {:.1} us median {:.1} us slowest {:.1} us peak_rss {} KiB check {:016x}",
         rounds[0],
         rounds[rounds.len() / 2],
-        peak_rss_kib()
+        rounds[rounds.len() - 1],
+        peak_rss_kib(),
+        check
     );
+}
+
+// The suites that call cheap functions (time, strings, hash, paths,
+// cmdline) are benchmarked as kernels: a chunk of inputs is drawn with the
+// clock stopped, then only the ported calls run while it runs, each result
+// folded into a checksum that both drivers must agree on (so neither can
+// drop the work). The same inputs, calls and folds as oracle/fml_dump.cc.
+
+const K_CHUNK: usize = 1000;
+
+#[inline(always)]
+fn fold(h: &mut u64, v: u64) {
+    *h = h.rotate_left(5) ^ v;
+}
+
+struct TimeIn {
+    a: i64,
+    b: i64,
+    s: f64,
+    m: f64,
+    hz: i64,
+    hzf: f64,
+}
+
+fn kernel_time(r: &mut Rng, cases: usize) -> u64 {
+    let mut h = 0u64;
+    let mut input: Vec<TimeIn> = Vec::with_capacity(K_CHUNK);
+    let mut done = 0;
+    while done < cases {
+        let n = K_CHUNK.min(cases - done);
+        input.clear();
+        for _ in 0..n {
+            let a = edge_i64(r);
+            let b = edge_i64(r);
+            let s = bounded_f64(r, 9.0e9);
+            let m = bounded_f64(r, 9.0e12);
+            let hz = r.below(240) as i64 + 1;
+            let hzf = bounded_f64(r, 240.0);
+            input.push(TimeIn { a, b, s, m, hz, hzf });
+        }
+        sw_resume();
+        for c in &input {
+            let (a, b) = (c.a, c.b);
+            fold(&mut h, TimeDelta::from_nanoseconds(a).to_nanoseconds() as u64);
+            fold(&mut h, TimeDelta::from_microseconds(a).to_nanoseconds() as u64);
+            fold(&mut h, TimeDelta::from_milliseconds(a).to_nanoseconds() as u64);
+            fold(&mut h, TimeDelta::from_seconds(a).to_nanoseconds() as u64);
+            let da = TimeDelta::from_nanoseconds(a);
+            let db = TimeDelta::from_nanoseconds(b);
+            fold(&mut h, da.to_microseconds() as u64);
+            fold(&mut h, da.to_milliseconds() as u64);
+            fold(&mut h, da.to_seconds() as u64);
+            fold(&mut h, da.to_nanoseconds_f().to_bits());
+            fold(&mut h, da.to_microseconds_f().to_bits());
+            fold(&mut h, da.to_milliseconds_f().to_bits());
+            fold(&mut h, da.to_seconds_f().to_bits());
+            fold(&mut h, (da + db).to_nanoseconds() as u64);
+            fold(&mut h, (da - db).to_nanoseconds() as u64);
+            fold(&mut h, (da * b).to_nanoseconds() as u64);
+            if b != 0 && !(a == i64::MIN && b == -1) {
+                fold(&mut h, (da / b).to_nanoseconds() as u64);
+                fold(&mut h, (da / db) as u64);
+                fold(&mut h, (da % db).to_nanoseconds() as u64);
+            }
+            fold(&mut h, cmp(da, db) as u64);
+            fold(&mut h, (da == db) as u64);
+            fold(&mut h, (da < db) as u64);
+            fold(&mut h, (da >= db) as u64);
+            let ts = timespec { tv_sec: a, tv_nsec: (b % 1000000000) as std::os::raw::c_long };
+            fold(&mut h, TimeDelta::from_timespec(ts).to_nanoseconds() as u64);
+            let out = da.to_timespec();
+            fold(&mut h, out.tv_sec as u64);
+            fold(&mut h, out.tv_nsec as u64);
+            let pa = TimePoint::from_ticks(a);
+            let pb = TimePoint::from_epoch_delta(db);
+            fold(&mut h, (pa - pb).to_nanoseconds() as u64);
+            fold(&mut h, (pa + db).to_epoch_delta().to_nanoseconds() as u64);
+            fold(&mut h, (pa - db).to_epoch_delta().to_nanoseconds() as u64);
+            fold(&mut h, cmp(pa, pb) as u64);
+            fold(&mut h, TimeDelta::from_seconds_f(c.s).to_nanoseconds() as u64);
+            fold(&mut h, TimeDelta::from_milliseconds_f(c.m).to_nanoseconds() as u64);
+            fold(&mut h, refresh_rate_to_frame_budget(c.hz).count().to_bits());
+            fold(&mut h, refresh_rate_to_frame_budget(c.hzf).count().to_bits());
+        }
+        sw_pause();
+        done += n;
+    }
+    h
+}
+
+struct StringsIn {
+    u16s: Vec<u16>,
+    u8s: Vec<u8>,
+    parts: Vec<String>,
+    delim: &'static str,
+    path: std::path::PathBuf,
+}
+
+fn kernel_strings(r: &mut Rng, cases: usize) -> u64 {
+    let mut h = 0u64;
+    let mut input: Vec<StringsIn> = Vec::with_capacity(K_CHUNK);
+    let mut done = 0;
+    while done < cases {
+        let n = K_CHUNK.min(cases - done);
+        input.clear();
+        for _ in 0..n {
+            let u16s = gen_utf16(r);
+            let u8s = gen_utf8(r);
+            let mut parts = Vec::new();
+            let count = r.below(5);
+            for _ in 0..count {
+                let len = r.below(4);
+                parts.push((0..len).map(|_| (b'a' + r.below(26) as u8) as char).collect());
+            }
+            const K_DELIMS: [&str; 4] = [",", ", ", "", "--"];
+            let delim = K_DELIMS[r.below(4) as usize];
+            let path = Path::new(std::ffi::OsStr::from_bytes(&gen_bytes(r, 8))).to_path_buf();
+            input.push(StringsIn { u16s, u8s, parts, delim, path });
+        }
+        sw_resume();
+        for c in &input {
+            match try_utf16_to_utf8(&c.u16s) {
+                Ok(s) => fold(&mut h, s.len() as u64),
+                Err(_) => fold(&mut h, u64::MAX),
+            }
+            match try_utf8_to_utf16(&c.u8s) {
+                Ok(s) => fold(&mut h, s.len() as u64),
+                Err(_) => fold(&mut h, u64::MAX),
+            }
+            fold(&mut h, join(&c.parts, c.delim).len() as u64);
+            fold(&mut h, path_to_utf8(&c.path).len() as u64);
+        }
+        sw_pause();
+        done += n;
+    }
+    h
+}
+
+struct HashIn {
+    a: i32,
+    b: i64,
+    c: u32,
+    d: bool,
+    s: String,
+    t: Vec<u8>,
+    f: f32,
+    g: f64,
+    grade: TaskSourceGrade,
+    u8v: u8,
+    i16v: i16,
+    ch: i8,
+    u64v: u64,
+    seed: usize,
+}
+
+fn kernel_hash(r: &mut Rng, cases: usize) -> u64 {
+    let mut h = hash_combine!() as u64;
+    let mut input: Vec<HashIn> = Vec::with_capacity(K_CHUNK);
+    let mut done = 0;
+    while done < cases {
+        let n = K_CHUNK.min(cases - done);
+        input.clear();
+        for _ in 0..n {
+            let a = r.next() as i32;
+            let b = edge_i64(r);
+            let c = r.next() as u32;
+            let d = r.chance(2);
+            let s = gen_hash_string(r);
+            let t = gen_bytes(r, 80);
+            let f = gen_f32(r);
+            let g = gen_f64(r);
+            let grade = grade_of(r.below(3));
+            let u8v = r.next() as u8;
+            let i16v = r.next() as i16;
+            let ch = r.next() as i8;
+            let u64v = r.next();
+            let seed = r.next() as usize;
+            input.push(HashIn { a, b, c, d, s, t, f, g, grade, u8v, i16v, ch, u64v, seed });
+        }
+        sw_resume();
+        for c in &input {
+            let t = ByteString(&c.t);
+            fold(&mut h, hash_combine!(c.a) as u64);
+            fold(&mut h, hash_combine!(c.b, c.c, c.d) as u64);
+            fold(&mut h, hash_combine!(c.s) as u64);
+            fold(&mut h, hash_combine!(t) as u64);
+            fold(&mut h, hash_combine!(c.s, c.a, c.f, c.g) as u64);
+            fold(&mut h, hash_combine!(c.grade, c.u8v, c.i16v, c.ch, c.u64v) as u64);
+            let mut seed = c.seed;
+            hash_combine_seed!(&mut seed, c.a, c.s);
+            fold(&mut h, seed as u64);
+        }
+        sw_pause();
+        done += n;
+    }
+    h
+}
+
+struct PathsIn {
+    kind: u64,
+    c: Vec<Vec<u8>>,
+}
+
+fn kernel_paths(r: &mut Rng, cases: usize) -> u64 {
+    use fml::paths;
+    let dir = ScopedTemporaryDirectory::new();
+    let original = std::env::current_dir().unwrap();
+    std::env::set_current_dir(dir.path()).unwrap();
+    let mut h = 0u64;
+    let mut input: Vec<PathsIn> = Vec::with_capacity(K_CHUNK);
+    let mut done = 0;
+    while done < cases {
+        let n = K_CHUNK.min(cases - done);
+        input.clear();
+        for _ in 0..n {
+            let kind = r.below(6);
+            let c = match kind {
+                0 => {
+                    let count = r.below(5);
+                    (0..count).map(|_| gen_path_text(r)).collect()
+                }
+                1 => vec![gen_path_text(r)],
+                2 => vec![gen_uri_text(r)],
+                3 => {
+                    const K_PREFIXES: [&[u8]; 4] = [b"file://", b"file:/", b"FILE://", b""];
+                    let mut uri = K_PREFIXES[r.below(4) as usize].to_vec();
+                    uri.extend(gen_uri_text(r));
+                    vec![uri]
+                }
+                4 => vec![match r.below(3) {
+                    0 => Vec::new(),
+                    1 => {
+                        let mut p = b"/".to_vec();
+                        p.extend(gen_path_text(r));
+                        p
+                    }
+                    _ => gen_path_text(r),
+                }],
+                _ => Vec::new(),
+            };
+            input.push(PathsIn { kind, c });
+        }
+        sw_resume();
+        for c in &input {
+            match c.kind {
+                0 => fold(&mut h, paths::join_paths(&c.c).len() as u64),
+                1 => fold(&mut h, paths::get_directory_name(&c.c[0]).len() as u64),
+                2 => fold(&mut h, paths::sanitize_uri_escaped_characters(&c.c[0]).len() as u64),
+                3 => fold(&mut h, paths::from_uri(&c.c[0]).len() as u64),
+                4 => fold(&mut h, paths::absolute_path(&c.c[0]).len() as u64),
+                _ => {
+                    let exe = paths::get_executable_path();
+                    let exe_dir = paths::get_executable_directory_path();
+                    fold(&mut h, exe.0 as u64);
+                    fold(&mut h, (!exe.1.is_empty() && exe.1[0] == b'/') as u64);
+                    fold(&mut h, exe_dir.0 as u64);
+                    fold(&mut h, (exe_dir.1 == paths::get_directory_name(&exe.1)) as u64);
+                    fold(&mut h, paths::get_caches_directory().is_valid() as u64);
+                }
+            }
+        }
+        sw_pause();
+        done += n;
+    }
+    std::env::set_current_dir(original).unwrap();
+    h
+}
+
+struct CmdlineIn {
+    argv: Vec<&'static str>,
+    names: [&'static str; 3],
+    values: [String; 3],
+    k: usize,
+}
+
+fn kernel_cmdline(r: &mut Rng, cases: usize) -> u64 {
+    use fml::command_line::*;
+    let mut h = 0u64;
+    let mut input: Vec<CmdlineIn> = Vec::with_capacity(K_CHUNK);
+    let mut done = 0;
+    while done < cases {
+        let n = K_CHUNK.min(cases - done);
+        input.clear();
+        for _ in 0..n {
+            let count = r.below(7);
+            let argv: Vec<&'static str> = (0..count).map(|_| K_ARG_TOKENS[r.below(21) as usize]).collect();
+            let mut names = [""; 3];
+            for name in &mut names {
+                *name = K_OPTION_NAMES[r.below(8) as usize];
+            }
+            let k = r.below(argv.len() as u64 + 1) as usize;
+            let values = [String::from("untouched"), String::from("untouched"), String::from("untouched")];
+            input.push(CmdlineIn { argv, names, values, k });
+        }
+        sw_resume();
+        for c in &mut input {
+            let (cl, first) = command_line_from_iterators_find_first_positional_arg(&c.argv);
+            fold(&mut h, first as u64);
+            for q in 0..3 {
+                let name = c.names[q];
+                fold(&mut h, cl.has_option(name).unwrap_or(12345) as u64);
+                fold(&mut h, cl.get_option_value(name, &mut c.values[q]) as u64);
+                fold(&mut h, c.values[q].len() as u64);
+                fold(&mut h, cl.get_option_values(name).len() as u64);
+                fold(&mut h, cl.get_option_value_with_default(name, "dflt").len() as u64);
+            }
+            let args = command_line_to_argv(&cl);
+            fold(&mut h, args.len() as u64);
+            let again = command_line_from_iterators(&args);
+            fold(&mut h, (again == cl) as u64);
+            let with0 = command_line_from_iterators_with_argv0("p0", &c.argv[c.k..]);
+            fold(&mut h, with0.options().len() as u64);
+            fold(&mut h, with0.positional_args().len() as u64);
+            let built = CommandLine::with_components(cl.argv0().clone(), cl.options(), cl.positional_args());
+            let copy = cl.clone();
+            let moved = copy;
+            let mut assigned = CommandLine::new();
+            let empty_equal = assigned == cl;
+            assigned = moved.clone();
+            fold(&mut h, (built == cl) as u64);
+            fold(&mut h, built.has_option("a").is_some() as u64);
+            fold(&mut h, (moved == cl) as u64);
+            fold(&mut h, empty_equal as u64);
+            fold(&mut h, (assigned == cl) as u64);
+        }
+        sw_pause();
+        done += n;
+    }
+    h
 }
 
 // -------------------------------------------------------------- clock ------
@@ -1374,8 +1811,8 @@ fn make_merger_task(c: &Arc<MergerCtx>, id: i32, queue: usize) -> closure {
 fn merger_case(r: &mut Rng, i: i32) {
     set_fake_clock(100 + r.below(50) as i64, 1 + r.below(3) as i64);
     MessageLoop::ensure_initialized_for_current_thread();
-    let r1 = ParkedLoop::new();
-    let r2 = ParkedLoop::new();
+    // The parked threads are the driver's: spawning them is not timed.
+    let (r1, r2) = untimed(|| (ParkedLoop::new(), ParkedLoop::new()));
     let loops = [MessageLoop::get_current(), r1.loop_.clone(), r2.loop_.clone()];
     let ids = [
         loops[0].get_task_runner().get_task_queue_id(),
@@ -1429,25 +1866,21 @@ fn merger_case(r: &mut Rng, i: i32) {
             9 => {
                 w!("state");
                 for q in 0..3 {
-                    w!(
-                        " {}:{}/{}/{}",
-                        K_LOOP_NAMES[q],
-                        queues.has_pending_tasks(c.ids[q]) as i32,
-                        queues.get_num_pending_tasks(c.ids[q]),
-                        c.loops[q].get_task_runner().runs_tasks_on_current_thread() as i32
-                    );
+                    let has = queues.has_pending_tasks(c.ids[q]);
+                    let num = queues.get_num_pending_tasks(c.ids[q]);
+                    let runs = c.loops[q].get_task_runner().runs_tasks_on_current_thread();
+                    w!(" {}:{}/{}/{}", K_LOOP_NAMES[q], has as i32, num, runs as i32);
                 }
-                p!(
-                    " owns {} {} same {} {}",
-                    queues.owns(c.ids[0], c.ids[1]) as i32,
-                    queues.owns(c.ids[0], c.ids[2]) as i32,
-                    TaskRunnerChecker::runs_on_the_same_thread(c.ids[1], c.ids[0]) as i32,
-                    TaskRunnerChecker::runs_on_the_same_thread(c.ids[2], c.ids[1]) as i32
-                );
+                let owns1 = queues.owns(c.ids[0], c.ids[1]);
+                let owns2 = queues.owns(c.ids[0], c.ids[2]);
+                let same1 = TaskRunnerChecker::runs_on_the_same_thread(c.ids[1], c.ids[0]);
+                let same2 = TaskRunnerChecker::runs_on_the_same_thread(c.ids[2], c.ids[1]);
+                p!(" owns {} {} same {} {}", owns1 as i32, owns2 as i32, same1 as i32, same2 as i32);
             }
             10 => {
                 let checker = TaskRunnerChecker::new();
-                p!("checker {}", checker.runs_on_creation_task_runner() as i32);
+                let on = checker.runs_on_creation_task_runner();
+                p!("checker {}", on as i32);
             }
             _ => {
                 let jump = below(15) as i64;
@@ -1476,19 +1909,26 @@ fn merger_case(r: &mut Rng, i: i32) {
     r.s = st.r.s;
     drop(st);
     drop(c);
-    drop(r2);
-    drop(r1);
+    untimed(|| {
+        drop(r2);
+        drop(r1);
+    });
 }
 
 fn suite_merger(r: &mut Rng, cases: i32) {
     for i in 0..cases {
         let mut rr = Rng { s: r.s };
+        // The case runs on a fresh thread; only its body is timed.
+        sw_pause();
         let rr = std::thread::spawn(move || {
+            sw_resume();
             merger_case(&mut rr, i);
+            sw_pause();
             rr
         })
         .join()
         .unwrap();
+        sw_resume();
         r.s = rr.s;
     }
     TimePoint::set_clock_source(None);
@@ -1957,7 +2397,9 @@ fn suite_logging(r: &mut Rng, cases: i32) {
 // -------------------------------------------------------- loop benches -----
 
 fn bench_loop() {
+    // Only the loop's thread is timed, not spawning and joining it.
     std::thread::spawn(|| {
+        sw_resume();
         MessageLoop::ensure_initialized_for_current_thread();
         let loop_ = MessageLoop::get_current();
         const COUNT: usize = 10000;
@@ -1972,6 +2414,7 @@ fn bench_loop() {
             }));
         }
         loop_.run();
+        sw_pause();
         if current.load(Relaxed) != COUNT {
             std::process::abort();
         }
@@ -2167,8 +2610,10 @@ fn mapped(m: &dyn Mapping) -> &[u8] {
 }
 
 fn gen_data(r: &mut Rng, max_len: u64) -> Vec<u8> {
-    let n = r.below(max_len + 1) as usize;
-    (0..n).map(|_| r.next() as u8).collect()
+    untimed(|| {
+        let n = r.below(max_len + 1) as usize;
+        (0..n).map(|_| r.next() as u8).collect()
+    })
 }
 
 const K_FILE_NAMES: [&[u8]; 12] = [
@@ -2187,6 +2632,10 @@ const K_FILE_NAMES: [&[u8]; 12] = [
 ];
 
 fn gen_rel_path(r: &mut Rng) -> Vec<u8> {
+    untimed(|| gen_rel_path_untimed(r))
+}
+
+fn gen_rel_path_untimed(r: &mut Rng) -> Vec<u8> {
     match r.below(12) {
         0 => vec![b'n'; 256],
         1 | 2 => {
@@ -3207,7 +3656,11 @@ fn print_trace_event(
 static G_TRACE_CLOCK: AtomicI64 = AtomicI64::new(0);
 
 fn counting_micros() -> i64 {
-    G_TRACE_CLOCK.fetch_add(3, SeqCst) + 3
+    // A plain read and write, as the C++ driver's `g_trace_clock += 3`: the
+    // clock is only read on the thread that traces.
+    let now = G_TRACE_CLOCK.load(Relaxed) + 3;
+    G_TRACE_CLOCK.store(now, Relaxed);
+    now
 }
 
 fn constant_micros() -> i64 {
@@ -3261,12 +3714,14 @@ fn suite_trace(r: &mut Rng, cases: i32) {
             1 => {
                 let set = !r.chance(3);
                 trace_set_timeline_event_handler(if set { Some(print_trace_event) } else { None });
-                p!("  handler {} {}", set as i32, trace_has_timeline_event_handler() as i32);
+                let has = trace_has_timeline_event_handler();
+                p!("  handler {} {}", set as i32, has as i32);
             }
             2 => {
                 let counting = !r.chance(4);
                 trace_set_timeline_micros_source(if counting { counting_micros } else { constant_micros });
-                p!("  micros {} {}", counting as i32, trace_get_timeline_micros());
+                let micros = trace_get_timeline_micros();
+                p!("  micros {} {}", counting as i32, micros);
             }
             3 => {
                 let label = trace_label(r);
@@ -3450,7 +3905,8 @@ fn suite_trace(r: &mut Rng, cases: i32) {
                 }
             }
             _ => {
-                p!("  openfile nonce {}", trace_nonce());
+                let nonce = trace_nonce();
+                p!("  openfile nonce {}", nonce);
                 fml::file::open_file("/nonexistent-fml-oracle", false, FilePermission::kRead);
             }
         }
