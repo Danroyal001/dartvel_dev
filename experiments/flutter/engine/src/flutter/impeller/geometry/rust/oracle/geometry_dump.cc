@@ -363,7 +363,10 @@ static void SuiteScalar(Rng& r, int cases) {
     CastToInt<double, int64_t>("cast_d_i64", da);
     // Values near the limits of each width, where the float form of the
     // limit rounds up.
-    float near = static_cast<float>(EdgeI(r, 32)) * (r.Chance(2) ? 1.0f : 2.0f);
+    float near = static_cast<float>(EdgeI(r, 32));
+    if (r.Chance(2)) {
+      near *= 2.0f;
+    }
     CastToInt<float, int32_t>("cast_near_i32", near);
     CastToInt<float, int64_t>("cast_near_i64",
                               static_cast<float>(EdgeI(r, 64)));
