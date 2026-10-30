@@ -84,6 +84,7 @@ import 'src/routing/url_strategy.dart' show dvOpenUrl;
 import 'src/scene3d/scene_viewport.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
+import 'src/state/offline_banner.dart';
 import 'src/studio/page_document.dart';
 import 'src/studio/studio_app_shortcuts.dart' show DVStudioAppShortcuts;
 import 'src/studio/studio_host.dart' show DVPagePreviewScope;
@@ -11193,6 +11194,10 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
       children: <Widget>[
         safe,
         const Positioned(top: 0, left: 0, right: 0, child: DVTrackedProgress()),
+        // And whether the device is offline, read from DV.Platform.network,
+        // over the foot of the page. In a Stack rather than a Column, so the
+        // page keeps its layout and its state when the connection drops.
+        const Positioned(left: 0, right: 0, bottom: 0, child: DVOfflineBanner()),
       ],
     );
     if (!selectable || Theme.of(context).platform != TargetPlatform.iOS) {
@@ -11472,9 +11477,13 @@ abstract final class DVFrameworkStrings {
   /// What an empty [DVTable] announces.
   static const DVTranslationKey tableEmpty = DVTranslationKey('dv.table.empty');
 
+  /// What every page says while the device is offline.
+  static const DVTranslationKey offline = DVTranslationKey('dv.network.offline');
+
   /// The catalogue default for each framework key, by key.
   static const Map<String, String> defaults = <String, String>{
     'dv.table.empty': 'No rows',
+    'dv.network.offline': "You're offline",
   };
 }
 

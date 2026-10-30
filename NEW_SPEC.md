@@ -15078,8 +15078,11 @@ columns before it has rows.
 An offline banner is driven by the connectivity signal Offline-First Models
 defines, and a background-task tray shows uploads, exports and imports from
 the typed progress events jobs already emit. Neither is a new mechanism; both
-are the rendering of state the framework already has and currently shows
-nobody.
+are the rendering of state the framework already has. The banner is built:
+every page shell shows it while `DV.Platform.network` reports `offline` — not
+`unknown`, which is every target with no binding, and not `metered` — as a
+live region whose words are the framework string `dv.network.offline`. No page
+adds it, and none can be told to. The tray still shows nobody.
 
 ## Diagnostics
 
