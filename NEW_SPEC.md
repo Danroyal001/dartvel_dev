@@ -16908,8 +16908,25 @@ C is not memory-safe, so it never shares the safe-by-default guarantee:
   covers its C.
 - Linking a prebuilt C library stays ordinary FFI, as for a prebuilt Rust one.
 
-C++ is not imported: its ABI, templates and exceptions make one compiler
-process with no binding a different problem, left to a later proposal.
+C++ source is compiled and linked the same way, but only its C surface is
+visible:
+
+```dart
+import cpp 'third_party/engine.cpp'; // compiled into this library
+```
+
+`.dv` sees the source's `extern "C"` functions and nothing else, under the
+same rules as `import c`: usable only inside `unsafe` or through a safe
+wrapper, reported separately by `dartvel compile`, and outside every safety
+claim. A C++ exception that reaches that boundary aborts with a diagnostic
+naming the function; it never unwinds into `.dv` frames. A C++ library with a
+C API, or with a thin C shim written over it, needs nothing more.
+
+Templates, classes, overloads and exceptions are not mapped into `.dv`.
+Compiling C++ is easy; giving `.dv` types, ownership and `nothrow` a faithful
+meaning across them is not, and the large C++ codebases Dartvel depends on
+are being ported rather than called. Full C++ interop waits for a specific
+library worth it that has no C API.
 
 ## WebAssembly
 
