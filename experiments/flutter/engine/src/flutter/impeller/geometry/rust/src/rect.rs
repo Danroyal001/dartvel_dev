@@ -312,6 +312,38 @@ impl<T: RectNum> TRect<T> {
         ]
     }
 
+    /// Constructs a Matrix that will map all points in the coordinate space
+    /// of the rectangle into a new normalized coordinate space where the
+    /// upper left corner of the rectangle maps to (0, 0) and the lower right
+    /// corner of the rectangle maps to (1, 1).
+    ///
+    /// Empty and non-finite rectangles will return a zero-scaling transform
+    /// that maps all points to (0, 0).
+    #[rustfmt::skip]
+    pub fn get_normalizing_transform(&self) -> Matrix {
+        if !self.is_empty() {
+            let sx: Scalar = (1.0 / self.get_width().to_f64()) as Scalar;
+            let sy: Scalar = (1.0 / self.get_height().to_f64()) as Scalar;
+            let tx: Scalar = self.left_.to_f32() * -sx;
+            let ty: Scalar = self.top_.to_f32() * -sy;
+
+            // Exclude NaN and infinities and either scale underflowing to
+            // zero
+            if sx != 0.0
+                && sy != 0.0
+                && 0.0 * sx as f64 * sy as f64 * tx as f64 * ty as f64 == 0.0
+            {
+                return Matrix::new(sx,  0.0, 0.0, 0.0,
+                                   0.0, sy,  0.0, 0.0,
+                                   0.0, 0.0, 1.0, 0.0,
+                                   tx,  ty,  0.0, 1.0);
+            }
+        }
+
+        // Map all coordinates to the origin.
+        Matrix::make_scale(Vector3::new(0.0, 0.0, 1.0))
+    }
+
     /// Returns the union of this rectangle and the given rectangle, or
     /// whichever one is not empty.
     pub fn union(&self, o: &Self) -> Self {
@@ -630,37 +662,6 @@ impl TRect<Scalar> {
         }
     }
 
-    /// Constructs a Matrix that will map all points in the coordinate space
-    /// of the rectangle into a new normalized coordinate space where the
-    /// upper left corner of the rectangle maps to (0, 0) and the lower right
-    /// corner of the rectangle maps to (1, 1).
-    ///
-    /// Empty and non-finite rectangles will return a zero-scaling transform
-    /// that maps all points to (0, 0).
-    #[rustfmt::skip]
-    pub fn get_normalizing_transform(&self) -> Matrix {
-        if !self.is_empty() {
-            let sx: Scalar = (1.0 / self.get_width() as f64) as Scalar;
-            let sy: Scalar = (1.0 / self.get_height() as f64) as Scalar;
-            let tx: Scalar = self.left_ * -sx;
-            let ty: Scalar = self.top_ * -sy;
-
-            // Exclude NaN and infinities and either scale underflowing to
-            // zero
-            if sx != 0.0
-                && sy != 0.0
-                && 0.0 * sx as f64 * sy as f64 * tx as f64 * ty as f64 == 0.0
-            {
-                return Matrix::new(sx,  0.0, 0.0, 0.0,
-                                   0.0, sy,  0.0, 0.0,
-                                   0.0, 0.0, 1.0, 0.0,
-                                   tx,  ty,  0.0, 1.0);
-            }
-        }
-
-        // Map all coordinates to the origin.
-        Matrix::make_scale(Vector3::new(0.0, 0.0, 1.0))
-    }
 
     /// Returns a new rectangle that represents the projection of the source
     /// rectangle onto this rectangle, expanded so that, once transformed, it

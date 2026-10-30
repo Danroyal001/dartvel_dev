@@ -97,3 +97,15 @@ mod matrix_unittests;
 mod rounding_radii_unittests;
 #[cfg(test)]
 mod saturated_math_unittests;
+#[cfg(test)]
+// mod arc_unittests;
+#[cfg(test)]
+mod geometry_unittests;
+#[cfg(test)]
+mod path_source_unittests;
+#[cfg(test)]
+mod rect_unittests;
+#[cfg(test)]
+mod round_rect_unittests;
+#[cfg(test)]
+mod round_superellipse_unittests;

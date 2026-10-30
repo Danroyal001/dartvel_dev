@@ -69,7 +69,32 @@ impl TestEq<u32> for usize {
     }
 }
 
-same_eq!(bool, &str, String);
+same_eq!(bool, String);
+
+impl TestEq for str {
+    fn test_eq(&self, other: &str) -> bool {
+        self == other
+    }
+}
+
+impl TestEq<&str> for str {
+    fn test_eq(&self, other: &&str) -> bool {
+        self == *other
+    }
+}
+
+impl TestEq<&str> for String {
+    fn test_eq(&self, other: &&str) -> bool {
+        self == other
+    }
+}
+
+/// A reference compares as what it refers to.
+impl<T: TestEq<U> + ?Sized, U> TestEq<U> for &T {
+    fn test_eq(&self, other: &U) -> bool {
+        (**self).test_eq(other)
+    }
+}
 
 impl<T: TestEq<U>, U> TestEq<Option<U>> for Option<T> {
     fn test_eq(&self, other: &Option<U>) -> bool {
@@ -450,3 +475,21 @@ macro_rules! expect_colors_near {
         $crate::expect_pred2!(colors_near, $a, $b)
     };
 }
+
+/// `std::optional<T> == T`.
+macro_rules! optional_eq {
+    ($($t:ty),*) => {$(
+        impl TestEq<$t> for Option<$t> {
+            fn test_eq(&self, other: &$t) -> bool {
+                self.as_ref().is_some_and(|v| v == other)
+            }
+        }
+    )*};
+}
+optional_eq!(
+    crate::rect::TRect<f32>,
+    crate::rect::TRect<i64>,
+    crate::rect::TRect<i32>,
+    crate::point::TPoint<f32>,
+    f32
+);

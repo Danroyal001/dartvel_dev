@@ -12,11 +12,11 @@ use crate::vector::{Vector3, Vector4};
 #[macro_export]
 macro_rules! impeller_for_each_blend_mode {
     ($v:ident) => {
-        $v!(
+        $v! {
             Clear, Src, Dst, SrcOver, DstOver, SrcIn, DstIn, SrcOut, DstOut, SrcATop, DstATop, Xor,
             Plus, Modulate, Screen, Overlay, Darken, Lighten, ColorDodge, ColorBurn, HardLight,
             SoftLight, Difference, Exclusion, Multiply, Hue, Saturation, Color, Luminosity
-        );
+        }
     };
 }
 
