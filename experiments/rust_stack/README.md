@@ -143,8 +143,9 @@ output on these inputs (`../dartr/VENDORED.md`).
 
 Memory is `dartr`'s median peak as a share of Dart's. On these four corpora
 `dartr` passes Part 8's gate for Track A (wall time and peak memory no more
-than Dart's). The gate is every corpus and the language server too, and
-neither has been measured yet, so this is not yet a pass.
+than Dart's). The gate is every corpus and the language server too; the
+language server and Flutter code are measured below, and the gate is not a
+pass until every corpus the proposal names is.
 
 ### Flutter code
 
@@ -159,3 +160,27 @@ neither has been measured yet, so this is not yet a pass.
 
 `dartr`'s runs on `packages/flutter` ranged from 9.4 s to 16.1 s while
 another build shared the four cores, so its speed-up there is a floor.
+
+### Language server
+
+`baselines/dartr-vs-dart-lsp-2026-10-30.json`: one scripted LSP session per
+project (three files, 12 probes each, every request repeated five times),
+cold, three runs, with `dartr` at `dcc962c`. The driver is
+`../dartr/tools/lsp_differential.dart`; its `diff` mode compares the two
+servers' normalized responses.
+
+| | `dart_style` Dart | `dart_style` dartr | pub Dart | pub dartr |
+|---|---|---|---|---|
+| Analysis complete | 8.64 s | 1.85 s | 11.87 s | 2.75 s |
+| Peak memory | 834 MB | 787 MB | 828 MB | 763 MB |
+| Memory after analysis | 595 MB | 402 MB | 587 MB | 468 MB |
+| completion (median) | 12.1 ms | 9.0 ms | 10.0 ms | 6.9 ms |
+| references | 5.5 ms | 2.4 ms | 3.9 ms | 2.2 ms |
+| rename | 7.9 ms | 3.1 ms | 18.7 ms | 6.7 ms |
+
+`dartr` is faster on every request kind the session makes (the JSON has all
+eleven) and peaks lower on both projects. Its responses match Dart's on
+every request kind but two, neither an analysis difference: `initialize`
+names the server `dartr LSP Analysis Server`, and one cold completion on pub
+is `isIncomplete` in Dart only, because Dart's not-yet-imported pass ran
+out of its time budget; the items are identical.

@@ -82,3 +82,16 @@ under `crates/dartr/tests/fixtures/analyze_driver/lints_parity/` that
 `analyze_parity_lints_parity` compares with Dart; every one of them failed
 before its fix. Not compared yet: Flutter's other packages and pub.dev as a
 whole.
+
+## Language server parity: 30 October 2026
+
+`dartr language-server` against `dart language-server` 3.13.3, through
+`tools/lsp_differential.dart` on `dart_style` and pub: the same responses on
+hover, definition, references, documentHighlight, signatureHelp,
+documentSymbol, formatting, codeAction, prepareRename, rename, completion
+and project diagnostics. The two differences left are not analysis
+differences: the server's name in `initialize`, and one cold completion Dart
+marks incomplete because its not-yet-imported pass ran out of time. The
+unit indexes Dart's driver builds are identical to `dartr`'s, element and
+relation order included, on all 104 `dart_style` files and 547 pub files.
+Speed and memory are in `../rust_stack/README.md`.

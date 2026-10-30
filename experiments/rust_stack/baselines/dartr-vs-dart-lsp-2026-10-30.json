@@ -1,0 +1,124 @@
+{
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cores": 4,
+    "os": "Linux 6.18.44-fc-v185 #1 SMP PREEMPT_DYNAMIC @0",
+    "dart": "3.13.3 (stable) (Tue Sep 1 01:07:17 2026 -0700) on \"linux_x64\"",
+    "note": "A cloud container, not a named reference machine: these numbers are provisional until the proposal's reference machines exist."
+  },
+  "method": "experiments/dartr/tools/lsp_differential.dart run, cold (a fresh empty HOME per run), 5 repetitions of each request per run; values are the median over runs of each run's median. Peak RSS is of the server's process tree, sampled every 50 ms. analysisCompleteMs is the time to $/analyzerStatus isAnalyzing false; neither project has diagnostics, so it stands in for time to first diagnostics.",
+  "results": [
+    {
+      "project": "dart_style",
+      "revision": "81042ca",
+      "server": "dart language-server (3.13.3)",
+      "files": [
+        "lib/src/dart_formatter.dart",
+        "lib/src/front_end/chain_builder.dart",
+        "lib/src/cli/format_command.dart"
+      ],
+      "runs": 3,
+      "analysisCompleteMs": 8642.6,
+      "peakRssMb": 834.0,
+      "rssAfterAnalysisMb": 594.9,
+      "sessionWallMs": 47998.6,
+      "requestMedianMs": {
+        "documentSymbol": 1.7,
+        "hover": 0.9,
+        "definition": 1.9,
+        "references": 5.5,
+        "documentHighlight": 1.3,
+        "signatureHelp": 0.8,
+        "completion": 12.1,
+        "formatting": 7.6,
+        "codeAction": 2.5,
+        "prepareRename": 0.7,
+        "rename": 7.9
+      }
+    },
+    {
+      "project": "dart_style",
+      "revision": "81042ca",
+      "server": "dartr language-server",
+      "files": [
+        "lib/src/dart_formatter.dart",
+        "lib/src/front_end/chain_builder.dart",
+        "lib/src/cli/format_command.dart"
+      ],
+      "runs": 3,
+      "analysisCompleteMs": 1854.8,
+      "peakRssMb": 786.6,
+      "rssAfterAnalysisMb": 401.6,
+      "sessionWallMs": 19360.4,
+      "requestMedianMs": {
+        "documentSymbol": 1.1,
+        "hover": 0.4,
+        "definition": 0.4,
+        "references": 2.4,
+        "documentHighlight": 0.7,
+        "signatureHelp": 0.3,
+        "completion": 9.0,
+        "formatting": 2.9,
+        "codeAction": 0.6,
+        "prepareRename": 0.3,
+        "rename": 3.1
+      }
+    },
+    {
+      "project": "pub",
+      "revision": "1df5943",
+      "server": "dart language-server (3.13.3)",
+      "files": [
+        "lib/src/entrypoint.dart",
+        "lib/src/solver/version_solver.dart",
+        "lib/src/command/add.dart"
+      ],
+      "runs": 3,
+      "analysisCompleteMs": 11871.4,
+      "peakRssMb": 828.0,
+      "rssAfterAnalysisMb": 586.8,
+      "sessionWallMs": 61232.3,
+      "requestMedianMs": {
+        "documentSymbol": 3.4,
+        "hover": 0.8,
+        "definition": 2.1,
+        "references": 3.9,
+        "documentHighlight": 1.2,
+        "signatureHelp": 0.7,
+        "completion": 10.0,
+        "formatting": 13.0,
+        "codeAction": 2.4,
+        "prepareRename": 0.8,
+        "rename": 18.7
+      }
+    },
+    {
+      "project": "pub",
+      "revision": "1df5943",
+      "server": "dartr language-server",
+      "files": [
+        "lib/src/entrypoint.dart",
+        "lib/src/solver/version_solver.dart",
+        "lib/src/command/add.dart"
+      ],
+      "runs": 3,
+      "analysisCompleteMs": 2753.2,
+      "peakRssMb": 763.2,
+      "rssAfterAnalysisMb": 468.4,
+      "sessionWallMs": 31843.2,
+      "requestMedianMs": {
+        "documentSymbol": 2.2,
+        "hover": 0.3,
+        "definition": 0.4,
+        "references": 2.2,
+        "documentHighlight": 0.8,
+        "signatureHelp": 0.2,
+        "completion": 6.9,
+        "formatting": 6.4,
+        "codeAction": 1.0,
+        "prepareRename": 0.3,
+        "rename": 6.7
+      }
+    }
+  ]
+}
