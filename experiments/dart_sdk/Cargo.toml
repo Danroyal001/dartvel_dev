@@ -5,7 +5,7 @@
 # pkg/_fe_analyzer_shared/rust/README.md.
 [workspace]
 resolver = "2"
-members = ["pkg/_fe_analyzer_shared/rust"]
+members = ["pkg/_fe_analyzer_shared/rust", "pkg/analyzer/rust"]
 
 [profile.release]
 debug = false
