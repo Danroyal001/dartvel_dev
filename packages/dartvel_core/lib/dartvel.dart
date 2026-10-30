@@ -182,6 +182,7 @@ export 'src/compute/worker_types.dart'
     hide DVWorkerCall, DVWorkerExecution, DVWorkerRunner, DVWorkerSink,
         dvCheckedProgress;
 export 'src/compute/workers.dart';
+export 'src/compute/tray_tasks.dart';
 // Change capture is @DVModel(capture: true) and dartvel.capture in the
 // pubspec, and the log, its consumers, the destinations and their jobs are
 // how the framework delivers it: they are in framework.dart. A save whose

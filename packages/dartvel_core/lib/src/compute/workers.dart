@@ -11,6 +11,7 @@ import 'dart:collection';
 
 import '../observability/logging.dart' show DVLogLevel;
 import '../observability/observability.dart' show DVObservability;
+import 'tray_tasks.dart';
 import 'web_worker_protocol.dart' show dvDebugResetCopiedReport;
 import 'worker_types.dart';
 import 'workers_host_stub.dart'
@@ -56,17 +57,20 @@ final class DVWorkerProfile {
 /// The pool.
 final class DVWorkers {
   /// Workers carried by the target's own mechanism.
-  DVWorkers({DVWorkerProfile? profile})
+  DVWorkers({DVWorkerProfile? profile, DVTrayTasks? trayTasks})
       : this._(host.dvHostWorkerRunner() ?? const _InlineRunner(),
-            profile ?? DVWorkerProfile.host());
+            profile ?? DVWorkerProfile.host(), trayTasks);
 
   /// Workers that run on the calling isolate: what a target without threads
   /// gets, and what a test of that degradation constructs.
-  DVWorkers.inline({DVWorkerProfile? profile})
-      : this._(const _InlineRunner(), profile ?? const DVWorkerProfile(cores: 1));
+  DVWorkers.inline({DVWorkerProfile? profile, DVTrayTasks? trayTasks})
+      : this._(const _InlineRunner(), profile ?? const DVWorkerProfile(cores: 1), trayTasks);
 
-  DVWorkers._(this._runner, DVWorkerProfile profile)
+  DVWorkers._(this._runner, DVWorkerProfile profile, this._trayTasks)
       : poolSize = profile.poolSize;
+
+  /// Where a labelled run is listed; the process's registry when null.
+  final DVTrayTasks? _trayTasks;
 
   final DVWorkerRunner _runner;
 
@@ -120,9 +124,15 @@ final class DVWorkers {
   ///
   /// [timeout] runs from this call, so time spent queued behind a saturated
   /// pool counts: a caller's deadline is about when it gets an answer.
+  ///
+  /// [label] names the run to the reader: it is listed in
+  /// [DVTrayTasks] with its latest progress, which the page shell's
+  /// tray shows, until it ends however it ends. A run with no label is not
+  /// shown -- most offloaded work is too quick to be anybody's business.
   Future<DVWorkerResult<O>> run<I, O>(
     DVWorkerTask<I, O> task, {
     required I input,
+    String? label,
     void Function(DVProgress progress)? onProgress,
     DVCancellation? cancellation,
     Duration? timeout,
@@ -145,13 +155,25 @@ final class DVWorkers {
       }
       rethrow;
     }
+    final DVTrayTask? shown = label == null
+        ? null
+        : (_trayTasks ?? DVTrayTasks.current).begin(label);
+    final void Function(DVProgress progress)? listener = shown == null
+        ? onProgress
+        : (DVProgress progress) {
+            shown.report(progress);
+            onProgress?.call(progress);
+          };
     final _Job<O> job = _Job<O>(
       this,
       DVWorkerCall<I, O>(task),
       input,
-      onProgress,
+      listener,
       Zone.current,
     )..lent = lent;
+    if (shown != null) {
+      unawaited(job.completer.future.then((_) => shown.end()));
+    }
     if (cancellation != null) {
       if (cancellation.isCancelled) {
         job.end(DVWorkerOutcome.cancelled,
