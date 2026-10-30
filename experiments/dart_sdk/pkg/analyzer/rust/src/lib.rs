@@ -28,6 +28,7 @@ pub mod dart {
     }
     pub mod element {
         pub mod element;
+        pub mod nullability_suffix;
     }
 }
 pub mod diagnostic {
@@ -40,6 +41,16 @@ pub mod source {
     pub mod line_info;
 }
 #[allow(clippy::module_inception)]
+// Libraries of `_fe_analyzer_shared` this crate needs before that crate has
+// them (see each file's header).
+pub mod fe_analyzer_shared {
+    pub mod types {
+        pub mod shared_type;
+    }
+    pub mod util {
+        pub mod dependency_walker;
+    }
+}
 pub mod src {
     pub mod context {
         pub mod packages;
@@ -65,6 +76,7 @@ pub mod src {
         }
         pub mod element {
             pub mod element;
+            pub mod r#type;
         }
         pub mod resolver {
             pub mod scope;
@@ -97,6 +109,7 @@ pub mod src {
         pub mod utilities_dart;
     }
     pub mod summary2 {
+        pub mod type_builder;
         pub mod element_builder;
         pub mod export;
         pub mod library_builder;
@@ -105,5 +118,8 @@ pub mod src {
     }
     pub mod utilities {
         pub mod uri_cache;
+    }
+    pub mod util {
+        pub mod graph;
     }
 }
