@@ -1,3 +1,6 @@
+// The registry is reached the way the generated ai_tools.g.dart reaches it;
+// an application declares tools with @DVAITool and cannot name it.
+import 'package:dartvel_core/dartvel.dart' show DVAIToolRegistry;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -450,7 +453,7 @@ void main() {
     expect(transcript.text, contains('3 bytes'));
     expect(transcript.language, 'en');
     DV.Test.resetAITools();
-    DV.AI.registerTool('sumLedger', (input) {
+    const DVAIToolRegistry().register('sumLedger', (input) {
       final left = input['left'];
       final right = input['right'];
       if (left is! DVJsonNumber || right is! DVJsonNumber) {
@@ -871,7 +874,7 @@ void main() {
     );
 
     DV.Test.fakeAI();
-    DV.AI.registerTool('testTool', (_) => const DVJsonString('ok'));
+    const DVAIToolRegistry().register('testTool', (_) => const DVJsonString('ok'));
     expect(DV.AI.hasTool('testTool'), isTrue);
     DV.Test.resetAI();
     expect(DV.AI.hasTool('testTool'), isFalse);

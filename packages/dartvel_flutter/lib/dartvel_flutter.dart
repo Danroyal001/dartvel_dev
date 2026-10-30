@@ -209,7 +209,6 @@ export 'package:dartvel_core/dartvel.dart'
         DVAIToolEntry,
         DVAIToolHandler,
         DVAIToolPause,
-        DVAIToolRegistry,
         DVToolApproval,
         DVAITranscript,
         DVAuthAuthorization,
@@ -9903,24 +9902,10 @@ class DVAI {
     _adapter = adapter;
   }
 
-  void registerTool(
-    String name,
-    DVAIToolHandler handler, {
-    String description = '',
-    DVJsonObject parameters = const <String, DVJsonValue>{},
-    // A tool that moves money or changes data: an agent run stops at it with
-    // a DVAIToolPause, and anything calling it directly is refused with
-    // DV-AI-010.
-    DVToolApproval approval = DVToolApproval.none,
-  }) {
-    _tools.register(
-      name,
-      handler,
-      description: description,
-      parameters: parameters,
-      approval: approval,
-    );
-  }
+  // There is no registerTool. A tool is declared with @DVAITool, and the
+  // generated registration is how it reaches the registry: a second way to
+  // declare one would be a tool the build never sees -- no generated schema,
+  // no approval read from source.
 
   bool hasTool(String name) => _tools.contains(name);
 

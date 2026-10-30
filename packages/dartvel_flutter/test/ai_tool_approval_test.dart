@@ -1,5 +1,7 @@
-// DV.AI.registerTool takes the approval a tool needs, and an application can
-// name what an agent run hands back when it stops for one.
+// A tool registered as needing approval, the way the generated registration
+// of @DVAITool(approval: DVToolApproval.required) registers it, pauses a run
+// started through DV.AI, and an application can name what that run hands back.
+import 'package:dartvel_core/dartvel.dart' show DVAIToolRegistry;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,7 +13,7 @@ void main() {
 
   test('a tool registered as needing approval pauses the run', () async {
     final List<DVJsonObject> refunds = <DVJsonObject>[];
-    DV.AI.registerTool(
+    const DVAIToolRegistry().register(
       'issueRefund',
       (DVJsonObject input) {
         refunds.add(input);
@@ -38,7 +40,7 @@ void main() {
   });
 
   test('calling it directly is DV-AI-010', () async {
-    DV.AI.registerTool(
+    const DVAIToolRegistry().register(
       'issueRefund',
       (DVJsonObject input) => const DVJsonString('refunded'),
       approval: DVToolApproval.required,

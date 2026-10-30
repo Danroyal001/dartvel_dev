@@ -24,19 +24,14 @@ void main() {
     expect(ai.OllamaDVAIAdapter(), isA<ai.DVAIAdapter>());
     expect(const ai.LocalDVAIAdapter(), isA<ai.DVAIAdapter>());
 
-    // Tool registration needs the typed JSON values too.
-    ai.DV.AI.registerTool(
-      'ping',
-      (input) => const ai.DVJsonString('pong'),
-      description: 'Answers pong.',
-      parameters: const <String, ai.DVJsonValue>{
-        'type': ai.DVJsonString('object'),
-      },
-    );
-    expect(ai.DV.AI.hasTool('ping'), isTrue);
+    // Tools are declared with @DVAITool; what an application handles is the
+    // typed JSON an agent run returns and the pause it stops at.
+    const ai.DVJsonValue value = ai.DVJsonString('pong');
+    expect(value, isA<ai.DVJsonValue>());
+    expect(ai.DVToolApproval.required, isNot(ai.DVToolApproval.none));
+    expect(ai.DVAIToolPause, isNotNull);
 
     ai.DV.AI.configure(const ai.LocalDVAIAdapter());
-    const ai.DVAIToolRegistry().clear();
   });
 
   test('dartvel_auth can configure providers and hash passwords', () {
