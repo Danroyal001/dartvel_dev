@@ -36,6 +36,9 @@ pub enum TypeImpl {
     Void,
     /// `InvalidTypeImpl.instance`.
     Invalid,
+    /// `UnknownInferredType.instance`: the unknown type `_` of type schemas,
+    /// which only inference creates.
+    Unknown,
     /// `NeverTypeImpl`, with its nullability.
     Never(NullabilitySuffix),
     Interface(Rc<InterfaceTypeImpl>),
@@ -219,7 +222,7 @@ impl TypeImpl {
     /// `nullabilitySuffix`.
     pub fn nullability_suffix(&self, store: &ElementStore) -> NullabilitySuffix {
         match self {
-            TypeImpl::Dynamic | TypeImpl::Void | TypeImpl::Invalid => NullabilitySuffix::none,
+            TypeImpl::Dynamic | TypeImpl::Void | TypeImpl::Invalid | TypeImpl::Unknown => NullabilitySuffix::none,
             TypeImpl::Never(n) => *n,
             TypeImpl::Interface(t) => t.nullability_suffix,
             TypeImpl::Function(t) => t.nullability_suffix,
@@ -232,7 +235,7 @@ impl TypeImpl {
     /// `withNullability`.
     pub fn with_nullability(&self, store: &mut ElementStore, nullability_suffix: NullabilitySuffix) -> TypeImpl {
         match self {
-            TypeImpl::Dynamic | TypeImpl::Void | TypeImpl::Invalid => self.clone(),
+            TypeImpl::Dynamic | TypeImpl::Void | TypeImpl::Invalid | TypeImpl::Unknown => self.clone(),
             TypeImpl::Never(_) => TypeImpl::Never(match nullability_suffix {
                 NullabilitySuffix::question | NullabilitySuffix::star => NullabilitySuffix::question,
                 NullabilitySuffix::none => NullabilitySuffix::none,

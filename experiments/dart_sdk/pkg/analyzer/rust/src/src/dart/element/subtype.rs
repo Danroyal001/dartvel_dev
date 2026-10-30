@@ -58,6 +58,10 @@ impl<'a> TypeSystem<'a> {
 
     /// `_isSubtypeOf`.
     fn subtype(&mut self, t0: &TypeImpl, t1: &TypeImpl) -> bool {
+        // `_` is treated as a top and a bottom type during inference.
+        if matches!(t0, TypeImpl::Unknown) || matches!(t1, TypeImpl::Unknown) {
+            return true;
+        }
         if matches!(t0, TypeImpl::Invalid) || matches!(t1, TypeImpl::Invalid) {
             return true;
         }

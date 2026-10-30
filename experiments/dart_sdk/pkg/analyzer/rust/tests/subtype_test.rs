@@ -138,3 +138,16 @@ fn functions_are_contravariant_in_parameters() {
     assert!(sub(&mut s, &opt, &nothing));
     assert!(!sub(&mut s, &req, &nothing));
 }
+
+#[test]
+fn unknown_is_top_and_bottom() {
+    // `_` is treated as a top and a bottom type during inference.
+    let mut s = sdk();
+    let (int, list) = (s.int, s.list);
+    let k = i(int, vec![], none);
+    assert!(sub(&mut s, &TypeImpl::Unknown, &k));
+    assert!(sub(&mut s, &k, &TypeImpl::Unknown));
+    assert!(sub(&mut s, &i(list, vec![TypeImpl::Unknown], none), &i(list, vec![k.clone()], none)));
+    assert!(analyzer::src::dart::element::type_system::is_top(&s.store, &TypeImpl::Unknown));
+    assert!(analyzer::src::dart::element::type_system::is_nullable(&s.store, &TypeImpl::Unknown));
+}

@@ -90,6 +90,8 @@ impl<'a> ElementDisplayStringBuilder<'a> {
             TypeImpl::Dynamic => self.write("dynamic"),
             TypeImpl::Void => self.write("void"),
             TypeImpl::Invalid => self.write("InvalidType"),
+            // `writeUnknownInferredType`.
+            TypeImpl::Unknown => self.write("_"),
             TypeImpl::Never(suffix) => {
                 self.write("Never");
                 self.write_nullability(*suffix);

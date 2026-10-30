@@ -160,7 +160,7 @@ impl Substitutor<'_> {
 
     fn visit(&mut self, type_: &TypeImpl) -> TypeImpl {
         match type_ {
-            TypeImpl::Dynamic | TypeImpl::Void | TypeImpl::Invalid | TypeImpl::Never(_) => type_.clone(),
+            TypeImpl::Dynamic | TypeImpl::Void | TypeImpl::Invalid | TypeImpl::Unknown | TypeImpl::Never(_) => type_.clone(),
             TypeImpl::Interface(t) => {
                 if t.type_arguments.is_empty() {
                     return type_.clone();

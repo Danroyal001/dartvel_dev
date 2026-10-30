@@ -59,7 +59,7 @@ pub fn object_type(store: &ElementStore, suffix: NullabilitySuffix) -> TypeImpl 
 /// `TypeSystemImpl.isTop`.
 pub fn is_top(store: &ElementStore, t: &TypeImpl) -> bool {
     match t {
-        TypeImpl::Dynamic | TypeImpl::Invalid | TypeImpl::Void => true,
+        TypeImpl::Dynamic | TypeImpl::Invalid | TypeImpl::Void | TypeImpl::Unknown => true,
         _ => {
             let suffix = match t {
                 TypeImpl::Builder(_) => return false,
@@ -95,7 +95,7 @@ pub fn is_object(store: &ElementStore, t: &TypeImpl) -> bool {
 /// `TypeSystemImpl.isNullable`.
 pub fn is_nullable(store: &ElementStore, t: &TypeImpl) -> bool {
     match t {
-        TypeImpl::Dynamic | TypeImpl::Invalid | TypeImpl::Void => true,
+        TypeImpl::Dynamic | TypeImpl::Invalid | TypeImpl::Void | TypeImpl::Unknown => true,
         _ if is_null_class(store, t) => true,
         _ if other_nullability(t) == NullabilitySuffix::question => true,
         TypeImpl::Interface(i) if is_future_or(store, t) => is_nullable(store, &i.type_arguments[0]),
@@ -107,7 +107,7 @@ pub fn is_nullable(store: &ElementStore, t: &TypeImpl) -> bool {
 pub fn other_nullability(t: &TypeImpl) -> NullabilitySuffix {
     match t {
         // `DynamicTypeImpl`, `InvalidTypeImpl` and `VoidTypeImpl` report `none`.
-        TypeImpl::Dynamic | TypeImpl::Invalid | TypeImpl::Void => NullabilitySuffix::none,
+        TypeImpl::Dynamic | TypeImpl::Invalid | TypeImpl::Void | TypeImpl::Unknown => NullabilitySuffix::none,
         TypeImpl::Never(s) => *s,
         TypeImpl::Interface(i) => i.nullability_suffix,
         TypeImpl::Function(f) => f.nullability_suffix,
@@ -126,7 +126,7 @@ pub fn without_nullability(t: &TypeImpl) -> TypeImpl {
 pub fn with_suffix(t: &TypeImpl, suffix: NullabilitySuffix) -> TypeImpl {
     use std::rc::Rc;
     match t {
-        TypeImpl::Dynamic | TypeImpl::Invalid | TypeImpl::Void => t.clone(),
+        TypeImpl::Dynamic | TypeImpl::Invalid | TypeImpl::Void | TypeImpl::Unknown => t.clone(),
         TypeImpl::Never(_) => TypeImpl::Never(suffix),
         TypeImpl::Interface(i) => TypeImpl::interface(i.element, i.type_arguments.clone(), suffix),
         TypeImpl::Function(f) => {

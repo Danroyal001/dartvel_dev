@@ -99,7 +99,7 @@ impl ImplementsWalk<'_> {
 /// while linking.
 fn is_non_nullable(store: &ElementStore, t: &TypeImpl) -> bool {
     match t {
-        TypeImpl::Dynamic | TypeImpl::Void | TypeImpl::Invalid => false,
+        TypeImpl::Dynamic | TypeImpl::Void | TypeImpl::Invalid | TypeImpl::Unknown => false,
         TypeImpl::Never(suffix) => *suffix == NullabilitySuffix::none,
         TypeImpl::Interface(i) => {
             i.nullability_suffix == NullabilitySuffix::none

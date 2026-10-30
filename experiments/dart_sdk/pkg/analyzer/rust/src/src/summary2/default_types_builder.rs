@@ -444,7 +444,7 @@ impl UpperLower<'_, '_, '_> {
 
     fn visit(&mut self, type_: &TypeImpl) -> Option<TypeImpl> {
         match type_ {
-            TypeImpl::Dynamic | TypeImpl::Void | TypeImpl::Invalid | TypeImpl::Never(_) => None,
+            TypeImpl::Dynamic | TypeImpl::Void | TypeImpl::Invalid | TypeImpl::Unknown | TypeImpl::Never(_) => None,
             // `_UpperLowerReplacementVisitor.visitTypeParameterType`.
             TypeImpl::TypeParameter(t) => {
                 if self.variance == Variance::contravariant {
