@@ -272,3 +272,52 @@ String? dvDartStringLiteralAt(String code, int offset) {
 }
 
 bool _isSpace(int u) => u == _space || u == _newline || u == _return || u == 9;
+
+/// The string literal that starts exactly at [offset] in [code]: its words
+/// with every interpolation removed, and the index just past it.
+///
+/// Null when no literal starts there. An interpolation is a value the literal
+/// carries rather than words it says, so `'${a}, $b'` has no words and
+/// `'row ${r + 1} of $n'` has `row  of `.
+({String words, String content, int end})? dvDartStringLiteralSpan(
+  String code,
+  int offset,
+) {
+  if (offset >= code.length) return null;
+  final _StringStart? start = _stringStartAt(code, offset);
+  if (start == null) return null;
+  final int end = _stringEnd(code, start);
+  final int closeLength = start.triple ? 3 : 1;
+  final int contentEnd = end - closeLength < start.contentStart
+      ? start.contentStart
+      : end - closeLength;
+  final String content = code.substring(start.contentStart, contentEnd);
+  if (start.raw) return (words: content, content: content, end: end);
+  final StringBuffer words = StringBuffer();
+  var j = 0;
+  while (j < content.length) {
+    final int u = content.codeUnitAt(j);
+    if (u == _backslash && j + 1 < content.length) {
+      words.write(content[j + 1]);
+      j += 2;
+      continue;
+    }
+    if (u == _dollar && j + 1 < content.length) {
+      if (content.codeUnitAt(j + 1) == _lbrace) {
+        j = _interpolationEnd(content, j + 2);
+        continue;
+      }
+      var k = j + 1;
+      while (k < content.length &&
+          _identifierUnit(content.codeUnitAt(k)) &&
+          content.codeUnitAt(k) != _dollar) {
+        k++;
+      }
+      j = k;
+      continue;
+    }
+    words.writeCharCode(u);
+    j++;
+  }
+  return (words: words.toString(), content: content, end: end);
+}

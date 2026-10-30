@@ -3,9 +3,11 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../analysis/framework_strings_lint.dart';
 import '../graph/live_windows.dart';
 
-/// `dartvel analyze performance` -- what the running application measured.
+/// `dartvel analyze performance` -- what the running application measured --
+/// and `dartvel analyze strings`, DV-STATE-003 over a package's widgets.
 ///
 /// The windowing layer measures open-to-ready, tear-out handover, the shared
 /// store's write rate and coalescing, its size and spills, and restore on
@@ -20,16 +22,20 @@ class AnalyzeCommand extends Command<void> {
 
   @override
   final String description =
-      'Analyze a running application: performance measurements and findings.';
+      'Analyze a running application\'s performance, or the words a package\'s widgets say.';
 
   @override
-  String get invocation => 'dartvel analyze performance [--json]';
+  String get invocation =>
+      'dartvel analyze performance [--json] | dartvel analyze strings [--exclude <dir>]';
 
   /// [root] is the project; null reads the working directory when the command
   /// runs. A test passes its own, because that directory is one value shared
   /// by every suite in the process.
   AnalyzeCommand({this._root}) {
-    argParser.addFlag('json', negatable: false, help: 'Emit the published measurements as JSON.');
+    argParser
+      ..addFlag('json', negatable: false, help: 'Emit the published measurements as JSON.')
+      ..addMultiOption('exclude',
+          help: 'strings: a directory under the package, relative to its root, not to read.');
   }
 
   final String? _root;
@@ -38,6 +44,10 @@ class AnalyzeCommand extends Command<void> {
   Future<void> run() async {
     final bool asJson = argResults!['json'] as bool;
     final List<String> rest = argResults!.rest;
+    if (rest.isNotEmpty && rest.first == 'strings') {
+      _strings(argResults!['exclude'] as List<String>);
+      return;
+    }
     if (rest.isEmpty || rest.first != 'performance') {
       throw UsageException(
         rest.isEmpty ? 'Say what to analyze.' : 'Unknown analysis "${rest.first}".',
@@ -155,6 +165,24 @@ class AnalyzeCommand extends Command<void> {
           for (final Object? item in value)
             if (item is Map) item.cast<String, Object?>(),
       ];
+
+  /// DV-STATE-003: each literal a widget shows where a framework string
+  /// belongs, with its file and line. A warning, so it reports and does not
+  /// fail.
+  void _strings(List<String> exclude) {
+    final List<DVFrameworkStringFinding> found = dvScanForLiteralFrameworkStrings(
+      _root ?? Directory.current.path,
+      exclude: exclude,
+    );
+    if (found.isEmpty) {
+      _emit('strings: no framework string is a literal.');
+      return;
+    }
+    for (final DVFrameworkStringFinding finding in found) {
+      _emit(finding.toString());
+    }
+    _emit('strings: ${found.length} framework string(s) written as a literal (DV-STATE-003).');
+  }
 
   // ignore: avoid_print
   void _emit(String line) => print(line);
