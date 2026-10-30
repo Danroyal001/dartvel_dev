@@ -241,6 +241,9 @@ pub struct Server {
     /// Dart `FileState.referencedNames` of the files a search looked at,
     /// invalidated for the edited file when a file changes.
     referenced_names: HashMap<String, std::sync::Arc<HashSet<String>>>,
+    /// The diagnostics of the last analysis of each file (Dart: the errors
+    /// of the cached analysis result), invalidated with [Self::indexes].
+    file_diagnostics: HashMap<String, std::sync::Arc<dartr_cli::provider::FileDiagnostics>>,
     /// Cached `{@template}` entries per file path.
     file_templates_cache: HashMap<String, Vec<(String, String)>>,
     /// Cached merged dartdoc templates per context `(files_len, templates)`.
@@ -374,6 +377,7 @@ impl Server {
             search_scope: None,
             owned: search::OwnedFiles::default(),
             referenced_names: HashMap::new(),
+            file_diagnostics: HashMap::new(),
             file_templates_cache: HashMap::new(),
             dartdoc_templates_cache: HashMap::new(),
             completion_known_cache: HashMap::new(),
@@ -1223,6 +1227,8 @@ impl Server {
             }
             self.indexes
                 .retain(|(_, p), _| !to_remove.contains(p.as_str()));
+            self.file_diagnostics
+                .retain(|p, _| !to_remove.contains(p.as_str()));
             for affected in affected {
                 if self.analyzed.contains(&affected) || self.priority.contains(&affected) {
                     self.dirty.insert(affected);
@@ -1230,6 +1236,7 @@ impl Server {
             }
         } else {
             self.indexes.retain(|(_, p), _| p != path);
+            self.file_diagnostics.remove(path);
         }
         if self.analyzed.contains(path)
             || (path.ends_with(".dart") && self.priority.iter().any(|p| p == path))
@@ -1497,6 +1504,7 @@ impl Server {
         self.session = DriverSession::default();
         self.session.set_priority_files(&self.priority);
         self.indexes.clear();
+        self.file_diagnostics.clear();
         self.search_scope = None;
         self.referenced_names.clear();
         self.file_templates_cache.clear();
@@ -1713,6 +1721,10 @@ impl Server {
             );
             for (key, idx) in indexed {
                 self.indexes.insert(key, std::sync::Arc::new(idx));
+            }
+            for file in &diags {
+                self.file_diagnostics
+                    .insert(file.path.clone(), std::sync::Arc::new(file.clone()));
             }
             diags
         };

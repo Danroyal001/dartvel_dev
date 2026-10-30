@@ -554,7 +554,25 @@ impl Server {
             path: path.to_string(),
             context,
         }];
-        let results = self.session.diagnostics(collection, &files);
+        // Dart reads the errors of the analysis result, which the driver
+        // keeps; compute them only when no analysis has.
+        let results: Vec<std::sync::Arc<dartr_cli::provider::FileDiagnostics>> =
+            match self.file_diagnostics.get(path) {
+                Some(cached) => vec![cached.clone()],
+                None => {
+                    let computed: Vec<_> = self
+                        .session
+                        .diagnostics(collection, &files)
+                        .into_iter()
+                        .map(std::sync::Arc::new)
+                        .collect();
+                    for file in &computed {
+                        self.file_diagnostics
+                            .insert(file.path.clone(), file.clone());
+                    }
+                    computed
+                }
+            };
         let mut out = Vec::new();
         let mut lints = Vec::new();
         for file in &results {
@@ -1817,10 +1835,12 @@ impl Server {
     fn temporary_overlay_changed(&mut self, path: &str) {
         self.parsed.remove(path);
         self.indexes.retain(|(_, p), _| p != path);
+        self.file_diagnostics.remove(path);
         self.search_scope = None;
         self.referenced_names.remove(path);
         for affected in self.session.change_file(path) {
             self.indexes.retain(|(_, p), _| *p != affected);
+            self.file_diagnostics.remove(&affected);
         }
     }
 

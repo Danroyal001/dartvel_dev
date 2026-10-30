@@ -39,7 +39,7 @@ pub struct AnalyzedFile {
 }
 
 /// The diagnostics of one file.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FileDiagnostics {
     pub path: String,
     /// The line starts of the file, for line and column numbers.
