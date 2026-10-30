@@ -238,9 +238,9 @@ pub struct Server {
     search_scope: Option<std::sync::Arc<search::SearchScope>>,
     /// The owner of each file of a search, until the roots change.
     owned: search::OwnedFiles,
-    /// The words of each file of a search, invalidated for the edited file
-    /// when a file changes.
-    search_words: HashMap<String, std::sync::Arc<HashSet<String>>>,
+    /// Dart `FileState.referencedNames` of the files a search looked at,
+    /// invalidated for the edited file when a file changes.
+    referenced_names: HashMap<String, std::sync::Arc<HashSet<String>>>,
     /// Cached `{@template}` entries per file path.
     file_templates_cache: HashMap<String, Vec<(String, String)>>,
     /// Cached merged dartdoc templates per context `(files_len, templates)`.
@@ -373,7 +373,7 @@ impl Server {
             indexes: HashMap::new(),
             search_scope: None,
             owned: search::OwnedFiles::default(),
-            search_words: HashMap::new(),
+            referenced_names: HashMap::new(),
             file_templates_cache: HashMap::new(),
             dartdoc_templates_cache: HashMap::new(),
             completion_known_cache: HashMap::new(),
@@ -1209,7 +1209,7 @@ impl Server {
         if !self.owned.contains(path) {
             self.search_scope = None;
         }
-        self.search_words.remove(path);
+        self.referenced_names.remove(path);
         if path.ends_with(".dart") && !self.parse_only {
             // Dart `AnalysisDriver.changeFile`: the units of the libraries
             // to analyze again (only the library of the file when only
@@ -1498,7 +1498,7 @@ impl Server {
         self.session.set_priority_files(&self.priority);
         self.indexes.clear();
         self.search_scope = None;
-        self.search_words.clear();
+        self.referenced_names.clear();
         self.file_templates_cache.clear();
         self.dartdoc_templates_cache.clear();
         self.completion_known_cache.clear();

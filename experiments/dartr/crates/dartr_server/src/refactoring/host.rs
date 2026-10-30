@@ -43,9 +43,60 @@ pub trait RefactoringHost {
     /// The files that a search looks at, by driver.
     fn search_scope(&mut self) -> Arc<SearchScope>;
 
+    /// Dart `FileState.referencingFiles` of [path] in the driver of
+    /// [context]: the files with a directive that selects [path], in the
+    /// order the Dart driver records them (see
+    /// `DriverSession::dart_referencing_files`).
+    fn referencing_files(&mut self, path: &str, context: usize) -> Vec<String>;
+
     /// Whether the file [path] mentions one of [names].
     fn mentions_any(&mut self, path: &str, names: &[String]) -> bool;
 
     /// Calls [f] with the workspace of a change builder.
     fn with_change_workspace(&mut self, f: &mut dyn FnMut(&mut dyn ChangeWorkspace));
+}
+
+/// Dart `FileState.referencingFiles` of [path] in the driver of [context],
+/// for the hosts: the analysis order of the driver is its priority files
+/// (Dart `AnalysisDriver._priorityFiles`, analyzed first by
+/// `performWork`) then its added files (`_fileTracker` pending files, in
+/// `addedFiles` order), filtered by [is_excluded].
+pub fn referencing_files(
+    session: &mut dartr_cli::DriverSession,
+    collection: &AnalysisContextCollection,
+    context: usize,
+    path: &str,
+    is_excluded: &dyn Fn(&str) -> bool,
+) -> Vec<String> {
+    let order = dart_analysis_order(session, collection, context, is_excluded);
+    session.dart_referencing_files(context, &order, path)
+}
+
+/// The order in which the Dart driver of [context] analyzes its files: its
+/// priority files when it first analyzed (Dart `performWork` analyzes
+/// `_priorityFiles` first), then its added files (the pending files of
+/// `_fileTracker`, in `addedFiles` order), without [is_excluded] files.
+pub fn dart_analysis_order(
+    session: &dartr_cli::DriverSession,
+    collection: &AnalysisContextCollection,
+    context: usize,
+    is_excluded: &dyn Fn(&str) -> bool,
+) -> Vec<String> {
+    let Some(ctx) = collection.contexts.get(context) else {
+        return Vec::new();
+    };
+    let added: Vec<String> = ctx
+        .root
+        .analyzed_files()
+        .into_iter()
+        .filter(|f| f.ends_with(".dart") && !is_excluded(f))
+        .collect();
+    let mut order: Vec<String> = session
+        .analysis_priority()
+        .iter()
+        .filter(|p| added.contains(p))
+        .cloned()
+        .collect();
+    order.extend(added);
+    order
 }

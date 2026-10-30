@@ -131,6 +131,10 @@ pub struct DriverSession {
     resolved: HashMap<(usize, String), Arc<ResolvedLibraryResult>>,
     /// The priority (open) file paths (Dart `AnalysisDriver.priorityFiles`).
     priority_files: std::collections::HashSet<String>,
+    /// The priority files, in the order the client gave them, when the
+    /// drivers first analyze (Dart analyzes the priority files first, and
+    /// the file states that the analysis creates stay in that order).
+    analysis_priority: Vec<String>,
     /// Bounded LRU cache of resolved non-priority libraries (Dart
     /// `AnalysisDriver._resolvedLibraryCache`), invalidated when a library or
     /// one of its dependencies changes.
@@ -142,6 +146,10 @@ pub struct DriverSession {
     known_libraries_cache:
         HashMap<usize, (usize, dartr_element::WorldSnapshot, Arc<Vec<KnownLibrary>>)>,
 }
+
+/// The entry of the `later` list of [`DriverSession::dart_file_order`] that
+/// stands for linking every library the driver knows at that point.
+pub const LINK_KNOWN_LIBRARIES: &str = "\0link-known-libraries";
 
 /// A library file that a driver knows (Dart `FileSystemState.knownFiles`
 /// with a library kind).
@@ -234,6 +242,9 @@ impl DriverSession {
     /// Evicts cached resolved libraries that no longer contain any priority file.
     pub fn set_priority_files(&mut self, files: &[String]) {
         self.priority_files = files.iter().cloned().collect();
+        if self.drivers.is_empty() {
+            self.analysis_priority = files.to_vec();
+        }
         let priority = &self.priority_files;
         self.resolved.retain(|_, lib| {
             lib.library
@@ -1517,9 +1528,203 @@ impl DriverSession {
             return Vec::new();
         };
         let fs = &mut driver.fs;
+        let mut order = KnownOrder::analysis_walk(fs, added);
+        // `discoverAvailableFiles`.
+        for p in available {
+            if let Some(id) = fs.get_existing_from_path(p) {
+                order.insert(fs, id);
+            }
+        }
+        order
+            .created
+            .into_iter()
+            .filter(|&id| {
+                let f = fs.file(id);
+                f.content
+                    .as_ref()
+                    .is_some_and(|c| c.exists && c.kind.is_library())
+                    && f.path.ends_with(".dart")
+            })
+            .map(|id| fs.file(id).path.to_string())
+            .collect()
+    }
+
+    /// Dart `FileState.referencingFiles` of [target] in the driver of
+    /// [context]: the files whose directive states (imports, exports, part
+    /// includes, doc imports) select [target], in the order Dart creates
+    /// those states. Dart pulls them lazily, when the library cycle walk of
+    /// an analysis first asks for them (`_LibraryNode.computeDependencies`,
+    /// `LibraryFileKind.fileKinds`, `addDirectivesSignature`), so the order
+    /// follows [analysis_order]: the files in the order the driver analyzes
+    /// them (priority files first, then the added files). The dispose and
+    /// re-creation of the states of a changed file is not modelled.
+    pub fn dart_referencing_files(
+        &mut self,
+        context: usize,
+        analysis_order: &[String],
+        target: &str,
+    ) -> Vec<String> {
+        let Some(driver) = self.drivers.get_mut(&context) else {
+            return Vec::new();
+        };
+        let fs = &mut driver.fs;
+        let Some(target) = fs.get_existing_from_path(target) else {
+            return Vec::new();
+        };
+        let order = KnownOrder::analysis_walk(fs, analysis_order);
+        let mut result: indexmap::IndexSet<FileId> = indexmap::IndexSet::new();
+        for (file, targets) in &order.pulled {
+            if targets.contains(&target) {
+                result.insert(*file);
+            }
+        }
+        result
+            .into_iter()
+            .map(|id| fs.file(id).path.to_string())
+            .collect()
+    }
+
+    /// The unit that a driver parsed for [path] (the first driver that
+    /// knows the file), if any.
+    pub fn parsed_unit(&self, path: &str) -> Option<Arc<dartr_ast_builder::ParsedUnit>> {
+        self.drivers.values().find_map(|driver| {
+            let id = driver.fs.get_existing_from_path(path)?;
+            let content = driver.fs.file(id).content.as_ref()?;
+            content.exists.then(|| content.parsed.clone())
+        })
+    }
+
+    /// Dart `AnalysisDriver.discoverAvailableFiles` for the driver of
+    /// [context], once: a file state for each of [available] (the SDK
+    /// libraries and the Dart files of the package `lib` folders), so that
+    /// a later `part of name` finds its library among them. Returns whether
+    /// it ran now; does nothing without a driver.
+    pub fn discover_available_files(&mut self, context: usize, available: &[String]) -> bool {
+        let Some(driver) = self.drivers.get_mut(&context) else {
+            return false;
+        };
+        if !self.discovered.insert(context) {
+            return false;
+        }
+        let fs = &mut driver.fs;
+        let result = pool().install(|| {
+            catch_unwind(AssertUnwindSafe(|| {
+                for path in available {
+                    fs.get_file_for_path(path);
+                }
+                fs.discover();
+            }))
+        });
+        result.is_ok()
+    }
+
+    /// Records the priority files in the order the client gave them while
+    /// no driver has analyzed yet, for the analysis order of
+    /// [`Self::dart_referencing_files`] and [`Self::dart_file_order`],
+    /// without touching the resolved-library caches.
+    pub fn set_priority_order(&mut self, files: &[String]) {
+        if self.drivers.is_empty() {
+            self.analysis_priority = files.to_vec();
+        }
+    }
+
+    /// The priority files when the drivers first analyzed.
+    pub fn analysis_priority(&self) -> &[String] {
+        &self.analysis_priority
+    }
+
+    /// The existing Dart files (libraries and parts) in the order the Dart
+    /// driver of [context] notifies `onNewFile` of their `FileState`s (the
+    /// order of `OwnedFiles.knowns`): see
+    /// [`Self::dart_known_order`], whose model this is without its filter
+    /// to libraries, followed by the analyses of the [later] files (in the
+    /// order they were requested after the discovery).
+    pub fn dart_file_order(
+        &mut self,
+        context: usize,
+        analysis_order: &[String],
+        available: &[String],
+        later: &[String],
+    ) -> Vec<String> {
+        let Some(driver) = self.drivers.get_mut(&context) else {
+            return Vec::new();
+        };
+        let fs = &mut driver.fs;
+        let mut order = KnownOrder::analysis_walk(fs, analysis_order);
+        let mut result: indexmap::IndexSet<String> = indexmap::IndexSet::new();
+        let mut flushed = 0;
+        let mut flush = |order: &KnownOrder,
+                         fs: &dartr_driver::file_state::FileSystemState,
+                         result: &mut indexmap::IndexSet<String>| {
+            for &id in order.notified.iter().skip(flushed) {
+                let f = fs.file(id);
+                if f.content.as_ref().is_some_and(|c| c.exists) && f.path.ends_with(".dart") {
+                    result.insert(f.path.to_string());
+                }
+            }
+            flushed = order.notified.len();
+        };
+        flush(&order, fs, &mut result);
+        // `discoverAvailableFiles` creates a file state for each available
+        // file in turn; dartr's driver may not have one for it yet, and the
+        // file still takes its place.
+        for p in available {
+            if let Some(id) = fs.get_existing_from_path(p) {
+                order.insert(fs, id);
+                flush(&order, fs, &mut result);
+            } else {
+                result.insert(p.clone());
+            }
+        }
+        // The analyses that later requests ask for (the index of a file in
+        // a search): each walks the cycle of its library.
+        for p in later {
+            if p == LINK_KNOWN_LIBRARIES {
+                // `getLibraryByUri` of each known library (the not-imported
+                // completion pass, the import fixes): each links its cycle.
+                let libraries: Vec<FileId> = order
+                    .created
+                    .iter()
+                    .copied()
+                    .filter(|&id| {
+                        fs.file(id)
+                            .content
+                            .as_ref()
+                            .is_some_and(|c| c.exists && c.kind.is_library())
+                    })
+                    .collect();
+                for library in libraries {
+                    order.walk(fs, library);
+                }
+                flush(&order, fs, &mut result);
+                continue;
+            }
+            if let Some(id) = fs.get_existing_from_path(p) {
+                order.insert(fs, id);
+                if let Some(library) = fs.library_of(id) {
+                    order.walk(fs, library);
+                }
+                flush(&order, fs, &mut result);
+            }
+        }
+        result.into_iter().collect()
+    }
+}
+
+impl KnownOrder {
+    /// The files that the Dart driver creates up to the analysis of the
+    /// [added] files, in that order: `_discoverDartCore`, then
+    /// `_discoverLibraries`, then the library cycle walk of each added file.
+    fn analysis_walk(
+        fs: &mut dartr_driver::file_state::FileSystemState,
+        added: &[String],
+    ) -> KnownOrder {
         let mut order = KnownOrder {
             created: indexmap::IndexSet::new(),
+            notified: indexmap::IndexSet::new(),
             evaluated: std::collections::HashSet::new(),
+            pulled: Vec::new(),
+            pulled_lists: std::collections::HashSet::new(),
         };
         // `_discoverDartCore`.
         let core = fs
@@ -1531,11 +1736,22 @@ impl DriverSession {
             order.insert(fs, core);
             if fs.file(core).content.is_some() {
                 let c = fs.file(core).c();
-                let mut uris: Vec<dartr_driver::file_state::DirectiveUris> = Vec::new();
-                uris.extend(c.library_exports.iter().map(|d| d.uris.clone()));
-                uris.extend(c.library_imports.iter().map(|d| d.uris.clone()));
-                uris.extend(c.part_includes.iter().map(|d| d.uris.clone()));
-                uris.extend(c.doc_library_imports.iter().map(|d| d.uris.clone()));
+                let exports: Vec<_> = c.library_exports.iter().map(|d| d.uris.clone()).collect();
+                let imports: Vec<_> = c.library_imports.iter().map(|d| d.uris.clone()).collect();
+                let parts: Vec<_> = c.part_includes.iter().map(|d| d.uris.clone()).collect();
+                let docs: Vec<_> = c
+                    .doc_library_imports
+                    .iter()
+                    .map(|d| d.uris.clone())
+                    .collect();
+                order.pull(core, PulledList::Exports, &exports);
+                order.pull(core, PulledList::Imports, &imports);
+                order.pull(core, PulledList::Parts, &parts);
+                order.pull(core, PulledList::Docs, &docs);
+                let mut uris = exports;
+                uris.extend(imports);
+                uris.extend(parts);
+                uris.extend(docs);
                 for u in &uris {
                     order.create(fs, u);
                 }
@@ -1558,26 +1774,11 @@ impl DriverSession {
                 order.walk(fs, library);
             }
         }
-        // `discoverAvailableFiles`.
-        for p in available {
-            if let Some(id) = fs.get_existing_from_path(p) {
-                order.insert(fs, id);
-            }
-        }
         order
-            .created
-            .into_iter()
-            .filter(|&id| {
-                let f = fs.file(id);
-                f.content
-                    .as_ref()
-                    .is_some_and(|c| c.exists && c.kind.is_library())
-                    && f.path.ends_with(".dart")
-            })
-            .map(|id| fs.file(id).path.to_string())
-            .collect()
     }
+}
 
+impl DriverSession {
     /// The existing Dart files that the driver of [context] knows (Dart
     /// `FileSystemState.knownFiles`), in the order the driver found them;
     /// empty when the context has no driver yet.
@@ -1990,11 +2191,53 @@ fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
 /// The state of [`DriverSession::dart_known_order`].
 struct KnownOrder {
     created: indexmap::IndexSet<FileId>,
+    /// The files in the order of `onNewFile` (which `OwnedFiles.knowns`
+    /// follows): `_newFile` calls it after `refresh`, so the library that
+    /// the refresh of a part creates is notified before the part.
+    notified: indexmap::IndexSet<FileId>,
     /// The libraries whose cycle is computed (Dart `isEvaluated`).
     evaluated: std::collections::HashSet<FileId>,
+    /// The directive lists in the order Dart first pulls them (the lazy
+    /// getters `libraryImports`, `libraryExports`, `partIncludes` and
+    /// `docLibraryImports`), each with the files its states select: the
+    /// constructors of the states with a file add the container to
+    /// `referencingFiles` of that file.
+    pulled: Vec<(FileId, Vec<FileId>)>,
+    pulled_lists: std::collections::HashSet<(FileId, PulledList)>,
+}
+
+/// A lazily built directive list of a Dart `FileKind`.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum PulledList {
+    Imports,
+    Exports,
+    Parts,
+    Docs,
 }
 
 impl KnownOrder {
+    /// The first access of the [list] of [file]: the states it creates add
+    /// [file] to `referencingFiles` of each selected file.
+    fn pull(
+        &mut self,
+        file: FileId,
+        list: PulledList,
+        uris: &[dartr_driver::file_state::DirectiveUris],
+    ) {
+        use dartr_driver::file_state::DirectiveUri;
+        if !self.pulled_lists.insert((file, list)) {
+            return;
+        }
+        let targets = uris
+            .iter()
+            .filter_map(|u| match &u.selected {
+                DirectiveUri::WithFile { file, .. } => Some(*file),
+                _ => None,
+            })
+            .collect();
+        self.pulled.push((file, targets));
+    }
+
     /// Dart `_buildConfigurableDirectiveUris`: the primary URI, then the
     /// URIs of the configurations.
     fn create(
@@ -2021,6 +2264,7 @@ impl KnownOrder {
                 self.insert(fs, uri_file);
             }
         }
+        self.notified.insert(file);
     }
 
     /// Dart `LibraryFileKind.fileKinds`, with the files of the part
@@ -2046,6 +2290,8 @@ impl KnownOrder {
             }
             result.push(kind);
             let parts = fs.file(kind).c().part_includes.clone();
+            let uris: Vec<_> = parts.iter().map(|d| d.uris.clone()).collect();
+            o.pull(kind, PulledList::Parts, &uris);
             for d in &parts {
                 o.create(fs, &d.uris);
             }
@@ -2072,6 +2318,10 @@ impl KnownOrder {
             let c = fs.file(kind).c();
             let imports = c.library_imports.clone();
             let exports = c.library_exports.clone();
+            let import_uris: Vec<_> = imports.iter().map(|d| d.uris.clone()).collect();
+            let export_uris: Vec<_> = exports.iter().map(|d| d.uris.clone()).collect();
+            self.pull(kind, PulledList::Imports, &import_uris);
+            self.pull(kind, PulledList::Exports, &export_uris);
             for d in &imports {
                 self.create(fs, &d.uris);
             }
@@ -2099,6 +2349,8 @@ impl KnownOrder {
         files.sort_by(|a, b| fs.file(*a).path.cmp(&fs.file(*b).path));
         for f in files {
             let docs = fs.file(f).c().doc_library_imports.clone();
+            let uris: Vec<_> = docs.iter().map(|d| d.uris.clone()).collect();
+            self.pull(f, PulledList::Docs, &uris);
             for d in &docs {
                 self.create(fs, &d.uris);
             }

@@ -62,6 +62,24 @@ impl RefactoringHost for Server {
         Server::search_scope(self)
     }
 
+    fn referencing_files(&mut self, path: &str, context: usize) -> Vec<String> {
+        let Some(collection) = self.collection.as_ref() else {
+            return Vec::new();
+        };
+        let excluded = &self.excluded;
+        crate::refactoring::host::referencing_files(
+            &mut self.session,
+            collection,
+            context,
+            path,
+            &|f: &str| {
+                excluded
+                    .iter()
+                    .any(|e| f == e || f.starts_with(&format!("{e}/")))
+            },
+        )
+    }
+
     fn mentions_any(&mut self, path: &str, names: &[String]) -> bool {
         Server::mentions_any(self, path, names)
     }

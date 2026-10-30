@@ -188,8 +188,28 @@ impl MoveFile {
                 }
             }
 
-            // Locate incoming references across workspace files
+            // Locate incoming references across workspace files (Dart
+            // `searchLibraryFragmentReferences`: for each driver,
+            // `_searchReferences_CompilationUnit` walks
+            // `fileState.referencingFiles` of the moved file, so the
+            // references come in that order; files the model of that order
+            // does not know keep the scope order after them).
+            let mut incoming: Vec<(usize, usize, FileReference)> = Vec::new();
+            let mut ranks: IndexMap<usize, IndexMap<String, usize>> = IndexMap::new();
             for (ctx_idx, f) in &all_files {
+                if !ranks.contains_key(ctx_idx) {
+                    let referencing = host.referencing_files(old_path, *ctx_idx);
+                    ranks.insert(
+                        *ctx_idx,
+                        referencing
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, p)| (p, i))
+                            .collect(),
+                    );
+                }
+                let rank = ranks[ctx_idx].get(f).copied().unwrap_or(usize::MAX);
+                let ctx_rank = ranks.get_index_of(ctx_idx).unwrap_or(usize::MAX);
                 let Some(resolved_f) = host.resolved_unit_in(f, Some(*ctx_idx)) else {
                     continue;
                 };
@@ -218,15 +238,23 @@ impl MoveFile {
                     let uri_val = &*ast_f[ssl].value;
                     if pkg_resolved(uri_val).as_deref() == Some(old_path.as_str()) {
                         let quoted = ast_f.tokens.lexeme(ast_f[ssl].literal).to_string();
-                        record_ref(FileReference {
-                            offset: ast_f.offset(ssl.raw()),
-                            length: ast_f.length(ssl.raw()),
-                            source_file: f.clone(),
-                            target_file: old_path.clone(),
-                            quoted_uri_value: quoted,
-                        });
+                        incoming.push((
+                            ctx_rank,
+                            rank,
+                            FileReference {
+                                offset: ast_f.offset(ssl.raw()),
+                                length: ast_f.length(ssl.raw()),
+                                source_file: f.clone(),
+                                target_file: old_path.clone(),
+                                quoted_uri_value: quoted,
+                            },
+                        ));
                     }
                 }
+            }
+            incoming.sort_by_key(|(ctx_rank, rank, _)| (*ctx_rank, *rank));
+            for (_, _, r) in incoming {
+                record_ref(r);
             }
         }
 

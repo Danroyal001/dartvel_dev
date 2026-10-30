@@ -320,6 +320,9 @@ impl Server {
         } else {
             None
         };
+        if known.is_some() {
+            self.note_known_libraries_linked(context_index);
+        }
 
         let unit = resolved.unit();
         let sink = NoopSink;
@@ -642,6 +645,9 @@ impl Server {
                 .session
                 .link_known_libraries(collection, context_index)
                 .map(|w| w.0);
+        }
+        if world.is_some() {
+            self.note_known_libraries_linked(context_index);
         }
         let unit = resolved.unit();
         let sink = NoopSink;

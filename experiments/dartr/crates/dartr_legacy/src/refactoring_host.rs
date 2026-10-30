@@ -98,6 +98,21 @@ impl RefactoringHost for SearchEngine<'_> {
         SearchEngine::search_scope(self)
     }
 
+    fn referencing_files(&mut self, path: &str, context: usize) -> Vec<String> {
+        let excluded = self.excluded;
+        dartr_server::refactoring::host::referencing_files(
+            self.session,
+            self.collection,
+            context,
+            path,
+            &|f: &str| {
+                excluded
+                    .iter()
+                    .any(|root| dartr_project::paths::is_or_within(root, f))
+            },
+        )
+    }
+
     fn mentions_any(&mut self, path: &str, names: &[String]) -> bool {
         SearchEngine::mentions_any(self, path, names)
     }

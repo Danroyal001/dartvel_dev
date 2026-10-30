@@ -10,7 +10,7 @@
 //! engine over the analyzed files of all contexts, with the index of each
 //! unit ([`crate::index`]).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use dartr_ast::*;
@@ -232,6 +232,9 @@ pub(crate) struct OwnedFiles {
     pub known: indexmap::IndexMap<String, usize>,
     /// Whether `discoverAvailableFiles` ran.
     pub discovered: bool,
+    /// The files that searches resolved, in order, by context: their
+    /// analyses create file states after the discovery (Dart `getIndex`).
+    pub later: indexmap::IndexSet<(usize, String)>,
 }
 
 impl OwnedFiles {
@@ -301,11 +304,6 @@ impl Server {
                 }
             }
         }
-        for index in 0..count {
-            for f in self.session.known_files(index) {
-                self.owned.add_known(f, index);
-            }
-        }
         let hashes: Vec<u32> = collection
             .contexts
             .iter()
@@ -328,6 +326,8 @@ impl Server {
                 for package in context.packages.packages() {
                     dart_files_recursively(&package.lib, &mut discovered);
                 }
+                // The driver creates their file states too.
+                self.session.discover_available_files(index, &discovered);
                 for f in discovered {
                     if std::path::Path::new(&f).is_file() {
                         self.owned.add_known(f, index);
@@ -335,6 +335,64 @@ impl Server {
                 }
             }
         }
+        // Dart `OwnedFiles.knowns` gets the files in the order the driver
+        // creates their `FileState`s (`onNewFile`): the order of the
+        // driver's analysis walks, then of `discoverAvailableFiles`. dartr's
+        // driver creates them in another order, so order the known files
+        // by the model of Dart's order; files it does not place keep their
+        // order after the others.
+        let excluded = &self.excluded;
+        let is_excluded = |f: &str| {
+            excluded
+                .iter()
+                .any(|e| f == e || f.starts_with(&format!("{e}/")))
+        };
+        let mut ranks: Vec<HashMap<String, usize>> = Vec::with_capacity(count);
+        for index in 0..count {
+            let analysis = crate::refactoring::host::dart_analysis_order(
+                &self.session,
+                collection,
+                index,
+                &is_excluded,
+            );
+            let context = &collection.contexts[index];
+            let sdk = context.sdk.as_ref().or(collection.sdk.as_ref());
+            let mut available = Vec::new();
+            if let Some(sdk) = sdk {
+                available.extend(
+                    sdk.libraries()
+                        .iter()
+                        .filter_map(|l| sdk.map_dart_uri(&l.short_name)),
+                );
+            }
+            for package in context.packages.packages() {
+                dart_files_recursively(&package.lib, &mut available);
+            }
+            let later: Vec<String> = self
+                .owned
+                .later
+                .iter()
+                .filter(|(c, _)| *c == index)
+                .map(|(_, p)| p.clone())
+                .collect();
+            let files = self
+                .session
+                .dart_file_order(index, &analysis, &available, &later);
+            // The files the driver knows (Dart `onNewFile`), in its order.
+            for f in &files {
+                if !self.owned.contains(f) && std::path::Path::new(f).is_file() {
+                    self.owned.add_known(f.clone(), index);
+                }
+            }
+            ranks.push(files.into_iter().enumerate().map(|(i, f)| (f, i)).collect());
+        }
+        self.owned.known.sort_by_cached_key(|path, owner| {
+            ranks
+                .get(*owner)
+                .and_then(|r| r.get(path))
+                .copied()
+                .unwrap_or(usize::MAX)
+        });
         let scope: SearchScope = order
             .iter()
             .map(|&index| {
@@ -371,59 +429,95 @@ impl Server {
             .map(|(index, _)| *index)
     }
 
-    /// Populates `self.search_words` in parallel for any files in [owned]
-    /// that do not yet have cached words.
-    fn ensure_search_words(&mut self, owned: &[String]) {
+    /// Computes Dart `FileState.referencedNames` in parallel for the files
+    /// of [owned] that have none cached: from the unit the driver parsed
+    /// when it has one (Dart keeps the names in the unlinked data of the
+    /// file state), else from a parse of the content.
+    fn ensure_referenced_names(&mut self, owned: &[String]) {
         let missing: Vec<&String> = owned
             .iter()
-            .filter(|f| !self.search_words.contains_key(*f))
+            .filter(|f| {
+                !self.referenced_names.contains_key(*f) && !f.contains("/pkg/analyzer/test/")
+            })
             .collect();
-        if missing.len() <= 8 {
+        if missing.is_empty() {
             return;
         }
-        use rayon::prelude::*;
-        let inputs: Vec<(String, Option<Arc<str>>)> = missing
+        enum Input {
+            Parsed(Arc<dartr_ast_builder::ParsedUnit>),
+            Content(String, (u32, u32), Vec<dartr_parser::ExperimentalFlag>),
+        }
+        let inputs: Vec<(String, Input)> = missing
             .into_iter()
             .map(|p| {
-                let content = if let Some(d) = self.overlays.get(p.as_str()) {
-                    Some(Arc::<str>::from(d.content.as_str()))
-                } else {
-                    self.session.file_content(p)
+                let input = match self.session.parsed_unit(p) {
+                    Some(parsed) if !self.overlays.contains_key(p.as_str()) => {
+                        Input::Parsed(parsed)
+                    }
+                    _ => {
+                        let settings = self.parse_settings(p);
+                        Input::Content(
+                            self.content(p).unwrap_or_default(),
+                            settings.version,
+                            settings.experiments,
+                        )
+                    }
                 };
-                (p.clone(), content)
+                (p.clone(), input)
             })
             .collect();
+        use rayon::prelude::*;
         let computed: Vec<(String, Arc<HashSet<String>>)> = inputs
             .into_par_iter()
-            .map(|(p, cached)| {
-                let w = match cached {
-                    Some(c) => words(&c),
-                    None => words(&dartr_project::fs::read_string(&p).unwrap_or_default()),
+            .map(|(p, input)| {
+                let names = match input {
+                    Input::Parsed(parsed) => {
+                        crate::referenced_names::compute_referenced_names(&parsed.ast, parsed.unit)
+                    }
+                    Input::Content(content, version, experiments) => {
+                        let unit =
+                            dartr_ast_builder::parse_file(&content, &p, version, &experiments);
+                        crate::referenced_names::compute_referenced_names(&unit.ast, unit.unit)
+                    }
                 };
-                (p, Arc::new(w))
+                (p, Arc::new(names))
             })
             .collect();
-        for (p, w) in computed {
-            self.search_words.insert(p, w);
+        for (p, names) in computed {
+            self.referenced_names.insert(p, names);
         }
     }
 
-    /// Whether [content] of [path] has one of [names] (Dart
-    /// `FileState.referencedNames`); cached until a file changes.
+    /// Records that the driver of [context] linked every library it knows
+    /// (Dart `getLibraryByUri` of each known file in the not-imported
+    /// completion pass): the walks create file states, which the search
+    /// scope then knows.
+    pub(crate) fn note_known_libraries_linked(&mut self, context: usize) {
+        if self.owned.later.insert((
+            context,
+            dartr_cli::driver_provider::LINK_KNOWN_LIBRARIES.to_string(),
+        )) {
+            self.search_scope = None;
+        }
+    }
+
+    /// Whether one of [names] is in Dart `FileState.referencedNames` of
+    /// [path]; cached until the file changes.
     pub(crate) fn mentions_any(&mut self, path: &str, names: &[String]) -> bool {
-        if let Some(w) = self.search_words.get(path) {
+        // Dart reads the names of analyzer test expectations too in
+        // `/pkg/analyzer/test/` (`canContainAnalyzerDiagnosticExpectations`);
+        // the words of the file are a superset of them there.
+        if path.contains("/pkg/analyzer/test/") {
+            let content = self.content(path).unwrap_or_default();
+            let w = words(&content);
             return names.iter().any(|n| w.contains(n));
         }
-        let w = if !self.overlays.contains_key(path)
-            && let Some(c) = self.session.file_content(path)
-        {
-            Arc::new(words(&c))
-        } else {
-            Arc::new(words(&self.content(path).unwrap_or_default()))
-        };
-        let found = names.iter().any(|n| w.contains(n));
-        self.search_words.insert(path.to_string(), w);
-        found
+        if !self.referenced_names.contains_key(path) {
+            self.ensure_referenced_names(&[path.to_string()]);
+        }
+        self.referenced_names
+            .get(path)
+            .is_some_and(|r| names.iter().any(|n| r.contains(n)))
     }
 
     /// Resolves and indexes [paths] in [context] in parallel, updating
@@ -438,11 +532,11 @@ impl Server {
                     crate::index::index_unit(ctx, &unit.ast, &unit.tables, unit.unit)
                 });
         let mut grew = false;
+        for p in paths {
+            grew |= self.owned.later.insert((context, p.clone()));
+        }
         for p in unit_paths {
             grew |= self.owned.add_known(p, context);
-        }
-        for f in self.session.known_files(context) {
-            grew |= self.owned.add_known(f, context);
         }
         if grew {
             self.search_scope = None;
@@ -463,12 +557,9 @@ impl Server {
         // Dart: the resolution creates the files of the library and of the
         // libraries it depends on in the driver (known to it unless another
         // driver knows them).
-        let mut grew = false;
+        let mut grew = self.owned.later.insert((context, path.to_string()));
         for input in &resolved.library.inputs {
             grew |= self.owned.add_known(input.path.to_string(), context);
-        }
-        for f in self.session.known_files(context) {
-            grew |= self.owned.add_known(f, context);
         }
         if grew {
             self.search_scope = None;
@@ -547,7 +638,7 @@ impl Server {
                 }
             }
             if !name.starts_with('_') {
-                self.ensure_search_words(owned);
+                self.ensure_referenced_names(owned);
                 for f in owned {
                     if in_files.contains(f.as_str()) {
                         continue;
