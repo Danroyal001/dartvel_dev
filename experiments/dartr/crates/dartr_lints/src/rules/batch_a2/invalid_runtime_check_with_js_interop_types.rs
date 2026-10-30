@@ -334,13 +334,37 @@ fn wasm_incompatible(context: &LinterContext<'_>, ty: TypeId) -> Knowledge<bool>
 }
 
 fn erased_type(context: &LinterContext<'_>, ty: TypeId, kind: Option<InteropKind>) -> TypeId {
+    erased_type_at(context, ty, kind, 0)
+}
+fn erased_type_at(
+    context: &LinterContext<'_>,
+    ty: TypeId,
+    kind: Option<InteropKind>,
+    depth: u32,
+) -> TypeId {
     let ts = context.type_system().expect("resolved lint context");
+    // `EraseNonJSInteropTypes.visitTypeParameterType`: the type parameter
+    // stays, made non-nullable and promoted to its erased bound
+    // (`createPromotedTypeParameterType`), so `JSObject() as T` with
+    // `T extends JSAny` compares `JSObject` with `T & JSAny`, not `JSAny`.
     if let Some(resolved) = context.resolved
-        && let TypeKind::TypeParameter { param, .. } = *resolved.ctx.ty(ty)
-        && let Some(bound) = resolved.ctx.get(param).bound.get()
+        && let TypeKind::TypeParameter {
+            param,
+            promoted_bound,
+            alias,
+            ..
+        } = *resolved.ctx.ty(ty)
+        && let Some(bound) = promoted_bound.or_else(|| resolved.ctx.get(param).bound.get())
         && bound != ty
+        && depth < 64
     {
-        return erased_type(context, bound, kind);
+        let erased_bound = erased_type_at(context, bound, kind, depth + 1);
+        return resolved.ctx.intern(TypeKind::TypeParameter {
+            param,
+            nullability: dartr_element::Nullability::None,
+            promoted_bound: Some(erased_bound),
+            alias,
+        });
     }
     match kind {
         Some(InteropKind::Dart) => ts.promote_to_non_null(ty),
@@ -361,13 +385,37 @@ fn erased_type(context: &LinterContext<'_>, ty: TypeId, kind: Option<InteropKind
     }
 }
 fn kept_user_type(context: &LinterContext<'_>, ty: TypeId, kind: Option<InteropKind>) -> TypeId {
+    kept_user_type_at(context, ty, kind, 0)
+}
+fn kept_user_type_at(
+    context: &LinterContext<'_>,
+    ty: TypeId,
+    kind: Option<InteropKind>,
+    depth: u32,
+) -> TypeId {
     let ts = context.type_system().expect("resolved lint context");
+    // `EraseNonJSInteropTypes.visitTypeParameterType`: the type parameter
+    // stays, made non-nullable and promoted to its erased bound
+    // (`createPromotedTypeParameterType`), so `JSObject() as T` with
+    // `T extends JSAny` compares `JSObject` with `T & JSAny`, not `JSAny`.
     if let Some(resolved) = context.resolved
-        && let TypeKind::TypeParameter { param, .. } = *resolved.ctx.ty(ty)
-        && let Some(bound) = resolved.ctx.get(param).bound.get()
+        && let TypeKind::TypeParameter {
+            param,
+            promoted_bound,
+            alias,
+            ..
+        } = *resolved.ctx.ty(ty)
+        && let Some(bound) = promoted_bound.or_else(|| resolved.ctx.get(param).bound.get())
         && bound != ty
+        && depth < 64
     {
-        return kept_user_type(context, bound, kind);
+        let erased_bound = kept_user_type_at(context, bound, kind, depth + 1);
+        return resolved.ctx.intern(TypeKind::TypeParameter {
+            param,
+            nullability: dartr_element::Nullability::None,
+            promoted_bound: Some(erased_bound),
+            alias,
+        });
     }
     if kind.is_some() {
         ts.promote_to_non_null(ty)
