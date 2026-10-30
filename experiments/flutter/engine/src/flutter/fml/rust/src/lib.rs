@@ -10,6 +10,7 @@ pub mod endianness;
 pub mod hash_combine;
 pub mod hex_codec;
 pub mod math;
+pub mod memory;
 pub mod string_conversion;
 pub mod synchronization;
 pub mod time;
