@@ -156,6 +156,7 @@ unsafe extern "C" {
     pub fn closedir(dirp: *mut DIR) -> c_int;
     pub fn mkdtemp(template: *mut c_char) -> *mut c_char;
     pub fn strerror(errnum: c_int) -> *const c_char;
+    pub fn memchr(s: *const c_void, c: c_int, n: usize) -> *mut c_void;
     pub fn getcwd(buf: *mut c_char, size: usize) -> *mut c_char;
     pub fn readlink(pathname: *const c_char, buf: *mut c_char, bufsiz: usize) -> isize;
 
@@ -193,4 +194,59 @@ pub fn strerror_text(errnum: c_int) -> String {
 pub fn c_string(bytes: &[u8]) -> std::ffi::CString {
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     std::ffi::CString::new(&bytes[..end]).expect("no NUL before the end")
+}
+
+/// Calls `f` with the C string upstream's `const char*` parameter is
+/// handed, without the heap allocation `c_string` makes: `bytes` up to the
+/// first NUL, and then `suffix` (`suffix` is empty except for the names
+/// WriteAtomically builds). Upstream passes `std::string::c_str()`, which
+/// costs nothing; a path that fits the stack buffer (every path but the
+/// longest) is copied there, and only a longer one goes through `c_string`.
+#[inline]
+pub fn with_c_str<T>(bytes: &[u8], suffix: &[u8], f: impl FnOnce(&std::ffi::CStr) -> T) -> T {
+    // Zeroing the buffer is most of the cost, so a short path (most of them)
+    // gets a short one, which compiles to a few vector stores.
+    if bytes.len() + suffix.len() < 128 {
+        with_c_str_in::<128, T>(bytes, suffix, f)
+    } else {
+        with_c_str_in::<512, T>(bytes, suffix, f)
+    }
+}
+
+#[inline]
+fn with_c_str_in<const STACK: usize, T>(
+    bytes: &[u8],
+    suffix: &[u8],
+    f: impl FnOnce(&std::ffi::CStr) -> T,
+) -> T {
+    // C reads each part up to its first NUL.
+    let head = &bytes[..nul_or_len(bytes)];
+    let tail = &suffix[..nul_or_len(suffix)];
+    let len = head.len() + tail.len();
+    if len < STACK {
+        let mut buf = [0u8; STACK];
+        buf[..head.len()].copy_from_slice(head);
+        buf[head.len()..len].copy_from_slice(tail);
+        // SAFETY: `buf[..len]` is `head` then `tail`, neither of which holds
+        // a NUL (each was cut at its first), and `buf[len]` is still 0.
+        return f(unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked(&buf[..=len]) });
+    }
+    let mut joined = Vec::with_capacity(len);
+    joined.extend_from_slice(head);
+    joined.extend_from_slice(tail);
+    f(&c_string(&joined))
+}
+
+/// The index of the first NUL in `bytes`, or its length: glibc's `memchr`,
+/// as upstream's `strlen` on a `c_str()` is glibc's vectorized scan (core's
+/// `memchr` is a word-at-a-time loop).
+#[inline]
+fn nul_or_len(bytes: &[u8]) -> usize {
+    if bytes.is_empty() {
+        return 0;
+    }
+    // SAFETY: memchr reads at most `bytes.len()` bytes from the start of the
+    // slice, all of which it covers, and returns null or a pointer into it.
+    let p = unsafe { memchr(bytes.as_ptr().cast(), 0, bytes.len()) };
+    if p.is_null() { bytes.len() } else { p as usize - bytes.as_ptr() as usize }
 }

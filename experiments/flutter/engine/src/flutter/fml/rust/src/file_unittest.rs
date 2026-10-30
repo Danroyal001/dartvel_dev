@@ -371,3 +371,30 @@ fn scoped_temp_dir_removes_its_tree() {
     }
     assert!(!std::path::Path::new(&path).exists());
 }
+
+// Not upstream: the C strings the POSIX calls are handed are the bytes up to
+// the first NUL, on the stack below 512 bytes and on the heap beyond, with
+// WriteAtomically's ".temp" appended after the cut.
+#[test]
+fn c_strings_are_cut_at_the_first_nul_on_every_path() {
+    use crate::platform::posix::libc::with_c_str;
+    let check = |bytes: &[u8], suffix: &[u8], expected: &[u8]| {
+        with_c_str(bytes, suffix, |c| assert_eq!(c.to_bytes(), expected, "{bytes:?} + {suffix:?}"));
+    };
+    check(b"", b"", b"");
+    check(b"a/b", b"", b"a/b");
+    check(b"a\0b", b"", b"a");
+    check(b"a\0b", b".temp", b"a.temp");
+    check(b"name", b".temp", b"name.temp");
+    check(b"\0", b".temp", b".temp");
+    for len in [126, 127, 128, 129, 510, 511, 512, 513, 4000] {
+        let long = vec![b'n'; len];
+        check(&long, b"", &long);
+        let mut temp = long.clone();
+        temp.extend_from_slice(b".temp");
+        check(&long, b".temp", &temp);
+        let mut cut = long.clone();
+        cut[len / 2] = 0;
+        check(&cut, b".temp", &[&long[..len / 2], b".temp"].concat());
+    }
+}

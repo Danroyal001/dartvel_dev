@@ -14,7 +14,7 @@ use crate::eintr_wrapper::handle_eintr;
 use crate::file::{FilePermission, FileVisitor};
 use crate::fml_dlog_at;
 use crate::mapping::Mapping;
-use crate::platform::posix::libc::{self, c_string};
+use crate::platform::posix::libc::{self, with_c_str};
 use crate::trace_event0;
 use crate::unique_fd::{UniqueDir, UniqueFD};
 
@@ -79,20 +79,20 @@ pub fn open_file_at(
     permission: FilePermission,
 ) -> UniqueFD {
     trace_event0!("flutter", "fml::OpenFile");
-    let path = c_string(path.as_ref());
+    with_c_str(path.as_ref(), b"", |path| {
+        let flags;
+        let mode;
 
-    let flags;
-    let mode;
+        if create_if_necessary && !file_exists_c(base_directory, path) {
+            flags = to_posix_access_flags(permission) | libc::O_CREAT | libc::O_TRUNC;
+            mode = to_posix_create_mode_flags(permission);
+        } else {
+            flags = to_posix_access_flags(permission);
+            mode = 0; // Not creating since it already exists.
+        }
 
-    if create_if_necessary && !file_exists(base_directory, path.as_bytes()) {
-        flags = to_posix_access_flags(permission) | libc::O_CREAT | libc::O_TRUNC;
-        mode = to_posix_create_mode_flags(permission);
-    } else {
-        flags = to_posix_access_flags(permission);
-        mode = 0; // Not creating since it already exists.
-    }
-
-    UniqueFD::new(openat(base_directory.get(), &path, flags, mode))
+        UniqueFD::new(openat(base_directory.get(), path, flags, mode))
+    })
 }
 
 pub fn open_directory(
@@ -109,23 +109,23 @@ pub fn open_directory_at(
     create_if_necessary: bool,
     permission: FilePermission,
 ) -> UniqueFD {
-    let path = c_string(path.as_ref());
-
-    if create_if_necessary && !file_exists(base_directory, path.as_bytes()) {
-        // SAFETY: `path` is NUL-terminated and outlives the call.
-        let rc = unsafe {
-            libc::mkdirat(
-                base_directory.get(),
-                path.as_ptr(),
-                to_posix_create_mode_flags(permission) | libc::S_IXUSR,
-            )
-        };
-        if rc != 0 {
-            return UniqueFD::default();
+    with_c_str(path.as_ref(), b"", |path| {
+        if create_if_necessary && !file_exists_c(base_directory, path) {
+            // SAFETY: `path` is NUL-terminated and outlives the call.
+            let rc = unsafe {
+                libc::mkdirat(
+                    base_directory.get(),
+                    path.as_ptr(),
+                    to_posix_create_mode_flags(permission) | libc::S_IXUSR,
+                )
+            };
+            if rc != 0 {
+                return UniqueFD::default();
+            }
         }
-    }
 
-    UniqueFD::new(openat(base_directory.get(), &path, libc::O_RDONLY | libc::O_DIRECTORY, 0))
+        UniqueFD::new(openat(base_directory.get(), path, libc::O_RDONLY | libc::O_DIRECTORY, 0))
+    })
 }
 
 pub fn duplicate(descriptor: i32) -> UniqueFD {
@@ -158,10 +158,9 @@ pub fn is_directory_at(base_directory: &UniqueFD, path: impl AsRef<[u8]>) -> boo
 
 /// Returns whether the given path is a file.
 pub fn is_file(path: impl AsRef<[u8]>) -> bool {
-    let path = c_string(path.as_ref());
     let mut buf = libc::stat::zeroed();
     // SAFETY: `path` is NUL-terminated; stat writes one `struct stat`.
-    if unsafe { libc::stat_path(path.as_ptr(), &mut buf) } != 0 {
+    if with_c_str(path.as_ref(), b"", |path| unsafe { libc::stat_path(path.as_ptr(), &mut buf) }) != 0 {
         return false;
     }
 
@@ -183,9 +182,10 @@ pub fn unlink_directory(path: impl AsRef<[u8]>) -> bool {
 }
 
 pub fn unlink_directory_at(base_directory: &UniqueFD, path: impl AsRef<[u8]>) -> bool {
-    let path = c_string(path.as_ref());
-    // SAFETY: `path` is NUL-terminated and outlives the call.
-    unsafe { libc::unlinkat(base_directory.get(), path.as_ptr(), libc::AT_REMOVEDIR) == 0 }
+    with_c_str(path.as_ref(), b"", |path| {
+        // SAFETY: `path` is NUL-terminated and outlives the call.
+        unsafe { libc::unlinkat(base_directory.get(), path.as_ptr(), libc::AT_REMOVEDIR) == 0 }
+    })
 }
 
 pub fn unlink_file(path: impl AsRef<[u8]>) -> bool {
@@ -193,9 +193,10 @@ pub fn unlink_file(path: impl AsRef<[u8]>) -> bool {
 }
 
 pub fn unlink_file_at(base_directory: &UniqueFD, path: impl AsRef<[u8]>) -> bool {
-    let path = c_string(path.as_ref());
-    // SAFETY: `path` is NUL-terminated and outlives the call.
-    let code = unsafe { libc::unlinkat(base_directory.get(), path.as_ptr(), 0) };
+    let code = with_c_str(path.as_ref(), b"", |path| {
+        // SAFETY: `path` is NUL-terminated and outlives the call.
+        unsafe { libc::unlinkat(base_directory.get(), path.as_ptr(), 0) }
+    });
     if code != 0 {
         fml_dlog_at!(kLogError, FILE, 178, "{}", libc::strerror_text(libc::errno()));
     }
@@ -207,7 +208,15 @@ pub fn file_exists(base_directory: &UniqueFD, path: impl AsRef<[u8]>) -> bool {
         return false;
     }
 
-    let path = c_string(path.as_ref());
+    with_c_str(path.as_ref(), b"", |path| file_exists_c(base_directory, path))
+}
+
+/// `FileExists` on a path already made a C string.
+fn file_exists_c(base_directory: &UniqueFD, path: &CStr) -> bool {
+    if !base_directory.is_valid() {
+        return false;
+    }
+
     // SAFETY: `path` is NUL-terminated and outlives the call.
     unsafe { libc::faccessat(base_directory.get(), path.as_ptr(), libc::F_OK, 0) == 0 }
 }
@@ -221,14 +230,24 @@ pub fn write_atomically(
         return false;
     }
 
-    let file_name = c_string(file_name.as_ref());
-    let mut temp_file_name = file_name.as_bytes().to_vec();
-    temp_file_name.extend_from_slice(b".temp");
-    let temp_file_name = c_string(&temp_file_name);
+    with_c_str(file_name.as_ref(), b"", |file_name| {
+        with_c_str(file_name.to_bytes(), b".temp", |temp_file_name| {
+            write_atomically_c(base_directory, file_name, temp_file_name, data)
+        })
+    })
+}
 
+/// The rest of `WriteAtomically`, on the file name and the temporary file's
+/// name made C strings.
+fn write_atomically_c(
+    base_directory: &UniqueFD,
+    file_name: &CStr,
+    temp_file_name: &CStr,
+    data: &dyn Mapping,
+) -> bool {
     let temp_file = open_file_at(
         base_directory,
-        temp_file_name.as_bytes(),
+        temp_file_name.to_bytes(),
         true,
         FilePermission::kReadWrite,
     );
@@ -333,9 +352,14 @@ pub fn visit_files(directory: &UniqueFD, visitor: &mut FileVisitor) -> bool {
         }
         // SAFETY: `ent` is non-null and valid until the next readdir; its
         // d_name is NUL-terminated within the entry. The name is copied out
-        // before the visitor (which may read the directory) runs.
-        let filename = unsafe { CStr::from_ptr((*ent).d_name.as_ptr()) }.to_bytes().to_vec();
-        if filename != b"." && filename != b".." && !visitor(directory, &filename) {
+        // before the visitor (which may read the directory) runs: onto the
+        // stack, as upstream's std::string keeps a short name inline (d_name
+        // is 256 bytes with its NUL, so the copy always fits).
+        let name = unsafe { CStr::from_ptr((*ent).d_name.as_ptr()) }.to_bytes();
+        let mut copy = [0u8; 256];
+        copy[..name.len()].copy_from_slice(name);
+        let filename = &copy[..name.len()];
+        if filename != b"." && filename != b".." && !visitor(directory, filename) {
             return false;
         }
     }
