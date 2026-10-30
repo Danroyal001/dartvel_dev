@@ -85,6 +85,7 @@ import 'src/scene3d/scene_viewport.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 import 'src/state/offline_banner.dart';
+import 'src/state/page_error_boundary.dart';
 import 'src/studio/page_document.dart';
 import 'src/studio/studio_app_shortcuts.dart' show DVStudioAppShortcuts;
 import 'src/studio/studio_host.dart' show DVPagePreviewScope;
@@ -11120,7 +11121,12 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     if (onTop) _everOnTop = true;
     // The page the browser's find reads is the one on top.
     _onTop = onTop;
-    final Widget keyed = KeyedSubtree(key: _contentKey, child: body);
+    // An error boundary inside the key, so a throw takes down this page and
+    // nothing above it, and a retry rebuilds the page rather than the shell.
+    final Widget keyed = KeyedSubtree(
+      key: _contentKey,
+      child: DVPageErrorBoundary(child: body),
+    );
     // The arrow keys, Page Up, Page Down, Home, End and the space bar. Above
     // the page rather than inside it, so a focused control still gets its own
     // keys first and only what is left over scrolls -- and no page has to ask
@@ -11480,10 +11486,18 @@ abstract final class DVFrameworkStrings {
   /// What every page says while the device is offline.
   static const DVTranslationKey offline = DVTranslationKey('dv.network.offline');
 
+  /// What a page says when its error boundary caught a throw.
+  static const DVTranslationKey pageError = DVTranslationKey('dv.page.error');
+
+  /// The control that offers to try a failed thing again.
+  static const DVTranslationKey retry = DVTranslationKey('dv.action.retry');
+
   /// The catalogue default for each framework key, by key.
   static const Map<String, String> defaults = <String, String>{
     'dv.table.empty': 'No rows',
     'dv.network.offline': "You're offline",
+    'dv.page.error': 'Something went wrong',
+    'dv.action.retry': 'Try again',
   };
 }
 

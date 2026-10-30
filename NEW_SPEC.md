@@ -15052,6 +15052,13 @@ rather than the application, and reports through Crash Reporting with the same
 source mappings — an exception inside generated code points at the model that
 generated it.
 
+The boundary is built, for errors thrown while a page builds: the page shell
+carries it, the visitor gets the framework strings `dv.page.error` and
+`dv.action.retry`, the detail goes to the log as `DV-STATE-002`, and the error
+still reaches `FlutterError`, which crash reporting reads. A throw outside
+every page keeps whatever error widget the application had. A throw in layout
+or paint does not pass through it.
+
 Status pages are generated per code. A 404 is not a blank screen; a 500 is not
 a stack trace in front of a customer, and the detail a developer needs goes to
 the log while the visitor gets a sentence.
