@@ -153,6 +153,8 @@ unsafe extern "C" {
     pub fn closedir(dirp: *mut DIR) -> c_int;
     pub fn mkdtemp(template: *mut c_char) -> *mut c_char;
     pub fn strerror(errnum: c_int) -> *const c_char;
+    pub fn getcwd(buf: *mut c_char, size: usize) -> *mut c_char;
+    pub fn readlink(pathname: *const c_char, buf: *mut c_char, bufsiz: usize) -> isize;
 
     pub fn mmap(
         addr: *mut c_void,

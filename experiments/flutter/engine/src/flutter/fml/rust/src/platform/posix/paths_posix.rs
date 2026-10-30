@@ -1,20 +1,30 @@
 // Port of flutter/fml/platform/posix/paths_posix.cc.
 
-use std::os::unix::ffi::OsStrExt;
-
 use crate::fml_check_at;
+use crate::platform::posix::libc;
 
 const FILE: &str = "flutter/fml/platform/posix/paths_posix.cc";
 
 const K_FILE_URL_PREFIX: &[u8] = b"file://";
 
-fn get_current_directory() -> Vec<u8> {
-    // std's current_dir calls getcwd, growing its buffer past PATH_MAX where
-    // upstream's fixed buffer would fail the check; a working directory that
-    // long is not one the engine runs in.
-    let buffer = std::env::current_dir();
-    fml_check_at!(FILE, 23, "getcwd(buffer, sizeof(buffer))", buffer.is_ok());
-    buffer.unwrap().as_os_str().as_bytes().to_vec()
+/// `GetCurrentDirectory()` followed by `suffix`: getcwd into a PATH_MAX
+/// buffer, as upstream calls it (so a longer working directory fails the
+/// check, as upstream's does), copied out once into a string with room for
+/// what `AbsolutePath` appends.
+fn get_current_directory_then(suffix: &[&[u8]]) -> Vec<u8> {
+    const PATH_MAX: usize = 4096;
+    let mut buffer = [0u8; PATH_MAX];
+    // SAFETY: `buffer` is PATH_MAX writable bytes and getcwd is told so; it
+    // writes at most that many, NUL included, and keeps no pointer.
+    let ok = !unsafe { libc::getcwd(buffer.as_mut_ptr().cast(), buffer.len()) }.is_null();
+    fml_check_at!(FILE, 23, "getcwd(buffer, sizeof(buffer))", ok);
+    let len = buffer.iter().position(|&c| c == 0).unwrap_or(PATH_MAX);
+    let mut result = Vec::with_capacity(len + suffix.iter().map(|s| s.len()).sum::<usize>());
+    result.extend_from_slice(&buffer[..len]);
+    for part in suffix {
+        result.extend_from_slice(part);
+    }
+    result
 }
 
 pub fn absolute_path(path: impl AsRef<[u8]>) -> Vec<u8> {
@@ -24,13 +34,10 @@ pub fn absolute_path(path: impl AsRef<[u8]>) -> Vec<u8> {
             // Path is already absolute.
             return path.to_vec();
         }
-        let mut result = get_current_directory();
-        result.push(b'/');
-        result.extend_from_slice(path);
-        result
+        get_current_directory_then(&[b"/", path])
     } else {
         // Path is empty.
-        get_current_directory()
+        get_current_directory_then(&[])
     }
 }
 
