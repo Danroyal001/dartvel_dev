@@ -119,14 +119,12 @@ pub mod saturated {
             impl SaturatedCast<$si> for $fp {
                 #[inline(always)]
                 fn saturated_cast(self) -> $si {
-                    if self <= <$si>::MIN as $fp {
-                        <$si>::MIN
-                    } else if self >= <$si>::MAX as $fp {
-                        <$si>::MAX
-                    } else {
-                        // NaN: undefined upstream (static_cast); 0 here.
-                        self as $si
-                    }
+                    // Upstream: `v <= (FP)MIN` gives MIN, `v >= (FP)MAX` gives
+                    // MAX, anything else `static_cast`s (undefined for NaN).
+                    // Rust's `as` truncates and saturates to those same
+                    // values at both ends, and gives 0 for NaN, as upstream's
+                    // CastingNaNScalarToSignedIntProducesZero expects.
+                    self as $si
                 }
             }
         )*};

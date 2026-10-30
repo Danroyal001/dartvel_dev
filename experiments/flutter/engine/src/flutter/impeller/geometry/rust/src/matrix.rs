@@ -393,39 +393,76 @@ impl Matrix {
 
     pub fn invert(&self) -> Matrix {
         let m = &self.m;
+        // Upstream writes each cofactor tmp[i] out as six triple products
+        // `m[a] * m[b] * m[c]` summed left to right, some subtracted. Here
+        // entries 4g..4g+3 are the four lanes of group g, and the k-th term
+        // of every lane is added k-th, so each entry is the same sum in the
+        // same order. Exact rewrites make the lanes cheap: a product of two
+        // floats does not depend on their order, so the 24 vectors of first
+        // pairs `m[a] * m[b]` are 15 distinct ones, computed once; a
+        // subtracted term is added negated (`x - y` is `x + -y`, and
+        // negating a product negates the result exactly). Every operand's
+        // lanes come from one column, `c[column][row]`.
+        let c: [[Scalar; 4]; 4] = std::array::from_fn(|j| [m[j], m[4 + j], m[8 + j], m[12 + j]]);
+        let mul = |x: [Scalar; 4], y: [Scalar; 4]| -> [Scalar; 4] { std::array::from_fn(|l| x[l] * y[l]) };
+        let add = |x: [Scalar; 4], y: [Scalar; 4]| -> [Scalar; 4] { std::array::from_fn(|l| x[l] + y[l]) };
+        let signed = |x: [Scalar; 4], negate: [bool; 4]| -> [Scalar; 4] {
+            std::array::from_fn(|l| if negate[l] { -x[l] } else { x[l] })
+        };
+        let v0 = mul([c[1][1], c[1][0], c[1][0], c[1][0]], [c[2][2], c[2][2], c[2][1], c[2][1]]);
+        let v1 = mul([c[1][1], c[1][0], c[1][0], c[1][0]], [c[3][2], c[3][2], c[3][1], c[3][1]]);
+        let v2 = mul([c[2][1], c[2][0], c[2][0], c[2][0]], [c[1][2], c[1][2], c[1][1], c[1][1]]);
+        let v3 = mul([c[3][1], c[3][0], c[3][0], c[3][0]], [c[1][2], c[1][2], c[1][1], c[1][1]]);
+        let v4 = mul([c[2][1], c[2][0], c[2][0], c[2][0]], [c[1][3], c[1][3], c[1][3], c[1][2]]);
+        let v5 = mul([c[3][1], c[3][0], c[3][0], c[3][0]], [c[1][3], c[1][3], c[1][3], c[1][2]]);
+        let v6 = mul([c[0][1], c[0][0], c[0][0], c[0][0]], [c[2][2], c[2][2], c[2][1], c[2][1]]);
+        let v7 = mul([c[0][1], c[0][0], c[0][0], c[0][0]], [c[3][2], c[3][2], c[3][1], c[3][1]]);
+        let v8 = mul([c[2][1], c[2][0], c[2][0], c[2][0]], [c[0][2], c[0][2], c[0][1], c[0][1]]);
+        let v9 = mul([c[3][1], c[3][0], c[3][0], c[3][0]], [c[0][2], c[0][2], c[0][1], c[0][1]]);
+        let v10 = mul([c[2][1], c[2][0], c[2][0], c[2][0]], [c[0][3], c[0][3], c[0][3], c[0][2]]);
+        let v11 = mul([c[3][1], c[3][0], c[3][0], c[3][0]], [c[0][3], c[0][3], c[0][3], c[0][2]]);
+        let v12 = mul([c[0][1], c[0][0], c[0][0], c[0][0]], [c[1][2], c[1][2], c[1][1], c[1][1]]);
+        let v13 = mul([c[1][1], c[1][0], c[1][0], c[1][0]], [c[0][2], c[0][2], c[0][1], c[0][1]]);
+        let v14 = mul([c[1][1], c[1][0], c[1][0], c[1][0]], [c[0][3], c[0][3], c[0][3], c[0][2]]);
+        let g0 = {
+            let acc = signed(mul(v0, [c[3][3], c[3][3], c[3][3], c[3][2]]), [false, true, false, true]);
+            let acc = add(acc, signed(mul(v1, [c[2][3], c[2][3], c[2][3], c[2][2]]), [true, false, true, false]));
+            let acc = add(acc, signed(mul(v2, [c[3][3], c[3][3], c[3][3], c[3][2]]), [true, false, true, false]));
+            let acc = add(acc, signed(mul(v3, [c[2][3], c[2][3], c[2][3], c[2][2]]), [false, true, false, true]));
+            let acc = add(acc, signed(mul(v4, [c[3][2], c[3][2], c[3][1], c[3][1]]), [false, true, false, true]));
+            let acc = add(acc, signed(mul(v5, [c[2][2], c[2][2], c[2][1], c[2][1]]), [true, false, true, false]));
+            acc
+        };
+        let g1 = {
+            let acc = signed(mul(v6, [c[3][3], c[3][3], c[3][3], c[3][2]]), [true, false, true, false]);
+            let acc = add(acc, signed(mul(v7, [c[2][3], c[2][3], c[2][3], c[2][2]]), [false, true, false, true]));
+            let acc = add(acc, signed(mul(v8, [c[3][3], c[3][3], c[3][3], c[3][2]]), [false, true, false, true]));
+            let acc = add(acc, signed(mul(v9, [c[2][3], c[2][3], c[2][3], c[2][2]]), [true, false, true, false]));
+            let acc = add(acc, signed(mul(v10, [c[3][2], c[3][2], c[3][1], c[3][1]]), [true, false, true, false]));
+            let acc = add(acc, signed(mul(v11, [c[2][2], c[2][2], c[2][1], c[2][1]]), [false, true, false, true]));
+            acc
+        };
+        let g2 = {
+            let acc = signed(mul(v12, [c[3][3], c[3][3], c[3][3], c[3][2]]), [false, true, false, true]);
+            let acc = add(acc, signed(mul(v7, [c[1][3], c[1][3], c[1][3], c[1][2]]), [true, false, true, false]));
+            let acc = add(acc, signed(mul(v13, [c[3][3], c[3][3], c[3][3], c[3][2]]), [true, false, true, false]));
+            let acc = add(acc, signed(mul(v9, [c[1][3], c[1][3], c[1][3], c[1][2]]), [false, true, false, true]));
+            let acc = add(acc, signed(mul(v14, [c[3][2], c[3][2], c[3][1], c[3][1]]), [false, true, false, true]));
+            let acc = add(acc, signed(mul(v11, [c[1][2], c[1][2], c[1][1], c[1][1]]), [true, false, true, false]));
+            acc
+        };
+        let g3 = {
+            let acc = signed(mul(v12, [c[2][3], c[2][3], c[2][3], c[2][2]]), [true, false, true, false]);
+            let acc = add(acc, signed(mul(v6, [c[1][3], c[1][3], c[1][3], c[1][2]]), [false, true, false, true]));
+            let acc = add(acc, signed(mul(v13, [c[2][3], c[2][3], c[2][3], c[2][2]]), [false, true, false, true]));
+            let acc = add(acc, signed(mul(v8, [c[1][3], c[1][3], c[1][3], c[1][2]]), [true, false, true, false]));
+            let acc = add(acc, signed(mul(v14, [c[2][2], c[2][2], c[2][1], c[2][1]]), [true, false, true, false]));
+            let acc = add(acc, signed(mul(v10, [c[1][2], c[1][2], c[1][1], c[1][1]]), [false, true, false, true]));
+            acc
+        };
         let tmp: [Scalar; 16] = [
-      m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] +
-          m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10],
-      -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] -
-          m[9] * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10],
-      m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] +
-          m[5] * m[3] * m[14] + m[13] * m[2] * m[7] - m[13] * m[3] * m[6],
-      -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] -
-          m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6],
-      -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] -
-          m[8] * m[7] * m[14] - m[12] * m[6] * m[11] + m[12] * m[7] * m[10],
-      m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] +
-          m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10],
-      -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] -
-          m[4] * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6],
-      m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] +
-          m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6],
-      m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] +
-          m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9],
-      -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] -
-          m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9],
-      m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] +
-          m[4] * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5],
-      -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] -
-          m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5],
-      -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14] -
-          m[8] * m[6] * m[13] - m[12] * m[5] * m[10] + m[12] * m[6] * m[9],
-      m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] +
-          m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9],
-      -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] -
-          m[4] * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5],
-      m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] +
-          m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5],
+            g0[0], g0[1], g0[2], g0[3], g1[0], g1[1], g1[2], g1[3],
+            g2[0], g2[1], g2[2], g2[3], g3[0], g3[1], g3[2], g3[3],
         ];
 
         let mut det: Scalar = m[0] * tmp[0] + m[1] * tmp[4] + m[2] * tmp[8] + m[3] * tmp[12];

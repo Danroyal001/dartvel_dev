@@ -23,10 +23,14 @@ panic = "abort"
 # -fno-exceptions.
 [profile.release-lto]
 inherits = "release"
+# opt-level 2 leaves impeller geometry's matrix and rect code scalar.
+opt-level = 3
 lto = "fat"
 codegen-units = 1
 panic = "abort"
 
-# One codegen unit: a smaller library than 16 units (README "Baseline").
+# One codegen unit: a smaller library than 16 units; opt-level 3, which
+# vectorizes its matrix and rect code (impeller geometry README "Baseline").
 [profile.release.package.impeller_geometry]
 codegen-units = 1
+opt-level = 3

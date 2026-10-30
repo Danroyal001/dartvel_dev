@@ -362,6 +362,7 @@ impl<T: RectNum> TRect<T> {
 
     /// Returns the union of this rectangle and the given rectangle, or
     /// whichever one is not empty.
+    #[inline(always)]
     pub fn union(&self, o: &Self) -> Self {
         // Upstream returns `o` if this is empty, else this if `o` is empty,
         // else the min/max bounds. Chosen field by field, so that the choice
@@ -397,6 +398,7 @@ impl<T: RectNum> TRect<T> {
         }
     }
 
+    #[inline(always)]
     pub fn intersection_or_empty(&self, o: &Self) -> Self {
         self.intersection(o).unwrap_or_default()
     }
@@ -521,6 +523,7 @@ impl<T: RectNum> TRect<T> {
 
     /// `RoundOut(const TRect<U>&)`: floor the left and top, ceil the right
     /// and bottom, then `saturated::Cast` to `Type`.
+    #[inline(always)]
     pub fn round_out<U: RectNum + SaturatedCast<T>>(r: &TRect<U>) -> Self {
         TRect::make_ltrb(
             saturated::cast(r.get_left().floor_c()),
@@ -631,14 +634,25 @@ where
 const kMinimumHomogenous: Scalar = 1.0 / (1 << 14) as Scalar;
 
 impl TRect<Scalar> {
-    #[inline]
+    #[inline(always)]
     /// Creates a new bounding box that contains this transformed rectangle.
     pub fn get_transformed_points(&self, transform: &Matrix) -> [Point; 4] {
-        let mut points = self.get_points();
-        for p in points.iter_mut() {
-            *p = *transform * *p;
-        }
-        points
+        // `*transform * p` for each of the four points, written a lane per
+        // point: each lane computes x, y and w in Matrix * Point's order,
+        // and x and y times 1 / w unless w is 0, so the bits are the same
+        // and the four points vectorize.
+        let p = self.get_points();
+        let m = &transform.m;
+        let xs = [p[0].x, p[1].x, p[2].x, p[3].x];
+        let ys = [p[0].y, p[1].y, p[2].y, p[3].y];
+        let lanes = |a: Scalar, b: Scalar, c: Scalar| -> [Scalar; 4] {
+            std::array::from_fn(|i| xs[i] * a + ys[i] * b + c)
+        };
+        let w = lanes(m[3], m[7], m[15]);
+        let x = lanes(m[0], m[4], m[12]);
+        let y = lanes(m[1], m[5], m[13]);
+        let inv: [Scalar; 4] = std::array::from_fn(|i| if w[i] != 0.0 { 1.0 / w[i] } else { w[i] });
+        std::array::from_fn(|i| Point::new(x[i] * inv[i], y[i] * inv[i]))
     }
 
     #[inline]
@@ -653,10 +667,17 @@ impl TRect<Scalar> {
             return Rect::default();
         }
 
-        let ul = transform.transform_homogenous(&Point::new(self.left_, self.top_));
-        let ur = transform.transform_homogenous(&Point::new(self.right_, self.top_));
-        let ll = transform.transform_homogenous(&Point::new(self.left_, self.bottom_));
-        let lr = transform.transform_homogenous(&Point::new(self.right_, self.bottom_));
+        // `transform.TransformHomogenous` of the four corners (ul, ur, ll,
+        // lr), a lane per corner in its order of operations, so that they
+        // vectorize.
+        let m = &transform.m;
+        let xs = [self.left_, self.right_, self.left_, self.right_];
+        let ys = [self.top_, self.top_, self.bottom_, self.bottom_];
+        let lanes = |a: Scalar, b: Scalar, c: Scalar| -> [Scalar; 4] {
+            std::array::from_fn(|i| xs[i] * a + ys[i] * b + c)
+        };
+        let (hx, hy, hz) = (lanes(m[0], m[4], m[12]), lanes(m[1], m[5], m[13]), lanes(m[3], m[7], m[15]));
+        let [ul, ur, ll, lr]: [Vector3; 4] = std::array::from_fn(|i| Vector3::new(hx[i], hy[i], hz[i]));
 
         // It can probably be proven that we only ever have 5 points at most
         // which happens when only 1 corner is clipped and we get 2 points
@@ -675,7 +696,7 @@ impl TRect<Scalar> {
         bounds.unwrap_or_default()
     }
 
-    #[inline]
+    #[inline(always)]
     /// Creates a new bounding box that contains this transformed rectangle.
     pub fn transform_bounds(&self, transform: &Matrix) -> Rect {
         if self.is_empty() {

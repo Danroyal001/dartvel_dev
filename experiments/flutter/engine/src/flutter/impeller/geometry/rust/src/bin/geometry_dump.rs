@@ -2896,12 +2896,13 @@ fn bench(name: &str, rounds: i32) {
     }
     times.sort_by(|a, b| a.partial_cmp(b).unwrap());
     println!(
-        "{name} fastest_ns {:.0} median_ns {:.0} slowest_ns {:.0} checksum {:016x} peak_rss_kb {}",
+        "{name} fastest_ns {:.0} median_ns {:.0} slowest_ns {:.0} checksum {:016x} peak_rss_kb {} p90_ns {:.0}",
         times[0],
         times[times.len() / 2],
         times[times.len() - 1],
         sum.0,
-        peak_rss_kb()
+        peak_rss_kb(),
+        times[times.len() * 9 / 10]
     );
 }
 

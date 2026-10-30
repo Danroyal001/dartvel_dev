@@ -2853,9 +2853,9 @@ static void Bench(const std::string& name, int rounds) {
   }
   std::sort(times.begin(), times.end());
   std::printf("%s fastest_ns %.0f median_ns %.0f slowest_ns %.0f checksum %016" PRIx64
-              " peak_rss_kb %ld\n",
+              " peak_rss_kb %ld p90_ns %.0f\n",
               name.c_str(), times.front(), times[times.size() / 2], times.back(),
-              g_sum, PeakRssKb());
+              g_sum, PeakRssKb(), times[times.size() * 9 / 10]);
 }
 
 // ----------------------------------------------------------------- main ----

@@ -316,33 +316,34 @@ macro_rules! impl_num_float {
             }
             #[inline(always)]
             fn floor_c(self) -> Self {
-                // Values at least 2^(mantissa bits) are integral, as are
-                // infinities; NaN passes through.
-                if !(self.abs() < $lim) {
-                    return self;
-                }
-                let t = (self as $i) as $t;
-                // floor has the sign of its argument (-0.0 stays -0.0).
-                (if t > self { t - 1.0 } else { t }).copysign(self)
+                // `(x + 2^p) - 2^p`, with the sign of x, is x rounded to the
+                // nearest integer for |x| < 2^p (p mantissa bits); stepping
+                // down where that rounded up gives the floor. Larger values
+                // are integral, as are infinities, and NaN passes through.
+                // floor has the sign of its argument (-0.0 stays -0.0). No
+                // conversion through an integer, so no saturation code.
+                let big = ($lim as $t).copysign(self);
+                let t = (self + big) - big;
+                let f = (if t > self { t - 1.0 } else { t }).copysign(self);
+                if self.abs() < $lim { f } else { self }
             }
             #[inline(always)]
             fn ceil_c(self) -> Self {
-                if !(self.abs() < $lim) {
-                    return self;
-                }
-                let t = (self as $i) as $t;
-                // ceil of (-1, 0] is -0.0.
-                (if t < self { t + 1.0 } else { t }).copysign(self)
+                // As `floor_c`, stepping up; ceil of (-1, 0] is -0.0.
+                let big = ($lim as $t).copysign(self);
+                let t = (self + big) - big;
+                let c = (if t < self { t + 1.0 } else { t }).copysign(self);
+                if self.abs() < $lim { c } else { self }
             }
             #[inline(always)]
             fn round_c(self) -> Self {
-                if !(self.abs() < $lim) {
-                    return self;
-                }
-                let t = (self as $i) as $t;
-                // `self - t` is the exact fraction; halves go away from zero.
-                (if (self - t).abs() >= 0.5 { t + (1.0 as $t).copysign(self) } else { t })
-                    .copysign(self)
+                // Halves away from zero: the floor of |x|, plus one when the
+                // (exact) fraction is at least a half, with x's sign.
+                let a = self.abs();
+                let t = (a + $lim) - $lim;
+                let f = if t > a { t - 1.0 } else { t };
+                let r = (if a - f >= 0.5 { f + 1.0 } else { f }).copysign(self);
+                if a < $lim { r } else { self }
             }
             fn fabs(self) -> Self { <$t>::abs(self) }
             fn sqrt_t(self) -> Self { <$t>::sqrt(self) }
