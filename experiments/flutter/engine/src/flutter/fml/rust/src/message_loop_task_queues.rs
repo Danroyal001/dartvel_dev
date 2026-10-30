@@ -264,7 +264,9 @@ impl MessageLoopTaskQueues {
         let top = guard.peek_next_task_unlocked(queue_id);
         let top_queue_id = top.task_queue_id;
         let top_target_time = top.task.get_target_time();
-        let invocation = top.task.get_task().clone();
+        // Upstream copies the closure here (GetTask()) and pops the task
+        // after waking the loop; the port pops it then and moves the closure
+        // out, which hands back the same task without the copy.
         let task_source_grade = top.task.get_task_source_grade();
 
         if !guard.has_pending_tasks_unlocked(queue_id) {
@@ -276,7 +278,12 @@ impl MessageLoopTaskQueues {
         if top_target_time > from_time {
             return None;
         }
-        guard.at_mut(top_queue_id).task_source.pop_task(task_source_grade);
+        let invocation = guard
+            .at_mut(top_queue_id)
+            .task_source
+            .pop_task(task_source_grade)
+            .expect("the task just peeked")
+            .into_task();
         TLS_TASK_SOURCE_GRADE.with(|g| g.set(Some(task_source_grade)));
         Some(invocation)
     }

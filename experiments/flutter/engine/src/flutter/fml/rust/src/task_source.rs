@@ -50,14 +50,18 @@ impl TaskSource {
     }
 
     /// Pops the task heap corresponding to the `TaskSourceGrade`.
-    pub fn pop_task(&mut self, grade: TaskSourceGrade) {
+    ///
+    /// Upstream returns nothing; the port hands back the popped task so that
+    /// a caller that has just peeked it can move its closure out instead of
+    /// copying it first.
+    pub fn pop_task(&mut self, grade: TaskSourceGrade) -> Option<DelayedTask> {
         // std::priority_queue::pop on an empty queue is undefined behaviour;
         // BinaryHeap::pop does nothing.
         match grade {
             TaskSourceGrade::kUserInteraction => self.primary_task_queue_.pop(),
             TaskSourceGrade::kUnspecified => self.primary_task_queue_.pop(),
             TaskSourceGrade::kDartEventLoop => self.secondary_task_queue_.pop(),
-        };
+        }
     }
 
     /// Returns the number of pending tasks. Excludes the tasks from the

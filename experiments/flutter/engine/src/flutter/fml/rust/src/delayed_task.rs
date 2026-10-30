@@ -29,6 +29,11 @@ impl DelayedTask {
         &self.task_
     }
 
+    /// The task, moved out (the port's: upstream copies it with GetTask()).
+    pub fn into_task(self) -> closure {
+        self.task_
+    }
+
     pub fn get_target_time(&self) -> TimePoint {
         self.target_time_
     }
