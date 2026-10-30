@@ -8,7 +8,8 @@
 //
 // Usage:
 //   dart --packages=<package_config.json> \
-//     pkg/analyzer/rust/oracle/ast_dump.dart [--bench=N] --out <dir> <root>...
+//     pkg/analyzer/rust/oracle/ast_dump.dart [--bench=N | --retain] \
+//     --out <dir> <root>...
 //
 // The package config is written by tests/ast_oracle.rs (see ../README.md):
 // the analyzer's dependencies that are not in this checkout come from the
@@ -44,19 +45,24 @@ import 'package:analyzer/src/dart/ast/ast.dart';
 void main(List<String> args) {
   String? out;
   int bench = 0;
+  bool retain = false;
   List<String> roots = [];
   for (int i = 0; i < args.length; i++) {
     String arg = args[i];
     if (arg.startsWith('--bench=')) {
       bench = int.parse(arg.substring('--bench='.length));
+    } else if (arg == '--retain') {
+      retain = true;
     } else if (arg == '--out') {
       out = args[++i];
     } else {
       roots.add(arg);
     }
   }
-  if (roots.isEmpty || (out == null && bench == 0)) {
-    stderr.writeln('usage: ast_dump.dart [--bench=N] --out <dir> <root>...');
+  if (roots.isEmpty || (out == null && bench == 0 && !retain)) {
+    stderr.writeln(
+      'usage: ast_dump.dart [--bench=N | --retain] --out <dir> <root>...',
+    );
     exit(64);
   }
 
@@ -64,6 +70,10 @@ void main(List<String> args) {
 
   if (bench > 0) {
     runBench(inputs, bench);
+    return;
+  }
+  if (retain) {
+    runRetain(inputs);
     return;
   }
 
@@ -296,6 +306,25 @@ void runBench(List<(String, String)> inputs, int rounds) {
   stdout.writeln(
     'dart ast files=${sources.length} bytes=$totalBytes rounds=$rounds '
     'min_us=${times.first} median_us=${times[times.length ~/ 2]} '
-    'check=$nodes',
+    'check=$nodes max_rss=${ProcessInfo.maxRss}',
+  );
+}
+
+/// Reads every file, then parses them all once and keeps every result (the
+/// tokens, the tree and the diagnostics), printing the resident set size
+/// before and after parsing: the memory the parsed corpus takes.
+void runRetain(List<(String, String)> inputs) {
+  List<String> sources = [
+    for (var (String path, _) in inputs) readSource(path),
+  ];
+  int before = ProcessInfo.currentRss;
+  List<ParseStringResult> results = [
+    for (String source in sources)
+      parseString(content: source, throwIfDiagnostics: false),
+  ];
+  int after = ProcessInfo.currentRss;
+  stdout.writeln(
+    'dart retain files=${results.length} rss_sources=$before '
+    'rss_parsed=$after delta=${after - before} max_rss=${ProcessInfo.maxRss}',
   );
 }

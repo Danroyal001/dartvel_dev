@@ -5,7 +5,7 @@
 // oracle writes for the analyzer, so the two outputs can be compared byte
 // for byte.
 //
-// Usage: ast_dump [--bench=N] --out <dir> <root>...
+// Usage: ast_dump [--bench=N | --retain] --out <dir> <root>...
 
 use std::fmt::Write as _;
 use std::fs;
@@ -22,19 +22,22 @@ use fe_analyzer_shared::scanner::token::{TokenId, TokenStore};
 fn main() {
     let mut out: Option<String> = None;
     let mut bench = 0usize;
+    let mut retain = false;
     let mut roots: Vec<String> = Vec::new();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         if let Some(n) = arg.strip_prefix("--bench=") {
             bench = n.parse().expect("--bench=N");
+        } else if arg == "--retain" {
+            retain = true;
         } else if arg == "--out" {
             out = args.next();
         } else {
             roots.push(arg);
         }
     }
-    if roots.is_empty() || (out.is_none() && bench == 0) {
-        eprintln!("usage: ast_dump [--bench=N] --out <dir> <root>...");
+    if roots.is_empty() || (out.is_none() && bench == 0 && !retain) {
+        eprintln!("usage: ast_dump [--bench=N | --retain] --out <dir> <root>...");
         std::process::exit(64);
     }
 
@@ -42,6 +45,10 @@ fn main() {
 
     if bench > 0 {
         run_bench(&inputs, bench);
+        return;
+    }
+    if retain {
+        run_retain(&inputs);
         return;
     }
 
@@ -393,9 +400,63 @@ fn run_bench(inputs: &[(PathBuf, String)], rounds: usize) {
     }
     times.sort();
     println!(
-        "rust ast files={} bytes={total_bytes} rounds={rounds} min_us={} median_us={} check={check}",
+        "rust ast files={} bytes={total_bytes} rounds={rounds} min_us={} median_us={} check={check} max_rss={}",
         sources.len(),
         times[0],
-        times[times.len() / 2]
+        times[times.len() / 2],
+        status_bytes("VmHWM"),
+    );
+}
+
+/// A field of /proc/self/status (`VmRSS`, `VmHWM`), in bytes.
+fn status_bytes(field: &str) -> u64 {
+    let status = fs::read_to_string("/proc/self/status").unwrap_or_default();
+    for line in status.lines() {
+        if let Some(rest) = line.strip_prefix(field).and_then(|r| r.strip_prefix(':')) {
+            let kb: u64 = rest
+                .trim()
+                .trim_end_matches(" kB")
+                .trim()
+                .parse()
+                .unwrap_or(0);
+            return kb * 1024;
+        }
+    }
+    0
+}
+
+/// Reads every file, then parses them all once and keeps every result (the
+/// tokens, the tree and the diagnostics), printing the resident set size
+/// before and after parsing, as the Dart oracle does, and what the results
+/// hold: the token store and the node store, each as the bytes of its
+/// arrays.
+fn run_retain(inputs: &[(PathBuf, String)]) {
+    let sources: Vec<Rc<[u16]>> = inputs.iter().map(|(p, _)| read_source(p)).collect();
+    let before = status_bytes("VmRSS");
+    let results: Vec<ParseStringResult> = sources
+        .iter()
+        .map(|s| parse_string(s.clone(), None, None))
+        .collect();
+    let after = status_bytes("VmRSS");
+    let mut nodes = 0usize;
+    let mut node_bytes = 0usize;
+    let mut token_count = 0usize;
+    let mut token_bytes = 0usize;
+    for r in &results {
+        nodes += r.ast.nodes.len();
+        node_bytes +=
+            r.ast.nodes.capacity() * std::mem::size_of::<AstNodeImpl>() + r.ast.list_heap_bytes();
+        token_count += r.tokens.tokens.len();
+        token_bytes += r.tokens.tokens.capacity()
+            * std::mem::size_of::<fe_analyzer_shared::scanner::token::TokenData>()
+            + r.tokens.strings.iter().map(|s| s.len() * 2).sum::<usize>();
+    }
+    println!(
+        "rust retain files={} rss_sources={before} rss_parsed={after} delta={} max_rss={} \
+         nodes={nodes} node_bytes={node_bytes} node_size={} tokens={token_count} token_bytes={token_bytes}",
+        results.len(),
+        after - before,
+        status_bytes("VmHWM"),
+        std::mem::size_of::<AstNodeImpl>()
     );
 }

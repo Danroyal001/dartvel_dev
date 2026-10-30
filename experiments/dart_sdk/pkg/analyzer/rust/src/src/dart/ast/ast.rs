@@ -8,6 +8,8 @@
 // constructor's parameters, and `AstNodeImpl` (upstream's base class) is the
 // enum of them all. Nodes live in an `AstStore` (ast_store.rs) addressed by
 // `NodeId`s, as tokens live in a `TokenStore`; `NO_NODE` is null.
+// A node whose fields take more than 24 bytes is boxed in the enum, which
+// keeps every node at 32 bytes.
 // `beginToken`, `endToken` and `_childEntities2` are translated from
 // upstream's bodies; `is XImpl` and `as XImpl` are `is_x_impl` and `as_x_impl`.
 // Classes that exist only in the V1 view of the AST, which upstream projects
@@ -1721,21 +1723,21 @@ pub enum AstNodeImpl {
     AnonymousBlockBodyImpl(AnonymousBlockBodyImpl),
     AnonymousExpressionBodyImpl(AnonymousExpressionBodyImpl),
     AnonymousMethodInvocationImpl(AnonymousMethodInvocationImpl),
-    ArgumentListImpl(ArgumentListImpl),
+    ArgumentListImpl(Box<ArgumentListImpl>),
     AsExpressionImpl(AsExpressionImpl),
     AssertInitializerImpl(AssertInitializerImpl),
-    AssertStatementImpl(AssertStatementImpl),
+    AssertStatementImpl(Box<AssertStatementImpl>),
     AssignedVariablePatternImpl(AssignedVariablePatternImpl),
     AwaitExpressionImpl(AwaitExpressionImpl),
     BinaryOperatorInvocationImpl(BinaryOperatorInvocationImpl),
-    BlockEnumDeclarationBodyImpl(BlockEnumDeclarationBodyImpl),
+    BlockEnumDeclarationBodyImpl(Box<BlockEnumDeclarationBodyImpl>),
     BlockFunctionBodyImpl(BlockFunctionBodyImpl),
-    BlockImpl(BlockImpl),
-    BlockInstanceDeclarationBodyImpl(BlockInstanceDeclarationBodyImpl),
+    BlockImpl(Box<BlockImpl>),
+    BlockInstanceDeclarationBodyImpl(Box<BlockInstanceDeclarationBodyImpl>),
     BooleanLiteralImpl(BooleanLiteralImpl),
     BreakStatementImpl(BreakStatementImpl),
     CallInvocationImpl(CallInvocationImpl),
-    CascadeExpressionImpl(CascadeExpressionImpl),
+    CascadeExpressionImpl(Box<CascadeExpressionImpl>),
     CascadeIndexAssignmentTargetImpl(CascadeIndexAssignmentTargetImpl),
     CascadeIndexExpressionImpl(CascadeIndexExpressionImpl),
     CascadePropertyAssignmentTargetImpl(CascadePropertyAssignmentTargetImpl),
@@ -1743,31 +1745,31 @@ pub enum AstNodeImpl {
     CascadeSectionImpl(CascadeSectionImpl),
     CaseClauseImpl(CaseClauseImpl),
     CastPatternImpl(CastPatternImpl),
-    CatchClauseImpl(CatchClauseImpl),
+    CatchClauseImpl(Box<CatchClauseImpl>),
     CatchClauseParameterImpl(CatchClauseParameterImpl),
-    ClassDeclaration2Impl(ClassDeclaration2Impl),
-    ClassTypeAlias2Impl(ClassTypeAlias2Impl),
+    ClassDeclaration2Impl(Box<ClassDeclaration2Impl>),
+    ClassTypeAlias2Impl(Box<ClassTypeAlias2Impl>),
     CombinatorNameImpl(CombinatorNameImpl),
-    CommentImpl(CommentImpl),
+    CommentImpl(Box<CommentImpl>),
     CommentReferenceComponentImpl(CommentReferenceComponentImpl),
-    CommentReferenceImpl(CommentReferenceImpl),
-    CompilationUnitImpl(CompilationUnitImpl),
+    CommentReferenceImpl(Box<CommentReferenceImpl>),
+    CompilationUnitImpl(Box<CompilationUnitImpl>),
     CompoundAssignmentImpl(CompoundAssignmentImpl),
     ConditionalExpressionImpl(ConditionalExpressionImpl),
-    ConfigurationImpl(ConfigurationImpl),
+    ConfigurationImpl(Box<ConfigurationImpl>),
     ConstantPatternImpl(ConstantPatternImpl),
-    ConstructorDeclaration2Impl(ConstructorDeclaration2Impl),
+    ConstructorDeclaration2Impl(Box<ConstructorDeclaration2Impl>),
     ConstructorFieldInitializerImpl(ConstructorFieldInitializerImpl),
     ConstructorInvocationImpl(ConstructorInvocationImpl),
     ConstructorReference2Impl(ConstructorReference2Impl),
     ConstructorSelectorImpl(ConstructorSelectorImpl),
     ConstructorTypeReferenceImpl(ConstructorTypeReferenceImpl),
     ContinueStatementImpl(ContinueStatementImpl),
-    DeclaredIdentifierImpl(DeclaredIdentifierImpl),
+    DeclaredIdentifierImpl(Box<DeclaredIdentifierImpl>),
     DeclaredVariablePatternImpl(DeclaredVariablePatternImpl),
-    DelimitedFormalParametersImpl(DelimitedFormalParametersImpl),
+    DelimitedFormalParametersImpl(Box<DelimitedFormalParametersImpl>),
     DirectAssignmentImpl(DirectAssignmentImpl),
-    DoStatementImpl(DoStatementImpl),
+    DoStatementImpl(Box<DoStatementImpl>),
     DotShorthandConstructorInvocation2Impl(DotShorthandConstructorInvocation2Impl),
     DotShorthandNameExpressionImpl(DotShorthandNameExpressionImpl),
     DottedNameImpl(DottedNameImpl),
@@ -1775,60 +1777,60 @@ pub enum AstNodeImpl {
     EmptyFunctionBodyImpl(EmptyFunctionBodyImpl),
     EmptyStatementImpl(EmptyStatementImpl),
     EnumConstantArgumentsImpl(EnumConstantArgumentsImpl),
-    EnumConstantDeclaration2Impl(EnumConstantDeclaration2Impl),
-    EnumDeclaration2Impl(EnumDeclaration2Impl),
-    ExportDirectiveImpl(ExportDirectiveImpl),
+    EnumConstantDeclaration2Impl(Box<EnumConstantDeclaration2Impl>),
+    EnumDeclaration2Impl(Box<EnumDeclaration2Impl>),
+    ExportDirectiveImpl(Box<ExportDirectiveImpl>),
     ExpressionFunctionBodyImpl(ExpressionFunctionBodyImpl),
     ExpressionStatementImpl(ExpressionStatementImpl),
     ExtendsClauseImpl(ExtendsClauseImpl),
-    ExtensionDeclaration2Impl(ExtensionDeclaration2Impl),
+    ExtensionDeclaration2Impl(Box<ExtensionDeclaration2Impl>),
     ExtensionOnClauseImpl(ExtensionOnClauseImpl),
-    ExtensionTypeDeclaration2Impl(ExtensionTypeDeclaration2Impl),
+    ExtensionTypeDeclaration2Impl(Box<ExtensionTypeDeclaration2Impl>),
     Field2Impl(Field2Impl),
-    FieldFormalParameterImpl(FieldFormalParameterImpl),
-    FieldsDeclarationImpl(FieldsDeclarationImpl),
+    FieldFormalParameterImpl(Box<FieldFormalParameterImpl>),
+    FieldsDeclarationImpl(Box<FieldsDeclarationImpl>),
     ForEachPartsWithDeclarationImpl(ForEachPartsWithDeclarationImpl),
     ForEachPartsWithIdentifierImpl(ForEachPartsWithIdentifierImpl),
-    ForEachPartsWithPatternImpl(ForEachPartsWithPatternImpl),
+    ForEachPartsWithPatternImpl(Box<ForEachPartsWithPatternImpl>),
     ForElementImpl(ForElementImpl),
-    ForPartsWithDeclarationsImpl(ForPartsWithDeclarationsImpl),
-    ForPartsWithExpressionImpl(ForPartsWithExpressionImpl),
-    ForPartsWithPatternImpl(ForPartsWithPatternImpl),
+    ForPartsWithDeclarationsImpl(Box<ForPartsWithDeclarationsImpl>),
+    ForPartsWithExpressionImpl(Box<ForPartsWithExpressionImpl>),
+    ForPartsWithPatternImpl(Box<ForPartsWithPatternImpl>),
     ForStatementImpl(ForStatementImpl),
     FormalParameterDefaultClauseImpl(FormalParameterDefaultClauseImpl),
-    FormalParameterListImpl(FormalParameterListImpl),
+    FormalParameterListImpl(Box<FormalParameterListImpl>),
     FunctionExpressionImpl(FunctionExpressionImpl),
-    FunctionTypeAlias2Impl(FunctionTypeAlias2Impl),
+    FunctionTypeAlias2Impl(Box<FunctionTypeAlias2Impl>),
     FunctionTypedFormalParameterSuffixImpl(FunctionTypedFormalParameterSuffixImpl),
     GenericFunctionTypeImpl(GenericFunctionTypeImpl),
-    GenericTypeAlias2Impl(GenericTypeAlias2Impl),
-    GetterDeclarationImpl(GetterDeclarationImpl),
+    GenericTypeAlias2Impl(Box<GenericTypeAlias2Impl>),
+    GetterDeclarationImpl(Box<GetterDeclarationImpl>),
     GuardedPatternImpl(GuardedPatternImpl),
-    HideCombinatorImpl(HideCombinatorImpl),
-    IfElementImpl(IfElementImpl),
+    HideCombinatorImpl(Box<HideCombinatorImpl>),
+    IfElementImpl(Box<IfElementImpl>),
     IfNullAssignmentImpl(IfNullAssignmentImpl),
     IfNullImpl(IfNullImpl),
-    IfStatementImpl(IfStatementImpl),
-    ImplementsClauseImpl(ImplementsClauseImpl),
-    ImportDirectiveImpl(ImportDirectiveImpl),
+    IfStatementImpl(Box<IfStatementImpl>),
+    ImplementsClauseImpl(Box<ImplementsClauseImpl>),
+    ImportDirectiveImpl(Box<ImportDirectiveImpl>),
     ImportPrefixReferenceImpl(ImportPrefixReferenceImpl),
     IncrementOrDecrementExpressionImpl(IncrementOrDecrementExpressionImpl),
     IntegerLiteralImpl(IntegerLiteralImpl),
     InterpolationExpressionImpl(InterpolationExpressionImpl),
-    InterpolationStringImpl(InterpolationStringImpl),
+    InterpolationStringImpl(Box<InterpolationStringImpl>),
     InvalidExpressionAssignmentTargetImpl(InvalidExpressionAssignmentTargetImpl),
     InvalidSuperAssignmentTargetImpl(InvalidSuperAssignmentTargetImpl),
     InvalidSuperExpressionImpl(InvalidSuperExpressionImpl),
     IsExpressionImpl(IsExpressionImpl),
     LabelImpl(LabelImpl),
     LabelReferenceImpl(LabelReferenceImpl),
-    LabeledStatementImpl(LabeledStatementImpl),
-    LibraryDirectiveImpl(LibraryDirectiveImpl),
-    ListLiteralImpl(ListLiteralImpl),
-    ListPatternImpl(ListPatternImpl),
-    LocalFunctionDeclarationImpl(LocalFunctionDeclarationImpl),
+    LabeledStatementImpl(Box<LabeledStatementImpl>),
+    LibraryDirectiveImpl(Box<LibraryDirectiveImpl>),
+    ListLiteralImpl(Box<ListLiteralImpl>),
+    ListPatternImpl(Box<ListPatternImpl>),
+    LocalFunctionDeclarationImpl(Box<LocalFunctionDeclarationImpl>),
     LocalVariableImpl(LocalVariableImpl),
-    LocalVariablesDeclarationImpl(LocalVariablesDeclarationImpl),
+    LocalVariablesDeclarationImpl(Box<LocalVariablesDeclarationImpl>),
     LocalVariablesDeclarationStatementImpl(LocalVariablesDeclarationStatementImpl),
     LogicalAndImpl(LogicalAndImpl),
     LogicalAndPatternImpl(LogicalAndPatternImpl),
@@ -1837,10 +1839,10 @@ pub enum AstNodeImpl {
     LogicalOrPatternImpl(LogicalOrPatternImpl),
     MapLiteralEntryImpl(MapLiteralEntryImpl),
     MapPatternEntryImpl(MapPatternEntryImpl),
-    MapPatternImpl(MapPatternImpl),
-    MethodDeclaration2Impl(MethodDeclaration2Impl),
-    MixinDeclaration2Impl(MixinDeclaration2Impl),
-    MixinOnClauseImpl(MixinOnClauseImpl),
+    MapPatternImpl(Box<MapPatternImpl>),
+    MethodDeclaration2Impl(Box<MethodDeclaration2Impl>),
+    MixinDeclaration2Impl(Box<MixinDeclaration2Impl>),
+    MixinOnClauseImpl(Box<MixinOnClauseImpl>),
     NameWithTypeParametersImpl(NameWithTypeParametersImpl),
     NamedArgumentImpl(NamedArgumentImpl),
     NamedTypeImpl(NamedTypeImpl),
@@ -1851,8 +1853,8 @@ pub enum AstNodeImpl {
     NullAwareElementImpl(NullAwareElementImpl),
     NullCheckPatternImpl(NullCheckPatternImpl),
     NullLiteralImpl(NullLiteralImpl),
-    ObjectPatternImpl(ObjectPatternImpl),
-    OperatorDeclarationImpl(OperatorDeclarationImpl),
+    ObjectPatternImpl(Box<ObjectPatternImpl>),
+    OperatorDeclarationImpl(Box<OperatorDeclarationImpl>),
     ParenthesizedExpressionImpl(ParenthesizedExpressionImpl),
     ParenthesizedPatternImpl(ParenthesizedPatternImpl),
     ParsedCascadeNameImpl(ParsedCascadeNameImpl),
@@ -1863,29 +1865,29 @@ pub enum AstNodeImpl {
     ParsedTypeArgumentsImpl(ParsedTypeArgumentsImpl),
     ParsedUnqualifiedNameImpl(ParsedUnqualifiedNameImpl),
     ParsedValueArgumentsImpl(ParsedValueArgumentsImpl),
-    PartDirectiveImpl(PartDirectiveImpl),
-    PartOfDirectiveImpl(PartOfDirectiveImpl),
+    PartDirectiveImpl(Box<PartDirectiveImpl>),
+    PartOfDirectiveImpl(Box<PartOfDirectiveImpl>),
     PatternAssignmentImpl(PatternAssignmentImpl),
     PatternFieldImpl(PatternFieldImpl),
     PatternFieldNameImpl(PatternFieldNameImpl),
-    PatternVariableDeclarationImpl(PatternVariableDeclarationImpl),
+    PatternVariableDeclarationImpl(Box<PatternVariableDeclarationImpl>),
     PatternVariableDeclarationStatementImpl(PatternVariableDeclarationStatementImpl),
-    PrimaryConstructorBody2Impl(PrimaryConstructorBody2Impl),
+    PrimaryConstructorBody2Impl(Box<PrimaryConstructorBody2Impl>),
     PrimaryConstructorDeclarationImpl(PrimaryConstructorDeclarationImpl),
     PrimaryConstructorNameImpl(PrimaryConstructorNameImpl),
     ReceiverIndexAssignmentTargetImpl(ReceiverIndexAssignmentTargetImpl),
     ReceiverIndexExpressionImpl(ReceiverIndexExpressionImpl),
     ReceiverPropertyAssignmentTargetImpl(ReceiverPropertyAssignmentTargetImpl),
     ReceiverPropertyExtractionImpl(ReceiverPropertyExtractionImpl),
-    RecordLiteralImpl(RecordLiteralImpl),
+    RecordLiteralImpl(Box<RecordLiteralImpl>),
     RecordLiteralNamedFieldImpl(RecordLiteralNamedFieldImpl),
-    RecordPatternImpl(RecordPatternImpl),
-    RecordTypeAnnotationImpl(RecordTypeAnnotationImpl),
-    RecordTypeAnnotationNamedFieldImpl(RecordTypeAnnotationNamedFieldImpl),
-    RecordTypeAnnotationNamedFieldsImpl(RecordTypeAnnotationNamedFieldsImpl),
-    RecordTypeAnnotationPositionalFieldImpl(RecordTypeAnnotationPositionalFieldImpl),
+    RecordPatternImpl(Box<RecordPatternImpl>),
+    RecordTypeAnnotationImpl(Box<RecordTypeAnnotationImpl>),
+    RecordTypeAnnotationNamedFieldImpl(Box<RecordTypeAnnotationNamedFieldImpl>),
+    RecordTypeAnnotationNamedFieldsImpl(Box<RecordTypeAnnotationNamedFieldsImpl>),
+    RecordTypeAnnotationPositionalFieldImpl(Box<RecordTypeAnnotationPositionalFieldImpl>),
     RedirectingConstructorInvocationImpl(RedirectingConstructorInvocationImpl),
-    RegularFormalParameterImpl(RegularFormalParameterImpl),
+    RegularFormalParameterImpl(Box<RegularFormalParameterImpl>),
     RelationalPatternImpl(RelationalPatternImpl),
     RestPatternElementImpl(RestPatternElementImpl),
     RethrowExpressionImpl(RethrowExpressionImpl),
@@ -1893,39 +1895,39 @@ pub enum AstNodeImpl {
     ScriptTagImpl(ScriptTagImpl),
     SemicolonEnumDeclarationBodyImpl(SemicolonEnumDeclarationBodyImpl),
     SemicolonInstanceDeclarationBodyImpl(SemicolonInstanceDeclarationBodyImpl),
-    SetOrMapLiteralImpl(SetOrMapLiteralImpl),
-    SetterDeclarationImpl(SetterDeclarationImpl),
-    ShowCombinatorImpl(ShowCombinatorImpl),
-    SimpleStringLiteralImpl(SimpleStringLiteralImpl),
+    SetOrMapLiteralImpl(Box<SetOrMapLiteralImpl>),
+    SetterDeclarationImpl(Box<SetterDeclarationImpl>),
+    ShowCombinatorImpl(Box<ShowCombinatorImpl>),
+    SimpleStringLiteralImpl(Box<SimpleStringLiteralImpl>),
     SpreadElementImpl(SpreadElementImpl),
     StringInterpolationImpl(StringInterpolationImpl),
     SuperConstructorInvocationImpl(SuperConstructorInvocationImpl),
-    SuperFormalParameterImpl(SuperFormalParameterImpl),
+    SuperFormalParameterImpl(Box<SuperFormalParameterImpl>),
     SuperReferenceImpl(SuperReferenceImpl),
-    SwitchCaseImpl(SwitchCaseImpl),
-    SwitchDefaultImpl(SwitchDefaultImpl),
+    SwitchCaseImpl(Box<SwitchCaseImpl>),
+    SwitchDefaultImpl(Box<SwitchDefaultImpl>),
     SwitchExpressionCaseImpl(SwitchExpressionCaseImpl),
-    SwitchExpressionImpl(SwitchExpressionImpl),
-    SwitchPatternCaseImpl(SwitchPatternCaseImpl),
-    SwitchStatementImpl(SwitchStatementImpl),
-    SymbolLiteralImpl(SymbolLiteralImpl),
+    SwitchExpressionImpl(Box<SwitchExpressionImpl>),
+    SwitchPatternCaseImpl(Box<SwitchPatternCaseImpl>),
+    SwitchStatementImpl(Box<SwitchStatementImpl>),
+    SymbolLiteralImpl(Box<SymbolLiteralImpl>),
     ThisExpressionImpl(ThisExpressionImpl),
     ThrowExpressionImpl(ThrowExpressionImpl),
-    TopLevelFunctionDeclarationImpl(TopLevelFunctionDeclarationImpl),
-    TopLevelGetterDeclarationImpl(TopLevelGetterDeclarationImpl),
-    TopLevelSetterDeclarationImpl(TopLevelSetterDeclarationImpl),
+    TopLevelFunctionDeclarationImpl(Box<TopLevelFunctionDeclarationImpl>),
+    TopLevelGetterDeclarationImpl(Box<TopLevelGetterDeclarationImpl>),
+    TopLevelSetterDeclarationImpl(Box<TopLevelSetterDeclarationImpl>),
     TopLevelVariable2Impl(TopLevelVariable2Impl),
-    TopLevelVariablesDeclarationImpl(TopLevelVariablesDeclarationImpl),
-    TryStatementImpl(TryStatementImpl),
-    TypeArgumentListImpl(TypeArgumentListImpl),
-    TypeParameterImpl(TypeParameterImpl),
-    TypeParameterListImpl(TypeParameterListImpl),
+    TopLevelVariablesDeclarationImpl(Box<TopLevelVariablesDeclarationImpl>),
+    TryStatementImpl(Box<TryStatementImpl>),
+    TypeArgumentListImpl(Box<TypeArgumentListImpl>),
+    TypeParameterImpl(Box<TypeParameterImpl>),
+    TypeParameterListImpl(Box<TypeParameterListImpl>),
     UnaryOperatorInvocationImpl(UnaryOperatorInvocationImpl),
     UnqualifiedNameAssignmentTargetImpl(UnqualifiedNameAssignmentTargetImpl),
     WhenClauseImpl(WhenClauseImpl),
     WhileStatementImpl(WhileStatementImpl),
     WildcardPatternImpl(WildcardPatternImpl),
-    WithClauseImpl(WithClauseImpl),
+    WithClauseImpl(Box<WithClauseImpl>),
     YieldStatementImpl(YieldStatementImpl),
 }
 
@@ -1961,7 +1963,7 @@ impl From<AnonymousMethodInvocationImpl> for AstNodeImpl {
 
 impl From<ArgumentListImpl> for AstNodeImpl {
     fn from(node: ArgumentListImpl) -> AstNodeImpl {
-        AstNodeImpl::ArgumentListImpl(node)
+        AstNodeImpl::ArgumentListImpl(Box::new(node))
     }
 }
 
@@ -1979,7 +1981,7 @@ impl From<AssertInitializerImpl> for AstNodeImpl {
 
 impl From<AssertStatementImpl> for AstNodeImpl {
     fn from(node: AssertStatementImpl) -> AstNodeImpl {
-        AstNodeImpl::AssertStatementImpl(node)
+        AstNodeImpl::AssertStatementImpl(Box::new(node))
     }
 }
 
@@ -2003,7 +2005,7 @@ impl From<BinaryOperatorInvocationImpl> for AstNodeImpl {
 
 impl From<BlockEnumDeclarationBodyImpl> for AstNodeImpl {
     fn from(node: BlockEnumDeclarationBodyImpl) -> AstNodeImpl {
-        AstNodeImpl::BlockEnumDeclarationBodyImpl(node)
+        AstNodeImpl::BlockEnumDeclarationBodyImpl(Box::new(node))
     }
 }
 
@@ -2015,13 +2017,13 @@ impl From<BlockFunctionBodyImpl> for AstNodeImpl {
 
 impl From<BlockImpl> for AstNodeImpl {
     fn from(node: BlockImpl) -> AstNodeImpl {
-        AstNodeImpl::BlockImpl(node)
+        AstNodeImpl::BlockImpl(Box::new(node))
     }
 }
 
 impl From<BlockInstanceDeclarationBodyImpl> for AstNodeImpl {
     fn from(node: BlockInstanceDeclarationBodyImpl) -> AstNodeImpl {
-        AstNodeImpl::BlockInstanceDeclarationBodyImpl(node)
+        AstNodeImpl::BlockInstanceDeclarationBodyImpl(Box::new(node))
     }
 }
 
@@ -2045,7 +2047,7 @@ impl From<CallInvocationImpl> for AstNodeImpl {
 
 impl From<CascadeExpressionImpl> for AstNodeImpl {
     fn from(node: CascadeExpressionImpl) -> AstNodeImpl {
-        AstNodeImpl::CascadeExpressionImpl(node)
+        AstNodeImpl::CascadeExpressionImpl(Box::new(node))
     }
 }
 
@@ -2093,7 +2095,7 @@ impl From<CastPatternImpl> for AstNodeImpl {
 
 impl From<CatchClauseImpl> for AstNodeImpl {
     fn from(node: CatchClauseImpl) -> AstNodeImpl {
-        AstNodeImpl::CatchClauseImpl(node)
+        AstNodeImpl::CatchClauseImpl(Box::new(node))
     }
 }
 
@@ -2105,13 +2107,13 @@ impl From<CatchClauseParameterImpl> for AstNodeImpl {
 
 impl From<ClassDeclaration2Impl> for AstNodeImpl {
     fn from(node: ClassDeclaration2Impl) -> AstNodeImpl {
-        AstNodeImpl::ClassDeclaration2Impl(node)
+        AstNodeImpl::ClassDeclaration2Impl(Box::new(node))
     }
 }
 
 impl From<ClassTypeAlias2Impl> for AstNodeImpl {
     fn from(node: ClassTypeAlias2Impl) -> AstNodeImpl {
-        AstNodeImpl::ClassTypeAlias2Impl(node)
+        AstNodeImpl::ClassTypeAlias2Impl(Box::new(node))
     }
 }
 
@@ -2123,7 +2125,7 @@ impl From<CombinatorNameImpl> for AstNodeImpl {
 
 impl From<CommentImpl> for AstNodeImpl {
     fn from(node: CommentImpl) -> AstNodeImpl {
-        AstNodeImpl::CommentImpl(node)
+        AstNodeImpl::CommentImpl(Box::new(node))
     }
 }
 
@@ -2135,13 +2137,13 @@ impl From<CommentReferenceComponentImpl> for AstNodeImpl {
 
 impl From<CommentReferenceImpl> for AstNodeImpl {
     fn from(node: CommentReferenceImpl) -> AstNodeImpl {
-        AstNodeImpl::CommentReferenceImpl(node)
+        AstNodeImpl::CommentReferenceImpl(Box::new(node))
     }
 }
 
 impl From<CompilationUnitImpl> for AstNodeImpl {
     fn from(node: CompilationUnitImpl) -> AstNodeImpl {
-        AstNodeImpl::CompilationUnitImpl(node)
+        AstNodeImpl::CompilationUnitImpl(Box::new(node))
     }
 }
 
@@ -2159,7 +2161,7 @@ impl From<ConditionalExpressionImpl> for AstNodeImpl {
 
 impl From<ConfigurationImpl> for AstNodeImpl {
     fn from(node: ConfigurationImpl) -> AstNodeImpl {
-        AstNodeImpl::ConfigurationImpl(node)
+        AstNodeImpl::ConfigurationImpl(Box::new(node))
     }
 }
 
@@ -2171,7 +2173,7 @@ impl From<ConstantPatternImpl> for AstNodeImpl {
 
 impl From<ConstructorDeclaration2Impl> for AstNodeImpl {
     fn from(node: ConstructorDeclaration2Impl) -> AstNodeImpl {
-        AstNodeImpl::ConstructorDeclaration2Impl(node)
+        AstNodeImpl::ConstructorDeclaration2Impl(Box::new(node))
     }
 }
 
@@ -2213,7 +2215,7 @@ impl From<ContinueStatementImpl> for AstNodeImpl {
 
 impl From<DeclaredIdentifierImpl> for AstNodeImpl {
     fn from(node: DeclaredIdentifierImpl) -> AstNodeImpl {
-        AstNodeImpl::DeclaredIdentifierImpl(node)
+        AstNodeImpl::DeclaredIdentifierImpl(Box::new(node))
     }
 }
 
@@ -2225,7 +2227,7 @@ impl From<DeclaredVariablePatternImpl> for AstNodeImpl {
 
 impl From<DelimitedFormalParametersImpl> for AstNodeImpl {
     fn from(node: DelimitedFormalParametersImpl) -> AstNodeImpl {
-        AstNodeImpl::DelimitedFormalParametersImpl(node)
+        AstNodeImpl::DelimitedFormalParametersImpl(Box::new(node))
     }
 }
 
@@ -2237,7 +2239,7 @@ impl From<DirectAssignmentImpl> for AstNodeImpl {
 
 impl From<DoStatementImpl> for AstNodeImpl {
     fn from(node: DoStatementImpl) -> AstNodeImpl {
-        AstNodeImpl::DoStatementImpl(node)
+        AstNodeImpl::DoStatementImpl(Box::new(node))
     }
 }
 
@@ -2285,19 +2287,19 @@ impl From<EnumConstantArgumentsImpl> for AstNodeImpl {
 
 impl From<EnumConstantDeclaration2Impl> for AstNodeImpl {
     fn from(node: EnumConstantDeclaration2Impl) -> AstNodeImpl {
-        AstNodeImpl::EnumConstantDeclaration2Impl(node)
+        AstNodeImpl::EnumConstantDeclaration2Impl(Box::new(node))
     }
 }
 
 impl From<EnumDeclaration2Impl> for AstNodeImpl {
     fn from(node: EnumDeclaration2Impl) -> AstNodeImpl {
-        AstNodeImpl::EnumDeclaration2Impl(node)
+        AstNodeImpl::EnumDeclaration2Impl(Box::new(node))
     }
 }
 
 impl From<ExportDirectiveImpl> for AstNodeImpl {
     fn from(node: ExportDirectiveImpl) -> AstNodeImpl {
-        AstNodeImpl::ExportDirectiveImpl(node)
+        AstNodeImpl::ExportDirectiveImpl(Box::new(node))
     }
 }
 
@@ -2321,7 +2323,7 @@ impl From<ExtendsClauseImpl> for AstNodeImpl {
 
 impl From<ExtensionDeclaration2Impl> for AstNodeImpl {
     fn from(node: ExtensionDeclaration2Impl) -> AstNodeImpl {
-        AstNodeImpl::ExtensionDeclaration2Impl(node)
+        AstNodeImpl::ExtensionDeclaration2Impl(Box::new(node))
     }
 }
 
@@ -2333,7 +2335,7 @@ impl From<ExtensionOnClauseImpl> for AstNodeImpl {
 
 impl From<ExtensionTypeDeclaration2Impl> for AstNodeImpl {
     fn from(node: ExtensionTypeDeclaration2Impl) -> AstNodeImpl {
-        AstNodeImpl::ExtensionTypeDeclaration2Impl(node)
+        AstNodeImpl::ExtensionTypeDeclaration2Impl(Box::new(node))
     }
 }
 
@@ -2345,13 +2347,13 @@ impl From<Field2Impl> for AstNodeImpl {
 
 impl From<FieldFormalParameterImpl> for AstNodeImpl {
     fn from(node: FieldFormalParameterImpl) -> AstNodeImpl {
-        AstNodeImpl::FieldFormalParameterImpl(node)
+        AstNodeImpl::FieldFormalParameterImpl(Box::new(node))
     }
 }
 
 impl From<FieldsDeclarationImpl> for AstNodeImpl {
     fn from(node: FieldsDeclarationImpl) -> AstNodeImpl {
-        AstNodeImpl::FieldsDeclarationImpl(node)
+        AstNodeImpl::FieldsDeclarationImpl(Box::new(node))
     }
 }
 
@@ -2369,7 +2371,7 @@ impl From<ForEachPartsWithIdentifierImpl> for AstNodeImpl {
 
 impl From<ForEachPartsWithPatternImpl> for AstNodeImpl {
     fn from(node: ForEachPartsWithPatternImpl) -> AstNodeImpl {
-        AstNodeImpl::ForEachPartsWithPatternImpl(node)
+        AstNodeImpl::ForEachPartsWithPatternImpl(Box::new(node))
     }
 }
 
@@ -2381,19 +2383,19 @@ impl From<ForElementImpl> for AstNodeImpl {
 
 impl From<ForPartsWithDeclarationsImpl> for AstNodeImpl {
     fn from(node: ForPartsWithDeclarationsImpl) -> AstNodeImpl {
-        AstNodeImpl::ForPartsWithDeclarationsImpl(node)
+        AstNodeImpl::ForPartsWithDeclarationsImpl(Box::new(node))
     }
 }
 
 impl From<ForPartsWithExpressionImpl> for AstNodeImpl {
     fn from(node: ForPartsWithExpressionImpl) -> AstNodeImpl {
-        AstNodeImpl::ForPartsWithExpressionImpl(node)
+        AstNodeImpl::ForPartsWithExpressionImpl(Box::new(node))
     }
 }
 
 impl From<ForPartsWithPatternImpl> for AstNodeImpl {
     fn from(node: ForPartsWithPatternImpl) -> AstNodeImpl {
-        AstNodeImpl::ForPartsWithPatternImpl(node)
+        AstNodeImpl::ForPartsWithPatternImpl(Box::new(node))
     }
 }
 
@@ -2411,7 +2413,7 @@ impl From<FormalParameterDefaultClauseImpl> for AstNodeImpl {
 
 impl From<FormalParameterListImpl> for AstNodeImpl {
     fn from(node: FormalParameterListImpl) -> AstNodeImpl {
-        AstNodeImpl::FormalParameterListImpl(node)
+        AstNodeImpl::FormalParameterListImpl(Box::new(node))
     }
 }
 
@@ -2423,7 +2425,7 @@ impl From<FunctionExpressionImpl> for AstNodeImpl {
 
 impl From<FunctionTypeAlias2Impl> for AstNodeImpl {
     fn from(node: FunctionTypeAlias2Impl) -> AstNodeImpl {
-        AstNodeImpl::FunctionTypeAlias2Impl(node)
+        AstNodeImpl::FunctionTypeAlias2Impl(Box::new(node))
     }
 }
 
@@ -2441,13 +2443,13 @@ impl From<GenericFunctionTypeImpl> for AstNodeImpl {
 
 impl From<GenericTypeAlias2Impl> for AstNodeImpl {
     fn from(node: GenericTypeAlias2Impl) -> AstNodeImpl {
-        AstNodeImpl::GenericTypeAlias2Impl(node)
+        AstNodeImpl::GenericTypeAlias2Impl(Box::new(node))
     }
 }
 
 impl From<GetterDeclarationImpl> for AstNodeImpl {
     fn from(node: GetterDeclarationImpl) -> AstNodeImpl {
-        AstNodeImpl::GetterDeclarationImpl(node)
+        AstNodeImpl::GetterDeclarationImpl(Box::new(node))
     }
 }
 
@@ -2459,13 +2461,13 @@ impl From<GuardedPatternImpl> for AstNodeImpl {
 
 impl From<HideCombinatorImpl> for AstNodeImpl {
     fn from(node: HideCombinatorImpl) -> AstNodeImpl {
-        AstNodeImpl::HideCombinatorImpl(node)
+        AstNodeImpl::HideCombinatorImpl(Box::new(node))
     }
 }
 
 impl From<IfElementImpl> for AstNodeImpl {
     fn from(node: IfElementImpl) -> AstNodeImpl {
-        AstNodeImpl::IfElementImpl(node)
+        AstNodeImpl::IfElementImpl(Box::new(node))
     }
 }
 
@@ -2483,19 +2485,19 @@ impl From<IfNullImpl> for AstNodeImpl {
 
 impl From<IfStatementImpl> for AstNodeImpl {
     fn from(node: IfStatementImpl) -> AstNodeImpl {
-        AstNodeImpl::IfStatementImpl(node)
+        AstNodeImpl::IfStatementImpl(Box::new(node))
     }
 }
 
 impl From<ImplementsClauseImpl> for AstNodeImpl {
     fn from(node: ImplementsClauseImpl) -> AstNodeImpl {
-        AstNodeImpl::ImplementsClauseImpl(node)
+        AstNodeImpl::ImplementsClauseImpl(Box::new(node))
     }
 }
 
 impl From<ImportDirectiveImpl> for AstNodeImpl {
     fn from(node: ImportDirectiveImpl) -> AstNodeImpl {
-        AstNodeImpl::ImportDirectiveImpl(node)
+        AstNodeImpl::ImportDirectiveImpl(Box::new(node))
     }
 }
 
@@ -2525,7 +2527,7 @@ impl From<InterpolationExpressionImpl> for AstNodeImpl {
 
 impl From<InterpolationStringImpl> for AstNodeImpl {
     fn from(node: InterpolationStringImpl) -> AstNodeImpl {
-        AstNodeImpl::InterpolationStringImpl(node)
+        AstNodeImpl::InterpolationStringImpl(Box::new(node))
     }
 }
 
@@ -2567,31 +2569,31 @@ impl From<LabelReferenceImpl> for AstNodeImpl {
 
 impl From<LabeledStatementImpl> for AstNodeImpl {
     fn from(node: LabeledStatementImpl) -> AstNodeImpl {
-        AstNodeImpl::LabeledStatementImpl(node)
+        AstNodeImpl::LabeledStatementImpl(Box::new(node))
     }
 }
 
 impl From<LibraryDirectiveImpl> for AstNodeImpl {
     fn from(node: LibraryDirectiveImpl) -> AstNodeImpl {
-        AstNodeImpl::LibraryDirectiveImpl(node)
+        AstNodeImpl::LibraryDirectiveImpl(Box::new(node))
     }
 }
 
 impl From<ListLiteralImpl> for AstNodeImpl {
     fn from(node: ListLiteralImpl) -> AstNodeImpl {
-        AstNodeImpl::ListLiteralImpl(node)
+        AstNodeImpl::ListLiteralImpl(Box::new(node))
     }
 }
 
 impl From<ListPatternImpl> for AstNodeImpl {
     fn from(node: ListPatternImpl) -> AstNodeImpl {
-        AstNodeImpl::ListPatternImpl(node)
+        AstNodeImpl::ListPatternImpl(Box::new(node))
     }
 }
 
 impl From<LocalFunctionDeclarationImpl> for AstNodeImpl {
     fn from(node: LocalFunctionDeclarationImpl) -> AstNodeImpl {
-        AstNodeImpl::LocalFunctionDeclarationImpl(node)
+        AstNodeImpl::LocalFunctionDeclarationImpl(Box::new(node))
     }
 }
 
@@ -2603,7 +2605,7 @@ impl From<LocalVariableImpl> for AstNodeImpl {
 
 impl From<LocalVariablesDeclarationImpl> for AstNodeImpl {
     fn from(node: LocalVariablesDeclarationImpl) -> AstNodeImpl {
-        AstNodeImpl::LocalVariablesDeclarationImpl(node)
+        AstNodeImpl::LocalVariablesDeclarationImpl(Box::new(node))
     }
 }
 
@@ -2657,25 +2659,25 @@ impl From<MapPatternEntryImpl> for AstNodeImpl {
 
 impl From<MapPatternImpl> for AstNodeImpl {
     fn from(node: MapPatternImpl) -> AstNodeImpl {
-        AstNodeImpl::MapPatternImpl(node)
+        AstNodeImpl::MapPatternImpl(Box::new(node))
     }
 }
 
 impl From<MethodDeclaration2Impl> for AstNodeImpl {
     fn from(node: MethodDeclaration2Impl) -> AstNodeImpl {
-        AstNodeImpl::MethodDeclaration2Impl(node)
+        AstNodeImpl::MethodDeclaration2Impl(Box::new(node))
     }
 }
 
 impl From<MixinDeclaration2Impl> for AstNodeImpl {
     fn from(node: MixinDeclaration2Impl) -> AstNodeImpl {
-        AstNodeImpl::MixinDeclaration2Impl(node)
+        AstNodeImpl::MixinDeclaration2Impl(Box::new(node))
     }
 }
 
 impl From<MixinOnClauseImpl> for AstNodeImpl {
     fn from(node: MixinOnClauseImpl) -> AstNodeImpl {
-        AstNodeImpl::MixinOnClauseImpl(node)
+        AstNodeImpl::MixinOnClauseImpl(Box::new(node))
     }
 }
 
@@ -2741,13 +2743,13 @@ impl From<NullLiteralImpl> for AstNodeImpl {
 
 impl From<ObjectPatternImpl> for AstNodeImpl {
     fn from(node: ObjectPatternImpl) -> AstNodeImpl {
-        AstNodeImpl::ObjectPatternImpl(node)
+        AstNodeImpl::ObjectPatternImpl(Box::new(node))
     }
 }
 
 impl From<OperatorDeclarationImpl> for AstNodeImpl {
     fn from(node: OperatorDeclarationImpl) -> AstNodeImpl {
-        AstNodeImpl::OperatorDeclarationImpl(node)
+        AstNodeImpl::OperatorDeclarationImpl(Box::new(node))
     }
 }
 
@@ -2813,13 +2815,13 @@ impl From<ParsedValueArgumentsImpl> for AstNodeImpl {
 
 impl From<PartDirectiveImpl> for AstNodeImpl {
     fn from(node: PartDirectiveImpl) -> AstNodeImpl {
-        AstNodeImpl::PartDirectiveImpl(node)
+        AstNodeImpl::PartDirectiveImpl(Box::new(node))
     }
 }
 
 impl From<PartOfDirectiveImpl> for AstNodeImpl {
     fn from(node: PartOfDirectiveImpl) -> AstNodeImpl {
-        AstNodeImpl::PartOfDirectiveImpl(node)
+        AstNodeImpl::PartOfDirectiveImpl(Box::new(node))
     }
 }
 
@@ -2843,7 +2845,7 @@ impl From<PatternFieldNameImpl> for AstNodeImpl {
 
 impl From<PatternVariableDeclarationImpl> for AstNodeImpl {
     fn from(node: PatternVariableDeclarationImpl) -> AstNodeImpl {
-        AstNodeImpl::PatternVariableDeclarationImpl(node)
+        AstNodeImpl::PatternVariableDeclarationImpl(Box::new(node))
     }
 }
 
@@ -2855,7 +2857,7 @@ impl From<PatternVariableDeclarationStatementImpl> for AstNodeImpl {
 
 impl From<PrimaryConstructorBody2Impl> for AstNodeImpl {
     fn from(node: PrimaryConstructorBody2Impl) -> AstNodeImpl {
-        AstNodeImpl::PrimaryConstructorBody2Impl(node)
+        AstNodeImpl::PrimaryConstructorBody2Impl(Box::new(node))
     }
 }
 
@@ -2897,7 +2899,7 @@ impl From<ReceiverPropertyExtractionImpl> for AstNodeImpl {
 
 impl From<RecordLiteralImpl> for AstNodeImpl {
     fn from(node: RecordLiteralImpl) -> AstNodeImpl {
-        AstNodeImpl::RecordLiteralImpl(node)
+        AstNodeImpl::RecordLiteralImpl(Box::new(node))
     }
 }
 
@@ -2909,31 +2911,31 @@ impl From<RecordLiteralNamedFieldImpl> for AstNodeImpl {
 
 impl From<RecordPatternImpl> for AstNodeImpl {
     fn from(node: RecordPatternImpl) -> AstNodeImpl {
-        AstNodeImpl::RecordPatternImpl(node)
+        AstNodeImpl::RecordPatternImpl(Box::new(node))
     }
 }
 
 impl From<RecordTypeAnnotationImpl> for AstNodeImpl {
     fn from(node: RecordTypeAnnotationImpl) -> AstNodeImpl {
-        AstNodeImpl::RecordTypeAnnotationImpl(node)
+        AstNodeImpl::RecordTypeAnnotationImpl(Box::new(node))
     }
 }
 
 impl From<RecordTypeAnnotationNamedFieldImpl> for AstNodeImpl {
     fn from(node: RecordTypeAnnotationNamedFieldImpl) -> AstNodeImpl {
-        AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(node)
+        AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(Box::new(node))
     }
 }
 
 impl From<RecordTypeAnnotationNamedFieldsImpl> for AstNodeImpl {
     fn from(node: RecordTypeAnnotationNamedFieldsImpl) -> AstNodeImpl {
-        AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(node)
+        AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(Box::new(node))
     }
 }
 
 impl From<RecordTypeAnnotationPositionalFieldImpl> for AstNodeImpl {
     fn from(node: RecordTypeAnnotationPositionalFieldImpl) -> AstNodeImpl {
-        AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(node)
+        AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(Box::new(node))
     }
 }
 
@@ -2945,7 +2947,7 @@ impl From<RedirectingConstructorInvocationImpl> for AstNodeImpl {
 
 impl From<RegularFormalParameterImpl> for AstNodeImpl {
     fn from(node: RegularFormalParameterImpl) -> AstNodeImpl {
-        AstNodeImpl::RegularFormalParameterImpl(node)
+        AstNodeImpl::RegularFormalParameterImpl(Box::new(node))
     }
 }
 
@@ -2993,25 +2995,25 @@ impl From<SemicolonInstanceDeclarationBodyImpl> for AstNodeImpl {
 
 impl From<SetOrMapLiteralImpl> for AstNodeImpl {
     fn from(node: SetOrMapLiteralImpl) -> AstNodeImpl {
-        AstNodeImpl::SetOrMapLiteralImpl(node)
+        AstNodeImpl::SetOrMapLiteralImpl(Box::new(node))
     }
 }
 
 impl From<SetterDeclarationImpl> for AstNodeImpl {
     fn from(node: SetterDeclarationImpl) -> AstNodeImpl {
-        AstNodeImpl::SetterDeclarationImpl(node)
+        AstNodeImpl::SetterDeclarationImpl(Box::new(node))
     }
 }
 
 impl From<ShowCombinatorImpl> for AstNodeImpl {
     fn from(node: ShowCombinatorImpl) -> AstNodeImpl {
-        AstNodeImpl::ShowCombinatorImpl(node)
+        AstNodeImpl::ShowCombinatorImpl(Box::new(node))
     }
 }
 
 impl From<SimpleStringLiteralImpl> for AstNodeImpl {
     fn from(node: SimpleStringLiteralImpl) -> AstNodeImpl {
-        AstNodeImpl::SimpleStringLiteralImpl(node)
+        AstNodeImpl::SimpleStringLiteralImpl(Box::new(node))
     }
 }
 
@@ -3035,7 +3037,7 @@ impl From<SuperConstructorInvocationImpl> for AstNodeImpl {
 
 impl From<SuperFormalParameterImpl> for AstNodeImpl {
     fn from(node: SuperFormalParameterImpl) -> AstNodeImpl {
-        AstNodeImpl::SuperFormalParameterImpl(node)
+        AstNodeImpl::SuperFormalParameterImpl(Box::new(node))
     }
 }
 
@@ -3047,13 +3049,13 @@ impl From<SuperReferenceImpl> for AstNodeImpl {
 
 impl From<SwitchCaseImpl> for AstNodeImpl {
     fn from(node: SwitchCaseImpl) -> AstNodeImpl {
-        AstNodeImpl::SwitchCaseImpl(node)
+        AstNodeImpl::SwitchCaseImpl(Box::new(node))
     }
 }
 
 impl From<SwitchDefaultImpl> for AstNodeImpl {
     fn from(node: SwitchDefaultImpl) -> AstNodeImpl {
-        AstNodeImpl::SwitchDefaultImpl(node)
+        AstNodeImpl::SwitchDefaultImpl(Box::new(node))
     }
 }
 
@@ -3065,25 +3067,25 @@ impl From<SwitchExpressionCaseImpl> for AstNodeImpl {
 
 impl From<SwitchExpressionImpl> for AstNodeImpl {
     fn from(node: SwitchExpressionImpl) -> AstNodeImpl {
-        AstNodeImpl::SwitchExpressionImpl(node)
+        AstNodeImpl::SwitchExpressionImpl(Box::new(node))
     }
 }
 
 impl From<SwitchPatternCaseImpl> for AstNodeImpl {
     fn from(node: SwitchPatternCaseImpl) -> AstNodeImpl {
-        AstNodeImpl::SwitchPatternCaseImpl(node)
+        AstNodeImpl::SwitchPatternCaseImpl(Box::new(node))
     }
 }
 
 impl From<SwitchStatementImpl> for AstNodeImpl {
     fn from(node: SwitchStatementImpl) -> AstNodeImpl {
-        AstNodeImpl::SwitchStatementImpl(node)
+        AstNodeImpl::SwitchStatementImpl(Box::new(node))
     }
 }
 
 impl From<SymbolLiteralImpl> for AstNodeImpl {
     fn from(node: SymbolLiteralImpl) -> AstNodeImpl {
-        AstNodeImpl::SymbolLiteralImpl(node)
+        AstNodeImpl::SymbolLiteralImpl(Box::new(node))
     }
 }
 
@@ -3101,19 +3103,19 @@ impl From<ThrowExpressionImpl> for AstNodeImpl {
 
 impl From<TopLevelFunctionDeclarationImpl> for AstNodeImpl {
     fn from(node: TopLevelFunctionDeclarationImpl) -> AstNodeImpl {
-        AstNodeImpl::TopLevelFunctionDeclarationImpl(node)
+        AstNodeImpl::TopLevelFunctionDeclarationImpl(Box::new(node))
     }
 }
 
 impl From<TopLevelGetterDeclarationImpl> for AstNodeImpl {
     fn from(node: TopLevelGetterDeclarationImpl) -> AstNodeImpl {
-        AstNodeImpl::TopLevelGetterDeclarationImpl(node)
+        AstNodeImpl::TopLevelGetterDeclarationImpl(Box::new(node))
     }
 }
 
 impl From<TopLevelSetterDeclarationImpl> for AstNodeImpl {
     fn from(node: TopLevelSetterDeclarationImpl) -> AstNodeImpl {
-        AstNodeImpl::TopLevelSetterDeclarationImpl(node)
+        AstNodeImpl::TopLevelSetterDeclarationImpl(Box::new(node))
     }
 }
 
@@ -3125,31 +3127,31 @@ impl From<TopLevelVariable2Impl> for AstNodeImpl {
 
 impl From<TopLevelVariablesDeclarationImpl> for AstNodeImpl {
     fn from(node: TopLevelVariablesDeclarationImpl) -> AstNodeImpl {
-        AstNodeImpl::TopLevelVariablesDeclarationImpl(node)
+        AstNodeImpl::TopLevelVariablesDeclarationImpl(Box::new(node))
     }
 }
 
 impl From<TryStatementImpl> for AstNodeImpl {
     fn from(node: TryStatementImpl) -> AstNodeImpl {
-        AstNodeImpl::TryStatementImpl(node)
+        AstNodeImpl::TryStatementImpl(Box::new(node))
     }
 }
 
 impl From<TypeArgumentListImpl> for AstNodeImpl {
     fn from(node: TypeArgumentListImpl) -> AstNodeImpl {
-        AstNodeImpl::TypeArgumentListImpl(node)
+        AstNodeImpl::TypeArgumentListImpl(Box::new(node))
     }
 }
 
 impl From<TypeParameterImpl> for AstNodeImpl {
     fn from(node: TypeParameterImpl) -> AstNodeImpl {
-        AstNodeImpl::TypeParameterImpl(node)
+        AstNodeImpl::TypeParameterImpl(Box::new(node))
     }
 }
 
 impl From<TypeParameterListImpl> for AstNodeImpl {
     fn from(node: TypeParameterListImpl) -> AstNodeImpl {
-        AstNodeImpl::TypeParameterListImpl(node)
+        AstNodeImpl::TypeParameterListImpl(Box::new(node))
     }
 }
 
@@ -3185,7 +3187,7 @@ impl From<WildcardPatternImpl> for AstNodeImpl {
 
 impl From<WithClauseImpl> for AstNodeImpl {
     fn from(node: WithClauseImpl) -> AstNodeImpl {
-        AstNodeImpl::WithClauseImpl(node)
+        AstNodeImpl::WithClauseImpl(Box::new(node))
     }
 }
 

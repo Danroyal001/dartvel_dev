@@ -711,14 +711,22 @@ void main(List<String> args) {
   out.writeln('#[derive(Clone, Debug)]');
   out.writeln('pub enum AstNodeImpl {');
   for (ClassInfo c in concrete) {
-    out.writeln('    ${c.name}(${c.name}),');
+    out.writeln(
+      isBoxed(c)
+          ? '    ${c.name}(Box<${c.name}>),'
+          : '    ${c.name}(${c.name}),',
+    );
   }
   out.writeln('}');
   out.writeln();
   for (ClassInfo c in concrete) {
     out.writeln('impl From<${c.name}> for AstNodeImpl {');
     out.writeln('    fn from(node: ${c.name}) -> AstNodeImpl {');
-    out.writeln('        AstNodeImpl::${c.name}(node)');
+    out.writeln(
+      isBoxed(c)
+          ? '        AstNodeImpl::${c.name}(Box::new(node))'
+          : '        AstNodeImpl::${c.name}(node)',
+    );
     out.writeln('    }');
     out.writeln('}');
     out.writeln();
@@ -847,6 +855,8 @@ const String header = '''
 // constructor's parameters, and `AstNodeImpl` (upstream's base class) is the
 // enum of them all. Nodes live in an `AstStore` (ast_store.rs) addressed by
 // `NodeId`s, as tokens live in a `TokenStore`; `NO_NODE` is null.
+// A node whose fields take more than 24 bytes is boxed in the enum, which
+// keeps every node at 32 bytes.
 // `beginToken`, `endToken` and `_childEntities2` are translated from
 // upstream's bodies; `is XImpl` and `as XImpl` are `is_x_impl` and `as_x_impl`.
 // Classes that exist only in the V1 view of the AST, which upstream projects
@@ -885,3 +895,26 @@ const String handMarker = '''
 // that upstream writes by hand and that parsing uses.
 // ---------------------------------------------------------------------------
 ''';
+
+/// The bytes a struct's fields take, roughly (a `Vec` is 24).
+int structSize(ClassInfo c) {
+  int size = 0;
+  for (Field f in fieldsOf(c)) {
+    size += switch (f.kind) {
+      Kind.token || Kind.node => 4,
+      Kind.nodeList || Kind.tokenList => 24,
+      Kind.other => switch (f.type) {
+        'bool' || 'ParameterKind' || 'IncrementOrDecrementPosition' => 1,
+        'int' || 'double' => 8,
+        'int?' => 16,
+        _ => 24,
+      },
+    };
+  }
+  return size;
+}
+
+/// Whether `AstNodeImpl` holds the class's struct in a box: a struct larger
+/// than most nodes would make every node as large, since an enum is as large
+/// as its largest variant.
+bool isBoxed(ClassInfo c) => structSize(c) > 24;

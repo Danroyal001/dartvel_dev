@@ -165,3 +165,23 @@ impl AstStore {
         entities.entities
     }
 }
+
+impl AstStore {
+    /// The heap bytes of the nodes' own lists (node and token lists, literal
+    /// values), which [nodes] does not hold inline.
+    pub fn list_heap_bytes(&self) -> usize {
+        let mut bytes = 0;
+        for node in &self.nodes {
+            let mut entities = ChildEntities::default();
+            node.child_entities2(self, &TokenStore::default(), &mut entities);
+            for entity in entities.entities {
+                match entity.value {
+                    ChildValue::NodeList(l) => bytes += l.len() * 4,
+                    ChildValue::TokenList(l) => bytes += l.len() * 4,
+                    _ => {}
+                }
+            }
+        }
+        bytes
+    }
+}
