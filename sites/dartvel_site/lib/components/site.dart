@@ -85,8 +85,8 @@ const String kDartvelVersion = '0.13.16';
 /// How many spec sections the current release ships in full, in part, and
 /// only as a design, held to docs/spec-status.json by
 /// test/docs_version_test.dart.
-const int kSpecShipped = 24;
-const int kSpecPartial = 80;
+const int kSpecShipped = 25;
+const int kSpecPartial = 79;
 const int kSpecDesigned = 2;
 
 /// The sizes the site sets type at, and the only ones it may.

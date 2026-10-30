@@ -228,21 +228,20 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
           'dartvel build web-server',
           'dartvel deploy',
           'dartvel upgrade --plan',
+          'dartvel upgrade --apply',
         ]),
         Bullets(<String>[
           'Every step is one command, from a new project to a deployed '
               'server.',
           'upgrade --plan lists what a new Dartvel release would change in '
-              'your project, and `dartvel migrate-code --apply` rewrites the '
-              'source for you.',
+              'your project and writes nothing. upgrade --apply makes those '
+              'changes: the SDK and Dartvel constraints, the renamed APIs, '
+              'then pub upgrade and the generator. It refuses, writing '
+              'nothing, while the plan has anything blocked.',
+          '`dartvel upgrade` on its own updates the CLI, and never your '
+              'project.',
         ]),
-        DocsStatus(
-          'The Golden Path',
-          missing: <String>[
-            '`dartvel upgrade` updates the CLI. Applying the project changes '
-                'listed by upgrade --plan is Planned; the plan is read-only.',
-          ],
-        ),
+        DocsStatus('The Golden Path'),
       ],
     ),
     DocsSection(
@@ -295,7 +294,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
           'Dartvel $kDartvelVersion ships $kSpecShipped spec sections in full '
               'and $kSpecPartial in part; $kSpecDesigned are designed and not '
               'built yet.',
-          'Twenty-five sections are a frozen public contract with unfinished '
+          'Twenty-four sections are a frozen public contract with unfinished '
               'code behind them. Contract stability and implementation '
               'status are tracked separately.',
           'Pages in these docs mark partial features and say what is '

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../upgrade/upgrade_apply.dart';
 import '../upgrade/upgrade_plan.dart';
 import 'update_command.dart';
 
@@ -17,6 +18,16 @@ class UpgradeCommand extends Command<void> {
           'dependencies, source, generated code, protocol, database, modules, '
           'plugins and deployment. Writes nothing.',
     );
+    argParser.addFlag(
+      'apply',
+      negatable: false,
+      help:
+          'Apply the project plan: raise the SDK constraint to the floor, move '
+          'each Dartvel package to this release, rewrite deprecated names, '
+          'then run pub upgrade and the generator. Refused, with nothing '
+          'written, while anything in the plan is blocked. Does not upgrade '
+          'the CLI.',
+    );
   }
 
   @override
@@ -24,16 +35,18 @@ class UpgradeCommand extends Command<void> {
 
   @override
   final String description =
-      'Upgrade the CLI, or plan a project upgrade with --plan.';
+      'Upgrade the CLI, or plan a project upgrade with --plan and apply it '
+      'with --apply.';
 
   @override
-  String get invocation => 'dartvel upgrade [--plan]';
+  String get invocation => 'dartvel upgrade [--plan | --apply]';
 
   @override
   Future<void> run() async {
     final int code = await dvRunUpgrade(
       Directory.current.path,
       plan: argResults!['plan'] as bool,
+      apply: argResults!['apply'] as bool,
       out: stdout.writeln,
     );
     if (code != 0) exitCode = code;
@@ -46,10 +59,36 @@ Future<int> dvRunUpgrade(
   String root, {
   required bool plan,
   required void Function(String) out,
+  bool apply = false,
   Future<void> Function()? selfUpgrade,
   DVToolchainProbe? probe,
   DVGeneratedCheck? generatedCheck,
+  DVPubUpgrade? pubUpgrade,
+  Future<void> Function()? generate,
+  Future<void> Function()? beforeWrite,
 }) async {
+  if (plan && apply) {
+    out('--plan writes nothing and --apply writes the plan; use one.');
+    return 1;
+  }
+  if (apply) {
+    if (!File(p.join(root, 'pubspec.yaml')).existsSync()) {
+      out('No pubspec.yaml here. Run upgrade --apply from the root of a '
+          'project.');
+      return 1;
+    }
+    // The project only. The CLI is upgraded by `dartvel upgrade` alone, so
+    // one command never makes two changes nobody reviewed together.
+    return dvApplyUpgrade(
+      root,
+      out: out,
+      probe: probe,
+      generatedCheck: generatedCheck,
+      pubUpgrade: pubUpgrade,
+      generate: generate,
+      beforeWrite: beforeWrite,
+    );
+  }
   if (!plan) {
     if (selfUpgrade != null) {
       await selfUpgrade();

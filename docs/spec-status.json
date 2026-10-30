@@ -1880,7 +1880,7 @@
     {
       "section": "The Golden Path",
       "stability": "Contract",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         "packages/dartvel_cli/lib/src/commands/init_command.dart",
         "packages/dartvel_cli/lib/src/commands/dev_command.dart",
@@ -1896,9 +1896,10 @@
         "packages/dartvel_cli/test/self_upgrade_test.dart",
         "packages/dartvel_cli/test/self_update_runtime_guard_test.dart",
         "packages/dartvel_cli/test/compatibility_check_command_test.dart",
+        "packages/dartvel_cli/lib/src/upgrade/upgrade_apply.dart",
+        "packages/dartvel_cli/test/upgrade_apply_test.dart",
         "packages/dartvel_cli/test/migrate_code_test.dart"
-      ],
-      "absent": "Every step is a real command: create, init, dev, generate, db migrate, test, build, deploy, logs, and for the last step dartvel upgrade --plan, dartvel compatibility-check and dartvel migrate-code. Absent: applying a project upgrade plan. dartvel upgrade without --plan installs the latest CLI transactionally; the plan lists project changes the developer applies, with migrate-code --apply for source rewrites. What the three commands check and do not check is recorded under Unified Development, Transparency, and Contracts and Protocol Versioning and Client Compatibility."
+      ]
     },
     {
       "section": "Adoption",

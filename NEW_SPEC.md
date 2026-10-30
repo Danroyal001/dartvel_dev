@@ -13117,7 +13117,7 @@ In:
 
 # The Golden Path
 
-Stability: `Contract` · Status: `Partial`
+Stability: `Contract` · Status: `Shipped`
 
 Dartvel provides one clearly recommended path from project creation to
 production. Advanced customization is always available, but the default
@@ -13252,10 +13252,16 @@ granted `Studio.access` with `dartvel admin grant`. There is no `dartvel
 studio` command.
 
 `dartvel upgrade --plan`, `dartvel compatibility-check` and `dartvel
-migrate-code` complete the last step. All three exist. `dartvel upgrade`
-without `--plan` upgrades the CLI binary
-transactionally; applying a project plan remains manual. `dartvel update`
-also upgrades the CLI; `dartvel updates` ships application patches.
+migrate-code` complete the last step. All three exist. `dartvel upgrade
+--apply` applies the project plan: it raises the SDK constraint to the floor,
+moves each Dartvel package's constraint to the CLI's release, rewrites the
+deprecated names `migrate-code` rewrites, then runs `pub upgrade` and the
+generator. It is refused, with nothing written, while anything else in the
+plan is blocked -- a third-party constraint, an installed toolchain, a project
+newer than the CLI, a module -- or when a file changed after the plan was
+made, and it never upgrades the CLI. `dartvel upgrade` with no flag upgrades
+the CLI binary transactionally. `dartvel update` also upgrades the CLI;
+`dartvel updates` ships application patches.
 
 During development, generation happens incrementally through `dartvel dev`.
 
@@ -16328,8 +16334,12 @@ names `migrate-code` would rewrite, the generated files this CLI's generator
 would change with the lines each gains and loses, the protocol lockfile, and
 each mounted module's Dartvel constraints. An area it cannot check is listed as
 not checked, never as unchanged, and a project already newer than the CLI is
-blocked rather than planned backwards. Applying the project plan remains
-manual; upgrading the CLI does not modify project source or dependencies.
+blocked rather than planned backwards. `dartvel upgrade --apply` applies the
+plan's mechanical changes -- the SDK constraint, each Dartvel package's
+constraint, the `migrate-code` rewrites, then `pub upgrade` and the generator
+-- and refuses, writing nothing, while anything else is blocked or a file
+changed after the plan was made. Upgrading the CLI does not modify project
+source or dependencies, and applying the plan does not upgrade the CLI.
 
 `dartvel migrate-code` is a dry run that prints every rewritten line;
 `--apply` writes them, and writes nothing if a file changed after the plan was

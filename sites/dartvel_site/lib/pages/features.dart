@@ -16,6 +16,13 @@ import '../components/site.dart';
 /// a private one at all.
 const List<(String, String, String)> shipped = <(String, String, String)>[
   (
+    'The Golden Path',
+    'create to upgrade',
+    'One path from dartvel create to production: dev, generate, db migrate, '
+        'test, build, deploy, and upgrade --plan to see what an upgrade '
+        'changes, then upgrade --apply to make those changes.',
+  ),
+  (
     'UI',
     'DVBox and DVText',
     'One layout primitive with a modifier chain. DVBox.list, .row, .grid and '
@@ -548,13 +555,6 @@ const List<(String, String, String)> partial = <(String, String, String)>[
         'Absent: a check that the Swift compiles in Xcode.',
   ),
   (
-    'The Golden Path',
-    'create to deploy',
-    'Present: create, dev, generate, db migrate, test, build, deploy and '
-        'upgrade --plan. Absent: applying an upgrade, so you make the changes '
-        'the plan lists.',
-  ),
-  (
     'Adoption',
     '`dartvel init`',
     'Present: `dartvel init` adds Dartvel to an existing Flutter project and '
@@ -695,7 +695,7 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
     Section(
       children: <Widget>[
         Eyebrow('WHAT WORKS TODAY'),
-        Heading('Twenty-four shipped sections.', level: 1),
+        Heading('Twenty-five shipped sections.', level: 1),
         Bullets(<String>[
           'Seventy-nine more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '

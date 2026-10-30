@@ -575,9 +575,9 @@ Widget _expoComparison(BuildContext context) => const Section(
 Widget _honest(BuildContext context) => const Section(
   children: <Widget>[
     Eyebrow('STATUS'),
-    Heading('24 spec sections ship today.'),
+    Heading('25 spec sections ship today.'),
     DVBox.wrapLine(<Widget>[
-      Stat('24', 'sections shipped'),
+      Stat('25', 'sections shipped'),
       Stat('79', 'sections partial'),
       Stat('0.11.5', 'current version'),
     ], spacing: 14),
