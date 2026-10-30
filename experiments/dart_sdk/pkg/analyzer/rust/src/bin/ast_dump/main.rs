@@ -72,6 +72,9 @@ fn main() {
     let out = out.unwrap();
     for (path, relative) in &inputs {
         let source = read_source(path);
+        if std::env::var_os("AST_TRACE").is_some() {
+            eprintln!("{relative}");
+        }
         let dump = if api { api::dump_api(source) } else { dump_file(source) };
         let extension = if api { "api" } else { "ast" };
         let target = PathBuf::from(format!("{out}/{relative}.{extension}"));

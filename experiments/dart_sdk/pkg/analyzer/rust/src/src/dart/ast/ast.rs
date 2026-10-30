@@ -27679,7 +27679,7 @@ impl MethodInvocationImpl {
 
     pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
         let _ = (ast, id, &entities);
-        entities.add_node("target", if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE });
+        entities.add_node("target", self.target(ast, id));
         entities.add_token("operator", self.operator_(ast, id));
         entities.add_node("methodName", self.method_name(ast, id));
         entities.add_node("typeArguments", self.type_arguments(ast, id));
@@ -27689,7 +27689,7 @@ impl MethodInvocationImpl {
     pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
         let _ = (ast, id, &visitor);
         {
-            let child = if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE };
+            let child = self.target(ast, id);
             if child != NO_NODE {
                 ast.accept(child, visitor);
             }
@@ -27717,7 +27717,7 @@ impl MethodInvocationImpl {
     pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
         let _ = (ast, id, range_offset, range_end);
         {
-            let child = if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE };
+            let child = self.target(ast, id);
             if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
                 return child;
             }
@@ -30700,7 +30700,7 @@ impl PropertyAccessImpl {
 
     pub fn child_entities1(&self, ast: Ast<'_>, id: NodeId, entities: &mut ChildEntities1) {
         let _ = (ast, id, &entities);
-        entities.add_node("target", if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE });
+        entities.add_node("target", self.target(ast, id));
         entities.add_token("operator", self.operator_(ast, id));
         entities.add_node("propertyName", self.property_name(ast, id));
     }
@@ -30708,7 +30708,7 @@ impl PropertyAccessImpl {
     pub fn visit_children1<V: AstVisitor + ?Sized>(&self, ast: Ast<'_>, id: NodeId, visitor: &mut V) {
         let _ = (ast, id, &visitor);
         {
-            let child = if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE };
+            let child = self.target(ast, id);
             if child != NO_NODE {
                 ast.accept(child, visitor);
             }
@@ -30724,7 +30724,7 @@ impl PropertyAccessImpl {
     pub fn child_containing_range1(&self, ast: Ast<'_>, id: NodeId, range_offset: i32, range_end: i32) -> NodeId {
         let _ = (ast, id, range_offset, range_end);
         {
-            let child = if self.target2 != NO_NODE { ast.to_v1_expression(self.target2) } else { NO_NODE };
+            let child = self.target(ast, id);
             if child != NO_NODE && ast.contains_offset(child, range_offset, range_end) {
                 return child;
             }
@@ -35481,6 +35481,8874 @@ impl YieldStatementImpl {
             }
         }
         NO_NODE
+    }
+}
+
+impl AstStore {
+    /// `parent.replaceChild(old, new_)`.
+    pub fn replace_child(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        match self.node(parent) {
+            AstNodeImpl::AdjacentStringsImpl(_) => self.replace_child_adjacent_strings_impl(tokens, parent, old, new_),
+            AstNodeImpl::AnnotationImpl(_) => self.replace_child_annotation_impl(tokens, parent, old, new_),
+            AstNodeImpl::AnonymousBlockBodyImpl(_) => self.replace_child_anonymous_block_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::AnonymousExpressionBodyImpl(_) => self.replace_child_anonymous_expression_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::AnonymousMethodInvocationImpl(_) => self.replace_child_anonymous_method_invocation_impl(tokens, parent, old, new_),
+            AstNodeImpl::ArgumentListImpl(_) => self.replace_child_argument_list_impl(tokens, parent, old, new_),
+            AstNodeImpl::AsExpressionImpl(_) => self.replace_child_as_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::AssertInitializerImpl(_) => self.replace_child_assert_initializer_impl(tokens, parent, old, new_),
+            AstNodeImpl::AssertStatementImpl(_) => self.replace_child_assert_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::AssignedVariablePatternImpl(_) => self.replace_child_assigned_variable_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::AssignmentExpressionImpl(_) => self.replace_child_assignment_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::AwaitExpressionImpl(_) => self.replace_child_await_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::BinaryExpressionImpl(_) => self.replace_child_binary_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::BinaryOperatorInvocationImpl(_) => self.replace_child_binary_operator_invocation_impl(tokens, parent, old, new_),
+            AstNodeImpl::BlockClassBodyImpl(_) => self.replace_child_block_class_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::BlockEnumBodyImpl(_) => self.replace_child_block_enum_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(_) => self.replace_child_block_enum_declaration_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::BlockFunctionBodyImpl(_) => self.replace_child_block_function_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::BlockImpl(_) => self.replace_child_block_impl(tokens, parent, old, new_),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(_) => self.replace_child_block_instance_declaration_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::BooleanLiteralImpl(_) => self.replace_child_boolean_literal_impl(tokens, parent, old, new_),
+            AstNodeImpl::BreakStatementImpl(_) => self.replace_child_break_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::CallInvocationImpl(_) => self.replace_child_call_invocation_impl(tokens, parent, old, new_),
+            AstNodeImpl::CascadeExpressionImpl(_) => self.replace_child_cascade_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(_) => self.replace_child_cascade_index_assignment_target_impl(tokens, parent, old, new_),
+            AstNodeImpl::CascadeIndexExpressionImpl(_) => self.replace_child_cascade_index_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(_) => self.replace_child_cascade_property_assignment_target_impl(tokens, parent, old, new_),
+            AstNodeImpl::CascadePropertyExtractionImpl(_) => self.replace_child_cascade_property_extraction_impl(tokens, parent, old, new_),
+            AstNodeImpl::CascadeSectionImpl(_) => self.replace_child_cascade_section_impl(tokens, parent, old, new_),
+            AstNodeImpl::CaseClauseImpl(_) => self.replace_child_case_clause_impl(tokens, parent, old, new_),
+            AstNodeImpl::CastPatternImpl(_) => self.replace_child_cast_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::CatchClauseImpl(_) => self.replace_child_catch_clause_impl(tokens, parent, old, new_),
+            AstNodeImpl::CatchClauseParameterImpl(_) => self.replace_child_catch_clause_parameter_impl(tokens, parent, old, new_),
+            AstNodeImpl::ClassDeclaration2Impl(_) => self.replace_child_class_declaration2_impl(tokens, parent, old, new_),
+            AstNodeImpl::ClassDeclarationImpl(_) => self.replace_child_class_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::ClassTypeAlias2Impl(_) => self.replace_child_class_type_alias2_impl(tokens, parent, old, new_),
+            AstNodeImpl::ClassTypeAliasImpl(_) => self.replace_child_class_type_alias_impl(tokens, parent, old, new_),
+            AstNodeImpl::CombinatorNameImpl(_) => self.replace_child_combinator_name_impl(tokens, parent, old, new_),
+            AstNodeImpl::CommentImpl(_) => self.replace_child_comment_impl(tokens, parent, old, new_),
+            AstNodeImpl::CommentReferenceComponentImpl(_) => self.replace_child_comment_reference_component_impl(tokens, parent, old, new_),
+            AstNodeImpl::CommentReferenceImpl(_) => self.replace_child_comment_reference_impl(tokens, parent, old, new_),
+            AstNodeImpl::CompilationUnitImpl(_) => self.replace_child_compilation_unit_impl(tokens, parent, old, new_),
+            AstNodeImpl::CompoundAssignmentImpl(_) => self.replace_child_compound_assignment_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConditionalExpressionImpl(_) => self.replace_child_conditional_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConfigurationImpl(_) => self.replace_child_configuration_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConstantPatternImpl(_) => self.replace_child_constant_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConstructorDeclaration2Impl(_) => self.replace_child_constructor_declaration2_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConstructorDeclarationImpl(_) => self.replace_child_constructor_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConstructorFieldInitializerImpl(_) => self.replace_child_constructor_field_initializer_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConstructorInvocationImpl(_) => self.replace_child_constructor_invocation_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConstructorNameImpl(_) => self.replace_child_constructor_name_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConstructorReference2Impl(_) => self.replace_child_constructor_reference2_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConstructorReferenceImpl(_) => self.replace_child_constructor_reference_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConstructorSelectorImpl(_) => self.replace_child_constructor_selector_impl(tokens, parent, old, new_),
+            AstNodeImpl::ConstructorTypeReferenceImpl(_) => self.replace_child_constructor_type_reference_impl(tokens, parent, old, new_),
+            AstNodeImpl::ContinueStatementImpl(_) => self.replace_child_continue_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::DeclaredIdentifierImpl(_) => self.replace_child_declared_identifier_impl(tokens, parent, old, new_),
+            AstNodeImpl::DeclaredVariablePatternImpl(_) => self.replace_child_declared_variable_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::DelimitedFormalParametersImpl(_) => self.replace_child_delimited_formal_parameters_impl(tokens, parent, old, new_),
+            AstNodeImpl::DirectAssignmentImpl(_) => self.replace_child_direct_assignment_impl(tokens, parent, old, new_),
+            AstNodeImpl::DoStatementImpl(_) => self.replace_child_do_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(_) => self.replace_child_dot_shorthand_constructor_invocation2_impl(tokens, parent, old, new_),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(_) => self.replace_child_dot_shorthand_constructor_invocation_impl(tokens, parent, old, new_),
+            AstNodeImpl::DotShorthandInvocationImpl(_) => self.replace_child_dot_shorthand_invocation_impl(tokens, parent, old, new_),
+            AstNodeImpl::DotShorthandNameExpressionImpl(_) => self.replace_child_dot_shorthand_name_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(_) => self.replace_child_dot_shorthand_property_access_impl(tokens, parent, old, new_),
+            AstNodeImpl::DottedNameImpl(_) => self.replace_child_dotted_name_impl(tokens, parent, old, new_),
+            AstNodeImpl::DoubleLiteralImpl(_) => self.replace_child_double_literal_impl(tokens, parent, old, new_),
+            AstNodeImpl::EmptyClassBodyImpl(_) => self.replace_child_empty_class_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::EmptyEnumBodyImpl(_) => self.replace_child_empty_enum_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::EmptyFunctionBodyImpl(_) => self.replace_child_empty_function_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::EmptyStatementImpl(_) => self.replace_child_empty_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::EnumConstantArgumentsImpl(_) => self.replace_child_enum_constant_arguments_impl(tokens, parent, old, new_),
+            AstNodeImpl::EnumConstantDeclaration2Impl(_) => self.replace_child_enum_constant_declaration2_impl(tokens, parent, old, new_),
+            AstNodeImpl::EnumConstantDeclarationImpl(_) => self.replace_child_enum_constant_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::EnumDeclaration2Impl(_) => self.replace_child_enum_declaration2_impl(tokens, parent, old, new_),
+            AstNodeImpl::EnumDeclarationImpl(_) => self.replace_child_enum_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::ExportDirectiveImpl(_) => self.replace_child_export_directive_impl(tokens, parent, old, new_),
+            AstNodeImpl::ExpressionFunctionBodyImpl(_) => self.replace_child_expression_function_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::ExpressionStatementImpl(_) => self.replace_child_expression_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::ExtendsClauseImpl(_) => self.replace_child_extends_clause_impl(tokens, parent, old, new_),
+            AstNodeImpl::ExtensionDeclaration2Impl(_) => self.replace_child_extension_declaration2_impl(tokens, parent, old, new_),
+            AstNodeImpl::ExtensionDeclarationImpl(_) => self.replace_child_extension_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::ExtensionOnClauseImpl(_) => self.replace_child_extension_on_clause_impl(tokens, parent, old, new_),
+            AstNodeImpl::ExtensionOverrideImpl(_) => self.replace_child_extension_override_impl(tokens, parent, old, new_),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(_) => self.replace_child_extension_type_declaration2_impl(tokens, parent, old, new_),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(_) => self.replace_child_extension_type_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::Field2Impl(_) => self.replace_child_field2_impl(tokens, parent, old, new_),
+            AstNodeImpl::FieldDeclarationImpl(_) => self.replace_child_field_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::FieldFormalParameterImpl(_) => self.replace_child_field_formal_parameter_impl(tokens, parent, old, new_),
+            AstNodeImpl::FieldsDeclarationImpl(_) => self.replace_child_fields_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(_) => self.replace_child_for_each_parts_with_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(_) => self.replace_child_for_each_parts_with_identifier_impl(tokens, parent, old, new_),
+            AstNodeImpl::ForEachPartsWithPatternImpl(_) => self.replace_child_for_each_parts_with_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::ForElementImpl(_) => self.replace_child_for_element_impl(tokens, parent, old, new_),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(_) => self.replace_child_for_parts_with_declarations_impl(tokens, parent, old, new_),
+            AstNodeImpl::ForPartsWithExpressionImpl(_) => self.replace_child_for_parts_with_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::ForPartsWithPatternImpl(_) => self.replace_child_for_parts_with_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::ForStatementImpl(_) => self.replace_child_for_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(_) => self.replace_child_formal_parameter_default_clause_impl(tokens, parent, old, new_),
+            AstNodeImpl::FormalParameterListImpl(_) => self.replace_child_formal_parameter_list_impl(tokens, parent, old, new_),
+            AstNodeImpl::FunctionDeclarationImpl(_) => self.replace_child_function_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::FunctionDeclarationStatementImpl(_) => self.replace_child_function_declaration_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::FunctionExpressionImpl(_) => self.replace_child_function_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::FunctionExpressionInvocationImpl(_) => self.replace_child_function_expression_invocation_impl(tokens, parent, old, new_),
+            AstNodeImpl::FunctionReferenceImpl(_) => self.replace_child_function_reference_impl(tokens, parent, old, new_),
+            AstNodeImpl::FunctionTypeAlias2Impl(_) => self.replace_child_function_type_alias2_impl(tokens, parent, old, new_),
+            AstNodeImpl::FunctionTypeAliasImpl(_) => self.replace_child_function_type_alias_impl(tokens, parent, old, new_),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(_) => self.replace_child_function_typed_formal_parameter_suffix_impl(tokens, parent, old, new_),
+            AstNodeImpl::GenericFunctionTypeImpl(_) => self.replace_child_generic_function_type_impl(tokens, parent, old, new_),
+            AstNodeImpl::GenericTypeAlias2Impl(_) => self.replace_child_generic_type_alias2_impl(tokens, parent, old, new_),
+            AstNodeImpl::GenericTypeAliasImpl(_) => self.replace_child_generic_type_alias_impl(tokens, parent, old, new_),
+            AstNodeImpl::GetterDeclarationImpl(_) => self.replace_child_getter_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::GuardedPatternImpl(_) => self.replace_child_guarded_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::HideCombinatorImpl(_) => self.replace_child_hide_combinator_impl(tokens, parent, old, new_),
+            AstNodeImpl::IfElementImpl(_) => self.replace_child_if_element_impl(tokens, parent, old, new_),
+            AstNodeImpl::IfNullAssignmentImpl(_) => self.replace_child_if_null_assignment_impl(tokens, parent, old, new_),
+            AstNodeImpl::IfNullImpl(_) => self.replace_child_if_null_impl(tokens, parent, old, new_),
+            AstNodeImpl::IfStatementImpl(_) => self.replace_child_if_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::ImplementsClauseImpl(_) => self.replace_child_implements_clause_impl(tokens, parent, old, new_),
+            AstNodeImpl::ImplicitCallReferenceImpl(_) => self.replace_child_implicit_call_reference_impl(tokens, parent, old, new_),
+            AstNodeImpl::ImportDirectiveImpl(_) => self.replace_child_import_directive_impl(tokens, parent, old, new_),
+            AstNodeImpl::ImportPrefixReferenceImpl(_) => self.replace_child_import_prefix_reference_impl(tokens, parent, old, new_),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(_) => self.replace_child_increment_or_decrement_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::IndexExpressionImpl(_) => self.replace_child_index_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::InstanceCreationExpressionImpl(_) => self.replace_child_instance_creation_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::IntegerLiteralImpl(_) => self.replace_child_integer_literal_impl(tokens, parent, old, new_),
+            AstNodeImpl::InterpolationExpressionImpl(_) => self.replace_child_interpolation_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::InterpolationStringImpl(_) => self.replace_child_interpolation_string_impl(tokens, parent, old, new_),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(_) => self.replace_child_invalid_expression_assignment_target_impl(tokens, parent, old, new_),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(_) => self.replace_child_invalid_super_assignment_target_impl(tokens, parent, old, new_),
+            AstNodeImpl::InvalidSuperExpressionImpl(_) => self.replace_child_invalid_super_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::IsExpressionImpl(_) => self.replace_child_is_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::LabelImpl(_) => self.replace_child_label_impl(tokens, parent, old, new_),
+            AstNodeImpl::LabelReferenceImpl(_) => self.replace_child_label_reference_impl(tokens, parent, old, new_),
+            AstNodeImpl::LabeledStatementImpl(_) => self.replace_child_labeled_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::LibraryDirectiveImpl(_) => self.replace_child_library_directive_impl(tokens, parent, old, new_),
+            AstNodeImpl::ListLiteralImpl(_) => self.replace_child_list_literal_impl(tokens, parent, old, new_),
+            AstNodeImpl::ListPatternImpl(_) => self.replace_child_list_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::LocalFunctionDeclarationImpl(_) => self.replace_child_local_function_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::LocalVariableImpl(_) => self.replace_child_local_variable_impl(tokens, parent, old, new_),
+            AstNodeImpl::LocalVariablesDeclarationImpl(_) => self.replace_child_local_variables_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(_) => self.replace_child_local_variables_declaration_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::LogicalAndImpl(_) => self.replace_child_logical_and_impl(tokens, parent, old, new_),
+            AstNodeImpl::LogicalAndPatternImpl(_) => self.replace_child_logical_and_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::LogicalNotImpl(_) => self.replace_child_logical_not_impl(tokens, parent, old, new_),
+            AstNodeImpl::LogicalOrImpl(_) => self.replace_child_logical_or_impl(tokens, parent, old, new_),
+            AstNodeImpl::LogicalOrPatternImpl(_) => self.replace_child_logical_or_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::MapLiteralEntryImpl(_) => self.replace_child_map_literal_entry_impl(tokens, parent, old, new_),
+            AstNodeImpl::MapPatternEntryImpl(_) => self.replace_child_map_pattern_entry_impl(tokens, parent, old, new_),
+            AstNodeImpl::MapPatternImpl(_) => self.replace_child_map_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::MethodDeclaration2Impl(_) => self.replace_child_method_declaration2_impl(tokens, parent, old, new_),
+            AstNodeImpl::MethodDeclarationImpl(_) => self.replace_child_method_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::MethodInvocationImpl(_) => self.replace_child_method_invocation_impl(tokens, parent, old, new_),
+            AstNodeImpl::MixinDeclaration2Impl(_) => self.replace_child_mixin_declaration2_impl(tokens, parent, old, new_),
+            AstNodeImpl::MixinDeclarationImpl(_) => self.replace_child_mixin_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::MixinOnClauseImpl(_) => self.replace_child_mixin_on_clause_impl(tokens, parent, old, new_),
+            AstNodeImpl::NameWithTypeParametersImpl(_) => self.replace_child_name_with_type_parameters_impl(tokens, parent, old, new_),
+            AstNodeImpl::NamedArgumentImpl(_) => self.replace_child_named_argument_impl(tokens, parent, old, new_),
+            AstNodeImpl::NamedTypeImpl(_) => self.replace_child_named_type_impl(tokens, parent, old, new_),
+            AstNodeImpl::NativeClauseImpl(_) => self.replace_child_native_clause_impl(tokens, parent, old, new_),
+            AstNodeImpl::NativeFunctionBodyImpl(_) => self.replace_child_native_function_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::NullAssertPatternImpl(_) => self.replace_child_null_assert_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::NullAssertionExpressionImpl(_) => self.replace_child_null_assertion_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::NullAwareElementImpl(_) => self.replace_child_null_aware_element_impl(tokens, parent, old, new_),
+            AstNodeImpl::NullCheckPatternImpl(_) => self.replace_child_null_check_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::NullLiteralImpl(_) => self.replace_child_null_literal_impl(tokens, parent, old, new_),
+            AstNodeImpl::ObjectPatternImpl(_) => self.replace_child_object_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::OperatorDeclarationImpl(_) => self.replace_child_operator_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::ParenthesizedExpressionImpl(_) => self.replace_child_parenthesized_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::ParenthesizedPatternImpl(_) => self.replace_child_parenthesized_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::ParsedCascadeNameImpl(_) => self.replace_child_parsed_cascade_name_impl(tokens, parent, old, new_),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(_) => self.replace_child_parsed_dot_shorthand_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::ParsedDotShorthandNameImpl(_) => self.replace_child_parsed_dot_shorthand_name_impl(tokens, parent, old, new_),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(_) => self.replace_child_parsed_name_access_assignment_target_impl(tokens, parent, old, new_),
+            AstNodeImpl::ParsedNameAccessImpl(_) => self.replace_child_parsed_name_access_impl(tokens, parent, old, new_),
+            AstNodeImpl::ParsedTypeArgumentsImpl(_) => self.replace_child_parsed_type_arguments_impl(tokens, parent, old, new_),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(_) => self.replace_child_parsed_unqualified_name_impl(tokens, parent, old, new_),
+            AstNodeImpl::ParsedValueArgumentsImpl(_) => self.replace_child_parsed_value_arguments_impl(tokens, parent, old, new_),
+            AstNodeImpl::PartDirectiveImpl(_) => self.replace_child_part_directive_impl(tokens, parent, old, new_),
+            AstNodeImpl::PartOfDirectiveImpl(_) => self.replace_child_part_of_directive_impl(tokens, parent, old, new_),
+            AstNodeImpl::PatternAssignmentImpl(_) => self.replace_child_pattern_assignment_impl(tokens, parent, old, new_),
+            AstNodeImpl::PatternFieldImpl(_) => self.replace_child_pattern_field_impl(tokens, parent, old, new_),
+            AstNodeImpl::PatternFieldNameImpl(_) => self.replace_child_pattern_field_name_impl(tokens, parent, old, new_),
+            AstNodeImpl::PatternVariableDeclarationImpl(_) => self.replace_child_pattern_variable_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(_) => self.replace_child_pattern_variable_declaration_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::PostfixExpressionImpl(_) => self.replace_child_postfix_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::PrefixExpressionImpl(_) => self.replace_child_prefix_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::PrefixedIdentifierImpl(_) => self.replace_child_prefixed_identifier_impl(tokens, parent, old, new_),
+            AstNodeImpl::PrimaryConstructorBody2Impl(_) => self.replace_child_primary_constructor_body2_impl(tokens, parent, old, new_),
+            AstNodeImpl::PrimaryConstructorBodyImpl(_) => self.replace_child_primary_constructor_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(_) => self.replace_child_primary_constructor_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::PrimaryConstructorNameImpl(_) => self.replace_child_primary_constructor_name_impl(tokens, parent, old, new_),
+            AstNodeImpl::PropertyAccessImpl(_) => self.replace_child_property_access_impl(tokens, parent, old, new_),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(_) => self.replace_child_receiver_index_assignment_target_impl(tokens, parent, old, new_),
+            AstNodeImpl::ReceiverIndexExpressionImpl(_) => self.replace_child_receiver_index_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(_) => self.replace_child_receiver_property_assignment_target_impl(tokens, parent, old, new_),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(_) => self.replace_child_receiver_property_extraction_impl(tokens, parent, old, new_),
+            AstNodeImpl::RecordLiteralImpl(_) => self.replace_child_record_literal_impl(tokens, parent, old, new_),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(_) => self.replace_child_record_literal_named_field_impl(tokens, parent, old, new_),
+            AstNodeImpl::RecordPatternImpl(_) => self.replace_child_record_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::RecordTypeAnnotationImpl(_) => self.replace_child_record_type_annotation_impl(tokens, parent, old, new_),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(_) => self.replace_child_record_type_annotation_named_field_impl(tokens, parent, old, new_),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(_) => self.replace_child_record_type_annotation_named_fields_impl(tokens, parent, old, new_),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(_) => self.replace_child_record_type_annotation_positional_field_impl(tokens, parent, old, new_),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(_) => self.replace_child_redirecting_constructor_invocation_impl(tokens, parent, old, new_),
+            AstNodeImpl::RegularFormalParameterImpl(_) => self.replace_child_regular_formal_parameter_impl(tokens, parent, old, new_),
+            AstNodeImpl::RelationalPatternImpl(_) => self.replace_child_relational_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::RestPatternElementImpl(_) => self.replace_child_rest_pattern_element_impl(tokens, parent, old, new_),
+            AstNodeImpl::RethrowExpressionImpl(_) => self.replace_child_rethrow_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::ReturnStatementImpl(_) => self.replace_child_return_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::ScriptTagImpl(_) => self.replace_child_script_tag_impl(tokens, parent, old, new_),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(_) => self.replace_child_semicolon_enum_declaration_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(_) => self.replace_child_semicolon_instance_declaration_body_impl(tokens, parent, old, new_),
+            AstNodeImpl::SetOrMapLiteralImpl(_) => self.replace_child_set_or_map_literal_impl(tokens, parent, old, new_),
+            AstNodeImpl::SetterDeclarationImpl(_) => self.replace_child_setter_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::ShowCombinatorImpl(_) => self.replace_child_show_combinator_impl(tokens, parent, old, new_),
+            AstNodeImpl::SimpleIdentifierImpl(_) => self.replace_child_simple_identifier_impl(tokens, parent, old, new_),
+            AstNodeImpl::SimpleStringLiteralImpl(_) => self.replace_child_simple_string_literal_impl(tokens, parent, old, new_),
+            AstNodeImpl::SpreadElementImpl(_) => self.replace_child_spread_element_impl(tokens, parent, old, new_),
+            AstNodeImpl::StringInterpolationImpl(_) => self.replace_child_string_interpolation_impl(tokens, parent, old, new_),
+            AstNodeImpl::SuperConstructorInvocationImpl(_) => self.replace_child_super_constructor_invocation_impl(tokens, parent, old, new_),
+            AstNodeImpl::SuperExpressionImpl(_) => self.replace_child_super_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::SuperFormalParameterImpl(_) => self.replace_child_super_formal_parameter_impl(tokens, parent, old, new_),
+            AstNodeImpl::SuperReferenceImpl(_) => self.replace_child_super_reference_impl(tokens, parent, old, new_),
+            AstNodeImpl::SwitchCaseImpl(_) => self.replace_child_switch_case_impl(tokens, parent, old, new_),
+            AstNodeImpl::SwitchDefaultImpl(_) => self.replace_child_switch_default_impl(tokens, parent, old, new_),
+            AstNodeImpl::SwitchExpressionCaseImpl(_) => self.replace_child_switch_expression_case_impl(tokens, parent, old, new_),
+            AstNodeImpl::SwitchExpressionImpl(_) => self.replace_child_switch_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::SwitchPatternCaseImpl(_) => self.replace_child_switch_pattern_case_impl(tokens, parent, old, new_),
+            AstNodeImpl::SwitchStatementImpl(_) => self.replace_child_switch_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::SymbolLiteralImpl(_) => self.replace_child_symbol_literal_impl(tokens, parent, old, new_),
+            AstNodeImpl::ThisExpressionImpl(_) => self.replace_child_this_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::ThrowExpressionImpl(_) => self.replace_child_throw_expression_impl(tokens, parent, old, new_),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(_) => self.replace_child_top_level_function_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(_) => self.replace_child_top_level_getter_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(_) => self.replace_child_top_level_setter_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::TopLevelVariable2Impl(_) => self.replace_child_top_level_variable2_impl(tokens, parent, old, new_),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(_) => self.replace_child_top_level_variable_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(_) => self.replace_child_top_level_variables_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::TryStatementImpl(_) => self.replace_child_try_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::TypeArgumentListImpl(_) => self.replace_child_type_argument_list_impl(tokens, parent, old, new_),
+            AstNodeImpl::TypeParameterImpl(_) => self.replace_child_type_parameter_impl(tokens, parent, old, new_),
+            AstNodeImpl::TypeParameterListImpl(_) => self.replace_child_type_parameter_list_impl(tokens, parent, old, new_),
+            AstNodeImpl::UnaryOperatorInvocationImpl(_) => self.replace_child_unary_operator_invocation_impl(tokens, parent, old, new_),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(_) => self.replace_child_unqualified_name_assignment_target_impl(tokens, parent, old, new_),
+            AstNodeImpl::VariableDeclarationImpl(_) => self.replace_child_variable_declaration_impl(tokens, parent, old, new_),
+            AstNodeImpl::VariableDeclarationListImpl(_) => self.replace_child_variable_declaration_list_impl(tokens, parent, old, new_),
+            AstNodeImpl::VariableDeclarationStatementImpl(_) => self.replace_child_variable_declaration_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::WhenClauseImpl(_) => self.replace_child_when_clause_impl(tokens, parent, old, new_),
+            AstNodeImpl::WhileStatementImpl(_) => self.replace_child_while_statement_impl(tokens, parent, old, new_),
+            AstNodeImpl::WildcardPatternImpl(_) => self.replace_child_wildcard_pattern_impl(tokens, parent, old, new_),
+            AstNodeImpl::WithClauseImpl(_) => self.replace_child_with_clause_impl(tokens, parent, old, new_),
+            AstNodeImpl::YieldStatementImpl(_) => self.replace_child_yield_statement_impl(tokens, parent, old, new_),
+        }
+    }
+
+    /// `parent.removeChild(old)`.
+    pub fn remove_child(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        match self.node(parent) {
+            AstNodeImpl::AdjacentStringsImpl(_) => self.remove_child_adjacent_strings_impl(tokens, parent, old),
+            AstNodeImpl::AnnotationImpl(_) => self.remove_child_annotation_impl(tokens, parent, old),
+            AstNodeImpl::AnonymousBlockBodyImpl(_) => self.remove_child_anonymous_block_body_impl(tokens, parent, old),
+            AstNodeImpl::AnonymousExpressionBodyImpl(_) => self.remove_child_anonymous_expression_body_impl(tokens, parent, old),
+            AstNodeImpl::AnonymousMethodInvocationImpl(_) => self.remove_child_anonymous_method_invocation_impl(tokens, parent, old),
+            AstNodeImpl::ArgumentListImpl(_) => self.remove_child_argument_list_impl(tokens, parent, old),
+            AstNodeImpl::AsExpressionImpl(_) => self.remove_child_as_expression_impl(tokens, parent, old),
+            AstNodeImpl::AssertInitializerImpl(_) => self.remove_child_assert_initializer_impl(tokens, parent, old),
+            AstNodeImpl::AssertStatementImpl(_) => self.remove_child_assert_statement_impl(tokens, parent, old),
+            AstNodeImpl::AssignedVariablePatternImpl(_) => self.remove_child_assigned_variable_pattern_impl(tokens, parent, old),
+            AstNodeImpl::AssignmentExpressionImpl(_) => self.remove_child_assignment_expression_impl(tokens, parent, old),
+            AstNodeImpl::AwaitExpressionImpl(_) => self.remove_child_await_expression_impl(tokens, parent, old),
+            AstNodeImpl::BinaryExpressionImpl(_) => self.remove_child_binary_expression_impl(tokens, parent, old),
+            AstNodeImpl::BinaryOperatorInvocationImpl(_) => self.remove_child_binary_operator_invocation_impl(tokens, parent, old),
+            AstNodeImpl::BlockClassBodyImpl(_) => self.remove_child_block_class_body_impl(tokens, parent, old),
+            AstNodeImpl::BlockEnumBodyImpl(_) => self.remove_child_block_enum_body_impl(tokens, parent, old),
+            AstNodeImpl::BlockEnumDeclarationBodyImpl(_) => self.remove_child_block_enum_declaration_body_impl(tokens, parent, old),
+            AstNodeImpl::BlockFunctionBodyImpl(_) => self.remove_child_block_function_body_impl(tokens, parent, old),
+            AstNodeImpl::BlockImpl(_) => self.remove_child_block_impl(tokens, parent, old),
+            AstNodeImpl::BlockInstanceDeclarationBodyImpl(_) => self.remove_child_block_instance_declaration_body_impl(tokens, parent, old),
+            AstNodeImpl::BooleanLiteralImpl(_) => self.remove_child_boolean_literal_impl(tokens, parent, old),
+            AstNodeImpl::BreakStatementImpl(_) => self.remove_child_break_statement_impl(tokens, parent, old),
+            AstNodeImpl::CallInvocationImpl(_) => self.remove_child_call_invocation_impl(tokens, parent, old),
+            AstNodeImpl::CascadeExpressionImpl(_) => self.remove_child_cascade_expression_impl(tokens, parent, old),
+            AstNodeImpl::CascadeIndexAssignmentTargetImpl(_) => self.remove_child_cascade_index_assignment_target_impl(tokens, parent, old),
+            AstNodeImpl::CascadeIndexExpressionImpl(_) => self.remove_child_cascade_index_expression_impl(tokens, parent, old),
+            AstNodeImpl::CascadePropertyAssignmentTargetImpl(_) => self.remove_child_cascade_property_assignment_target_impl(tokens, parent, old),
+            AstNodeImpl::CascadePropertyExtractionImpl(_) => self.remove_child_cascade_property_extraction_impl(tokens, parent, old),
+            AstNodeImpl::CascadeSectionImpl(_) => self.remove_child_cascade_section_impl(tokens, parent, old),
+            AstNodeImpl::CaseClauseImpl(_) => self.remove_child_case_clause_impl(tokens, parent, old),
+            AstNodeImpl::CastPatternImpl(_) => self.remove_child_cast_pattern_impl(tokens, parent, old),
+            AstNodeImpl::CatchClauseImpl(_) => self.remove_child_catch_clause_impl(tokens, parent, old),
+            AstNodeImpl::CatchClauseParameterImpl(_) => self.remove_child_catch_clause_parameter_impl(tokens, parent, old),
+            AstNodeImpl::ClassDeclaration2Impl(_) => self.remove_child_class_declaration2_impl(tokens, parent, old),
+            AstNodeImpl::ClassDeclarationImpl(_) => self.remove_child_class_declaration_impl(tokens, parent, old),
+            AstNodeImpl::ClassTypeAlias2Impl(_) => self.remove_child_class_type_alias2_impl(tokens, parent, old),
+            AstNodeImpl::ClassTypeAliasImpl(_) => self.remove_child_class_type_alias_impl(tokens, parent, old),
+            AstNodeImpl::CombinatorNameImpl(_) => self.remove_child_combinator_name_impl(tokens, parent, old),
+            AstNodeImpl::CommentImpl(_) => self.remove_child_comment_impl(tokens, parent, old),
+            AstNodeImpl::CommentReferenceComponentImpl(_) => self.remove_child_comment_reference_component_impl(tokens, parent, old),
+            AstNodeImpl::CommentReferenceImpl(_) => self.remove_child_comment_reference_impl(tokens, parent, old),
+            AstNodeImpl::CompilationUnitImpl(_) => self.remove_child_compilation_unit_impl(tokens, parent, old),
+            AstNodeImpl::CompoundAssignmentImpl(_) => self.remove_child_compound_assignment_impl(tokens, parent, old),
+            AstNodeImpl::ConditionalExpressionImpl(_) => self.remove_child_conditional_expression_impl(tokens, parent, old),
+            AstNodeImpl::ConfigurationImpl(_) => self.remove_child_configuration_impl(tokens, parent, old),
+            AstNodeImpl::ConstantPatternImpl(_) => self.remove_child_constant_pattern_impl(tokens, parent, old),
+            AstNodeImpl::ConstructorDeclaration2Impl(_) => self.remove_child_constructor_declaration2_impl(tokens, parent, old),
+            AstNodeImpl::ConstructorDeclarationImpl(_) => self.remove_child_constructor_declaration_impl(tokens, parent, old),
+            AstNodeImpl::ConstructorFieldInitializerImpl(_) => self.remove_child_constructor_field_initializer_impl(tokens, parent, old),
+            AstNodeImpl::ConstructorInvocationImpl(_) => self.remove_child_constructor_invocation_impl(tokens, parent, old),
+            AstNodeImpl::ConstructorNameImpl(_) => self.remove_child_constructor_name_impl(tokens, parent, old),
+            AstNodeImpl::ConstructorReference2Impl(_) => self.remove_child_constructor_reference2_impl(tokens, parent, old),
+            AstNodeImpl::ConstructorReferenceImpl(_) => self.remove_child_constructor_reference_impl(tokens, parent, old),
+            AstNodeImpl::ConstructorSelectorImpl(_) => self.remove_child_constructor_selector_impl(tokens, parent, old),
+            AstNodeImpl::ConstructorTypeReferenceImpl(_) => self.remove_child_constructor_type_reference_impl(tokens, parent, old),
+            AstNodeImpl::ContinueStatementImpl(_) => self.remove_child_continue_statement_impl(tokens, parent, old),
+            AstNodeImpl::DeclaredIdentifierImpl(_) => self.remove_child_declared_identifier_impl(tokens, parent, old),
+            AstNodeImpl::DeclaredVariablePatternImpl(_) => self.remove_child_declared_variable_pattern_impl(tokens, parent, old),
+            AstNodeImpl::DelimitedFormalParametersImpl(_) => self.remove_child_delimited_formal_parameters_impl(tokens, parent, old),
+            AstNodeImpl::DirectAssignmentImpl(_) => self.remove_child_direct_assignment_impl(tokens, parent, old),
+            AstNodeImpl::DoStatementImpl(_) => self.remove_child_do_statement_impl(tokens, parent, old),
+            AstNodeImpl::DotShorthandConstructorInvocation2Impl(_) => self.remove_child_dot_shorthand_constructor_invocation2_impl(tokens, parent, old),
+            AstNodeImpl::DotShorthandConstructorInvocationImpl(_) => self.remove_child_dot_shorthand_constructor_invocation_impl(tokens, parent, old),
+            AstNodeImpl::DotShorthandInvocationImpl(_) => self.remove_child_dot_shorthand_invocation_impl(tokens, parent, old),
+            AstNodeImpl::DotShorthandNameExpressionImpl(_) => self.remove_child_dot_shorthand_name_expression_impl(tokens, parent, old),
+            AstNodeImpl::DotShorthandPropertyAccessImpl(_) => self.remove_child_dot_shorthand_property_access_impl(tokens, parent, old),
+            AstNodeImpl::DottedNameImpl(_) => self.remove_child_dotted_name_impl(tokens, parent, old),
+            AstNodeImpl::DoubleLiteralImpl(_) => self.remove_child_double_literal_impl(tokens, parent, old),
+            AstNodeImpl::EmptyClassBodyImpl(_) => self.remove_child_empty_class_body_impl(tokens, parent, old),
+            AstNodeImpl::EmptyEnumBodyImpl(_) => self.remove_child_empty_enum_body_impl(tokens, parent, old),
+            AstNodeImpl::EmptyFunctionBodyImpl(_) => self.remove_child_empty_function_body_impl(tokens, parent, old),
+            AstNodeImpl::EmptyStatementImpl(_) => self.remove_child_empty_statement_impl(tokens, parent, old),
+            AstNodeImpl::EnumConstantArgumentsImpl(_) => self.remove_child_enum_constant_arguments_impl(tokens, parent, old),
+            AstNodeImpl::EnumConstantDeclaration2Impl(_) => self.remove_child_enum_constant_declaration2_impl(tokens, parent, old),
+            AstNodeImpl::EnumConstantDeclarationImpl(_) => self.remove_child_enum_constant_declaration_impl(tokens, parent, old),
+            AstNodeImpl::EnumDeclaration2Impl(_) => self.remove_child_enum_declaration2_impl(tokens, parent, old),
+            AstNodeImpl::EnumDeclarationImpl(_) => self.remove_child_enum_declaration_impl(tokens, parent, old),
+            AstNodeImpl::ExportDirectiveImpl(_) => self.remove_child_export_directive_impl(tokens, parent, old),
+            AstNodeImpl::ExpressionFunctionBodyImpl(_) => self.remove_child_expression_function_body_impl(tokens, parent, old),
+            AstNodeImpl::ExpressionStatementImpl(_) => self.remove_child_expression_statement_impl(tokens, parent, old),
+            AstNodeImpl::ExtendsClauseImpl(_) => self.remove_child_extends_clause_impl(tokens, parent, old),
+            AstNodeImpl::ExtensionDeclaration2Impl(_) => self.remove_child_extension_declaration2_impl(tokens, parent, old),
+            AstNodeImpl::ExtensionDeclarationImpl(_) => self.remove_child_extension_declaration_impl(tokens, parent, old),
+            AstNodeImpl::ExtensionOnClauseImpl(_) => self.remove_child_extension_on_clause_impl(tokens, parent, old),
+            AstNodeImpl::ExtensionOverrideImpl(_) => self.remove_child_extension_override_impl(tokens, parent, old),
+            AstNodeImpl::ExtensionTypeDeclaration2Impl(_) => self.remove_child_extension_type_declaration2_impl(tokens, parent, old),
+            AstNodeImpl::ExtensionTypeDeclarationImpl(_) => self.remove_child_extension_type_declaration_impl(tokens, parent, old),
+            AstNodeImpl::Field2Impl(_) => self.remove_child_field2_impl(tokens, parent, old),
+            AstNodeImpl::FieldDeclarationImpl(_) => self.remove_child_field_declaration_impl(tokens, parent, old),
+            AstNodeImpl::FieldFormalParameterImpl(_) => self.remove_child_field_formal_parameter_impl(tokens, parent, old),
+            AstNodeImpl::FieldsDeclarationImpl(_) => self.remove_child_fields_declaration_impl(tokens, parent, old),
+            AstNodeImpl::ForEachPartsWithDeclarationImpl(_) => self.remove_child_for_each_parts_with_declaration_impl(tokens, parent, old),
+            AstNodeImpl::ForEachPartsWithIdentifierImpl(_) => self.remove_child_for_each_parts_with_identifier_impl(tokens, parent, old),
+            AstNodeImpl::ForEachPartsWithPatternImpl(_) => self.remove_child_for_each_parts_with_pattern_impl(tokens, parent, old),
+            AstNodeImpl::ForElementImpl(_) => self.remove_child_for_element_impl(tokens, parent, old),
+            AstNodeImpl::ForPartsWithDeclarationsImpl(_) => self.remove_child_for_parts_with_declarations_impl(tokens, parent, old),
+            AstNodeImpl::ForPartsWithExpressionImpl(_) => self.remove_child_for_parts_with_expression_impl(tokens, parent, old),
+            AstNodeImpl::ForPartsWithPatternImpl(_) => self.remove_child_for_parts_with_pattern_impl(tokens, parent, old),
+            AstNodeImpl::ForStatementImpl(_) => self.remove_child_for_statement_impl(tokens, parent, old),
+            AstNodeImpl::FormalParameterDefaultClauseImpl(_) => self.remove_child_formal_parameter_default_clause_impl(tokens, parent, old),
+            AstNodeImpl::FormalParameterListImpl(_) => self.remove_child_formal_parameter_list_impl(tokens, parent, old),
+            AstNodeImpl::FunctionDeclarationImpl(_) => self.remove_child_function_declaration_impl(tokens, parent, old),
+            AstNodeImpl::FunctionDeclarationStatementImpl(_) => self.remove_child_function_declaration_statement_impl(tokens, parent, old),
+            AstNodeImpl::FunctionExpressionImpl(_) => self.remove_child_function_expression_impl(tokens, parent, old),
+            AstNodeImpl::FunctionExpressionInvocationImpl(_) => self.remove_child_function_expression_invocation_impl(tokens, parent, old),
+            AstNodeImpl::FunctionReferenceImpl(_) => self.remove_child_function_reference_impl(tokens, parent, old),
+            AstNodeImpl::FunctionTypeAlias2Impl(_) => self.remove_child_function_type_alias2_impl(tokens, parent, old),
+            AstNodeImpl::FunctionTypeAliasImpl(_) => self.remove_child_function_type_alias_impl(tokens, parent, old),
+            AstNodeImpl::FunctionTypedFormalParameterSuffixImpl(_) => self.remove_child_function_typed_formal_parameter_suffix_impl(tokens, parent, old),
+            AstNodeImpl::GenericFunctionTypeImpl(_) => self.remove_child_generic_function_type_impl(tokens, parent, old),
+            AstNodeImpl::GenericTypeAlias2Impl(_) => self.remove_child_generic_type_alias2_impl(tokens, parent, old),
+            AstNodeImpl::GenericTypeAliasImpl(_) => self.remove_child_generic_type_alias_impl(tokens, parent, old),
+            AstNodeImpl::GetterDeclarationImpl(_) => self.remove_child_getter_declaration_impl(tokens, parent, old),
+            AstNodeImpl::GuardedPatternImpl(_) => self.remove_child_guarded_pattern_impl(tokens, parent, old),
+            AstNodeImpl::HideCombinatorImpl(_) => self.remove_child_hide_combinator_impl(tokens, parent, old),
+            AstNodeImpl::IfElementImpl(_) => self.remove_child_if_element_impl(tokens, parent, old),
+            AstNodeImpl::IfNullAssignmentImpl(_) => self.remove_child_if_null_assignment_impl(tokens, parent, old),
+            AstNodeImpl::IfNullImpl(_) => self.remove_child_if_null_impl(tokens, parent, old),
+            AstNodeImpl::IfStatementImpl(_) => self.remove_child_if_statement_impl(tokens, parent, old),
+            AstNodeImpl::ImplementsClauseImpl(_) => self.remove_child_implements_clause_impl(tokens, parent, old),
+            AstNodeImpl::ImplicitCallReferenceImpl(_) => self.remove_child_implicit_call_reference_impl(tokens, parent, old),
+            AstNodeImpl::ImportDirectiveImpl(_) => self.remove_child_import_directive_impl(tokens, parent, old),
+            AstNodeImpl::ImportPrefixReferenceImpl(_) => self.remove_child_import_prefix_reference_impl(tokens, parent, old),
+            AstNodeImpl::IncrementOrDecrementExpressionImpl(_) => self.remove_child_increment_or_decrement_expression_impl(tokens, parent, old),
+            AstNodeImpl::IndexExpressionImpl(_) => self.remove_child_index_expression_impl(tokens, parent, old),
+            AstNodeImpl::InstanceCreationExpressionImpl(_) => self.remove_child_instance_creation_expression_impl(tokens, parent, old),
+            AstNodeImpl::IntegerLiteralImpl(_) => self.remove_child_integer_literal_impl(tokens, parent, old),
+            AstNodeImpl::InterpolationExpressionImpl(_) => self.remove_child_interpolation_expression_impl(tokens, parent, old),
+            AstNodeImpl::InterpolationStringImpl(_) => self.remove_child_interpolation_string_impl(tokens, parent, old),
+            AstNodeImpl::InvalidExpressionAssignmentTargetImpl(_) => self.remove_child_invalid_expression_assignment_target_impl(tokens, parent, old),
+            AstNodeImpl::InvalidSuperAssignmentTargetImpl(_) => self.remove_child_invalid_super_assignment_target_impl(tokens, parent, old),
+            AstNodeImpl::InvalidSuperExpressionImpl(_) => self.remove_child_invalid_super_expression_impl(tokens, parent, old),
+            AstNodeImpl::IsExpressionImpl(_) => self.remove_child_is_expression_impl(tokens, parent, old),
+            AstNodeImpl::LabelImpl(_) => self.remove_child_label_impl(tokens, parent, old),
+            AstNodeImpl::LabelReferenceImpl(_) => self.remove_child_label_reference_impl(tokens, parent, old),
+            AstNodeImpl::LabeledStatementImpl(_) => self.remove_child_labeled_statement_impl(tokens, parent, old),
+            AstNodeImpl::LibraryDirectiveImpl(_) => self.remove_child_library_directive_impl(tokens, parent, old),
+            AstNodeImpl::ListLiteralImpl(_) => self.remove_child_list_literal_impl(tokens, parent, old),
+            AstNodeImpl::ListPatternImpl(_) => self.remove_child_list_pattern_impl(tokens, parent, old),
+            AstNodeImpl::LocalFunctionDeclarationImpl(_) => self.remove_child_local_function_declaration_impl(tokens, parent, old),
+            AstNodeImpl::LocalVariableImpl(_) => self.remove_child_local_variable_impl(tokens, parent, old),
+            AstNodeImpl::LocalVariablesDeclarationImpl(_) => self.remove_child_local_variables_declaration_impl(tokens, parent, old),
+            AstNodeImpl::LocalVariablesDeclarationStatementImpl(_) => self.remove_child_local_variables_declaration_statement_impl(tokens, parent, old),
+            AstNodeImpl::LogicalAndImpl(_) => self.remove_child_logical_and_impl(tokens, parent, old),
+            AstNodeImpl::LogicalAndPatternImpl(_) => self.remove_child_logical_and_pattern_impl(tokens, parent, old),
+            AstNodeImpl::LogicalNotImpl(_) => self.remove_child_logical_not_impl(tokens, parent, old),
+            AstNodeImpl::LogicalOrImpl(_) => self.remove_child_logical_or_impl(tokens, parent, old),
+            AstNodeImpl::LogicalOrPatternImpl(_) => self.remove_child_logical_or_pattern_impl(tokens, parent, old),
+            AstNodeImpl::MapLiteralEntryImpl(_) => self.remove_child_map_literal_entry_impl(tokens, parent, old),
+            AstNodeImpl::MapPatternEntryImpl(_) => self.remove_child_map_pattern_entry_impl(tokens, parent, old),
+            AstNodeImpl::MapPatternImpl(_) => self.remove_child_map_pattern_impl(tokens, parent, old),
+            AstNodeImpl::MethodDeclaration2Impl(_) => self.remove_child_method_declaration2_impl(tokens, parent, old),
+            AstNodeImpl::MethodDeclarationImpl(_) => self.remove_child_method_declaration_impl(tokens, parent, old),
+            AstNodeImpl::MethodInvocationImpl(_) => self.remove_child_method_invocation_impl(tokens, parent, old),
+            AstNodeImpl::MixinDeclaration2Impl(_) => self.remove_child_mixin_declaration2_impl(tokens, parent, old),
+            AstNodeImpl::MixinDeclarationImpl(_) => self.remove_child_mixin_declaration_impl(tokens, parent, old),
+            AstNodeImpl::MixinOnClauseImpl(_) => self.remove_child_mixin_on_clause_impl(tokens, parent, old),
+            AstNodeImpl::NameWithTypeParametersImpl(_) => self.remove_child_name_with_type_parameters_impl(tokens, parent, old),
+            AstNodeImpl::NamedArgumentImpl(_) => self.remove_child_named_argument_impl(tokens, parent, old),
+            AstNodeImpl::NamedTypeImpl(_) => self.remove_child_named_type_impl(tokens, parent, old),
+            AstNodeImpl::NativeClauseImpl(_) => self.remove_child_native_clause_impl(tokens, parent, old),
+            AstNodeImpl::NativeFunctionBodyImpl(_) => self.remove_child_native_function_body_impl(tokens, parent, old),
+            AstNodeImpl::NullAssertPatternImpl(_) => self.remove_child_null_assert_pattern_impl(tokens, parent, old),
+            AstNodeImpl::NullAssertionExpressionImpl(_) => self.remove_child_null_assertion_expression_impl(tokens, parent, old),
+            AstNodeImpl::NullAwareElementImpl(_) => self.remove_child_null_aware_element_impl(tokens, parent, old),
+            AstNodeImpl::NullCheckPatternImpl(_) => self.remove_child_null_check_pattern_impl(tokens, parent, old),
+            AstNodeImpl::NullLiteralImpl(_) => self.remove_child_null_literal_impl(tokens, parent, old),
+            AstNodeImpl::ObjectPatternImpl(_) => self.remove_child_object_pattern_impl(tokens, parent, old),
+            AstNodeImpl::OperatorDeclarationImpl(_) => self.remove_child_operator_declaration_impl(tokens, parent, old),
+            AstNodeImpl::ParenthesizedExpressionImpl(_) => self.remove_child_parenthesized_expression_impl(tokens, parent, old),
+            AstNodeImpl::ParenthesizedPatternImpl(_) => self.remove_child_parenthesized_pattern_impl(tokens, parent, old),
+            AstNodeImpl::ParsedCascadeNameImpl(_) => self.remove_child_parsed_cascade_name_impl(tokens, parent, old),
+            AstNodeImpl::ParsedDotShorthandExpressionImpl(_) => self.remove_child_parsed_dot_shorthand_expression_impl(tokens, parent, old),
+            AstNodeImpl::ParsedDotShorthandNameImpl(_) => self.remove_child_parsed_dot_shorthand_name_impl(tokens, parent, old),
+            AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(_) => self.remove_child_parsed_name_access_assignment_target_impl(tokens, parent, old),
+            AstNodeImpl::ParsedNameAccessImpl(_) => self.remove_child_parsed_name_access_impl(tokens, parent, old),
+            AstNodeImpl::ParsedTypeArgumentsImpl(_) => self.remove_child_parsed_type_arguments_impl(tokens, parent, old),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(_) => self.remove_child_parsed_unqualified_name_impl(tokens, parent, old),
+            AstNodeImpl::ParsedValueArgumentsImpl(_) => self.remove_child_parsed_value_arguments_impl(tokens, parent, old),
+            AstNodeImpl::PartDirectiveImpl(_) => self.remove_child_part_directive_impl(tokens, parent, old),
+            AstNodeImpl::PartOfDirectiveImpl(_) => self.remove_child_part_of_directive_impl(tokens, parent, old),
+            AstNodeImpl::PatternAssignmentImpl(_) => self.remove_child_pattern_assignment_impl(tokens, parent, old),
+            AstNodeImpl::PatternFieldImpl(_) => self.remove_child_pattern_field_impl(tokens, parent, old),
+            AstNodeImpl::PatternFieldNameImpl(_) => self.remove_child_pattern_field_name_impl(tokens, parent, old),
+            AstNodeImpl::PatternVariableDeclarationImpl(_) => self.remove_child_pattern_variable_declaration_impl(tokens, parent, old),
+            AstNodeImpl::PatternVariableDeclarationStatementImpl(_) => self.remove_child_pattern_variable_declaration_statement_impl(tokens, parent, old),
+            AstNodeImpl::PostfixExpressionImpl(_) => self.remove_child_postfix_expression_impl(tokens, parent, old),
+            AstNodeImpl::PrefixExpressionImpl(_) => self.remove_child_prefix_expression_impl(tokens, parent, old),
+            AstNodeImpl::PrefixedIdentifierImpl(_) => self.remove_child_prefixed_identifier_impl(tokens, parent, old),
+            AstNodeImpl::PrimaryConstructorBody2Impl(_) => self.remove_child_primary_constructor_body2_impl(tokens, parent, old),
+            AstNodeImpl::PrimaryConstructorBodyImpl(_) => self.remove_child_primary_constructor_body_impl(tokens, parent, old),
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(_) => self.remove_child_primary_constructor_declaration_impl(tokens, parent, old),
+            AstNodeImpl::PrimaryConstructorNameImpl(_) => self.remove_child_primary_constructor_name_impl(tokens, parent, old),
+            AstNodeImpl::PropertyAccessImpl(_) => self.remove_child_property_access_impl(tokens, parent, old),
+            AstNodeImpl::ReceiverIndexAssignmentTargetImpl(_) => self.remove_child_receiver_index_assignment_target_impl(tokens, parent, old),
+            AstNodeImpl::ReceiverIndexExpressionImpl(_) => self.remove_child_receiver_index_expression_impl(tokens, parent, old),
+            AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(_) => self.remove_child_receiver_property_assignment_target_impl(tokens, parent, old),
+            AstNodeImpl::ReceiverPropertyExtractionImpl(_) => self.remove_child_receiver_property_extraction_impl(tokens, parent, old),
+            AstNodeImpl::RecordLiteralImpl(_) => self.remove_child_record_literal_impl(tokens, parent, old),
+            AstNodeImpl::RecordLiteralNamedFieldImpl(_) => self.remove_child_record_literal_named_field_impl(tokens, parent, old),
+            AstNodeImpl::RecordPatternImpl(_) => self.remove_child_record_pattern_impl(tokens, parent, old),
+            AstNodeImpl::RecordTypeAnnotationImpl(_) => self.remove_child_record_type_annotation_impl(tokens, parent, old),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldImpl(_) => self.remove_child_record_type_annotation_named_field_impl(tokens, parent, old),
+            AstNodeImpl::RecordTypeAnnotationNamedFieldsImpl(_) => self.remove_child_record_type_annotation_named_fields_impl(tokens, parent, old),
+            AstNodeImpl::RecordTypeAnnotationPositionalFieldImpl(_) => self.remove_child_record_type_annotation_positional_field_impl(tokens, parent, old),
+            AstNodeImpl::RedirectingConstructorInvocationImpl(_) => self.remove_child_redirecting_constructor_invocation_impl(tokens, parent, old),
+            AstNodeImpl::RegularFormalParameterImpl(_) => self.remove_child_regular_formal_parameter_impl(tokens, parent, old),
+            AstNodeImpl::RelationalPatternImpl(_) => self.remove_child_relational_pattern_impl(tokens, parent, old),
+            AstNodeImpl::RestPatternElementImpl(_) => self.remove_child_rest_pattern_element_impl(tokens, parent, old),
+            AstNodeImpl::RethrowExpressionImpl(_) => self.remove_child_rethrow_expression_impl(tokens, parent, old),
+            AstNodeImpl::ReturnStatementImpl(_) => self.remove_child_return_statement_impl(tokens, parent, old),
+            AstNodeImpl::ScriptTagImpl(_) => self.remove_child_script_tag_impl(tokens, parent, old),
+            AstNodeImpl::SemicolonEnumDeclarationBodyImpl(_) => self.remove_child_semicolon_enum_declaration_body_impl(tokens, parent, old),
+            AstNodeImpl::SemicolonInstanceDeclarationBodyImpl(_) => self.remove_child_semicolon_instance_declaration_body_impl(tokens, parent, old),
+            AstNodeImpl::SetOrMapLiteralImpl(_) => self.remove_child_set_or_map_literal_impl(tokens, parent, old),
+            AstNodeImpl::SetterDeclarationImpl(_) => self.remove_child_setter_declaration_impl(tokens, parent, old),
+            AstNodeImpl::ShowCombinatorImpl(_) => self.remove_child_show_combinator_impl(tokens, parent, old),
+            AstNodeImpl::SimpleIdentifierImpl(_) => self.remove_child_simple_identifier_impl(tokens, parent, old),
+            AstNodeImpl::SimpleStringLiteralImpl(_) => self.remove_child_simple_string_literal_impl(tokens, parent, old),
+            AstNodeImpl::SpreadElementImpl(_) => self.remove_child_spread_element_impl(tokens, parent, old),
+            AstNodeImpl::StringInterpolationImpl(_) => self.remove_child_string_interpolation_impl(tokens, parent, old),
+            AstNodeImpl::SuperConstructorInvocationImpl(_) => self.remove_child_super_constructor_invocation_impl(tokens, parent, old),
+            AstNodeImpl::SuperExpressionImpl(_) => self.remove_child_super_expression_impl(tokens, parent, old),
+            AstNodeImpl::SuperFormalParameterImpl(_) => self.remove_child_super_formal_parameter_impl(tokens, parent, old),
+            AstNodeImpl::SuperReferenceImpl(_) => self.remove_child_super_reference_impl(tokens, parent, old),
+            AstNodeImpl::SwitchCaseImpl(_) => self.remove_child_switch_case_impl(tokens, parent, old),
+            AstNodeImpl::SwitchDefaultImpl(_) => self.remove_child_switch_default_impl(tokens, parent, old),
+            AstNodeImpl::SwitchExpressionCaseImpl(_) => self.remove_child_switch_expression_case_impl(tokens, parent, old),
+            AstNodeImpl::SwitchExpressionImpl(_) => self.remove_child_switch_expression_impl(tokens, parent, old),
+            AstNodeImpl::SwitchPatternCaseImpl(_) => self.remove_child_switch_pattern_case_impl(tokens, parent, old),
+            AstNodeImpl::SwitchStatementImpl(_) => self.remove_child_switch_statement_impl(tokens, parent, old),
+            AstNodeImpl::SymbolLiteralImpl(_) => self.remove_child_symbol_literal_impl(tokens, parent, old),
+            AstNodeImpl::ThisExpressionImpl(_) => self.remove_child_this_expression_impl(tokens, parent, old),
+            AstNodeImpl::ThrowExpressionImpl(_) => self.remove_child_throw_expression_impl(tokens, parent, old),
+            AstNodeImpl::TopLevelFunctionDeclarationImpl(_) => self.remove_child_top_level_function_declaration_impl(tokens, parent, old),
+            AstNodeImpl::TopLevelGetterDeclarationImpl(_) => self.remove_child_top_level_getter_declaration_impl(tokens, parent, old),
+            AstNodeImpl::TopLevelSetterDeclarationImpl(_) => self.remove_child_top_level_setter_declaration_impl(tokens, parent, old),
+            AstNodeImpl::TopLevelVariable2Impl(_) => self.remove_child_top_level_variable2_impl(tokens, parent, old),
+            AstNodeImpl::TopLevelVariableDeclarationImpl(_) => self.remove_child_top_level_variable_declaration_impl(tokens, parent, old),
+            AstNodeImpl::TopLevelVariablesDeclarationImpl(_) => self.remove_child_top_level_variables_declaration_impl(tokens, parent, old),
+            AstNodeImpl::TryStatementImpl(_) => self.remove_child_try_statement_impl(tokens, parent, old),
+            AstNodeImpl::TypeArgumentListImpl(_) => self.remove_child_type_argument_list_impl(tokens, parent, old),
+            AstNodeImpl::TypeParameterImpl(_) => self.remove_child_type_parameter_impl(tokens, parent, old),
+            AstNodeImpl::TypeParameterListImpl(_) => self.remove_child_type_parameter_list_impl(tokens, parent, old),
+            AstNodeImpl::UnaryOperatorInvocationImpl(_) => self.remove_child_unary_operator_invocation_impl(tokens, parent, old),
+            AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(_) => self.remove_child_unqualified_name_assignment_target_impl(tokens, parent, old),
+            AstNodeImpl::VariableDeclarationImpl(_) => self.remove_child_variable_declaration_impl(tokens, parent, old),
+            AstNodeImpl::VariableDeclarationListImpl(_) => self.remove_child_variable_declaration_list_impl(tokens, parent, old),
+            AstNodeImpl::VariableDeclarationStatementImpl(_) => self.remove_child_variable_declaration_statement_impl(tokens, parent, old),
+            AstNodeImpl::WhenClauseImpl(_) => self.remove_child_when_clause_impl(tokens, parent, old),
+            AstNodeImpl::WhileStatementImpl(_) => self.remove_child_while_statement_impl(tokens, parent, old),
+            AstNodeImpl::WildcardPatternImpl(_) => self.remove_child_wildcard_pattern_impl(tokens, parent, old),
+            AstNodeImpl::WithClauseImpl(_) => self.remove_child_with_clause_impl(tokens, parent, old),
+            AstNodeImpl::YieldStatementImpl(_) => self.remove_child_yield_statement_impl(tokens, parent, old),
+        }
+    }
+
+
+    /// `AdjacentStringsImpl.replaceChild`.
+    fn replace_child_adjacent_strings_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_adjacent_strings_impl().strings.iter().position(|&e| e == old) {
+            if !self.node(new_).is_string_literal_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_adjacent_strings_impl_mut().strings[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AnnotationImpl.replaceChild`.
+    fn replace_child_annotation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_annotation_impl().expression == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_annotation_impl_mut().expression = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AnonymousBlockBodyImpl.replaceChild`.
+    fn replace_child_anonymous_block_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_anonymous_block_body_impl().block == old {
+            if !self.node(new_).is_block_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_anonymous_block_body_impl_mut().block = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AnonymousExpressionBodyImpl.replaceChild`.
+    fn replace_child_anonymous_expression_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_anonymous_expression_body_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_anonymous_expression_body_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AnonymousMethodInvocationImpl.replaceChild`.
+    fn replace_child_anonymous_method_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_anonymous_method_invocation_impl().target2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_anonymous_method_invocation_impl_mut().target2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_anonymous_method_invocation_impl().parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_anonymous_method_invocation_impl_mut().parameters = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_anonymous_method_invocation_impl().body == old {
+            if !self.node(new_).is_anonymous_method_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_anonymous_method_invocation_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ArgumentListImpl.replaceChild`.
+    fn replace_child_argument_list_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_argument_list_impl().arguments2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_argument_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_argument_list_impl_mut().arguments2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AsExpressionImpl.replaceChild`.
+    fn replace_child_as_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_as_expression_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_as_expression_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_as_expression_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_as_expression_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AssertInitializerImpl.replaceChild`.
+    fn replace_child_assert_initializer_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_assert_initializer_impl().condition2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_assert_initializer_impl_mut().condition2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_assert_initializer_impl().message2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_assert_initializer_impl_mut().message2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AssertStatementImpl.replaceChild`.
+    fn replace_child_assert_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_assert_statement_impl().condition2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_assert_statement_impl_mut().condition2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_assert_statement_impl().message2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_assert_statement_impl_mut().message2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AssignedVariablePatternImpl.replaceChild`.
+    fn replace_child_assigned_variable_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AssignmentExpressionImpl.replaceChild`.
+    fn replace_child_assignment_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `AwaitExpressionImpl.replaceChild`.
+    fn replace_child_await_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_await_expression_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_await_expression_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BinaryExpressionImpl.replaceChild`.
+    fn replace_child_binary_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `BinaryOperatorInvocationImpl.replaceChild`.
+    fn replace_child_binary_operator_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_binary_operator_invocation_impl().left_operand == old {
+            if !self.node(new_).is_instance_receiver_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_binary_operator_invocation_impl_mut().left_operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_binary_operator_invocation_impl().right_operand == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_binary_operator_invocation_impl_mut().right_operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BlockClassBodyImpl.replaceChild`.
+    fn replace_child_block_class_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `BlockEnumBodyImpl.replaceChild`.
+    fn replace_child_block_enum_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `BlockEnumDeclarationBodyImpl.replaceChild`.
+    fn replace_child_block_enum_declaration_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_block_enum_declaration_body_impl().constants.iter().position(|&e| e == old) {
+            if !self.node(new_).is_enum_constant_declaration2_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_block_enum_declaration_body_impl_mut().constants[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_block_enum_declaration_body_impl().members.iter().position(|&e| e == old) {
+            if !self.node(new_).is_member_declaration_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_block_enum_declaration_body_impl_mut().members[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BlockFunctionBodyImpl.replaceChild`.
+    fn replace_child_block_function_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_block_function_body_impl().block == old {
+            if !self.node(new_).is_block_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_block_function_body_impl_mut().block = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BlockImpl.replaceChild`.
+    fn replace_child_block_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_block_impl().statements2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_statement_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_block_impl_mut().statements2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BlockInstanceDeclarationBodyImpl.replaceChild`.
+    fn replace_child_block_instance_declaration_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_block_instance_declaration_body_impl().members.iter().position(|&e| e == old) {
+            if !self.node(new_).is_member_declaration_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_block_instance_declaration_body_impl_mut().members[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BooleanLiteralImpl.replaceChild`.
+    fn replace_child_boolean_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BreakStatementImpl.replaceChild`.
+    fn replace_child_break_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_break_statement_impl().label == old {
+            if !self.node(new_).is_label_reference_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_break_statement_impl_mut().label = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CallInvocationImpl.replaceChild`.
+    fn replace_child_call_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_call_invocation_impl().receiver == old {
+            if !self.node(new_).is_instance_receiver_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_call_invocation_impl_mut().receiver = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_call_invocation_impl().type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_call_invocation_impl_mut().type_arguments = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_call_invocation_impl().argument_list == old {
+            if !self.node(new_).is_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_call_invocation_impl_mut().argument_list = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadeExpressionImpl.replaceChild`.
+    fn replace_child_cascade_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_cascade_expression_impl().target2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_cascade_expression_impl_mut().target2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_cascade_expression_impl().sections.iter().position(|&e| e == old) {
+            if !self.node(new_).is_cascade_section_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_cascade_expression_impl_mut().sections[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadeIndexAssignmentTargetImpl.replaceChild`.
+    fn replace_child_cascade_index_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_cascade_index_assignment_target_impl().index == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_cascade_index_assignment_target_impl_mut().index = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadeIndexExpressionImpl.replaceChild`.
+    fn replace_child_cascade_index_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_cascade_index_expression_impl().index == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_cascade_index_expression_impl_mut().index = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadePropertyAssignmentTargetImpl.replaceChild`.
+    fn replace_child_cascade_property_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadePropertyExtractionImpl.replaceChild`.
+    fn replace_child_cascade_property_extraction_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadeSectionImpl.replaceChild`.
+    fn replace_child_cascade_section_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_cascade_section_impl().body == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_cascade_section_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            // if (parent2 case CascadeExpressionImpl cascade) cascade._becomeParentOf1(V1Projection._existingNode(body));
+            let cascade = self.parents[parent as usize];
+            if cascade != NO_NODE && matches!(self.node(cascade), AstNodeImpl::CascadeExpressionImpl(_)) {
+                let ast = Ast::new(self, tokens);
+                let existing = ast.existing_node(new_);
+                ast.become_parent_of1(cascade, existing);
+            }
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CaseClauseImpl.replaceChild`.
+    fn replace_child_case_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_case_clause_impl().guarded_pattern == old {
+            if !self.node(new_).is_guarded_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_case_clause_impl_mut().guarded_pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CastPatternImpl.replaceChild`.
+    fn replace_child_cast_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_cast_pattern_impl().pattern == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_cast_pattern_impl_mut().pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_cast_pattern_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_cast_pattern_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CatchClauseImpl.replaceChild`.
+    fn replace_child_catch_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_catch_clause_impl().exception_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_catch_clause_impl_mut().exception_type = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_catch_clause_impl().exception_parameter == old {
+            if !self.node(new_).is_catch_clause_parameter_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_catch_clause_impl_mut().exception_parameter = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_catch_clause_impl().stack_trace_parameter == old {
+            if !self.node(new_).is_catch_clause_parameter_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_catch_clause_impl_mut().stack_trace_parameter = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_catch_clause_impl().body == old {
+            if !self.node(new_).is_block_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_catch_clause_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CatchClauseParameterImpl.replaceChild`.
+    fn replace_child_catch_clause_parameter_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ClassDeclaration2Impl.replaceChild`.
+    fn replace_child_class_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_class_declaration2_impl().name_part == old {
+            if !self.node(new_).is_class_name_part_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_declaration2_impl_mut().name_part = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_class_declaration2_impl().extends_clause == old {
+            if !self.node(new_).is_extends_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_declaration2_impl_mut().extends_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_class_declaration2_impl().with_clause == old {
+            if !self.node(new_).is_with_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_declaration2_impl_mut().with_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_class_declaration2_impl().implements_clause == old {
+            if !self.node(new_).is_implements_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_declaration2_impl_mut().implements_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_class_declaration2_impl().native_clause == old {
+            if !self.node(new_).is_native_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_declaration2_impl_mut().native_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_class_declaration2_impl().body == old {
+            if !self.node(new_).is_instance_declaration_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_declaration2_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_class_declaration2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_declaration2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_class_declaration2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_declaration2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ClassDeclarationImpl.replaceChild`.
+    fn replace_child_class_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ClassTypeAlias2Impl.replaceChild`.
+    fn replace_child_class_type_alias2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_class_type_alias2_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_type_alias2_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_class_type_alias2_impl().superclass == old {
+            if !self.node(new_).is_named_type_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_type_alias2_impl_mut().superclass = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_class_type_alias2_impl().with_clause == old {
+            if !self.node(new_).is_with_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_type_alias2_impl_mut().with_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_class_type_alias2_impl().implements_clause == old {
+            if !self.node(new_).is_implements_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_type_alias2_impl_mut().implements_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_class_type_alias2_impl().body == old {
+            if !self.node(new_).is_semicolon_instance_declaration_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_type_alias2_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_class_type_alias2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_type_alias2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_class_type_alias2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_class_type_alias2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ClassTypeAliasImpl.replaceChild`.
+    fn replace_child_class_type_alias_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `CombinatorNameImpl.replaceChild`.
+    fn replace_child_combinator_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CommentImpl.replaceChild`.
+    fn replace_child_comment_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_comment_impl().references.iter().position(|&e| e == old) {
+            if !self.node(new_).is_comment_reference_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_comment_impl_mut().references[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CommentReferenceComponentImpl.replaceChild`.
+    fn replace_child_comment_reference_component_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CommentReferenceImpl.replaceChild`.
+    fn replace_child_comment_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_comment_reference_impl().components.iter().position(|&e| e == old) {
+            if !self.node(new_).is_comment_reference_component_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_comment_reference_impl_mut().components[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CompilationUnitImpl.replaceChild`.
+    fn replace_child_compilation_unit_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_compilation_unit_impl().script_tag == old {
+            if !self.node(new_).is_script_tag_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_compilation_unit_impl_mut().script_tag = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_compilation_unit_impl().directives.iter().position(|&e| e == old) {
+            if !self.node(new_).is_directive_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_compilation_unit_impl_mut().directives[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_compilation_unit_impl().declarations2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_top_level_declaration_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_compilation_unit_impl_mut().declarations2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CompoundAssignmentImpl.replaceChild`.
+    fn replace_child_compound_assignment_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_compound_assignment_impl().target == old {
+            if !self.node(new_).is_assignment_target_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_compound_assignment_impl_mut().target = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_compound_assignment_impl().value == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_compound_assignment_impl_mut().value = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConditionalExpressionImpl.replaceChild`.
+    fn replace_child_conditional_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_conditional_expression_impl().condition2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_conditional_expression_impl_mut().condition2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_conditional_expression_impl().then_expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_conditional_expression_impl_mut().then_expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_conditional_expression_impl().else_expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_conditional_expression_impl_mut().else_expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConfigurationImpl.replaceChild`.
+    fn replace_child_configuration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_configuration_impl().name == old {
+            if !self.node(new_).is_dotted_name_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_configuration_impl_mut().name = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_configuration_impl().value == old {
+            if !self.node(new_).is_string_literal_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_configuration_impl_mut().value = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_configuration_impl().uri == old {
+            if !self.node(new_).is_string_literal_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_configuration_impl_mut().uri = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstantPatternImpl.replaceChild`.
+    fn replace_child_constant_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constant_pattern_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constant_pattern_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorDeclaration2Impl.replaceChild`.
+    fn replace_child_constructor_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constructor_declaration2_impl().formal_parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_declaration2_impl_mut().formal_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_constructor_declaration2_impl().initializers.iter().position(|&e| e == old) {
+            if !self.node(new_).is_constructor_initializer_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_declaration2_impl_mut().initializers[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_constructor_declaration2_impl().factory_redirection_target == old {
+            if !self.node(new_).is_constructor_reference2_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_declaration2_impl_mut().factory_redirection_target = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_constructor_declaration2_impl().body == old {
+            if !self.node(new_).is_function_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_declaration2_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_constructor_declaration2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_declaration2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_constructor_declaration2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_declaration2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorDeclarationImpl.replaceChild`.
+    fn replace_child_constructor_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ConstructorFieldInitializerImpl.replaceChild`.
+    fn replace_child_constructor_field_initializer_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constructor_field_initializer_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_field_initializer_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorInvocationImpl.replaceChild`.
+    fn replace_child_constructor_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constructor_invocation_impl().constructor_reference == old {
+            if !self.node(new_).is_constructor_reference2_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_invocation_impl_mut().constructor_reference = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_constructor_invocation_impl().type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_invocation_impl_mut().type_arguments = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_constructor_invocation_impl().argument_list == old {
+            if !self.node(new_).is_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_invocation_impl_mut().argument_list = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorNameImpl.replaceChild`.
+    fn replace_child_constructor_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ConstructorReference2Impl.replaceChild`.
+    fn replace_child_constructor_reference2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constructor_reference2_impl().type_reference == old {
+            if !self.node(new_).is_constructor_type_reference_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_reference2_impl_mut().type_reference = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_constructor_reference2_impl().selector == old {
+            if !self.node(new_).is_constructor_selector_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_reference2_impl_mut().selector = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorReferenceImpl.replaceChild`.
+    fn replace_child_constructor_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ConstructorSelectorImpl.replaceChild`.
+    fn replace_child_constructor_selector_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorTypeReferenceImpl.replaceChild`.
+    fn replace_child_constructor_type_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constructor_type_reference_impl().import_prefix == old {
+            if !self.node(new_).is_import_prefix_reference_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_type_reference_impl_mut().import_prefix = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_constructor_type_reference_impl().type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_constructor_type_reference_impl_mut().type_arguments = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ContinueStatementImpl.replaceChild`.
+    fn replace_child_continue_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_continue_statement_impl().label == old {
+            if !self.node(new_).is_label_reference_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_continue_statement_impl_mut().label = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DeclaredIdentifierImpl.replaceChild`.
+    fn replace_child_declared_identifier_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_declared_identifier_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_declared_identifier_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_declared_identifier_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_declared_identifier_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_declared_identifier_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_declared_identifier_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DeclaredVariablePatternImpl.replaceChild`.
+    fn replace_child_declared_variable_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_declared_variable_pattern_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_declared_variable_pattern_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DelimitedFormalParametersImpl.replaceChild`.
+    fn replace_child_delimited_formal_parameters_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_delimited_formal_parameters_impl().formal_parameters.iter().position(|&e| e == old) {
+            if !self.node(new_).is_formal_parameter_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_delimited_formal_parameters_impl_mut().formal_parameters[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DirectAssignmentImpl.replaceChild`.
+    fn replace_child_direct_assignment_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_direct_assignment_impl().target == old {
+            if !self.node(new_).is_assignment_target_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_direct_assignment_impl_mut().target = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_direct_assignment_impl().value == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_direct_assignment_impl_mut().value = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DoStatementImpl.replaceChild`.
+    fn replace_child_do_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_do_statement_impl().body2 == old {
+            if !self.node(new_).is_statement_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_do_statement_impl_mut().body2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_do_statement_impl().condition2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_do_statement_impl_mut().condition2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DotShorthandConstructorInvocation2Impl.replaceChild`.
+    fn replace_child_dot_shorthand_constructor_invocation2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_dot_shorthand_constructor_invocation2_impl().type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_dot_shorthand_constructor_invocation2_impl_mut().type_arguments = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_dot_shorthand_constructor_invocation2_impl().argument_list == old {
+            if !self.node(new_).is_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_dot_shorthand_constructor_invocation2_impl_mut().argument_list = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DotShorthandConstructorInvocationImpl.replaceChild`.
+    fn replace_child_dot_shorthand_constructor_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `DotShorthandInvocationImpl.replaceChild`.
+    fn replace_child_dot_shorthand_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `DotShorthandNameExpressionImpl.replaceChild`.
+    fn replace_child_dot_shorthand_name_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DotShorthandPropertyAccessImpl.replaceChild`.
+    fn replace_child_dot_shorthand_property_access_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `DottedNameImpl.replaceChild`.
+    fn replace_child_dotted_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DoubleLiteralImpl.replaceChild`.
+    fn replace_child_double_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EmptyClassBodyImpl.replaceChild`.
+    fn replace_child_empty_class_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `EmptyEnumBodyImpl.replaceChild`.
+    fn replace_child_empty_enum_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `EmptyFunctionBodyImpl.replaceChild`.
+    fn replace_child_empty_function_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EmptyStatementImpl.replaceChild`.
+    fn replace_child_empty_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EnumConstantArgumentsImpl.replaceChild`.
+    fn replace_child_enum_constant_arguments_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_enum_constant_arguments_impl().type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_constant_arguments_impl_mut().type_arguments = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_enum_constant_arguments_impl().constructor_selector == old {
+            if !self.node(new_).is_constructor_selector_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_constant_arguments_impl_mut().constructor_selector = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            self.set_api_override(new_, AstNodeApi::v2);
+            return;
+        }
+        if self.node(parent).as_enum_constant_arguments_impl().argument_list == old {
+            if !self.node(new_).is_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_constant_arguments_impl_mut().argument_list = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EnumConstantDeclaration2Impl.replaceChild`.
+    fn replace_child_enum_constant_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_enum_constant_declaration2_impl().arguments == old {
+            if !self.node(new_).is_enum_constant_arguments_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_constant_declaration2_impl_mut().arguments = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_enum_constant_declaration2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_constant_declaration2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_enum_constant_declaration2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_constant_declaration2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EnumConstantDeclarationImpl.replaceChild`.
+    fn replace_child_enum_constant_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `EnumDeclaration2Impl.replaceChild`.
+    fn replace_child_enum_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_enum_declaration2_impl().name_part == old {
+            if !self.node(new_).is_class_name_part_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_declaration2_impl_mut().name_part = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_enum_declaration2_impl().with_clause == old {
+            if !self.node(new_).is_with_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_declaration2_impl_mut().with_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_enum_declaration2_impl().implements_clause == old {
+            if !self.node(new_).is_implements_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_declaration2_impl_mut().implements_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_enum_declaration2_impl().body == old {
+            if !self.node(new_).is_enum_declaration_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_declaration2_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_enum_declaration2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_declaration2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_enum_declaration2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_enum_declaration2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EnumDeclarationImpl.replaceChild`.
+    fn replace_child_enum_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ExportDirectiveImpl.replaceChild`.
+    fn replace_child_export_directive_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_export_directive_impl().uri == old {
+            if !self.node(new_).is_string_literal_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_export_directive_impl_mut().uri = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_export_directive_impl().configurations.iter().position(|&e| e == old) {
+            if !self.node(new_).is_configuration_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_export_directive_impl_mut().configurations[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_export_directive_impl().combinators.iter().position(|&e| e == old) {
+            if !self.node(new_).is_combinator_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_export_directive_impl_mut().combinators[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_export_directive_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_export_directive_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_export_directive_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_export_directive_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExpressionFunctionBodyImpl.replaceChild`.
+    fn replace_child_expression_function_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_expression_function_body_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_expression_function_body_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExpressionStatementImpl.replaceChild`.
+    fn replace_child_expression_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_expression_statement_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_expression_statement_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExtendsClauseImpl.replaceChild`.
+    fn replace_child_extends_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_extends_clause_impl().superclass == old {
+            if !self.node(new_).is_named_type_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extends_clause_impl_mut().superclass = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExtensionDeclaration2Impl.replaceChild`.
+    fn replace_child_extension_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_extension_declaration2_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extension_declaration2_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_extension_declaration2_impl().on_clause == old {
+            if !self.node(new_).is_extension_on_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extension_declaration2_impl_mut().on_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_extension_declaration2_impl().body == old {
+            if !self.node(new_).is_instance_declaration_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extension_declaration2_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_extension_declaration2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extension_declaration2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_extension_declaration2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extension_declaration2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExtensionDeclarationImpl.replaceChild`.
+    fn replace_child_extension_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ExtensionOnClauseImpl.replaceChild`.
+    fn replace_child_extension_on_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_extension_on_clause_impl().extended_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extension_on_clause_impl_mut().extended_type = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExtensionOverrideImpl.replaceChild`.
+    fn replace_child_extension_override_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ExtensionTypeDeclaration2Impl.replaceChild`.
+    fn replace_child_extension_type_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_extension_type_declaration2_impl().name_part == old {
+            if !self.node(new_).is_class_name_part_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extension_type_declaration2_impl_mut().name_part = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_extension_type_declaration2_impl().implements_clause == old {
+            if !self.node(new_).is_implements_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extension_type_declaration2_impl_mut().implements_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_extension_type_declaration2_impl().body == old {
+            if !self.node(new_).is_instance_declaration_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extension_type_declaration2_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_extension_type_declaration2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extension_type_declaration2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_extension_type_declaration2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_extension_type_declaration2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExtensionTypeDeclarationImpl.replaceChild`.
+    fn replace_child_extension_type_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `Field2Impl.replaceChild`.
+    fn replace_child_field2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_field2_impl().initializer == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_field2_impl_mut().initializer = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FieldDeclarationImpl.replaceChild`.
+    fn replace_child_field_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FieldFormalParameterImpl.replaceChild`.
+    fn replace_child_field_formal_parameter_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_field_formal_parameter_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().function_typed_suffix == old {
+            if !self.node(new_).is_function_typed_formal_parameter_suffix_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().function_typed_suffix = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().default_clause == old {
+            if !self.node(new_).is_formal_parameter_default_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().default_clause = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().function_typed_suffix == old {
+            if !self.node(new_).is_function_typed_formal_parameter_suffix_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().function_typed_suffix = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().default_clause == old {
+            if !self.node(new_).is_formal_parameter_default_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().default_clause = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_field_formal_parameter_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FieldsDeclarationImpl.replaceChild`.
+    fn replace_child_fields_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_fields_declaration_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_fields_declaration_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_fields_declaration_impl().fields.iter().position(|&e| e == old) {
+            if !self.node(new_).is_field2_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_fields_declaration_impl_mut().fields[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_fields_declaration_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_fields_declaration_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_fields_declaration_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_fields_declaration_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForEachPartsWithDeclarationImpl.replaceChild`.
+    fn replace_child_for_each_parts_with_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_each_parts_with_declaration_impl().loop_variable == old {
+            if !self.node(new_).is_declared_identifier_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_each_parts_with_declaration_impl_mut().loop_variable = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_for_each_parts_with_declaration_impl().iterable2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_each_parts_with_declaration_impl_mut().iterable2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForEachPartsWithIdentifierImpl.replaceChild`.
+    fn replace_child_for_each_parts_with_identifier_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_each_parts_with_identifier_impl().target == old {
+            if !self.node(new_).is_unqualified_name_assignment_target_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_each_parts_with_identifier_impl_mut().target = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_for_each_parts_with_identifier_impl().iterable2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_each_parts_with_identifier_impl_mut().iterable2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForEachPartsWithPatternImpl.replaceChild`.
+    fn replace_child_for_each_parts_with_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_for_each_parts_with_pattern_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_each_parts_with_pattern_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_for_each_parts_with_pattern_impl().pattern == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_each_parts_with_pattern_impl_mut().pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_for_each_parts_with_pattern_impl().iterable2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_each_parts_with_pattern_impl_mut().iterable2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForElementImpl.replaceChild`.
+    fn replace_child_for_element_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_element_impl().for_loop_parts == old {
+            if !self.node(new_).is_for_loop_parts_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_element_impl_mut().for_loop_parts = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_for_element_impl().body2 == old {
+            if !self.node(new_).is_collection_element_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_element_impl_mut().body2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForPartsWithDeclarationsImpl.replaceChild`.
+    fn replace_child_for_parts_with_declarations_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_parts_with_declarations_impl().variables2 == old {
+            if !self.node(new_).is_local_variables_declaration_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_parts_with_declarations_impl_mut().variables2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_for_parts_with_declarations_impl().condition2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_parts_with_declarations_impl_mut().condition2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_for_parts_with_declarations_impl().updaters2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_parts_with_declarations_impl_mut().updaters2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForPartsWithExpressionImpl.replaceChild`.
+    fn replace_child_for_parts_with_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_parts_with_expression_impl().initialization2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_parts_with_expression_impl_mut().initialization2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_for_parts_with_expression_impl().condition2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_parts_with_expression_impl_mut().condition2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_for_parts_with_expression_impl().updaters2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_parts_with_expression_impl_mut().updaters2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForPartsWithPatternImpl.replaceChild`.
+    fn replace_child_for_parts_with_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_parts_with_pattern_impl().variables == old {
+            if !self.node(new_).is_pattern_variable_declaration_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_parts_with_pattern_impl_mut().variables = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_for_parts_with_pattern_impl().condition2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_parts_with_pattern_impl_mut().condition2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_for_parts_with_pattern_impl().updaters2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_parts_with_pattern_impl_mut().updaters2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForStatementImpl.replaceChild`.
+    fn replace_child_for_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_statement_impl().for_loop_parts == old {
+            if !self.node(new_).is_for_loop_parts_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_statement_impl_mut().for_loop_parts = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_for_statement_impl().body2 == old {
+            if !self.node(new_).is_statement_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_for_statement_impl_mut().body2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FormalParameterDefaultClauseImpl.replaceChild`.
+    fn replace_child_formal_parameter_default_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_formal_parameter_default_clause_impl().value2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_formal_parameter_default_clause_impl_mut().value2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FormalParameterListImpl.replaceChild`.
+    fn replace_child_formal_parameter_list_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_formal_parameter_list_impl().required_positional_formal_parameters.iter().position(|&e| e == old) {
+            if !self.node(new_).is_formal_parameter_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_formal_parameter_list_impl_mut().required_positional_formal_parameters[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_formal_parameter_list_impl().delimited_formal_parameters == old {
+            if !self.node(new_).is_delimited_formal_parameters_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_formal_parameter_list_impl_mut().delimited_formal_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            for p in self.node(new_).as_delimited_formal_parameters_impl().formal_parameters.clone() {
+                self.set_parent1(p, parent);
+            }
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FunctionDeclarationImpl.replaceChild`.
+    fn replace_child_function_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FunctionDeclarationStatementImpl.replaceChild`.
+    fn replace_child_function_declaration_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FunctionExpressionImpl.replaceChild`.
+    fn replace_child_function_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if parent >= V1_BASE {
+            panic!("UnsupportedError: A V1 projection cannot be mutated.");
+        }
+        if self.node(parent).as_function_expression_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_function_expression_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_function_expression_impl().parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_function_expression_impl_mut().parameters = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_function_expression_impl().body == old {
+            if !self.node(new_).is_function_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_function_expression_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FunctionExpressionInvocationImpl.replaceChild`.
+    fn replace_child_function_expression_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FunctionReferenceImpl.replaceChild`.
+    fn replace_child_function_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FunctionTypeAlias2Impl.replaceChild`.
+    fn replace_child_function_type_alias2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_function_type_alias2_impl().return_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_function_type_alias2_impl_mut().return_type = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_function_type_alias2_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_function_type_alias2_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_function_type_alias2_impl().parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_function_type_alias2_impl_mut().parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_function_type_alias2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_function_type_alias2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_function_type_alias2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_function_type_alias2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FunctionTypeAliasImpl.replaceChild`.
+    fn replace_child_function_type_alias_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FunctionTypedFormalParameterSuffixImpl.replaceChild`.
+    fn replace_child_function_typed_formal_parameter_suffix_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_function_typed_formal_parameter_suffix_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_function_typed_formal_parameter_suffix_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_function_typed_formal_parameter_suffix_impl().formal_parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_function_typed_formal_parameter_suffix_impl_mut().formal_parameters = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `GenericFunctionTypeImpl.replaceChild`.
+    fn replace_child_generic_function_type_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_generic_function_type_impl().return_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_generic_function_type_impl_mut().return_type = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_generic_function_type_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_generic_function_type_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_generic_function_type_impl().parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_generic_function_type_impl_mut().parameters = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `GenericTypeAlias2Impl.replaceChild`.
+    fn replace_child_generic_type_alias2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_generic_type_alias2_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_generic_type_alias2_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_generic_type_alias2_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_generic_type_alias2_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_generic_type_alias2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_generic_type_alias2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_generic_type_alias2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_generic_type_alias2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `GenericTypeAliasImpl.replaceChild`.
+    fn replace_child_generic_type_alias_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `GetterDeclarationImpl.replaceChild`.
+    fn replace_child_getter_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_getter_declaration_impl().return_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_getter_declaration_impl_mut().return_type = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_getter_declaration_impl().recovery_formal_parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_getter_declaration_impl_mut().recovery_formal_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_getter_declaration_impl().body == old {
+            if !self.node(new_).is_function_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_getter_declaration_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_getter_declaration_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_getter_declaration_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_getter_declaration_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_getter_declaration_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `GuardedPatternImpl.replaceChild`.
+    fn replace_child_guarded_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_guarded_pattern_impl().pattern == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_guarded_pattern_impl_mut().pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_guarded_pattern_impl().when_clause == old {
+            if !self.node(new_).is_when_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_guarded_pattern_impl_mut().when_clause = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `HideCombinatorImpl.replaceChild`.
+    fn replace_child_hide_combinator_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_hide_combinator_impl().names.iter().position(|&e| e == old) {
+            if !self.node(new_).is_combinator_name_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_hide_combinator_impl_mut().names[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IfElementImpl.replaceChild`.
+    fn replace_child_if_element_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_if_element_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_element_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_if_element_impl().case_clause == old {
+            if !self.node(new_).is_case_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_element_impl_mut().case_clause = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_if_element_impl().then_element2 == old {
+            if !self.node(new_).is_collection_element_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_element_impl_mut().then_element2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_if_element_impl().else_element2 == old {
+            if !self.node(new_).is_collection_element_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_element_impl_mut().else_element2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IfNullAssignmentImpl.replaceChild`.
+    fn replace_child_if_null_assignment_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_if_null_assignment_impl().target == old {
+            if !self.node(new_).is_assignment_target_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_null_assignment_impl_mut().target = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_if_null_assignment_impl().value == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_null_assignment_impl_mut().value = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IfNullImpl.replaceChild`.
+    fn replace_child_if_null_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_if_null_impl().left_operand == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_null_impl_mut().left_operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_if_null_impl().right_operand == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_null_impl_mut().right_operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IfStatementImpl.replaceChild`.
+    fn replace_child_if_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_if_statement_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_statement_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_if_statement_impl().case_clause == old {
+            if !self.node(new_).is_case_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_statement_impl_mut().case_clause = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_if_statement_impl().then_statement2 == old {
+            if !self.node(new_).is_statement_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_statement_impl_mut().then_statement2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_if_statement_impl().else_statement2 == old {
+            if !self.node(new_).is_statement_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_if_statement_impl_mut().else_statement2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ImplementsClauseImpl.replaceChild`.
+    fn replace_child_implements_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_implements_clause_impl().interfaces.iter().position(|&e| e == old) {
+            if !self.node(new_).is_named_type_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_implements_clause_impl_mut().interfaces[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ImplicitCallReferenceImpl.replaceChild`.
+    fn replace_child_implicit_call_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ImportDirectiveImpl.replaceChild`.
+    fn replace_child_import_directive_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_import_directive_impl().uri == old {
+            if !self.node(new_).is_string_literal_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_import_directive_impl_mut().uri = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_import_directive_impl().configurations.iter().position(|&e| e == old) {
+            if !self.node(new_).is_configuration_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_import_directive_impl_mut().configurations[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_import_directive_impl().combinators.iter().position(|&e| e == old) {
+            if !self.node(new_).is_combinator_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_import_directive_impl_mut().combinators[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_import_directive_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_import_directive_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_import_directive_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_import_directive_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ImportPrefixReferenceImpl.replaceChild`.
+    fn replace_child_import_prefix_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IncrementOrDecrementExpressionImpl.replaceChild`.
+    fn replace_child_increment_or_decrement_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_increment_or_decrement_expression_impl().target == old {
+            if !self.node(new_).is_assignment_target_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_increment_or_decrement_expression_impl_mut().target = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IndexExpressionImpl.replaceChild`.
+    fn replace_child_index_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `InstanceCreationExpressionImpl.replaceChild`.
+    fn replace_child_instance_creation_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `IntegerLiteralImpl.replaceChild`.
+    fn replace_child_integer_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `InterpolationExpressionImpl.replaceChild`.
+    fn replace_child_interpolation_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_interpolation_expression_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_interpolation_expression_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `InterpolationStringImpl.replaceChild`.
+    fn replace_child_interpolation_string_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `InvalidExpressionAssignmentTargetImpl.replaceChild`.
+    fn replace_child_invalid_expression_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_invalid_expression_assignment_target_impl().expression == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_invalid_expression_assignment_target_impl_mut().expression = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `InvalidSuperAssignmentTargetImpl.replaceChild`.
+    fn replace_child_invalid_super_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_invalid_super_assignment_target_impl().super_reference == old {
+            if !self.node(new_).is_super_reference_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_invalid_super_assignment_target_impl_mut().super_reference = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `InvalidSuperExpressionImpl.replaceChild`.
+    fn replace_child_invalid_super_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_invalid_super_expression_impl().super_reference == old {
+            if !self.node(new_).is_super_reference_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_invalid_super_expression_impl_mut().super_reference = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IsExpressionImpl.replaceChild`.
+    fn replace_child_is_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_is_expression_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_is_expression_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_is_expression_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_is_expression_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LabelImpl.replaceChild`.
+    fn replace_child_label_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LabelReferenceImpl.replaceChild`.
+    fn replace_child_label_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LabeledStatementImpl.replaceChild`.
+    fn replace_child_labeled_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_labeled_statement_impl().labels.iter().position(|&e| e == old) {
+            if !self.node(new_).is_label_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_labeled_statement_impl_mut().labels[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_labeled_statement_impl().statement2 == old {
+            if !self.node(new_).is_statement_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_labeled_statement_impl_mut().statement2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LibraryDirectiveImpl.replaceChild`.
+    fn replace_child_library_directive_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_library_directive_impl().name == old {
+            if !self.node(new_).is_dotted_name_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_library_directive_impl_mut().name = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_library_directive_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_library_directive_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_library_directive_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_library_directive_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ListLiteralImpl.replaceChild`.
+    fn replace_child_list_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_list_literal_impl().type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_list_literal_impl_mut().type_arguments = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_list_literal_impl().elements2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_collection_element_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_list_literal_impl_mut().elements2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ListPatternImpl.replaceChild`.
+    fn replace_child_list_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_list_pattern_impl().type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_list_pattern_impl_mut().type_arguments = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_list_pattern_impl().elements.iter().position(|&e| e == old) {
+            if !self.node(new_).is_list_pattern_element_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_list_pattern_impl_mut().elements[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LocalFunctionDeclarationImpl.replaceChild`.
+    fn replace_child_local_function_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_local_function_declaration_impl().return_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_function_declaration_impl_mut().return_type = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_local_function_declaration_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_function_declaration_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_local_function_declaration_impl().formal_parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_function_declaration_impl_mut().formal_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_local_function_declaration_impl().body == old {
+            if !self.node(new_).is_function_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_function_declaration_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_local_function_declaration_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_function_declaration_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_local_function_declaration_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_function_declaration_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LocalVariableImpl.replaceChild`.
+    fn replace_child_local_variable_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_local_variable_impl().initializer == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_variable_impl_mut().initializer = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LocalVariablesDeclarationImpl.replaceChild`.
+    fn replace_child_local_variables_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_local_variables_declaration_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_variables_declaration_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_local_variables_declaration_impl().variables.iter().position(|&e| e == old) {
+            if !self.node(new_).is_local_variable_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_variables_declaration_impl_mut().variables[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_local_variables_declaration_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_variables_declaration_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_local_variables_declaration_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_variables_declaration_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LocalVariablesDeclarationStatementImpl.replaceChild`.
+    fn replace_child_local_variables_declaration_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_local_variables_declaration_statement_impl().declaration == old {
+            if !self.node(new_).is_local_variables_declaration_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_local_variables_declaration_statement_impl_mut().declaration = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LogicalAndImpl.replaceChild`.
+    fn replace_child_logical_and_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_logical_and_impl().left_operand == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_logical_and_impl_mut().left_operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_logical_and_impl().right_operand == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_logical_and_impl_mut().right_operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LogicalAndPatternImpl.replaceChild`.
+    fn replace_child_logical_and_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_logical_and_pattern_impl().left_operand == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_logical_and_pattern_impl_mut().left_operand = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_logical_and_pattern_impl().right_operand == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_logical_and_pattern_impl_mut().right_operand = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LogicalNotImpl.replaceChild`.
+    fn replace_child_logical_not_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_logical_not_impl().operand == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_logical_not_impl_mut().operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LogicalOrImpl.replaceChild`.
+    fn replace_child_logical_or_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_logical_or_impl().left_operand == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_logical_or_impl_mut().left_operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_logical_or_impl().right_operand == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_logical_or_impl_mut().right_operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LogicalOrPatternImpl.replaceChild`.
+    fn replace_child_logical_or_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_logical_or_pattern_impl().left_operand == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_logical_or_pattern_impl_mut().left_operand = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_logical_or_pattern_impl().right_operand == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_logical_or_pattern_impl_mut().right_operand = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MapLiteralEntryImpl.replaceChild`.
+    fn replace_child_map_literal_entry_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_map_literal_entry_impl().key2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_map_literal_entry_impl_mut().key2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_map_literal_entry_impl().value2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_map_literal_entry_impl_mut().value2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MapPatternEntryImpl.replaceChild`.
+    fn replace_child_map_pattern_entry_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_map_pattern_entry_impl().key2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_map_pattern_entry_impl_mut().key2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_map_pattern_entry_impl().value == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_map_pattern_entry_impl_mut().value = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MapPatternImpl.replaceChild`.
+    fn replace_child_map_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_map_pattern_impl().type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_map_pattern_impl_mut().type_arguments = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_map_pattern_impl().elements.iter().position(|&e| e == old) {
+            if !self.node(new_).is_map_pattern_element_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_map_pattern_impl_mut().elements[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MethodDeclaration2Impl.replaceChild`.
+    fn replace_child_method_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_method_declaration2_impl().return_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_method_declaration2_impl_mut().return_type = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_method_declaration2_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_method_declaration2_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_method_declaration2_impl().formal_parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_method_declaration2_impl_mut().formal_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_method_declaration2_impl().body == old {
+            if !self.node(new_).is_function_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_method_declaration2_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_method_declaration2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_method_declaration2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_method_declaration2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_method_declaration2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MethodDeclarationImpl.replaceChild`.
+    fn replace_child_method_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `MethodInvocationImpl.replaceChild`.
+    fn replace_child_method_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `MixinDeclaration2Impl.replaceChild`.
+    fn replace_child_mixin_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_mixin_declaration2_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_mixin_declaration2_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_mixin_declaration2_impl().on_clause == old {
+            if !self.node(new_).is_mixin_on_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_mixin_declaration2_impl_mut().on_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_mixin_declaration2_impl().implements_clause == old {
+            if !self.node(new_).is_implements_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_mixin_declaration2_impl_mut().implements_clause = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_mixin_declaration2_impl().body == old {
+            if !self.node(new_).is_instance_declaration_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_mixin_declaration2_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_mixin_declaration2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_mixin_declaration2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_mixin_declaration2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_mixin_declaration2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MixinDeclarationImpl.replaceChild`.
+    fn replace_child_mixin_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `MixinOnClauseImpl.replaceChild`.
+    fn replace_child_mixin_on_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_mixin_on_clause_impl().superclass_constraints.iter().position(|&e| e == old) {
+            if !self.node(new_).is_named_type_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_mixin_on_clause_impl_mut().superclass_constraints[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NameWithTypeParametersImpl.replaceChild`.
+    fn replace_child_name_with_type_parameters_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_name_with_type_parameters_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_name_with_type_parameters_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NamedArgumentImpl.replaceChild`.
+    fn replace_child_named_argument_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_named_argument_impl().argument_expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_named_argument_impl_mut().argument_expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NamedTypeImpl.replaceChild`.
+    fn replace_child_named_type_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_named_type_impl().import_prefix == old {
+            if !self.node(new_).is_import_prefix_reference_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_named_type_impl_mut().import_prefix = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_named_type_impl().type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_named_type_impl_mut().type_arguments = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NativeClauseImpl.replaceChild`.
+    fn replace_child_native_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_native_clause_impl().name == old {
+            if !self.node(new_).is_string_literal_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_native_clause_impl_mut().name = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NativeFunctionBodyImpl.replaceChild`.
+    fn replace_child_native_function_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_native_function_body_impl().string_literal == old {
+            if !self.node(new_).is_string_literal_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_native_function_body_impl_mut().string_literal = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NullAssertPatternImpl.replaceChild`.
+    fn replace_child_null_assert_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_null_assert_pattern_impl().pattern == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_null_assert_pattern_impl_mut().pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NullAssertionExpressionImpl.replaceChild`.
+    fn replace_child_null_assertion_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_null_assertion_expression_impl().operand == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_null_assertion_expression_impl_mut().operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NullAwareElementImpl.replaceChild`.
+    fn replace_child_null_aware_element_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_null_aware_element_impl().value2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_null_aware_element_impl_mut().value2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NullCheckPatternImpl.replaceChild`.
+    fn replace_child_null_check_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_null_check_pattern_impl().pattern == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_null_check_pattern_impl_mut().pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NullLiteralImpl.replaceChild`.
+    fn replace_child_null_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ObjectPatternImpl.replaceChild`.
+    fn replace_child_object_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_object_pattern_impl().type_ == old {
+            if !self.node(new_).is_named_type_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_object_pattern_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_object_pattern_impl().fields.iter().position(|&e| e == old) {
+            if !self.node(new_).is_pattern_field_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_object_pattern_impl_mut().fields[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `OperatorDeclarationImpl.replaceChild`.
+    fn replace_child_operator_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_operator_declaration_impl().return_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_operator_declaration_impl_mut().return_type = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_operator_declaration_impl().recovery_type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_operator_declaration_impl_mut().recovery_type_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_operator_declaration_impl().formal_parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_operator_declaration_impl_mut().formal_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_operator_declaration_impl().body == old {
+            if !self.node(new_).is_function_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_operator_declaration_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_operator_declaration_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_operator_declaration_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_operator_declaration_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_operator_declaration_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParenthesizedExpressionImpl.replaceChild`.
+    fn replace_child_parenthesized_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parenthesized_expression_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_parenthesized_expression_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParenthesizedPatternImpl.replaceChild`.
+    fn replace_child_parenthesized_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parenthesized_pattern_impl().pattern == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_parenthesized_pattern_impl_mut().pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedCascadeNameImpl.replaceChild`.
+    fn replace_child_parsed_cascade_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedDotShorthandExpressionImpl.replaceChild`.
+    fn replace_child_parsed_dot_shorthand_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parsed_dot_shorthand_expression_impl().expression == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_parsed_dot_shorthand_expression_impl_mut().expression = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedDotShorthandNameImpl.replaceChild`.
+    fn replace_child_parsed_dot_shorthand_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedNameAccessAssignmentTargetImpl.replaceChild`.
+    fn replace_child_parsed_name_access_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parsed_name_access_assignment_target_impl().operand == old {
+            if !self.node(new_).is_parsed_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_parsed_name_access_assignment_target_impl_mut().operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedNameAccessImpl.replaceChild`.
+    fn replace_child_parsed_name_access_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parsed_name_access_impl().operand == old {
+            if !self.node(new_).is_instance_receiver_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_parsed_name_access_impl_mut().operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedTypeArgumentsImpl.replaceChild`.
+    fn replace_child_parsed_type_arguments_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parsed_type_arguments_impl().operand == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_parsed_type_arguments_impl_mut().operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_parsed_type_arguments_impl().type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_parsed_type_arguments_impl_mut().type_arguments = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedUnqualifiedNameImpl.replaceChild`.
+    fn replace_child_parsed_unqualified_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedValueArgumentsImpl.replaceChild`.
+    fn replace_child_parsed_value_arguments_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parsed_value_arguments_impl().operand == old {
+            if !self.node(new_).is_parsed_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_parsed_value_arguments_impl_mut().operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_parsed_value_arguments_impl().argument_list == old {
+            if !self.node(new_).is_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_parsed_value_arguments_impl_mut().argument_list = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PartDirectiveImpl.replaceChild`.
+    fn replace_child_part_directive_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_part_directive_impl().uri == old {
+            if !self.node(new_).is_string_literal_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_part_directive_impl_mut().uri = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_part_directive_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_part_directive_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_part_directive_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_part_directive_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PartOfDirectiveImpl.replaceChild`.
+    fn replace_child_part_of_directive_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_part_of_directive_impl().uri == old {
+            if !self.node(new_).is_string_literal_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_part_of_directive_impl_mut().uri = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_part_of_directive_impl().library_name == old {
+            if !self.node(new_).is_dotted_name_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_part_of_directive_impl_mut().library_name = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_part_of_directive_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_part_of_directive_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_part_of_directive_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_part_of_directive_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PatternAssignmentImpl.replaceChild`.
+    fn replace_child_pattern_assignment_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_pattern_assignment_impl().pattern == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_pattern_assignment_impl_mut().pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_pattern_assignment_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_pattern_assignment_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PatternFieldImpl.replaceChild`.
+    fn replace_child_pattern_field_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_pattern_field_impl().name == old {
+            if !self.node(new_).is_pattern_field_name_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_pattern_field_impl_mut().name = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_pattern_field_impl().pattern == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_pattern_field_impl_mut().pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PatternFieldNameImpl.replaceChild`.
+    fn replace_child_pattern_field_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PatternVariableDeclarationImpl.replaceChild`.
+    fn replace_child_pattern_variable_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_pattern_variable_declaration_impl().pattern == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_pattern_variable_declaration_impl_mut().pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_pattern_variable_declaration_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_pattern_variable_declaration_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_pattern_variable_declaration_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_pattern_variable_declaration_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_pattern_variable_declaration_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_pattern_variable_declaration_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PatternVariableDeclarationStatementImpl.replaceChild`.
+    fn replace_child_pattern_variable_declaration_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_pattern_variable_declaration_statement_impl().declaration == old {
+            if !self.node(new_).is_pattern_variable_declaration_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_pattern_variable_declaration_statement_impl_mut().declaration = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PostfixExpressionImpl.replaceChild`.
+    fn replace_child_postfix_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `PrefixExpressionImpl.replaceChild`.
+    fn replace_child_prefix_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `PrefixedIdentifierImpl.replaceChild`.
+    fn replace_child_prefixed_identifier_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `PrimaryConstructorBody2Impl.replaceChild`.
+    fn replace_child_primary_constructor_body2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_primary_constructor_body2_impl().initializers.iter().position(|&e| e == old) {
+            if !self.node(new_).is_constructor_initializer_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_primary_constructor_body2_impl_mut().initializers[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_primary_constructor_body2_impl().body == old {
+            if !self.node(new_).is_function_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_primary_constructor_body2_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_primary_constructor_body2_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_primary_constructor_body2_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_primary_constructor_body2_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_primary_constructor_body2_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PrimaryConstructorBodyImpl.replaceChild`.
+    fn replace_child_primary_constructor_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `PrimaryConstructorDeclarationImpl.replaceChild`.
+    fn replace_child_primary_constructor_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_primary_constructor_declaration_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_primary_constructor_declaration_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_primary_constructor_declaration_impl().constructor_name == old {
+            if !self.node(new_).is_primary_constructor_name_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_primary_constructor_declaration_impl_mut().constructor_name = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_primary_constructor_declaration_impl().formal_parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_primary_constructor_declaration_impl_mut().formal_parameters = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PrimaryConstructorNameImpl.replaceChild`.
+    fn replace_child_primary_constructor_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PropertyAccessImpl.replaceChild`.
+    fn replace_child_property_access_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ReceiverIndexAssignmentTargetImpl.replaceChild`.
+    fn replace_child_receiver_index_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_receiver_index_assignment_target_impl().receiver == old {
+            if !self.node(new_).is_instance_receiver_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_receiver_index_assignment_target_impl_mut().receiver = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_receiver_index_assignment_target_impl().index == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_receiver_index_assignment_target_impl_mut().index = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ReceiverIndexExpressionImpl.replaceChild`.
+    fn replace_child_receiver_index_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_receiver_index_expression_impl().receiver == old {
+            if !self.node(new_).is_instance_receiver_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_receiver_index_expression_impl_mut().receiver = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_receiver_index_expression_impl().index == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_receiver_index_expression_impl_mut().index = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ReceiverPropertyAssignmentTargetImpl.replaceChild`.
+    fn replace_child_receiver_property_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_receiver_property_assignment_target_impl().receiver == old {
+            if !self.node(new_).is_named_receiver_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_receiver_property_assignment_target_impl_mut().receiver = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ReceiverPropertyExtractionImpl.replaceChild`.
+    fn replace_child_receiver_property_extraction_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_receiver_property_extraction_impl().receiver == old {
+            if !self.node(new_).is_named_receiver_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_receiver_property_extraction_impl_mut().receiver = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordLiteralImpl.replaceChild`.
+    fn replace_child_record_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_record_literal_impl().fields2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_record_literal_field_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_record_literal_impl_mut().fields2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordLiteralNamedFieldImpl.replaceChild`.
+    fn replace_child_record_literal_named_field_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_record_literal_named_field_impl().field_expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_record_literal_named_field_impl_mut().field_expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordPatternImpl.replaceChild`.
+    fn replace_child_record_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_record_pattern_impl().fields.iter().position(|&e| e == old) {
+            if !self.node(new_).is_pattern_field_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_record_pattern_impl_mut().fields[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordTypeAnnotationImpl.replaceChild`.
+    fn replace_child_record_type_annotation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_record_type_annotation_impl().positional_fields.iter().position(|&e| e == old) {
+            if !self.node(new_).is_record_type_annotation_positional_field_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_record_type_annotation_impl_mut().positional_fields[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_record_type_annotation_impl().named_fields == old {
+            if !self.node(new_).is_record_type_annotation_named_fields_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_record_type_annotation_impl_mut().named_fields = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordTypeAnnotationNamedFieldImpl.replaceChild`.
+    fn replace_child_record_type_annotation_named_field_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_record_type_annotation_named_field_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_record_type_annotation_named_field_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_record_type_annotation_named_field_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_record_type_annotation_named_field_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordTypeAnnotationNamedFieldsImpl.replaceChild`.
+    fn replace_child_record_type_annotation_named_fields_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_record_type_annotation_named_fields_impl().fields.iter().position(|&e| e == old) {
+            if !self.node(new_).is_record_type_annotation_named_field_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_record_type_annotation_named_fields_impl_mut().fields[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordTypeAnnotationPositionalFieldImpl.replaceChild`.
+    fn replace_child_record_type_annotation_positional_field_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_record_type_annotation_positional_field_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_record_type_annotation_positional_field_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_record_type_annotation_positional_field_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_record_type_annotation_positional_field_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RedirectingConstructorInvocationImpl.replaceChild`.
+    fn replace_child_redirecting_constructor_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_redirecting_constructor_invocation_impl().constructor_selector == old {
+            if !self.node(new_).is_constructor_selector_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_redirecting_constructor_invocation_impl_mut().constructor_selector = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            self.set_api_override(new_, AstNodeApi::v2);
+            return;
+        }
+        if self.node(parent).as_redirecting_constructor_invocation_impl().argument_list == old {
+            if !self.node(new_).is_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_redirecting_constructor_invocation_impl_mut().argument_list = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RegularFormalParameterImpl.replaceChild`.
+    fn replace_child_regular_formal_parameter_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_regular_formal_parameter_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().function_typed_suffix == old {
+            if !self.node(new_).is_function_typed_formal_parameter_suffix_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().function_typed_suffix = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().default_clause == old {
+            if !self.node(new_).is_formal_parameter_default_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().default_clause = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().function_typed_suffix == old {
+            if !self.node(new_).is_function_typed_formal_parameter_suffix_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().function_typed_suffix = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().default_clause == old {
+            if !self.node(new_).is_formal_parameter_default_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().default_clause = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_regular_formal_parameter_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RelationalPatternImpl.replaceChild`.
+    fn replace_child_relational_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_relational_pattern_impl().operand2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_relational_pattern_impl_mut().operand2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RestPatternElementImpl.replaceChild`.
+    fn replace_child_rest_pattern_element_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_rest_pattern_element_impl().pattern == old {
+            if !self.node(new_).is_dart_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_rest_pattern_element_impl_mut().pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RethrowExpressionImpl.replaceChild`.
+    fn replace_child_rethrow_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ReturnStatementImpl.replaceChild`.
+    fn replace_child_return_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_return_statement_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_return_statement_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ScriptTagImpl.replaceChild`.
+    fn replace_child_script_tag_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SemicolonEnumDeclarationBodyImpl.replaceChild`.
+    fn replace_child_semicolon_enum_declaration_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SemicolonInstanceDeclarationBodyImpl.replaceChild`.
+    fn replace_child_semicolon_instance_declaration_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SetOrMapLiteralImpl.replaceChild`.
+    fn replace_child_set_or_map_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_set_or_map_literal_impl().type_arguments == old {
+            if !self.node(new_).is_type_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_set_or_map_literal_impl_mut().type_arguments = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_set_or_map_literal_impl().elements2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_collection_element_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_set_or_map_literal_impl_mut().elements2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SetterDeclarationImpl.replaceChild`.
+    fn replace_child_setter_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_setter_declaration_impl().return_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_setter_declaration_impl_mut().return_type = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_setter_declaration_impl().formal_parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_setter_declaration_impl_mut().formal_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_setter_declaration_impl().body == old {
+            if !self.node(new_).is_function_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_setter_declaration_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_setter_declaration_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_setter_declaration_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_setter_declaration_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_setter_declaration_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ShowCombinatorImpl.replaceChild`.
+    fn replace_child_show_combinator_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_show_combinator_impl().names.iter().position(|&e| e == old) {
+            if !self.node(new_).is_combinator_name_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_show_combinator_impl_mut().names[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SimpleIdentifierImpl.replaceChild`.
+    fn replace_child_simple_identifier_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `SimpleStringLiteralImpl.replaceChild`.
+    fn replace_child_simple_string_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SpreadElementImpl.replaceChild`.
+    fn replace_child_spread_element_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_spread_element_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_spread_element_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `StringInterpolationImpl.replaceChild`.
+    fn replace_child_string_interpolation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_string_interpolation_impl().elements.iter().position(|&e| e == old) {
+            if !self.node(new_).is_interpolation_element_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_string_interpolation_impl_mut().elements[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SuperConstructorInvocationImpl.replaceChild`.
+    fn replace_child_super_constructor_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_super_constructor_invocation_impl().constructor_selector == old {
+            if !self.node(new_).is_constructor_selector_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_super_constructor_invocation_impl_mut().constructor_selector = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            self.set_api_override(new_, AstNodeApi::v2);
+            return;
+        }
+        if self.node(parent).as_super_constructor_invocation_impl().argument_list == old {
+            if !self.node(new_).is_argument_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_super_constructor_invocation_impl_mut().argument_list = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SuperExpressionImpl.replaceChild`.
+    fn replace_child_super_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `SuperFormalParameterImpl.replaceChild`.
+    fn replace_child_super_formal_parameter_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_super_formal_parameter_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().function_typed_suffix == old {
+            if !self.node(new_).is_function_typed_formal_parameter_suffix_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().function_typed_suffix = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().default_clause == old {
+            if !self.node(new_).is_formal_parameter_default_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().default_clause = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().function_typed_suffix == old {
+            if !self.node(new_).is_function_typed_formal_parameter_suffix_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().function_typed_suffix = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().default_clause == old {
+            if !self.node(new_).is_formal_parameter_default_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().default_clause = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_super_formal_parameter_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SuperReferenceImpl.replaceChild`.
+    fn replace_child_super_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchCaseImpl.replaceChild`.
+    fn replace_child_switch_case_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_switch_case_impl().labels.iter().position(|&e| e == old) {
+            if !self.node(new_).is_label_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_case_impl_mut().labels[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_switch_case_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_case_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_switch_case_impl().statements2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_statement_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_case_impl_mut().statements2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchDefaultImpl.replaceChild`.
+    fn replace_child_switch_default_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_switch_default_impl().labels.iter().position(|&e| e == old) {
+            if !self.node(new_).is_label_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_default_impl_mut().labels[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_switch_default_impl().statements2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_statement_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_default_impl_mut().statements2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchExpressionCaseImpl.replaceChild`.
+    fn replace_child_switch_expression_case_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_switch_expression_case_impl().guarded_pattern == old {
+            if !self.node(new_).is_guarded_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_expression_case_impl_mut().guarded_pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_switch_expression_case_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_expression_case_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchExpressionImpl.replaceChild`.
+    fn replace_child_switch_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_switch_expression_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_expression_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_switch_expression_impl().cases.iter().position(|&e| e == old) {
+            if !self.node(new_).is_switch_expression_case_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_expression_impl_mut().cases[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchPatternCaseImpl.replaceChild`.
+    fn replace_child_switch_pattern_case_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_switch_pattern_case_impl().labels.iter().position(|&e| e == old) {
+            if !self.node(new_).is_label_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_pattern_case_impl_mut().labels[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_switch_pattern_case_impl().guarded_pattern == old {
+            if !self.node(new_).is_guarded_pattern_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_pattern_case_impl_mut().guarded_pattern = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_switch_pattern_case_impl().statements2.iter().position(|&e| e == old) {
+            if !self.node(new_).is_statement_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_pattern_case_impl_mut().statements2[i] = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchStatementImpl.replaceChild`.
+    fn replace_child_switch_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_switch_statement_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_statement_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_switch_statement_impl().members.iter().position(|&e| e == old) {
+            if !self.node(new_).is_switch_member_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_switch_statement_impl_mut().members[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SymbolLiteralImpl.replaceChild`.
+    fn replace_child_symbol_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ThisExpressionImpl.replaceChild`.
+    fn replace_child_this_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ThrowExpressionImpl.replaceChild`.
+    fn replace_child_throw_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_throw_expression_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_throw_expression_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TopLevelFunctionDeclarationImpl.replaceChild`.
+    fn replace_child_top_level_function_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_top_level_function_declaration_impl().return_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_function_declaration_impl_mut().return_type = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_top_level_function_declaration_impl().type_parameters == old {
+            if !self.node(new_).is_type_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_function_declaration_impl_mut().type_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_top_level_function_declaration_impl().formal_parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_function_declaration_impl_mut().formal_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_top_level_function_declaration_impl().body == old {
+            if !self.node(new_).is_function_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_function_declaration_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_top_level_function_declaration_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_function_declaration_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_top_level_function_declaration_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_function_declaration_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TopLevelGetterDeclarationImpl.replaceChild`.
+    fn replace_child_top_level_getter_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_top_level_getter_declaration_impl().return_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_getter_declaration_impl_mut().return_type = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_top_level_getter_declaration_impl().recovery_formal_parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_getter_declaration_impl_mut().recovery_formal_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_top_level_getter_declaration_impl().body == old {
+            if !self.node(new_).is_function_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_getter_declaration_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_top_level_getter_declaration_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_getter_declaration_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_top_level_getter_declaration_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_getter_declaration_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TopLevelSetterDeclarationImpl.replaceChild`.
+    fn replace_child_top_level_setter_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_top_level_setter_declaration_impl().return_type == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_setter_declaration_impl_mut().return_type = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_top_level_setter_declaration_impl().formal_parameters == old {
+            if !self.node(new_).is_formal_parameter_list_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_setter_declaration_impl_mut().formal_parameters = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_top_level_setter_declaration_impl().body == old {
+            if !self.node(new_).is_function_body_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_setter_declaration_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_top_level_setter_declaration_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_setter_declaration_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_top_level_setter_declaration_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_setter_declaration_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TopLevelVariable2Impl.replaceChild`.
+    fn replace_child_top_level_variable2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_top_level_variable2_impl().initializer == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_variable2_impl_mut().initializer = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TopLevelVariableDeclarationImpl.replaceChild`.
+    fn replace_child_top_level_variable_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `TopLevelVariablesDeclarationImpl.replaceChild`.
+    fn replace_child_top_level_variables_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_top_level_variables_declaration_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_variables_declaration_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_top_level_variables_declaration_impl().variables.iter().position(|&e| e == old) {
+            if !self.node(new_).is_top_level_variable2_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_variables_declaration_impl_mut().variables[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_top_level_variables_declaration_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_variables_declaration_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_top_level_variables_declaration_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_top_level_variables_declaration_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TryStatementImpl.replaceChild`.
+    fn replace_child_try_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_try_statement_impl().body == old {
+            if !self.node(new_).is_block_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_try_statement_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_try_statement_impl().catch_clauses.iter().position(|&e| e == old) {
+            if !self.node(new_).is_catch_clause_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_try_statement_impl_mut().catch_clauses[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_try_statement_impl().finally_block == old {
+            if !self.node(new_).is_block_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_try_statement_impl_mut().finally_block = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TypeArgumentListImpl.replaceChild`.
+    fn replace_child_type_argument_list_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_type_argument_list_impl().arguments.iter().position(|&e| e == old) {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_type_argument_list_impl_mut().arguments[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TypeParameterImpl.replaceChild`.
+    fn replace_child_type_parameter_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_type_parameter_impl().bound == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_type_parameter_impl_mut().bound = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_type_parameter_impl().documentation_comment == old {
+            if !self.node(new_).is_comment_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_type_parameter_impl_mut().documentation_comment = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if let Some(i) = self.node(parent).as_type_parameter_impl().metadata.iter().position(|&e| e == old) {
+            if !self.node(new_).is_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_type_parameter_impl_mut().metadata[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TypeParameterListImpl.replaceChild`.
+    fn replace_child_type_parameter_list_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_type_parameter_list_impl().type_parameters.iter().position(|&e| e == old) {
+            if !self.node(new_).is_type_parameter_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_type_parameter_list_impl_mut().type_parameters[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `UnaryOperatorInvocationImpl.replaceChild`.
+    fn replace_child_unary_operator_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_unary_operator_invocation_impl().operand == old {
+            if !self.node(new_).is_instance_receiver_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_unary_operator_invocation_impl_mut().operand = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `UnqualifiedNameAssignmentTargetImpl.replaceChild`.
+    fn replace_child_unqualified_name_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `VariableDeclarationImpl.replaceChild`.
+    fn replace_child_variable_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `VariableDeclarationListImpl.replaceChild`.
+    fn replace_child_variable_declaration_list_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `VariableDeclarationStatementImpl.replaceChild`.
+    fn replace_child_variable_declaration_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `WhenClauseImpl.replaceChild`.
+    fn replace_child_when_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_when_clause_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_when_clause_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `WhileStatementImpl.replaceChild`.
+    fn replace_child_while_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_while_statement_impl().condition2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_while_statement_impl_mut().condition2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if self.node(parent).as_while_statement_impl().body2 == old {
+            if !self.node(new_).is_statement_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_while_statement_impl_mut().body2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `WildcardPatternImpl.replaceChild`.
+    fn replace_child_wildcard_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_wildcard_pattern_impl().type_ == old {
+            if !self.node(new_).is_type_annotation_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_wildcard_pattern_impl_mut().type_ = new_;
+            self.attach_child("_becomeParentOf12", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `WithClauseImpl.replaceChild`.
+    fn replace_child_with_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if let Some(i) = self.node(parent).as_with_clause_impl().mixin_types.iter().position(|&e| e == old) {
+            if !self.node(new_).is_named_type_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_with_clause_impl_mut().mixin_types[i] = new_;
+            self.attach_child("_becomeParentOfOwnedView", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `YieldStatementImpl.replaceChild`.
+    fn replace_child_yield_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId, new_: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_yield_statement_impl().expression2 == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_yield_statement_impl_mut().expression2 = new_;
+            self.attach_child("_becomeParentOf2AndExisting1", tokens, parent, new_);
+            return;
+        }
+        if old == new_ {
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AdjacentStringsImpl.removeChild`.
+    fn remove_child_adjacent_strings_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_adjacent_strings_impl().strings.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'strings' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AnnotationImpl.removeChild`.
+    fn remove_child_annotation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_annotation_impl().expression == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AnonymousBlockBodyImpl.removeChild`.
+    fn remove_child_anonymous_block_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_anonymous_block_body_impl().block == old {
+            panic!("UnsupportedError: Cannot remove required child 'block'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AnonymousExpressionBodyImpl.removeChild`.
+    fn remove_child_anonymous_expression_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_anonymous_expression_body_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AnonymousMethodInvocationImpl.removeChild`.
+    fn remove_child_anonymous_method_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_anonymous_method_invocation_impl().target2 == old {
+            self.node_mut(parent).as_anonymous_method_invocation_impl_mut().target2 = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_anonymous_method_invocation_impl().parameters == old {
+            self.node_mut(parent).as_anonymous_method_invocation_impl_mut().parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_anonymous_method_invocation_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ArgumentListImpl.removeChild`.
+    fn remove_child_argument_list_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_argument_list_impl().arguments2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'arguments2' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AsExpressionImpl.removeChild`.
+    fn remove_child_as_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_as_expression_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        if self.node(parent).as_as_expression_impl().type_ == old {
+            panic!("UnsupportedError: Cannot remove required child 'type'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AssertInitializerImpl.removeChild`.
+    fn remove_child_assert_initializer_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_assert_initializer_impl().condition2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'condition2'.");
+        }
+        if self.node(parent).as_assert_initializer_impl().message2 == old {
+            self.node_mut(parent).as_assert_initializer_impl_mut().message2 = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AssertStatementImpl.removeChild`.
+    fn remove_child_assert_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_assert_statement_impl().condition2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'condition2'.");
+        }
+        if self.node(parent).as_assert_statement_impl().message2 == old {
+            self.node_mut(parent).as_assert_statement_impl_mut().message2 = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AssignedVariablePatternImpl.removeChild`.
+    fn remove_child_assigned_variable_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `AssignmentExpressionImpl.removeChild`.
+    fn remove_child_assignment_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `AwaitExpressionImpl.removeChild`.
+    fn remove_child_await_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_await_expression_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BinaryExpressionImpl.removeChild`.
+    fn remove_child_binary_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `BinaryOperatorInvocationImpl.removeChild`.
+    fn remove_child_binary_operator_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_binary_operator_invocation_impl().left_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'leftOperand'.");
+        }
+        if self.node(parent).as_binary_operator_invocation_impl().right_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'rightOperand'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BlockClassBodyImpl.removeChild`.
+    fn remove_child_block_class_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `BlockEnumBodyImpl.removeChild`.
+    fn remove_child_block_enum_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `BlockEnumDeclarationBodyImpl.removeChild`.
+    fn remove_child_block_enum_declaration_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_block_enum_declaration_body_impl().constants.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'constants' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_block_enum_declaration_body_impl().members.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'members' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BlockFunctionBodyImpl.removeChild`.
+    fn remove_child_block_function_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_block_function_body_impl().block == old {
+            panic!("UnsupportedError: Cannot remove required child 'block'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BlockImpl.removeChild`.
+    fn remove_child_block_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_block_impl().statements2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'statements2' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BlockInstanceDeclarationBodyImpl.removeChild`.
+    fn remove_child_block_instance_declaration_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_block_instance_declaration_body_impl().members.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'members' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BooleanLiteralImpl.removeChild`.
+    fn remove_child_boolean_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `BreakStatementImpl.removeChild`.
+    fn remove_child_break_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_break_statement_impl().label == old {
+            self.node_mut(parent).as_break_statement_impl_mut().label = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CallInvocationImpl.removeChild`.
+    fn remove_child_call_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_call_invocation_impl().receiver == old {
+            panic!("UnsupportedError: Cannot remove required child 'receiver'.");
+        }
+        if self.node(parent).as_call_invocation_impl().type_arguments == old {
+            self.node_mut(parent).as_call_invocation_impl_mut().type_arguments = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_call_invocation_impl().argument_list == old {
+            panic!("UnsupportedError: Cannot remove required child 'argumentList'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadeExpressionImpl.removeChild`.
+    fn remove_child_cascade_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_cascade_expression_impl().target2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'target2'.");
+        }
+        if self.node(parent).as_cascade_expression_impl().sections.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'sections' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadeIndexAssignmentTargetImpl.removeChild`.
+    fn remove_child_cascade_index_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_cascade_index_assignment_target_impl().index == old {
+            panic!("UnsupportedError: Cannot remove required child 'index'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadeIndexExpressionImpl.removeChild`.
+    fn remove_child_cascade_index_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_cascade_index_expression_impl().index == old {
+            panic!("UnsupportedError: Cannot remove required child 'index'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadePropertyAssignmentTargetImpl.removeChild`.
+    fn remove_child_cascade_property_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadePropertyExtractionImpl.removeChild`.
+    fn remove_child_cascade_property_extraction_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CascadeSectionImpl.removeChild`.
+    fn remove_child_cascade_section_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_cascade_section_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CaseClauseImpl.removeChild`.
+    fn remove_child_case_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_case_clause_impl().guarded_pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'guardedPattern'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CastPatternImpl.removeChild`.
+    fn remove_child_cast_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_cast_pattern_impl().pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'pattern'.");
+        }
+        if self.node(parent).as_cast_pattern_impl().type_ == old {
+            panic!("UnsupportedError: Cannot remove required child 'type'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CatchClauseImpl.removeChild`.
+    fn remove_child_catch_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_catch_clause_impl().exception_type == old {
+            self.node_mut(parent).as_catch_clause_impl_mut().exception_type = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_catch_clause_impl().exception_parameter == old {
+            self.node_mut(parent).as_catch_clause_impl_mut().exception_parameter = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_catch_clause_impl().stack_trace_parameter == old {
+            self.node_mut(parent).as_catch_clause_impl_mut().stack_trace_parameter = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_catch_clause_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CatchClauseParameterImpl.removeChild`.
+    fn remove_child_catch_clause_parameter_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ClassDeclaration2Impl.removeChild`.
+    fn remove_child_class_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_class_declaration2_impl().name_part == old {
+            panic!("UnsupportedError: Cannot remove required child 'namePart'.");
+        }
+        if self.node(parent).as_class_declaration2_impl().extends_clause == old {
+            self.node_mut(parent).as_class_declaration2_impl_mut().extends_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_class_declaration2_impl().with_clause == old {
+            self.node_mut(parent).as_class_declaration2_impl_mut().with_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_class_declaration2_impl().implements_clause == old {
+            self.node_mut(parent).as_class_declaration2_impl_mut().implements_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_class_declaration2_impl().native_clause == old {
+            self.node_mut(parent).as_class_declaration2_impl_mut().native_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_class_declaration2_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_class_declaration2_impl().documentation_comment == old {
+            self.node_mut(parent).as_class_declaration2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_class_declaration2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ClassDeclarationImpl.removeChild`.
+    fn remove_child_class_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ClassTypeAlias2Impl.removeChild`.
+    fn remove_child_class_type_alias2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_class_type_alias2_impl().type_parameters == old {
+            self.node_mut(parent).as_class_type_alias2_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_class_type_alias2_impl().superclass == old {
+            panic!("UnsupportedError: Cannot remove required child 'superclass'.");
+        }
+        if self.node(parent).as_class_type_alias2_impl().with_clause == old {
+            panic!("UnsupportedError: Cannot remove required child 'withClause'.");
+        }
+        if self.node(parent).as_class_type_alias2_impl().implements_clause == old {
+            self.node_mut(parent).as_class_type_alias2_impl_mut().implements_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_class_type_alias2_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_class_type_alias2_impl().documentation_comment == old {
+            self.node_mut(parent).as_class_type_alias2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_class_type_alias2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ClassTypeAliasImpl.removeChild`.
+    fn remove_child_class_type_alias_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `CombinatorNameImpl.removeChild`.
+    fn remove_child_combinator_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CommentImpl.removeChild`.
+    fn remove_child_comment_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_comment_impl().references.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'references' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CommentReferenceComponentImpl.removeChild`.
+    fn remove_child_comment_reference_component_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CommentReferenceImpl.removeChild`.
+    fn remove_child_comment_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_comment_reference_impl().components.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'components' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CompilationUnitImpl.removeChild`.
+    fn remove_child_compilation_unit_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_compilation_unit_impl().script_tag == old {
+            self.node_mut(parent).as_compilation_unit_impl_mut().script_tag = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_compilation_unit_impl().directives.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'directives' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_compilation_unit_impl().declarations2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'declarations' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `CompoundAssignmentImpl.removeChild`.
+    fn remove_child_compound_assignment_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_compound_assignment_impl().target == old {
+            panic!("UnsupportedError: Cannot remove required child 'target'.");
+        }
+        if self.node(parent).as_compound_assignment_impl().value == old {
+            panic!("UnsupportedError: Cannot remove required child 'value'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConditionalExpressionImpl.removeChild`.
+    fn remove_child_conditional_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_conditional_expression_impl().condition2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'condition2'.");
+        }
+        if self.node(parent).as_conditional_expression_impl().then_expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'thenExpression2'.");
+        }
+        if self.node(parent).as_conditional_expression_impl().else_expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'elseExpression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConfigurationImpl.removeChild`.
+    fn remove_child_configuration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_configuration_impl().name == old {
+            panic!("UnsupportedError: Cannot remove required child 'name'.");
+        }
+        if self.node(parent).as_configuration_impl().value == old {
+            self.node_mut(parent).as_configuration_impl_mut().value = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_configuration_impl().uri == old {
+            panic!("UnsupportedError: Cannot remove required child 'uri'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstantPatternImpl.removeChild`.
+    fn remove_child_constant_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constant_pattern_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorDeclaration2Impl.removeChild`.
+    fn remove_child_constructor_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constructor_declaration2_impl().formal_parameters == old {
+            panic!("UnsupportedError: Cannot remove required child 'formalParameters'.");
+        }
+        if self.node(parent).as_constructor_declaration2_impl().initializers.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'initializers' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_constructor_declaration2_impl().factory_redirection_target == old {
+            self.node_mut(parent).as_constructor_declaration2_impl_mut().factory_redirection_target = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_constructor_declaration2_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_constructor_declaration2_impl().documentation_comment == old {
+            self.node_mut(parent).as_constructor_declaration2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_constructor_declaration2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorDeclarationImpl.removeChild`.
+    fn remove_child_constructor_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ConstructorFieldInitializerImpl.removeChild`.
+    fn remove_child_constructor_field_initializer_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constructor_field_initializer_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorInvocationImpl.removeChild`.
+    fn remove_child_constructor_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constructor_invocation_impl().constructor_reference == old {
+            panic!("UnsupportedError: Cannot remove required child 'constructorReference'.");
+        }
+        if self.node(parent).as_constructor_invocation_impl().type_arguments == old {
+            self.node_mut(parent).as_constructor_invocation_impl_mut().type_arguments = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_constructor_invocation_impl().argument_list == old {
+            panic!("UnsupportedError: Cannot remove required child 'argumentList'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorNameImpl.removeChild`.
+    fn remove_child_constructor_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ConstructorReference2Impl.removeChild`.
+    fn remove_child_constructor_reference2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constructor_reference2_impl().type_reference == old {
+            panic!("UnsupportedError: Cannot remove required child 'typeReference'.");
+        }
+        if self.node(parent).as_constructor_reference2_impl().selector == old {
+            self.node_mut(parent).as_constructor_reference2_impl_mut().selector = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorReferenceImpl.removeChild`.
+    fn remove_child_constructor_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ConstructorSelectorImpl.removeChild`.
+    fn remove_child_constructor_selector_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ConstructorTypeReferenceImpl.removeChild`.
+    fn remove_child_constructor_type_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_constructor_type_reference_impl().import_prefix == old {
+            self.node_mut(parent).as_constructor_type_reference_impl_mut().import_prefix = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_constructor_type_reference_impl().type_arguments == old {
+            self.node_mut(parent).as_constructor_type_reference_impl_mut().type_arguments = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ContinueStatementImpl.removeChild`.
+    fn remove_child_continue_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_continue_statement_impl().label == old {
+            self.node_mut(parent).as_continue_statement_impl_mut().label = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DeclaredIdentifierImpl.removeChild`.
+    fn remove_child_declared_identifier_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_declared_identifier_impl().type_ == old {
+            self.node_mut(parent).as_declared_identifier_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_declared_identifier_impl().documentation_comment == old {
+            self.node_mut(parent).as_declared_identifier_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_declared_identifier_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DeclaredVariablePatternImpl.removeChild`.
+    fn remove_child_declared_variable_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_declared_variable_pattern_impl().type_ == old {
+            self.node_mut(parent).as_declared_variable_pattern_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DelimitedFormalParametersImpl.removeChild`.
+    fn remove_child_delimited_formal_parameters_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_delimited_formal_parameters_impl().formal_parameters.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'formalParameters' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DirectAssignmentImpl.removeChild`.
+    fn remove_child_direct_assignment_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_direct_assignment_impl().target == old {
+            panic!("UnsupportedError: Cannot remove required child 'target'.");
+        }
+        if self.node(parent).as_direct_assignment_impl().value == old {
+            panic!("UnsupportedError: Cannot remove required child 'value'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DoStatementImpl.removeChild`.
+    fn remove_child_do_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_do_statement_impl().body2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'body2'.");
+        }
+        if self.node(parent).as_do_statement_impl().condition2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'condition2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DotShorthandConstructorInvocation2Impl.removeChild`.
+    fn remove_child_dot_shorthand_constructor_invocation2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_dot_shorthand_constructor_invocation2_impl().type_arguments == old {
+            self.node_mut(parent).as_dot_shorthand_constructor_invocation2_impl_mut().type_arguments = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_dot_shorthand_constructor_invocation2_impl().argument_list == old {
+            panic!("UnsupportedError: Cannot remove required child 'argumentList'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DotShorthandConstructorInvocationImpl.removeChild`.
+    fn remove_child_dot_shorthand_constructor_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `DotShorthandInvocationImpl.removeChild`.
+    fn remove_child_dot_shorthand_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `DotShorthandNameExpressionImpl.removeChild`.
+    fn remove_child_dot_shorthand_name_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DotShorthandPropertyAccessImpl.removeChild`.
+    fn remove_child_dot_shorthand_property_access_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `DottedNameImpl.removeChild`.
+    fn remove_child_dotted_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `DoubleLiteralImpl.removeChild`.
+    fn remove_child_double_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EmptyClassBodyImpl.removeChild`.
+    fn remove_child_empty_class_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `EmptyEnumBodyImpl.removeChild`.
+    fn remove_child_empty_enum_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `EmptyFunctionBodyImpl.removeChild`.
+    fn remove_child_empty_function_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EmptyStatementImpl.removeChild`.
+    fn remove_child_empty_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EnumConstantArgumentsImpl.removeChild`.
+    fn remove_child_enum_constant_arguments_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_enum_constant_arguments_impl().type_arguments == old {
+            self.node_mut(parent).as_enum_constant_arguments_impl_mut().type_arguments = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_enum_constant_arguments_impl().constructor_selector == old {
+            self.node_mut(parent).as_enum_constant_arguments_impl_mut().constructor_selector = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_enum_constant_arguments_impl().argument_list == old {
+            panic!("UnsupportedError: Cannot remove required child 'argumentList'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EnumConstantDeclaration2Impl.removeChild`.
+    fn remove_child_enum_constant_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_enum_constant_declaration2_impl().arguments == old {
+            self.node_mut(parent).as_enum_constant_declaration2_impl_mut().arguments = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_enum_constant_declaration2_impl().documentation_comment == old {
+            self.node_mut(parent).as_enum_constant_declaration2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_enum_constant_declaration2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EnumConstantDeclarationImpl.removeChild`.
+    fn remove_child_enum_constant_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `EnumDeclaration2Impl.removeChild`.
+    fn remove_child_enum_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_enum_declaration2_impl().name_part == old {
+            panic!("UnsupportedError: Cannot remove required child 'namePart'.");
+        }
+        if self.node(parent).as_enum_declaration2_impl().with_clause == old {
+            self.node_mut(parent).as_enum_declaration2_impl_mut().with_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_enum_declaration2_impl().implements_clause == old {
+            self.node_mut(parent).as_enum_declaration2_impl_mut().implements_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_enum_declaration2_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_enum_declaration2_impl().documentation_comment == old {
+            self.node_mut(parent).as_enum_declaration2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_enum_declaration2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `EnumDeclarationImpl.removeChild`.
+    fn remove_child_enum_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ExportDirectiveImpl.removeChild`.
+    fn remove_child_export_directive_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_export_directive_impl().uri == old {
+            panic!("UnsupportedError: Cannot remove required child 'uri'.");
+        }
+        if self.node(parent).as_export_directive_impl().configurations.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'configurations' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_export_directive_impl().combinators.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'combinators' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_export_directive_impl().documentation_comment == old {
+            self.node_mut(parent).as_export_directive_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_export_directive_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExpressionFunctionBodyImpl.removeChild`.
+    fn remove_child_expression_function_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_expression_function_body_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExpressionStatementImpl.removeChild`.
+    fn remove_child_expression_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_expression_statement_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExtendsClauseImpl.removeChild`.
+    fn remove_child_extends_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_extends_clause_impl().superclass == old {
+            panic!("UnsupportedError: Cannot remove required child 'superclass'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExtensionDeclaration2Impl.removeChild`.
+    fn remove_child_extension_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_extension_declaration2_impl().type_parameters == old {
+            self.node_mut(parent).as_extension_declaration2_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_extension_declaration2_impl().on_clause == old {
+            self.node_mut(parent).as_extension_declaration2_impl_mut().on_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_extension_declaration2_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_extension_declaration2_impl().documentation_comment == old {
+            self.node_mut(parent).as_extension_declaration2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_extension_declaration2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExtensionDeclarationImpl.removeChild`.
+    fn remove_child_extension_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ExtensionOnClauseImpl.removeChild`.
+    fn remove_child_extension_on_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_extension_on_clause_impl().extended_type == old {
+            panic!("UnsupportedError: Cannot remove required child 'extendedType'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExtensionOverrideImpl.removeChild`.
+    fn remove_child_extension_override_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ExtensionTypeDeclaration2Impl.removeChild`.
+    fn remove_child_extension_type_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_extension_type_declaration2_impl().name_part == old {
+            panic!("UnsupportedError: Cannot remove required child 'namePart'.");
+        }
+        if self.node(parent).as_extension_type_declaration2_impl().implements_clause == old {
+            self.node_mut(parent).as_extension_type_declaration2_impl_mut().implements_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_extension_type_declaration2_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_extension_type_declaration2_impl().documentation_comment == old {
+            self.node_mut(parent).as_extension_type_declaration2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_extension_type_declaration2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ExtensionTypeDeclarationImpl.removeChild`.
+    fn remove_child_extension_type_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `Field2Impl.removeChild`.
+    fn remove_child_field2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_field2_impl().initializer == old {
+            self.node_mut(parent).as_field2_impl_mut().initializer = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FieldDeclarationImpl.removeChild`.
+    fn remove_child_field_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FieldFormalParameterImpl.removeChild`.
+    fn remove_child_field_formal_parameter_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_field_formal_parameter_impl().type_ == old {
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().function_typed_suffix == old {
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().function_typed_suffix = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().default_clause == old {
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().default_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().type_ == old {
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().function_typed_suffix == old {
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().function_typed_suffix = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().default_clause == old {
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().default_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().documentation_comment == old {
+            self.node_mut(parent).as_field_formal_parameter_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_field_formal_parameter_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FieldsDeclarationImpl.removeChild`.
+    fn remove_child_fields_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_fields_declaration_impl().type_ == old {
+            self.node_mut(parent).as_fields_declaration_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_fields_declaration_impl().fields.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'fields' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_fields_declaration_impl().documentation_comment == old {
+            self.node_mut(parent).as_fields_declaration_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_fields_declaration_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForEachPartsWithDeclarationImpl.removeChild`.
+    fn remove_child_for_each_parts_with_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_each_parts_with_declaration_impl().loop_variable == old {
+            panic!("UnsupportedError: Cannot remove required child 'loopVariable'.");
+        }
+        if self.node(parent).as_for_each_parts_with_declaration_impl().iterable2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'iterable2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForEachPartsWithIdentifierImpl.removeChild`.
+    fn remove_child_for_each_parts_with_identifier_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_each_parts_with_identifier_impl().target == old {
+            panic!("UnsupportedError: Cannot remove required child 'target'.");
+        }
+        if self.node(parent).as_for_each_parts_with_identifier_impl().iterable2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'iterable2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForEachPartsWithPatternImpl.removeChild`.
+    fn remove_child_for_each_parts_with_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_each_parts_with_pattern_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_for_each_parts_with_pattern_impl().pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'pattern'.");
+        }
+        if self.node(parent).as_for_each_parts_with_pattern_impl().iterable2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'iterable2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForElementImpl.removeChild`.
+    fn remove_child_for_element_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_element_impl().for_loop_parts == old {
+            panic!("UnsupportedError: Cannot remove required child 'forLoopParts'.");
+        }
+        if self.node(parent).as_for_element_impl().body2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'body2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForPartsWithDeclarationsImpl.removeChild`.
+    fn remove_child_for_parts_with_declarations_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_parts_with_declarations_impl().variables2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'variables2'.");
+        }
+        if self.node(parent).as_for_parts_with_declarations_impl().condition2 == old {
+            self.node_mut(parent).as_for_parts_with_declarations_impl_mut().condition2 = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_for_parts_with_declarations_impl().updaters2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'updaters2' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForPartsWithExpressionImpl.removeChild`.
+    fn remove_child_for_parts_with_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_parts_with_expression_impl().initialization2 == old {
+            self.node_mut(parent).as_for_parts_with_expression_impl_mut().initialization2 = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_for_parts_with_expression_impl().condition2 == old {
+            self.node_mut(parent).as_for_parts_with_expression_impl_mut().condition2 = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_for_parts_with_expression_impl().updaters2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'updaters2' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForPartsWithPatternImpl.removeChild`.
+    fn remove_child_for_parts_with_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_parts_with_pattern_impl().variables == old {
+            panic!("UnsupportedError: Cannot remove required child 'variables'.");
+        }
+        if self.node(parent).as_for_parts_with_pattern_impl().condition2 == old {
+            self.node_mut(parent).as_for_parts_with_pattern_impl_mut().condition2 = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_for_parts_with_pattern_impl().updaters2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'updaters2' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ForStatementImpl.removeChild`.
+    fn remove_child_for_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_for_statement_impl().for_loop_parts == old {
+            panic!("UnsupportedError: Cannot remove required child 'forLoopParts'.");
+        }
+        if self.node(parent).as_for_statement_impl().body2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'body2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FormalParameterDefaultClauseImpl.removeChild`.
+    fn remove_child_formal_parameter_default_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_formal_parameter_default_clause_impl().value2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'value2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FormalParameterListImpl.removeChild`.
+    fn remove_child_formal_parameter_list_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_formal_parameter_list_impl().required_positional_formal_parameters.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'requiredPositionalFormalParameters' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_formal_parameter_list_impl().delimited_formal_parameters == old {
+            self.node_mut(parent).as_formal_parameter_list_impl_mut().delimited_formal_parameters = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FunctionDeclarationImpl.removeChild`.
+    fn remove_child_function_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FunctionDeclarationStatementImpl.removeChild`.
+    fn remove_child_function_declaration_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FunctionExpressionImpl.removeChild`.
+    fn remove_child_function_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if parent >= V1_BASE {
+            panic!("UnsupportedError: A V1 projection cannot be mutated.");
+        }
+        if self.node(parent).as_function_expression_impl().type_parameters == old {
+            self.node_mut(parent).as_function_expression_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_function_expression_impl().parameters == old {
+            self.node_mut(parent).as_function_expression_impl_mut().parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_function_expression_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FunctionExpressionInvocationImpl.removeChild`.
+    fn remove_child_function_expression_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FunctionReferenceImpl.removeChild`.
+    fn remove_child_function_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FunctionTypeAlias2Impl.removeChild`.
+    fn remove_child_function_type_alias2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_function_type_alias2_impl().return_type == old {
+            self.node_mut(parent).as_function_type_alias2_impl_mut().return_type = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_function_type_alias2_impl().type_parameters == old {
+            self.node_mut(parent).as_function_type_alias2_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_function_type_alias2_impl().parameters == old {
+            panic!("UnsupportedError: Cannot remove required child 'parameters'.");
+        }
+        if self.node(parent).as_function_type_alias2_impl().documentation_comment == old {
+            self.node_mut(parent).as_function_type_alias2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_function_type_alias2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `FunctionTypeAliasImpl.removeChild`.
+    fn remove_child_function_type_alias_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `FunctionTypedFormalParameterSuffixImpl.removeChild`.
+    fn remove_child_function_typed_formal_parameter_suffix_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_function_typed_formal_parameter_suffix_impl().type_parameters == old {
+            self.node_mut(parent).as_function_typed_formal_parameter_suffix_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_function_typed_formal_parameter_suffix_impl().formal_parameters == old {
+            panic!("UnsupportedError: Cannot remove required child 'formalParameters'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `GenericFunctionTypeImpl.removeChild`.
+    fn remove_child_generic_function_type_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_generic_function_type_impl().return_type == old {
+            self.node_mut(parent).as_generic_function_type_impl_mut().return_type = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_generic_function_type_impl().type_parameters == old {
+            self.node_mut(parent).as_generic_function_type_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_generic_function_type_impl().parameters == old {
+            panic!("UnsupportedError: Cannot remove required child 'parameters'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `GenericTypeAlias2Impl.removeChild`.
+    fn remove_child_generic_type_alias2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_generic_type_alias2_impl().type_parameters == old {
+            self.node_mut(parent).as_generic_type_alias2_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_generic_type_alias2_impl().type_ == old {
+            panic!("UnsupportedError: Cannot remove required child 'type'.");
+        }
+        if self.node(parent).as_generic_type_alias2_impl().documentation_comment == old {
+            self.node_mut(parent).as_generic_type_alias2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_generic_type_alias2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `GenericTypeAliasImpl.removeChild`.
+    fn remove_child_generic_type_alias_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `GetterDeclarationImpl.removeChild`.
+    fn remove_child_getter_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_getter_declaration_impl().return_type == old {
+            self.node_mut(parent).as_getter_declaration_impl_mut().return_type = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_getter_declaration_impl().recovery_formal_parameters == old {
+            self.node_mut(parent).as_getter_declaration_impl_mut().recovery_formal_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_getter_declaration_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_getter_declaration_impl().documentation_comment == old {
+            self.node_mut(parent).as_getter_declaration_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_getter_declaration_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `GuardedPatternImpl.removeChild`.
+    fn remove_child_guarded_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_guarded_pattern_impl().pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'pattern'.");
+        }
+        if self.node(parent).as_guarded_pattern_impl().when_clause == old {
+            self.node_mut(parent).as_guarded_pattern_impl_mut().when_clause = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `HideCombinatorImpl.removeChild`.
+    fn remove_child_hide_combinator_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_hide_combinator_impl().names.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'names' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IfElementImpl.removeChild`.
+    fn remove_child_if_element_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_if_element_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        if self.node(parent).as_if_element_impl().case_clause == old {
+            self.node_mut(parent).as_if_element_impl_mut().case_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_if_element_impl().then_element2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'thenElement2'.");
+        }
+        if self.node(parent).as_if_element_impl().else_element2 == old {
+            self.node_mut(parent).as_if_element_impl_mut().else_element2 = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IfNullAssignmentImpl.removeChild`.
+    fn remove_child_if_null_assignment_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_if_null_assignment_impl().target == old {
+            panic!("UnsupportedError: Cannot remove required child 'target'.");
+        }
+        if self.node(parent).as_if_null_assignment_impl().value == old {
+            panic!("UnsupportedError: Cannot remove required child 'value'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IfNullImpl.removeChild`.
+    fn remove_child_if_null_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_if_null_impl().left_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'leftOperand'.");
+        }
+        if self.node(parent).as_if_null_impl().right_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'rightOperand'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IfStatementImpl.removeChild`.
+    fn remove_child_if_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_if_statement_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        if self.node(parent).as_if_statement_impl().case_clause == old {
+            self.node_mut(parent).as_if_statement_impl_mut().case_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_if_statement_impl().then_statement2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'thenStatement2'.");
+        }
+        if self.node(parent).as_if_statement_impl().else_statement2 == old {
+            self.node_mut(parent).as_if_statement_impl_mut().else_statement2 = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ImplementsClauseImpl.removeChild`.
+    fn remove_child_implements_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_implements_clause_impl().interfaces.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'interfaces' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ImplicitCallReferenceImpl.removeChild`.
+    fn remove_child_implicit_call_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ImportDirectiveImpl.removeChild`.
+    fn remove_child_import_directive_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_import_directive_impl().uri == old {
+            panic!("UnsupportedError: Cannot remove required child 'uri'.");
+        }
+        if self.node(parent).as_import_directive_impl().configurations.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'configurations' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_import_directive_impl().combinators.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'combinators' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_import_directive_impl().documentation_comment == old {
+            self.node_mut(parent).as_import_directive_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_import_directive_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ImportPrefixReferenceImpl.removeChild`.
+    fn remove_child_import_prefix_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IncrementOrDecrementExpressionImpl.removeChild`.
+    fn remove_child_increment_or_decrement_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_increment_or_decrement_expression_impl().target == old {
+            panic!("UnsupportedError: Cannot remove required child 'target'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IndexExpressionImpl.removeChild`.
+    fn remove_child_index_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `InstanceCreationExpressionImpl.removeChild`.
+    fn remove_child_instance_creation_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `IntegerLiteralImpl.removeChild`.
+    fn remove_child_integer_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `InterpolationExpressionImpl.removeChild`.
+    fn remove_child_interpolation_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_interpolation_expression_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `InterpolationStringImpl.removeChild`.
+    fn remove_child_interpolation_string_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `InvalidExpressionAssignmentTargetImpl.removeChild`.
+    fn remove_child_invalid_expression_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_invalid_expression_assignment_target_impl().expression == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `InvalidSuperAssignmentTargetImpl.removeChild`.
+    fn remove_child_invalid_super_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_invalid_super_assignment_target_impl().super_reference == old {
+            panic!("UnsupportedError: Cannot remove required child 'superReference'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `InvalidSuperExpressionImpl.removeChild`.
+    fn remove_child_invalid_super_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_invalid_super_expression_impl().super_reference == old {
+            panic!("UnsupportedError: Cannot remove required child 'superReference'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `IsExpressionImpl.removeChild`.
+    fn remove_child_is_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_is_expression_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        if self.node(parent).as_is_expression_impl().type_ == old {
+            panic!("UnsupportedError: Cannot remove required child 'type'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LabelImpl.removeChild`.
+    fn remove_child_label_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LabelReferenceImpl.removeChild`.
+    fn remove_child_label_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LabeledStatementImpl.removeChild`.
+    fn remove_child_labeled_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_labeled_statement_impl().labels.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'labels' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_labeled_statement_impl().statement2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'statement2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LibraryDirectiveImpl.removeChild`.
+    fn remove_child_library_directive_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_library_directive_impl().name == old {
+            self.node_mut(parent).as_library_directive_impl_mut().name = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_library_directive_impl().documentation_comment == old {
+            self.node_mut(parent).as_library_directive_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_library_directive_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ListLiteralImpl.removeChild`.
+    fn remove_child_list_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_list_literal_impl().type_arguments == old {
+            self.node_mut(parent).as_list_literal_impl_mut().type_arguments = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_list_literal_impl().elements2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'elements2' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ListPatternImpl.removeChild`.
+    fn remove_child_list_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_list_pattern_impl().type_arguments == old {
+            self.node_mut(parent).as_list_pattern_impl_mut().type_arguments = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_list_pattern_impl().elements.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'elements' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LocalFunctionDeclarationImpl.removeChild`.
+    fn remove_child_local_function_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_local_function_declaration_impl().return_type == old {
+            self.node_mut(parent).as_local_function_declaration_impl_mut().return_type = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_local_function_declaration_impl().type_parameters == old {
+            self.node_mut(parent).as_local_function_declaration_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_local_function_declaration_impl().formal_parameters == old {
+            panic!("UnsupportedError: Cannot remove required child 'formalParameters'.");
+        }
+        if self.node(parent).as_local_function_declaration_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_local_function_declaration_impl().documentation_comment == old {
+            self.node_mut(parent).as_local_function_declaration_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_local_function_declaration_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LocalVariableImpl.removeChild`.
+    fn remove_child_local_variable_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_local_variable_impl().initializer == old {
+            self.node_mut(parent).as_local_variable_impl_mut().initializer = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LocalVariablesDeclarationImpl.removeChild`.
+    fn remove_child_local_variables_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_local_variables_declaration_impl().type_ == old {
+            self.node_mut(parent).as_local_variables_declaration_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_local_variables_declaration_impl().variables.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'variables' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_local_variables_declaration_impl().documentation_comment == old {
+            self.node_mut(parent).as_local_variables_declaration_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_local_variables_declaration_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LocalVariablesDeclarationStatementImpl.removeChild`.
+    fn remove_child_local_variables_declaration_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_local_variables_declaration_statement_impl().declaration == old {
+            panic!("UnsupportedError: Cannot remove required child 'declaration'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LogicalAndImpl.removeChild`.
+    fn remove_child_logical_and_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_logical_and_impl().left_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'leftOperand'.");
+        }
+        if self.node(parent).as_logical_and_impl().right_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'rightOperand'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LogicalAndPatternImpl.removeChild`.
+    fn remove_child_logical_and_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_logical_and_pattern_impl().left_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'leftOperand'.");
+        }
+        if self.node(parent).as_logical_and_pattern_impl().right_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'rightOperand'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LogicalNotImpl.removeChild`.
+    fn remove_child_logical_not_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_logical_not_impl().operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'operand'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LogicalOrImpl.removeChild`.
+    fn remove_child_logical_or_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_logical_or_impl().left_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'leftOperand'.");
+        }
+        if self.node(parent).as_logical_or_impl().right_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'rightOperand'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `LogicalOrPatternImpl.removeChild`.
+    fn remove_child_logical_or_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_logical_or_pattern_impl().left_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'leftOperand'.");
+        }
+        if self.node(parent).as_logical_or_pattern_impl().right_operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'rightOperand'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MapLiteralEntryImpl.removeChild`.
+    fn remove_child_map_literal_entry_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_map_literal_entry_impl().key2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'key2'.");
+        }
+        if self.node(parent).as_map_literal_entry_impl().value2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'value2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MapPatternEntryImpl.removeChild`.
+    fn remove_child_map_pattern_entry_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_map_pattern_entry_impl().key2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'key2'.");
+        }
+        if self.node(parent).as_map_pattern_entry_impl().value == old {
+            panic!("UnsupportedError: Cannot remove required child 'value'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MapPatternImpl.removeChild`.
+    fn remove_child_map_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_map_pattern_impl().type_arguments == old {
+            self.node_mut(parent).as_map_pattern_impl_mut().type_arguments = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_map_pattern_impl().elements.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'elements' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MethodDeclaration2Impl.removeChild`.
+    fn remove_child_method_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_method_declaration2_impl().return_type == old {
+            self.node_mut(parent).as_method_declaration2_impl_mut().return_type = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_method_declaration2_impl().type_parameters == old {
+            self.node_mut(parent).as_method_declaration2_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_method_declaration2_impl().formal_parameters == old {
+            panic!("UnsupportedError: Cannot remove required child 'formalParameters'.");
+        }
+        if self.node(parent).as_method_declaration2_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_method_declaration2_impl().documentation_comment == old {
+            self.node_mut(parent).as_method_declaration2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_method_declaration2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MethodDeclarationImpl.removeChild`.
+    fn remove_child_method_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `MethodInvocationImpl.removeChild`.
+    fn remove_child_method_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `MixinDeclaration2Impl.removeChild`.
+    fn remove_child_mixin_declaration2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_mixin_declaration2_impl().type_parameters == old {
+            self.node_mut(parent).as_mixin_declaration2_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_mixin_declaration2_impl().on_clause == old {
+            self.node_mut(parent).as_mixin_declaration2_impl_mut().on_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_mixin_declaration2_impl().implements_clause == old {
+            self.node_mut(parent).as_mixin_declaration2_impl_mut().implements_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_mixin_declaration2_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_mixin_declaration2_impl().documentation_comment == old {
+            self.node_mut(parent).as_mixin_declaration2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_mixin_declaration2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `MixinDeclarationImpl.removeChild`.
+    fn remove_child_mixin_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `MixinOnClauseImpl.removeChild`.
+    fn remove_child_mixin_on_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_mixin_on_clause_impl().superclass_constraints.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'superclassConstraints' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NameWithTypeParametersImpl.removeChild`.
+    fn remove_child_name_with_type_parameters_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_name_with_type_parameters_impl().type_parameters == old {
+            self.node_mut(parent).as_name_with_type_parameters_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NamedArgumentImpl.removeChild`.
+    fn remove_child_named_argument_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_named_argument_impl().argument_expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'argumentExpression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NamedTypeImpl.removeChild`.
+    fn remove_child_named_type_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_named_type_impl().import_prefix == old {
+            self.node_mut(parent).as_named_type_impl_mut().import_prefix = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_named_type_impl().type_arguments == old {
+            self.node_mut(parent).as_named_type_impl_mut().type_arguments = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NativeClauseImpl.removeChild`.
+    fn remove_child_native_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_native_clause_impl().name == old {
+            self.node_mut(parent).as_native_clause_impl_mut().name = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NativeFunctionBodyImpl.removeChild`.
+    fn remove_child_native_function_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_native_function_body_impl().string_literal == old {
+            self.node_mut(parent).as_native_function_body_impl_mut().string_literal = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NullAssertPatternImpl.removeChild`.
+    fn remove_child_null_assert_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_null_assert_pattern_impl().pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'pattern'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NullAssertionExpressionImpl.removeChild`.
+    fn remove_child_null_assertion_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_null_assertion_expression_impl().operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'operand'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NullAwareElementImpl.removeChild`.
+    fn remove_child_null_aware_element_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_null_aware_element_impl().value2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'value2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NullCheckPatternImpl.removeChild`.
+    fn remove_child_null_check_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_null_check_pattern_impl().pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'pattern'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `NullLiteralImpl.removeChild`.
+    fn remove_child_null_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ObjectPatternImpl.removeChild`.
+    fn remove_child_object_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_object_pattern_impl().type_ == old {
+            panic!("UnsupportedError: Cannot remove required child 'type'.");
+        }
+        if self.node(parent).as_object_pattern_impl().fields.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'fields' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `OperatorDeclarationImpl.removeChild`.
+    fn remove_child_operator_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_operator_declaration_impl().return_type == old {
+            self.node_mut(parent).as_operator_declaration_impl_mut().return_type = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_operator_declaration_impl().recovery_type_parameters == old {
+            self.node_mut(parent).as_operator_declaration_impl_mut().recovery_type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_operator_declaration_impl().formal_parameters == old {
+            panic!("UnsupportedError: Cannot remove required child 'formalParameters'.");
+        }
+        if self.node(parent).as_operator_declaration_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_operator_declaration_impl().documentation_comment == old {
+            self.node_mut(parent).as_operator_declaration_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_operator_declaration_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParenthesizedExpressionImpl.removeChild`.
+    fn remove_child_parenthesized_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parenthesized_expression_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParenthesizedPatternImpl.removeChild`.
+    fn remove_child_parenthesized_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parenthesized_pattern_impl().pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'pattern'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedCascadeNameImpl.removeChild`.
+    fn remove_child_parsed_cascade_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedDotShorthandExpressionImpl.removeChild`.
+    fn remove_child_parsed_dot_shorthand_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parsed_dot_shorthand_expression_impl().expression == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedDotShorthandNameImpl.removeChild`.
+    fn remove_child_parsed_dot_shorthand_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedNameAccessAssignmentTargetImpl.removeChild`.
+    fn remove_child_parsed_name_access_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parsed_name_access_assignment_target_impl().operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'operand'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedNameAccessImpl.removeChild`.
+    fn remove_child_parsed_name_access_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parsed_name_access_impl().operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'operand'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedTypeArgumentsImpl.removeChild`.
+    fn remove_child_parsed_type_arguments_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parsed_type_arguments_impl().operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'operand'.");
+        }
+        if self.node(parent).as_parsed_type_arguments_impl().type_arguments == old {
+            panic!("UnsupportedError: Cannot remove required child 'typeArguments'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedUnqualifiedNameImpl.removeChild`.
+    fn remove_child_parsed_unqualified_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ParsedValueArgumentsImpl.removeChild`.
+    fn remove_child_parsed_value_arguments_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_parsed_value_arguments_impl().operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'operand'.");
+        }
+        if self.node(parent).as_parsed_value_arguments_impl().argument_list == old {
+            panic!("UnsupportedError: Cannot remove required child 'argumentList'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PartDirectiveImpl.removeChild`.
+    fn remove_child_part_directive_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_part_directive_impl().uri == old {
+            panic!("UnsupportedError: Cannot remove required child 'uri'.");
+        }
+        if self.node(parent).as_part_directive_impl().documentation_comment == old {
+            self.node_mut(parent).as_part_directive_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_part_directive_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PartOfDirectiveImpl.removeChild`.
+    fn remove_child_part_of_directive_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_part_of_directive_impl().uri == old {
+            self.node_mut(parent).as_part_of_directive_impl_mut().uri = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_part_of_directive_impl().library_name == old {
+            self.node_mut(parent).as_part_of_directive_impl_mut().library_name = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_part_of_directive_impl().documentation_comment == old {
+            self.node_mut(parent).as_part_of_directive_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_part_of_directive_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PatternAssignmentImpl.removeChild`.
+    fn remove_child_pattern_assignment_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_pattern_assignment_impl().pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'pattern'.");
+        }
+        if self.node(parent).as_pattern_assignment_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PatternFieldImpl.removeChild`.
+    fn remove_child_pattern_field_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_pattern_field_impl().name == old {
+            self.node_mut(parent).as_pattern_field_impl_mut().name = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_pattern_field_impl().pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'pattern'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PatternFieldNameImpl.removeChild`.
+    fn remove_child_pattern_field_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PatternVariableDeclarationImpl.removeChild`.
+    fn remove_child_pattern_variable_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_pattern_variable_declaration_impl().pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'pattern'.");
+        }
+        if self.node(parent).as_pattern_variable_declaration_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        if self.node(parent).as_pattern_variable_declaration_impl().documentation_comment == old {
+            self.node_mut(parent).as_pattern_variable_declaration_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_pattern_variable_declaration_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PatternVariableDeclarationStatementImpl.removeChild`.
+    fn remove_child_pattern_variable_declaration_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_pattern_variable_declaration_statement_impl().declaration == old {
+            panic!("UnsupportedError: Cannot remove required child 'declaration'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PostfixExpressionImpl.removeChild`.
+    fn remove_child_postfix_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `PrefixExpressionImpl.removeChild`.
+    fn remove_child_prefix_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `PrefixedIdentifierImpl.removeChild`.
+    fn remove_child_prefixed_identifier_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `PrimaryConstructorBody2Impl.removeChild`.
+    fn remove_child_primary_constructor_body2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_primary_constructor_body2_impl().initializers.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'initializers' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_primary_constructor_body2_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_primary_constructor_body2_impl().documentation_comment == old {
+            self.node_mut(parent).as_primary_constructor_body2_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_primary_constructor_body2_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PrimaryConstructorBodyImpl.removeChild`.
+    fn remove_child_primary_constructor_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `PrimaryConstructorDeclarationImpl.removeChild`.
+    fn remove_child_primary_constructor_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_primary_constructor_declaration_impl().type_parameters == old {
+            self.node_mut(parent).as_primary_constructor_declaration_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_primary_constructor_declaration_impl().constructor_name == old {
+            self.node_mut(parent).as_primary_constructor_declaration_impl_mut().constructor_name = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_primary_constructor_declaration_impl().formal_parameters == old {
+            panic!("UnsupportedError: Cannot remove required child 'formalParameters'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PrimaryConstructorNameImpl.removeChild`.
+    fn remove_child_primary_constructor_name_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `PropertyAccessImpl.removeChild`.
+    fn remove_child_property_access_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `ReceiverIndexAssignmentTargetImpl.removeChild`.
+    fn remove_child_receiver_index_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_receiver_index_assignment_target_impl().receiver == old {
+            panic!("UnsupportedError: Cannot remove required child 'receiver'.");
+        }
+        if self.node(parent).as_receiver_index_assignment_target_impl().index == old {
+            panic!("UnsupportedError: Cannot remove required child 'index'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ReceiverIndexExpressionImpl.removeChild`.
+    fn remove_child_receiver_index_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_receiver_index_expression_impl().receiver == old {
+            panic!("UnsupportedError: Cannot remove required child 'receiver'.");
+        }
+        if self.node(parent).as_receiver_index_expression_impl().index == old {
+            panic!("UnsupportedError: Cannot remove required child 'index'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ReceiverPropertyAssignmentTargetImpl.removeChild`.
+    fn remove_child_receiver_property_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_receiver_property_assignment_target_impl().receiver == old {
+            panic!("UnsupportedError: Cannot remove required child 'receiver'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ReceiverPropertyExtractionImpl.removeChild`.
+    fn remove_child_receiver_property_extraction_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_receiver_property_extraction_impl().receiver == old {
+            panic!("UnsupportedError: Cannot remove required child 'receiver'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordLiteralImpl.removeChild`.
+    fn remove_child_record_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_record_literal_impl().fields2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'fields2' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordLiteralNamedFieldImpl.removeChild`.
+    fn remove_child_record_literal_named_field_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_record_literal_named_field_impl().field_expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'fieldExpression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordPatternImpl.removeChild`.
+    fn remove_child_record_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_record_pattern_impl().fields.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'fields' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordTypeAnnotationImpl.removeChild`.
+    fn remove_child_record_type_annotation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_record_type_annotation_impl().positional_fields.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'positionalFields' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_record_type_annotation_impl().named_fields == old {
+            self.node_mut(parent).as_record_type_annotation_impl_mut().named_fields = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordTypeAnnotationNamedFieldImpl.removeChild`.
+    fn remove_child_record_type_annotation_named_field_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_record_type_annotation_named_field_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_record_type_annotation_named_field_impl().type_ == old {
+            panic!("UnsupportedError: Cannot remove required child 'type'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordTypeAnnotationNamedFieldsImpl.removeChild`.
+    fn remove_child_record_type_annotation_named_fields_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_record_type_annotation_named_fields_impl().fields.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'fields' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RecordTypeAnnotationPositionalFieldImpl.removeChild`.
+    fn remove_child_record_type_annotation_positional_field_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_record_type_annotation_positional_field_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_record_type_annotation_positional_field_impl().type_ == old {
+            panic!("UnsupportedError: Cannot remove required child 'type'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RedirectingConstructorInvocationImpl.removeChild`.
+    fn remove_child_redirecting_constructor_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_redirecting_constructor_invocation_impl().constructor_selector == old {
+            self.node_mut(parent).as_redirecting_constructor_invocation_impl_mut().constructor_selector = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_redirecting_constructor_invocation_impl().argument_list == old {
+            panic!("UnsupportedError: Cannot remove required child 'argumentList'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RegularFormalParameterImpl.removeChild`.
+    fn remove_child_regular_formal_parameter_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_regular_formal_parameter_impl().type_ == old {
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().function_typed_suffix == old {
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().function_typed_suffix = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().default_clause == old {
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().default_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().type_ == old {
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().function_typed_suffix == old {
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().function_typed_suffix = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().default_clause == old {
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().default_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().documentation_comment == old {
+            self.node_mut(parent).as_regular_formal_parameter_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_regular_formal_parameter_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RelationalPatternImpl.removeChild`.
+    fn remove_child_relational_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_relational_pattern_impl().operand2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'operand2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RestPatternElementImpl.removeChild`.
+    fn remove_child_rest_pattern_element_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_rest_pattern_element_impl().pattern == old {
+            self.node_mut(parent).as_rest_pattern_element_impl_mut().pattern = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `RethrowExpressionImpl.removeChild`.
+    fn remove_child_rethrow_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ReturnStatementImpl.removeChild`.
+    fn remove_child_return_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_return_statement_impl().expression2 == old {
+            self.node_mut(parent).as_return_statement_impl_mut().expression2 = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ScriptTagImpl.removeChild`.
+    fn remove_child_script_tag_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SemicolonEnumDeclarationBodyImpl.removeChild`.
+    fn remove_child_semicolon_enum_declaration_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SemicolonInstanceDeclarationBodyImpl.removeChild`.
+    fn remove_child_semicolon_instance_declaration_body_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SetOrMapLiteralImpl.removeChild`.
+    fn remove_child_set_or_map_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_set_or_map_literal_impl().type_arguments == old {
+            self.node_mut(parent).as_set_or_map_literal_impl_mut().type_arguments = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_set_or_map_literal_impl().elements2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'elements2' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SetterDeclarationImpl.removeChild`.
+    fn remove_child_setter_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_setter_declaration_impl().return_type == old {
+            self.node_mut(parent).as_setter_declaration_impl_mut().return_type = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_setter_declaration_impl().formal_parameters == old {
+            panic!("UnsupportedError: Cannot remove required child 'formalParameters'.");
+        }
+        if self.node(parent).as_setter_declaration_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_setter_declaration_impl().documentation_comment == old {
+            self.node_mut(parent).as_setter_declaration_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_setter_declaration_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ShowCombinatorImpl.removeChild`.
+    fn remove_child_show_combinator_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_show_combinator_impl().names.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'names' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SimpleIdentifierImpl.removeChild`.
+    fn remove_child_simple_identifier_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `SimpleStringLiteralImpl.removeChild`.
+    fn remove_child_simple_string_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SpreadElementImpl.removeChild`.
+    fn remove_child_spread_element_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_spread_element_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `StringInterpolationImpl.removeChild`.
+    fn remove_child_string_interpolation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_string_interpolation_impl().elements.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'elements' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SuperConstructorInvocationImpl.removeChild`.
+    fn remove_child_super_constructor_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_super_constructor_invocation_impl().constructor_selector == old {
+            self.node_mut(parent).as_super_constructor_invocation_impl_mut().constructor_selector = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_super_constructor_invocation_impl().argument_list == old {
+            panic!("UnsupportedError: Cannot remove required child 'argumentList'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SuperExpressionImpl.removeChild`.
+    fn remove_child_super_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `SuperFormalParameterImpl.removeChild`.
+    fn remove_child_super_formal_parameter_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_super_formal_parameter_impl().type_ == old {
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().function_typed_suffix == old {
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().function_typed_suffix = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().default_clause == old {
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().default_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().type_ == old {
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().function_typed_suffix == old {
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().function_typed_suffix = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().default_clause == old {
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().default_clause = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().documentation_comment == old {
+            self.node_mut(parent).as_super_formal_parameter_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_super_formal_parameter_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SuperReferenceImpl.removeChild`.
+    fn remove_child_super_reference_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchCaseImpl.removeChild`.
+    fn remove_child_switch_case_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_switch_case_impl().labels.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'labels' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_switch_case_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        if self.node(parent).as_switch_case_impl().statements2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'statements2' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchDefaultImpl.removeChild`.
+    fn remove_child_switch_default_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_switch_default_impl().labels.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'labels' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_switch_default_impl().statements2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'statements2' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchExpressionCaseImpl.removeChild`.
+    fn remove_child_switch_expression_case_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_switch_expression_case_impl().guarded_pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'guardedPattern'.");
+        }
+        if self.node(parent).as_switch_expression_case_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchExpressionImpl.removeChild`.
+    fn remove_child_switch_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_switch_expression_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        if self.node(parent).as_switch_expression_impl().cases.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'cases' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchPatternCaseImpl.removeChild`.
+    fn remove_child_switch_pattern_case_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_switch_pattern_case_impl().labels.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'labels' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_switch_pattern_case_impl().guarded_pattern == old {
+            panic!("UnsupportedError: Cannot remove required child 'guardedPattern'.");
+        }
+        if self.node(parent).as_switch_pattern_case_impl().statements2.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'statements2' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SwitchStatementImpl.removeChild`.
+    fn remove_child_switch_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_switch_statement_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        if self.node(parent).as_switch_statement_impl().members.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'members' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `SymbolLiteralImpl.removeChild`.
+    fn remove_child_symbol_literal_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ThisExpressionImpl.removeChild`.
+    fn remove_child_this_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `ThrowExpressionImpl.removeChild`.
+    fn remove_child_throw_expression_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_throw_expression_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TopLevelFunctionDeclarationImpl.removeChild`.
+    fn remove_child_top_level_function_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_top_level_function_declaration_impl().return_type == old {
+            self.node_mut(parent).as_top_level_function_declaration_impl_mut().return_type = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_top_level_function_declaration_impl().type_parameters == old {
+            self.node_mut(parent).as_top_level_function_declaration_impl_mut().type_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_top_level_function_declaration_impl().formal_parameters == old {
+            panic!("UnsupportedError: Cannot remove required child 'formalParameters'.");
+        }
+        if self.node(parent).as_top_level_function_declaration_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_top_level_function_declaration_impl().documentation_comment == old {
+            self.node_mut(parent).as_top_level_function_declaration_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_top_level_function_declaration_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TopLevelGetterDeclarationImpl.removeChild`.
+    fn remove_child_top_level_getter_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_top_level_getter_declaration_impl().return_type == old {
+            self.node_mut(parent).as_top_level_getter_declaration_impl_mut().return_type = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_top_level_getter_declaration_impl().recovery_formal_parameters == old {
+            self.node_mut(parent).as_top_level_getter_declaration_impl_mut().recovery_formal_parameters = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_top_level_getter_declaration_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_top_level_getter_declaration_impl().documentation_comment == old {
+            self.node_mut(parent).as_top_level_getter_declaration_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_top_level_getter_declaration_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TopLevelSetterDeclarationImpl.removeChild`.
+    fn remove_child_top_level_setter_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_top_level_setter_declaration_impl().return_type == old {
+            self.node_mut(parent).as_top_level_setter_declaration_impl_mut().return_type = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_top_level_setter_declaration_impl().formal_parameters == old {
+            panic!("UnsupportedError: Cannot remove required child 'formalParameters'.");
+        }
+        if self.node(parent).as_top_level_setter_declaration_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_top_level_setter_declaration_impl().documentation_comment == old {
+            self.node_mut(parent).as_top_level_setter_declaration_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_top_level_setter_declaration_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TopLevelVariable2Impl.removeChild`.
+    fn remove_child_top_level_variable2_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_top_level_variable2_impl().initializer == old {
+            self.node_mut(parent).as_top_level_variable2_impl_mut().initializer = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TopLevelVariableDeclarationImpl.removeChild`.
+    fn remove_child_top_level_variable_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `TopLevelVariablesDeclarationImpl.removeChild`.
+    fn remove_child_top_level_variables_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_top_level_variables_declaration_impl().type_ == old {
+            self.node_mut(parent).as_top_level_variables_declaration_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_top_level_variables_declaration_impl().variables.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'variables' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_top_level_variables_declaration_impl().documentation_comment == old {
+            self.node_mut(parent).as_top_level_variables_declaration_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_top_level_variables_declaration_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TryStatementImpl.removeChild`.
+    fn remove_child_try_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_try_statement_impl().body == old {
+            panic!("UnsupportedError: Cannot remove required child 'body'.");
+        }
+        if self.node(parent).as_try_statement_impl().catch_clauses.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'catchClauses' because NodeList cannot be resized.");
+        }
+        if self.node(parent).as_try_statement_impl().finally_block == old {
+            self.node_mut(parent).as_try_statement_impl_mut().finally_block = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TypeArgumentListImpl.removeChild`.
+    fn remove_child_type_argument_list_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_type_argument_list_impl().arguments.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'arguments' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TypeParameterImpl.removeChild`.
+    fn remove_child_type_parameter_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_type_parameter_impl().bound == old {
+            self.node_mut(parent).as_type_parameter_impl_mut().bound = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_type_parameter_impl().documentation_comment == old {
+            self.node_mut(parent).as_type_parameter_impl_mut().documentation_comment = NO_NODE;
+            return;
+        }
+        if self.node(parent).as_type_parameter_impl().metadata.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'metadata' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `TypeParameterListImpl.removeChild`.
+    fn remove_child_type_parameter_list_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_type_parameter_list_impl().type_parameters.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'typeParameters' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `UnaryOperatorInvocationImpl.removeChild`.
+    fn remove_child_unary_operator_invocation_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_unary_operator_invocation_impl().operand == old {
+            panic!("UnsupportedError: Cannot remove required child 'operand'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `UnqualifiedNameAssignmentTargetImpl.removeChild`.
+    fn remove_child_unqualified_name_assignment_target_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `VariableDeclarationImpl.removeChild`.
+    fn remove_child_variable_declaration_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `VariableDeclarationListImpl.removeChild`.
+    fn remove_child_variable_declaration_list_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `VariableDeclarationStatementImpl.removeChild`.
+    fn remove_child_variable_declaration_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        panic!("UnsupportedError: A V1 projection cannot be mutated.");
+    }
+
+    /// `WhenClauseImpl.removeChild`.
+    fn remove_child_when_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_when_clause_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `WhileStatementImpl.removeChild`.
+    fn remove_child_while_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_while_statement_impl().condition2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'condition2'.");
+        }
+        if self.node(parent).as_while_statement_impl().body2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'body2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `WildcardPatternImpl.removeChild`.
+    fn remove_child_wildcard_pattern_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_wildcard_pattern_impl().type_ == old {
+            self.node_mut(parent).as_wildcard_pattern_impl_mut().type_ = NO_NODE;
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `WithClauseImpl.removeChild`.
+    fn remove_child_with_clause_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_with_clause_impl().mixin_types.contains(&old) {
+            panic!("UnsupportedError: Cannot remove child 'mixinTypes' because NodeList cannot be resized.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
+    }
+
+    /// `YieldStatementImpl.removeChild`.
+    fn remove_child_yield_statement_impl(&mut self, tokens: &TokenStore, parent: NodeId, old: NodeId) {
+        let _ = tokens;
+        if self.node(parent).as_yield_statement_impl().expression2 == old {
+            panic!("UnsupportedError: Cannot remove required child 'expression2'.");
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");
     }
 }
 

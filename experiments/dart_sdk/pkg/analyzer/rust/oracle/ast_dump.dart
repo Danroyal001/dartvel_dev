@@ -367,8 +367,8 @@ void runRetain(List<(String, String)> inputs) {
 //   cover <a>-<b> <n>    unit.nodeCovering2(offset: a, length: b - a)
 //   timed2 <visits>      a RecursiveAstVisitor2 behind a TimedAstVisitor2
 //   replace <i> <j> <r>  a fresh parse's node i replaced by node j (the next
-//                        node of the same type that is not an ancestor of
-//                        i's parent) in its parent2: `r` is the parent's
+//                        node of the same type outside i's parent's subtree
+//                        and ancestors) in its parent2: `r` is the parent's
 //                        toSource and then the parent2 of j and of i, or
 //                        the error thrown (`!ArgumentError:<message>`, ...)
 //   remove <i> <r>       node i of a fresh parse removed from its parent2:
@@ -528,8 +528,9 @@ String refIn(List<AstNodeImpl> nodes, AstNode? node) {
 }
 
 /// The node after [i] in [nodes] (cyclically) with the runtime type of node
-/// [i] that is not [parent] or one of its ancestors in the view [parentOf]
-/// walks, or null.
+/// [i] that is neither [parent] or one of its ancestors nor in [parent]'s
+/// subtree in the view [parentOf] walks, or null: one that cannot make the
+/// tree a cycle.
 int? replacementFor(
   List<AstNodeImpl> nodes,
   int i,
@@ -540,10 +541,18 @@ int? replacementFor(
   for (AstNode? p = parent; p != null; p = parentOf(p)) {
     ancestors.add(p);
   }
+  bool inParent(AstNode node) {
+    for (AstNode? p = node; p != null; p = parentOf(p)) {
+      if (identical(p, parent)) return true;
+    }
+    return false;
+  }
+
   for (int k = 1; k < nodes.length; k++) {
     int j = (i + k) % nodes.length;
     if (nodes[j].runtimeType == nodes[i].runtimeType &&
-        !ancestors.contains(nodes[j])) {
+        !ancestors.contains(nodes[j]) &&
+        !inParent(nodes[j])) {
       return j;
     }
   }

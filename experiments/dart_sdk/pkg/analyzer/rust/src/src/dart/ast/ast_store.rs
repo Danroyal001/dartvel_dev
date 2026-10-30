@@ -21,7 +21,7 @@
 // (`_v1Projection`, `_methodInvocation`, ...) and the API overrides
 // (`_astNodeApiOverride`).
 
-use std::cell::{Cell, RefCell, UnsafeCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::HashMap;
 
 use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId, TokenStore};
@@ -56,12 +56,18 @@ pub enum AstNodeApi {
     shared,
 }
 
+/// The number of chunks of the V1 arena: chunk `k` holds `2^(k + 6)`
+/// nodes, so that the chunks together hold more than `V1_BASE` nodes.
+const CHUNKS: usize = 26;
+
 /// What upstream keeps in the nodes for the V1 view (see the file comment).
 #[derive(Default)]
 pub struct V1State {
-    /// The projection objects, each in a box of its own so that a reference
-    /// to one stays valid while others are added.
-    arena: UnsafeCell<Vec<*mut AstNodeImpl>>,
+    /// The projection objects. Chunk `k` holds the nodes from
+    /// `64 * (2^k - 1)` on; a chunk, once made, never moves and a node,
+    /// once set, never changes, so that a shared reference to the store can
+    /// add nodes while others are borrowed (`OnceCell`).
+    arena: [OnceCell<Box<[OnceCell<AstNodeImpl>]>>; CHUNKS],
     /// `_parent` of the parsed nodes (`UNSET` until assigned) and of the
     /// projection objects.
     parents: RefCell<(Vec<NodeId>, Vec<NodeId>)>,
@@ -69,7 +75,7 @@ pub struct V1State {
     cache: RefCell<HashMap<(NodeId, u8), NodeId>>,
     /// `_astNodeApiOverride` of the nodes that have one.
     api_override: RefCell<HashMap<NodeId, AstNodeApi>>,
-    /// The number of projection objects, for the memory report.
+    /// The number of projection objects.
     count: Cell<usize>,
 }
 
@@ -79,35 +85,34 @@ impl std::fmt::Debug for V1State {
     }
 }
 
-impl Drop for V1State {
-    fn drop(&mut self) {
-        for &node in self.arena.get_mut().iter() {
-            // SAFETY: every pointer came from `Box::into_raw` in `add` and
-            // is freed once, here.
-            drop(unsafe { Box::from_raw(node) });
-        }
-    }
+/// The chunk of the V1 arena holding node [index], and its place there.
+#[inline]
+fn chunk_of(index: usize) -> (usize, usize) {
+    let k = (usize::BITS - 1 - (index / 64 + 1).leading_zeros()) as usize;
+    (k, index - 64 * ((1 << k) - 1))
 }
 
 impl V1State {
     /// Allocates a projection object and returns its id.
     fn add(&self, node: AstNodeImpl) -> NodeId {
-        let pointer = Box::into_raw(Box::new(node));
-        // SAFETY: the vector of pointers is only touched here and in `get`,
-        // never while a reference into it is held; the boxes it points to
-        // never move and are freed only when the state is dropped.
-        let arena = unsafe { &mut *self.arena.get() };
-        let id = V1_BASE + arena.len() as NodeId;
-        arena.push(pointer);
+        let index = self.count.get();
+        let (k, offset) = chunk_of(index);
+        let chunk = self.arena[k].get_or_init(|| (0..64usize << k).map(|_| OnceCell::new()).collect());
+        if chunk[offset].set(node).is_err() {
+            unreachable!("a V1 arena slot is set once");
+        }
+        self.count.set(index + 1);
         self.parents.borrow_mut().1.push(NO_NODE);
-        self.count.set(arena.len());
-        id
+        V1_BASE + index as NodeId
     }
 
     #[inline]
     fn get(&self, index: usize) -> &AstNodeImpl {
-        // SAFETY: see `add`; the box outlives `&self`.
-        unsafe { &*(&*self.arena.get())[index] }
+        let (k, offset) = chunk_of(index);
+        self.arena[k]
+            .get()
+            .and_then(|chunk| chunk[offset].get())
+            .expect("no such V1 projection")
     }
 }
 
@@ -417,6 +422,11 @@ impl<'a> Ast<'a> {
 
     /// `node.toSource()`, as UTF-16 code units.
     pub fn to_source_units(self, id: NodeId) -> Vec<u16> {
+        if id >= V1_BASE {
+            if let Some(source) = self.v1_to_source(id) {
+                return source;
+            }
+        }
         let mut buffer = Vec::new();
         self.accept2(id, &mut ToSourceVisitor::new(&mut buffer));
         buffer

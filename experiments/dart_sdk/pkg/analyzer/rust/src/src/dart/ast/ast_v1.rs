@@ -564,6 +564,20 @@ impl<'a> Ast<'a> {
         match self.node(id) {
             N::SimpleIdentifierImpl(n) => return Some(lexeme(n.token)),
             N::SuperExpressionImpl(_) => return Some("super".encode_utf16().collect()),
+            N::PrefixedIdentifierImpl(n) => {
+                let mut result = self.to_source_units(n.prefix);
+                result.extend(lexeme(n.period));
+                result.extend(self.to_source_units(n.identifier));
+                return Some(result);
+            }
+            N::FunctionExpressionImpl(_) => {
+                // `ToSourceVisitor(buffer).visitFunctionExpression(this)`.
+                use crate::src::dart::ast::ast_g::AstVisitor2;
+                let mut buffer = Vec::new();
+                crate::src::dart::ast::to_source_visitor::ToSourceVisitor::new(&mut buffer)
+                    .visit_function_expression(self, id);
+                return Some(buffer);
+            }
             N::VariableDeclarationListImpl(n) => {
                 let mut parts: Vec<Vec<u16>> = Vec::new();
                 for &annotation in &n.metadata {
@@ -3141,6 +3155,13 @@ impl MethodInvocationImpl {
         self.method_name
     }
 
+    pub fn target(&self, ast: Ast<'_>, _id: NodeId) -> NodeId {
+        if self.target2 == NO_NODE {
+            return NO_NODE;
+        }
+        ast.to_v1_expression(self.target2)
+    }
+
     pub fn operator_(&self, _ast: Ast<'_>, _id: NodeId) -> TokenId {
         self.operator_
     }
@@ -3400,5 +3421,48 @@ impl VariableDeclarationListImpl {
             return result;
         }
         panic!("StateError: Expected at least one non-null");
+    }
+}
+
+impl crate::src::dart::ast::ast_store::AstStore {
+    /// `parent.<helper>(child)`, which a setter (or a node list's
+    /// `_attach`) calls: `_becomeParentOf2`, `_becomeParentOf12`,
+    /// `_becomeParentOf2AndExisting1` or `_becomeParentOfOwnedView`.
+    pub fn attach_child(
+        &mut self,
+        helper: &str,
+        tokens: &fe_analyzer_shared::scanner::token::TokenStore,
+        parent: NodeId,
+        child: NodeId,
+    ) {
+        if child == NO_NODE {
+            return;
+        }
+        self.parents[child as usize] = parent;
+        let ast = Ast::new(self, tokens);
+        let helper = match helper {
+            "_becomeParentOfOwnedView" => match ast.api(parent) {
+                AstNodeApi::v1 => "_becomeParentOf1",
+                AstNodeApi::v2 => "_becomeParentOf2",
+                AstNodeApi::shared => "_becomeParentOf12",
+            },
+            other => other,
+        };
+        match helper {
+            "_becomeParentOf1" | "_becomeParentOf12" => {
+                self.set_parent1(child, parent);
+            }
+            "_becomeParentOf2" => self.set_parent1(child, NO_NODE),
+            "_becomeParentOf2AndExisting1" => {
+                self.set_parent1(child, NO_NODE);
+                let target = if ast.api(child) == AstNodeApi::shared {
+                    child
+                } else {
+                    ast.existing_node(child)
+                };
+                ast.become_parent_of1(parent, target);
+            }
+            other => panic!("unknown parent helper {other}"),
+        }
     }
 }

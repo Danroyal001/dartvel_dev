@@ -912,6 +912,7 @@ void main(List<String> args) {
   out.writeln('}');
   out.writeln();
   out.write(impls);
+  writeMutations(concrete, out, errors);
 
   File('${args[1]}.hand.txt').writeAsStringSync(
     '${(handGetters.toList()..sort()).join('\n')}\n',
@@ -1569,6 +1570,16 @@ class V1Translator {
   /// The V2 field [expression] reads (`expression2`, `_expression2`).
   Field? v2Field(Expression expression) {
     if (expression is! SimpleIdentifier) return null;
+    // A getter written by hand (`target2` of a projection) is not the
+    // field it may share a name with.
+    var found = lookupMember(c, expression.name);
+    if (found != null && found.$2 is MethodDeclaration) {
+      var body = (found.$2 as MethodDeclaration).body;
+      if (body is! ExpressionFunctionBody ||
+          body.expression is! SimpleIdentifier) {
+        return null;
+      }
+    }
     return resolveField(c, fields, expression.name);
   }
 
@@ -2294,4 +2305,320 @@ void writeV1Dispatch(List<ClassInfo> concrete, StringBuffer out) {
     out.writeln('    }');
     out.writeln();
   }
+}
+
+// ---------------------------------------------------------------------------
+// `replaceChild` and `removeChild`, generated upstream from the same
+// annotation: a child slot is replaced through its setter, which makes the
+// node the parent of the new child as the constructor does.
+// ---------------------------------------------------------------------------
+
+/// The parent helper a setter of [field] in [c] calls: `_becomeParentOf2`,
+/// `_becomeParentOf12`, `_becomeParentOf2AndExisting1` or the owned view's.
+String setterHelper(ClassInfo c, String setter) {
+  for (ClassInfo owner in c.lookupChain) {
+    for (ClassMember m in owner.members) {
+      if (m is MethodDeclaration && m.isSetter && m.name.lexeme == setter) {
+        var body = m.body;
+        String source = body.toSource();
+        for (String helper in [
+          '_becomeParentOf2AndExisting1',
+          '_becomeParentOf12',
+          '_becomeParentOfOwnedView',
+          '_becomeParentOf2',
+        ]) {
+          if (source.contains('$helper(')) {
+            return helper;
+          }
+        }
+        throw StateError('${c.name}.$setter: setter body $source');
+      }
+    }
+  }
+  throw StateError('${c.name}.$setter: no setter');
+}
+
+/// The method [name] a `super.name(...)` in [owner] calls, for an
+/// instance of [c]: the next one after [owner] in [c]'s lookup chain.
+(ClassInfo, FunctionBody)? superMethod(ClassInfo c, ClassInfo owner, String name) {
+  bool seen = false;
+  for (ClassInfo next in c.lookupChain) {
+    if (!seen) {
+      seen = identical(next, owner);
+      continue;
+    }
+    for (ClassMember m in next.members) {
+      if (m is MethodDeclaration &&
+          !m.isGetter &&
+          !m.isSetter &&
+          m.name.lexeme == name &&
+          m.body is! EmptyFunctionBody) {
+        return (next, m.body);
+      }
+    }
+  }
+  return null;
+}
+
+/// The Rust of `_attach(child)` (or a setter's helper) with [helper].
+String attach(String helper, String parent, String child) {
+  return 'self.attach_child("$helper", tokens, $parent, $child);';
+}
+
+/// The test of `newNode as T` (or `as T?`).
+String castTest(String type, String node) {
+  if (type.endsWith('?')) type = type.substring(0, type.length - 1);
+  return 'self.node($node).is_${snake(type)}()';
+}
+
+class MutationTranslator {
+  final ClassInfo c;
+  final Map<String, Field> fields;
+  final String member;
+
+  new(this.c, this.fields, this.member);
+
+  Never fail(Object what) =>
+      throw StateError('${c.name}.$member: cannot translate $what');
+
+  String field(String name) {
+    Field? f = resolveField(c, fields, name);
+    if (f == null) fail(name);
+    return 'self.node(parent).as_${snake(c.name)}().${f.rustName}';
+  }
+
+  String fieldMut(String name) {
+    Field? f = resolveField(c, fields, name);
+    if (f == null) fail(name);
+    return 'self.node_mut(parent).as_${snake(c.name)}_mut().${f.rustName}';
+  }
+
+  /// The element type and attach helper of the node list [name].
+  (String, String) listOf(String name) {
+    String bare = name.startsWith('_') ? name.substring(1) : name;
+    Field? f = resolveField(c, fields, name);
+    if (f == null || f.kind != Kind.nodeList) fail(name);
+    String type = f.type;
+    String element = type.substring(type.indexOf('<') + 1, type.lastIndexOf('>'));
+    // The constructor initializes the list with `_initialize` (the owned
+    // view's helper) or `_initializeProjected`.
+    String mode = '_becomeParentOfOwnedView';
+    for (ClassInfo owner in c.lookupChain) {
+      var ctor = owner.unnamedConstructor;
+      if (ctor == null) continue;
+      String source = ctor.toSource();
+      if (source.contains('$bare._initializeProjected') ||
+          source.contains('_$bare._initializeProjected')) {
+        mode = '_becomeParentOf2AndExisting1';
+      }
+    }
+    return (element, mode);
+  }
+
+  List<String> body(ClassInfo owner, FunctionBody body, bool replace) {
+    if (body is! BlockFunctionBody) fail(body);
+    List<String> out = [];
+    for (Statement s in body.block.statements) {
+      String source = s.toSource();
+      if (s is ExpressionStatement && s.expression is ThrowExpression) {
+        out.add(V1Translator(c, fields, member)
+            .throwStatement(s.expression as ThrowExpression));
+        continue;
+      }
+      if (s is IfStatement &&
+          s.expression.toSource() == '_v1ProjectionOrigin != null') {
+        out.add(
+          'if parent >= V1_BASE {\n'
+          '            panic!("UnsupportedError: A V1 projection cannot be mutated.");\n'
+          '        }',
+        );
+        continue;
+      }
+      if (s is ExpressionStatement &&
+          s.expression is MethodInvocation &&
+          (s.expression as MethodInvocation).target is SuperExpression) {
+        var found = superMethod(c, owner, member);
+        if (found == null) fail(source);
+        out.addAll(this.body(found.$1, found.$2, replace));
+        continue;
+      }
+      if (s is! IfStatement) fail(source);
+      var cond = s.expression;
+      Statement then = s.thenStatement;
+      List<Statement> thens = then is Block ? then.statements : [then];
+      if (cond is MethodInvocation &&
+          cond.methodName.name == 'identical' &&
+          cond.argumentList.arguments.length == 2) {
+        String a = cond.argumentList.arguments[0].toSource();
+        String b = cond.argumentList.arguments[1].toSource();
+        if (a == 'oldNode' && b == 'newNode') {
+          out.add('if old == new_ {\n            return;\n        }');
+          continue;
+        }
+        if (b != 'oldNode') fail(source);
+        String x = a;
+        var first = thens.first;
+        if (first is ExpressionStatement && first.expression is ThrowExpression) {
+          out.add(
+            'if ${field(x)} == old {\n'
+            '            ${V1Translator(c, fields, member).throwStatement(first.expression as ThrowExpression)}\n'
+            '        }',
+          );
+          continue;
+        }
+        if (first is ExpressionStatement &&
+            first.expression is AssignmentExpression) {
+          var assignment = first.expression as AssignmentExpression;
+          String setter = assignment.leftHandSide.toSource();
+          var value = assignment.rightHandSide;
+          String helper = setterHelper(c, setter);
+          String extra = switch (setter) {
+            'constructorSelector' =>
+              '\n            self.set_api_override(new_, AstNodeApi::v2);',
+            'delimitedFormalParameters' =>
+              '\n            for p in self.node(new_).as_delimited_formal_parameters_impl().formal_parameters.clone() {\n'
+                  '                self.set_parent1(p, parent);\n'
+                  '            }',
+            _ => '',
+          };
+          if (value is NullLiteral) {
+            out.add(
+              'if ${field(x)} == old {\n'
+              '            ${fieldMut(x)} = NO_NODE;\n'
+              '            return;\n'
+              '        }',
+            );
+            continue;
+          }
+          if (value is AsExpression) {
+            String type = value.type.toSource();
+            out.add(
+              'if ${field(x)} == old {\n'
+              '            if !${castTest(type, 'new_')} {\n'
+              '                panic!("TypeError");\n'
+              '            }\n'
+              '            ${fieldMut(x)} = new_;\n'
+              '            ${attach(helper, 'parent', 'new_')}$extra\n'
+              '            return;\n'
+              '        }',
+            );
+            continue;
+          }
+        }
+        fail(source);
+      }
+      if (cond is MethodInvocation &&
+          cond.target is SimpleIdentifier &&
+          (cond.methodName.name == 'containsChild' ||
+              cond.methodName.name == 'replaceChild')) {
+        String list = (cond.target as SimpleIdentifier).name;
+        Field? f = resolveField(c, fields, list);
+        if (f == null) fail(source);
+        String read = 'self.node(parent).as_${snake(c.name)}().${f.rustName}';
+        if (cond.methodName.name == 'containsChild') {
+          var first = thens.first as ExpressionStatement;
+          out.add(
+            'if $read.contains(&old) {\n'
+            '            ${V1Translator(c, fields, member).throwStatement(first.expression as ThrowExpression)}\n'
+            '        }',
+          );
+          continue;
+        }
+        var (element, mode) = listOf(list);
+        out.add(
+          'if let Some(i) = $read.iter().position(|&e| e == old) {\n'
+          '            if !${castTest(element, 'new_')} {\n'
+          '                panic!("TypeError");\n'
+          '            }\n'
+          '            self.node_mut(parent).as_${snake(c.name)}_mut().${f.rustName}[i] = new_;\n'
+          '            ${attach(mode, 'parent', 'new_')}\n'
+          '            return;\n'
+          '        }',
+        );
+        continue;
+      }
+      fail(source);
+    }
+    return out;
+  }
+}
+
+/// Hand translations of mutations, keyed by `Class.member`.
+const Map<String, String> handMutations = {
+  // Upstream throws first for a V1 projection (an origin), else mutates
+  // the slots as generated.
+  'CascadeSectionImpl.replaceChild': '''
+if self.node(parent).as_cascade_section_impl().body == old {
+            if !self.node(new_).is_expression_impl() {
+                panic!("TypeError");
+            }
+            self.node_mut(parent).as_cascade_section_impl_mut().body = new_;
+            self.attach_child("_becomeParentOf2", tokens, parent, new_);
+            // if (parent2 case CascadeExpressionImpl cascade) cascade._becomeParentOf1(V1Projection._existingNode(body));
+            let cascade = self.parents[parent as usize];
+            if cascade != NO_NODE && matches!(self.node(cascade), AstNodeImpl::CascadeExpressionImpl(_)) {
+                let ast = Ast::new(self, tokens);
+                let existing = ast.existing_node(new_);
+                ast.become_parent_of1(cascade, existing);
+            }
+            return;
+        }
+        panic!("ArgumentError: The old node is not a child of this node.");''',
+};
+
+void writeMutations(List<ClassInfo> concrete, StringBuffer out, List<String> errors) {
+  StringBuffer methods = StringBuffer();
+  out.writeln('impl AstStore {');
+  for (var (String member, String rust, String params, String args) in [
+    ('replaceChild', 'replace_child', 'old: NodeId, new_: NodeId', 'old, new_'),
+    ('removeChild', 'remove_child', 'old: NodeId', 'old'),
+  ]) {
+    out.writeln('    /// `parent.$member($args)`.');
+    out.writeln(
+      '    pub fn $rust(&mut self, tokens: &TokenStore, parent: NodeId, $params) {',
+    );
+    out.writeln('        match self.node(parent) {');
+    for (ClassInfo c in concrete) {
+      String fn = '${rust}_${snake(c.name)}';
+      out.writeln(
+        '            AstNodeImpl::${c.name}(_) => self.$fn(tokens, parent, $args),',
+      );
+      List<String> statements;
+      String? hand = handMutations['${c.name}.$member'];
+      if (isV1Only(c)) {
+        statements = ['panic!("UnsupportedError: A V1 projection cannot be mutated.");'];
+      } else if (hand != null) {
+        statements = [hand];
+      } else {
+        var found = c.lookupMethod(member);
+        Map<String, Field> fields = {
+          for (Field f in fieldsOf(c)) f.dartName: f,
+        };
+        try {
+          statements = found == null
+              ? ['panic!("ArgumentError: The old node is not a child of this node.");']
+              : MutationTranslator(c, fields, member).body(found.$1, found.$2, member == 'replaceChild');
+        } on StateError catch (e) {
+          errors.add(e.message);
+          statements = ['todo!()'];
+        }
+      }
+      methods.writeln();
+      methods.writeln('    /// `${c.name}.$member`.');
+      methods.writeln(
+        '    fn $fn(&mut self, tokens: &TokenStore, parent: NodeId, $params) {',
+      );
+      methods.writeln('        let _ = tokens;');
+      for (String s in statements) {
+        methods.writeln('        $s');
+      }
+      methods.writeln('    }');
+    }
+    out.writeln('        }');
+    out.writeln('    }');
+    out.writeln();
+  }
+  out.write(methods);
+  out.writeln('}');
+  out.writeln();
 }

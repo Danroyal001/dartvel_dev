@@ -29372,3 +29372,2922 @@ macro_rules! unifying_ast_visitor2 {
         }
     };
 }
+
+/// `class TimedAstVisitor<T> implements AstVisitor<T>`: times the visits of
+/// [_baseVisitor] with [stopwatch].
+pub struct TimedAstVisitor<'a, T> {
+    /// The base visitor whose visit methods will be timed.
+    base_visitor: &'a mut dyn AstVisitor<R = T>,
+    /// Collects elapsed time for visit calls.
+    pub stopwatch: crate::dart::ast::visitor::Stopwatch,
+}
+
+impl<'a, T> TimedAstVisitor<'a, T> {
+    /// Initialize a newly created visitor to time calls to the given base
+    /// visitor's visits.
+    pub fn new(base_visitor: &'a mut dyn AstVisitor<R = T>, watch: Option<crate::dart::ast::visitor::Stopwatch>) -> Self {
+        TimedAstVisitor { base_visitor, stopwatch: watch.unwrap_or_default() }
+    }
+}
+
+impl<'a, T> AstVisitor for TimedAstVisitor<'a, T> {
+    type R = T;
+
+    fn visit_adjacent_strings(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_adjacent_strings(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_annotation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_annotation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_anonymous_block_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_anonymous_block_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_anonymous_expression_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_anonymous_expression_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_anonymous_method_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_anonymous_method_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_argument_list(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_argument_list(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_as_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_as_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_assert_initializer(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_assert_initializer(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_assert_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_assert_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_assigned_variable_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_assigned_variable_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_assignment_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_assignment_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_await_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_await_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_binary_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_binary_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_block(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_block(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_block_class_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_block_class_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_block_enum_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_block_enum_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_block_function_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_block_function_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_boolean_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_boolean_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_break_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_break_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_cascade_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_cascade_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_case_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_case_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_cast_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_cast_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_catch_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_catch_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_catch_clause_parameter(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_catch_clause_parameter(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_class_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_class_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_class_type_alias(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_class_type_alias(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_comment(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_comment(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_comment_reference(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_comment_reference(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_compilation_unit(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_compilation_unit(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_conditional_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_conditional_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_configuration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_configuration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constant_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constant_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_field_initializer(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_field_initializer(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_name(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_reference(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_reference(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_selector(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_selector(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_continue_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_continue_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_declared_identifier(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_declared_identifier(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_declared_variable_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_declared_variable_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_do_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_do_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_dot_shorthand_constructor_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_dot_shorthand_constructor_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_dot_shorthand_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_dot_shorthand_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_dot_shorthand_property_access(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_dot_shorthand_property_access(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_dotted_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_dotted_name(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_double_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_double_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_empty_class_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_empty_class_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_empty_enum_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_empty_enum_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_empty_function_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_empty_function_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_empty_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_empty_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_enum_constant_arguments(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_enum_constant_arguments(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_enum_constant_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_enum_constant_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_enum_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_enum_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_export_directive(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_export_directive(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_expression_function_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_expression_function_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_expression_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_expression_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_extends_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_extends_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_extension_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_extension_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_extension_on_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_extension_on_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_extension_override(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_extension_override(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_extension_type_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_extension_type_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_field_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_field_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_field_formal_parameter(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_field_formal_parameter(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_each_parts_with_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_each_parts_with_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_each_parts_with_identifier(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_each_parts_with_identifier(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_each_parts_with_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_each_parts_with_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_element(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_element(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_formal_parameter_default_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_formal_parameter_default_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_formal_parameter_list(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_formal_parameter_list(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_parts_with_declarations(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_parts_with_declarations(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_parts_with_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_parts_with_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_parts_with_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_parts_with_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_function_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_function_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_function_declaration_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_function_declaration_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_function_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_function_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_function_expression_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_function_expression_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_function_reference(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_function_reference(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_function_type_alias(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_function_type_alias(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_function_typed_formal_parameter_suffix(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_function_typed_formal_parameter_suffix(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_generic_function_type(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_generic_function_type(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_generic_type_alias(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_generic_type_alias(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_guarded_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_guarded_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_hide_combinator(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_hide_combinator(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_if_element(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_if_element(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_if_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_if_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_implements_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_implements_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_implicit_call_reference(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_implicit_call_reference(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_import_directive(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_import_directive(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_import_prefix_reference(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_import_prefix_reference(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_index_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_index_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_instance_creation_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_instance_creation_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_integer_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_integer_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_interpolation_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_interpolation_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_interpolation_string(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_interpolation_string(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_is_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_is_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_label(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_label(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_labeled_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_labeled_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_label_reference(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_label_reference(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_library_directive(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_library_directive(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_list_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_list_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_list_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_list_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_logical_and_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_logical_and_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_logical_or_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_logical_or_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_map_literal_entry(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_map_literal_entry(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_map_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_map_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_map_pattern_entry(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_map_pattern_entry(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_method_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_method_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_method_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_method_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_mixin_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_mixin_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_mixin_on_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_mixin_on_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_named_argument(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_named_argument(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_named_type(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_named_type(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_name_with_type_parameters(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_name_with_type_parameters(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_native_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_native_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_native_function_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_native_function_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_null_assert_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_null_assert_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_null_aware_element(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_null_aware_element(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_null_check_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_null_check_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_null_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_null_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_object_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_object_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parenthesized_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parenthesized_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parenthesized_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parenthesized_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_part_directive(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_part_directive(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_part_of_directive(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_part_of_directive(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_pattern_assignment(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_pattern_assignment(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_pattern_field(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_pattern_field(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_pattern_field_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_pattern_field_name(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_pattern_variable_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_pattern_variable_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_pattern_variable_declaration_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_pattern_variable_declaration_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_postfix_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_postfix_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_prefixed_identifier(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_prefixed_identifier(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_prefix_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_prefix_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_primary_constructor_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_primary_constructor_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_primary_constructor_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_primary_constructor_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_primary_constructor_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_primary_constructor_name(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_property_access(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_property_access(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_literal_named_field(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_literal_named_field(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_type_annotation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_type_annotation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_type_annotation_named_field(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_type_annotation_named_field(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_type_annotation_named_fields(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_type_annotation_named_fields(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_type_annotation_positional_field(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_type_annotation_positional_field(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_redirecting_constructor_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_redirecting_constructor_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_regular_formal_parameter(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_regular_formal_parameter(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_relational_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_relational_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_rest_pattern_element(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_rest_pattern_element(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_rethrow_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_rethrow_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_return_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_return_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_script_tag(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_script_tag(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_set_or_map_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_set_or_map_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_show_combinator(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_show_combinator(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_simple_identifier(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_simple_identifier(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_simple_string_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_simple_string_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_spread_element(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_spread_element(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_string_interpolation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_string_interpolation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_super_constructor_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_super_constructor_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_super_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_super_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_super_formal_parameter(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_super_formal_parameter(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_case(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_case(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_default(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_default(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_expression_case(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_expression_case(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_pattern_case(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_pattern_case(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_symbol_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_symbol_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_this_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_this_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_throw_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_throw_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_top_level_variable_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_top_level_variable_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_try_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_try_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_type_argument_list(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_type_argument_list(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_type_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_type_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_type_parameter(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_type_parameter(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_type_parameter_list(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_type_parameter_list(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_variable_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_variable_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_variable_declaration_list(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_variable_declaration_list(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_variable_declaration_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_variable_declaration_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_when_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_when_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_while_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_while_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_wildcard_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_wildcard_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_with_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_with_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_yield_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_yield_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+}
+
+/// `class TimedAstVisitor2<T> implements AstVisitor2<T>`: times the visits of
+/// [_baseVisitor] with [stopwatch].
+pub struct TimedAstVisitor2<'a, T> {
+    /// The base visitor whose visit methods will be timed.
+    base_visitor: &'a mut dyn AstVisitor2<R = T>,
+    /// Collects elapsed time for visit calls.
+    pub stopwatch: crate::dart::ast::visitor::Stopwatch,
+}
+
+impl<'a, T> TimedAstVisitor2<'a, T> {
+    /// Initialize a newly created visitor to time calls to the given base
+    /// visitor's visits.
+    pub fn new(base_visitor: &'a mut dyn AstVisitor2<R = T>, watch: Option<crate::dart::ast::visitor::Stopwatch>) -> Self {
+        TimedAstVisitor2 { base_visitor, stopwatch: watch.unwrap_or_default() }
+    }
+}
+
+impl<'a, T> AstVisitor2 for TimedAstVisitor2<'a, T> {
+    type R = T;
+
+    fn visit_adjacent_strings(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_adjacent_strings(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_annotation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_annotation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_anonymous_block_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_anonymous_block_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_anonymous_expression_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_anonymous_expression_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_anonymous_method_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_anonymous_method_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_argument_list(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_argument_list(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_as_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_as_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_assert_initializer(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_assert_initializer(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_assert_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_assert_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_assigned_variable_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_assigned_variable_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_await_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_await_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_binary_operator_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_binary_operator_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_block(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_block(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_block_enum_declaration_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_block_enum_declaration_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_block_function_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_block_function_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_block_instance_declaration_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_block_instance_declaration_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_boolean_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_boolean_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_break_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_break_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_call_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_call_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_cascade_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_cascade_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_cascade_index_assignment_target(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_cascade_index_assignment_target(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_cascade_index_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_cascade_index_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_cascade_method_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_cascade_method_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_cascade_property_assignment_target(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_cascade_property_assignment_target(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_cascade_property_extraction(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_cascade_property_extraction(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_cascade_section(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_cascade_section(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_case_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_case_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_cast_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_cast_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_catch_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_catch_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_catch_clause_parameter(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_catch_clause_parameter(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_class_declaration2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_class_declaration2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_class_type_alias2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_class_type_alias2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_combinator_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_combinator_name(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_comment(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_comment(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_comment_reference(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_comment_reference(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_comment_reference_component(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_comment_reference_component(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_compilation_unit(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_compilation_unit(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_compound_assignment(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_compound_assignment(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_conditional_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_conditional_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_configuration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_configuration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constant_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constant_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_declaration2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_declaration2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_field_initializer(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_field_initializer(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_reference2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_reference2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_selector(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_selector(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_tear_off(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_tear_off(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_constructor_type_reference(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_constructor_type_reference(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_continue_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_continue_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_declared_identifier(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_declared_identifier(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_declared_variable_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_declared_variable_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_delimited_formal_parameters(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_delimited_formal_parameters(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_direct_assignment(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_direct_assignment(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_do_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_do_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_dot_shorthand_constructor_invocation2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_dot_shorthand_constructor_invocation2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_dot_shorthand_method_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_dot_shorthand_method_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_dot_shorthand_name_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_dot_shorthand_name_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_dotted_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_dotted_name(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_double_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_double_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_empty_function_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_empty_function_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_empty_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_empty_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_enum_constant_arguments(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_enum_constant_arguments(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_enum_constant_declaration2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_enum_constant_declaration2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_enum_declaration2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_enum_declaration2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_export_directive(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_export_directive(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_expression_function_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_expression_function_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_expression_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_expression_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_extends_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_extends_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_extension_declaration2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_extension_declaration2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_extension_on_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_extension_on_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_extension_override2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_extension_override2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_extension_type_declaration2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_extension_type_declaration2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_field2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_field2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_field_formal_parameter(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_field_formal_parameter(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_fields_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_fields_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_each_parts_with_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_each_parts_with_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_each_parts_with_identifier(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_each_parts_with_identifier(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_each_parts_with_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_each_parts_with_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_element(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_element(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_formal_parameter_default_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_formal_parameter_default_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_formal_parameter_list(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_formal_parameter_list(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_parts_with_declarations(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_parts_with_declarations(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_parts_with_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_parts_with_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_parts_with_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_parts_with_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_for_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_for_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_function_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_function_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_function_instantiation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_function_instantiation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_function_type_alias2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_function_type_alias2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_function_typed_formal_parameter_suffix(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_function_typed_formal_parameter_suffix(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_generic_function_type(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_generic_function_type(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_generic_type_alias2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_generic_type_alias2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_getter_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_getter_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_guarded_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_guarded_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_hide_combinator(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_hide_combinator(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_if_element(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_if_element(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_if_null(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_if_null(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_if_null_assignment(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_if_null_assignment(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_if_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_if_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_implements_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_implements_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_implicit_call_tear_off(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_implicit_call_tear_off(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_implicit_function_instantiation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_implicit_function_instantiation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_import_directive(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_import_directive(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_import_prefixed_assignment_target(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_import_prefixed_assignment_target(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_import_prefixed_function_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_import_prefixed_function_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_import_prefixed_name_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_import_prefixed_name_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_import_prefix_reference(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_import_prefix_reference(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_increment_or_decrement_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_increment_or_decrement_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_integer_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_integer_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_interpolation_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_interpolation_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_interpolation_string(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_interpolation_string(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_invalid_expression_assignment_target(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_invalid_expression_assignment_target(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_invalid_extension_override_assignment_target(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_invalid_extension_override_assignment_target(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_invalid_extension_override_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_invalid_extension_override_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_invalid_super_assignment_target(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_invalid_super_assignment_target(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_invalid_super_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_invalid_super_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_is_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_is_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_label(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_label(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_labeled_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_labeled_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_label_reference(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_label_reference(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_library_directive(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_library_directive(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_list_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_list_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_list_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_list_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_local_function_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_local_function_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_local_variable(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_local_variable(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_local_variables_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_local_variables_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_local_variables_declaration_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_local_variables_declaration_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_logical_and(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_logical_and(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_logical_and_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_logical_and_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_logical_not(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_logical_not(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_logical_or(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_logical_or(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_logical_or_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_logical_or_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_map_literal_entry(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_map_literal_entry(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_map_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_map_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_map_pattern_entry(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_map_pattern_entry(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_method_declaration2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_method_declaration2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_mixin_declaration2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_mixin_declaration2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_mixin_on_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_mixin_on_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_named_argument(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_named_argument(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_named_type(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_named_type(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_name_with_type_parameters(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_name_with_type_parameters(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_native_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_native_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_native_function_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_native_function_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_null_assertion_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_null_assertion_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_null_assert_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_null_assert_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_null_aware_element(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_null_aware_element(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_null_check_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_null_check_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_null_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_null_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_object_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_object_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_operator_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_operator_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parenthesized_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parenthesized_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parenthesized_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parenthesized_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parsed_cascade_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parsed_cascade_name(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parsed_dot_shorthand_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parsed_dot_shorthand_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parsed_dot_shorthand_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parsed_dot_shorthand_name(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parsed_name_access(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parsed_name_access(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parsed_name_access_assignment_target(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parsed_name_access_assignment_target(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parsed_type_arguments(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parsed_type_arguments(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parsed_unqualified_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parsed_unqualified_name(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_parsed_value_arguments(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_parsed_value_arguments(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_part_directive(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_part_directive(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_part_of_directive(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_part_of_directive(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_pattern_assignment(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_pattern_assignment(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_pattern_field(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_pattern_field(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_pattern_field_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_pattern_field_name(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_pattern_variable_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_pattern_variable_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_pattern_variable_declaration_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_pattern_variable_declaration_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_primary_constructor_body2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_primary_constructor_body2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_primary_constructor_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_primary_constructor_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_primary_constructor_name(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_primary_constructor_name(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_receiver_index_assignment_target(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_receiver_index_assignment_target(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_receiver_index_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_receiver_index_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_receiver_method_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_receiver_method_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_receiver_property_assignment_target(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_receiver_property_assignment_target(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_receiver_property_extraction(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_receiver_property_extraction(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_literal_named_field(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_literal_named_field(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_type_annotation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_type_annotation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_type_annotation_named_field(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_type_annotation_named_field(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_type_annotation_named_fields(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_type_annotation_named_fields(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_record_type_annotation_positional_field(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_record_type_annotation_positional_field(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_redirecting_constructor_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_redirecting_constructor_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_regular_formal_parameter(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_regular_formal_parameter(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_relational_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_relational_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_rest_pattern_element(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_rest_pattern_element(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_rethrow_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_rethrow_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_return_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_return_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_script_tag(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_script_tag(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_semicolon_enum_declaration_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_semicolon_enum_declaration_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_semicolon_instance_declaration_body(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_semicolon_instance_declaration_body(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_set_or_map_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_set_or_map_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_setter_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_setter_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_show_combinator(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_show_combinator(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_simple_string_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_simple_string_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_spread_element(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_spread_element(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_static_qualifier(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_static_qualifier(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_string_interpolation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_string_interpolation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_super_constructor_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_super_constructor_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_super_formal_parameter(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_super_formal_parameter(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_super_reference(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_super_reference(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_case(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_case(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_default(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_default(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_expression_case(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_expression_case(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_pattern_case(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_pattern_case(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_switch_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_switch_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_symbol_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_symbol_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_this_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_this_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_throw_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_throw_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_top_level_function_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_top_level_function_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_top_level_getter_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_top_level_getter_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_top_level_setter_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_top_level_setter_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_top_level_variable2(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_top_level_variable2(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_top_level_variables_declaration(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_top_level_variables_declaration(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_try_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_try_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_type_argument_list(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_type_argument_list(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_type_literal(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_type_literal(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_type_parameter(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_type_parameter(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_type_parameter_list(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_type_parameter_list(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_unary_operator_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_unary_operator_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_unqualified_function_invocation(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_unqualified_function_invocation(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_unqualified_name_assignment_target(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_unqualified_name_assignment_target(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_unqualified_name_expression(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_unqualified_name_expression(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_when_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_when_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_while_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_while_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_wildcard_pattern(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_wildcard_pattern(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_with_clause(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_with_clause(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+
+    fn visit_yield_statement(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {
+        self.stopwatch.start();
+        let result = self.base_visitor.visit_yield_statement(ast, node);
+        self.stopwatch.stop();
+        result
+    }
+}

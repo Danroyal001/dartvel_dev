@@ -7,6 +7,7 @@
 //
 // `src/` mirrors `../lib`: `src/dart/...` ports `lib/dart/...` and
 // `src/src/...` ports `lib/src/...`.
+#![forbid(unsafe_code)]
 #![allow(clippy::all)]
 #![allow(non_upper_case_globals, non_snake_case)]
 

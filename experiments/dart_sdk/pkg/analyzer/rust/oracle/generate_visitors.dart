@@ -305,6 +305,63 @@ void main(List<String> args) {
     }
     v.writeln('}');
   }
+  // TimedAstVisitor and TimedAstVisitor2: every visit method times the base
+  // visitor's.
+  for (var (String className, String base, List<String> list) in [
+    ('TimedAstVisitor', 'AstVisitor', visits1),
+    ('TimedAstVisitor2', 'AstVisitor2', visits2),
+  ]) {
+    var c = classNamed(visitorG, className);
+    for (var m in methodsOf(c)) {
+      String body = (m.body as BlockFunctionBody).block.statements
+          .map((s) => s.toSource())
+          .join(' ');
+      String name = m.name.lexeme;
+      if (body !=
+          'stopwatch.start(); T? result = _baseVisitor.$name(node); '
+              'stopwatch.stop(); return result;') {
+        throw StateError('$className.$name: unknown body $body');
+      }
+    }
+    v.writeln();
+    v.writeln('/// `class $className<T> implements $base<T>`: times the visits of');
+    v.writeln('/// [_baseVisitor] with [stopwatch].');
+    v.writeln("pub struct $className<'a, T> {");
+    v.writeln('    /// The base visitor whose visit methods will be timed.');
+    v.writeln("    base_visitor: &'a mut dyn $base<R = T>,");
+    v.writeln('    /// Collects elapsed time for visit calls.');
+    v.writeln('    pub stopwatch: crate::dart::ast::visitor::Stopwatch,');
+    v.writeln('}');
+    v.writeln();
+    v.writeln("impl<'a, T> $className<'a, T> {");
+    v.writeln('    /// Initialize a newly created visitor to time calls to the given base');
+    v.writeln("    /// visitor's visits.");
+    v.writeln(
+      "    pub fn new(base_visitor: &'a mut dyn $base<R = T>, watch: Option<crate::dart::ast::visitor::Stopwatch>) -> Self {",
+    );
+    v.writeln(
+      '        $className { base_visitor, stopwatch: watch.unwrap_or_default() }',
+    );
+    v.writeln('    }');
+    v.writeln('}');
+    v.writeln();
+    v.writeln("impl<'a, T> $base for $className<'a, T> {");
+    v.writeln('    type R = T;');
+    for (String visit in list) {
+      v.writeln();
+      v.writeln(
+        "    fn ${snake(visit)}(&mut self, ast: Ast<'_>, node: NodeId) -> Option<T> {",
+      );
+      v.writeln('        self.stopwatch.start();');
+      v.writeln(
+        '        let result = self.base_visitor.${snake(visit)}(ast, node);',
+      );
+      v.writeln('        self.stopwatch.stop();');
+      v.writeln('        result');
+      v.writeln('    }');
+    }
+    v.writeln('}');
+  }
   File('$root/rust/src/dart/ast/visitor_g.rs').writeAsStringSync(v.toString());
 
   // The recorders of the API oracle: a RecursiveAstVisitor2 and a
