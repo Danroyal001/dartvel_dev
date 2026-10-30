@@ -49,13 +49,11 @@ String toDialect(String dartSource) {
     onSemicolon: (semicolon, before, after, scan) {
       if (!scan.lineBreakBetween(semicolon, after)) return;
       // Insertion puts a semicolon right after the token it ends, so one
-      // with a comment in between would come back in another place.
-      if (dartSource
-          .substring(before.end, semicolon.offset)
-          .trim()
-          .isNotEmpty) {
-        return;
-      }
+      // with anything in between would come back in another place: a
+      // comment, or the line break of a `;` the formatter left alone on the
+      // line under a cascade (`..writeln(...)` then `;` in `dartvel_cli`'s
+      // `postman_import.dart`).
+      if (semicolon.offset != before.end) return;
       if (_wouldInsert(before, after, scan)) removals.add(semicolon.offset);
     },
   );
@@ -171,6 +169,12 @@ final class _Scan {
   /// What a closing token closed, and what stood before its opener.
   final closed = <Token, _Frame>{};
 
+  /// The stack depth of the class body whose constructor's initializer list
+  /// is being read, from its `:` to the `{` of the constructor's body (or a
+  /// `=>`), or null outside one. Not ended by `;`: the dialect may have
+  /// dropped it, and both directions must see the same state.
+  int? initializers;
+
   int line(Token token) => lineInfo.getLocation(token.offset).lineNumber;
 
   bool lineBreakBetween(Token before, Token after) =>
@@ -234,11 +238,23 @@ void _apply(Token token, Token? before, _Scan scan) {
     case TokenType.STRING_INTERPOLATION_EXPRESSION:
       scan.stack.add(_Frame(_Kind.interpolation, before));
     case TokenType.OPEN_CURLY_BRACKET:
-      scan.stack.add(_Frame(_braceKind(before, scan), before));
+      final kind = _braceKind(before, scan);
+      if (kind == _Kind.statements && scan.initializers == scan.stack.length) {
+        scan.initializers = null;
+      }
+      scan.stack.add(_Frame(kind, before));
     case TokenType.CLOSE_PAREN ||
         TokenType.CLOSE_SQUARE_BRACKET ||
         TokenType.CLOSE_CURLY_BRACKET:
       if (scan.stack.isNotEmpty) scan.closed[token] = scan.stack.removeLast();
+      final depth = scan.initializers;
+      if (depth != null && scan.stack.length < depth) scan.initializers = null;
+    case TokenType.COLON:
+      if (_startsInitializers(token, scan)) {
+        scan.initializers = scan.stack.length;
+      }
+    case TokenType.FUNCTION:
+      if (scan.initializers == scan.stack.length) scan.initializers = null;
     case TokenType.SEMICOLON:
       if (scan.stack.isNotEmpty && scan.stack.last.kind == _Kind.enumValues) {
         scan.stack.last.kind = _Kind.statements;
@@ -260,6 +276,10 @@ _Kind _parenKind(Token? before) {
     final opener = _matchingAngle(before);
     final name = opener?.previous;
     if (name != null && _isAnnotationName(name)) return _Kind.annotation;
+    // `T Function<T>(int a)`: a generic function type, whose `)` ends a
+    // type, not a call. ffigen writes the lookup field that way, wrapped
+    // before its name (`dartvel_shelf`'s generated `bindings.dart`).
+    if (name != null && name.lexeme == 'Function') return _Kind.functionType;
   }
   return _Kind.paren;
 }
@@ -323,9 +343,15 @@ _Kind _braceKind(Token? before, _Scan scan) {
       (before.previous?.lexeme == 'sync' || before.previous?.lexeme == 'async');
   // `case 1: {` and `default: {` open a block in a switch statement.
   if (lexeme == ':' && _endsCaseLabel(before)) return _Kind.statements;
+  // `outer: {` opens a labeled block.
+  if (lexeme == ':' && _endsStatementLabel(before, scan)) {
+    return _Kind.statements;
+  }
   // `extension on String? {`: a nullable type ending a declaration header.
   if (lexeme == '?' && _inDeclarationHeader(before)) return _Kind.statements;
-  if (!generatorStar && _expressionPosition.contains(lexeme)) {
+  if (!generatorStar &&
+      !_isPostfixBang(before) &&
+      _expressionPosition.contains(lexeme)) {
     return _Kind.collection;
   }
 
@@ -369,6 +395,10 @@ _Kind _afterParen(Token closeParen, _Scan scan) {
   }
   // `operator ==(Object other) {` declares a method; the `==` is its name.
   if (before?.previous?.lexeme == 'operator') return _Kind.statements;
+  // `: x = (a + 1) {` and `: y = b ?? (a - 1) {`: the constructor's body.
+  // An initializer cannot be an unparenthesized closure, so in an
+  // initializer list this `{` is never a closure's.
+  if (scan.initializers == scan.stack.length) return _Kind.statements;
   if (before == null ||
       _closurePosition.contains(before.lexeme) ||
       before.type == TokenType.OPEN_CURLY_BRACKET) {
@@ -381,7 +411,78 @@ bool _inExpression(Token keyword) {
   final before = keyword.previous;
   if (before == null) return false;
   if (before.lexeme == ':' && _endsCaseLabel(before)) return false;
+  if (_isPostfixBang(before)) return false;
   return _expressionPosition.contains(before.lexeme);
+}
+
+/// Whether [token] is a postfix `!`, the null check in `x!` or `f()!`,
+/// rather than the prefix negation [_expressionPosition] lists. Only the
+/// prefix one leaves an operand to come: `: y = x! {` opens a constructor
+/// body and `a!` then `switch (b) {` on the next line starts a switch
+/// statement (`_fe_analyzer_shared`'s `token.next!` before a `switch`), where
+/// reading the `!` as a negation took both braces for literals.
+bool _isPostfixBang(Token token) {
+  if (token.lexeme != '!') return false;
+  final operand = token.previous;
+  if (operand == null) return false;
+  if (operand.isIdentifier) {
+    return operand.lexeme != 'await' && operand.lexeme != 'yield';
+  }
+  return operand.type == TokenType.CLOSE_PAREN ||
+      operand.type == TokenType.CLOSE_SQUARE_BRACKET ||
+      (operand.isKeyword && const {'this', 'super'}.contains(operand.lexeme));
+}
+
+/// Whether [colon] starts a constructor's initializer list: directly in a
+/// class body, after the `)` of a parameter list whose name (`A`, `A.named`,
+/// `new`) starts a member. Motivated by `: x = (((o + 1) << 8) | t) {` in
+/// `_fe_analyzer_shared`'s `token.dart` and `: e = s ?? (c ? a : b) {` in
+/// Flutter's `two_dimensional_viewport.dart`, whose bodies were taken for
+/// closures. What stands before the name tells a declaration from a call in
+/// a conditional, `c ? f() : g`, or a pattern, `case A():`.
+bool _startsInitializers(Token colon, _Scan scan) {
+  if (scan.stack.isEmpty || scan.stack.last.kind != _Kind.statements) {
+    return false;
+  }
+  final closeParen = colon.previous;
+  if (closeParen == null || closeParen.type != TokenType.CLOSE_PAREN) {
+    return false;
+  }
+  if (scan.closed[closeParen]?.kind != _Kind.paren) return false;
+  if (_endsCaseLabel(colon)) return false;
+  bool isName(Token? token) =>
+      token != null && (token.isIdentifier || token.lexeme == 'new');
+  var name = scan.closed[closeParen]!.before;
+  if (!isName(name)) return false;
+  while (name!.previous?.type == TokenType.PERIOD &&
+      isName(name.previous!.previous)) {
+    name = name.previous!.previous;
+  }
+  var start = name.previous;
+  if (start != null &&
+      start.isKeyword &&
+      (start.lexeme == 'const' || start.lexeme == 'external')) {
+    start = start.previous;
+  }
+  return start == null || _endsMember(start);
+}
+
+/// Whether [token] can be the last token of a class member, or the `{` that
+/// opens the body before the first: what may stand before a constructor's
+/// name, with the dialect's semicolons gone.
+bool _endsMember(Token token) {
+  final type = token.type;
+  if (type == TokenType.SEMICOLON ||
+      type == TokenType.OPEN_CURLY_BRACKET ||
+      type == TokenType.CLOSE_CURLY_BRACKET ||
+      type == TokenType.CLOSE_PAREN ||
+      type == TokenType.CLOSE_SQUARE_BRACKET ||
+      _literalTypes.contains(type.name)) {
+    return true;
+  }
+  return token.isIdentifier &&
+      token.lexeme != 'await' &&
+      token.lexeme != 'yield';
 }
 
 /// Tokens after which `(...) {` is a closure. Narrower than
@@ -591,6 +692,11 @@ const _continuations = {
 };
 
 bool _continues(Token before, Token after) {
+  // A `;` alone on the next line already ends the statement: the formatter
+  // leaves one there after a trailing comment (`'...' // E0-FF` then `;` in
+  // the SDK's `utf.dart`) or under a cascade, and inserting another before
+  // it would end the statement twice.
+  if (after.type == TokenType.SEMICOLON) return true;
   // Adjacent string literals are one string: 'a' 'b'.
   if (before.type == TokenType.STRING && after.type == TokenType.STRING) {
     return true;
@@ -600,10 +706,10 @@ bool _continues(Token before, Token after) {
   return _continuations.contains(after.lexeme);
 }
 
-const _directiveKeywords = {'import', 'export', 'part', 'library'};
+const _directiveKeywords = {'import', 'export', 'part'};
 
-/// Whether [token] is inside an `import`, `export`, `part` or `library`
-/// directive, read back to the directive's keyword. In the dialect the
+/// Whether [token] is inside an `import`, `export` or `part` directive,
+/// read back to the directive's keyword. In the dialect the
 /// directives above have no semicolons either, so the nearest keyword is
 /// this directive's own.
 bool _inDirective(Token token) {
@@ -614,12 +720,27 @@ bool _inDirective(Token token) {
         current.lexeme == '=') {
       return false;
     }
-    if (current.isKeyword && _directiveKeywords.contains(current.lexeme)) {
-      return true;
-    }
+    if (_startsDirective(current)) return true;
     if (current.previous == current) break;
   }
   return false;
+}
+
+/// Whether [token] is the keyword of a directive: `import`, `export` or
+/// `part` followed by its URI, or `part of`. The words are built-in
+/// identifiers, so a getter or a variable can carry one of these names:
+/// `final x = element.library` and then `int? y` and an `if` on the next
+/// lines (the analyzer's `driver.dart`) read back to `library` and took the
+/// `if` for a conditional import's. A `library` directive never holds the
+/// `show`, `hide` or `if` the callers ask about, so it is not counted.
+bool _startsDirective(Token token) {
+  if (!token.isKeyword || !_directiveKeywords.contains(token.lexeme)) {
+    return false;
+  }
+  final next = token.next;
+  if (next == null) return false;
+  return next.type == TokenType.STRING ||
+      (token.lexeme == 'part' && next.lexeme == 'of');
 }
 
 const _headerKeywords = {'extends', 'with', 'implements', 'on'};
@@ -655,6 +776,26 @@ bool _endsCaseLabel(Token colon) {
     if (token.previous == token || type == TokenType.EOF) break;
   }
   return false;
+}
+
+/// Whether [colon] ends a statement label, `outer:`, among statements: an
+/// identifier that starts its statement, then the colon. `break outer;`
+/// leaves a labeled block, which the SDK's `json.dart` (`checkAscii:`),
+/// `uri.dart` and `convert_patch.dart` use; their `{` was taken for a set
+/// literal after `:`. The conditional `c ? a : {}` has an operator before
+/// `a`, and a named argument or a map entry is not among statements.
+bool _endsStatementLabel(Token colon, _Scan scan) {
+  if (!scan.insertable) return false;
+  final label = colon.previous;
+  if (label == null || !label.isIdentifier) return false;
+  final before = label.previous;
+  if (before == null || before.type == TokenType.EOF) return true;
+  if (before.type == TokenType.SEMICOLON ||
+      before.type == TokenType.OPEN_CURLY_BRACKET ||
+      before.type == TokenType.CLOSE_CURLY_BRACKET) {
+    return true;
+  }
+  return scan.lineBreakBetween(before, label) && _canEnd(before, scan);
 }
 
 const _declarationModifiers = {

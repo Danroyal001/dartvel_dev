@@ -202,6 +202,50 @@ void main() {
         'Iterable<int> f() sync* {\n  yield 1;\n}\n\n'
             'Stream<int> g() async* {\n  yield 2;\n}\n\nint x = 1;\n',
       ),
+      // Found by the corpus run over the SDK and Flutter: a postfix `!` was
+      // read as a prefix `!`, so what followed it was taken for an operand.
+      (
+        'a constructor body after an initializer ending in a null check',
+        'class A {\n  A(int? x) : y = x! {\n    g();\n  }\n  final int y;\n}\n'
+            '\nint z = 1;\n',
+      ),
+      (
+        'a switch statement after a statement ending in a null check',
+        'void f(int? a) {\n  final b = a!;\n  switch (b) {\n    case 1:\n'
+            '      g();\n  }\n  h();\n}\n',
+      ),
+      (
+        'a member named library is not a library directive',
+        'void f(L l) {\n  final x = l.library;\n  int? y;\n  if (x) {}\n}\n',
+      ),
+      (
+        'a generic function type wrapped before its name',
+        'class A {\n  final T Function<T>(int a)\n  _f;\n  A(this._f);\n}\n',
+      ),
+      (
+        'a constructor body after an initializer ending in parentheses',
+        'class A {\n  A(int a, int? b)\n      : x = (a + 1),\n'
+            '        y = b ?? (a - 1) {\n    g();\n  }\n'
+            '  final int x;\n  final int y;\n}\n\nint z = 1;\n',
+      ),
+      (
+        'a closure field after an initializer list',
+        'class A {\n  A(this.x) : y = 1;\n  final int x;\n  final int y;\n'
+            '  final f = (int a) {\n    g();\n  };\n  int z = 1;\n}\n',
+      ),
+      (
+        'a labeled block is a block, not a set literal',
+        'void f() {\n  outer:\n  {\n    g();\n    break outer;\n  }\n'
+            '  inner: {\n    g();\n  }\n  h();\n}\n',
+      ),
+      (
+        'a semicolon on its own line after a comment',
+        "void f() {\n  a = 'x' // why\n      ;\n  g();\n}\n",
+      ),
+      (
+        'a semicolon on its own line after a cascade',
+        'void f() {\n  a\n    ..b()\n    ;\n  g();\n}\n',
+      ),
     ]) {
       test(name, () => roundTrips(source));
     }
