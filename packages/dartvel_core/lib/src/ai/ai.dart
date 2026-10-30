@@ -191,13 +191,15 @@ class DVAIToolRegistry {
     return _run(name, input);
   }
 
-  /// The first of [names] that needs approval, as a pause carrying [input],
-  /// or null when none does. Asked before any of them runs, so a run that
-  /// stops has run nothing it was asked for in that step.
-  DVAIToolPause? _pauseFor(Iterable<String> names, DVJsonObject input) {
+  /// The first of [names] that needs approval and has no decision in
+  /// [decided], or null when every one is decided or needs none. Asked
+  /// before any of them runs, so a run that stops has run nothing it was
+  /// asked for in that step.
+  String? _undecided(Iterable<String> names, Map<String, bool> decided) {
     for (final String name in names) {
-      if (_tools[name]?.approval == DVToolApproval.required) {
-        return DVAIToolPause._(name, input);
+      if (_tools[name]?.approval == DVToolApproval.required &&
+          !decided.containsKey(name)) {
+        return name;
       }
     }
     return null;
@@ -283,11 +285,16 @@ final class DVAIToolApprovalRequired implements Exception {
 /// An agent run stopped at a tool that needs approval: the tool, the
 /// arguments the model gave it, and why the run stopped.
 ///
-/// [approve] runs the tool once, with exactly these arguments, so what was
-/// approved is what runs. Declining is not calling it.
+/// [resume] decides the call and carries the run on from where it stopped:
+/// approved, the tool runs with exactly these arguments and its result goes
+/// back to the model; declined, the model is told the call did not run.
+/// [approve] runs the tool and ends there, for an application that does not
+/// want the run to continue. A pause is resolved once, either way.
 final class DVAIToolPause {
-  DVAIToolPause._(this.tool, this.arguments)
+  DVAIToolPause._(this.tool, this.arguments, this._continue)
       : reason = 'the AI tool "$tool" requires approval before it runs';
+
+  final Future<DVAIAgentResult> Function(bool approved) _continue;
 
   /// The tool the model called.
   final String tool;
@@ -298,17 +305,33 @@ final class DVAIToolPause {
   /// Why the run stopped here.
   final String reason;
 
-  bool _approved = false;
+  bool _resolved = false;
 
-  /// Runs the tool with [arguments]. A pause approves once.
-  Future<DVJsonValue> approve() async {
-    if (_approved) {
-      throw StateError('This pause for "$tool" was already approved.');
+  void _resolve() {
+    if (_resolved) {
+      throw StateError('This pause for "$tool" was already resolved.');
     }
-    _approved = true;
+    _resolved = true;
+  }
+
+  /// Runs the tool with [arguments] and nothing more: the run that stopped
+  /// does not continue.
+  Future<DVJsonValue> approve() async {
+    _resolve();
     return const DVAIToolRegistry()._run(tool, arguments);
   }
+
+  /// Decides the call and continues the run. The result may be another
+  /// pause, when the run reaches another tool that needs approval.
+  Future<DVAIAgentResult> resume({required bool approved}) async {
+    _resolve();
+    return _continue(approved);
+  }
 }
+
+/// What a model is told about a call that was declined.
+String _declined(String tool) =>
+    'The call to "$tool" was declined, so the tool did not run.';
 
 abstract class DVAIAdapter {
   Future<String> chat(String prompt, {String provider = 'gemini'});
@@ -378,19 +401,35 @@ class LocalDVAIAdapter implements DVAIAdapter {
   }
 
   @override
-  Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) async {
-    final pause =
-        const DVAIToolRegistry()._pauseFor(request.tools, request.context);
-    if (pause != null) return DVAIAgentResult(output: '', pause: pause);
+  Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) =>
+      _runLocal(request, const <String, bool>{});
+
+  Future<DVAIAgentResult> _runLocal(
+    DVAIAgentRequest request,
+    Map<String, bool> decided,
+  ) async {
+    const registry = DVAIToolRegistry();
+    final waiting = registry._undecided(request.tools, decided);
+    if (waiting != null) {
+      return DVAIAgentResult(
+        output: '',
+        pause: DVAIToolPause._(
+          waiting,
+          request.context,
+          (bool approved) => _runLocal(
+            request,
+            <String, bool>{...decided, waiting: approved},
+          ),
+        ),
+      );
+    }
     final usedTools = <String>[];
     final data = <String, DVJsonValue>{};
     for (final toolName in request.tools) {
-      if (!const DVAIToolRegistry().contains(toolName)) continue;
+      if (!registry.contains(toolName)) continue;
+      if (decided[toolName] == false) continue;
       usedTools.add(toolName);
-      data[toolName] = await const DVAIToolRegistry().call(
-        toolName,
-        request.context,
-      );
+      data[toolName] = await registry._run(toolName, request.context);
     }
     final summary = await chat(request.goal, provider: 'local-agent');
     return DVAIAgentResult(
@@ -491,9 +530,18 @@ abstract class DVHttpAIAdapter implements DVAIAdapter {
   Future<({DVJsonValue value, bool isError})> invokeAgentTool(
     DVAIToolDefinition tool,
     DVJsonObject input,
-  ) async {
+  ) =>
+      _invokeTool(tool, input, approved: false);
+
+  /// [invokeAgentTool], for a call whose approval has been decided. Private,
+  /// so only a loop answering a resolved [DVAIToolPause] passes `true`.
+  Future<({DVJsonValue value, bool isError})> _invokeTool(
+    DVAIToolDefinition tool,
+    DVJsonObject input, {
+    required bool approved,
+  }) async {
     // The loops pause before reaching here; this is the floor under them.
-    if (tool.approval == DVToolApproval.required) {
+    if (tool.approval == DVToolApproval.required && !approved) {
       return (
         value: DVJsonString('${DVAIToolApprovalRequired(tool.name)}'),
         isError: true,
@@ -526,19 +574,38 @@ abstract class DVHttpAIAdapter implements DVAIAdapter {
   /// request names no registered tools: run the allowed tools up front and put
   /// their results in the prompt.
   @override
-  Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) async {
+  Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) =>
+      _runUpFront(request, const <String, bool>{});
+
+  Future<DVAIAgentResult> _runUpFront(
+    DVAIAgentRequest request,
+    Map<String, bool> decided,
+  ) async {
     const registry = DVAIToolRegistry();
     // These tools run before the model is asked anything, with the request
     // context as their input, so a tool that needs approval stops the run
     // here rather than running on nobody's say-so.
-    final pause = registry._pauseFor(request.tools, request.context);
-    if (pause != null) return DVAIAgentResult(output: '', pause: pause);
+    final waiting = registry._undecided(request.tools, decided);
+    if (waiting != null) {
+      return DVAIAgentResult(
+        output: '',
+        pause: DVAIToolPause._(
+          waiting,
+          request.context,
+          (bool approved) => _runUpFront(
+            request,
+            <String, bool>{...decided, waiting: approved},
+          ),
+        ),
+      );
+    }
     final usedTools = <String>[];
     final data = <String, DVJsonValue>{};
     for (final toolName in request.tools) {
       if (!registry.contains(toolName)) continue;
+      if (decided[toolName] == false) continue;
       usedTools.add(toolName);
-      data[toolName] = await registry.call(toolName, request.context);
+      data[toolName] = await registry._run(toolName, request.context);
     }
 
     final prompt = StringBuffer(agentPrompt(request));
@@ -782,13 +849,25 @@ class AnthropicDVAIAdapter extends DVHttpAIAdapter {
     final tools = agentTools(request);
     if (tools.isEmpty) return super.runAgent(request);
 
-    final messages = <Object?>[
-      <String, Object?>{'role': 'user', 'content': agentPrompt(request)},
-    ];
-    final usedTools = <String>[];
-    final data = <String, DVJsonValue>{};
+    return _messagesLoop(
+      tools,
+      <Object?>[
+        <String, Object?>{'role': 'user', 'content': agentPrompt(request)},
+      ],
+      <String>[],
+      <String, DVJsonValue>{},
+      0,
+    );
+  }
 
-    for (var turn = 0; turn < maxAgentIterations; turn++) {
+  Future<DVAIAgentResult> _messagesLoop(
+    List<DVAIToolDefinition> tools,
+    List<Object?> messages,
+    List<String> usedTools,
+    Map<String, DVJsonValue> data,
+    int firstTurn,
+  ) async {
+    for (var turn = firstTurn; turn < maxAgentIterations; turn++) {
       final payload = await postJson(
         endpoint('/v1/messages'),
         <String, Object?>{
@@ -823,62 +902,113 @@ class AnthropicDVAIAdapter extends DVHttpAIAdapter {
         );
       }
 
-      // A call to a tool that needs approval stops the run before anything
-      // in this turn runs, and hands back what the model asked for.
-      for (final block in content) {
-        if (block is! Map<String, Object?> || block['type'] != 'tool_use') {
-          continue;
-        }
-        final name = readString(block, 'name');
-        if (tools.any((tool) => tool.name == name)) {
-          final pause = const DVAIToolRegistry()
-              ._pauseFor(<String>[name], decodeToolInput(block['input']));
-          if (pause != null) {
-            return DVAIAgentResult(
-              output: _joinTextBlocks(content),
-              data: Map<String, DVJsonValue>.unmodifiable(data),
-              usedTools: List<String>.unmodifiable(usedTools),
-              pause: pause,
-            );
-          }
-        }
-      }
-
       messages.add(<String, Object?>{'role': 'assistant', 'content': content});
-
-      final results = <Object?>[];
-      for (final block in content) {
-        if (block is! Map<String, Object?> || block['type'] != 'tool_use') {
-          continue;
-        }
-        final name = readString(block, 'name');
-        final tool = tools.where((entry) => entry.name == name).firstOrNull;
-        if (tool == null) {
-          results.add(<String, Object?>{
-            'type': 'tool_result',
-            'tool_use_id': readString(block, 'id'),
-            'content': 'No tool named "$name" is available.',
-            'is_error': true,
-          });
-          continue;
-        }
-        final outcome =
-            await invokeAgentTool(tool, decodeToolInput(block['input']));
-        if (!outcome.isError) {
-          usedTools.add(name);
-          data[name] = outcome.value;
-        }
-        results.add(<String, Object?>{
-          'type': 'tool_result',
-          'tool_use_id': readString(block, 'id'),
-          'content': jsonEncode(DVJsonCodec.toJson(outcome.value)),
-          if (outcome.isError) 'is_error': true,
-        });
-      }
-      messages.add(<String, Object?>{'role': 'user', 'content': results});
+      final paused = await _answerToolUse(
+        tools,
+        content,
+        messages,
+        usedTools,
+        data,
+        turn,
+        const <String, bool>{},
+      );
+      if (paused != null) return paused;
     }
 
     agentDidNotFinish();
+  }
+
+  /// Answers every tool_use block in [content] with one user turn appended to
+  /// [messages], and returns null. A call to a tool that needs approval and
+  /// has no decision in [decided] (keyed by tool_use id) stops this first,
+  /// before anything in the turn runs, and returns the pause; resolving it
+  /// answers the turn again with that decision and carries the run on.
+  Future<DVAIAgentResult?> _answerToolUse(
+    List<DVAIToolDefinition> tools,
+    List<Object?> content,
+    List<Object?> messages,
+    List<String> usedTools,
+    Map<String, DVJsonValue> data,
+    int turn,
+    Map<String, bool> decided,
+  ) async {
+    final blocks = <Map<String, Object?>>[
+      for (final block in content)
+        if (block is Map<String, Object?> && block['type'] == 'tool_use') block,
+    ];
+    for (final block in blocks) {
+      final name = readString(block, 'name');
+      final id = readString(block, 'id');
+      final tool = tools.where((entry) => entry.name == name).firstOrNull;
+      if (tool?.approval != DVToolApproval.required ||
+          decided.containsKey(id)) {
+        continue;
+      }
+      return DVAIAgentResult(
+        output: _joinTextBlocks(content),
+        data: Map<String, DVJsonValue>.unmodifiable(data),
+        usedTools: List<String>.unmodifiable(usedTools),
+        pause: DVAIToolPause._(
+          name,
+          decodeToolInput(block['input']),
+          (bool approved) async {
+            final again = await _answerToolUse(
+              tools,
+              content,
+              messages,
+              usedTools,
+              data,
+              turn,
+              <String, bool>{...decided, id: approved},
+            );
+            if (again != null) return again;
+            return _messagesLoop(tools, messages, usedTools, data, turn + 1);
+          },
+        ),
+      );
+    }
+
+    final results = <Object?>[];
+    for (final block in blocks) {
+      final name = readString(block, 'name');
+      final id = readString(block, 'id');
+      final tool = tools.where((entry) => entry.name == name).firstOrNull;
+      if (tool == null) {
+        results.add(<String, Object?>{
+          'type': 'tool_result',
+          'tool_use_id': id,
+          'content': 'No tool named "$name" is available.',
+          'is_error': true,
+        });
+        continue;
+      }
+      if (decided[id] == false) {
+        results.add(<String, Object?>{
+          'type': 'tool_result',
+          'tool_use_id': id,
+          'content': _declined(name),
+          'is_error': true,
+        });
+        continue;
+      }
+      final outcome = await _invokeTool(
+        tool,
+        decodeToolInput(block['input']),
+        approved: decided[id] == true,
+      );
+      if (!outcome.isError) {
+        usedTools.add(name);
+        data[name] = outcome.value;
+      }
+      results.add(<String, Object?>{
+        'type': 'tool_result',
+        'tool_use_id': id,
+        'content': jsonEncode(DVJsonCodec.toJson(outcome.value)),
+        if (outcome.isError) 'is_error': true,
+      });
+    }
+    messages.add(<String, Object?>{'role': 'user', 'content': results});
+    return null;
   }
 
   String _joinTextBlocks(List<Object?> content) {
@@ -1044,13 +1174,25 @@ class OpenAIDVAIAdapter extends DVHttpAIAdapter {
     final tools = agentTools(request);
     if (tools.isEmpty) return super.runAgent(request);
 
-    final messages = <Object?>[
-      <String, Object?>{'role': 'user', 'content': agentPrompt(request)},
-    ];
-    final usedTools = <String>[];
-    final data = <String, DVJsonValue>{};
+    return _completionsLoop(
+      tools,
+      <Object?>[
+        <String, Object?>{'role': 'user', 'content': agentPrompt(request)},
+      ],
+      <String>[],
+      <String, DVJsonValue>{},
+      0,
+    );
+  }
 
-    for (var turn = 0; turn < maxAgentIterations; turn++) {
+  Future<DVAIAgentResult> _completionsLoop(
+    List<DVAIToolDefinition> tools,
+    List<Object?> messages,
+    List<String> usedTools,
+    Map<String, DVJsonValue> data,
+    int firstTurn,
+  ) async {
+    for (var turn = firstTurn; turn < maxAgentIterations; turn++) {
       final payload = await postJson(
         endpoint('/v1/chat/completions'),
         <String, Object?>{
@@ -1090,56 +1232,112 @@ class OpenAIDVAIAdapter extends DVHttpAIAdapter {
         );
       }
 
-      // As in the Messages loop: a call to a tool that needs approval stops
-      // the run before any call in this turn runs.
-      for (final call in calls) {
-        if (call is! Map<String, Object?>) continue;
-        final function = readMap(call, 'function');
-        final name = readString(function, 'name');
-        if (tools.any((tool) => tool.name == name)) {
-          final pause = const DVAIToolRegistry()._pauseFor(
-              <String>[name], decodeToolInput(function['arguments']));
-          if (pause != null) {
-            return DVAIAgentResult(
-              output: message['content'] as String? ?? '',
-              data: Map<String, DVJsonValue>.unmodifiable(data),
-              usedTools: List<String>.unmodifiable(usedTools),
-              pause: pause,
-            );
-          }
-        }
-      }
-
       messages.add(message);
-      for (final call in calls) {
-        if (call is! Map<String, Object?>) continue;
-        final id = readString(call, 'id');
-        final function = readMap(call, 'function');
-        final name = readString(function, 'name');
-        final tool = tools.where((entry) => entry.name == name).firstOrNull;
-        if (tool == null) {
-          messages.add(<String, Object?>{
-            'role': 'tool',
-            'tool_call_id': id,
-            'content': 'No tool named "$name" is available.',
-          });
-          continue;
-        }
-        final outcome =
-            await invokeAgentTool(tool, decodeToolInput(function['arguments']));
-        if (!outcome.isError) {
-          usedTools.add(name);
-          data[name] = outcome.value;
-        }
-        messages.add(<String, Object?>{
-          'role': 'tool',
-          'tool_call_id': id,
-          'content': jsonEncode(DVJsonCodec.toJson(outcome.value)),
-        });
-      }
+      final paused = await _answerToolCalls(
+        tools,
+        message,
+        calls,
+        messages,
+        usedTools,
+        data,
+        turn,
+        const <String, bool>{},
+      );
+      if (paused != null) return paused;
     }
 
     agentDidNotFinish();
+  }
+
+  /// As in the Messages loop: answers every call in [calls] with a tool
+  /// message each and returns null, unless a call to a tool that needs
+  /// approval has no decision in [decided] (keyed by call id), which stops the
+  /// run before any call in the turn runs.
+  Future<DVAIAgentResult?> _answerToolCalls(
+    List<DVAIToolDefinition> tools,
+    Map<String, Object?> message,
+    List<Object?> calls,
+    List<Object?> messages,
+    List<String> usedTools,
+    Map<String, DVJsonValue> data,
+    int turn,
+    Map<String, bool> decided,
+  ) async {
+    final entries = <({String id, String name, Object? arguments})>[
+      for (final call in calls)
+        if (call is Map<String, Object?>)
+          (
+            id: readString(call, 'id'),
+            name: readString(readMap(call, 'function'), 'name'),
+            arguments: readMap(call, 'function')['arguments'],
+          ),
+    ];
+    for (final entry in entries) {
+      final tool = tools.where((t) => t.name == entry.name).firstOrNull;
+      if (tool?.approval != DVToolApproval.required ||
+          decided.containsKey(entry.id)) {
+        continue;
+      }
+      return DVAIAgentResult(
+        output: message['content'] as String? ?? '',
+        data: Map<String, DVJsonValue>.unmodifiable(data),
+        usedTools: List<String>.unmodifiable(usedTools),
+        pause: DVAIToolPause._(
+          entry.name,
+          decodeToolInput(entry.arguments),
+          (bool approved) async {
+            final again = await _answerToolCalls(
+              tools,
+              message,
+              calls,
+              messages,
+              usedTools,
+              data,
+              turn,
+              <String, bool>{...decided, entry.id: approved},
+            );
+            if (again != null) return again;
+            return _completionsLoop(
+                tools, messages, usedTools, data, turn + 1);
+          },
+        ),
+      );
+    }
+
+    for (final entry in entries) {
+      final tool = tools.where((t) => t.name == entry.name).firstOrNull;
+      if (tool == null) {
+        messages.add(<String, Object?>{
+          'role': 'tool',
+          'tool_call_id': entry.id,
+          'content': 'No tool named "${entry.name}" is available.',
+        });
+        continue;
+      }
+      if (decided[entry.id] == false) {
+        messages.add(<String, Object?>{
+          'role': 'tool',
+          'tool_call_id': entry.id,
+          'content': _declined(entry.name),
+        });
+        continue;
+      }
+      final outcome = await _invokeTool(
+        tool,
+        decodeToolInput(entry.arguments),
+        approved: decided[entry.id] == true,
+      );
+      if (!outcome.isError) {
+        usedTools.add(entry.name);
+        data[entry.name] = outcome.value;
+      }
+      messages.add(<String, Object?>{
+        'role': 'tool',
+        'tool_call_id': entry.id,
+        'content': jsonEncode(DVJsonCodec.toJson(outcome.value)),
+      });
+    }
+    return null;
   }
 
   Map<String, Object?> _completionsBody(String prompt) => <String, Object?>{
