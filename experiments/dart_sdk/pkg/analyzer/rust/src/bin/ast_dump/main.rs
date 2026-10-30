@@ -7,7 +7,8 @@
 //
 // Usage: ast_dump [--api] [--bench=N | --retain] --out <dir> <root>...
 //
-// `--api` writes the API dump instead of the tree (see api.rs).
+// `--api` writes the API dump instead of the tree (see api.rs); with
+// `--bench=N` it times `toSource` of every unit instead of parsing.
 
 mod api;
 mod recorders;
@@ -51,6 +52,10 @@ fn main() {
 
     let inputs = corpus_files(&roots);
 
+    if bench > 0 && api {
+        run_to_source_bench(&inputs, bench);
+        return;
+    }
     if bench > 0 {
         run_bench(&inputs, bench);
         return;
@@ -471,5 +476,32 @@ fn run_retain(inputs: &[(PathBuf, String)]) {
         after - before,
         status_bytes("VmHWM"),
         std::mem::size_of::<AstNodeImpl>()
+    );
+}
+
+/// Parses every file once, then calls `toSource` on every unit [rounds]
+/// times, timing only `toSource`, as the Dart oracle does.
+fn run_to_source_bench(inputs: &[(PathBuf, String)], rounds: usize) {
+    let results: Vec<ParseStringResult> = inputs
+        .iter()
+        .map(|(p, _)| parse_string(read_source(p), None, None))
+        .collect();
+    let mut times = Vec::new();
+    let mut chars = 0usize;
+    for _ in 0..rounds {
+        let watch = Instant::now();
+        for result in &results {
+            let ast = analyzer::src::dart::ast::ast_store::Ast::new(&result.ast, &result.tokens);
+            chars += ast.to_source_units(result.unit).len();
+        }
+        times.push(watch.elapsed().as_micros());
+    }
+    times.sort();
+    println!(
+        "rust toSource files={} rounds={rounds} min_us={} median_us={} chars={chars} max_rss={}",
+        results.len(),
+        times[0],
+        times[times.len() / 2],
+        status_bytes("VmHWM"),
     );
 }

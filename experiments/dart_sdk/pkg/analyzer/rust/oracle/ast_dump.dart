@@ -8,7 +8,11 @@
 //
 // Usage:
 //   dart --packages=<package_config.json> \
-//     pkg/analyzer/rust/oracle/ast_dump.dart [--bench=N | --retain] \
+//     pkg/analyzer/rust/oracle/ast_dump.dart [--api] [--bench=N | --retain] \
+//     --out <dir> <root>...
+//
+// `--api` writes the API dump (see dumpApi below) instead of the tree; with
+// `--bench=N` it times `toSource` of every unit instead of parsing.| --retain] \
 //     --out <dir> <root>...
 //
 // The package config is written by tests/ast_oracle.rs (see ../README.md):
