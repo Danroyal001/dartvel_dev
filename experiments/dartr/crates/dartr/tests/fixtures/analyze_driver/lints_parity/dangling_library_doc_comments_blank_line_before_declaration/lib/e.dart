@@ -1,0 +1,4 @@
+/// Doc.
+@deprecated
+
+class F {}

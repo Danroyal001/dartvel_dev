@@ -1314,10 +1314,17 @@ fn dangling_library_doc_comments(c: &LinterContext<'_>, node: NodeId, out: &mut 
         .line_info
         .get_location(c.ast.tokens.get(last).end())
         .line_number;
+    // `(docComment.endToken as DocumentationCommentToken).parent`: the token
+    // the comment is attached to, not the declaration's `beginToken`, which
+    // is the comment itself.
+    let token_after_doc_comment = c.ast.tokens.comment_parent(comment.end_token(c.ast));
+    if token_after_doc_comment.is_none() {
+        return;
+    }
     let declaration_line = c
         .parsed
         .line_info
-        .get_location(c.ast.tokens.offset(c.ast.begin_token(first)))
+        .get_location(c.ast.tokens.offset(token_after_doc_comment))
         .line_number;
     if declaration_line > comment_line + 1 {
         c.report_node(out, &diag::DANGLING_LIBRARY_DOC_COMMENTS, comment_id, &[]);
