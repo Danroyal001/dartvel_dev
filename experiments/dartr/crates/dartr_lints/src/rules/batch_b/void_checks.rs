@@ -57,6 +57,10 @@ fn check_types(
     checked_node: Option<NodeId>,
     out: &mut Vec<Diagnostic>,
 ) {
+    // Dart `checkedNode ??= node;`: an argument is its own checked node, so a
+    // block-bodied function literal passed where a function returning
+    // `FutureOr<void>` is expected has its return type checked.
+    let checked_node = checked_node.or(Some(node));
     let Some(ctx) = rctx(c) else { return };
     let (Some(expected), Some(ty)) = (expected, ty) else {
         return;
