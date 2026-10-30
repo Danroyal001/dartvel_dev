@@ -1,13 +1,16 @@
 // Port of lib/src/scanner/error_token.dart.
 //
 // Each `ErrorToken` subclass is a `TokenRuntimeType`, built by a
-// `TokenStore` constructor of the same name. Upstream's
-// `assertionMessage` is a `Message` from messages/diagnostic.g.dart, which
-// is not ported yet; what the scanner decides is the message's code and its
-// arguments, so that is what `ScannerMessage` and the getters below carry.
+// `TokenStore` constructor of the same name. What the scanner decides is
+// the message's code and its arguments, so that is what `ScannerMessage` and
+// the getters below carry; `assertion_message_of` builds upstream's
+// `assertionMessage` from them.
 // `errorCode` is the code's name, as upstream's `errorCode.name` is.
 
+use super::recover::{close_brace_for, close_quote_for};
 use super::token::{Lexeme, NO_TOKEN, TokenId, TokenRuntimeType, TokenStore, TokenType};
+use crate::messages::codes::Message;
+use crate::messages::diagnostic as diag;
 
 /// The codes `UnterminatedToken` is created with.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -229,5 +232,61 @@ impl TokenStore {
             TokenRuntimeType::UnsupportedOperator => self.data(token).a as TokenId,
             _ => NO_TOKEN,
         }
+    }
+}
+
+impl TokenStore {
+    /// `ErrorToken.assertionMessage`, as the `Message` upstream builds.
+    pub fn assertion_message_of(&self, token: TokenId) -> Message {
+        use TokenRuntimeType::*;
+        match self.runtime_type(token) {
+            EncodingErrorToken => diag::encoding.message(),
+            NonAsciiIdentifierToken => {
+                let character = self.data(token).a;
+                (diag::nonAsciiIdentifier.with_arguments)(
+                    &String::from_utf16_lossy(&code_point_to_utf16(character)),
+                    character as i64,
+                )
+            }
+            NonAsciiWhitespaceToken => {
+                (diag::nonAsciiWhitespace.with_arguments)(self.data(token).a as i64)
+            }
+            AsciiControlCharacterToken => {
+                (diag::asciiControlCharacter.with_arguments)(self.data(token).a as i64)
+            }
+            UnsupportedOperator => (diag::unsupportedOperator.with_arguments)(
+                self,
+                self.unsupported_operator_token(token),
+            ),
+            UnterminatedString => {
+                let start = String::from_utf16_lossy(self.start(token).unwrap());
+                (diag::unterminatedString.with_arguments)(&start, close_quote_for(&start))
+            }
+            UnterminatedToken => match self.assertion_message(token).unwrap() {
+                ScannerMessage::UnexpectedSeparatorInNumber => {
+                    diag::unexpectedSeparatorInNumber.message()
+                }
+                ScannerMessage::ExpectedHexDigit => diag::expectedHexDigit.message(),
+                ScannerMessage::MissingExponent => diag::missingExponent.message(),
+                ScannerMessage::UnterminatedComment => diag::unterminatedComment.message(),
+                ScannerMessage::UnexpectedDollarInString => {
+                    diag::unexpectedDollarInString.message()
+                }
+            },
+            UnmatchedToken => {
+                let begin = self.begin(token);
+                let lexeme = self.lexeme_string(begin);
+                (diag::unmatchedToken.with_arguments)(self, close_brace_for(&lexeme), begin)
+            }
+            other => panic!("{} is not an ErrorToken", other.name()),
+        }
+    }
+}
+
+/// `new String.fromCharCodes([character])`.
+fn code_point_to_utf16(character: i32) -> Vec<u16> {
+    match char::from_u32(character as u32) {
+        Some(c) => c.encode_utf16(&mut [0; 2]).to_vec(),
+        None => vec![character as u16],
     }
 }
