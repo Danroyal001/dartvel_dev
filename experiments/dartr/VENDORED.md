@@ -19,10 +19,21 @@ Under the One Language Rule, which refuses Python everywhere in `dartvel_dev`:
   `bench/memory.sh` (it runs `python3` inline), and
   `crates/dartr_server/tests/fixtures/minimal_edits/generate.py`. The code
   the codegen scripts generated is committed and kept; regenerating it means
-  porting those scripts to Dart first. The Dart comparison tools in
-  `experiments/oracles` replace `format_parity.py` and `analyze_compare.py`.
+  porting those scripts to Dart first (no test or build regenerates them).
+  The Dart comparison tools in `experiments/oracles` replace
+  `format_parity.py` and `analyze_compare.py`. `lints_differential.py` and
+  `lints_metadata_differential.py`, which the lint differential tests run,
+  are ported to `tools/lints_differential.dart` and
+  `tools/lints_metadata_differential.dart` (same output files, byte for
+  byte); `experiments/rust_stack/bin/bench.dart` does `memory.sh`'s job (see
+  `bench/README.md`).
 - the project's website (`site/`), packaging (`packaging/`), images
   (`docs/images/`) and GitHub workflows (`.github/`).
+
+The Dart SDK source checkout the oracles build against (`package:analyzer`
+at tag 3.13.3) is `DARTR_DART_SDK_SOURCE`, else `third_party/dart-sdk`;
+`tools/oracle_package.dart` prepares the oracle's pub package against it
+under `target/oracle/`.
 
 ## First measurement here
 

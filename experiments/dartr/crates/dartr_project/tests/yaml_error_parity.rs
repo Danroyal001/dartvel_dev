@@ -179,14 +179,25 @@ fn dart() -> String {
 
 fn oracle() -> Vec<Value> {
     let repo = repo_root();
+    // `DARTR_ORACLE_PACKAGES`, else the oracle package that
+    // `tools/oracle_package.dart` prepares against the Dart SDK source
+    // checkout (`DARTR_DART_SDK_SOURCE`, else `third_party/dart-sdk`).
     let packages = std::env::var("DARTR_ORACLE_PACKAGES").unwrap_or_else(|_| {
-        repo.join("tools/oracle/.dart_tool/package_config.json")
-            .to_string_lossy()
-            .into_owned()
+        let output = Command::new(dart())
+            .arg(repo.join("tools/oracle_package.dart"))
+            .arg("oracle")
+            .output()
+            .expect("run dart tools/oracle_package.dart");
+        assert!(
+            output.status.success(),
+            "preparing the oracle package failed:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
     });
     assert!(
         Path::new(&packages).is_file(),
-        "Run dart pub get in tools/oracle, or set DARTR_ORACLE_PACKAGES"
+        "no oracle package config at {packages}; set DARTR_ORACLE_PACKAGES"
     );
 
     let version = Command::new(dart())

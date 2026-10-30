@@ -2,10 +2,30 @@
 
 - `compare.sh`: `dartr analyze` against `dart analyze` (one command line run per project).
 - `baseline.sh`: earlier baseline of `dart analyze`.
-- `lsp_bench.py`: `dartr language-server` against `dart language-server` for editor use.
+- `lsp_bench.py`: `dartr language-server` against `dart language-server` for editor use
+  (upstream only: Python is not vendored into `dartvel_dev`, see `VENDORED.md`).
 - `setup_corpus.sh`: gets the corpus projects into `corpus/`.
 
 Results go to `results/` (git-ignored).
+
+## Memory
+
+Upstream's `memory.sh` (median peak RSS of 3 runs of `dart analyze` and `dartr analyze` per
+corpus project) is not vendored: it ran `python3` inline. `experiments/rust_stack/bin/bench.dart`
+does its job, with a warm-up run first (which also warms `dart analyze`'s disk cache, as
+`memory.sh` did) and the median of the counted runs:
+
+```sh
+cd experiments/rust_stack
+dart run bin/bench.dart --runs 3 --label "dart analyze: flutter_tools" -- \
+  dart analyze <corpus>/flutter_tools
+dart run bin/bench.dart --runs 3 --label "dartr analyze: flutter_tools" -- \
+  <target>/release/dartr analyze <corpus>/flutter_tools
+```
+
+It reports the peak of the summed RSS of the whole process tree, sampled from `/proc` every 50 ms
+(`dart analyze` works in a child analysis-server process); `memory.sh` read `ru_maxrss` from
+`/usr/bin/time -l` on macOS, the peak of the largest single process.
 
 ## Language server (`lsp_bench.py`)
 

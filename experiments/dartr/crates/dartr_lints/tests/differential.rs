@@ -1,4 +1,8 @@
 // Dart source: pkg/linter/test/rules (differential integration fixtures)
+//! Runs `tools/lints_differential.dart` and `tools/lints_metadata_differential.dart`
+//! (with the `dart` on PATH, which must be 3.13.3). The registry comparison and
+//! the `meta` package of the fixtures come from the oracle package, built against
+//! the Dart SDK source checkout: `DARTR_DART_SDK_SOURCE`, else `third_party/dart-sdk`.
 use std::{path::Path, process::Command};
 
 #[test]
@@ -31,8 +35,8 @@ fn lint_context_variants_match_dart_analyze() {
         ),
     ] {
         let evidence = root.join("target/lints").join(output);
-        let result = Command::new("python3")
-            .arg(root.join("tools/lints_differential.py"))
+        let result = Command::new("dart")
+            .arg(root.join("tools/lints_differential.dart"))
             .arg("--input-dir")
             .arg(
                 Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -65,8 +69,8 @@ fn lint_diagnostics_match_dart_analyze() {
         .parent()
         .unwrap();
     let output = root.join("target/lints/fixtures");
-    let result = Command::new("python3")
-        .arg(root.join("tools/lints_differential.py"))
+    let result = Command::new("dart")
+        .arg(root.join("tools/lints_differential.dart"))
         .arg("--fixtures")
         .arg("--binary")
         .arg(env!("CARGO_BIN_EXE_lints_dump"))
@@ -92,8 +96,8 @@ fn lint_registry_matches_pinned_analyzer() {
         .parent()
         .unwrap();
     let output = root.join("target/lints/metadata");
-    let result = Command::new("python3")
-        .arg(root.join("tools/lints_metadata_differential.py"))
+    let result = Command::new("dart")
+        .arg(root.join("tools/lints_metadata_differential.dart"))
         .arg("--binary")
         .arg(env!("CARGO_BIN_EXE_lints_dump"))
         .arg("--output")

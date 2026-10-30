@@ -557,6 +557,15 @@ pub fn repo_root() -> PathBuf {
         .expect("repository root")
 }
 
+/// The Dart SDK source checkout (`dart-lang/sdk` at the tag dartr ports):
+/// `DARTR_DART_SDK_SOURCE`, else `third_party/dart-sdk`.
+pub fn dart_sdk_source() -> PathBuf {
+    match std::env::var_os("DARTR_DART_SDK_SOURCE") {
+        Some(dir) if !dir.is_empty() => PathBuf::from(dir),
+        _ => repo_root().join("third_party/dart-sdk"),
+    }
+}
+
 /// Collects the `.dart` files of [inputs] (sorted, absolute paths). An
 /// input that starts with `dart:` (a library URI, mode `elements`) is passed
 /// through unchanged.
@@ -602,10 +611,37 @@ pub fn collect_dart_files(inputs: &[PathBuf]) -> Result<Vec<String>> {
     Ok(out)
 }
 
+/// The package config of the oracle package (`tools/oracle_package.dart`):
+/// pass it as `--packages` to `dart` or `dart compile exe` when running or
+/// compiling a program of `tools/oracle/bin/`. Without it, `dart` looks for
+/// a package config above `tools/oracle` and may find another analyzer.
+pub fn oracle_package_config() -> Result<PathBuf> {
+    let output = Command::new("dart")
+        .arg(repo_root().join("tools/oracle_package.dart"))
+        .arg("oracle")
+        .output()
+        .context("running `dart tools/oracle_package.dart` (is `dart` on PATH?)")?;
+    if !output.status.success() {
+        bail!(
+            "preparing the oracle package failed:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    Ok(PathBuf::from(
+        String::from_utf8_lossy(&output.stdout).trim().to_string(),
+    ))
+}
+
 /// Returns the oracle command: the AOT-compiled oracle in
 /// `target/oracle/oracle`, compiled first when it is missing or older than
 /// one of its sources (a file in `tools/oracle/bin/`, or
 /// `tools/oracle/pubspec.lock`).
+///
+/// The oracle's `package:analyzer` (and `_fe_analyzer_shared`, `linter`)
+/// come from the Dart SDK source checkout: `DARTR_DART_SDK_SOURCE`, else
+/// `third_party/dart-sdk`. `tools/oracle_package.dart` prepares the pub
+/// package against it under `target/oracle/`, so that `tools/oracle` and its
+/// committed lock file stay as they are.
 pub fn ensure_oracle() -> Result<Vec<String>> {
     let root = repo_root();
     let oracle_dir = root.join("tools/oracle");
@@ -623,17 +659,8 @@ pub fn ensure_oracle() -> Result<Vec<String>> {
         Some(t) => inputs.iter().any(|p| modified(p).is_some_and(|s| s > t)),
     };
     if stale {
-        if !oracle_dir.join(".dart_tool/package_config.json").exists() {
-            let status = Command::new("dart")
-                .arg("pub")
-                .arg("get")
-                .current_dir(&oracle_dir)
-                .status()
-                .context("running `dart pub get` for tools/oracle (is `dart` on PATH?)")?;
-            if !status.success() {
-                bail!("`dart pub get` failed in {}", oracle_dir.display());
-            }
-        }
+        let packages = oracle_package_config()?;
+        let packages = packages.display();
         std::fs::create_dir_all(exe.parent().unwrap())?;
         // Compile to a unique file and rename, so that parallel runs do not
         // see a partial file.
@@ -641,6 +668,7 @@ pub fn ensure_oracle() -> Result<Vec<String>> {
         let output = Command::new("dart")
             .arg("compile")
             .arg("exe")
+            .arg(format!("--packages={packages}"))
             .arg(&source)
             .arg("-o")
             .arg(&tmp)

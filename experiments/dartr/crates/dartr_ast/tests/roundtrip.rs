@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use dartr_ast::testing;
-use dartr_difftest::{collect_dart_files, ensure_oracle, repo_root};
+use dartr_difftest::{collect_dart_files, ensure_oracle, oracle_package_config, repo_root};
 
 /// Compiles `tools/oracle/bin/tosource.dart` to `target/oracle/tosource`
 /// when it is missing or older than its source.
@@ -27,6 +27,10 @@ fn ensure_tosource_oracle() -> PathBuf {
         let tmp = exe.with_extension(format!("tmp{}", std::process::id()));
         let status = Command::new("dart")
             .args(["compile", "exe"])
+            .arg(format!(
+                "--packages={}",
+                oracle_package_config().expect("oracle package").display()
+            ))
             .arg(&source)
             .arg("-o")
             .arg(&tmp)
@@ -130,7 +134,7 @@ fn round_trip_on_fixtures() {
 #[test]
 #[ignore]
 fn round_trip_on_corpora() {
-    let sdk = repo_root().join("third_party/dart-sdk");
+    let sdk = dartr_difftest::dart_sdk_source();
     let mut inputs = vec![sdk.join("tests/language"), sdk.join("sdk/lib")];
     if let Some(home) = std::env::var_os("HOME") {
         let flutter = PathBuf::from(home).join("fvm/default/packages/flutter/lib");

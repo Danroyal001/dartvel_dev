@@ -7,8 +7,8 @@ fn resolved_library_lints_match_pinned_analyzer() {
     let root = manifest.parent().unwrap().parent().unwrap();
     let fixture = manifest.join("tests/fixtures/resolved_lints");
     let output = root.join("target/lints/driver-integration");
-    let result = Command::new("python3")
-        .arg(root.join("tools/lints_differential.py"))
+    let result = Command::new("dart")
+        .arg(root.join("tools/lints_differential.dart"))
         .arg("--input-dir")
         .arg(fixture.join("lib"))
         .arg("--rules-file")

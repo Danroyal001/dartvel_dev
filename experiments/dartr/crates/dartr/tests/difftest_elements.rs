@@ -189,7 +189,7 @@ fn elements_parity_on_corpora() {
     let count = uris.len();
     assert_parity(uris, count);
 
-    let sdk = dartr_difftest::repo_root().join("third_party/dart-sdk");
+    let sdk = dartr_difftest::dart_sdk_source();
     let home = std::env::var("HOME").unwrap_or_default();
     let corpus = std::env::var_os("DARTR_CORPUS_DIR")
         .map(PathBuf::from)

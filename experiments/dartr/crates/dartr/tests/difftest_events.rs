@@ -50,7 +50,7 @@ fn events_parity_on_fixtures() {
 #[test]
 #[ignore]
 fn events_parity_on_sdk_corpora() {
-    let sdk = dartr_difftest::repo_root().join("third_party/dart-sdk");
+    let sdk = dartr_difftest::dart_sdk_source();
     let inputs = vec![
         sdk.join("tests/language"),
         sdk.join("sdk/lib"),

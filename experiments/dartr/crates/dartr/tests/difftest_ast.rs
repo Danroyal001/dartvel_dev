@@ -53,7 +53,7 @@ fn ast_parity_on_fixtures() {
 #[test]
 #[ignore]
 fn ast_parity_on_corpora() {
-    let sdk = dartr_difftest::repo_root().join("third_party/dart-sdk");
+    let sdk = dartr_difftest::dart_sdk_source();
     let home = std::env::var("HOME").unwrap_or_default();
     // `bench/corpus` (gitignored, see `bench/`), or `DARTR_CORPUS_DIR`.
     let corpus = std::env::var_os("DARTR_CORPUS_DIR")
