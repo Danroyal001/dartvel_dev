@@ -41,3 +41,53 @@ pub mod vector;
 pub mod wangs_formula;
 
 pub use saturated_math::saturated;
+
+/// Every public item of the crate, for the ported tests.
+#[cfg(test)]
+#[allow(unused_imports)]
+pub(crate) mod prelude {
+    pub use crate::arc::*;
+    pub use crate::color::*;
+    pub use crate::constants::*;
+    pub use crate::dashed_line_path_source::*;
+    pub use crate::geometry_asserts::*;
+    pub use crate::gradient::*;
+    pub use crate::half::*;
+    pub use crate::matrix::*;
+    pub use crate::matrix_decomposition::*;
+    pub use crate::path_source::*;
+    pub use crate::point::*;
+    pub use crate::quaternion::*;
+    pub use crate::rational::*;
+    pub use crate::rect::*;
+    pub use crate::round_rect::*;
+    pub use crate::round_superellipse::*;
+    pub use crate::round_superellipse_param::RoundSuperellipseParam;
+    pub use crate::rounding_radii::*;
+    pub use crate::rstransform::*;
+    pub use crate::saturated;
+    pub use crate::scalar::*;
+    pub use crate::separated_vector::*;
+    pub use crate::shear::*;
+    pub use crate::sigma::*;
+    pub use crate::size::*;
+    pub use crate::stroke_parameters::*;
+    pub use crate::trig::*;
+    pub use crate::vector::*;
+    pub use crate::wangs_formula::*;
+}
+
+#[cfg(test)]
+mod geometry_asserts;
+#[cfg(test)]
+mod point_unittests;
+#[cfg(test)]
+mod rational_unittests;
+#[cfg(test)]
+mod rstransform_unittests;
+#[cfg(test)]
+mod size_unittests;
+#[cfg(test)]
+mod trig_unittests;
+#[cfg(test)]
+mod wangs_formula_unittests;
