@@ -24,7 +24,7 @@ fn fails_the_check_if_on_different_task_runner() {
     let e = Expectations::default();
     {
         let (checker, latch, e) = (checker.clone(), latch.clone(), e.clone());
-        another.loop_.get_task_runner().post_task(Arc::new(move || {
+        another.loop_.get_task_runner().post_task(crate::closure::closure::new(move || {
             e.expect(!checker.runs_on_creation_task_runner(), "RunsOnCreationTaskRunner");
             latch.signal();
         }));
@@ -100,7 +100,7 @@ fn passes_runs_on_creation_task_runner_if_on_different_task_runner() {
     let latch3 = Arc::new(AutoResetWaitableEvent::new());
     {
         let (checker, latch, e) = (checker.clone(), latch3.clone(), e.clone());
-        loop2.loop_.get_task_runner().post_task(Arc::new(move || {
+        loop2.loop_.get_task_runner().post_task(crate::closure::closure::new(move || {
             let created = TaskRunnerChecker::new();
             e.expect(created.runs_on_creation_task_runner(), "3: RunsOnCreationTaskRunner");
             *checker.lock().unwrap() = Some(created);
@@ -114,7 +114,7 @@ fn passes_runs_on_creation_task_runner_if_on_different_task_runner() {
     let latch4 = Arc::new(AutoResetWaitableEvent::new());
     {
         let (checker, latch, e) = (checker.clone(), latch4.clone(), e.clone());
-        loop2.loop_.get_task_runner().post_task(Arc::new(move || {
+        loop2.loop_.get_task_runner().post_task(crate::closure::closure::new(move || {
             let ok = checker.lock().unwrap().as_ref().unwrap().runs_on_creation_task_runner();
             e.expect(ok, "4: RunsOnCreationTaskRunner");
             latch.signal();

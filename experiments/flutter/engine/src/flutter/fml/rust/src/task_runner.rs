@@ -82,7 +82,7 @@ impl TaskRunner {
     pub fn run_now_or_post_task(runner: &RefPtr<TaskRunner>, task: closure) {
         fml_dcheck_at!(FILE, 59, "runner", runner.as_bool());
         if runner.runs_tasks_on_current_thread() {
-            task();
+            task.call();
         } else {
             runner.post_task(task);
         }
@@ -97,11 +97,11 @@ impl TaskRunner {
     pub fn run_now_and_flush_messages(runner: &RefPtr<TaskRunner>, task: closure) {
         fml_dcheck_at!(FILE, 71, "runner", runner.as_bool());
         if runner.runs_tasks_on_current_thread() {
-            task();
+            task.call();
             // Post an empty task to make the UI message loop run its task
             // observers. The observers will execute any Dart microtasks queued
             // by the platform message handler.
-            runner.post_task(std::sync::Arc::new(|| {}));
+            runner.post_task(closure::new(|| {}));
         } else {
             runner.post_task(task);
         }

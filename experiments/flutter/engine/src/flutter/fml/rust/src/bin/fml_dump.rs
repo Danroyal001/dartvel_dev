@@ -754,7 +754,7 @@ fn suite_queues(r: &mut Rng, cases: i32) {
                     let id = task_counter;
                     task_counter += 1;
                     p!("reg {q} task{id} {} {}", t.to_epoch_delta().to_nanoseconds(), grade as i32);
-                    queues.register_task(q, Arc::new(move || p!("  run task{id}")), t, grade);
+                    queues.register_task(q, closure::new(move || p!("  run task{id}")), t, grade);
                 }
                 7..=9 => {
                     let q = pick(r, &live);
@@ -766,7 +766,7 @@ fn suite_queues(r: &mut Rng, cases: i32) {
                     p!("next {q} {}", from.to_epoch_delta().to_nanoseconds());
                     match queues.get_next_task_to_run(q, from) {
                         Some(task) => {
-                            task();
+                            task.call();
                             let grade = MessageLoopTaskQueues::get_current_task_source_grade();
                             p!("  grade {}", grade as i32);
                         }
@@ -827,7 +827,7 @@ fn suite_queues(r: &mut Rng, cases: i32) {
                     let key = r.below(5) as isize - 1;
                     let qv = q.value();
                     p!("observe {qv} {key}");
-                    queues.add_task_observer(q, key, Arc::new(move || p!("  obs {qv} {key}")));
+                    queues.add_task_observer(q, key, closure::new(move || p!("  obs {qv} {key}")));
                 }
                 16 => {
                     let q = pick(r, &live);
@@ -839,7 +839,7 @@ fn suite_queues(r: &mut Rng, cases: i32) {
                     let q = pick(r, &live);
                     p!("notify {q}");
                     for observer in queues.get_observers_to_notify(q) {
-                        observer();
+                        observer.call();
                     }
                 }
                 18 => {
@@ -901,7 +901,7 @@ fn bench_register_and_get_tasks() {
                 for _ in 0..NUM_TASKS_PER_QUEUE {
                     task_queue.register_task(
                         TaskQueueId::new(task_runner_id),
-                        Arc::new(|| {}),
+                        closure::new(|| {}),
                         past,
                         TaskSourceGrade::kUnspecified,
                     );
@@ -1437,13 +1437,13 @@ fn add_loop_observer(c: &LoopCtx, indent: &str) {
         MessageLoop::get_current().remove_task_observer(key);
     } else {
         p!("{indent}observe {key}");
-        MessageLoop::get_current().add_task_observer(key, Arc::new(move || p!("    obs {key}")));
+        MessageLoop::get_current().add_task_observer(key, closure::new(move || p!("    obs {key}")));
     }
 }
 
 fn make_loop_task(c: &Arc<LoopCtx>, id: i32) -> closure {
     let c = c.clone();
-    Arc::new(move || {
+    closure::new(move || {
         let runner = current_runner();
         p!("  run t{id} @{} on {}", peek_now(), runner.runs_tasks_on_current_thread() as i32);
         match c.below(12) {
@@ -1512,7 +1512,7 @@ fn loop_case(c: &Arc<LoopCtx>, i: i32) {
     let end = peek_now() + 20 + c.below(150) as i64;
     p!("end at {end}");
     runner.post_task_for_time(
-        Arc::new(|| {
+        closure::new(|| {
             p!("  end @{}", peek_now());
             MessageLoop::get_current().terminate();
         }),
@@ -1521,7 +1521,7 @@ fn loop_case(c: &Arc<LoopCtx>, i: i32) {
     loop_.run();
     let queues = MessageLoopTaskQueues::get_instance();
     p!("ran @{} pending {}", peek_now(), queues.get_num_pending_tasks(runner.get_task_queue_id()));
-    runner.post_task(Arc::new(|| p!("  never")));
+    runner.post_task(closure::new(|| p!("  never")));
     p!("after terminate pending {}", queues.get_num_pending_tasks(runner.get_task_queue_id()));
     loop_.run_expired_tasks_now();
 }
@@ -1643,7 +1643,7 @@ fn create_merger(c: &MergerCtx, st: &mut MergerState, indent: &str) {
             == *parent_merger.get_shared_raster_thread_merger();
     p!("{indent}create m{index} pair {pair} parent {parent} shares {}", shares as i32);
     if st.r.chance(2) {
-        merger.set_merge_unmerge_callback(Arc::new(move || p!("    callback m{index}")));
+        merger.set_merge_unmerge_callback(closure::new(move || p!("    callback m{index}")));
     }
     st.mergers.push(MergerEntry { pair, shared, merger });
 }
@@ -1800,7 +1800,7 @@ fn post_merger_task(c: &Arc<MergerCtx>, indent: &str) {
 
 fn make_merger_task(c: &Arc<MergerCtx>, id: i32, queue: usize) -> closure {
     let c = c.clone();
-    Arc::new(move || {
+    closure::new(move || {
         let flushing = c.st.lock().unwrap().flushing;
         p!(
             "  run t{id} of {} flushing {} @{}",
@@ -1868,7 +1868,7 @@ fn merger_case(r: &mut Rng, i: i32) {
                     queues.add_task_observer(
                         c.ids[q],
                         key,
-                        Arc::new(move || p!("    obs {} {key}", K_LOOP_NAMES[q])),
+                        closure::new(move || p!("    obs {} {key}", K_LOOP_NAMES[q])),
                     );
                 }
             }
@@ -1990,7 +1990,7 @@ fn thread_index_of(c: &ThreadCtx) -> i32 {
 
 fn make_thread_task(c: &Arc<ThreadCtx>, id: i32, child_action: i32) -> closure {
     let c = c.clone();
-    Arc::new(move || {
+    closure::new(move || {
         let at = thread_index_of(&c);
         let mut line = format!("t{id} runs");
         for runner in &c.runners {
@@ -2054,7 +2054,7 @@ fn concurrent_case(r: &mut Rng) {
     let weak = Arc::downgrade(&loop_);
     for _ in 0..tasks {
         let (latch, state, weak) = (latch.clone(), state.clone(), weak.clone());
-        runner.post_task(Arc::new(move || {
+        runner.post_task(closure::new(move || {
             let name = current_thread_name();
             let on = weak.upgrade().unwrap().runs_tasks_on_current_thread();
             {
@@ -2077,7 +2077,7 @@ fn concurrent_case(r: &mut Rng) {
     let names = Arc::new(Mutex::new(Vec::<String>::new()));
     {
         let (all, names) = (all.clone(), names.clone());
-        loop_.post_task_to_all_workers(Arc::new(move || {
+        loop_.post_task_to_all_workers(closure::new(move || {
             names.lock().unwrap().push(current_thread_name());
             all.count_down();
         }));
@@ -2094,7 +2094,7 @@ fn concurrent_case(r: &mut Rng) {
         loop_.terminate();
         let where_ = Arc::new(Mutex::new(String::new()));
         let wc = where_.clone();
-        runner.post_task(Arc::new(move || *wc.lock().unwrap() = current_thread_name()));
+        runner.post_task(closure::new(move || *wc.lock().unwrap() = current_thread_name()));
         p!(
             "  after terminate caller {}",
             (*where_.lock().unwrap() == current_thread_name()) as i32
@@ -2103,7 +2103,7 @@ fn concurrent_case(r: &mut Rng) {
     drop(loop_);
     let ran = Arc::new(AtomicBool::new(false));
     let rc = ran.clone();
-    runner.post_task(Arc::new(move || rc.store(true, SeqCst)));
+    runner.post_task(closure::new(move || rc.store(true, SeqCst)));
     p!("  after death ran {}", ran.load(SeqCst) as i32);
 }
 
@@ -2151,7 +2151,7 @@ fn thread_case(r: &mut Rng, i: i32) {
         let name = Arc::new(Mutex::new(String::new()));
         {
             let (latch, name) = (latch.clone(), name.clone());
-            c.runners[t].post_task(Arc::new(move || {
+            c.runners[t].post_task(closure::new(move || {
                 *name.lock().unwrap() = current_thread_name();
                 latch.signal();
             }));
@@ -2167,7 +2167,7 @@ fn thread_case(r: &mut Rng, i: i32) {
         for t in 0..n as usize {
             let gate = Arc::new(AutoResetWaitableEvent::new());
             let g = gate.clone();
-            c.runners[t].post_task(Arc::new(move || g.wait()));
+            c.runners[t].post_task(closure::new(move || g.wait()));
             gates.push(gate);
         }
         let mut conditionals: Vec<ConditionalBasicTaskRunner> = Vec::new();
@@ -2227,7 +2227,7 @@ fn thread_case(r: &mut Rng, i: i32) {
         for t in 0..n as usize {
             let latch = Arc::new(AutoResetWaitableEvent::new());
             let l = latch.clone();
-            c.runners[t].post_task(Arc::new(move || l.signal()));
+            c.runners[t].post_task(closure::new(move || l.signal()));
             latch.wait();
         }
         let mut traces = c.traces.lock().unwrap();
@@ -2252,7 +2252,7 @@ fn thread_case(r: &mut Rng, i: i32) {
             if r.chance(2) {
                 threads[t].join();
             }
-            c.runners[t].post_task(Arc::new(|| p!("never")));
+            c.runners[t].post_task(closure::new(|| p!("never")));
             p!(
                 "  pending {}",
                 MessageLoopTaskQueues::get_instance()
@@ -2418,7 +2418,7 @@ fn bench_loop() {
         let current = &CURRENT;
         current.store(0, Relaxed);
         for i in 0..COUNT {
-            loop_.get_task_runner().post_task(Arc::new(move || {
+            loop_.get_task_runner().post_task(closure::new(move || {
                 current.fetch_add(1, Relaxed);
                 if i + 1 == COUNT {
                     MessageLoop::get_current().terminate();
@@ -2442,7 +2442,7 @@ fn bench_thread() {
     let ran = &RAN;
     ran.store(0, Relaxed);
     for _ in 0..10000 {
-        thread.get_task_runner().post_task(Arc::new(move || {
+        thread.get_task_runner().post_task(closure::new(move || {
             ran.fetch_add(1, Relaxed);
         }));
     }
@@ -2460,7 +2460,7 @@ fn bench_concurrent() {
     // through a reference count every task would bump.
     let latch: &'static CountDownLatch = Box::leak(Box::new(CountDownLatch::new(10000)));
     for _ in 0..10000 {
-        runner.post_task(Arc::new(move || latch.count_down()));
+        runner.post_task(closure::new(move || latch.count_down()));
     }
     latch.wait();
 }

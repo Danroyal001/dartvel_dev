@@ -235,7 +235,7 @@ fn worker_main(shared: &Shared) {
 }
 
 fn execute_task(task: &closure) {
-    task();
+    task.call();
 }
 
 fn has_thread_tasks_locked(state: &State, me: ThreadId) -> bool {
@@ -270,6 +270,6 @@ impl BasicTaskRunner for ConcurrentTaskRunner {
             166,
             "Tried to post to a concurrent message loop that has already died. Executing the task on the callers thread."
         );
-        task();
+        task.call();
     }
 }

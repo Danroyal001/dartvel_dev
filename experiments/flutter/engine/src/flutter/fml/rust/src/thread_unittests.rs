@@ -34,7 +34,7 @@ fn has_a_running_message_loop() {
     let thread = Thread::default();
     let done = Arc::new(AtomicBool::new(false));
     let d = done.clone();
-    thread.get_task_runner().post_task(Arc::new(move || d.store(true, Ordering::SeqCst)));
+    thread.get_task_runner().post_task(crate::closure::closure::new(move || d.store(true, Ordering::SeqCst)));
     thread.join();
     assert!(done.load(Ordering::SeqCst));
 }
@@ -58,7 +58,7 @@ fn has_expected_stack_size() {
     let thread = Thread::default();
 
     let s = stack_size.clone();
-    thread.get_task_runner().post_task(Arc::new(move || {
+    thread.get_task_runner().post_task(crate::closure::closure::new(move || {
         let mut attr = PthreadAttr([0; 64]);
         let mut size = 0usize;
         // SAFETY: `attr` is larger than and as aligned as glibc's
@@ -92,7 +92,7 @@ fn thread_name_created_with_config() {
     let done = Arc::new(AtomicBool::new(false));
     let seen = Arc::new(Mutex::new(String::new()));
     let (d, s) = (done.clone(), seen.clone());
-    thread.get_task_runner().post_task(Arc::new(move || {
+    thread.get_task_runner().post_task(crate::closure::closure::new(move || {
         d.store(true, Ordering::SeqCst);
         *s.lock().unwrap() = current_thread_name();
     }));
@@ -165,7 +165,7 @@ fn thread_priority_created_with_config() {
 
     let seen1 = Arc::new(Mutex::new((String::new(), 0, 0)));
     let (d, s) = (done.clone(), seen1.clone());
-    thread.get_task_runner().post_task(Arc::new(move || {
+    thread.get_task_runner().post_task(crate::closure::closure::new(move || {
         d.store(true, Ordering::SeqCst);
         let (policy, priority) = current_sched();
         *s.lock().unwrap() = (current_thread_name(), policy, priority);
@@ -177,7 +177,7 @@ fn thread_priority_created_with_config() {
     );
     let seen2 = Arc::new(Mutex::new((String::new(), 0, 0)));
     let (d, s) = (done.clone(), seen2.clone());
-    thread2.get_task_runner().post_task(Arc::new(move || {
+    thread2.get_task_runner().post_task(crate::closure::closure::new(move || {
         d.store(true, Ordering::SeqCst);
         let (policy, priority) = current_sched();
         *s.lock().unwrap() = (current_thread_name(), policy, priority);
@@ -203,7 +203,7 @@ fn linux_long_thread_name_truncated() {
 
     let seen = Arc::new(Mutex::new(String::new()));
     let s = seen.clone();
-    thread.get_task_runner().post_task(Arc::new(move || {
+    thread.get_task_runner().post_task(crate::closure::closure::new(move || {
         *s.lock().unwrap() = current_thread_name();
     }));
     thread.join();

@@ -466,15 +466,12 @@ Where Rust is not ahead in the table:
   37.6 M), and they are ahead in other runs (`file` 3.8/9.0 ms against
   3.4/12.1, `mapping` 263/373 ms against 369/406 earlier the same day). The
   difference is the scheduler and the disk.
-- `concurrent`: every task the benchmark posts is an `Arc` closure (the
-  port's `closure` type), allocated on the posting thread and freed on a
-  worker. glibc's allocator pays for that cross-thread traffic (malloc,
-  free and `malloc_consolidate` are 40% of the Rust benchmark's
-  instructions), where libc++'s `std::function` keeps a small capture inline
-  and allocates nothing. The loop's own work is now upstream's; matching
-  the rest needs a closure type with inline storage, which means
-  type-erasing captures with `unsafe` and touches every API that takes a
-  closure.
+- `concurrent` (fixed since; see *Unsafe code*): every posted task was an
+  `Arc` closure, allocated on the posting thread and freed on a worker
+  (malloc, free and `malloc_consolidate` were 40% of the benchmark's
+  instructions). `closure` now keeps up to three words of captures in
+  place, as libc++'s `std::function` does: the benchmark's instructions
+  fell from 128.4 M to 49.6 M (upstream: 124.2 M, Callgrind, 20 rounds).
 
 ### Binary size
 
@@ -525,13 +522,16 @@ driver and the tests).
 
 ### Unsafe code
 
-`unsafe` appears only where the C library has to be called or a raw pointer
-crosses the API, never to skip a check in the ported logic. Every site has a
+`unsafe` appears only where the C library has to be called, a raw pointer
+crosses the API, or `closure` keeps a callable in place as `std::function`
+does (one type-erased buffer, below), never to skip a check in the ported
+logic. Every site has a
 `SAFETY:` comment (or a `# Safety` section) saying which invariant makes it
 sound; `tests/unsafe_audit.rs` fails the build of the test suite when one
 does not, and tests its own checker on a failing sample. The library's sites
-(line numbers as of this table; the unit tests add pthread calls and reads of
-mapped bytes, the driver `errno`, `dlopen` and `raise`):
+(line numbers as of this table; the unit tests add pthread calls, reads of
+mapped bytes and a counting allocator, the driver `errno`, `dlopen` and
+`raise`):
 
 | File | Lines | What | Why it is needed | Verified by |
 |---|---|---|---|---|
@@ -549,6 +549,7 @@ mapped bytes, the driver `errno`, `dlopen` and `raise`):
 | `backtrace.rs` | 34 … 279 | `backtrace`, `signal` | `BacktraceHere` and `InstallCrashHandler` | `backtrace_unittests`; oracle `backtrace` (children killed by each signal) |
 | `trace_event.rs` | 92, 103 | a function pointer loaded back from an `AtomicPtr<()>` | upstream's `std::atomic<TimelineEventHandler>`; a function pointer cannot sit in an atomic otherwise (sizes asserted at compile time; only function pointers are ever stored) | `tests/concurrent_worker_wake.rs` under Miri; oracle `trace` |
 | `small_string.rs` | 68 | `from_utf8_unchecked` on the inline bytes | the inline bytes are always whole copies of `str`s (checked again under `debug_assertions`) | `small_string` tests and `command_line_unittest` under Miri; oracle `cmdline`, `trace` |
+| `closure.rs` | 22 … 126 (the vtable's `unsafe fn` entries 22–24 and their bodies 46–48; writing the callable 96; calling, cloning and dropping through the vtable 105, 116, 126; `Send`/`Sync` 70, 72) | `closure` keeps a callable of up to three words in a buffer beside a pointer to a per-type vtable (call, clone, drop), as libc++'s `std::function` keeps `__buf_` beside its `__base` vtable; a larger or over-aligned callable is boxed and the `Box` kept in the buffer, so one vtable per type is the only erasure | posting a task allocated an `Arc` per closure on the posting thread and freed it on another, which was 40% of the `concurrent` benchmark's instructions; `std::function` allocates nothing for small captures. Moves need no entry (a Rust move copies the bytes); `Send`/`Sync` hold because every constructor requires them of the callable | `closure_unittests` (in place, boxed, zero-sized, over-aligned, shared, cloned, moved through a growing `Vec`, called from threads, a panic during a call and during a clone, every capture counted live; a counting allocator proves three words allocate nothing and a larger capture once per copy) under Miri; TSan over the unit tests, `concurrent_worker_wake` and the threaded oracle suites; the full oracle |
 
 ### Checks
 

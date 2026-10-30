@@ -47,10 +47,10 @@ impl ConditionalBasicTaskRunner {
 impl BasicTaskRunner for ConditionalBasicTaskRunner {
     fn post_task(&self, task: closure) {
         let weak_is_usable: Weak<Box<IsUsable>> = Arc::downgrade(&self.is_usable_);
-        let task_wrapper: closure = Arc::new(move || {
+        let task_wrapper: closure = closure::new(move || {
             let is_usable = weak_is_usable.upgrade();
             if is_usable.is_some_and(|is_usable| is_usable()) {
-                task();
+                task.call();
             }
         });
         self.task_runner_.post_task(task_wrapper);

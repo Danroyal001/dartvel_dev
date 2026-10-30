@@ -279,7 +279,7 @@ mod task_runner_affine_weak_ptr_test {
 
                 let f = factory.clone();
                 let d = data.clone();
-                loop2.get_task_runner().post_task(Arc::new(move || {
+                loop2.get_task_runner().post_task(crate::closure::closure::new(move || {
                     latch2.signal();
                     start.wait();
                     let ptr = f.get_weak_ptr();

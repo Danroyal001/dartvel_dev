@@ -16,7 +16,7 @@ fn wrapper_basic_task_runner_post_task() {
 
     let wrapper_thread_id = Arc::new(Mutex::new(None));
     let w = wrapper_thread_id.clone();
-    wrapper.post_task(Arc::new(move || {
+    wrapper.post_task(crate::closure::closure::new(move || {
         *w.lock().unwrap() = Some(std::thread::current().id());
     }));
 
@@ -37,7 +37,7 @@ fn conditional_basic_task_runner_post_task() {
     let latch = Arc::new(AutoResetWaitableEvent::new());
     let task1_called = Arc::new(AtomicBool::new(false));
     let (t1, l) = (task1_called.clone(), latch.clone());
-    runner.post_task(Arc::new(move || {
+    runner.post_task(crate::closure::closure::new(move || {
         t1.store(true, Ordering::SeqCst);
         l.signal();
     }));
@@ -47,10 +47,10 @@ fn conditional_basic_task_runner_post_task() {
 
     let task2_called = Arc::new(AtomicBool::new(false));
     let t2 = task2_called.clone();
-    runner.post_task(Arc::new(move || t2.store(true, Ordering::SeqCst)));
+    runner.post_task(crate::closure::closure::new(move || t2.store(true, Ordering::SeqCst)));
 
     let l = latch.clone();
-    thread.get_task_runner().post_task(Arc::new(move || l.signal()));
+    thread.get_task_runner().post_task(crate::closure::closure::new(move || l.signal()));
     latch.wait();
 
     thread.join();
@@ -67,13 +67,13 @@ fn conditional_basic_task_runner_drops_tasks_once_destroyed() {
     let thread = Thread::default();
     let gate = Arc::new(AutoResetWaitableEvent::new());
     let g = gate.clone();
-    thread.get_task_runner().post_task(Arc::new(move || g.wait()));
+    thread.get_task_runner().post_task(crate::closure::closure::new(move || g.wait()));
 
     let called = Arc::new(AtomicBool::new(false));
     {
         let runner = ConditionalBasicTaskRunner::new(thread.get_task_runner(), || true);
         let c = called.clone();
-        runner.post_task(Arc::new(move || c.store(true, Ordering::SeqCst)));
+        runner.post_task(crate::closure::closure::new(move || c.store(true, Ordering::SeqCst)));
     }
     gate.signal();
     thread.join();

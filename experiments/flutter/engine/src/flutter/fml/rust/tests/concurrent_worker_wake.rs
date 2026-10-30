@@ -8,6 +8,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
+use fml::closure::closure;
 use fml::concurrent_message_loop::ConcurrentMessageLoop;
 use fml::synchronization::count_down_latch::CountDownLatch;
 use fml::task_runner::BasicTaskRunner;
@@ -40,7 +41,7 @@ fn workers_trace_each_wake_and_posting_does_not() {
         let latch = Arc::new(CountDownLatch::new(8));
         for _ in 0..8 {
             let (latch, ran) = (latch.clone(), ran.clone());
-            runner.post_task(Arc::new(move || {
+            runner.post_task(closure::new(move || {
                 ran.fetch_add(1, Ordering::SeqCst);
                 latch.count_down();
             }));
@@ -49,7 +50,7 @@ fn workers_trace_each_wake_and_posting_does_not() {
         // Terminated: a task posted now runs on this thread, untraced.
         loop_.terminate();
         let ran2 = ran.clone();
-        runner.post_task(Arc::new(move || {
+        runner.post_task(closure::new(move || {
             ran2.fetch_add(1, Ordering::SeqCst);
         }));
     } // Dropping the loop joins the workers.

@@ -151,10 +151,10 @@ fn flush_tasks(base: &MessageLoopImplBase, type_: FlushType) {
         let Some(invocation) = base.task_queue_.get_next_task_to_run(base.queue_id_, now) else {
             break;
         };
-        invocation();
+        invocation.call();
         let observers = base.task_queue_.get_observers_to_notify(base.queue_id_);
         for observer in &observers {
-            observer();
+            observer.call();
         }
         if type_ == FlushType::kSingle {
             break;

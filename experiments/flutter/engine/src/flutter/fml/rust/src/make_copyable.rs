@@ -1,11 +1,11 @@
 // Port of flutter/fml/make_copyable.h.
 //
 // Upstream wraps a move-only lambda in a ref-counted holder so that it can be
-// stored in a `std::function`, which must be copyable. A Rust closure that
-// owns move-only state is already storable in a `closure` (an `Arc`), so
-// this matters only where a `Fn` has to be cloned: `CopyableLambda` is that
-// clone, sharing one instance of the lambda as upstream's copies share one
-// `Impl`.
+// stored in a `std::function`, which must be copyable. A `closure` copies
+// its captures as `std::function` does, so a capture that cannot be cloned
+// is shared instead: `closure::shared` does that for a `closure`, and
+// `CopyableLambda` for any other `Fn` that has to be cloned, sharing one
+// instance of the lambda as upstream's copies share one `Impl`.
 
 use std::sync::Arc;
 

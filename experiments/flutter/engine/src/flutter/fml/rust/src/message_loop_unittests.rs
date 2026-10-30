@@ -67,7 +67,7 @@ fn can_run_and_terminate() {
             MessageLoop::ensure_initialized_for_current_thread();
             let loop_ = MessageLoop::get_current();
             assert!(loop_.get_task_runner().as_bool());
-            loop_.get_task_runner().post_task(Arc::new(move || {
+            loop_.get_task_runner().post_task(crate::closure::closure::new(move || {
                 MessageLoop::get_current().terminate();
                 terminated.store(true, Ordering::SeqCst);
             }));
@@ -99,7 +99,7 @@ fn run_in_order(post: impl Fn(&MessageLoop, crate::closure::closure) + Send + 's
                     (current.clone(), in_order.clone(), terminated.clone());
                 post(
                     &loop_,
-                    Arc::new(move || {
+                    crate::closure::closure::new(move || {
                         if current.load(Ordering::SeqCst) != i {
                             in_order.store(false, Ordering::SeqCst);
                         }
@@ -171,7 +171,7 @@ fn task_observer_fire() {
             for i in 0..COUNT {
                 let (terminated, task_count, in_order) =
                     (terminated.clone(), task_count.clone(), in_order.clone());
-                loop_.get_task_runner().post_task(Arc::new(move || {
+                loop_.get_task_runner().post_task(crate::closure::closure::new(move || {
                     if task_count.load(Ordering::SeqCst) != i {
                         in_order.store(false, Ordering::SeqCst);
                     }
@@ -185,7 +185,7 @@ fn task_observer_fire() {
             let obs = obs_count.clone();
             loop_.add_task_observer(
                 0,
-                Arc::new(move || {
+                crate::closure::closure::new(move || {
                     obs.fetch_add(1, Ordering::SeqCst);
                 }),
             );
@@ -225,7 +225,7 @@ fn can_create_concurrent_message_loop() {
     let thread_ids = Arc::new(Mutex::new(BTreeSet::new()));
     for _ in 0..K_COUNT {
         let (latch, thread_ids) = (latch.clone(), thread_ids.clone());
-        task_runner.post_task(Arc::new(move || {
+        task_runner.post_task(crate::closure::closure::new(move || {
             // Upstream sleeps a second here so that the tasks spread over the
             // workers; a tenth of that does the same.
             std::thread::sleep(std::time::Duration::from_millis(100));
@@ -245,11 +245,11 @@ fn tasks_posted_after_termination_are_dropped() {
         MessageLoop::ensure_initialized_for_current_thread();
         let loop_ = MessageLoop::get_current();
         let runner = loop_.get_task_runner();
-        runner.post_task(Arc::new(|| MessageLoop::get_current().terminate()));
+        runner.post_task(crate::closure::closure::new(|| MessageLoop::get_current().terminate()));
         loop_.run();
         let ran = Arc::new(AtomicBool::new(false));
         let r = ran.clone();
-        runner.post_task(Arc::new(move || r.store(true, Ordering::SeqCst)));
+        runner.post_task(crate::closure::closure::new(move || r.store(true, Ordering::SeqCst)));
         assert_eq!(
             crate::message_loop_task_queues::MessageLoopTaskQueues::get_instance()
                 .get_num_pending_tasks(runner.get_task_queue_id()),
@@ -295,13 +295,13 @@ fn tasks_due_when_the_loop_terminates_still_run() {
     std::thread::spawn(move || {
         MessageLoop::ensure_initialized_for_current_thread();
         let loop_ = MessageLoop::get_current();
-        loop_.get_task_runner().post_task(Arc::new(move || {
+        loop_.get_task_runner().post_task(crate::closure::closure::new(move || {
             let r = r.clone();
             // Make sure the clock moves past the running flush's.
             std::thread::sleep(std::time::Duration::from_millis(1));
             MessageLoop::get_current()
                 .get_task_runner()
-                .post_task(Arc::new(move || r.store(true, Ordering::SeqCst)));
+                .post_task(crate::closure::closure::new(move || r.store(true, Ordering::SeqCst)));
             MessageLoop::get_current().terminate();
         }));
         loop_.run();

@@ -77,7 +77,7 @@ impl RasterThreadMerger {
     fn run_callback(&self) {
         let callback = self.merge_unmerge_callback_.lock().unwrap_or_else(|e| e.into_inner()).clone();
         if let Some(callback) = callback {
-            callback();
+            callback.call();
         }
     }
 

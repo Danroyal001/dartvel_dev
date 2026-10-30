@@ -12,6 +12,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use crate::closure::closure;
 use crate::fml_check_at;
 use crate::memory::ref_ptr::RefPtr;
 use crate::message_loop::MessageLoop;
@@ -179,7 +180,7 @@ impl Thread {
         if self.joined_.swap(true, Ordering::SeqCst) {
             return;
         }
-        self.task_runner_.post_task(Arc::new(|| MessageLoop::get_current().terminate()));
+        self.task_runner_.post_task(closure::new(|| MessageLoop::get_current().terminate()));
         self.thread_.lock().unwrap_or_else(|e| e.into_inner()).join();
     }
 

@@ -26,7 +26,7 @@ fn count_remaining_tasks(
         };
         count += 1;
         if run_invocation {
-            invocation();
+            invocation.call();
         }
     }
     count
@@ -291,7 +291,7 @@ fn following_tasks_switch_queue_if_first_task_merges_threads() {
 
     task_queue.register_task(
         queue_id_2,
-        Arc::new(move || {
+        crate::closure::closure::new(move || {
             MessageLoopTaskQueues::get_instance().merge(queue_id_1, queue_id_2);
         }),
         chrono_ticks_since_epoch(),

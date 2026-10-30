@@ -69,7 +69,7 @@ impl RunningLoop {
                 let loop_ = MessageLoop::get_current();
                 *slot.lock().unwrap() = Some(loop_.clone());
                 let l = latch.clone();
-                loop_.get_task_runner().post_task(Arc::new(move || l.signal()));
+                loop_.get_task_runner().post_task(crate::closure::closure::new(move || l.signal()));
                 loop_.run();
             })
         };
@@ -84,7 +84,7 @@ impl RunningLoop {
 
     pub fn terminate_and_join(&mut self) {
         let l = self.loop_.clone();
-        self.loop_.get_task_runner().post_task(Arc::new(move || l.terminate()));
+        self.loop_.get_task_runner().post_task(crate::closure::closure::new(move || l.terminate()));
         self.thread.take().unwrap().join().unwrap();
     }
 }
@@ -141,7 +141,7 @@ fn is_not_on_rasterizing_thread() {
                  platform: bool,
                  qid: TaskQueueId| {
         let (m, l, e) = (raster_thread_merger.clone(), latch.clone(), e.clone());
-        runner_loop.loop_.get_task_runner().post_task(Arc::new(move || {
+        runner_loop.loop_.get_task_runner().post_task(crate::closure::closure::new(move || {
             e.expect(m.is_on_rasterizing_thread() == rasterizing, "IsOnRasterizingThread");
             e.expect(m.is_on_platform_thread() == platform, "IsOnPlatformThread");
             e.expect(MessageLoop::get_current_task_queue_id() == qid, "GetCurrentTaskQueueId");
@@ -421,7 +421,7 @@ fn run_expired_tasks_while_first_task_merges_threads() {
             let raster_thread_merger = RasterThreadMerger::new(qid_platform, qid_raster);
             {
                 let (m, l, e) = (raster_thread_merger.clone(), post_merge.clone(), e.clone());
-                loop_raster.get_task_runner().post_task(Arc::new(move || {
+                loop_raster.get_task_runner().post_task(crate::closure::closure::new(move || {
                     e.expect(m.is_on_rasterizing_thread(), "1: IsOnRasterizingThread");
                     e.expect(!m.is_on_platform_thread(), "1: !IsOnPlatformThread");
                     e.expect(MessageLoop::get_current_task_queue_id() == qid_raster, "1: queue");
@@ -431,7 +431,7 @@ fn run_expired_tasks_while_first_task_merges_threads() {
             }
             {
                 let (m, l, e) = (raster_thread_merger.clone(), post_merge.clone(), e.clone());
-                loop_raster.get_task_runner().post_task(Arc::new(move || {
+                loop_raster.get_task_runner().post_task(crate::closure::closure::new(move || {
                     e.expect(m.is_on_rasterizing_thread(), "2: IsOnRasterizingThread");
                     e.expect(m.is_on_platform_thread(), "2: IsOnPlatformThread");
                     e.expect(MessageLoop::get_current_task_queue_id() == qid_platform, "2: queue");
@@ -468,7 +468,7 @@ fn run_expired_tasks_while_first_task_un_merges_threads() {
             let raster_thread_merger = RasterThreadMerger::new(qid_platform, qid_raster);
             {
                 let (m, l) = (raster_thread_merger.clone(), merge_latch.clone());
-                loop_raster.get_task_runner().post_task(Arc::new(move || {
+                loop_raster.get_task_runner().post_task(crate::closure::closure::new(move || {
                     m.merge_with_lease(1);
                     l.signal();
                 }));
@@ -481,7 +481,7 @@ fn run_expired_tasks_while_first_task_un_merges_threads() {
             let unmerge_latch = Arc::new(AutoResetWaitableEvent::new());
             {
                 let (m, l, e) = (raster_thread_merger.clone(), unmerge_latch.clone(), e.clone());
-                loop_raster.get_task_runner().post_task(Arc::new(move || {
+                loop_raster.get_task_runner().post_task(crate::closure::closure::new(move || {
                     e.expect(m.is_on_rasterizing_thread(), "1: IsOnRasterizingThread");
                     e.expect(m.is_on_platform_thread(), "1: IsOnPlatformThread");
                     e.expect(MessageLoop::get_current_task_queue_id() == qid_platform, "1: queue");
@@ -494,7 +494,7 @@ fn run_expired_tasks_while_first_task_un_merges_threads() {
             {
                 let (m, l, e) =
                     (raster_thread_merger.clone(), post_unmerge_latch.clone(), e.clone());
-                loop_raster.get_task_runner().post_task(Arc::new(move || {
+                loop_raster.get_task_runner().post_task(crate::closure::closure::new(move || {
                     e.expect(m.is_on_rasterizing_thread(), "2: IsOnRasterizingThread");
                     e.expect(!m.is_on_platform_thread(), "2: !IsOnPlatformThread");
                     e.expect(MessageLoop::get_current_task_queue_id() == qid_raster, "2: queue");
@@ -523,7 +523,7 @@ fn set_merge_unmerge_callback() {
 
     let callbacks = Arc::new(AtomicI32::new(0));
     let c = callbacks.clone();
-    raster_thread_merger.set_merge_unmerge_callback(Arc::new(move || {
+    raster_thread_merger.set_merge_unmerge_callback(crate::closure::closure::new(move || {
         c.fetch_add(1, Ordering::SeqCst);
     }));
 

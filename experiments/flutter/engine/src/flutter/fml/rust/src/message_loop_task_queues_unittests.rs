@@ -41,12 +41,12 @@ pub(crate) fn weak(w: &Arc<TestWakeable>) -> Weak<dyn Wakeable> {
 }
 
 pub(crate) fn noop() -> closure {
-    Arc::new(|| {})
+    crate::closure::closure::new(|| {})
 }
 
 fn set(value: &Arc<AtomicI32>, to: i32) -> closure {
     let value = value.clone();
-    Arc::new(move || value.store(to, Ordering::SeqCst))
+    crate::closure::closure::new(move || value.store(to, Ordering::SeqCst))
 }
 
 const U: TaskSourceGrade = TaskSourceGrade::kUnspecified;
@@ -128,7 +128,7 @@ fn preserve_task_ordering() {
         let Some(invocation) = task_queue.get_next_task_to_run(queue_id, now) else {
             break;
         };
-        invocation();
+        invocation.call();
         assert!(test_val.load(Ordering::SeqCst) == expected_value);
         expected_value += 1;
     }
@@ -165,7 +165,7 @@ fn register_tasks_on_merged_queues_preserve_task_ordering() {
         let Some(invocation) = task_queue.get_next_task_to_run(platform_queue, now) else {
             break;
         };
-        invocation();
+        invocation.call();
         assert!(test_val.load(Ordering::SeqCst) == expected_value);
         expected_value += 1;
     }
@@ -202,7 +202,7 @@ fn unmerge_respect_the_original_task_ordering_in_queues() {
     for i in 0..3 {
         let invocation = task_queue.get_next_task_to_run(platform_queue, now);
         assert!(invocation.is_some());
-        invocation.unwrap()();
+        invocation.unwrap().call();
         assert!(test_val.load(Ordering::SeqCst) == i);
     }
     assert!(task_queue.get_num_pending_tasks(platform_queue) == 3);
@@ -221,7 +221,7 @@ fn unmerge_respect_the_original_task_ordering_in_queues() {
         assert!(task_queue.get_num_pending_tasks(platform_queue) == 1);
         let invocation = task_queue.get_next_task_to_run(platform_queue, now);
         assert!(invocation.is_some());
-        invocation.unwrap()();
+        invocation.unwrap().call();
         assert!(test_val.load(Ordering::SeqCst) == 4);
         assert!(task_queue.get_num_pending_tasks(platform_queue) == 0);
     }
@@ -231,14 +231,14 @@ fn unmerge_respect_the_original_task_ordering_in_queues() {
         assert!(task_queue.get_num_pending_tasks(raster_queue) == 2);
         let invocation = task_queue.get_next_task_to_run(raster_queue, now);
         assert!(invocation.is_some());
-        invocation.unwrap()();
+        invocation.unwrap().call();
         assert!(test_val.load(Ordering::SeqCst) == 3);
     }
     {
         assert!(task_queue.get_num_pending_tasks(raster_queue) == 1);
         let invocation = task_queue.get_next_task_to_run(raster_queue, now);
         assert!(invocation.is_some());
-        invocation.unwrap()();
+        invocation.unwrap().call();
         assert!(test_val.load(Ordering::SeqCst) == 5);
         assert!(task_queue.get_num_pending_tasks(raster_queue) == 0);
     }
@@ -248,7 +248,7 @@ fn test_notify_observers(queue_id: TaskQueueId) {
     let task_queue = MessageLoopTaskQueues::get_instance();
     let observers = task_queue.get_observers_to_notify(queue_id);
     for observer in observers {
-        observer();
+        observer.call();
     }
 }
 
@@ -324,7 +324,7 @@ fn notify_observers_while_creating_queues() {
     task_queues.add_task_observer(
         queue_id,
         queue_id.value() as isize + 1,
-        Arc::new(move || {
+        crate::closure::closure::new(move || {
             f.signal();
             b.wait();
         }),
