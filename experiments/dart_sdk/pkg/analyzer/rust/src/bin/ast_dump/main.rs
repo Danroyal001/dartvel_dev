@@ -150,6 +150,8 @@ fn walk(root: &Path, dir: &Path, label: &str, files: &mut Vec<(PathBuf, String)>
 }
 
 fn dump_file(source: Rc<[u16]>) -> String {
+    // The dump is about sixteen times the source text.
+    let capacity = source.len() * 16;
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         parse_string(source, None, None)
     }));
@@ -159,10 +161,11 @@ fn dump_file(source: Rc<[u16]>) -> String {
         return "crash\n".to_string();
     };
     let mut dumper = AstDumper {
-        sb: String::new(),
+        sb: String::with_capacity(capacity),
+        lexeme: Vec::new(),
         result: &result,
     };
-    dumper.node("unit", result.unit, 0);
+    dumper.node("unit", None, result.unit, 0);
     let mut sb = dumper.sb;
     for diagnostic in &result.errors {
         let _ = writeln!(
@@ -178,25 +181,62 @@ fn dump_file(source: Rc<[u16]>) -> String {
 /// unit as `\uXXXX`, as the Dart oracle writes it.
 fn escape(units: &[u16]) -> String {
     let mut sb = String::with_capacity(units.len());
+    push_escaped(&mut sb, units);
+    sb
+}
+
+/// [escape], appended to [sb].
+fn push_escaped(sb: &mut String, units: &[u16]) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    sb.reserve(units.len());
     for &c in units {
         if (0x20..0x7f).contains(&c) && c != 0x5c && c != 0x22 {
             sb.push(c as u8 as char);
         } else {
-            let _ = write!(sb, "\\u{c:04x}");
+            sb.push_str("\\u");
+            for shift in [12, 8, 4, 0] {
+                sb.push(HEX[(c >> shift & 0xf) as usize] as char);
+            }
         }
     }
-    sb
 }
 
-fn format_token(tokens: &TokenStore, token: TokenId) -> String {
-    let synthetic = if tokens.is_synthetic(token) { "~" } else { "" };
-    format!(
-        "{}@{}\"{}\"{}",
-        tokens.type_(token).name,
-        tokens.offset(token),
-        escape(&tokens.lexeme(token)),
-        synthetic
-    )
+/// Appends the decimal digits of [value], without the formatting machinery
+/// that `write!` goes through.
+fn push_int(sb: &mut String, value: i64) {
+    if value < 0 {
+        sb.push('-');
+    }
+    let mut v = value.unsigned_abs();
+    let mut digits = [0u8; 20];
+    let mut i = digits.len();
+    loop {
+        i -= 1;
+        digits[i] = b'0' + (v % 10) as u8;
+        v /= 10;
+        if v == 0 {
+            break;
+        }
+    }
+    for &d in &digits[i..] {
+        sb.push(d as char);
+    }
+}
+
+/// Appends `TYPE@offset"lexeme"`, and `~` when the token is synthetic;
+/// [lexeme] is a buffer for the lexeme.
+fn push_token(sb: &mut String, lexeme: &mut Vec<u16>, tokens: &TokenStore, token: TokenId) {
+    sb.push_str(tokens.type_(token).name);
+    sb.push('@');
+    push_int(sb, tokens.offset(token) as i64);
+    sb.push('"');
+    lexeme.clear();
+    tokens.write_lexeme(token, lexeme);
+    push_escaped(sb, lexeme);
+    sb.push('"');
+    if tokens.is_synthetic(token) {
+        sb.push('~');
+    }
 }
 
 /// Dart's `double.toString()`.
@@ -249,6 +289,8 @@ fn dart_double_to_string(value: f64) -> String {
 
 struct AstDumper<'a> {
     sb: String,
+    /// A buffer for the lexeme being written.
+    lexeme: Vec<u16>,
     result: &'a ParseStringResult,
 }
 
@@ -259,43 +301,63 @@ impl AstDumper<'_> {
         }
     }
 
-    fn node(&mut self, name: &str, node: NodeId, depth: usize) {
-        let ast = &self.result.ast;
-        let tokens = &self.result.tokens;
+    /// Appends `name: `, or `name[index]: `.
+    fn name(&mut self, name: &str, index: Option<usize>) {
+        self.sb.push_str(name);
+        if let Some(index) = index {
+            self.sb.push('[');
+            push_int(&mut self.sb, index as i64);
+            self.sb.push(']');
+        }
+        self.sb.push_str(": ");
+    }
+
+    /// Appends `[length]` and ends the line.
+    fn list_length(&mut self, length: usize) {
+        self.sb.push('[');
+        push_int(&mut self.sb, length as i64);
+        self.sb.push_str("]\n");
+    }
+
+    fn node(&mut self, name: &str, index: Option<usize>, node: NodeId, depth: usize) {
+        let result = self.result;
+        let ast = &result.ast;
+        let tokens = &result.tokens;
         self.indent(depth);
-        let _ = writeln!(
-            self.sb,
-            "{name}: {} {}+{}",
-            ast.node(node).runtime_type(),
-            ast.offset(node, tokens),
-            ast.length(node, tokens)
-        );
+        self.name(name, index);
+        self.sb.push_str(ast.node(node).runtime_type());
+        self.sb.push(' ');
+        push_int(&mut self.sb, ast.offset(node, tokens) as i64);
+        self.sb.push('+');
+        push_int(&mut self.sb, ast.length(node, tokens) as i64);
+        self.sb.push('\n');
         self.extras(node, depth + 1);
         for child in ast.named_child_entities2(node, tokens) {
             match child.value {
-                ChildValue::Node(n) => self.node(child.name, n, depth + 1),
+                ChildValue::Node(n) => self.node(child.name, None, n, depth + 1),
                 ChildValue::Token(t) => {
                     self.indent(depth + 1);
-                    let _ = writeln!(self.sb, "{}: {}", child.name, format_token(tokens, t));
+                    self.name(child.name, None);
+                    push_token(&mut self.sb, &mut self.lexeme, tokens, t);
+                    self.sb.push('\n');
                 }
                 ChildValue::NodeList(list) => {
                     self.indent(depth + 1);
-                    let _ = writeln!(self.sb, "{}: [{}]", child.name, list.len());
+                    self.name(child.name, None);
+                    self.list_length(list.len());
                     for (i, &element) in list.iter().enumerate() {
-                        self.node(&format!("{}[{i}]", child.name), element, depth + 2);
+                        self.node(child.name, Some(i), element, depth + 2);
                     }
                 }
                 ChildValue::TokenList(list) => {
                     self.indent(depth + 1);
-                    let _ = writeln!(self.sb, "{}: [{}]", child.name, list.len());
+                    self.name(child.name, None);
+                    self.list_length(list.len());
                     for (i, &element) in list.iter().enumerate() {
                         self.indent(depth + 2);
-                        let _ = writeln!(
-                            self.sb,
-                            "{}[{i}]: {}",
-                            child.name,
-                            format_token(tokens, element)
-                        );
+                        self.name(child.name, Some(i));
+                        push_token(&mut self.sb, &mut self.lexeme, tokens, element);
+                        self.sb.push('\n');
                     }
                 }
             }
@@ -371,7 +433,7 @@ impl AstDumper<'_> {
                 }
                 for doc_import in &n.doc_imports {
                     self.line(depth, &format!("docImport {}", doc_import.offset));
-                    self.node("import", doc_import.import, depth + 1);
+                    self.node("import", None, doc_import.import, depth + 1);
                 }
             }
             _ => {}
