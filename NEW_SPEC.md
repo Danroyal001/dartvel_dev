@@ -16752,7 +16752,7 @@ Stability: `Draft` · Status: `Partial`
 
 Built so far: the Phase 0 size measurement (`experiments/rust_stack`) and a
 first cut of the `.dv` dialect converter (`experiments/dv_dialect`), which
-round-trips 99.62% of 9,941 files from the Dart SDK, Flutter and Dartvel byte
+round-trips 99.98% of 9,941 files from the Dart SDK, Flutter and Dartvel byte
 for byte. No component has been ported to Rust yet.
 
 A side effort, run beside the Roadmap and never ahead of it: a 1:1 port of the
