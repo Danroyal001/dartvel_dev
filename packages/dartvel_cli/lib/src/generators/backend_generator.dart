@@ -4001,6 +4001,18 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         continue;
       }
       final String alias = toolAliasByImport[entry.importUri]!;
+      // What the handler refuses to go without, which is every argument whose
+      // type is not nullable. With no `required` a JSON Schema makes every
+      // property optional, and a model told that is free to leave out an
+      // argument the handler then refuses at run time.
+      final List<String> required = <String>[
+        for (var i = 0; i < entry.parameterNames.length; i++)
+          if (!entry.parameterTypes[i].trim().endsWith('?'))
+            "DVJsonString('${esc(entry.parameterNames[i])}')",
+      ];
+      final String requiredLine = required.isEmpty
+          ? ''
+          : "        'required': DVJsonList(<DVJsonValue>[${required.join(', ')}]),\n";
       final String schema = entry.parameterNames.isEmpty
           ? "const <String, DVJsonValue>{}"
           // One const on the map, none inside it: a const on one value and not
@@ -4014,6 +4026,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
                       "'type': DVJsonString('"
                       "${_dvJsonSchemaType(entry.parameterTypes[i])}')}),"].join('\n')}\n'
                 '        }),\n'
+                '$requiredLine'
                 '      }';
       final List<String> args = <String>[
         for (var i = 0; i < entry.parameterNames.length; i++)
