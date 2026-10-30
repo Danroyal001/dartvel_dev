@@ -13,6 +13,7 @@
 pub mod dart {
     pub mod analysis {
         pub mod features;
+        pub mod utilities;
     }
     pub mod ast {
         pub mod doc_comment;
@@ -20,6 +21,12 @@ pub mod dart {
     pub mod element {
         pub mod element;
     }
+}
+pub mod diagnostic {
+    pub mod diagnostic;
+}
+pub mod error {
+    pub mod listener;
 }
 pub mod source {
     pub mod line_info;
@@ -38,8 +45,28 @@ pub mod src {
             pub mod ast;
             pub mod ast_store;
         }
+        pub mod scanner {
+            pub mod scanner;
+            pub mod translate_error_token;
+        }
+    }
+    pub mod diagnostic {
+        pub mod diagnostic;
+        #[rustfmt::skip]
+        pub mod diagnostic_code_values_g;
+        #[rustfmt::skip]
+        pub mod diagnostic_g;
+    }
+    pub mod error {
+        pub mod listener;
+    }
+    pub mod fasta {
+        pub mod ast_builder;
+        pub mod doc_comment_builder;
+        pub mod error_converter;
     }
     pub mod generated {
+        pub mod parser;
         pub mod utilities_dart;
     }
 }

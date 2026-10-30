@@ -131,7 +131,10 @@ pub enum DocDirectiveType {
     youtube,
 }
 
-const fn p(name: &'static str, expected_format: DocDirectiveParameterFormat) -> DocDirectiveParameter {
+const fn p(
+    name: &'static str,
+    expected_format: DocDirectiveParameterFormat,
+) -> DocDirectiveParameter {
     DocDirectiveParameter {
         name,
         expected_format,

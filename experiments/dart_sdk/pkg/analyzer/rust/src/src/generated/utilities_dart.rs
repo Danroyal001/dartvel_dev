@@ -50,7 +50,10 @@ impl ParameterKind {
     }
 
     pub fn is_required(self) -> bool {
-        matches!(self, ParameterKind::REQUIRED | ParameterKind::NAMED_REQUIRED)
+        matches!(
+            self,
+            ParameterKind::REQUIRED | ParameterKind::NAMED_REQUIRED
+        )
     }
 
     pub fn is_optional(self) -> bool {
