@@ -30,3 +30,24 @@ Under the One Language Rule, which refuses Python everywhere in `dartvel_dev`:
 Flutter's `packages/flutter/lib`, first reformatted to 60 columns so that
 728 of the 772 files had to change: byte-identical output on all 772, in
 1.07 s against 7.41 s.
+
+## Formatter parity: 30 October 2026
+
+Against the formatter Dart 3.13.3 ships, `dart_style` `39edc2d946a5`
+(`dart_style_rev` in the SDK's `DEPS` at tag 3.13.3):
+
+- **dart_style's own test data**, through `tests/format_test_data.rs` with
+  `DART_STYLE_DIR` set to that checkout: tall 6,469 of 6,469 cases, short
+  2,233 of 2,233, benchmarks 17 of 17 in each style. Changing one expected
+  output in a copy of the data makes exactly that case fail, at each
+  language version it covers.
+- **Real code**, reformatted to 40, 60 and 120 columns and formatted back
+  with each package's own settings by `dart format` 3.13.3 and by
+  `examples/format_cli.rs`: 6,153 files per width from the SDK's `pkg/`
+  (analyzer, analysis server, front end, shared front end, compiler, kernel,
+  linter, dart2wasm, DDC, dartdev, DDS, vm), `sdk/lib`, pub, Flutter's
+  `flutter` and `flutter_tools`, and Dartvel's `packages/`. All 18,459
+  compares are byte-identical, and stdout, stderr and exit codes match in
+  all 75 runs.
+
+No formatter source change was needed to get there.
