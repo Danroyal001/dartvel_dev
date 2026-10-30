@@ -1,0 +1,13 @@
+# Cargo workspace for the Rust port of the Dart SDK.
+#
+# Each crate sits beside the package it ports (pkg/<name>/rust) and mirrors
+# that package's lib/src file by file. See
+# pkg/_fe_analyzer_shared/rust/README.md.
+[workspace]
+resolver = "2"
+members = ["pkg/_fe_analyzer_shared/rust"]
+
+[profile.release]
+debug = false
+lto = "thin"
+codegen-units = 1

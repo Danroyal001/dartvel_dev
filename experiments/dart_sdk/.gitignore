@@ -129,3 +129,6 @@ runtime/tools/heapsnapshot/.dart_tool
 .gemini
 .geminiignore
 gemini.md
+
+# Rust port: Cargo build output.
+/target/
