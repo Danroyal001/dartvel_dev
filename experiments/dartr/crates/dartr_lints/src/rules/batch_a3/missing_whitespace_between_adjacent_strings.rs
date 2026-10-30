@@ -28,15 +28,21 @@ fn pieces<'a>(ctx: &'a LinterContext<'_>, node: NodeId) -> Vec<&'a str> {
     }
 }
 
+/// `startsWithWhitespace`: an empty first `InterpolationString` (an initial
+/// interpolation expression) counts as whitespace, an empty simple string
+/// does not.
 fn starts_ws(ctx: &LinterContext<'_>, node: NodeId) -> bool {
+    let interpolation = ctx.ast.kind(node) == NodeKind::StringInterpolation;
     pieces(ctx, node)
         .first()
-        .is_some_and(|s| s.is_empty() || s.starts_with([' ', '\n', '\r', '\t']))
+        .is_some_and(|s| (interpolation && s.is_empty()) || s.starts_with([' ', '\n', '\r', '\t']))
 }
+/// `endsWithWhitespace`, as [starts_ws] for the last piece.
 fn ends_ws(ctx: &LinterContext<'_>, node: NodeId) -> bool {
+    let interpolation = ctx.ast.kind(node) == NodeKind::StringInterpolation;
     pieces(ctx, node)
         .last()
-        .is_some_and(|s| s.is_empty() || s.ends_with([' ', '\n', '\r', '\t']))
+        .is_some_and(|s| (interpolation && s.is_empty()) || s.ends_with([' ', '\n', '\r', '\t']))
 }
 fn has_ws(ctx: &LinterContext<'_>, node: NodeId) -> bool {
     pieces(ctx, node)
