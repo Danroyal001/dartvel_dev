@@ -16883,6 +16883,34 @@ been written in Rust. That is ordinary FFI: an `extern` declaration in
 library. Importing source is what makes the safe, zero-cost path possible, and
 it is the one `.dv` offers by default.
 
+## C source and headers
+
+A `.dv` file imports C the same way, as source or as headers:
+
+```dart
+import c 'third_party/sqlite3.c';   // compiled into this library
+import c header 'zlib.h';           // declarations only, for a library linked separately
+import c header <sys/mman.h>;       // a system header
+```
+
+C source goes through clang into the same compiler backend as the `.dv` and
+Rust code, so it ends up in the same library, with inlining across languages
+and no binding layer. A header import compiles nothing: it brings the
+declarations in, for OS and system APIs and for libraries linked another way.
+
+C is not memory-safe, so it never shares the safe-by-default guarantee:
+
+- Everything imported from C is usable only inside `unsafe`, or through a
+  safe `.dv` wrapper written over it, whose `unsafe` is counted like any
+  other.
+- `dartvel compile` reports the C lines in each library separately from its
+  `unsafe` count, and no safety claim or certification evidence for a library
+  covers its C.
+- Linking a prebuilt C library stays ordinary FFI, as for a prebuilt Rust one.
+
+C++ is not imported: its ABI, templates and exceptions make one compiler
+process with no binding a different problem, left to a later proposal.
+
 ## WebAssembly
 
 On the web and for WASI, a `.dv` library compiles to plain WebAssembly (core
