@@ -44,7 +44,8 @@ DART=/path/to/dart cargo test --release --test scanner_oracle
 compares both scanners on the default corpus: the scanner tests' inputs,
 `pkg/_fe_analyzer_shared/lib` and `pkg/analyzer/lib`. `SCANNER_CORPUS=a:b:c`
 names other roots; `SCANNER_WORK` moves the scratch directory (default
-`target/scanner_oracle`). Dumps that match are deleted; dumps that differ are
+`target/scanner_oracle`). Both resolve relative paths against the SDK root,
+where the oracle runs, so the two dumps always read the same files. Dumps that match are deleted; dumps that differ are
 kept there, and the test prints the first differing line of each.
 
 Speed: `scanner_dump.dart --bench=N` and `scanner_dump --bench=N` scan the

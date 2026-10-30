@@ -12,8 +12,9 @@
 //                   requires.
 //   SCANNER_CORPUS  corpus roots separated by `:` (default: the scanner
 //                   tests' inputs, pkg/_fe_analyzer_shared/lib and
-//                   pkg/analyzer/lib).
-//   SCANNER_WORK    scratch directory (default: target/scanner_oracle).
+//                   pkg/analyzer/lib). A relative root is resolved
+//                   against the SDK root.
+//   SCANNER_WORK   scratch directory (default: target/scanner_oracle).
 //
 // Every child process runs under a time limit.
 
@@ -49,7 +50,8 @@ fn dart() -> String {
 
 fn work_dir() -> PathBuf {
     match std::env::var("SCANNER_WORK") {
-        Ok(dir) => PathBuf::from(dir),
+        // Relative to the SDK root, like the corpus roots.
+        Ok(dir) => sdk_root().join(dir),
         Err(_) => sdk_root().join("target/scanner_oracle"),
     }
 }
@@ -88,7 +90,10 @@ fn corpus(work: &Path) -> Vec<String> {
         return roots
             .split(':')
             .filter(|r| !r.is_empty())
-            .map(String::from)
+            // The oracle runs in the SDK root and the Rust binary in this
+            // crate, so a relative root would name two directories. Resolve
+            // it against the SDK root for both.
+            .map(|r| sdk_root().join(r).to_string_lossy().to_string())
             .collect();
     }
     let root = sdk_root();
