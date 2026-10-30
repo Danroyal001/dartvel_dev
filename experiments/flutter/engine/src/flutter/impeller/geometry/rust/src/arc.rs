@@ -1,5 +1,6 @@
 // flutter/impeller/geometry/arc.h, arc.cc
 
+use crate::cxx::Num;
 use std::fmt;
 
 use crate::matrix::Matrix;
@@ -84,16 +85,19 @@ impl Arc {
         Arc { bounds_: *bounds, start_: start, sweep_: sweep, include_center_: include_center }
     }
 
+    #[inline]
     /// Return the bounds of the oval in which this arc is inscribed.
     pub fn get_oval_bounds(&self) -> &Rect {
         &self.bounds_
     }
 
+    #[inline]
     /// Returns the center of the oval bounds.
     pub fn get_oval_center(&self) -> Point {
         self.bounds_.get_center()
     }
 
+    #[inline]
     /// Returns the size of the oval bounds.
     pub fn get_oval_size(&self) -> Size {
         self.bounds_.get_size()
@@ -141,9 +145,9 @@ impl Arc {
         // cur_axis will be pre-incremented before recording the following
         // axis, it will initially be the axis at or before the start of the
         // arc.
-        let mut cur_axis: i32 = (start_angle.degrees / 90.0).floor() as i32;
+        let mut cur_axis: i32 = (start_angle.degrees / 90.0).floor_c() as i32;
         // end_axis is a vector at or after the end of the arc.
-        let end_axis: i32 = (end_angle.degrees / 90.0).ceil() as i32;
+        let end_axis: i32 = (end_angle.degrees / 90.0).ceil_c() as i32;
         loop {
             cur_axis = cur_axis.wrapping_add(1);
             if cur_axis >= end_axis {
@@ -164,25 +168,30 @@ impl Arc {
         Rect::make_point_bounds(&extrema[..count]).unwrap_or_default()
     }
 
+    #[inline]
     /// Return the start angle of the arc.
     pub fn get_start(&self) -> Degrees {
         self.start_
     }
 
+    #[inline]
     /// Return the sweep angle of the arc.
     pub fn get_sweep(&self) -> Degrees {
         self.sweep_
     }
 
+    #[inline]
     /// Return true if the arc includes the center of its oval.
     pub fn include_center(&self) -> bool {
         self.include_center_
     }
 
+    #[inline]
     pub fn is_perfect_circle(&self) -> bool {
         self.bounds_.is_square()
     }
 
+    #[inline]
     pub fn is_full_circle(&self) -> bool {
         self.sweep_.degrees >= 360.0
     }
@@ -230,8 +239,8 @@ impl Arc {
             return iterations;
         }
 
-        let mut cur_quadrant: i32 = ((start + nudge).degrees / 90.0).floor() as i32;
-        let end_quadrant: i32 = ((end - nudge).degrees / 90.0).floor() as i32;
+        let mut cur_quadrant: i32 = ((start + nudge).degrees / 90.0).floor_c() as i32;
+        let end_quadrant: i32 = ((end - nudge).degrees / 90.0).floor_c() as i32;
         fml::fml_dcheck_at!(
             "flutter/impeller/geometry/arc.cc",
             139,
@@ -259,7 +268,7 @@ impl Arc {
 
         let next_step = |angle: Degrees, quadrant: i32| -> usize {
             let quadrant_fract: Scalar = angle.degrees / 90.0 - quadrant as Scalar;
-            (quadrant_fract * step_count as Scalar).ceil() as usize
+            (quadrant_fract * step_count as Scalar).ceil_c() as usize
         };
 
         let mut i: usize = 0;
@@ -309,6 +318,7 @@ fn compute_circle_arc_iterations(step_count: usize) -> Iteration {
 }
 
 impl fmt::Display for Arc {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,

@@ -18,22 +18,27 @@ pub struct RoundSuperellipse {
 }
 
 impl RoundSuperellipse {
+    #[inline]
     pub fn make_rect(rect: &Rect) -> RoundSuperellipse {
         RoundSuperellipse::make_rect_radii(rect, &RoundingRadii::default())
     }
 
+    #[inline]
     pub fn make_oval(rect: &Rect) -> RoundSuperellipse {
         RoundSuperellipse::make_rect_radii(rect, &RoundingRadii::make_radii(rect.get_size() * 0.5))
     }
 
+    #[inline]
     pub fn make_rect_radius(rect: &Rect, radius: Scalar) -> RoundSuperellipse {
         RoundSuperellipse::make_rect_radii(rect, &RoundingRadii::make_radius(radius))
     }
 
+    #[inline]
     pub fn make_rect_xy(rect: &Rect, x_radius: Scalar, y_radius: Scalar) -> RoundSuperellipse {
         RoundSuperellipse::make_rect_radii(rect, &RoundingRadii::make_radii(Size::new(x_radius, y_radius)))
     }
 
+    #[inline]
     pub fn make_rect_xy_size(rect: &Rect, corner_radii: Size) -> RoundSuperellipse {
         RoundSuperellipse::make_rect_radii(rect, &RoundingRadii::make_radii(corner_radii))
     }
@@ -52,10 +57,12 @@ impl RoundSuperellipse {
         &self.bounds_
     }
 
+    #[inline]
     pub fn get_radii(&self) -> &RoundingRadii {
         &self.radii_
     }
 
+    #[inline]
     pub fn is_finite(&self) -> bool {
         self.bounds_.is_finite()
             && self.radii_.top_left.is_finite()
@@ -64,14 +71,17 @@ impl RoundSuperellipse {
             && self.radii_.bottom_right.is_finite()
     }
 
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.bounds_.is_empty()
     }
 
+    #[inline]
     pub fn is_rect(&self) -> bool {
         !self.bounds_.is_empty() && self.radii_.are_all_corners_empty()
     }
 
+    #[inline]
     pub fn is_oval(&self) -> bool {
         !self.bounds_.is_empty()
             && self.radii_.are_all_corners_same()
@@ -79,6 +89,7 @@ impl RoundSuperellipse {
             && scalar_nearly_equal(self.radii_.top_left.height, self.bounds_.get_height() * 0.5)
     }
 
+    #[inline]
     /// Returns true iff the provided point |p| is inside the half-open
     /// interior of this rounded superellipse.
     pub fn contains(&self, p: &Point) -> bool {
@@ -89,18 +100,22 @@ impl RoundSuperellipse {
         param.contains(p)
     }
 
+    #[inline]
     pub fn shift(&self, dx: Scalar, dy: Scalar) -> RoundSuperellipse {
         RoundSuperellipse::make_rect_radii(&self.bounds_.shift(dx, dy), &self.radii_)
     }
 
+    #[inline]
     pub fn expand_ltrb(&self, left: Scalar, top: Scalar, right: Scalar, bottom: Scalar) -> RoundSuperellipse {
         RoundSuperellipse::make_rect_radii(&self.bounds_.expand_ltrb(left, top, right, bottom), &self.radii_)
     }
 
+    #[inline]
     pub fn expand_xy(&self, horizontal: Scalar, vertical: Scalar) -> RoundSuperellipse {
         RoundSuperellipse::make_rect_radii(&self.bounds_.expand_xy(horizontal, vertical), &self.radii_)
     }
 
+    #[inline]
     pub fn expand(&self, amount: Scalar) -> RoundSuperellipse {
         RoundSuperellipse::make_rect_radii(&self.bounds_.expand(amount), &self.radii_)
     }
@@ -124,6 +139,7 @@ impl RoundSuperellipsePathSource {
         RoundSuperellipsePathSource { round_superellipse_: *round_superellipse }
     }
 
+    #[inline]
     pub fn get_round_superellipse(&self) -> &RoundSuperellipse {
         &self.round_superellipse_
     }
@@ -152,6 +168,7 @@ impl PathSource for RoundSuperellipsePathSource {
 }
 
 impl fmt::Display for RoundSuperellipse {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(rect: {}, radii: {})", self.get_bounds(), self.get_radii())
     }

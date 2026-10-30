@@ -33,12 +33,14 @@ pub struct Radius {
 }
 
 impl Sigma {
+    #[inline]
     pub const fn new(p_sigma: Scalar) -> Sigma {
         Sigma { sigma: p_sigma }
     }
 }
 
 impl Radius {
+    #[inline]
     pub const fn new(p_radius: Scalar) -> Radius {
         Radius { radius: p_radius }
     }
@@ -46,6 +48,7 @@ impl Radius {
 
 /// `Sigma::operator Radius()`.
 impl From<Sigma> for Radius {
+    #[inline]
     fn from(s: Sigma) -> Radius {
         Radius { radius: if s.sigma > 0.5 { (s.sigma - 0.5) * kKernelRadiusPerSigma } else { 0.0 } }
     }
@@ -53,6 +56,7 @@ impl From<Sigma> for Radius {
 
 /// `Radius::operator Sigma()`.
 impl From<Radius> for Sigma {
+    #[inline]
     fn from(r: Radius) -> Sigma {
         Sigma { sigma: if r.radius > 0.0 { r.radius / kKernelRadiusPerSigma + 0.5 } else { 0.0 } }
     }

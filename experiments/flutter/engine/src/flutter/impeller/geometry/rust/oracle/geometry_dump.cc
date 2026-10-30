@@ -6,7 +6,7 @@
 // program over the port; the two outputs must be byte-identical.
 //
 //   geometry_dump <suite> <seed> <cases>     suite: see main()
-//   geometry_dump bench <suite> <rounds>     a suite with its output discarded
+//   geometry_dump bench <name> <rounds>      a benchmark (see Bench below)
 //
 // Every float is printed as its exact bit pattern (%08x, doubles %016llx),
 // never as decimal, so a difference in the last bit is a difference.
@@ -2674,6 +2674,190 @@ static void SuiteRound(Rng& r, int cases) {
   }
 }
 
+// ------------------------------------------------------------- benchmarks ---
+//
+// geometry_dump bench <name> <rounds>: inputs are generated before timing;
+// each round times only calls into the library over 4096 inputs, folding the
+// results into a checksum (which both drivers must print alike). Prints the
+// fastest, median and slowest round in nanoseconds, the checksum and the
+// process's peak RSS (VmHWM, kB).
+
+#include <algorithm>
+#include <chrono>
+#include <fstream>
+
+static uint64_t g_sum = 0;
+static void Fold(float v) {
+  uint32_t b = std::isnan(v) ? 0x7fc00000u : Bits(v);
+  g_sum = (g_sum ^ b) * 0x100000001b3ULL;
+}
+static void FoldU(uint64_t v) { g_sum = (g_sum ^ v) * 0x100000001b3ULL; }
+
+class CountingReceiver : public PathReceiver {
+ public:
+  void MoveTo(const Point& p2, bool) override { Fold(p2.x); }
+  void LineTo(const Point& p2) override { Fold(p2.y); }
+  void QuadTo(const Point& cp, const Point& p2) override { Fold(cp.x + p2.y); }
+  bool ConicTo(const Point& cp, const Point& p2, Scalar w) override {
+    Fold(cp.x + p2.y + w);
+    return true;
+  }
+  void CubicTo(const Point& a, const Point& b, const Point& c) override {
+    Fold(a.x + b.y + c.x);
+  }
+  void Close() override { FoldU(1); }
+};
+
+static long PeakRssKb() {
+  std::ifstream f("/proc/self/status");
+  std::string l;
+  while (std::getline(f, l)) {
+    if (l.rfind("VmHWM:", 0) == 0) {
+      return std::atol(l.c_str() + 6);
+    }
+  }
+  return -1;
+}
+
+static const int kN = 4096;
+
+static void Bench(const std::string& name, int rounds) {
+  Rng r{42};
+  std::vector<Point> p0(kN), p1(kN), p2(kN);
+  std::vector<float> s(kN);
+  std::vector<Matrix> m0(kN), m1(kN);
+  std::vector<Rect> r0(kN), r1(kN);
+  std::vector<IRect> i0(kN), i1(kN);
+  std::vector<Color> c0(kN), c1(kN);
+  std::vector<RoundingRadii> rr(kN);
+  for (int i = 0; i < kN; i++) {
+    p0[i] = SaneP(r);
+    p1[i] = SaneP(r);
+    p2[i] = SaneP(r);
+    s[i] = SaneF(r);
+    m0[i] = GenM(r);
+    m1[i] = GenM(r);
+    r0[i] = RoundBounds(r);
+    r1[i] = RoundBounds(r);
+    i0[i] = GenIR<int64_t>(r, 64);
+    i1[i] = GenIR<int64_t>(r, 64);
+    c0[i] = UnitC(r);
+    c1[i] = UnitC(r);
+    rr[i] = GenRadii(r);
+  }
+  std::vector<double> times;
+  for (int round = 0; round < rounds; round++) {
+    auto t0 = std::chrono::steady_clock::now();
+    if (name == "point") {
+      for (int i = 0; i < kN; i++) {
+        Fold(p0[i].GetDistanceToSegment(p1[i], p2[i]));
+        Fold(p0[i].Normalize().x);
+        Fold(p0[i].Rotate(Radians(s[i])).y);
+        Fold((p0[i] * p1[i] + p2[i] / s[i]).x);
+        Fold(p0[i].AngleTo(p1[i]).radians);
+        Fold(p0[i].Lerp(p2[i], s[i]).y);
+      }
+    } else if (name == "matrix") {
+      for (int i = 0; i < kN; i++) {
+        Matrix m = m0[i] * m1[i];
+        Matrix inv = m.Invert();
+        Fold(inv.m[i & 15]);
+        Fold(m.GetDeterminant());
+        Fold((m * p0[i]).x);
+        Fold(m.GetMaxBasisLengthXY());
+        auto sc = m.GetMinScale2D();
+        Fold(sc.value_or(-1.0f));
+        Fold(Matrix::MakeRotationZ(Radians(s[i])).m[1]);
+      }
+    } else if (name == "decompose") {
+      for (int i = 0; i < kN; i++) {
+        auto d = m0[i].Decompose();
+        if (d.has_value()) {
+          Fold(d->scale.x);
+          Fold(Matrix(*d).m[i & 15]);
+        }
+      }
+    } else if (name == "rect") {
+      for (int i = 0; i < kN; i++) {
+        Fold(r0[i].Union(r1[i]).GetLeft());
+        Fold(r0[i].IntersectionOrEmpty(r1[i]).GetRight());
+        FoldU(r0[i].Contains(p0[i]));
+        FoldU(r0[i].Contains(r1[i]));
+        Fold(r0[i].TransformBounds(m0[i]).GetTop());
+        Fold(r0[i].TransformAndClipBounds(m1[i]).GetBottom());
+        FoldU(IRect::RoundOut(Rect::MakeLTRB(NoNaN(r0[i].GetLeft()), NoNaN(r0[i].GetTop()), NoNaN(r0[i].GetRight()), NoNaN(r0[i].GetBottom()))).GetWidth());
+        Fold(r0[i].Expand(s[i]).GetWidth());
+        Fold(r0[i].GetNormalizingTransform().m[12]);
+        Fold(r0[i].Project(r1[i]).GetLeft());
+      }
+    } else if (name == "irect") {
+      for (int i = 0; i < kN; i++) {
+        FoldU(i0[i].Union(i1[i]).GetLeft());
+        FoldU(i0[i].IntersectionOrEmpty(i1[i]).GetRight());
+        FoldU(i0[i].Expand(i1[i].GetLeft()).GetWidth());
+        FoldU(i0[i].Shift(i1[i].GetTop(), i1[i].GetRight()).GetBottom());
+        FoldU(i0[i].Area());
+        Fold(i0[i].GetCenter().x);
+      }
+    } else if (name == "color") {
+      for (int i = 0; i < kN; i++) {
+        for (int mode = 0; mode <= static_cast<int>(BlendMode::kLastMode);
+             mode++) {
+          Fold(c0[i].Blend(c1[i], static_cast<BlendMode>(mode)).red);
+        }
+        Fold(c0[i].LinearToSRGB().green);
+        Fold(c0[i].SRGBToLinear().blue);
+        FoldU(Color::ToIColor(c0[i]));
+      }
+    } else if (name == "rrect") {
+      CountingReceiver receiver;
+      for (int i = 0; i < kN; i++) {
+        RoundRect rrect = RoundRect::MakeRectRadii(r0[i], rr[i]);
+        FoldU(rrect.Contains(p0[i]));
+        FoldU(rrect.Contains(rrect.GetBounds().GetCenter()));
+        RoundRectPathSource(rrect).Dispatch(receiver);
+      }
+    } else if (name == "rse") {
+      CountingReceiver receiver;
+      for (int i = 0; i < kN; i++) {
+        RoundSuperellipse rse = RoundSuperellipse::MakeRectRadii(r0[i], rr[i]);
+        FoldU(rse.Contains(p0[i]));
+        FoldU(rse.Contains(rse.GetBounds().GetCenter()));
+        RoundSuperellipsePathSource(rse).Dispatch(receiver);
+      }
+    } else if (name == "arc") {
+      for (int i = 0; i < kN; i++) {
+        Arc arc(r0[i], Degrees(s[i] * 3.0f), Degrees(s[(i + 1) % kN] * 4.0f),
+                (i & 1) != 0);
+        Fold(arc.GetTightArcBounds().GetLeft());
+        auto it = arc.ComputeIterations(18, true);
+        FoldU(it.quadrant_count);
+        FoldU(it.GetPointCount());
+      }
+    } else if (name == "gradient") {
+      for (int i = 0; i < kN / 16; i++) {
+        std::vector<Color> colors = {c0[i], c1[i], c0[i + 1], c1[i + 1]};
+        float a = std::abs(s[i]) / 400.0f, b = std::abs(s[i + 1]) / 400.0f;
+        std::vector<Scalar> stops = {0.0f, std::min(a, b), std::max(a, b),
+                                     1.0f};
+        auto g = CreateGradientBuffer(colors, stops);
+        FoldU(g.colors.size());
+        Fold(g.colors.back().red);
+      }
+    } else {
+      std::fprintf(stderr, "unknown bench %s\n", name.c_str());
+      std::exit(2);
+    }
+    auto t1 = std::chrono::steady_clock::now();
+    times.push_back(std::chrono::duration<double, std::nano>(t1 - t0).count());
+  }
+  std::sort(times.begin(), times.end());
+  std::printf("%s fastest_ns %.0f median_ns %.0f slowest_ns %.0f checksum %016" PRIx64
+              " peak_rss_kb %ld\n",
+              name.c_str(), times.front(), times[times.size() / 2], times.back(),
+              g_sum, PeakRssKb());
+}
+
 // ----------------------------------------------------------------- main ----
 
 typedef void (*Suite)(Rng&, int);
@@ -2702,20 +2886,8 @@ int main(int argc, char** argv) {
   }
   std::string suite = argv[1];
   if (suite == "bench") {
-    std::freopen("/dev/null", "w", stdout);
-    std::string name = argv[2];
-    int rounds = std::atoi(argv[3]);
-    for (const auto& s : kSuites) {
-      if (name == s.name) {
-        for (int i = 0; i < rounds; i++) {
-          Rng r{static_cast<uint64_t>(i + 1)};
-          s.suite(r, 20000);
-        }
-        return 0;
-      }
-    }
-    std::fprintf(stderr, "unknown suite %s\n", argv[2]);
-    return 2;
+    Bench(argv[2], std::atoi(argv[3]));
+    return 0;
   }
   Rng r{std::strtoull(argv[2], nullptr, 10)};
   int cases = std::atoi(argv[3]);

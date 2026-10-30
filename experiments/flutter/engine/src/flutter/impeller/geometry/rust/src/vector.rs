@@ -28,55 +28,66 @@ const _: () = assert!(std::mem::size_of::<Vector3>() == 3 * std::mem::size_of::<
 const _: () = assert!(std::mem::size_of::<Vector4>() == 4 * std::mem::size_of::<Scalar>());
 
 impl From<Color> for Vector3 {
+    #[inline]
     fn from(c: Color) -> Vector3 {
         Vector3 { x: c.red, y: c.green, z: c.blue }
     }
 }
 
 impl From<Point> for Vector3 {
+    #[inline]
     fn from(p: Point) -> Vector3 {
         Vector3 { x: p.x, y: p.y, z: 0.0 }
     }
 }
 
 impl From<Size> for Vector3 {
+    #[inline]
     fn from(s: Size) -> Vector3 {
         Vector3 { x: s.width, y: s.height, z: 0.0 }
     }
 }
 
 impl Vector3 {
+    #[inline]
     pub const fn new(x: Scalar, y: Scalar, z: Scalar) -> Vector3 {
         Vector3 { x, y, z }
     }
 
+    #[inline]
     /// `Vector3(Scalar x, Scalar y)`.
     pub const fn new2(x: Scalar, y: Scalar) -> Vector3 {
         Vector3 { x, y, z: 0.0 }
     }
 
+    #[inline]
     pub const fn e(&self) -> [Scalar; 3] {
         [self.x, self.y, self.z]
     }
 
+    #[inline]
     /// The length (or magnitude of the vector).
     pub fn get_length(&self) -> Scalar {
         (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
 
+    #[inline]
     pub fn normalize(&self) -> Vector3 {
         let len = self.get_length();
         Vector3 { x: self.x / len, y: self.y / len, z: self.z / len }
     }
 
+    #[inline]
     pub fn dot(&self, other: &Vector3) -> Scalar {
         (self.x * other.x) + (self.y * other.y) + (self.z * other.z)
     }
 
+    #[inline]
     pub fn abs(&self) -> Vector3 {
         Vector3 { x: self.x.abs(), y: self.y.abs(), z: self.z.abs() }
     }
 
+    #[inline]
     pub fn cross(&self, other: &Vector3) -> Vector3 {
         Vector3 {
             x: (self.y * other.z) - (self.z * other.y),
@@ -85,30 +96,37 @@ impl Vector3 {
         }
     }
 
+    #[inline]
     pub fn min(&self, p: &Vector3) -> Vector3 {
         Vector3 { x: cxx::min(self.x, p.x), y: cxx::min(self.y, p.y), z: cxx::min(self.z, p.z) }
     }
 
+    #[inline]
     pub fn max(&self, p: &Vector3) -> Vector3 {
         Vector3 { x: cxx::max(self.x, p.x), y: cxx::max(self.y, p.y), z: cxx::max(self.z, p.z) }
     }
 
+    #[inline]
     pub fn floor(&self) -> Vector3 {
-        Vector3 { x: self.x.floor(), y: self.y.floor(), z: self.z.floor() }
+        Vector3 { x: self.x.floor_c(), y: self.y.floor_c(), z: self.z.floor_c() }
     }
 
+    #[inline]
     pub fn ceil(&self) -> Vector3 {
-        Vector3 { x: self.x.ceil(), y: self.y.ceil(), z: self.z.ceil() }
+        Vector3 { x: self.x.ceil_c(), y: self.y.ceil_c(), z: self.z.ceil_c() }
     }
 
+    #[inline]
     pub fn round(&self) -> Vector3 {
-        Vector3 { x: self.x.round(), y: self.y.round(), z: self.z.round() }
+        Vector3 { x: self.x.round_c(), y: self.y.round_c(), z: self.z.round_c() }
     }
 
+    #[inline]
     pub fn lerp(&self, v: &Vector3, t: Scalar) -> Vector3 {
         *self + (*v - *self) * t
     }
 
+    #[inline]
     /// Make a linear combination of two vectors and return the result.
     pub fn combine(a: &Vector3, aScale: Scalar, b: &Vector3, bScale: Scalar) -> Vector3 {
         Vector3 {
@@ -121,6 +139,7 @@ impl Vector3 {
 
 impl Index<usize> for Vector3 {
     type Output = Scalar;
+    #[inline]
     fn index(&self, i: usize) -> &Scalar {
         match i {
             0 => &self.x,
@@ -132,6 +151,7 @@ impl Index<usize> for Vector3 {
 }
 
 impl IndexMut<usize> for Vector3 {
+    #[inline]
     fn index_mut(&mut self, i: usize) -> &mut Scalar {
         match i {
             0 => &mut self.x,
@@ -143,6 +163,7 @@ impl IndexMut<usize> for Vector3 {
 }
 
 impl AddAssign for Vector3 {
+    #[inline]
     fn add_assign(&mut self, p: Vector3) {
         self.x += p.x;
         self.y += p.y;
@@ -151,6 +172,7 @@ impl AddAssign for Vector3 {
 }
 
 impl SubAssign for Vector3 {
+    #[inline]
     fn sub_assign(&mut self, p: Vector3) {
         self.x -= p.x;
         self.y -= p.y;
@@ -159,6 +181,7 @@ impl SubAssign for Vector3 {
 }
 
 impl MulAssign<Vector3> for Vector3 {
+    #[inline]
     fn mul_assign(&mut self, p: Vector3) {
         self.x *= p.x;
         self.y *= p.y;
@@ -176,6 +199,7 @@ impl<U: Num> MulAssign<U> for Vector3 {
 }
 
 impl DivAssign<Vector3> for Vector3 {
+    #[inline]
     fn div_assign(&mut self, p: Vector3) {
         self.x /= p.x;
         self.y /= p.y;
@@ -193,6 +217,7 @@ impl<U: Num> DivAssign<U> for Vector3 {
 
 impl Neg for Vector3 {
     type Output = Vector3;
+    #[inline]
     fn neg(self) -> Vector3 {
         Vector3::new(-self.x, -self.y, -self.z)
     }
@@ -200,6 +225,7 @@ impl Neg for Vector3 {
 
 impl Add<Vector3> for Vector3 {
     type Output = Vector3;
+    #[inline]
     fn add(self, v: Vector3) -> Vector3 {
         Vector3::new(self.x + v.x, self.y + v.y, self.z + v.z)
     }
@@ -207,6 +233,7 @@ impl Add<Vector3> for Vector3 {
 
 impl Sub<Vector3> for Vector3 {
     type Output = Vector3;
+    #[inline]
     fn sub(self, v: Vector3) -> Vector3 {
         Vector3::new(self.x - v.x, self.y - v.y, self.z - v.z)
     }
@@ -215,6 +242,7 @@ impl Sub<Vector3> for Vector3 {
 /// `operator+(Scalar s)`.
 impl Add<Scalar> for Vector3 {
     type Output = Vector3;
+    #[inline]
     fn add(self, s: Scalar) -> Vector3 {
         Vector3::new(self.x + s, self.y + s, self.z + s)
     }
@@ -223,6 +251,7 @@ impl Add<Scalar> for Vector3 {
 /// `operator-(Scalar s)`.
 impl Sub<Scalar> for Vector3 {
     type Output = Vector3;
+    #[inline]
     fn sub(self, s: Scalar) -> Vector3 {
         Vector3::new(self.x - s, self.y - s, self.z - s)
     }
@@ -230,6 +259,7 @@ impl Sub<Scalar> for Vector3 {
 
 impl Mul<Vector3> for Vector3 {
     type Output = Vector3;
+    #[inline]
     fn mul(self, v: Vector3) -> Vector3 {
         Vector3::new(self.x * v.x, self.y * v.y, self.z * v.z)
     }
@@ -244,6 +274,7 @@ impl<U: Num> Mul<U> for Vector3 {
 
 impl Div<Vector3> for Vector3 {
     type Output = Vector3;
+    #[inline]
     fn div(self, v: Vector3) -> Vector3 {
         Vector3::new(self.x / v.x, self.y / v.y, self.z / v.z)
     }
@@ -301,12 +332,14 @@ pub struct Vector4 {
 }
 
 impl Default for Vector4 {
+    #[inline]
     fn default() -> Vector4 {
         Vector4 { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
     }
 }
 
 impl From<Color> for Vector4 {
+    #[inline]
     fn from(c: Color) -> Vector4 {
         Vector4 { x: c.red, y: c.green, z: c.blue, w: c.alpha }
     }
@@ -314,6 +347,7 @@ impl From<Color> for Vector4 {
 
 /// `Vector4(const Vector3&)`: w keeps its default, 1.
 impl From<Vector3> for Vector4 {
+    #[inline]
     fn from(v: Vector3) -> Vector4 {
         Vector4 { x: v.x, y: v.y, z: v.z, w: 1.0 }
     }
@@ -321,6 +355,7 @@ impl From<Vector3> for Vector4 {
 
 /// `Vector4(const Point&)`: z is 0 and w 1.
 impl From<Point> for Vector4 {
+    #[inline]
     fn from(p: Point) -> Vector4 {
         Vector4 { x: p.x, y: p.y, z: 0.0, w: 1.0 }
     }
@@ -333,24 +368,29 @@ impl From<[Scalar; 4]> for Vector4 {
 }
 
 impl Vector4 {
+    #[inline]
     pub const fn new(x: Scalar, y: Scalar, z: Scalar, w: Scalar) -> Vector4 {
         Vector4 { x, y, z, w }
     }
 
+    #[inline]
     pub const fn e(&self) -> [Scalar; 4] {
         [self.x, self.y, self.z, self.w]
     }
 
+    #[inline]
     pub fn is_finite(&self) -> bool {
         self.x.is_finite() && self.y.is_finite() && self.z.is_finite() && self.w.is_finite()
     }
 
+    #[inline]
     pub fn normalize(&self) -> Vector4 {
         let inverse: Scalar =
             1.0 / (self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w).sqrt();
         Vector4::new(self.x * inverse, self.y * inverse, self.z * inverse, self.w * inverse)
     }
 
+    #[inline]
     pub fn min(&self, p: &Vector4) -> Vector4 {
         Vector4::new(
             cxx::min(self.x, p.x),
@@ -360,6 +400,7 @@ impl Vector4 {
         )
     }
 
+    #[inline]
     pub fn max(&self, p: &Vector4) -> Vector4 {
         Vector4::new(
             cxx::max(self.x, p.x),
@@ -369,22 +410,27 @@ impl Vector4 {
         )
     }
 
+    #[inline]
     pub fn floor(&self) -> Vector4 {
-        Vector4::new(self.x.floor(), self.y.floor(), self.z.floor(), self.w.floor())
+        Vector4::new(self.x.floor_c(), self.y.floor_c(), self.z.floor_c(), self.w.floor_c())
     }
 
+    #[inline]
     pub fn ceil(&self) -> Vector4 {
-        Vector4::new(self.x.ceil(), self.y.ceil(), self.z.ceil(), self.w.ceil())
+        Vector4::new(self.x.ceil_c(), self.y.ceil_c(), self.z.ceil_c(), self.w.ceil_c())
     }
 
+    #[inline]
     pub fn round(&self) -> Vector4 {
-        Vector4::new(self.x.round(), self.y.round(), self.z.round(), self.w.round())
+        Vector4::new(self.x.round_c(), self.y.round_c(), self.z.round_c(), self.w.round_c())
     }
 
+    #[inline]
     pub fn lerp(&self, v: &Vector4, t: Scalar) -> Vector4 {
         *self + (*v - *self) * t
     }
 
+    #[inline]
     pub fn xy(&self) -> Vector2 {
         Vector2::new(self.x, self.y)
     }
@@ -392,6 +438,7 @@ impl Vector4 {
 
 impl Index<usize> for Vector4 {
     type Output = Scalar;
+    #[inline]
     fn index(&self, i: usize) -> &Scalar {
         match i {
             0 => &self.x,
@@ -404,6 +451,7 @@ impl Index<usize> for Vector4 {
 }
 
 impl IndexMut<usize> for Vector4 {
+    #[inline]
     fn index_mut(&mut self, i: usize) -> &mut Scalar {
         match i {
             0 => &mut self.x,
@@ -417,6 +465,7 @@ impl IndexMut<usize> for Vector4 {
 
 impl Add for Vector4 {
     type Output = Vector4;
+    #[inline]
     fn add(self, v: Vector4) -> Vector4 {
         Vector4::new(self.x + v.x, self.y + v.y, self.z + v.z, self.w + v.w)
     }
@@ -424,6 +473,7 @@ impl Add for Vector4 {
 
 impl Sub for Vector4 {
     type Output = Vector4;
+    #[inline]
     fn sub(self, v: Vector4) -> Vector4 {
         Vector4::new(self.x - v.x, self.y - v.y, self.z - v.z, self.w - v.w)
     }
@@ -431,6 +481,7 @@ impl Sub for Vector4 {
 
 impl Mul<Scalar> for Vector4 {
     type Output = Vector4;
+    #[inline]
     fn mul(self, f: Scalar) -> Vector4 {
         Vector4::new(self.x * f, self.y * f, self.z * f, self.w * f)
     }
@@ -438,12 +489,14 @@ impl Mul<Scalar> for Vector4 {
 
 impl Mul<Vector4> for Vector4 {
     type Output = Vector4;
+    #[inline]
     fn mul(self, v: Vector4) -> Vector4 {
         Vector4::new(self.x * v.x, self.y * v.y, self.z * v.z, self.w * v.w)
     }
 }
 
 impl fmt::Display for Vector3 {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use crate::print::g;
         write!(f, "({}, {}, {})", g(self.x), g(self.y), g(self.z))
@@ -451,6 +504,7 @@ impl fmt::Display for Vector3 {
 }
 
 impl fmt::Display for Vector4 {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use crate::print::g;
         write!(f, "({}, {}, {}, {})", g(self.x), g(self.y), g(self.z), g(self.w))

@@ -22,12 +22,14 @@ pub struct RSTransform {
 }
 
 impl Default for RSTransform {
+    #[inline]
     fn default() -> RSTransform {
         RSTransform { scaled_cos: 1.0, scaled_sin: 0.0, translate_x: 0.0, translate_y: 0.0 }
     }
 }
 
 impl RSTransform {
+    #[inline]
     pub const fn new(
         scaled_cos: Scalar,
         scaled_sin: Scalar,
@@ -37,6 +39,7 @@ impl RSTransform {
         RSTransform { scaled_cos, scaled_sin, translate_x, translate_y }
     }
 
+    #[inline]
     pub fn make(origin: Point, scale: Scalar, radians: Radians) -> RSTransform {
         let scaled_cos_sin = Matrix::cos_sin(radians) * scale;
         RSTransform::new(scaled_cos_sin.x, scaled_cos_sin.y, origin.x, origin.y)
@@ -56,6 +59,7 @@ impl RSTransform {
                          0.0,              0.0,             0.0, 1.0)
     }
 
+    #[inline]
     /// Returns the 4 corner points of the transformed quad for a sub-image
     /// of the indicated size in the same order as Rect::GetPoints.
     pub fn get_quad_into(&self, width: Scalar, height: Scalar, quad: &mut Quad) {
@@ -71,6 +75,7 @@ impl RSTransform {
         quad
     }
 
+    #[inline]
     pub fn get_quad_size(&self, size: Size) -> Quad {
         let mut quad = Quad::default();
         self.get_quad_into(size.width, size.height, &mut quad);
@@ -83,12 +88,14 @@ impl RSTransform {
         Rect::make_point_bounds(&self.get_quad(width, height))
     }
 
+    #[inline]
     pub fn get_bounds_size(&self, size: Size) -> Option<Rect> {
         Rect::make_point_bounds(&self.get_quad_size(size))
     }
 }
 
 impl fmt::Display for RSTransform {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use crate::print::g;
         write!(

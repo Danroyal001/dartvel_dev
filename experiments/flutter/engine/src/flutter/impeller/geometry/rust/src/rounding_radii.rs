@@ -18,15 +18,18 @@ pub struct RoundingRadii {
 }
 
 impl RoundingRadii {
+    #[inline]
     pub fn make_radius(radius: Scalar) -> RoundingRadii {
         let s = Size::splat(radius);
         RoundingRadii { top_left: s, top_right: s, bottom_left: s, bottom_right: s }
     }
 
+    #[inline]
     pub fn make_radii(radii: Size) -> RoundingRadii {
         RoundingRadii { top_left: radii, top_right: radii, bottom_left: radii, bottom_right: radii }
     }
 
+    #[inline]
     pub fn make_nine_patch(left: Scalar, top: Scalar, right: Scalar, bottom: Scalar) -> RoundingRadii {
         RoundingRadii {
             top_left: Size::new(left, top),
@@ -36,6 +39,7 @@ impl RoundingRadii {
         }
     }
 
+    #[inline]
     pub fn is_finite(&self) -> bool {
         self.top_left.is_finite()
             && self.top_right.is_finite()
@@ -43,6 +47,7 @@ impl RoundingRadii {
             && self.bottom_right.is_finite()
     }
 
+    #[inline]
     pub fn are_all_corners_empty(&self) -> bool {
         self.top_left.is_empty()
             && self.top_right.is_empty()
@@ -50,10 +55,12 @@ impl RoundingRadii {
             && self.bottom_right.is_empty()
     }
 
+    #[inline]
     pub fn are_all_corners_same(&self) -> bool {
         self.are_all_corners_same_tol(kEhCloseEnough)
     }
 
+    #[inline]
     pub fn are_all_corners_same_tol(&self, tolerance: Scalar) -> bool {
         let tl = self.top_left;
         scalar_nearly_equal_tol(tl.width, self.top_right.width, tolerance)
@@ -64,6 +71,7 @@ impl RoundingRadii {
             && scalar_nearly_equal_tol(tl.height, self.bottom_left.height, tolerance)
     }
 
+    #[inline]
     pub fn are_all_corners_circular(&self) -> bool {
         scalar_nearly_equal(self.top_left.width, self.top_left.height)
             && scalar_nearly_equal(self.top_right.width, self.top_right.height)
@@ -140,6 +148,7 @@ fn adjust_scale(radius1: Scalar, radius2: Scalar, dimension: Scalar, scale: &mut
 
 impl Mul<Scalar> for RoundingRadii {
     type Output = RoundingRadii;
+    #[inline]
     fn mul(self, scale: Scalar) -> RoundingRadii {
         RoundingRadii {
             top_left: self.top_left * scale,
@@ -151,6 +160,7 @@ impl Mul<Scalar> for RoundingRadii {
 }
 
 impl fmt::Display for RoundingRadii {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,

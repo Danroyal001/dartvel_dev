@@ -6,7 +6,7 @@
 // literals, which could round differently.
 
 use crate::constants::kEhCloseEnough;
-use crate::cxx;
+use crate::cxx::{self, Num};
 use crate::matrix::Matrix;
 use crate::path_source::PathReceiver;
 use crate::point::Point;
@@ -277,7 +277,7 @@ fn compute_n_and_xj(mut ratio: Scalar) -> [Scalar; 2] {
         (ratio - kFirstMaxRatio) * kSecondStepInverse + kFirstNumRecords - 1.0
     };
 
-    let left: usize = cxx::clamp(steps.floor() as usize, 0, kNumRecords - 2);
+    let left: usize = cxx::clamp(steps.floor_c() as usize, 0, kNumRecords - 2);
     let frac: Scalar = steps - left as Scalar;
 
     let n: Scalar =
@@ -633,7 +633,7 @@ fn superellipse_bezier_factors(mut n: Scalar, xJOverA: Scalar, yJOverA: Scalar) 
     }
 
     let steps: Scalar = cxx::clamp((n - kMinN) / kStep, 0.0, (kNumRecords - 1) as Scalar);
-    let left: usize = cxx::clamp(steps.floor() as usize, 0, kNumRecords - 2);
+    let left: usize = cxx::clamp(steps.floor_c() as usize, 0, kNumRecords - 2);
     let frac: Scalar = steps - left as Scalar;
 
     let weight1: Scalar = (1.0 - frac) * kPrecomputedVariables[left][0]

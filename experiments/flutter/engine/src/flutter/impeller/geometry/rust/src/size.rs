@@ -64,15 +64,15 @@ impl<T: Num> TSize<T> {
     }
 
     pub fn floor(&self) -> Self {
-        TSize { width: self.width.floor(), height: self.height.floor() }
+        TSize { width: self.width.floor_c(), height: self.height.floor_c() }
     }
 
     pub fn ceil(&self) -> Self {
-        TSize { width: self.width.ceil(), height: self.height.ceil() }
+        TSize { width: self.width.ceil_c(), height: self.height.ceil_c() }
     }
 
     pub fn round(&self) -> Self {
-        TSize { width: self.width.round(), height: self.height.round() }
+        TSize { width: self.width.round_c(), height: self.height.round_c() }
     }
 
     pub fn area(&self) -> T {

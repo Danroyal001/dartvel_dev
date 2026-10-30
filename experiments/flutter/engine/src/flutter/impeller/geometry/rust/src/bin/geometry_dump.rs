@@ -2676,6 +2676,235 @@ fn suite_round(r: &mut Rng, o: &mut Out, cases: i32) {
     }
 }
 
+// ------------------------------------------------------------- benchmarks ---
+//
+// geometry_dump bench <name> <rounds>: see oracle/geometry_dump.cc's Bench,
+// which this mirrors; the checksums must agree.
+
+struct Fold(u64);
+
+impl Fold {
+    #[inline(always)]
+    fn f(&mut self, v: f32) {
+        let b = if v.is_nan() { 0x7fc00000u32 } else { v.to_bits() };
+        self.0 = (self.0 ^ b as u64).wrapping_mul(0x100000001b3);
+    }
+    #[inline(always)]
+    fn u(&mut self, v: u64) {
+        self.0 = (self.0 ^ v).wrapping_mul(0x100000001b3);
+    }
+}
+
+struct CountingReceiver<'a>(&'a mut Fold);
+
+impl PathReceiver for CountingReceiver<'_> {
+    fn move_to(&mut self, p2: &Point, _: bool) {
+        self.0.f(p2.x);
+    }
+    fn line_to(&mut self, p2: &Point) {
+        self.0.f(p2.y);
+    }
+    fn quad_to(&mut self, cp: &Point, p2: &Point) {
+        self.0.f(cp.x + p2.y);
+    }
+    fn conic_to(&mut self, cp: &Point, p2: &Point, w: Scalar) -> bool {
+        self.0.f(cp.x + p2.y + w);
+        true
+    }
+    fn cubic_to(&mut self, a: &Point, b: &Point, c: &Point) {
+        self.0.f(a.x + b.y + c.x);
+    }
+    fn close(&mut self) {
+        self.0.u(1);
+    }
+}
+
+fn peak_rss_kb() -> i64 {
+    let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
+    for l in status.lines() {
+        if let Some(v) = l.strip_prefix("VmHWM:") {
+            return v.trim().trim_end_matches("kB").trim().parse().unwrap_or(-1);
+        }
+    }
+    -1
+}
+
+#[allow(non_upper_case_globals)]
+const kN: usize = 4096;
+
+fn bench(name: &str, rounds: i32) {
+    let mut r = Rng { s: 42 };
+    let mut p0 = vec![Point::default(); kN];
+    let mut p1 = vec![Point::default(); kN];
+    let mut p2 = vec![Point::default(); kN];
+    let mut s = vec![0.0f32; kN];
+    let mut m0 = vec![Matrix::default(); kN];
+    let mut m1 = vec![Matrix::default(); kN];
+    let mut r0 = vec![Rect::default(); kN];
+    let mut r1 = vec![Rect::default(); kN];
+    let mut i0 = vec![IRect::default(); kN];
+    let mut i1 = vec![IRect::default(); kN];
+    let mut c0 = vec![Color::default(); kN];
+    let mut c1 = vec![Color::default(); kN];
+    let mut rr = vec![RoundingRadii::default(); kN];
+    for i in 0..kN {
+        p0[i] = sane_p(&mut r);
+        p1[i] = sane_p(&mut r);
+        p2[i] = sane_p(&mut r);
+        s[i] = sane_f(&mut r);
+        m0[i] = gen_m(&mut r);
+        m1[i] = gen_m(&mut r);
+        r0[i] = round_bounds(&mut r);
+        r1[i] = round_bounds(&mut r);
+        i0[i] = gen_ir(&mut r, 64);
+        i1[i] = gen_ir(&mut r, 64);
+        c0[i] = unit_c(&mut r);
+        c1[i] = unit_c(&mut r);
+        rr[i] = gen_radii(&mut r);
+    }
+    // Fixed-length arrays, so that indexing with `i < kN` needs no bounds
+    // check (the C++ loop indexes std::vector unchecked).
+    fn fixed<T>(v: Vec<T>) -> Box<[T; kN]> {
+        v.into_boxed_slice().try_into().unwrap_or_else(|_| unreachable!())
+    }
+    let (p0, p1, p2, s) = (fixed(p0), fixed(p1), fixed(p2), fixed(s));
+    let (m0, m1, r0, r1) = (fixed(m0), fixed(m1), fixed(r0), fixed(r1));
+    let (i0, i1, c0, c1, rr) = (fixed(i0), fixed(i1), fixed(c0), fixed(c1), fixed(rr));
+    let mut sum = Fold(0);
+    let mut times: Vec<f64> = Vec::new();
+    for _ in 0..rounds {
+        let t0 = std::time::Instant::now();
+        let o = &mut sum;
+        match name {
+            "point" => {
+                for i in 0..kN {
+                    o.f(p0[i].get_distance_to_segment(p1[i], p2[i]));
+                    o.f(p0[i].normalize().x);
+                    o.f(p0[i].rotate(&Radians::new(s[i])).y);
+                    o.f((p0[i] * p1[i] + p2[i] / s[i]).x);
+                    o.f(p0[i].angle_to(&p1[i]).radians);
+                    o.f(p0[i].lerp(&p2[i], s[i]).y);
+                }
+            }
+            "matrix" => {
+                for i in 0..kN {
+                    let m = m0[i] * m1[i];
+                    let inv = m.invert();
+                    o.f(inv.m[i & 15]);
+                    o.f(m.get_determinant());
+                    o.f((m * p0[i]).x);
+                    o.f(m.get_max_basis_length_xy());
+                    o.f(m.get_min_scale_2d().unwrap_or(-1.0));
+                    o.f(Matrix::make_rotation_z(Radians::new(s[i])).m[1]);
+                }
+            }
+            "decompose" => {
+                for i in 0..kN {
+                    if let Some(d) = m0[i].decompose() {
+                        o.f(d.scale.x);
+                        o.f(Matrix::from_decomposition(&d).m[i & 15]);
+                    }
+                }
+            }
+            "rect" => {
+                for i in 0..kN {
+                    o.f(r0[i].union(&r1[i]).get_left());
+                    o.f(r0[i].intersection_or_empty(&r1[i]).get_right());
+                    o.u(r0[i].contains(&p0[i]) as u64);
+                    o.u(r0[i].contains_rect(&r1[i]) as u64);
+                    o.f(r0[i].transform_bounds(&m0[i]).get_top());
+                    o.f(r0[i].transform_and_clip_bounds(&m1[i]).get_bottom());
+                    let nr = Rect::make_ltrb(
+                        no_nan(r0[i].get_left()),
+                        no_nan(r0[i].get_top()),
+                        no_nan(r0[i].get_right()),
+                        no_nan(r0[i].get_bottom()),
+                    );
+                    o.u(IRect::round_out(&nr).get_width() as u64);
+                    o.f(r0[i].expand(s[i]).get_width());
+                    o.f(r0[i].get_normalizing_transform().m[12]);
+                    o.f(r0[i].project(r1[i]).get_left());
+                }
+            }
+            "irect" => {
+                for i in 0..kN {
+                    o.u(i0[i].union(&i1[i]).get_left() as u64);
+                    o.u(i0[i].intersection_or_empty(&i1[i]).get_right() as u64);
+                    o.u(i0[i].expand(i1[i].get_left()).get_width() as u64);
+                    o.u(i0[i].shift(i1[i].get_top(), i1[i].get_right()).get_bottom() as u64);
+                    o.u(i0[i].area() as u64);
+                    o.f(i0[i].get_center().x);
+                }
+            }
+            "color" => {
+                for i in 0..kN {
+                    for mode in 0..=BlendMode::kLastMode as u8 {
+                        o.f(c0[i].blend(c1[i], BlendMode::from_u8(mode).unwrap()).red);
+                    }
+                    o.f(c0[i].linear_to_srgb().green);
+                    o.f(c0[i].srgb_to_linear().blue);
+                    o.u(Color::to_i_color(c0[i]) as u64);
+                }
+            }
+            "rrect" => {
+                for i in 0..kN {
+                    let rrect = RoundRect::make_rect_radii(&r0[i], &rr[i]);
+                    o.u(rrect.contains(&p0[i]) as u64);
+                    o.u(rrect.contains(&rrect.get_bounds().get_center()) as u64);
+                    RoundRectPathSource::new(&rrect).dispatch(&mut CountingReceiver(o));
+                }
+            }
+            "rse" => {
+                for i in 0..kN {
+                    let rse = RoundSuperellipse::make_rect_radii(&r0[i], &rr[i]);
+                    o.u(rse.contains(&p0[i]) as u64);
+                    o.u(rse.contains(&rse.get_bounds().get_center()) as u64);
+                    RoundSuperellipsePathSource::new(&rse).dispatch(&mut CountingReceiver(o));
+                }
+            }
+            "arc" => {
+                for i in 0..kN {
+                    let arc = Arc::new(
+                        &r0[i],
+                        Degrees::new(s[i] * 3.0),
+                        Degrees::new(s[(i + 1) % kN] * 4.0),
+                        (i & 1) != 0,
+                    );
+                    o.f(arc.get_tight_arc_bounds().get_left());
+                    let it = arc.compute_iterations(18, true);
+                    o.u(it.quadrant_count as u64);
+                    o.u(it.get_point_count() as u64);
+                }
+            }
+            "gradient" => {
+                for i in 0..kN / 16 {
+                    let colors = [c0[i], c1[i], c0[i + 1], c1[i + 1]];
+                    let a = s[i].abs() / 400.0;
+                    let b = s[i + 1].abs() / 400.0;
+                    let stops = [0.0, cxx::min(a, b), cxx::max(a, b), 1.0];
+                    let g = create_gradient_buffer(&colors, &stops);
+                    o.u(g.colors.len() as u64);
+                    o.f(g.colors.last().unwrap().red);
+                }
+            }
+            _ => {
+                eprintln!("unknown bench {name}");
+                std::process::exit(2);
+            }
+        }
+        times.push(t0.elapsed().as_nanos() as f64);
+    }
+    times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    println!(
+        "{name} fastest_ns {:.0} median_ns {:.0} slowest_ns {:.0} checksum {:016x} peak_rss_kb {}",
+        times[0],
+        times[times.len() / 2],
+        times[times.len() - 1],
+        sum.0,
+        peak_rss_kb()
+    );
+}
+
 // ----------------------------------------------------------------- main ----
 
 type Suite = fn(&mut Rng, &mut Out, i32);
@@ -2700,19 +2929,8 @@ fn main() {
     }
     let mut o = Out { line: String::new(), sink: std::io::BufWriter::new(std::io::stdout()), discard: false };
     if args[1] == "bench" {
-        o.discard = true;
-        let rounds: i32 = args[3].parse().unwrap();
-        for (name, suite) in SUITES {
-            if *name == args[2] {
-                for i in 0..rounds {
-                    let mut r = Rng { s: i as u64 + 1 };
-                    suite(&mut r, &mut o, 20000);
-                }
-                return;
-            }
-        }
-        eprintln!("unknown suite {}", args[2]);
-        std::process::exit(2);
+        bench(&args[2], args[3].parse().unwrap());
+        return;
     }
     let mut r = Rng { s: args[2].parse().unwrap() };
     let cases: i32 = args[3].parse().unwrap();

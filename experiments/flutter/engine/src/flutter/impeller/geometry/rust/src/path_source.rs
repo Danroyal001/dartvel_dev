@@ -61,6 +61,7 @@ pub struct RectPathSource {
 }
 
 impl RectPathSource {
+    #[inline]
     pub fn new(r: &Rect) -> RectPathSource {
         RectPathSource { rect_: *r }
     }
@@ -149,26 +150,32 @@ impl<'a> PathTransformer<'a> {
 }
 
 impl PathReceiver for PathTransformer<'_> {
+    #[inline]
     fn move_to(&mut self, p2: &Point, will_be_closed: bool) {
         self.receiver_.move_to(&(*self.matrix_ * *p2), will_be_closed);
     }
 
+    #[inline]
     fn line_to(&mut self, p2: &Point) {
         self.receiver_.line_to(&(*self.matrix_ * *p2));
     }
 
+    #[inline]
     fn quad_to(&mut self, cp: &Point, p2: &Point) {
         self.receiver_.quad_to(&(*self.matrix_ * *cp), &(*self.matrix_ * *p2));
     }
 
+    #[inline]
     fn conic_to(&mut self, cp: &Point, p2: &Point, weight: Scalar) -> bool {
         self.receiver_.conic_to(&(*self.matrix_ * *cp), &(*self.matrix_ * *p2), weight)
     }
 
+    #[inline]
     fn cubic_to(&mut self, cp1: &Point, cp2: &Point, p2: &Point) {
         self.receiver_.cubic_to(&(*self.matrix_ * *cp1), &(*self.matrix_ * *cp2), &(*self.matrix_ * *p2));
     }
 
+    #[inline]
     fn close(&mut self) {
         self.receiver_.close();
     }

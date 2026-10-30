@@ -156,11 +156,12 @@ impl<T: RectNum> TRect<T> {
     /// Returns true iff the provided point |p| is inside the half-open
     /// interior of this rectangle.
     pub fn contains(&self, p: &TPoint<T>) -> bool {
+        // `&` for `&&`, as in `contains_rect`.
         !self.is_empty()
-            && p.x >= self.left_
-            && p.y >= self.top_
-            && p.x < self.right_
-            && p.y < self.bottom_
+            & (p.x >= self.left_)
+            & (p.y >= self.top_)
+            & (p.x < self.right_)
+            & (p.y < self.bottom_)
     }
 
     /// Returns true iff the provided point |p| is inside the closed-range
@@ -176,16 +177,20 @@ impl<T: RectNum> TRect<T> {
     /// Returns true iff this rectangle is not empty and it also contains
     /// every point considered inside the provided rectangle |o|.
     pub fn contains_rect(&self, o: &Self) -> bool {
+        // Upstream's `&&`/`||` chain evaluated with `&`/`|`: no operand has
+        // side effects, and on unpredictable data a branch per comparison
+        // costs more than computing them all.
         !self.is_empty()
-            && (o.is_empty()
-                || (o.left_ >= self.left_
-                    && o.top_ >= self.top_
-                    && o.right_ <= self.right_
-                    && o.bottom_ <= self.bottom_))
+            & (o.is_empty()
+                | ((o.left_ >= self.left_)
+                    & (o.top_ >= self.top_)
+                    & (o.right_ <= self.right_)
+                    & (o.bottom_ <= self.bottom_)))
     }
 
     pub fn is_empty(&self) -> bool {
-        !(self.left_ < self.right_ && self.top_ < self.bottom_)
+        // `&` for `&&`, as in `contains_rect`.
+        !((self.left_ < self.right_) & (self.top_ < self.bottom_))
     }
 
     pub fn is_square(&self) -> bool {
@@ -322,8 +327,17 @@ impl<T: RectNum> TRect<T> {
     #[rustfmt::skip]
     pub fn get_normalizing_transform(&self) -> Matrix {
         if !self.is_empty() {
-            let sx: Scalar = (1.0 / self.get_width().to_f64()) as Scalar;
-            let sy: Scalar = (1.0 / self.get_height().to_f64()) as Scalar;
+            // `1.0 / GetWidth()` divides in double and narrows. For a float
+            // rect that is one division rounded twice, which equals the float
+            // division (53 >= 2*24+2 bits); an integer rect keeps the double.
+            let (sx, sy): (Scalar, Scalar) = if T::KIND == cxx::Kind::F32 {
+                (1.0 / self.get_width().to_f32(), 1.0 / self.get_height().to_f32())
+            } else {
+                (
+                    (1.0 / self.get_width().to_f64()) as Scalar,
+                    (1.0 / self.get_height().to_f64()) as Scalar,
+                )
+            };
             let tx: Scalar = self.left_.to_f32() * -sx;
             let ty: Scalar = self.top_.to_f32() * -sy;
 
@@ -331,7 +345,9 @@ impl<T: RectNum> TRect<T> {
             // zero
             if sx != 0.0
                 && sy != 0.0
-                && 0.0 * sx as f64 * sy as f64 * tx as f64 * ty as f64 == 0.0
+                // Upstream multiplies in double; 0 times finite floats is a
+                // zero and any infinity or NaN makes a NaN in either width.
+                && 0.0 * sx * sy * tx * ty == 0.0
             {
                 return Matrix::new(sx,  0.0, 0.0, 0.0,
                                    0.0, sy,  0.0, 0.0,
@@ -347,17 +363,24 @@ impl<T: RectNum> TRect<T> {
     /// Returns the union of this rectangle and the given rectangle, or
     /// whichever one is not empty.
     pub fn union(&self, o: &Self) -> Self {
-        if self.is_empty() {
-            return *o;
-        }
-        if o.is_empty() {
-            return *self;
-        }
+        // Upstream returns `o` if this is empty, else this if `o` is empty,
+        // else the min/max bounds. Chosen field by field, so that the choice
+        // is a select rather than a branch on unpredictable data.
+        let (self_empty, o_empty) = (self.is_empty(), o.is_empty());
+        let pick = |mine: T, theirs: T, both: T| {
+            if self_empty {
+                theirs
+            } else if o_empty {
+                mine
+            } else {
+                both
+            }
+        };
         TRect::raw(
-            cxx::min(self.left_, o.left_),
-            cxx::min(self.top_, o.top_),
-            cxx::max(self.right_, o.right_),
-            cxx::max(self.bottom_, o.bottom_),
+            pick(self.left_, o.left_, cxx::min(self.left_, o.left_)),
+            pick(self.top_, o.top_, cxx::min(self.top_, o.top_)),
+            pick(self.right_, o.right_, cxx::max(self.right_, o.right_)),
+            pick(self.bottom_, o.bottom_, cxx::max(self.bottom_, o.bottom_)),
         )
     }
 
@@ -500,28 +523,28 @@ impl<T: RectNum> TRect<T> {
     /// and bottom, then `saturated::Cast` to `Type`.
     pub fn round_out<U: RectNum + SaturatedCast<T>>(r: &TRect<U>) -> Self {
         TRect::make_ltrb(
-            saturated::cast(r.get_left().floor()),
-            saturated::cast(r.get_top().floor()),
-            saturated::cast(r.get_right().ceil()),
-            saturated::cast(r.get_bottom().ceil()),
+            saturated::cast(r.get_left().floor_c()),
+            saturated::cast(r.get_top().floor_c()),
+            saturated::cast(r.get_right().ceil_c()),
+            saturated::cast(r.get_bottom().ceil_c()),
         )
     }
 
     pub fn round_in<U: RectNum + SaturatedCast<T>>(r: &TRect<U>) -> Self {
         TRect::make_ltrb(
-            saturated::cast(r.get_left().ceil()),
-            saturated::cast(r.get_top().ceil()),
-            saturated::cast(r.get_right().floor()),
-            saturated::cast(r.get_bottom().floor()),
+            saturated::cast(r.get_left().ceil_c()),
+            saturated::cast(r.get_top().ceil_c()),
+            saturated::cast(r.get_right().floor_c()),
+            saturated::cast(r.get_bottom().floor_c()),
         )
     }
 
     pub fn round<U: RectNum + SaturatedCast<T>>(r: &TRect<U>) -> Self {
         TRect::make_ltrb(
-            saturated::cast(r.get_left().round()),
-            saturated::cast(r.get_top().round()),
-            saturated::cast(r.get_right().round()),
-            saturated::cast(r.get_bottom().round()),
+            saturated::cast(r.get_left().round_c()),
+            saturated::cast(r.get_top().round_c()),
+            saturated::cast(r.get_right().round_c()),
+            saturated::cast(r.get_bottom().round_c()),
         )
     }
 
@@ -608,6 +631,7 @@ where
 const kMinimumHomogenous: Scalar = 1.0 / (1 << 14) as Scalar;
 
 impl TRect<Scalar> {
+    #[inline]
     /// Creates a new bounding box that contains this transformed rectangle.
     pub fn get_transformed_points(&self, transform: &Matrix) -> [Point; 4] {
         let mut points = self.get_points();
@@ -617,6 +641,7 @@ impl TRect<Scalar> {
         points
     }
 
+    #[inline]
     /// Creates a new bounding box that contains this transformed rectangle,
     /// clipped against the near clipping plane if necessary.
     pub fn transform_and_clip_bounds(&self, transform: &Matrix) -> Rect {
@@ -650,6 +675,7 @@ impl TRect<Scalar> {
         bounds.unwrap_or_default()
     }
 
+    #[inline]
     /// Creates a new bounding box that contains this transformed rectangle.
     pub fn transform_bounds(&self, transform: &Matrix) -> Rect {
         if self.is_empty() {
@@ -663,6 +689,7 @@ impl TRect<Scalar> {
     }
 
 
+    #[inline]
     /// Returns a new rectangle that represents the projection of the source
     /// rectangle onto this rectangle, expanded so that, once transformed, it
     /// is at least the given size.
@@ -710,7 +737,9 @@ fn clip_and_insert(
     right: &Vector3,
 ) -> usize {
     if p.z >= kMinimumHomogenous {
-        clipped[index] = Point::new(p.x / p.z, p.y / p.z);
+        // At most two points per corner of four: a write index is at most 7,
+        // and the mask lets the compiler drop the bounds check.
+        clipped[index & 7] = Point::new(p.x / p.z, p.y / p.z);
         index += 1;
     } else {
         index = interpolate_and_insert(clipped, index, p, left);
@@ -727,7 +756,7 @@ fn interpolate_and_insert(
 ) -> usize {
     if neighbor.z >= kMinimumHomogenous {
         let t = (kMinimumHomogenous - p.z) / (neighbor.z - p.z);
-        clipped[index] = Point::new(
+        clipped[index & 7] = Point::new(
             ((1.0 - t) * p.x + t * neighbor.x) / kMinimumHomogenous,
             ((1.0 - t) * p.y + t * neighbor.y) / kMinimumHomogenous,
         );

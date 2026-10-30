@@ -28,6 +28,7 @@ const _: () = assert!(
 );
 
 impl Default for Matrix {
+    #[inline]
     /// Constructs a default identity matrix.
     fn default() -> Matrix {
         Matrix::IDENTITY
@@ -141,6 +142,7 @@ impl Matrix {
         this
     }
 
+    #[inline]
     #[allow(clippy::too_many_arguments)]
     #[rustfmt::skip]
     pub const fn make_column(
@@ -152,6 +154,7 @@ impl Matrix {
         Matrix::new(m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15)
     }
 
+    #[inline]
     #[allow(clippy::too_many_arguments)]
     #[rustfmt::skip]
     pub const fn make_row(
@@ -166,6 +169,7 @@ impl Matrix {
                     m3, m7, m11, m15)
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub const fn make_translation(t: Vector3) -> Matrix {
         Matrix::new(1.0, 0.0, 0.0, 0.0,
@@ -174,6 +178,7 @@ impl Matrix {
                     t.x, t.y, t.z, 1.0)
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub const fn make_scale(s: Vector3) -> Matrix {
         Matrix::new(s.x, 0.0, 0.0, 0.0,
@@ -182,6 +187,7 @@ impl Matrix {
                     0.0, 0.0, 0.0, 1.0)
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub const fn make_translate_scale(s: Vector3, t: Vector3) -> Matrix {
         Matrix::new(s.x, 0.0, 0.0, 0.0,
@@ -190,11 +196,13 @@ impl Matrix {
                     t.x, t.y, t.z, 1.0)
     }
 
+    #[inline]
     /// `MakeScale(const Vector2& s)`.
     pub const fn make_scale2(s: Vector2) -> Matrix {
         Matrix::make_scale(Vector3::new(s.x, s.y, 1.0))
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub const fn make_skew(sx: Scalar, sy: Scalar) -> Matrix {
         Matrix::new(1.0, sy, 0.0, 0.0,
@@ -203,6 +211,7 @@ impl Matrix {
                     0.0, 0.0, 0.0, 1.0)
     }
 
+    #[inline]
     pub fn make_rotation(q: Quaternion) -> Matrix {
         Matrix::new(
             1.0 - 2.0 * q.y * q.y - 2.0 * q.z * q.z,
@@ -224,6 +233,7 @@ impl Matrix {
         )
     }
 
+    #[inline]
     /// `MakeRotation(Radians radians, const Vector4& r)`.
     pub fn make_rotation_axis(radians: Radians, r: &Vector4) -> Matrix {
         let v = r.normalize();
@@ -253,6 +263,7 @@ impl Matrix {
         )
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub fn make_rotation_x(r: Radians) -> Matrix {
         let cos_sin = Matrix::cos_sin(r);
@@ -266,6 +277,7 @@ impl Matrix {
         )
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub fn make_rotation_y(r: Radians) -> Matrix {
         let cos_sin = Matrix::cos_sin(r);
@@ -279,6 +291,7 @@ impl Matrix {
         )
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub fn make_rotation_z(r: Radians) -> Matrix {
         let cos_sin = Matrix::cos_sin(r);
@@ -292,6 +305,7 @@ impl Matrix {
         )
     }
 
+    #[inline]
     /// The Matrix without its `w` components (without translation).
     #[rustfmt::skip]
     pub const fn basis(&self) -> Matrix {
@@ -304,6 +318,7 @@ impl Matrix {
         )
     }
 
+    #[inline]
     /// Returns the matrix without the Z components (the 3rd row and column).
     #[rustfmt::skip]
     pub const fn to3x3(&self) -> Matrix {
@@ -316,6 +331,7 @@ impl Matrix {
         )
     }
 
+    #[inline]
     pub fn translate(&self, t: &Vector3) -> Matrix {
         let m = &self.m;
         Matrix::new(
@@ -329,6 +345,7 @@ impl Matrix {
         )
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub fn scale(&self, s: &Vector3) -> Matrix {
         let m = &self.m;
@@ -338,6 +355,7 @@ impl Matrix {
                     m[12],      m[13],      m[14],       m[15])
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub fn multiply(&self, o: &Matrix) -> Matrix {
         let m = &self.m;
@@ -361,6 +379,7 @@ impl Matrix {
             m[3] * o[12] + m[7] * o[13] + m[11] * o[14] + m[15] * o[15])
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub const fn transpose(&self) -> Matrix {
         let m = &self.m;
@@ -415,49 +434,41 @@ impl Matrix {
             return Matrix::default();
         }
 
-        det = (1.0 / det as f64) as Scalar;
+        // Upstream divides in double (`1.0 / det`) and narrows. One division
+        // rounded twice equals one rounded once when the wider format has at
+        // least 2p+2 bits (53 >= 2*24+2), so the float division gives the same
+        // bits for every det, and is cheaper.
+        det = 1.0 / det;
 
         Matrix::from_array(tmp.map(|t| t * det))
     }
 
     pub fn get_determinant(&self) -> Scalar {
-        let a00 = self.e(0, 0);
-        let a01 = self.e(0, 1);
-        let a02 = self.e(0, 2);
-        let a03 = self.e(0, 3);
-        let a10 = self.e(1, 0);
-        let a11 = self.e(1, 1);
-        let a12 = self.e(1, 2);
-        let a13 = self.e(1, 3);
-        let a20 = self.e(2, 0);
-        let a21 = self.e(2, 1);
-        let a22 = self.e(2, 2);
-        let a23 = self.e(2, 3);
-        let a30 = self.e(3, 0);
-        let a31 = self.e(3, 1);
-        let a32 = self.e(3, 2);
-        let a33 = self.e(3, 3);
-
-        let b00 = a00 * a11 - a01 * a10;
-        let b01 = a00 * a12 - a02 * a10;
-        let b02 = a00 * a13 - a03 * a10;
-        let b03 = a01 * a12 - a02 * a11;
-        let b04 = a01 * a13 - a03 * a11;
-        let b05 = a02 * a13 - a03 * a12;
-        let b06 = a20 * a31 - a21 * a30;
-        let b07 = a20 * a32 - a22 * a30;
-        let b08 = a20 * a33 - a23 * a30;
-        let b09 = a21 * a32 - a22 * a31;
-        let b10 = a21 * a33 - a23 * a31;
-        let b11 = a22 * a33 - a23 * a32;
+        let m = &self.m;
+        let row = |i: usize| [m[i * 4], m[i * 4 + 1], m[i * 4 + 2], m[i * 4 + 3]];
+        // Upstream's bNN = aIJ * aKL - aMN * aOP, computed a row at a time:
+        // lane l of cross(p, q, j) is p[j] * q[l] - p[l] * q[j], so b00..b02
+        // are lanes 1..3 of cross(r0, r1, 0), b03..b04 lanes 2..3 of
+        // cross(r0, r1, 1) and b05 lane 3 of cross(r0, r1, 2). Each lane is
+        // the same two products and one difference as upstream's.
+        let cross = |p: [Scalar; 4], q: [Scalar; 4], j: usize| -> [Scalar; 4] {
+            std::array::from_fn(|l| p[j] * q[l] - p[l] * q[j])
+        };
+        let (r0, r1, r2, r3) = (row(0), row(1), row(2), row(3));
+        let (c0, c1, c2) = (cross(r0, r1, 0), cross(r0, r1, 1), cross(r0, r1, 2));
+        let (c3, c4, c5) = (cross(r2, r3, 0), cross(r2, r3, 1), cross(r2, r3, 2));
+        let (b00, b01, b02, b03, b04, b05) = (c0[1], c0[2], c0[3], c1[2], c1[3], c2[3]);
+        let (b06, b07, b08, b09, b10, b11) = (c3[1], c3[2], c3[3], c4[2], c4[3], c5[3]);
 
         b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06
     }
 
+    #[inline]
     pub fn is_invertible(&self) -> bool {
         self.get_determinant() != 0.0
     }
 
+    #[inline]
     pub fn get_max_basis_length_xy(&self) -> Scalar {
         // The full basis computation requires computing the squared scaling
         // factor for translate/scale only matrices. This substantially limits
@@ -473,6 +484,7 @@ impl Matrix {
         .sqrt()
     }
 
+    #[inline]
     /// Return the smaller of the two non-negative scales that will be
     /// applied to 2D coordinates by this matrix.
     pub fn get_min_scale_2d(&self) -> Option<Scalar> {
@@ -480,24 +492,29 @@ impl Matrix {
         Some(cxx::min(scales.0, scales.1))
     }
 
+    #[inline]
     /// Return the larger of the two non-negative scales.
     pub fn get_max_scale_2d(&self) -> Option<Scalar> {
         let scales = self.get_scales_2d()?;
         Some(cxx::max(scales.0, scales.1))
     }
 
+    #[inline]
     pub const fn get_basis_x(&self) -> Vector3 {
         Vector3::new(self.m[0], self.m[1], self.m[2])
     }
 
+    #[inline]
     pub const fn get_basis_y(&self) -> Vector3 {
         Vector3::new(self.m[4], self.m[5], self.m[6])
     }
 
+    #[inline]
     pub const fn get_basis_z(&self) -> Vector3 {
         Vector3::new(self.m[8], self.m[9], self.m[10])
     }
 
+    #[inline]
     pub fn get_scale(&self) -> Vector3 {
         Vector3::new(
             self.get_basis_x().get_length(),
@@ -506,19 +523,23 @@ impl Matrix {
         )
     }
 
+    #[inline]
     pub const fn get_basis_x_2d(&self) -> Vector2 {
         Vector2::new(self.m[0], self.m[1])
     }
 
+    #[inline]
     pub const fn get_basis_y_2d(&self) -> Vector2 {
         Vector2::new(self.m[4], self.m[5])
     }
 
+    #[inline]
     /// Return the 2D lengths of the X and Y basis vectors.
     pub fn get_basis_scale_xy(&self) -> Vector2 {
         Vector2::new(self.get_basis_x_2d().get_length(), self.get_basis_y_2d().get_length())
     }
 
+    #[inline]
     /// The size, in local coordinates, of a single device pixel.
     pub fn get_transformed_pixel_size(&self) -> Vector2 {
         let m = &self.m;
@@ -539,14 +560,17 @@ impl Matrix {
         )
     }
 
+    #[inline]
     pub fn get_direction_scale(&self, direction: Vector3) -> Scalar {
         1.0 / (self.basis().invert() * direction.normalize()).get_length() * direction.get_length()
     }
 
+    #[inline]
     pub fn is_finite(&self) -> bool {
         self.vec(0).is_finite() && self.vec(1).is_finite() && self.vec(2).is_finite() && self.vec(3).is_finite()
     }
 
+    #[inline]
     pub fn is_affine(&self) -> bool {
         let m = &self.m;
         m[2] == 0.0
@@ -561,22 +585,28 @@ impl Matrix {
             && m[15] == 1.0
     }
 
+    #[inline]
     pub fn has_perspective_2d(&self) -> bool {
-        self.m[3] != 0.0 || self.m[7] != 0.0 || self.m[15] != 1.0
+        // `|` for `||`: the comparisons have no side effects.
+        (self.m[3] != 0.0) | (self.m[7] != 0.0) | (self.m[15] != 1.0)
     }
 
+    #[inline]
     pub fn has_perspective(&self) -> bool {
         self.m[3] != 0.0 || self.m[7] != 0.0 || self.m[11] != 0.0 || self.m[15] != 1.0
     }
 
+    #[inline]
     pub fn has_translation(&self) -> bool {
         self.m[12] != 0.0 || self.m[13] != 0.0
     }
 
+    #[inline]
     pub fn is_aligned_2d(&self) -> bool {
         self.is_aligned_2d_tol(0.0)
     }
 
+    #[inline]
     pub fn is_aligned_2d_tol(&self, tolerance: Scalar) -> bool {
         if self.has_perspective_2d() {
             return false;
@@ -591,10 +621,12 @@ impl Matrix {
         false
     }
 
+    #[inline]
     pub fn is_aligned(&self) -> bool {
         self.is_aligned_tol(0.0)
     }
 
+    #[inline]
     pub fn is_aligned_tol(&self, tolerance: Scalar) -> bool {
         if self.has_perspective() {
             return false;
@@ -613,6 +645,7 @@ impl Matrix {
         true
     }
 
+    #[inline]
     pub fn is_identity(&self) -> bool {
         let m = &self.m;
         m[0] == 1.0 && m[1] == 0.0 && m[2] == 0.0 && m[3] == 0.0
@@ -621,6 +654,7 @@ impl Matrix {
             && m[12] == 0.0 && m[13] == 0.0 && m[14] == 0.0 && m[15] == 1.0
     }
 
+    #[inline]
     /// Returns true if the matrix has no entries other than translation
     /// components. Note that an identity matrix meets this criteria.
     pub fn is_translation_only(&self) -> bool {
@@ -631,6 +665,7 @@ impl Matrix {
             && m[15] == 1.0
     }
 
+    #[inline]
     /// Returns true if the matrix has a scale-only basis and is
     /// non-projective. Note that an identity matrix meets this criteria.
     pub fn is_translation_scale_only(&self) -> bool {
@@ -651,11 +686,12 @@ impl Matrix {
             return None;
         }
 
-        for i in 0..4 {
-            for j in 0..4 {
-                let d = self_.e(3, 3);
-                *self_.e_mut(i, j) /= d;
-            }
+        // Upstream divides every entry by e[3][3] in place; e[3][3] is the
+        // last one divided, so each entry is divided by its original value.
+        // Dividing by 1 is exact, so that common case skips the divisions.
+        let d = self_.e(3, 3);
+        if d != 1.0 {
+            self_.m = self_.m.map(|x| x / d);
         }
 
         // `perspectiveMatrix` is used to solve for perspective, but it also
@@ -675,7 +711,8 @@ impl Matrix {
         let mut result = MatrixDecomposition::default();
 
         // First, isolate perspective.
-        if self_.e(0, 3) != 0.0 || self_.e(1, 3) != 0.0 || self_.e(2, 3) != 0.0 {
+        // `|` for `||`: the comparisons have no side effects.
+        if (self_.e(0, 3) != 0.0) | (self_.e(1, 3) != 0.0) | (self_.e(2, 3) != 0.0) {
             // prhs is the right hand side of the equation.
             let rightHandSide =
                 Vector4::new(self_.e(0, 3), self_.e(1, 3), self_.e(2, 3), self_.e(3, 3));
@@ -766,6 +803,7 @@ impl Matrix {
         Some(result)
     }
 
+    #[inline]
     /// Computed in double, as upstream does.
     pub fn get_scales_2d(&self) -> Option<(Scalar, Scalar)> {
         if self.has_perspective_2d() {
@@ -839,15 +877,18 @@ impl Matrix {
         ))
     }
 
+    #[inline]
     pub fn equals(&self, matrix: &Matrix) -> bool {
         self.equals_eps(matrix, 1e-5)
     }
 
+    #[inline]
     pub fn equals_eps(&self, matrix: &Matrix, epsilon: Scalar) -> bool {
         let (a, b) = (&self.m, &matrix.m);
         (0..16).all(|i| scalar_nearly_equal_tol(a[i], b[i], epsilon))
     }
 
+    #[inline]
     pub fn transform_homogenous(&self, v: &Point) -> Vector3 {
         let m = &self.m;
         Vector3::new(
@@ -857,6 +898,7 @@ impl Matrix {
         )
     }
 
+    #[inline]
     pub fn transform_direction4(&self, v: &Vector4) -> Vector4 {
         let m = &self.m;
         Vector4::new(
@@ -867,6 +909,7 @@ impl Matrix {
         )
     }
 
+    #[inline]
     pub fn transform_direction3(&self, v: &Vector3) -> Vector3 {
         let m = &self.m;
         Vector3::new(
@@ -876,15 +919,18 @@ impl Matrix {
         )
     }
 
+    #[inline]
     pub fn transform_direction2(&self, v: &Vector2) -> Vector2 {
         let m = &self.m;
         Vector2::new(v.x * m[0] + v.y * m[4], v.x * m[1] + v.y * m[5])
     }
 
+    #[inline]
     pub fn transform(&self, quad: &Quad) -> Quad {
         [*self * quad[0], *self * quad[1], *self * quad[2], *self * quad[3]]
     }
 
+    #[inline]
     pub fn make_orthographic<T: Num>(size: TSize<T>) -> Matrix {
         // Per assumptions about NDC documented above.
         let scale = Matrix::make_scale(Vector3::new(
@@ -896,6 +942,7 @@ impl Matrix {
         translate * scale
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub fn make_perspective(fov_y: Radians, aspect_ratio: Scalar, z_near: Scalar, z_far: Scalar) -> Matrix {
         let height: Scalar = (fov_y.radians * 0.5).tan();
@@ -909,11 +956,13 @@ impl Matrix {
         )
     }
 
+    #[inline]
     pub fn make_perspective_size<T: Num>(fov_y: Radians, size: TSize<T>, z_near: Scalar, z_far: Scalar) -> Matrix {
         let aspect: Scalar = size.width.to_f32().op(crate::cxx::Op::Div, size.height);
         Matrix::make_perspective(fov_y, aspect, z_near, z_far)
     }
 
+    #[inline]
     #[rustfmt::skip]
     pub fn make_look_at(position: Vector3, target: Vector3, mut up: Vector3) -> Matrix {
         let forward = (target - position).normalize();
@@ -928,6 +977,7 @@ impl Matrix {
         )
     }
 
+    #[inline]
     pub fn cos_sin(radians: Radians) -> Vector2 {
         let sin = radians.radians.sin();
         if sin.abs() == 1.0 {
@@ -956,6 +1006,7 @@ impl CxxFmax for f64 {
 }
 
 impl PartialEq for Matrix {
+    #[inline]
     fn eq(&self, m: &Matrix) -> bool {
         self.vec(0) == m.vec(0) && self.vec(1) == m.vec(1) && self.vec(2) == m.vec(2) && self.vec(3) == m.vec(3)
     }
@@ -964,6 +1015,7 @@ impl PartialEq for Matrix {
 /// `operator+(const Vector3& t)`: Translate(t).
 impl Add<Vector3> for Matrix {
     type Output = Matrix;
+    #[inline]
     fn add(self, t: Vector3) -> Matrix {
         self.translate(&t)
     }
@@ -972,6 +1024,7 @@ impl Add<Vector3> for Matrix {
 /// `operator-(const Vector3& t)`: Translate(-t).
 impl Sub<Vector3> for Matrix {
     type Output = Matrix;
+    #[inline]
     fn sub(self, t: Vector3) -> Matrix {
         self.translate(&-t)
     }
@@ -979,6 +1032,7 @@ impl Sub<Vector3> for Matrix {
 
 impl Mul<Matrix> for Matrix {
     type Output = Matrix;
+    #[inline]
     fn mul(self, m: Matrix) -> Matrix {
         self.multiply(&m)
     }
@@ -986,6 +1040,7 @@ impl Mul<Matrix> for Matrix {
 
 impl Add<Matrix> for Matrix {
     type Output = Matrix;
+    #[inline]
     fn add(self, o: Matrix) -> Matrix {
         let (m, o) = (&self.m, &o.m);
         Matrix::from_array(std::array::from_fn(|i| m[i] + o[i]))
@@ -994,6 +1049,7 @@ impl Add<Matrix> for Matrix {
 
 impl Mul<Vector4> for Matrix {
     type Output = Vector4;
+    #[inline]
     fn mul(self, v: Vector4) -> Vector4 {
         let m = &self.m;
         Vector4::new(
@@ -1007,6 +1063,7 @@ impl Mul<Vector4> for Matrix {
 
 impl Mul<Vector3> for Matrix {
     type Output = Vector3;
+    #[inline]
     fn mul(self, v: Vector3) -> Vector3 {
         let m = &self.m;
         let mut w: Scalar = v.x * m[3] + v.y * m[7] + v.z * m[11] + m[15];
@@ -1027,6 +1084,7 @@ impl Mul<Vector3> for Matrix {
 
 impl Mul<Point> for Matrix {
     type Output = Point;
+    #[inline]
     fn mul(self, v: Point) -> Point {
         let m = &self.m;
         let mut w: Scalar = v.x * m[3] + v.y * m[7] + m[15];
@@ -1044,6 +1102,7 @@ impl Mul<Point> for Matrix {
 /// `out << matrix`: `std::fixed`, each entry `std::setw(15)`, rows of the
 /// transposed array.
 impl fmt::Display for Matrix {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "(")?;
         for i in 0..4 {

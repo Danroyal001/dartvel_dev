@@ -1637,10 +1637,6 @@ impl SwapNan for Point {
   }
 }
 
-fn swap_nan<T: SwapNan + Copy>(v: impl std::borrow::Borrow<T>, index: i32) -> T {
-  v.borrow().swap_nan(index)
-}
-
 #[test]
 fn rect_union() {
   let mut check_nans = |a: Rect, b: Rect, label: &str| {

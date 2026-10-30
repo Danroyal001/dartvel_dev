@@ -25,6 +25,7 @@ pub enum Component {
 }
 
 impl MatrixDecomposition {
+    #[inline]
     pub fn get_components_mask(&self) -> u64 {
         let mut mask: u64 = 0;
 

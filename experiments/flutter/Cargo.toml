@@ -9,3 +9,17 @@ members = [
 
 [profile.release]
 debug = false
+
+# For benchmarks and size comparisons (see each crate's README): whole-
+# program optimization, as a C++ consumer gets for code upstream keeps in
+# headers, and panics that abort, as the engine builds C++ with
+# -fno-exceptions.
+[profile.release-lto]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+# One codegen unit: a smaller library than 16 units (README "Baseline").
+[profile.release.package.impeller_geometry]
+codegen-units = 1

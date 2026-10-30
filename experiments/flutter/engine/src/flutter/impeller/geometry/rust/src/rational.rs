@@ -27,19 +27,23 @@ fn gcd(mut a: u64, mut b: u64) -> u64 {
 }
 
 impl Rational {
+    #[inline]
     /// `explicit Rational(int32_t num)`.
     pub const fn from_int(num: i32) -> Rational {
         Rational { num_: num, den_: 1 }
     }
 
+    #[inline]
     pub const fn new(num: i32, den: u32) -> Rational {
         Rational { num_: num, den_: den }
     }
 
+    #[inline]
     pub fn get_numerator(&self) -> i32 {
         self.num_
     }
 
+    #[inline]
     pub fn get_denominator(&self) -> u32 {
         self.den_
     }
@@ -55,6 +59,7 @@ impl Rational {
         (((self.num_ as i64 as u64) / g) << 32) | (self.den_ as u64 / g)
     }
 
+    #[inline]
     /// `explicit operator Scalar()`.
     pub fn to_scalar(&self) -> Scalar {
         self.num_ as f32 / self.den_ as f32
@@ -70,6 +75,7 @@ impl Rational {
 }
 
 impl PartialEq for Rational {
+    #[inline]
     fn eq(&self, that: &Rational) -> bool {
         if self.den_ == that.den_ {
             self.num_ == that.num_
@@ -83,6 +89,7 @@ impl PartialEq for Rational {
 }
 
 impl Rational {
+    #[inline]
     /// `operator<`.
     pub fn lt(&self, that: &Rational) -> bool {
         if self.den_ == that.den_ {
@@ -99,6 +106,7 @@ impl Rational {
 /// Only `operator<` and `operator==` exist upstream; this ordering is built
 /// from them for callers that sort.
 impl PartialOrd for Rational {
+    #[inline]
     fn partial_cmp(&self, other: &Rational) -> Option<Ordering> {
         if self.lt(other) {
             Some(Ordering::Less)

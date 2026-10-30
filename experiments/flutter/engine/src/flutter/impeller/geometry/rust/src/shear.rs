@@ -8,10 +8,12 @@ pub struct Shear {
 }
 
 impl Shear {
+    #[inline]
     pub const fn new(xy: f64, xz: f64, yz: f64) -> Shear {
         Shear { xy, xz, yz }
     }
 
+    #[inline]
     /// Upstream's `union { struct { xy, xz, yz }; double e[3]; }`.
     pub const fn e(&self) -> [f64; 3] {
         [self.xy, self.xz, self.yz]

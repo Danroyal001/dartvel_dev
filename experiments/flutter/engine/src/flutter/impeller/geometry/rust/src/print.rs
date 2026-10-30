@@ -40,6 +40,7 @@ pub fn fixed(v: impl Into<f64>) -> String {
     format!("{v:.6}")
 }
 
+#[inline]
 fn strip(s: String) -> String {
     if s.contains('.') {
         let t = s.trim_end_matches('0');

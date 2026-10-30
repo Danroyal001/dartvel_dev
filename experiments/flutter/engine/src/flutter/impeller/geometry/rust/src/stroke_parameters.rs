@@ -32,6 +32,7 @@ pub struct StrokeParameters {
 }
 
 impl Default for StrokeParameters {
+    #[inline]
     fn default() -> StrokeParameters {
         StrokeParameters { width: 0.0, cap: Cap::kButt, join: Join::kMiter, miter_limit: 4.0 }
     }

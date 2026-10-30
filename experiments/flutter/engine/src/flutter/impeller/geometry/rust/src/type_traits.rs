@@ -7,6 +7,7 @@
 
 use crate::cxx::Num;
 
+#[inline]
 /// True when `F` is floating point and `I` integral, as `MixedOp_` requires.
 pub const fn mixed_op<F: Num, I: Num>() -> bool {
     F::KIND.is_float() && !I::KIND.is_float()

@@ -42,7 +42,7 @@ pub fn clamp<T: PartialOrd>(v: T, lo: T, hi: T) -> T {
 /// indefinite").
 #[inline]
 pub fn lround(x: f32) -> i64 {
-    let r = x.round();
+    let r = x.round_c();
     if r.is_nan() || r >= 9.223372e18_f32 || r < -9.223372e18_f32 { i64::MIN } else { r as i64 }
 }
 
@@ -210,10 +210,11 @@ pub trait Num: Copy + PartialOrd + Default + Debug + 'static {
     fn neg_fix(self, original: Self) -> Self;
     /// `std::floor`, `std::ceil`, `std::round` and `std::fabs` of a float, in
     /// its own type (an integer is returned unchanged: upstream only
-    /// instantiates these on floats).
-    fn floor(self) -> Self;
-    fn ceil(self) -> Self;
-    fn round(self) -> Self;
+    /// instantiates these on floats). The rounding ones are computed inline
+    /// (see `impl_num_float!`), not by calling libm.
+    fn floor_c(self) -> Self;
+    fn ceil_c(self) -> Self;
+    fn round_c(self) -> Self;
     fn fabs(self) -> Self;
     /// `std::sqrt` of the value: `sqrtf` for float, `sqrt` for double, and
     /// `sqrt((double)x)` for an integer, converted back.
@@ -258,12 +259,13 @@ macro_rules! impl_num_int {
             fn neg_fix(self, _original: Self) -> Self {
                 self
             }
-            fn floor(self) -> Self { self }
-            fn ceil(self) -> Self { self }
-            fn round(self) -> Self { self }
+            fn floor_c(self) -> Self { self }
+            fn ceil_c(self) -> Self { self }
+            fn round_c(self) -> Self { self }
             fn fabs(self) -> Self { self }
             fn sqrt_t(self) -> Self { (self as f64).sqrt() as $t }
             fn is_finite_t(self) -> bool { true }
+            #[inline]
             fn cxx_fmt(self) -> String { self.to_string() }
         }
     };
@@ -278,7 +280,7 @@ impl_num_int!(u32, U32);
 impl_num_int!(u64, U64);
 
 macro_rules! impl_num_float {
-    ($t:ty, $k:ident) => {
+    ($t:ty, $k:ident, $i:ty, $lim:expr) => {
         impl Num for $t {
             const KIND: Kind = Kind::$k;
             const LOWEST: Self = <$t>::MIN;
@@ -312,18 +314,46 @@ macro_rules! impl_num_float {
             fn neg_fix(self, original: Self) -> Self {
                 -original
             }
-            fn floor(self) -> Self { <$t>::floor(self) }
-            fn ceil(self) -> Self { <$t>::ceil(self) }
-            fn round(self) -> Self { <$t>::round(self) }
+            #[inline(always)]
+            fn floor_c(self) -> Self {
+                // Values at least 2^(mantissa bits) are integral, as are
+                // infinities; NaN passes through.
+                if !(self.abs() < $lim) {
+                    return self;
+                }
+                let t = (self as $i) as $t;
+                // floor has the sign of its argument (-0.0 stays -0.0).
+                (if t > self { t - 1.0 } else { t }).copysign(self)
+            }
+            #[inline(always)]
+            fn ceil_c(self) -> Self {
+                if !(self.abs() < $lim) {
+                    return self;
+                }
+                let t = (self as $i) as $t;
+                // ceil of (-1, 0] is -0.0.
+                (if t < self { t + 1.0 } else { t }).copysign(self)
+            }
+            #[inline(always)]
+            fn round_c(self) -> Self {
+                if !(self.abs() < $lim) {
+                    return self;
+                }
+                let t = (self as $i) as $t;
+                // `self - t` is the exact fraction; halves go away from zero.
+                (if (self - t).abs() >= 0.5 { t + (1.0 as $t).copysign(self) } else { t })
+                    .copysign(self)
+            }
             fn fabs(self) -> Self { <$t>::abs(self) }
             fn sqrt_t(self) -> Self { <$t>::sqrt(self) }
             fn is_finite_t(self) -> bool { <$t>::is_finite(self) }
+            #[inline]
             fn cxx_fmt(self) -> String { crate::print::g(self) }
         }
     };
 }
-impl_num_float!(f32, F32);
-impl_num_float!(f64, F64);
+impl_num_float!(f32, F32, i32, 8388608.0);
+impl_num_float!(f64, F64, i64, 4503599627370496.0);
 
 /// `static_cast<T>(u)`.
 #[inline(always)]
@@ -345,13 +375,92 @@ pub fn conv<U: Num, T: Num>(u: U) -> T {
 /// in its own type; an integer goes through `double`.
 #[inline(always)]
 pub fn round_to<U: Num, T: Num>(u: U) -> T {
-    if U::KIND.is_float() { conv(u.round()) } else { T::from_f64(u.to_f64()) }
+    if U::KIND.is_float() { conv(u.round_c()) } else { T::from_f64(u.to_f64()) }
 }
 #[inline(always)]
 pub fn ceil_to<U: Num, T: Num>(u: U) -> T {
-    if U::KIND.is_float() { conv(u.ceil()) } else { T::from_f64(u.to_f64()) }
+    if U::KIND.is_float() { conv(u.ceil_c()) } else { T::from_f64(u.to_f64()) }
 }
 #[inline(always)]
 pub fn floor_to<U: Num, T: Num>(u: U) -> T {
-    if U::KIND.is_float() { conv(u.floor()) } else { T::from_f64(u.to_f64()) }
+    if U::KIND.is_float() { conv(u.floor_c()) } else { T::from_f64(u.to_f64()) }
+}
+
+#[cfg(test)]
+mod rounding_tests {
+    use super::Num;
+
+    // Not upstream tests: `floor_c`, `ceil_c` and `round_c` replace libm's
+    // `floorf`/`ceilf`/`roundf` (and the double ones), so they must agree
+    // with them bit for bit on every input class.
+    fn edge_f32() -> Vec<f32> {
+        let mut v = vec![
+            0.0, -0.0, 0.5, -0.5, 0.49999997, -0.49999997, 1.5, -1.5, 2.5, -2.5,
+            0.99999994, -0.99999994, 1.0, -1.0, 8388607.5, -8388607.5, 8388608.0,
+            -8388608.0, 8388609.0, 16777217.0, f32::MAX, f32::MIN, f32::MIN_POSITIVE,
+            -f32::MIN_POSITIVE, 1e-45, -1e-45, f32::INFINITY, f32::NEG_INFINITY,
+            2147483520.0, -2147483648.0, 3e9, -3e9, 4194303.5, -4194303.5,
+        ];
+        let mut s: u64 = 0x9e3779b97f4a7c15;
+        // Fewer under Miri, which interprets every operation.
+        for _ in 0..if cfg!(miri) { 500 } else { 200_000 } {
+            s = s.wrapping_add(0x9e3779b97f4a7c15);
+            let mut z = s;
+            z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+            z ^= z >> 31;
+            v.push(f32::from_bits(z as u32));
+            // Values near integers and halves, where the rounding decides.
+            let k = (z >> 32) as i32 % 20000;
+            v.push(k as f32 * 0.5 + f32::from_bits(((z >> 8) as u32) & 0x7) * 1e-38);
+            v.push(k as f32 * 0.25);
+        }
+        v
+    }
+
+    fn edge_f64() -> Vec<f64> {
+        let mut v: Vec<f64> = edge_f32().into_iter().map(|x| x as f64).collect();
+        v.extend([
+            4503599627370495.5, -4503599627370495.5, 4503599627370496.0, 0.49999999999999994,
+            -0.49999999999999994, 9.3e18, -9.3e18, f64::MAX, f64::MIN, 5e-324,
+        ]);
+        let mut s: u64 = 7;
+        for _ in 0..if cfg!(miri) { 500 } else { 200_000 } {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            v.push(f64::from_bits(s));
+        }
+        v
+    }
+
+    fn same32(a: f32, b: f32) -> bool {
+        a.to_bits() == b.to_bits() || (a.is_nan() && b.is_nan())
+    }
+    fn same64(a: f64, b: f64) -> bool {
+        a.to_bits() == b.to_bits() || (a.is_nan() && b.is_nan())
+    }
+
+    #[test]
+    fn f32_rounding_matches_libm() {
+        for x in edge_f32() {
+            assert!(same32(x.floor_c(), x.floor()), "floor {x:e}: {} vs {}", x.floor_c(), x.floor());
+            assert!(same32(x.ceil_c(), x.ceil()), "ceil {x:e}: {} vs {}", x.ceil_c(), x.ceil());
+            assert!(same32(x.round_c(), x.round()), "round {x:e}: {} vs {}", x.round_c(), x.round());
+        }
+    }
+
+    #[test]
+    fn f64_rounding_matches_libm() {
+        for x in edge_f64() {
+            assert!(same64(x.floor_c(), x.floor()), "floor {x:e}");
+            assert!(same64(x.ceil_c(), x.ceil()), "ceil {x:e}");
+            assert!(same64(x.round_c(), x.round()), "round {x:e}");
+        }
+    }
+
+    #[test]
+    fn integer_rounding_is_identity() {
+        assert_eq!(7i64.floor_c(), 7);
+        assert_eq!((-7i32).ceil_c(), -7);
+        assert_eq!(3u32.round_c(), 3);
+    }
 }

@@ -77,15 +77,15 @@ impl<T: Num> TPoint<T> {
     }
 
     pub fn floor(&self) -> Self {
-        TPoint { x: self.x.floor(), y: self.y.floor() }
+        TPoint { x: self.x.floor_c(), y: self.y.floor_c() }
     }
 
     pub fn ceil(&self) -> Self {
-        TPoint { x: self.x.ceil(), y: self.y.ceil() }
+        TPoint { x: self.x.ceil_c(), y: self.y.ceil_c() }
     }
 
     pub fn round(&self) -> Self {
-        TPoint { x: self.x.round(), y: self.y.round() }
+        TPoint { x: self.x.round_c(), y: self.y.round_c() }
     }
 
     pub fn get_distance(&self, p: &Self) -> T {

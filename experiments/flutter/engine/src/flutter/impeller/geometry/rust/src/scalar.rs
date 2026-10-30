@@ -73,10 +73,12 @@ pub struct Radians {
 }
 
 impl Radians {
+    #[inline]
     pub const fn new(p_radians: Scalar) -> Radians {
         Radians { radians: p_radians }
     }
 
+    #[inline]
     pub fn is_finite(&self) -> bool {
         self.radians.is_finite()
     }
@@ -84,6 +86,7 @@ impl Radians {
 
 impl Neg for Radians {
     type Output = Radians;
+    #[inline]
     fn neg(self) -> Radians {
         Radians { radians: -self.radians }
     }
@@ -91,6 +94,7 @@ impl Neg for Radians {
 
 impl Add for Radians {
     type Output = Radians;
+    #[inline]
     fn add(self, r: Radians) -> Radians {
         Radians { radians: self.radians + r.radians }
     }
@@ -98,6 +102,7 @@ impl Add for Radians {
 
 impl Sub for Radians {
     type Output = Radians;
+    #[inline]
     fn sub(self, r: Radians) -> Radians {
         Radians { radians: self.radians - r.radians }
     }
@@ -109,14 +114,17 @@ pub struct Degrees {
 }
 
 impl Degrees {
+    #[inline]
     pub const fn new(p_degrees: Scalar) -> Degrees {
         Degrees { degrees: p_degrees }
     }
 
+    #[inline]
     pub fn is_finite(&self) -> bool {
         self.degrees.is_finite()
     }
 
+    #[inline]
     pub fn get_positive(&self) -> Degrees {
         let mut deg = self.degrees % 360.0;
         if deg < 0.0 {
@@ -136,6 +144,7 @@ impl From<Degrees> for Radians {
 
 impl Neg for Degrees {
     type Output = Degrees;
+    #[inline]
     fn neg(self) -> Degrees {
         Degrees { degrees: -self.degrees }
     }
@@ -143,6 +152,7 @@ impl Neg for Degrees {
 
 impl Add for Degrees {
     type Output = Degrees;
+    #[inline]
     fn add(self, d: Degrees) -> Degrees {
         Degrees { degrees: self.degrees + d.degrees }
     }
@@ -150,18 +160,21 @@ impl Add for Degrees {
 
 impl Sub for Degrees {
     type Output = Degrees;
+    #[inline]
     fn sub(self, d: Degrees) -> Degrees {
         Degrees { degrees: self.degrees - d.degrees }
     }
 }
 
 impl fmt::Display for Degrees {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Degrees({})", crate::print::g(self.degrees))
     }
 }
 
 impl fmt::Display for Radians {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Radians({})", crate::print::g(self.radians))
     }

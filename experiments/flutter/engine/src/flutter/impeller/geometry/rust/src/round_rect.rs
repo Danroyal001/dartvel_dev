@@ -17,26 +17,32 @@ pub struct RoundRect {
 }
 
 impl RoundRect {
+    #[inline]
     pub fn make_rect(rect: &Rect) -> RoundRect {
         RoundRect::make_rect_radii(rect, &RoundingRadii::default())
     }
 
+    #[inline]
     pub fn make_oval(rect: &Rect) -> RoundRect {
         RoundRect::make_rect_radii(rect, &RoundingRadii::make_radii(rect.get_size() * 0.5))
     }
 
+    #[inline]
     pub fn make_rect_radius(rect: &Rect, radius: Scalar) -> RoundRect {
         RoundRect::make_rect_radii(rect, &RoundingRadii::make_radius(radius))
     }
 
+    #[inline]
     pub fn make_rect_xy(rect: &Rect, x_radius: Scalar, y_radius: Scalar) -> RoundRect {
         RoundRect::make_rect_radii(rect, &RoundingRadii::make_radii(Size::new(x_radius, y_radius)))
     }
 
+    #[inline]
     pub fn make_rect_xy_size(rect: &Rect, corner_radii: Size) -> RoundRect {
         RoundRect::make_rect_radii(rect, &RoundingRadii::make_radii(corner_radii))
     }
 
+    #[inline]
     pub fn make_nine_patch(rect: &Rect, left: Scalar, top: Scalar, right: Scalar, bottom: Scalar) -> RoundRect {
         RoundRect::make_rect_radii(rect, &RoundingRadii::make_nine_patch(left, top, right, bottom))
     }
@@ -55,10 +61,12 @@ impl RoundRect {
         &self.bounds_
     }
 
+    #[inline]
     pub fn get_radii(&self) -> &RoundingRadii {
         &self.radii_
     }
 
+    #[inline]
     pub fn is_finite(&self) -> bool {
         self.bounds_.is_finite()
             && self.radii_.top_left.is_finite()
@@ -67,14 +75,17 @@ impl RoundRect {
             && self.radii_.bottom_right.is_finite()
     }
 
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.bounds_.is_empty()
     }
 
+    #[inline]
     pub fn is_rect(&self) -> bool {
         !self.bounds_.is_empty() && self.radii_.are_all_corners_empty()
     }
 
+    #[inline]
     pub fn is_oval(&self) -> bool {
         !self.bounds_.is_empty()
             && self.radii_.are_all_corners_same()
@@ -82,6 +93,7 @@ impl RoundRect {
             && scalar_nearly_equal(self.radii_.top_left.height, self.bounds_.get_height() * 0.5)
     }
 
+    #[inline]
     /// Returns true iff the provided point |p| is inside the half-open
     /// interior of this rectangle.
     ///
@@ -108,6 +120,7 @@ impl RoundRect {
         true
     }
 
+    #[inline]
     /// Returns a new round rectangle translated by the given offset.
     pub fn shift(&self, dx: Scalar, dy: Scalar) -> RoundRect {
         // Just in case, use the factory rather than the internal constructor
@@ -116,6 +129,7 @@ impl RoundRect {
         RoundRect::make_rect_radii(&self.bounds_.shift(dx, dy), &self.radii_)
     }
 
+    #[inline]
     /// Returns a round rectangle with expanded edges. Negative expansion
     /// results in shrinking.
     pub fn expand_ltrb(&self, left: Scalar, top: Scalar, right: Scalar, bottom: Scalar) -> RoundRect {
@@ -125,10 +139,12 @@ impl RoundRect {
         RoundRect::make_rect_radii(&self.bounds_.expand_ltrb(left, top, right, bottom), &self.radii_)
     }
 
+    #[inline]
     pub fn expand_xy(&self, horizontal: Scalar, vertical: Scalar) -> RoundRect {
         RoundRect::make_rect_radii(&self.bounds_.expand_xy(horizontal, vertical), &self.radii_)
     }
 
+    #[inline]
     pub fn expand(&self, amount: Scalar) -> RoundRect {
         RoundRect::make_rect_radii(&self.bounds_.expand(amount), &self.radii_)
     }
@@ -195,6 +211,7 @@ impl RoundRectPathSource {
         RoundRectPathSource { round_rect_: *round_rect }
     }
 
+    #[inline]
     pub fn get_round_rect(&self) -> &RoundRect {
         &self.round_rect_
     }
@@ -229,10 +246,12 @@ impl DiffRoundRectPathSource {
         DiffRoundRectPathSource { outer_: *outer, inner_: *inner }
     }
 
+    #[inline]
     pub fn get_outer(&self) -> &RoundRect {
         &self.outer_
     }
 
+    #[inline]
     pub fn get_inner(&self) -> &RoundRect {
         &self.inner_
     }
@@ -258,6 +277,7 @@ impl PathSource for DiffRoundRectPathSource {
 }
 
 impl fmt::Display for RoundRect {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(rect: {}, radii: {})", self.get_bounds(), self.get_radii())
     }

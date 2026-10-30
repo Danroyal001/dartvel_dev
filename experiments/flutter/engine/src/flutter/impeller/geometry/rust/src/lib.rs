@@ -78,6 +78,7 @@ pub(crate) mod prelude {
 }
 
 #[cfg(test)]
+#[allow(dead_code)] // Upstream's helpers, not all of which its tests use.
 mod geometry_asserts;
 #[cfg(test)]
 mod point_unittests;

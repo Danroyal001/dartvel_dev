@@ -1,5 +1,6 @@
 // flutter/impeller/geometry/gradient.h, gradient.cc
 
+use crate::cxx::Num;
 use crate::color::Color;
 use crate::scalar::{Scalar, scalar_nearly_equal};
 
@@ -45,7 +46,7 @@ pub fn create_gradient_buffer(colors: &[Color], stops: &[Scalar]) -> GradientDat
         // are very close together.
         // TODO(jonahwilliams): this should use a platform specific max
         // texture size.
-        texture_size = (1.0 / minimum_delta).round() as u32 + 1;
+        texture_size = (1.0 / minimum_delta).round_c() as u32 + 1;
     }
 
     let mut result = GradientData::default();

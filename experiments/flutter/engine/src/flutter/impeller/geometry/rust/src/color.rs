@@ -66,6 +66,7 @@ impl BlendMode {
     pub const kLastMode: BlendMode = BlendMode::kLuminosity;
     pub const kDefaultMode: BlendMode = BlendMode::kSrcOver;
 
+    #[inline]
     /// The mode with the given underlying value, if there is one.
     pub fn from_u8(v: u8) -> Option<BlendMode> {
         if v <= BlendMode::kLastMode as u8 { Some(kBlendModes[v as usize]) } else { None }
@@ -143,6 +144,7 @@ const _: () = assert!(std::mem::size_of::<Color>() == 4 * std::mem::size_of::<Sc
 
 /// `explicit Color(const Vector4& value)`.
 impl From<Vector4> for Color {
+    #[inline]
     fn from(value: Vector4) -> Color {
         Color { red: value.x, green: value.y, blue: value.z, alpha: value.w }
     }
@@ -150,6 +152,7 @@ impl From<Vector4> for Color {
 
 /// Upstream's `operator==` compares within kEhCloseEnough.
 impl PartialEq for Color {
+    #[inline]
     fn eq(&self, c: &Color) -> bool {
         scalar_nearly_equal(self.red, c.red)
             && scalar_nearly_equal(self.green, c.green)
@@ -163,10 +166,12 @@ impl Color {
         Color { red: r, green: g, blue: b, alpha: a }
     }
 
+    #[inline]
     pub fn make_rgba8(r: u8, g: u8, b: u8, a: u8) -> Color {
         Color::new(r as Scalar / 255.0, g as Scalar / 255.0, b as Scalar / 255.0, a as Scalar / 255.0)
     }
 
+    #[inline]
     /// Convert this color to a 32-bit representation.
     pub fn to_i_color(color: Color) -> u32 {
         (((cxx::lround(color.alpha * 255.0) & 0xff) << 24)
@@ -175,10 +180,12 @@ impl Color {
             | (cxx::lround(color.blue * 255.0) & 0xff)) as u64 as u32
     }
 
+    #[inline]
     pub fn premultiply(&self) -> Color {
         Color::new(self.red * self.alpha, self.green * self.alpha, self.blue * self.alpha, self.alpha)
     }
 
+    #[inline]
     pub fn unpremultiply(&self) -> Color {
         if scalar_nearly_equal(self.alpha, 0.0) {
             return Color::black_transparent();
@@ -186,6 +193,7 @@ impl Color {
         Color::new(self.red / self.alpha, self.green / self.alpha, self.blue / self.alpha, self.alpha)
     }
 
+    #[inline]
     /// Returns true if any of the color components lies outside [0, 1].
     pub fn is_wide_gamut(&self) -> bool {
         self.red < -kEhCloseEnough
@@ -196,12 +204,14 @@ impl Color {
             || self.blue > 1.0 + kEhCloseEnough
     }
 
+    #[inline]
     /// Return a color that is linearly interpolated between colors a and b,
     /// according to the value of t.
     pub fn lerp(a: Color, b: Color, t: Scalar) -> Color {
         a + (b - a) * t
     }
 
+    #[inline]
     pub fn clamp01(&self) -> Color {
         Color::new(
             cxx::clamp(self.red, 0.0, 1.0),
@@ -211,475 +221,628 @@ impl Color {
         )
     }
 
+    #[inline]
     /// Convert to R8G8B8A8 representation. Upstream converts the rounded
     /// float to `uint8_t` implicitly, which is undefined outside [0, 255];
     /// the port saturates.
     pub fn to_r8g8b8a8(&self) -> [u8; 4] {
-        let r = (self.red * 255.0).round() as u8;
-        let g = (self.green * 255.0).round() as u8;
-        let b = (self.blue * 255.0).round() as u8;
-        let a = (self.alpha * 255.0).round() as u8;
+        let r = (self.red * 255.0).round_c() as u8;
+        let g = (self.green * 255.0).round_c() as u8;
+        let b = (self.blue * 255.0).round_c() as u8;
+        let a = (self.alpha * 255.0).round_c() as u8;
         [r, g, b, a]
     }
 
+    #[inline]
     /// Convert to ARGB 32 bit color.
     pub fn to_argb(&self) -> u32 {
         let result = self.to_r8g8b8a8();
         (result[3] as u32) << 24 | (result[0] as u32) << 16 | (result[1] as u32) << 8 | result[2] as u32
     }
 
+    #[inline]
     pub const fn white() -> Color {
         Color::new(1.0, 1.0, 1.0, 1.0)
     }
+    #[inline]
     pub const fn black() -> Color {
         Color::new(0.0, 0.0, 0.0, 1.0)
     }
+    #[inline]
     pub const fn white_transparent() -> Color {
         Color::new(1.0, 1.0, 1.0, 0.0)
     }
+    #[inline]
     pub const fn black_transparent() -> Color {
         Color::new(0.0, 0.0, 0.0, 0.0)
     }
+    #[inline]
     pub const fn red() -> Color {
         Color::new(1.0, 0.0, 0.0, 1.0)
     }
+    #[inline]
     pub const fn green() -> Color {
         Color::new(0.0, 1.0, 0.0, 1.0)
     }
+    #[inline]
     pub const fn blue() -> Color {
         Color::new(0.0, 0.0, 1.0, 1.0)
     }
 
+    #[inline]
     pub const fn with_alpha(&self, new_alpha: Scalar) -> Color {
         Color::new(self.red, self.green, self.blue, new_alpha)
     }
 
+    #[inline]
     pub const fn alice_blue() -> Color {
         Color::new(240.0 / 255.0, 248.0 / 255.0, 255.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn antique_white() -> Color {
         Color::new(250.0 / 255.0, 235.0 / 255.0, 215.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn aqua() -> Color {
         Color::new(0.0 / 255.0, 255.0 / 255.0, 255.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn aqua_marine() -> Color {
         Color::new(127.0 / 255.0, 255.0 / 255.0, 212.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn azure() -> Color {
         Color::new(240.0 / 255.0, 255.0 / 255.0, 255.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn beige() -> Color {
         Color::new(245.0 / 255.0, 245.0 / 255.0, 220.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn bisque() -> Color {
         Color::new(255.0 / 255.0, 228.0 / 255.0, 196.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn blanched_almond() -> Color {
         Color::new(255.0 / 255.0, 235.0 / 255.0, 205.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn blue_violet() -> Color {
         Color::new(138.0 / 255.0, 43.0 / 255.0, 226.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn brown() -> Color {
         Color::new(165.0 / 255.0, 42.0 / 255.0, 42.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn burly_wood() -> Color {
         Color::new(222.0 / 255.0, 184.0 / 255.0, 135.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn cadet_blue() -> Color {
         Color::new(95.0 / 255.0, 158.0 / 255.0, 160.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn chartreuse() -> Color {
         Color::new(127.0 / 255.0, 255.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn chocolate() -> Color {
         Color::new(210.0 / 255.0, 105.0 / 255.0, 30.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn coral() -> Color {
         Color::new(255.0 / 255.0, 127.0 / 255.0, 80.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn cornflower_blue() -> Color {
         Color::new(100.0 / 255.0, 149.0 / 255.0, 237.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn cornsilk() -> Color {
         Color::new(255.0 / 255.0, 248.0 / 255.0, 220.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn crimson() -> Color {
         Color::new(220.0 / 255.0, 20.0 / 255.0, 60.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn cyan() -> Color {
         Color::new(0.0 / 255.0, 255.0 / 255.0, 255.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_blue() -> Color {
         Color::new(0.0 / 255.0, 0.0 / 255.0, 139.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_cyan() -> Color {
         Color::new(0.0 / 255.0, 139.0 / 255.0, 139.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_goldenrod() -> Color {
         Color::new(184.0 / 255.0, 134.0 / 255.0, 11.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_gray() -> Color {
         Color::new(169.0 / 255.0, 169.0 / 255.0, 169.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_green() -> Color {
         Color::new(0.0 / 255.0, 100.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_grey() -> Color {
         Color::new(169.0 / 255.0, 169.0 / 255.0, 169.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_khaki() -> Color {
         Color::new(189.0 / 255.0, 183.0 / 255.0, 107.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_magenta() -> Color {
         Color::new(139.0 / 255.0, 0.0 / 255.0, 139.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_olive_green() -> Color {
         Color::new(85.0 / 255.0, 107.0 / 255.0, 47.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_orange() -> Color {
         Color::new(255.0 / 255.0, 140.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_orchid() -> Color {
         Color::new(153.0 / 255.0, 50.0 / 255.0, 204.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_red() -> Color {
         Color::new(139.0 / 255.0, 0.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_salmon() -> Color {
         Color::new(233.0 / 255.0, 150.0 / 255.0, 122.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_seagreen() -> Color {
         Color::new(143.0 / 255.0, 188.0 / 255.0, 143.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_slate_blue() -> Color {
         Color::new(72.0 / 255.0, 61.0 / 255.0, 139.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_slate_gray() -> Color {
         Color::new(47.0 / 255.0, 79.0 / 255.0, 79.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_slate_grey() -> Color {
         Color::new(47.0 / 255.0, 79.0 / 255.0, 79.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_turquoise() -> Color {
         Color::new(0.0 / 255.0, 206.0 / 255.0, 209.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dark_violet() -> Color {
         Color::new(148.0 / 255.0, 0.0 / 255.0, 211.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn deep_pink() -> Color {
         Color::new(255.0 / 255.0, 20.0 / 255.0, 147.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn deep_sky_blue() -> Color {
         Color::new(0.0 / 255.0, 191.0 / 255.0, 255.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dim_gray() -> Color {
         Color::new(105.0 / 255.0, 105.0 / 255.0, 105.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dim_grey() -> Color {
         Color::new(105.0 / 255.0, 105.0 / 255.0, 105.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn dodger_blue() -> Color {
         Color::new(30.0 / 255.0, 144.0 / 255.0, 255.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn firebrick() -> Color {
         Color::new(178.0 / 255.0, 34.0 / 255.0, 34.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn floral_white() -> Color {
         Color::new(255.0 / 255.0, 250.0 / 255.0, 240.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn forest_green() -> Color {
         Color::new(34.0 / 255.0, 139.0 / 255.0, 34.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn fuchsia() -> Color {
         Color::new(255.0 / 255.0, 0.0 / 255.0, 255.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn gainsboro() -> Color {
         Color::new(220.0 / 255.0, 220.0 / 255.0, 220.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn ghostwhite() -> Color {
         Color::new(248.0 / 255.0, 248.0 / 255.0, 255.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn gold() -> Color {
         Color::new(255.0 / 255.0, 215.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn goldenrod() -> Color {
         Color::new(218.0 / 255.0, 165.0 / 255.0, 32.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn gray() -> Color {
         Color::new(128.0 / 255.0, 128.0 / 255.0, 128.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn green_yellow() -> Color {
         Color::new(173.0 / 255.0, 255.0 / 255.0, 47.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn grey() -> Color {
         Color::new(128.0 / 255.0, 128.0 / 255.0, 128.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn honeydew() -> Color {
         Color::new(240.0 / 255.0, 255.0 / 255.0, 240.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn hot_pink() -> Color {
         Color::new(255.0 / 255.0, 105.0 / 255.0, 180.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn indian_red() -> Color {
         Color::new(205.0 / 255.0, 92.0 / 255.0, 92.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn indigo() -> Color {
         Color::new(75.0 / 255.0, 0.0 / 255.0, 130.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn ivory() -> Color {
         Color::new(255.0 / 255.0, 255.0 / 255.0, 240.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn khaki() -> Color {
         Color::new(240.0 / 255.0, 230.0 / 255.0, 140.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn lavender() -> Color {
         Color::new(230.0 / 255.0, 230.0 / 255.0, 250.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn lavender_blush() -> Color {
         Color::new(255.0 / 255.0, 240.0 / 255.0, 245.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn lawn_green() -> Color {
         Color::new(124.0 / 255.0, 252.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn lemon_chiffon() -> Color {
         Color::new(255.0 / 255.0, 250.0 / 255.0, 205.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_blue() -> Color {
         Color::new(173.0 / 255.0, 216.0 / 255.0, 230.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_coral() -> Color {
         Color::new(240.0 / 255.0, 128.0 / 255.0, 128.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_cyan() -> Color {
         Color::new(224.0 / 255.0, 255.0 / 255.0, 255.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_goldenrod_yellow() -> Color {
         Color::new(50.0 / 255.0, 250.0 / 255.0, 210.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_gray() -> Color {
         Color::new(211.0 / 255.0, 211.0 / 255.0, 211.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_green() -> Color {
         Color::new(144.0 / 255.0, 238.0 / 255.0, 144.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_grey() -> Color {
         Color::new(211.0 / 255.0, 211.0 / 255.0, 211.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_pink() -> Color {
         Color::new(255.0 / 255.0, 182.0 / 255.0, 193.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_salmon() -> Color {
         Color::new(255.0 / 255.0, 160.0 / 255.0, 122.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_sea_green() -> Color {
         Color::new(32.0 / 255.0, 178.0 / 255.0, 170.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_sky_blue() -> Color {
         Color::new(135.0 / 255.0, 206.0 / 255.0, 250.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_slate_gray() -> Color {
         Color::new(119.0 / 255.0, 136.0 / 255.0, 153.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_slate_grey() -> Color {
         Color::new(119.0 / 255.0, 136.0 / 255.0, 153.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_steel_blue() -> Color {
         Color::new(176.0 / 255.0, 196.0 / 255.0, 222.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn light_yellow() -> Color {
         Color::new(255.0 / 255.0, 255.0 / 255.0, 224.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn lime() -> Color {
         Color::new(0.0 / 255.0, 255.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn lime_green() -> Color {
         Color::new(50.0 / 255.0, 205.0 / 255.0, 50.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn linen() -> Color {
         Color::new(250.0 / 255.0, 240.0 / 255.0, 230.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn magenta() -> Color {
         Color::new(255.0 / 255.0, 0.0 / 255.0, 255.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn maroon() -> Color {
         Color::new(128.0 / 255.0, 0.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn medium_aquamarine() -> Color {
         Color::new(102.0 / 255.0, 205.0 / 255.0, 170.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn medium_blue() -> Color {
         Color::new(0.0 / 255.0, 0.0 / 255.0, 205.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn medium_orchid() -> Color {
         Color::new(186.0 / 255.0, 85.0 / 255.0, 211.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn medium_purple() -> Color {
         Color::new(147.0 / 255.0, 112.0 / 255.0, 219.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn medium_seagreen() -> Color {
         Color::new(60.0 / 255.0, 179.0 / 255.0, 113.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn medium_slate_blue() -> Color {
         Color::new(123.0 / 255.0, 104.0 / 255.0, 238.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn medium_spring_green() -> Color {
         Color::new(0.0 / 255.0, 250.0 / 255.0, 154.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn medium_turquoise() -> Color {
         Color::new(72.0 / 255.0, 209.0 / 255.0, 204.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn medium_violet_red() -> Color {
         Color::new(199.0 / 255.0, 21.0 / 255.0, 133.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn midnight_blue() -> Color {
         Color::new(25.0 / 255.0, 25.0 / 255.0, 112.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn mint_cream() -> Color {
         Color::new(245.0 / 255.0, 255.0 / 255.0, 250.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn misty_rose() -> Color {
         Color::new(255.0 / 255.0, 228.0 / 255.0, 225.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn moccasin() -> Color {
         Color::new(255.0 / 255.0, 228.0 / 255.0, 181.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn navajo_white() -> Color {
         Color::new(255.0 / 255.0, 222.0 / 255.0, 173.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn navy() -> Color {
         Color::new(0.0 / 255.0, 0.0 / 255.0, 128.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn old_lace() -> Color {
         Color::new(253.0 / 255.0, 245.0 / 255.0, 230.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn olive() -> Color {
         Color::new(128.0 / 255.0, 128.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn olive_drab() -> Color {
         Color::new(107.0 / 255.0, 142.0 / 255.0, 35.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn orange() -> Color {
         Color::new(255.0 / 255.0, 165.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn orange_red() -> Color {
         Color::new(255.0 / 255.0, 69.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn orchid() -> Color {
         Color::new(218.0 / 255.0, 112.0 / 255.0, 214.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn pale_goldenrod() -> Color {
         Color::new(238.0 / 255.0, 232.0 / 255.0, 170.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn pale_green() -> Color {
         Color::new(152.0 / 255.0, 251.0 / 255.0, 152.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn pale_turquoise() -> Color {
         Color::new(175.0 / 255.0, 238.0 / 255.0, 238.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn pale_violet_red() -> Color {
         Color::new(219.0 / 255.0, 112.0 / 255.0, 147.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn papaya_whip() -> Color {
         Color::new(255.0 / 255.0, 239.0 / 255.0, 213.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn peachpuff() -> Color {
         Color::new(255.0 / 255.0, 218.0 / 255.0, 185.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn peru() -> Color {
         Color::new(205.0 / 255.0, 133.0 / 255.0, 63.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn pink() -> Color {
         Color::new(255.0 / 255.0, 192.0 / 255.0, 203.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn plum() -> Color {
         Color::new(221.0 / 255.0, 160.0 / 255.0, 221.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn powder_blue() -> Color {
         Color::new(176.0 / 255.0, 224.0 / 255.0, 230.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn purple() -> Color {
         Color::new(128.0 / 255.0, 0.0 / 255.0, 128.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn rosy_brown() -> Color {
         Color::new(188.0 / 255.0, 143.0 / 255.0, 143.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn royal_blue() -> Color {
         Color::new(65.0 / 255.0, 105.0 / 255.0, 225.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn saddle_brown() -> Color {
         Color::new(139.0 / 255.0, 69.0 / 255.0, 19.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn salmon() -> Color {
         Color::new(250.0 / 255.0, 128.0 / 255.0, 114.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn sandy_brown() -> Color {
         Color::new(244.0 / 255.0, 164.0 / 255.0, 96.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn seagreen() -> Color {
         Color::new(46.0 / 255.0, 139.0 / 255.0, 87.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn seashell() -> Color {
         Color::new(255.0 / 255.0, 245.0 / 255.0, 238.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn sienna() -> Color {
         Color::new(160.0 / 255.0, 82.0 / 255.0, 45.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn silver() -> Color {
         Color::new(192.0 / 255.0, 192.0 / 255.0, 192.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn sky_blue() -> Color {
         Color::new(135.0 / 255.0, 206.0 / 255.0, 235.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn slate_blue() -> Color {
         Color::new(106.0 / 255.0, 90.0 / 255.0, 205.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn slate_gray() -> Color {
         Color::new(112.0 / 255.0, 128.0 / 255.0, 144.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn slate_grey() -> Color {
         Color::new(112.0 / 255.0, 128.0 / 255.0, 144.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn snow() -> Color {
         Color::new(255.0 / 255.0, 250.0 / 255.0, 250.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn spring_green() -> Color {
         Color::new(0.0 / 255.0, 255.0 / 255.0, 127.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn steel_blue() -> Color {
         Color::new(70.0 / 255.0, 130.0 / 255.0, 180.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn tan() -> Color {
         Color::new(210.0 / 255.0, 180.0 / 255.0, 140.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn teal() -> Color {
         Color::new(0.0 / 255.0, 128.0 / 255.0, 128.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn thistle() -> Color {
         Color::new(216.0 / 255.0, 191.0 / 255.0, 216.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn tomato() -> Color {
         Color::new(255.0 / 255.0, 99.0 / 255.0, 71.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn turquoise() -> Color {
         Color::new(64.0 / 255.0, 224.0 / 255.0, 208.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn violet() -> Color {
         Color::new(238.0 / 255.0, 130.0 / 255.0, 238.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn wheat() -> Color {
         Color::new(245.0 / 255.0, 222.0 / 255.0, 179.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn whitesmoke() -> Color {
         Color::new(245.0 / 255.0, 245.0 / 255.0, 245.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn yellow() -> Color {
         Color::new(255.0 / 255.0, 255.0 / 255.0, 0.0 / 255.0, 1.0)
     }
+    #[inline]
     pub const fn yellow_green() -> Color {
         Color::new(154.0 / 255.0, 205.0 / 255.0, 50.0 / 255.0, 1.0)
     }
+    #[inline]
     /// Upstream draws from `std::rand()`; the port draws from its own
     /// per-thread xorshift, so the colors differ (as two libcs' would).
     pub fn random() -> Color {
@@ -808,6 +971,7 @@ impl Color {
         .clamp01()
     }
 
+    #[inline]
     /// Convert the color from linear space to sRGB space. The conversion is
     /// computed in double and narrowed.
     pub fn linear_to_srgb(&self) -> Color {
@@ -826,6 +990,7 @@ impl Color {
         )
     }
 
+    #[inline]
     /// Convert the color from sRGB space to linear space.
     pub fn srgb_to_linear(&self) -> Color {
         let conversion = |component: Scalar| -> f64 {
@@ -843,10 +1008,12 @@ impl Color {
         )
     }
 
+    #[inline]
     pub fn is_transparent(&self) -> bool {
         self.alpha == 0.0
     }
 
+    #[inline]
     pub fn is_opaque(&self) -> bool {
         self.alpha == 1.0
     }
@@ -854,6 +1021,7 @@ impl Color {
 
 impl Add<Color> for Color {
     type Output = Color;
+    #[inline]
     fn add(self, c: Color) -> Color {
         Color::new(self.red + c.red, self.green + c.green, self.blue + c.blue, self.alpha + c.alpha)
     }
@@ -869,6 +1037,7 @@ impl<T: Num> Add<T> for Color {
 
 impl Sub<Color> for Color {
     type Output = Color;
+    #[inline]
     fn sub(self, c: Color) -> Color {
         Color::new(self.red - c.red, self.green - c.green, self.blue - c.blue, self.alpha - c.alpha)
     }
@@ -884,6 +1053,7 @@ impl<T: Num> Sub<T> for Color {
 
 impl Mul<Color> for Color {
     type Output = Color;
+    #[inline]
     fn mul(self, c: Color) -> Color {
         Color::new(self.red * c.red, self.green * c.green, self.blue * c.blue, self.alpha * c.alpha)
     }
@@ -900,6 +1070,7 @@ impl<T: Num> Mul<T> for Color {
 /// Upstream's `operator/(const Color&)` multiplies (kept).
 impl Div<Color> for Color {
     type Output = Color;
+    #[inline]
     fn div(self, c: Color) -> Color {
         Color::new(self.red * c.red, self.green * c.green, self.blue * c.blue, self.alpha * c.alpha)
     }
@@ -1060,6 +1231,7 @@ fn do_color_blend_components(
 }
 
 impl fmt::Display for Color {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use crate::print::g;
         write!(f, "({}, {}, {}, {})", g(self.red), g(self.green), g(self.blue), g(self.alpha))
@@ -1067,6 +1239,7 @@ impl fmt::Display for Color {
 }
 
 impl fmt::Display for BlendMode {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "BlendMode::k{}", blend_mode_to_string(*self))
     }
