@@ -188,8 +188,11 @@ class RouteUtils {
     return src; // fallback
   }
 
+  /// [onDefault], when given, is told each parameter's default value as
+  /// written, or null when it has none, right after [onParam] for it.
   static void extractParams(String rawFull, Function(String, String) onParam,
-      {Function(String)? onNamed}) {
+      {Function(String)? onNamed,
+      void Function(String name, String? defaultValue)? onDefault}) {
     // Comments first: a `// note` beside a parameter otherwise becomes part
     // of the next parameter's type once the list is split on commas.
     final String uncommented = stripComments(rawFull);
@@ -202,6 +205,8 @@ class RouteUtils {
       var pstr = pstr0.replaceAll(RegExp(r'^required\s+'), '');
       // strip default value
       final eq = pstr.indexOf('=');
+      final String? defaultValue =
+          eq == -1 ? null : pstr.substring(eq + 1).trim();
       if (eq != -1) pstr = pstr.substring(0, eq).trim();
       final toks =
           pstr.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
@@ -213,6 +218,7 @@ class RouteUtils {
           .trim();
       if (nameTok.isEmpty) continue;
       onParam(nameTok, typeTok);
+      onDefault?.call(nameTok, defaultValue);
     }
   }
   /// [source] without its `//` and `/* */` comments. Quoted strings are kept

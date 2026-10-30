@@ -4007,7 +4007,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       // argument the handler then refuses at run time.
       final List<String> required = <String>[
         for (var i = 0; i < entry.parameterNames.length; i++)
-          if (!entry.parameterTypes[i].trim().endsWith('?'))
+          if (!entry.parameterTypes[i].trim().endsWith('?') &&
+              entry.literalDefault(i) == null)
             "DVJsonString('${esc(entry.parameterNames[i])}')",
       ];
       final String requiredLine = required.isEmpty
@@ -4028,12 +4029,23 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
                 '        }),\n'
                 '$requiredLine'
                 '      }';
+      // A parameter with a literal default is passed that default when the
+      // model leaves it out, so the function runs as its author wrote it
+      // rather than with null or a refusal.
+      String argument(int i) {
+        final String read = '_dvToolArg(args, \'${esc(entry.parameterNames[i])}\', '
+            "'${esc(entry.parameterTypes[i])}') "
+            'as ${entry.parameterTypes[i]}';
+        final String? fallback = entry.literalDefault(i);
+        return fallback == null
+            ? read
+            : "(args.containsKey('${esc(entry.parameterNames[i])}') "
+                '? $read : $fallback)';
+      }
+
       final List<String> args = <String>[
         for (var i = 0; i < entry.parameterNames.length; i++)
-          '${entry.named ? '${entry.parameterNames[i]}: ' : ''}'
-              '_dvToolArg(args, \'${esc(entry.parameterNames[i])}\', '
-              "'${esc(entry.parameterTypes[i])}') "
-              'as ${entry.parameterTypes[i]}',
+          '${entry.named ? '${entry.parameterNames[i]}: ' : ''}${argument(i)}',
       ];
       sb
         ..writeln("  registry.register('${esc(entry.name)}',")
@@ -4536,11 +4548,14 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       }
       final parameterNames = <String>[];
       final parameterTypes = <String>[];
+      final parameterDefaults = <String?>[];
       var named = '0';
       RouteUtils.extractParams(match.group(3) ?? '', (n, t) {
         parameterNames.add(n);
         parameterTypes.add(t);
-      }, onNamed: (v) => named = v);
+      },
+          onNamed: (v) => named = v,
+          onDefault: (_, d) => parameterDefaults.add(d));
       entriesByName[name] = _AIToolEntry(
         name: name,
         returnsVoid: _dvReturnsNothing(match.group(0) ?? '', name),
@@ -4555,6 +4570,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         relativePath: relativePath,
         parameterNames: parameterNames,
         parameterTypes: parameterTypes,
+        parameterDefaults: parameterDefaults,
         named: named == '1',
       );
     }
@@ -4640,11 +4656,14 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       }
       final parameterNames = <String>[];
       final parameterTypes = <String>[];
+      final parameterDefaults = <String?>[];
       var named = '0';
       RouteUtils.extractParams(match.group(2) ?? '', (n, t) {
         parameterNames.add(n);
         parameterTypes.add(t);
-      }, onNamed: (v) => named = v);
+      },
+          onNamed: (v) => named = v,
+          onDefault: (_, d) => parameterDefaults.add(d));
       entriesByName[publicName] = _AIToolEntry(
         name: publicName,
         returnsVoid: _dvReturnsNothing(declaration, name),
@@ -4654,6 +4673,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         relativePath: relativePath,
         parameterNames: parameterNames,
         parameterTypes: parameterTypes,
+        parameterDefaults: parameterDefaults,
         named: named == '1',
         declaredName: name,
         requiresApproval: requiresApproval,
@@ -4815,6 +4835,21 @@ class _AIToolEntry {
   final List<String> parameterNames;
   final List<String> parameterTypes;
 
+  /// Each parameter's default as written, or null when it has none.
+  final List<String?> parameterDefaults;
+
+  /// The default for parameter [i] when it is a literal the handler can
+  /// carry, or null. A default that names something -- a constant, a call --
+  /// means something only in its own file, so that parameter stays required.
+  String? literalDefault(int i) {
+    final String? value = i < parameterDefaults.length ? parameterDefaults[i] : null;
+    if (value == null) return null;
+    final bool literal = RegExp(r'^(?:-?\d+(?:\.\d+)?|true|false|null)$').hasMatch(value) ||
+        (RegExp(r"^'(?:[^'\\$]|\\.)*'$").hasMatch(value) ||
+            RegExp(r'^"(?:[^"\\$]|\\.)*"$').hasMatch(value));
+    return literal ? value : null;
+  }
+
   /// Whether the parameters are named. A tool declared with named
   /// parameters has to be called with them.
   final bool named;
@@ -4852,6 +4887,7 @@ class _AIToolEntry {
     required this.relativePath,
     this.parameterNames = const <String>[],
     this.parameterTypes = const <String>[],
+    this.parameterDefaults = const <String?>[],
     this.named = false,
     this.returnsVoid = false,
     this.returnsPlainVoid = false,
