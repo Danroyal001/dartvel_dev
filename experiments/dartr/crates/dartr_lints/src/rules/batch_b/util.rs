@@ -333,22 +333,21 @@ pub fn canonical_elements_from_identifiers_are_equal(
     };
     let e1 = unparenthesized(c, e1);
     let e2 = unparenthesized(c, e2);
-    // Dart `canonicalElementsAreEqual` of `writeOrReadElement`s.
-    let wr = |n: NodeId| {
-        c.write_or_read_element(n)
-            .and_then(|e| c.canonical_element2(e))
+    // Dart `canonicalElementsAreEqual` of `writeOrReadElement`s, and of the
+    // prefixes' `element`s.
+    let wr = |a: NodeId, b: NodeId| {
+        c.canonical_elements_are_equal(c.write_or_read_element(a), c.write_or_read_element(b))
     };
-    let el = |n: NodeId| c.element(n).and_then(|e| c.canonical_element2(e));
+    let el = |a: NodeId, b: NodeId| c.canonical_elements_are_equal(c.element(a), c.element(b));
     match (kind(c, e1), kind(c, e2)) {
-        (NodeKind::SimpleIdentifier, k) => k == NodeKind::SimpleIdentifier && wr(e1) == wr(e2),
+        (NodeKind::SimpleIdentifier, k) => k == NodeKind::SimpleIdentifier && wr(e1, e2),
         (NodeKind::PrefixedIdentifier, k) => {
             if k != NodeKind::PrefixedIdentifier {
                 return false;
             }
             let a = &c.ast[Id::<PrefixedIdentifier>::from_raw(e1)];
             let b = &c.ast[Id::<PrefixedIdentifier>::from_raw(e2)];
-            el(a.prefix.raw()) == el(b.prefix.raw())
-                && wr(a.identifier.raw()) == wr(b.identifier.raw())
+            el(a.prefix.raw(), b.prefix.raw()) && wr(a.identifier.raw(), b.identifier.raw())
         }
         (NodeKind::PropertyAccess, NodeKind::PropertyAccess) => {
             let a = &c.ast[Id::<PropertyAccess>::from_raw(e1)];
@@ -357,7 +356,7 @@ pub fn canonical_elements_from_identifiers_are_equal(
                 c,
                 a.target.map(|t| t.raw()),
                 b.target.map(|t| t.raw()),
-            ) && wr(a.property_name.raw()) == wr(b.property_name.raw())
+            ) && wr(a.property_name.raw(), b.property_name.raw())
         }
         _ => false,
     }

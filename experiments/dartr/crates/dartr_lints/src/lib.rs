@@ -505,6 +505,30 @@ impl<'a> LinterContext<'a> {
         let node = node.into();
         write_element(self, node).or_else(|| self.element(node))
     }
+    /// Dart `canonicalElementsAreEqual` (linter `util/dart_type_utilities.dart`):
+    /// `element1?.canonicalElement2 == element2?.canonicalElement2`.
+    ///
+    /// A member of a generic type (`ElemRef::Member`) is a fresh
+    /// `Substituted*ElementImpl` for each reference, and its
+    /// `canonicalElement2` is the member itself or, for a property accessor,
+    /// a fresh `SubstitutedFieldElementImpl`
+    /// (`SubstitutedPropertyAccessorElementImpl.variable`,
+    /// `pkg/analyzer/lib/src/dart/element/member.dart`); none of them
+    /// overrides `==`, so such a reference is equal to nothing. Two missing
+    /// elements are equal (`null == null`).
+    pub fn canonical_elements_are_equal(
+        &self,
+        element1: Option<dartr_element::ElemRef>,
+        element2: Option<dartr_element::ElemRef>,
+    ) -> bool {
+        use dartr_element::ElemRef;
+        match (element1, element2) {
+            (None, None) => true,
+            (Some(ElemRef::Member(_)), _) | (_, Some(ElemRef::Member(_))) => false,
+            (Some(a), Some(b)) => self.canonical_element2(a) == self.canonical_element2(b),
+            _ => false,
+        }
+    }
     /// Dart `ElementExtension.canonicalElement2` of the base element:
     /// a property accessor is replaced with its variable.
     pub fn canonical_element2(

@@ -1,5 +1,7 @@
 // Dart source: pkg/linter/lib/src/rules/join_return_with_assignment.dart
 
+// Dart `canonicalElementsFromIdentifiersAreEqual` (`util/dart_type_utilities.dart`).
+use crate::rules::batch_b::util::canonical_elements_from_identifiers_are_equal;
 use crate::{LinterContext, RuleVisitorRegistry};
 use dartr_ast::*;
 use dartr_diagnostics::{Diagnostic, diag};
@@ -44,53 +46,6 @@ fn return_expression(ctx: &LinterContext<'_>, statement: NodeId) -> Option<NodeI
         .and_then(|r| ctx.ast[r].expression.map(Id::raw))
 }
 
-/// Dart `canonicalElementsAreEqual` operand: `writeOrReadElement?.canonicalElement2`.
-fn canonical_element(
-    ctx: &LinterContext<'_>,
-    expression: NodeId,
-) -> Option<dartr_element::ElementId> {
-    ctx.write_or_read_element(expression)
-        .and_then(|e| ctx.canonical_element2(e))
-}
-
-/// `.element?.canonicalElement2` (the prefix of a prefixed identifier).
-fn canonical_element_of_element(
-    ctx: &LinterContext<'_>,
-    expression: NodeId,
-) -> Option<dartr_element::ElementId> {
-    ctx.element(expression)
-        .and_then(|e| ctx.canonical_element2(e))
-}
-
-fn same_target(ctx: &LinterContext<'_>, a: Option<NodeId>, b: Option<NodeId>) -> bool {
-    let (Some(a), Some(b)) = (a, b) else {
-        return false;
-    };
-    let a = unparenthesized(ctx, a);
-    let b = unparenthesized(ctx, b);
-    match (ctx.ast.kind(a), ctx.ast.kind(b)) {
-        (NodeKind::SimpleIdentifier, NodeKind::SimpleIdentifier) => {
-            canonical_element(ctx, a) == canonical_element(ctx, b)
-        }
-        (NodeKind::PrefixedIdentifier, NodeKind::PrefixedIdentifier) => {
-            let a = &ctx.ast[Id::<PrefixedIdentifier>::from_raw(a)];
-            let b = &ctx.ast[Id::<PrefixedIdentifier>::from_raw(b)];
-            canonical_element_of_element(ctx, a.prefix.raw())
-                == canonical_element_of_element(ctx, b.prefix.raw())
-                && canonical_element(ctx, a.identifier.raw())
-                    == canonical_element(ctx, b.identifier.raw())
-        }
-        (NodeKind::PropertyAccess, NodeKind::PropertyAccess) => {
-            let a = &ctx.ast[Id::<PropertyAccess>::from_raw(a)];
-            let b = &ctx.ast[Id::<PropertyAccess>::from_raw(b)];
-            same_target(ctx, a.target.map(Id::raw), b.target.map(Id::raw))
-                && canonical_element(ctx, a.property_name.raw())
-                    == canonical_element(ctx, b.property_name.raw())
-        }
-        _ => false,
-    }
-}
-
 fn check(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
     let statements = ctx
         .ast
@@ -108,7 +63,9 @@ fn check(ctx: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
     let third = statements
         .get(statements.len().wrapping_sub(3))
         .and_then(|s| assignment_target(ctx, s.raw()));
-    if !same_target(ctx, Some(second), third) && same_target(ctx, Some(last), Some(second)) {
+    if !canonical_elements_from_identifiers_are_equal(ctx, Some(second), third)
+        && canonical_elements_from_identifiers_are_equal(ctx, Some(last), Some(second))
+    {
         ctx.report_node(
             out,
             &diag::JOIN_RETURN_WITH_ASSIGNMENT,
