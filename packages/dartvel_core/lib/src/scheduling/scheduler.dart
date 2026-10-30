@@ -15,6 +15,8 @@ import '../../dartvel.dart' show DVCronEntry;
 import '../cache/adapters.dart' show DVAtomicCacheAdapter;
 import '../database/adapter.dart' show DVDatabaseAdapter;
 import '../database/framework_tables.dart';
+import '../diagnostics/diagnostics.dart';
+import '../observability/observability.dart';
 import '../preview/preview_outbound.dart' show DVPreviewOutbound;
 import 'cron.dart';
 
@@ -167,6 +169,10 @@ class _DVTask {
 
   /// True while the handler is in flight.
   bool running = false;
+
+  /// The occurrence last reported as skipped for an overlap, so it is
+  /// reported once rather than on every tick while it waits.
+  DateTime? reportedOverlap;
 }
 
 /// The schedule registry and the thing that fires it.
@@ -176,14 +182,23 @@ class DVScheduler {
   ///
   /// [onFailure] is told about each task that throws, as it happens. Without
   /// it a failure is kept in [failures], which a served process never reads.
-  DVScheduler({DateTime Function()? clock, this.lease, this.onFailure})
-      : _clock = clock ?? DateTime.now {
+  ///
+  /// [onDiagnostic] is told the `DV-CRON-*` codes the scheduler reports, and
+  /// defaults to `DV.log` at the level the diagnostic registry gives each.
+  DVScheduler({
+    DateTime Function()? clock,
+    this.lease,
+    this.onFailure,
+    void Function(String code, String message)? onDiagnostic,
+  })  : _clock = clock ?? DateTime.now,
+        _onDiagnostic = onDiagnostic ?? _logScheduleDiagnostic {
     _startedAt = _clock();
   }
 
   final DateTime Function() _clock;
   final DVScheduleLease? lease;
   final void Function(DVScheduledFailure failure)? onFailure;
+  final void Function(String code, String message) _onDiagnostic;
   late final DateTime _startedAt;
   final Map<String, _DVTask> _tasks = <String, _DVTask>{};
   final List<DVScheduledFailure> _failures = <DVScheduledFailure>[];
@@ -286,8 +301,31 @@ class DVScheduler {
 
   Future<void> _runIfDue(_DVTask task, DateTime now) async {
     // A five-minute job on a one-minute schedule would otherwise accumulate
-    // copies until the process falls over.
-    if (task.running) return;
+    // copies until the process falls over. Said, once per occurrence, since a
+    // schedule that quietly runs half as often as declared looks exactly like
+    // one that runs.
+    if (task.running) {
+      final DateTime? waiting = task.schedule.nextAfter(task.lastRun);
+      if (waiting != null && !waiting.isAfter(now)) {
+        // The most recent occurrence due, so a tick every few seconds within
+        // one minute reports that minute once.
+        DateTime latest = waiting;
+        for (DateTime? next = task.schedule.nextAfter(waiting);
+            next != null && !next.isAfter(now);
+            next = task.schedule.nextAfter(next)) {
+          latest = next;
+        }
+        if (latest != task.reportedOverlap) {
+          task.reportedOverlap = latest;
+          _onDiagnostic(
+            'DV-CRON-003',
+            '${task.name}: the run due at ${latest.toIso8601String()} was '
+            'skipped because the previous run is still going',
+          );
+        }
+      }
+      return;
+    }
 
     final List<DateTime> due = <DateTime>[];
     DateTime? next = task.schedule.nextAfter(task.lastRun);
@@ -352,4 +390,19 @@ class DVScheduler {
 
   /// Forgets recorded failures.
   void clearFailures() => _failures.clear();
+}
+
+/// Logs a `DV-CRON-*` [code] at the level the registry assigns it.
+void _logScheduleDiagnostic(String code, String message) {
+  final String level = DVDiagnostics.find(code)?.level ?? 'warning';
+  DVObservability.log(
+    '$code: $message',
+    level: switch (level) {
+      'debug' => DVLogLevel.debug,
+      'info' => DVLogLevel.info,
+      'error' => DVLogLevel.error,
+      _ => DVLogLevel.warn,
+    },
+    code: code,
+  );
 }
