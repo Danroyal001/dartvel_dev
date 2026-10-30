@@ -1,10 +1,10 @@
 # `_fe_analyzer_shared` in Rust
 
-A file-by-file Rust port of this package (`pkg/_fe_analyzer_shared`), started
-with the scanner. Each file under `src/` ports the Dart library at the same
-path under `../lib/src`, keeps its structure and names, and names that
-library in its first line. Files that are not ports (`lib.rs`, `mod.rs`, the
-test harness) say so in their first line.
+A file-by-file Rust port of this package (`pkg/_fe_analyzer_shared`), so far
+the scanner and the parser. Each file under `src/` ports the Dart library at
+the same path under `../lib/src`, keeps its structure and names, and names
+that library in its first line. Files that are not ports (`lib.rs`, `mod.rs`,
+the test harnesses) say so in their first line.
 
 ## The oracle
 
@@ -16,6 +16,15 @@ this checkout as the oracle:
 | Dump | `oracle/scanner_dump.dart` | `src/bin/scanner_dump.rs` |
 | Input | every `.dart` file under the corpus roots | the same |
 | Output | `<out>/<root>/<path>.tokens` | the same, byte for byte |
+
+and for the parser:
+
+| | Upstream | Port |
+|---|---|---|
+| Dump | `oracle/parser_dump.dart` | `src/bin/parser_dump/main.rs` |
+| Listener | `oracle/parser_trace_listener.dart` | `src/bin/parser_dump/trace_listener.rs` |
+| Input | every `.dart` file under the corpus roots | the same |
+| Output | `<out>/<root>/<path>.trace` | the same, byte for byte |
 
 A dump lists every token in stream order (error tokens included, where the
 scanner puts them) with its type, runtime class, offset, length, lexeme or
@@ -29,7 +38,21 @@ comments and the default configuration.
 corpus: each test file, plus the value of every uninterpolated string literal
 in it, as a file of its own.
 
-Both Dart programs import only `dart:` libraries and this package's own, and
+A parser trace is every listener event, in order, one line each: the
+event's name and each argument. A token is `TYPE@offset"lexeme"`, plus `~`
+when synthetic; an error token is `!code@offset`, and `handleErrorToken`
+also logs its assertion message; a message is `Code"problem""correction"`;
+null is `-`; enums print as Dart's `toString`. A file that makes the
+parser throw ends its trace with a `crash` line. Each file is scanned with
+`scan(bytes)` (comments included) and parsed by `Parser.parseUnit` with
+`DefaultExperimentalFeatures`, so the parser's error codes and offsets are
+in the trace as `handleRecoverableError` events.
+
+Both tracing listeners are generated from the upstream `Listener` by
+`oracle/generate_parser_trace.dart`, which reflects on it with
+`dart:mirrors`; run it again when `listener.dart` changes.
+
+The Dart programs import only `dart:` libraries and this package's own, and
 run with `oracle/package_config.json`, so they need no `pub get`.
 
 ## Running it
@@ -48,8 +71,19 @@ names other roots; `SCANNER_WORK` moves the scratch directory (default
 where the oracle runs, so the two dumps always read the same files. Dumps that match are deleted; dumps that differ are
 kept there, and the test prints the first differing line of each.
 
+```sh
+DART=/path/to/dart cargo test --release --test parser_oracle
+```
+
+compares the parser on `pkg/_fe_analyzer_shared/lib`, `pkg/analyzer/lib`
+and `tests/language`; `PARSER_CORPUS` and `PARSER_WORK` (default
+`target/parser_oracle`) work as the scanner's variables do.
+
 Speed: `scanner_dump.dart --bench=N` and `scanner_dump --bench=N` scan the
 corpus N times in memory and print the fastest and median round.
+`parser_dump.dart --bench=N` and `parser_dump --bench=N` scan the corpus
+before each round and time only parsing it, with a listener that ignores
+every event.
 
 ## Porting conventions
 
@@ -66,6 +100,14 @@ corpus N times in memory and print the fastest and median round.
 - An abstract Dart class with subclasses becomes a generic struct over a
   trait holding the abstract members (`AbstractScanner<S: ScannerSubclass>`).
 - Where upstream throws, the port panics with the same message.
+- A Dart class hierarchy that the parser picks among at run time becomes
+  one type with a kind or an enum (`IdentifierContext`, `TypeInfo`,
+  `LiteralEntryInfo`, `ParserKind` for `ClassMemberParser` and
+  `TopLevelParser`); a subclass that only overrides listener events becomes
+  a `ForwardingListener` with recovery state.
+- The parser owns the `TokenStore` and the listener (`Box<dyn Listener>`),
+  and every listener event takes the store first. Code that splits `>>` or
+  inserts synthetic tokens takes `&mut TokenStore`.
 - Behaviour that looks like an upstream slip is ported as is and marked with
   a comment, never fixed: the oracle would report the fix as a difference.
 
@@ -85,3 +127,16 @@ process, which holds the corpus in memory.
 | `scanString` | Dart AOT | 101.7 ms | 109.8 ms | 86.7 MiB |
 | `scanString` | Dart JIT | 98.2 ms | 113.5 ms | 279.9 MiB |
 | `scanString` | Rust | 49.1 ms | 51.9 ms | 53.3 MiB |
+
+The parser, measured the same day on its default corpus (5152 files,
+28,328,001 bytes), 20 rounds in one process. Each round scans every file
+first and times only `parseUnit` with a listener that ignores every event.
+Peak RSS is sampled from `/proc` every 50 ms and is dominated by the token
+streams of the whole corpus, which both programs hold before parsing. The
+median of the Dart AOT run moved between 346 and 400 ms across runs.
+
+| Parser | Implementation | Fastest round | Median round | Peak RSS |
+|---|---|---|---|---|
+| `parseUnit` | Dart AOT | 312.4 ms | 400.2 ms | 496.5 MiB |
+| `parseUnit` | Dart JIT | 399.6 ms | 457.1 ms | 981.6 MiB |
+| `parseUnit` | Rust | 164.0 ms | 186.4 ms | 494.3 MiB |
