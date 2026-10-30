@@ -82,3 +82,19 @@ mod task_runner_util_unittests;
 mod task_source_unittests;
 #[cfg(test)]
 mod thread_unittests;
+#[cfg(test)]
+mod backtrace_unittests;
+#[cfg(test)]
+mod command_line_unittest;
+#[cfg(test)]
+mod container_unittests;
+#[cfg(test)]
+mod cpu_affinity_unittests;
+#[cfg(test)]
+mod file_unittest;
+#[cfg(test)]
+mod mapping_unittests;
+#[cfg(test)]
+mod paths_unittests;
+#[cfg(test)]
+mod safe_math_unittests;
