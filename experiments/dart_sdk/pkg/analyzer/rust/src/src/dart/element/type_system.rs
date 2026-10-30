@@ -1,10 +1,8 @@
 // Port of the parts of lib/src/dart/element/type_system.dart (`TypeSystemImpl`)
 // and type_provider.dart that the linker's type algorithms use: the classes
 // of `dart:core` and `dart:async` they name (`Object`, `Null`, `Future`,
-// `FutureOr`), and the predicates `isTop`, `isObject`, `isNullable`.
-//
-// Upstream's unknown inferred type (`_`) is not a `TypeImpl` here; the
-// algorithms that need it are ported with it.
+// `FutureOr`), and the predicates `isTop`, `isObject`, `isNullable`,
+// `isNonNullable` and `isBottom`.
 
 use crate::dart::element::nullability_suffix::NullabilitySuffix;
 use crate::src::dart::element::element::{ElementId, ElementKind, ElementStore};
@@ -141,5 +139,77 @@ pub fn with_suffix(t: &TypeImpl, suffix: NullabilitySuffix) -> TypeImpl {
         }
         TypeImpl::TypeParameter(p) => TypeImpl::type_parameter(p.element, suffix),
         TypeImpl::Builder(_) => panic!("a TypeBuilder has no nullability outside linking"),
+    }
+}
+
+/// `typeProvider.futureType`: `Future<argument>`.
+pub fn future_type(store: &ElementStore, argument: TypeImpl) -> TypeImpl {
+    let future = sdk_class(store, "dart:async", "Future").expect("dart:async declares Future");
+    TypeImpl::interface(future, vec![argument], NullabilitySuffix::none)
+}
+
+/// `TypeImpl.isBottom`: `Never`, or a non-nullable type parameter whose
+/// bound is bottom, following bounds that are type parameters once each.
+pub fn is_bottom(store: &ElementStore, t: &TypeImpl) -> bool {
+    match t {
+        TypeImpl::Never(suffix) => *suffix != NullabilitySuffix::question,
+        TypeImpl::TypeParameter(p) => {
+            let mut seen = Vec::new();
+            let mut p = p.clone();
+            while !seen.contains(&p.element) {
+                seen.push(p.element);
+                if p.nullability_suffix == NullabilitySuffix::question {
+                    return false;
+                }
+                match store.element(p.element).type_.clone() {
+                    Some(TypeImpl::TypeParameter(bound)) => p = bound,
+                    Some(bound) => return is_bottom(store, &bound),
+                    None => return false,
+                }
+            }
+            // A cycle of bounds.
+            false
+        }
+        _ => false,
+    }
+}
+
+/// `TypeSystemImpl.isNonNullable`.
+pub fn is_non_nullable(store: &ElementStore, t: &TypeImpl) -> bool {
+    non_nullable(store, t, &mut Vec::new())
+}
+
+/// `_isNonNullable`.
+fn non_nullable(store: &ElementStore, t: &TypeImpl, visited: &mut Vec<ElementId>) -> bool {
+    match t {
+        TypeImpl::Dynamic | TypeImpl::Invalid | TypeImpl::Unknown | TypeImpl::Void => return false,
+        _ if is_null_class(store, t) => return false,
+        TypeImpl::Builder(_) => return false,
+        _ => {}
+    }
+    if other_nullability(t) == NullabilitySuffix::question {
+        return false;
+    }
+    match t {
+        TypeImpl::Interface(i) => {
+            if is_future_or(store, t) {
+                return non_nullable(store, &i.type_arguments[0], visited);
+            }
+            if store.element(i.element).kind == ElementKind::EXTENSION_TYPE {
+                return store.types(i.element).is_some_and(|ty| !ty.interfaces.is_empty());
+            }
+            true
+        }
+        TypeImpl::TypeParameter(p) => {
+            let Some(bound) = store.element(p.element).type_.clone() else {
+                return false;
+            };
+            if visited.contains(&p.element) {
+                return false;
+            }
+            visited.push(p.element);
+            non_nullable(store, &bound, visited)
+        }
+        _ => true,
     }
 }

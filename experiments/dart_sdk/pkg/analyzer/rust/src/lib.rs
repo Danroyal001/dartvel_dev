@@ -85,6 +85,7 @@ pub mod src {
             pub mod top_merge;
             pub mod class_hierarchy;
             pub mod subtype;
+            pub mod least_greatest_closure;
         }
         pub mod resolver {
             pub mod scope;
