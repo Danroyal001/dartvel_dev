@@ -40,8 +40,15 @@ impl<'a> GreatestLowerBoundHelper<'a> {
         let ctx = self.ctx();
 
         // DOWN(T, T) = T
-        // Dart: identical
-        if T1 == T2 {
+        // Dart: identical. As in `getLeastUpperBound`, two equal record or
+        // function types with a typedef alias are rarely the same Dart
+        // object (the types of two declarations that use the typedef), and
+        // the record and function cases below build a new type without the
+        // alias, so interned equal types with an alias go there too.
+        if T1 == T2
+            && !matches!(*ctx.ty(T1), TypeKind::Record { alias: Some(_), .. })
+            && !matches!(*ctx.ty(T1), TypeKind::Function(f) if f.alias.is_some())
+        {
             return T1;
         }
 
