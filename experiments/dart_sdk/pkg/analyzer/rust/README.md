@@ -4,7 +4,9 @@ A file-by-file Rust port of this package (`pkg/analyzer`), so far the part
 that parses a file into a syntax tree: the AST node classes, the
 `AstBuilder` listener that builds them from the parser's events, and
 `parseString`; and what the tree offers once built: parent pointers, the
-V2 visitors, `toSource`, `NodeLocator2` and the texts of the diagnostics. Each file under `src/` ports the Dart library at the same path
+V2 visitors, `toSource`, `NodeLocator2` and the texts of the diagnostics;
+and the start of semantic analysis: the element model built from a
+library's declarations (see [The element model](#the-element-model)). Each file under `src/` ports the Dart library at the same path
 under `../lib`, keeps its structure and names, and names that library in its
 first line. Files that are not ports (`lib.rs`, `mod.rs`, the test harness)
 say so in their first line. It follows the conventions of
@@ -261,3 +263,238 @@ store, lists included, plus the boxed large nodes), their parents (4 bytes
 each, 14.7 MiB, which took the parsed corpus past Dart's) and 5,201,677
 tokens, whose store (`TokenData` is 92 bytes, from the scanner port) takes
 458.0 MiB: the tokens, not the tree, dominate the parsed corpus.
+
+## The element model
+
+### Slice boundary
+
+Upstream builds elements while linking a library cycle
+(`summary2/link.dart`, `Linker._buildOutlines`). The port covers the steps
+up to and including the export scopes, and the synthetic constructors,
+which need nothing more:
+
+1. `LibraryBuilder.build`: the library element (its name from the
+   `library` directive) and the defining unit's fragment.
+2. `_computeLibraryScopes`: `buildElements` (the directives of every unit,
+   following `part` directives into the parts they include;
+   `FragmentBuilder`, a fragment for every declaration; `ElementBuilder`,
+   which joins fragments into elements and creates the variables, getters
+   and setters a field, a variable or an accessor induces; `dynamic` and
+   `Never` in `dart:core`), then `_buildExportScopes`.
+3. `_buildClassSyntheticConstructors` and `_buildEnumSyntheticConstructors`.
+
+and, from `dart/resolver/scope.dart`, the namespace of each import. The
+files, their URIs and their kinds (library or part, `part of` checks) come
+from `dart/analysis/file_state.dart`, with the SDK's library map read from
+its `libraries.dart` (`dart/sdk/sdk.dart`) and the package config
+(`context/packages.dart`), as `AnalysisContextCollection` sets them up.
+
+The boundary is the next step, `_resolveTypes`: nothing about types is
+ported (see [Not ported yet](#not-ported-yet)).
+
+### The oracle
+
+| | Upstream | Port |
+|---|---|---|
+| Dump | `oracle/element_dump.dart` | `src/bin/element_dump/main.rs` |
+| Input | every library among the `.dart` files under the corpus roots | the same |
+| Output | `<out>/<root>/<path>.elements` | the same, byte for byte |
+
+The oracle asks the analyzer's own API for each file's library
+(`AnalysisContextCollectionImpl`, then `session.getLibraryByUri` of the
+file's URI: the library is linked from declarations, bodies are not
+resolved) and writes: the library's URI, name and name range; each unit
+with its imports, exports and part includes (keyword offset, the runtime
+class of the `DirectiveUri` and what it names, combinators with offsets,
+an import's prefix, and the names in an import's namespace); every
+element by kind (`<ElementKind> <name>`), each of its fragments with its
+unit, `firstTokenOffset`, `nameOffset` and the flags `flagsForTesting`
+reports set, and its children (type parameters, fields, getters, setters,
+constructors, methods, formal parameters with their kind, field/super
+formal class, private name and default value); and the export namespace.
+A name in a namespace is followed by the kind, library and offsets of the
+element it names. Flags computed later (`isPromotable`), the constructors
+of mixin applications (which need supertypes) and the default values super
+formal parameters inherit (which need the super constructor) are left out.
+
+`--types` adds the declared types (`getDisplayString()` of bounds,
+supertypes, mixins, interfaces, superclass constraints, extended and
+aliased types, return types and variable and parameter types; `implicit`
+where inference decides). The Rust binary does not port it yet and exits
+with status 70, so `declared_types_are_identical_to_upstream` fails, by
+design, until it is.
+
+### Running it
+
+```sh
+DART=/path/to/dart cargo test --release -p analyzer --test element_oracle
+```
+
+`tests/element_oracle.rs` writes a package config (this checkout's
+`_fe_analyzer_shared`, `analyzer` and `meta`, and the analyzer's
+dependencies from the pub cache, as `tests/ast_oracle.rs` does), lays out
+an SDK directory whose `lib` is this checkout's `sdk/lib` and whose
+`version` comes from `tools/VERSION`, and runs both programs on
+`pkg/_fe_analyzer_shared/lib` and `pkg/analyzer/lib`. `ELEMENT_CORPUS`
+names other roots and `ELEMENT_WORK` moves the scratch directory (default
+`target/element_oracle`).
+
+### What is ported
+
+| Dart (`../lib/...`) | Rust (`src/...`) |
+|---|---|
+| `src/dart/element/element.dart` (the element and fragment classes, flags) | `src/dart/element/element.rs` |
+| `src/summary2/element_builder.dart` (`FragmentBuilder`, `ElementBuilder`) | `src/summary2/element_builder.rs` |
+| `src/summary2/library_builder.dart` (`build`, `buildElements`, directives, export scope, synthetic constructors) | `src/summary2/library_builder.rs` |
+| `src/summary2/link.dart` (the steps above) | `src/summary2/link.rs` |
+| `src/summary2/export.dart`, `combinator.dart` | `src/summary2/export.rs` |
+| `src/summary2/not_serializable_nodes.dart` | `src/summary2/not_serializable_nodes.rs` |
+| `src/dart/ast/invokes_super_self.dart` | `src/dart/ast/invokes_super_self.rs` |
+| `src/dart/resolver/scope.dart` (`Namespace`, `NamespaceBuilder`) | `src/dart/resolver/scope.rs` |
+| `src/dart/analysis/file_state.dart` (files, URIs, unlinked directives, kinds) | `src/dart/analysis/file_state.rs` |
+| `src/dart/sdk/sdk.dart`, `src/generated/sdk.dart` (library map) | `src/dart/sdk/sdk.rs` |
+| `src/context/packages.dart` | `src/context/packages.rs` |
+| `src/utilities/uri_cache.dart`, `_fe_analyzer_shared`'s `resolve_relative_uri.dart` (with `dart:core`'s `Uri.resolveUri`) | `src/utilities/uri_cache.rs` |
+
+### Conventions
+
+- Fragments and elements live in an `ElementStore` addressed by 32-bit
+  ids (`NO_FRAGMENT`, `NO_ELEMENT` are null), as nodes live in an
+  `AstStore`. A fragment class is a `FragmentKind`, an element class an
+  `ElementKind`; `LibraryElementImpl` and `LibraryFragmentImpl` (a unit)
+  are separate tables. The `_FragmentStorageFlag` bits are the bits of
+  `FragmentImpl::flags`, named as `flagsForTesting` names them; the three
+  getters upstream overrides (field and super formal parameters are final,
+  top-level variables static) are applied where the flags are read.
+- The reference tree (`summary2/reference.dart`) gives elements stable
+  names in summaries; with no summaries, an export entry's reference is the
+  element id it names.
+- A fragment gets its offsets from its node when it is created. Upstream
+  writes them to the informative data and `InformativeDataApplier` pairs
+  each fragment with its node again; the numbers are the same. A default
+  value is kept as its source (`defaultValueCode`), as a summary keeps it:
+  the marker `_notSerializableExpression` when it is not serializable.
+- The linker links what the inputs import or export, transitively, in one
+  set of builders, instead of one library cycle after another; export
+  scopes come out the same. The parse trees are dropped once a library's
+  elements are built.
+- Upstream keys a file's unlinked data by its content, not its URI
+  (`_unlinkedKey`), so a copy of `dart:core`'s defining file read after
+  `dart:core` is taken for `dart:core` and gets no implicit import of it.
+  The port does the same (`FileSystemState.unlinked_is_dart_core`), and
+  `element_dump` asks for one corpus file at a time, as the oracle does,
+  so that files are read in the same order.
+- A file is read as UTF-8 without a leading byte order mark. No variable
+  is declared, so a configuration (`if (dart.library.io)`) never selects
+  its URI, as with the analyzer's default `DeclaredVariables`.
+
+### Tests
+
+`tests/element_oracle.rs` runs the oracle. `tests/element_builder_test.rs`
+tests what the oracle's corpus rarely reaches, on files it writes, with an
+SDK of its own holding a two-class `dart:core` (so the tests run under
+Miri): relative URIs with dot segments and `dart:` parts, the package
+config's JSON escapes, an ambiguous export keeping the first element, a
+name exported twice, `show` and `hide` applied to setters, accessors of
+one name sharing a variable unless repeated, a part of another library and
+a part included twice.
+
+Each check was seen to fail on a broken port: with `Combinator.matches`
+comparing setter names with their `=`, `ExportScope.export` replacing an
+ambiguous entry, `_handleTopLevelGetterFragment` not resetting the
+variable of a repeated getter, and `isPartOf` accepting any library name,
+four of the six unit tests fail, and the oracle reports 19 of the 567
+libraries of its default corpus. While porting, the oracle found the
+default values super formal parameters inherit (6 libraries), values that
+are not serializable, the language version deciding private named
+parameters, the byte order mark (tests/language) and the content-keyed
+unlinked data (sdk/lib).
+
+### Results
+
+Measured 2026-10-30 on a 4-core Intel Xeon at 2.10 GHz, Dart 3.13.3, rustc
+1.97.0 (rustc 1.101.0-nightly for Miri and coverage).
+
+The element oracle matches on the default corpus (`pkg/_fe_analyzer_shared/lib`
+and `pkg/analyzer/lib`: 567 libraries) and on corpora the port was not
+written against: `sdk/lib` (216 libraries, the SDK's own files as `file:`
+libraries), `pkg/linter/lib`, `pkg/kernel/lib`, `pkg/front_end/lib` and
+`pkg/analysis_server/lib` (1454), `pkg/compiler/lib` and `tests/language`
+(4784), and `tests/lib`, `tests/corelib`, `tests/ffi` and
+`tests/standalone` (2312): 9333 libraries, no differences. (The linking
+of each of them also links the `dart:` libraries they import.)
+`pkg/front_end/testcases` and `parser_testcases` cannot be used: their
+`analysis_options.yaml` excludes them, so the oracle finds no context for
+them.
+
+`--bench=N` links the default corpus N times, each round from nothing
+(files read and parsed again). The Dart round is a new
+`AnalysisContextCollectionImpl` and `getLibraryByUri` for every file, the
+entry point the analyzer offers: it does more than the port (it also
+resolves types, infers, evaluates and writes and reads summaries), so the
+comparison favours the port; there is no smaller upstream entry point
+that stops after the export scopes.
+
+| Linking the default corpus | Fastest round | Median round | Peak RSS |
+|---|---|---|---|
+| Dart AOT (5 rounds) | 6458.6 ms | 7535.4 ms | 572.9 MiB |
+| Rust (10 rounds) | 687.2 ms | 832.8 ms | 233.6 MiB |
+
+| Cold start (median of 7 runs) | Dart AOT | Rust |
+|---|---|---|
+| No input | 13 ms | 4 ms |
+| A library of 3 files (and `dart:core`, `dart:async`, ... it links) | 557 ms | 93 ms |
+
+| Binary | Unstripped | Stripped |
+|---|---|---|
+| Dart AOT (`dart compile exe`) | 17,891,328 bytes | (stripping drops the appended snapshot; the executable no longer runs) |
+| Rust `element_dump` | 3,107,840 bytes | 2,494,336 bytes |
+
+### Safety
+
+- The crate is `#![forbid(unsafe_code)]`, as are both binaries.
+- **Miri** (`MIRIFLAGS=-Zmiri-disable-isolation cargo +nightly miri test
+  --test element_builder_test`): the six tests pass with no undefined
+  behaviour reported.
+- **Coverage** (`-C instrument-coverage -Zcoverage-options=branch`, the
+  unit tests and `element_dump` on the default corpus, `sdk/lib`,
+  `tests/language` and a small library with every kind of declaration,
+  merged; the files of this section only): **90.1% of lines** (2670 of
+  2962), **78.4% of branches** (508 of 648), 92.4% of functions. Fully or
+  nearly covered: `scope.rs`, `export.rs`, `link.rs`, `library_builder.rs`,
+  `invokes_super_self.rs`, `file_state.rs`. The least covered are what
+  only augmentations reach (the fragment chains of `element_builder.rs`:
+  89.9% of its lines, 73.1% of its branches) and the
+  `not_serializable_nodes.rs` visits other than function expressions
+  (60%).
+
+### Not ported yet
+
+In the order linking needs them:
+
+- **Declared types** (`--types`): `_resolveTypes`, i.e. the `DartType`
+  classes of `dart/element/type.dart` (interface, function, record, type
+  parameter, `dynamic`, `void`, `Never`, invalid; nullability and alias
+  info), `display_string_builder.dart`, the library and declaration scopes
+  of `dart/element/scope.dart`, `summary2/reference_resolver.dart` and
+  `named_type_builder.dart` (with type aliases and import prefixes),
+  `types_builder.dart` (function types, supertypes, mixin inference),
+  `default_types_builder.dart` and `simply_bounded.dart` (instantiation to
+  bounds of raw types), `variance_builder.dart`, `type_alias.dart`, the
+  `TypeProvider`, and `buildEnumChildren` (`Enum` supertype, `values`
+  type). This is also what the fragments of type annotations wait for:
+  `GenericFunctionType` fragments and the formal parameters of
+  function-typed formal parameters, which `FragmentBuilder` skips.
+- The steps after it: field formals and constructors, top-level and
+  instance member inference, constant initializers and default values
+  (with what super formal parameters inherit), metadata and `@Since`,
+  field promotability, and the flags they set.
+- Augmentations beyond chains of fragments that declare the same formal
+  and type parameters (`_linkFormalParameters` and `_linkTypeParameters`
+  growing the chains with `isOriginOtherFragmentOfEnclosing` parameters),
+  and moving an augmentation's enum `values`; the corpora have no
+  augmentation that reaches them.
+- Language versions from the package config (`languageVersion`): every
+  library is parsed at the latest version unless it has a `// @dart`
+  comment; doc imports, documentation comments, code ranges and the
+  reference tree and summaries (`bundle_writer.dart`, `bundle_reader.dart`).

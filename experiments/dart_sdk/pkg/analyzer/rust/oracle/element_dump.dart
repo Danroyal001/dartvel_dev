@@ -64,6 +64,7 @@ import 'package:analyzer/src/dart/element/element.dart';
 Future<void> main(List<String> args) async {
   String? out;
   String? sdk;
+  String? packages = Platform.packageConfig;
   int bench = 0;
   bool types = false;
   List<String> roots = [];
@@ -77,19 +78,22 @@ Future<void> main(List<String> args) async {
       out = args[++i];
     } else if (arg == '--sdk') {
       sdk = args[++i];
+    } else if (arg == '--packages') {
+      // For a compiled oracle, which has no package config of its own.
+      packages = new File(args[++i]).absolute.uri.toString();
     } else {
       roots.add(arg);
     }
   }
-  String? packages = Platform.packageConfig;
-  if (roots.isEmpty || sdk == null || (out == null && bench == 0)) {
+  if (roots.isEmpty || packages == null || sdk == null || (out == null && bench == 0)) {
     stderr.writeln(
-      'usage: element_dump.dart --sdk <dir> [--types] [--bench=N] '
+      'usage: element_dump.dart --sdk <dir> [--packages <file>] [--types] '
+      '[--bench=N] '
       '--out <dir> <root>...',
     );
     exit(64);
   }
-  String packageConfig = Uri.parse(packages!).toFilePath();
+  String packageConfig = Uri.parse(packages).toFilePath();
   List<(String, String)> inputs = corpusFiles(roots);
   List<String> absoluteRoots = [
     for (String root in roots) new Directory(root).absolute.path,
@@ -118,7 +122,8 @@ Future<void> main(List<String> args) async {
     }
     times.sort();
     print('fastest ${times.first / 1000} ms, '
-        'median ${times[times.length ~/ 2] / 1000} ms');
+        'median ${times[times.length ~/ 2] / 1000} ms, '
+        'peak RSS ${(peakRss() / (1024 * 1024)).toStringAsFixed(1)} MiB');
     return;
   }
 
@@ -510,4 +515,14 @@ class ElementDumper {
       }
     }
   }
+}
+
+/// The peak resident set size of this process (`VmHWM`), in bytes.
+int peakRss() {
+  for (String line in new File('/proc/self/status').readAsLinesSync()) {
+    if (line.startsWith('VmHWM:')) {
+      return int.parse(line.substring(6).trim().split(' ').first) * 1024;
+    }
+  }
+  return 0;
 }
