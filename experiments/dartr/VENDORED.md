@@ -72,6 +72,9 @@ No formatter source change was needed to get there.
   their own analysis options and with every lint rule plus `strict-casts`,
   `strict-inference` and `strict-raw-types`, and 78 packages from the pub
   cache with every lint;
+- the 330 most downloaded pure-Dart packages on pub.dev (tagged
+  `sdk:dart`, latest versions, 20,377 files), each with its own options and
+  with every lint: 3,002,516 diagnostics;
 - Flutter 3.47.4 (which bundles Dart 3.13.3): `packages/flutter` (410,008
   diagnostics with every lint), `flutter_test` and `flutter_tools`, and
   Dartvel's Flutter packages (`dartvel_flutter`, `dartvel_documents`,
@@ -80,8 +83,8 @@ No formatter source change was needed to get there.
 Every difference the comparison found is fixed, and each fix has a project
 under `crates/dartr/tests/fixtures/analyze_driver/lints_parity/` that
 `analyze_parity_lints_parity` compares with Dart; every one of them failed
-before its fix. Not compared yet: Flutter's other packages and pub.dev as a
-whole.
+before its fix. Not compared yet: Flutter's other packages and the rest of
+pub.dev, Flutter packages included.
 
 ## Language server parity: 30 October 2026
 
