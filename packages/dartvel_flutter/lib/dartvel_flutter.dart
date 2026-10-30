@@ -204,10 +204,13 @@ export 'package:dartvel_core/dartvel.dart'
         DVAIHttpResponse,
         DVAIHttpSend,
         DVAIProviderException,
+        DVAIToolApprovalRequired,
         DVAIToolDefinition,
         DVAIToolEntry,
         DVAIToolHandler,
+        DVAIToolPause,
         DVAIToolRegistry,
+        DVToolApproval,
         DVAITranscript,
         DVAuthAuthorization,
         DVBillingCheckoutSession,
@@ -9905,12 +9908,17 @@ class DVAI {
     DVAIToolHandler handler, {
     String description = '',
     DVJsonObject parameters = const <String, DVJsonValue>{},
+    // A tool that moves money or changes data: an agent run stops at it with
+    // a DVAIToolPause, and anything calling it directly is refused with
+    // DV-AI-010.
+    DVToolApproval approval = DVToolApproval.none,
   }) {
     _tools.register(
       name,
       handler,
       description: description,
       parameters: parameters,
+      approval: approval,
     );
   }
 
