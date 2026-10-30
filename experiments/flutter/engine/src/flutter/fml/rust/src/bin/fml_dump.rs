@@ -8,7 +8,8 @@
 //                                              trace backtrace all
 //   fml_dump bench <name> <iterations>  name: queues time strings hash
 //                                              dispatch loop thread concurrent
-//                                              merger
+//                                              merger file mapping paths
+//                                              cmdline trace
 //   fml_dump fatal <seed> 0             (internal) the logging suite's child
 //   fml_dump crash <signal> 0           (internal) the backtrace suite's child
 
@@ -855,6 +856,11 @@ fn bench(name: &str, iterations: i32) {
                 "hash" => suite_hash(&mut r, 20000),
                 "dispatch" => suite_queues(&mut r, 2000),
                 "merger" => suite_merger(&mut r, 200),
+                "file" => suite_file(&mut r, 250),
+                "mapping" => suite_mapping(&mut r, 2000),
+                "paths" => suite_paths(&mut r, 20000),
+                "cmdline" => suite_cmdline(&mut r, 20000),
+                "trace" => suite_trace(&mut r, 20000),
                 _ => {
                     eprintln!("unknown bench {name}");
                     std::process::exit(2);
@@ -2734,8 +2740,10 @@ fn gen_uri_text(r: &mut Rng) -> Vec<u8> {
     let mut s = Vec::new();
     let n = r.below(16);
     for _ in 0..n {
-        let k = r.below(10);
-        if k < 3 {
+        let k = r.below(11);
+        if k == 10 {
+            s.extend_from_slice(b"%00");
+        } else if k < 3 {
             s.push(b'%');
         } else if k < 7 {
             s.push(K_HEX[r.below(22) as usize]);

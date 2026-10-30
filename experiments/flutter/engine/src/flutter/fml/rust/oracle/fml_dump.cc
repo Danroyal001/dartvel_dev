@@ -11,7 +11,8 @@
 //                                              trace backtrace all
 //   fml_dump bench <name> <iterations>  name: queues time strings hash
 //                                              dispatch loop thread concurrent
-//                                              merger
+//                                              merger file mapping paths
+//                                              cmdline trace
 //   fml_dump fatal <seed> 0             (internal) the logging suite's child,
 //                                       which logs at FATAL and dies
 //   fml_dump crash <signal> 0           (internal) the backtrace suite's
@@ -2478,8 +2479,10 @@ std::string GenUriText(Rng& r) {
   std::string s;
   uint64_t n = r.Below(16);
   for (uint64_t i = 0; i < n; i++) {
-    uint64_t k = r.Below(10);
-    if (k < 3) {
+    uint64_t k = r.Below(11);
+    if (k == 10) {
+      s += "%00";
+    } else if (k < 3) {
       s += '%';
     } else if (k < 7) {
       s += kHex[r.Below(22)];
@@ -3535,6 +3538,16 @@ void Bench(const std::string& name, int iterations) {
         SuiteQueues(r, 2000);
       } else if (name == "merger") {
         SuiteMerger(r, 200);
+      } else if (name == "file") {
+        SuiteFile(r, 250);
+      } else if (name == "mapping") {
+        SuiteMapping(r, 2000);
+      } else if (name == "paths") {
+        SuitePaths(r, 20000);
+      } else if (name == "cmdline") {
+        SuiteCmdline(r, 20000);
+      } else if (name == "trace") {
+        SuiteTrace(r, 20000);
       } else {
         std::fprintf(stderr, "unknown bench %s\n", name.c_str());
         std::exit(2);
