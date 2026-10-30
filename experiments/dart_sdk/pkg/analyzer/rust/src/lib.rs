@@ -83,6 +83,7 @@ pub mod src {
             pub mod type_system;
             pub mod normalize;
             pub mod top_merge;
+            pub mod class_hierarchy;
         }
         pub mod resolver {
             pub mod scope;
