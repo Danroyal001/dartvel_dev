@@ -67,3 +67,20 @@ corpus N times in memory and print the fastest and median round.
 - Where upstream throws, the port panics with the same message.
 - Behaviour that looks like an upstream slip is ported as is and marked with
   a comment, never fixed: the oracle would report the fix as a difference.
+
+## Baseline
+
+Measured 2026-10-30 on a 4-core Intel Xeon at 2.10 GHz, Dart 3.13.3, rustc
+1.97.0, on the default corpus (1178 files, 12,790,695 bytes, 1,545,787
+tokens), 20 rounds in one process, comments included. Dart AOT is
+`scanner_dump.dart` built with `dart compile exe`; peak RSS is the whole
+process, which holds the corpus in memory.
+
+| Scanner | Implementation | Fastest round | Median round | Peak RSS |
+|---|---|---|---|---|
+| `scan` (UTF-8) | Dart AOT | 94.6 ms | 100.0 ms | 71.5 MiB |
+| `scan` (UTF-8) | Dart JIT | 92.0 ms | 107.2 ms | 260.3 MiB |
+| `scan` (UTF-8) | Rust | 48.5 ms | 50.8 ms | 28.6 MiB |
+| `scanString` | Dart AOT | 101.7 ms | 109.8 ms | 86.7 MiB |
+| `scanString` | Dart JIT | 98.2 ms | 113.5 ms | 279.9 MiB |
+| `scanString` | Rust | 49.1 ms | 51.9 ms | 53.3 MiB |
