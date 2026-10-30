@@ -49,8 +49,10 @@ pub struct ElementKey {
     pub class_member: Option<String>,
     pub parameter: Option<String>,
     pub kind: SyntheticKind,
-    pub unit_path: String,
-    pub library_path: String,
+    /// Shared with the source of the element model: an index holds a key
+    /// per element it references, and these paths repeat.
+    pub unit_path: std::sync::Arc<str>,
+    pub library_path: std::sync::Arc<str>,
 }
 
 /// One relation: the index of the element in [UnitIndex::elements], the
@@ -99,10 +101,17 @@ impl UnitIndex {
 
 /// The path of the library fragment of [element]'s first fragment and of
 /// its library's first fragment.
-fn unit_paths(ctx: &Ctx<'_>, element: ElementId) -> Option<(String, String)> {
+fn unit_paths(
+    ctx: &Ctx<'_>,
+    element: ElementId,
+) -> Option<(std::sync::Arc<str>, std::sync::Arc<str>)> {
     let first = ctx.element_data(element)?.first_fragment;
     let unit = crate::navigation::library_fragment_of(ctx, first)?;
-    let unit_path = crate::navigation::fragment_path(ctx, unit)?;
+    let unit_path = ctx
+        .fragment(unit.cast::<dartr_element::LibraryFragment>()?)
+        .source
+        .path
+        .clone();
     let library = ctx
         .fragment_data(unit)?
         .element
@@ -110,7 +119,7 @@ fn unit_paths(ctx: &Ctx<'_>, element: ElementId) -> Option<(String, String)> {
         .copied()
         .and_then(|l| l.cast::<dartr_element::LibraryElement>())?;
     let library_first = ctx.get(library).first_fragment();
-    let library_path = ctx.fragment(library_first).source.path.to_string();
+    let library_path = ctx.fragment(library_first).source.path.clone();
     Some((library_path, unit_path))
 }
 
