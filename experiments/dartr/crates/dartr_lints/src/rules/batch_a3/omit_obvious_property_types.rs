@@ -77,7 +77,7 @@ pub(crate) fn is_obvious(ctx: &LinterContext<'_>, node: NodeId) -> bool {
                 return false;
             }
             ctx.static_type(node)
-                .is_some_and(|ty| ty == member::type_(&resolved.ctx, element))
+                .is_some_and(|ty| resolved.ctx.dart_eq(ty, member::type_(&resolved.ctx, element)))
         }
         NodeKind::PrefixExpression => {
             let n = &ctx.ast[Id::<PrefixExpression>::from_raw(node)];
@@ -104,8 +104,11 @@ pub(crate) fn is_obvious(ctx: &LinterContext<'_>, node: NodeId) -> bool {
             let expression = &ctx.ast[Id::<ConditionalExpression>::from_raw(node)];
             is_obvious(ctx, expression.then_expression.raw())
                 && is_obvious(ctx, expression.else_expression.raw())
-                && ctx.static_type(expression.then_expression)
-                    == ctx.static_type(expression.else_expression)
+                && types_eq(
+                    ctx,
+                    ctx.static_type(expression.then_expression),
+                    ctx.static_type(expression.else_expression),
+                )
         }
         NodeKind::PropertyAccess => {
             let access = &ctx.ast[Id::<PropertyAccess>::from_raw(node)];
@@ -146,7 +149,9 @@ fn typed_literal_is_obvious(ctx: &LinterContext<'_>, node: NodeId) -> bool {
     if type_arguments.is_some() {
         return true;
     }
-    let same_or_null = |a: Option<TypeId>, b: Option<TypeId>| a.is_none() || b.is_none() || a == b;
+    let same_or_null = |a: Option<TypeId>, b: Option<TypeId>| {
+        a.is_none() || b.is_none() || types_eq(ctx, a, b)
+    };
     let (mut the_type, mut the_key, mut the_value) = (None, None, None);
     for &element in elements {
         if !element_has_obvious_type(ctx, element) {
@@ -169,11 +174,22 @@ fn typed_literal_is_obvious(ctx: &LinterContext<'_>, node: NodeId) -> bool {
     }
     let self_type = ctx.static_type(node);
     if the_type.is_some() {
-        element_type_of_iterable(ctx, self_type) == the_type
+        types_eq(ctx, element_type_of_iterable(ctx, self_type), the_type)
     } else if let (Some(key), Some(value)) = (the_key, the_value) {
-        key_value_type_of_map(ctx, self_type) == Some((key, value))
+        key_value_type_of_map(ctx, self_type).is_some_and(|(k, v)| {
+            types_eq(ctx, Some(key), Some(k)) && types_eq(ctx, Some(value), Some(v))
+        })
     } else {
         false
+    }
+}
+
+/// Dart `==` on two `DartType?`: it ignores typedef aliases, `TypeId ==`
+/// does not (`typedef Parameters = Map<Symbol, String>`).
+fn types_eq(ctx: &LinterContext<'_>, a: Option<TypeId>, b: Option<TypeId>) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => ctx.resolved.is_some_and(|r| r.ctx.dart_eq(a, b)),
+        (a, b) => a == b,
     }
 }
 
