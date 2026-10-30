@@ -56,3 +56,8 @@ export 'src/web/page_data.dart' show dvPageResolverIsStatic;
 // A form field in a server-rendered document, with the password eye: written
 // by the build's capture and by Studio's own sign-in document.
 export 'src/web/document_fields.dart';
+
+// Whether this host can run a module's binding kind, which a generated
+// module's tests ask before calling into a carrier.
+export 'src/modules/module_host.dart'
+    if (dart.library.io) 'src/modules/module_host_io.dart';
