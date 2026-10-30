@@ -36,6 +36,7 @@ pub mod process;
 pub mod raster_thread_merger;
 pub mod safe_math;
 pub mod shared_thread_merger;
+pub mod small_string;
 pub mod string_conversion;
 pub mod synchronization;
 pub mod task_queue_id;
