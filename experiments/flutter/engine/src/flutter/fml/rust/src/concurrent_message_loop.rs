@@ -5,8 +5,7 @@
 // The workers hold the loop's shared state (`Shared`), not the loop, so that
 // dropping the last `Arc<ConcurrentMessageLoop>` still terminates and joins
 // them as upstream's destructor does. `ExecuteTask` is virtual upstream (for
-// tests); it is a plain method here. The "ConcurrentWorkerWake" trace event
-// is not emitted: trace_event is not ported. Upstream returns early from
+// tests); it is a plain method here. Upstream returns early from
 // PostTask and PostTaskToAllWorkers for an empty std::function; a `closure`
 // cannot be empty.
 
@@ -148,6 +147,8 @@ impl ConcurrentMessageLoop {
                 "Tried to post a task to shutdown concurrent message loop. The task will be executed on the callers thread."
             );
             drop(state);
+
+        crate::trace_event0!("flutter", "ConcurrentWorkerWake");
             execute_task(&task);
             return;
         }

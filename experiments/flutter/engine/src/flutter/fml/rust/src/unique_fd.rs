@@ -1,13 +1,13 @@
 // Port of flutter/fml/unique_fd.h and flutter/fml/unique_fd.cc (the POSIX
-// branch). `UniqueDir` (`DIR*`, freed with closedir) waits for the port of
-// `file`, its only user; the Windows branch (HANDLEs and the directory cache)
-// is not ported.
+// branch), with `UniqueDir` (a `DIR*`, freed with closedir). The Windows
+// branch (HANDLEs and the directory cache) is not ported.
 
 use crate::unique_object::{UniqueObject, UniqueObjectTraits};
 
 pub mod internal {
     pub mod os_unix {
         use super::super::*;
+        use crate::platform::posix::libc::{DIR, closedir};
 
         unsafe extern "C" {
             fn close(fd: i32) -> i32;
@@ -37,7 +37,32 @@ pub mod internal {
                 }
             }
         }
+
+        #[derive(Clone, Copy, Debug, Default)]
+        pub struct UniqueDirTraits;
+
+        impl UniqueObjectTraits for UniqueDirTraits {
+            type T = *mut DIR;
+
+            fn invalid_value() -> *mut DIR {
+                std::ptr::null_mut()
+            }
+
+            fn is_valid(value: *mut DIR) -> bool {
+                !value.is_null()
+            }
+
+            fn free(&mut self, dir: *mut DIR) {
+                // SAFETY: `dir` came from opendir or fdopendir (the only way a
+                // UniqueDir is filled) and is owned by this UniqueDir, which
+                // never frees it twice; closedir also closes its descriptor.
+                unsafe {
+                    closedir(dir);
+                }
+            }
+        }
     }
 }
 
 pub type UniqueFD = UniqueObject<internal::os_unix::UniqueFDTraits>;
+pub type UniqueDir = UniqueObject<internal::os_unix::UniqueDirTraits>;

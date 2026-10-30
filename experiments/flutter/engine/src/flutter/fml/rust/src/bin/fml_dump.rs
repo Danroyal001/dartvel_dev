@@ -3,11 +3,14 @@
 //
 //   fml_dump <suite> <seed> <cases>     suite: time strings codec hash endian
 //                                              trie queues loop merger thread
-//                                              logging all
+//                                              logging file mapping paths
+//                                              cmdline misc affinity native
+//                                              trace backtrace all
 //   fml_dump bench <name> <iterations>  name: queues time strings hash
 //                                              dispatch loop thread concurrent
 //                                              merger
 //   fml_dump fatal <seed> 0             (internal) the logging suite's child
+//   fml_dump crash <signal> 0           (internal) the backtrace suite's child
 
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
@@ -2046,6 +2049,23 @@ fn run_suite(suite: &str, r: &mut Rng, cases: i32) -> bool {
         known = true;
         suite_logging(r, cases);
     }
+    let new_suites: [(&str, fn(&mut Rng, i32)); 9] = [
+        ("file", suite_file),
+        ("mapping", suite_mapping),
+        ("paths", suite_paths),
+        ("cmdline", suite_cmdline),
+        ("misc", suite_misc),
+        ("affinity", suite_affinity),
+        ("native", suite_native),
+        ("trace", suite_trace),
+        ("backtrace", suite_backtrace),
+    ];
+    for (name, run) in new_suites {
+        if all || suite == name {
+            known = true;
+            run(r, cases);
+        }
+    }
     known
 }
 
@@ -2065,6 +2085,11 @@ fn main() {
         std::io::stdout().write_all(&OUT.lock().unwrap()).unwrap();
         return;
     }
+    if suite == "crash" {
+        crash_child(args[2].parse().unwrap_or(0));
+        std::io::stdout().write_all(&OUT.lock().unwrap()).unwrap();
+        return;
+    }
     let mut r = Rng { s: args[2].parse().unwrap_or(0) };
     let cases: i32 = args[3].parse().unwrap_or(0);
     if !run_suite(suite, &mut r, cases) {
@@ -2072,4 +2097,1445 @@ fn main() {
         std::process::exit(2);
     }
     std::io::stdout().write_all(&OUT.lock().unwrap()).unwrap();
+}
+
+// ------------------------------------------------------- file system ------
+//
+// See oracle/fml_dump.cc: the file, mapping, paths, affinity and native
+// suites work in a ScopedTemporaryDirectory made fresh per run.
+
+use fml::file::{FilePermission, ScopedTemporaryDirectory};
+use fml::mapping::{DataMapping, FileMapping, MallocMapping, Mapping, NonOwnedMapping, Protection};
+use fml::unique_fd::UniqueFD;
+
+unsafe extern "C" {
+    fn __errno_location() -> *mut i32;
+    fn dlopen(filename: *const std::os::raw::c_char, flags: i32) -> *mut std::ffi::c_void;
+    fn dlclose(handle: *mut std::ffi::c_void) -> i32;
+    #[link_name = "raise"]
+    fn c_raise(sig: i32) -> i32;
+}
+
+/// `errno = value`, as the C++ driver clears it before a call.
+fn set_errno(value: i32) {
+    // SAFETY: __errno_location returns this thread's errno, valid for the
+    // thread's lifetime.
+    unsafe { *__errno_location() = value };
+}
+
+fn errno() -> i32 {
+    std::io::Error::last_os_error().raw_os_error().unwrap_or(0)
+}
+
+fn quoted(s: &[u8]) -> String {
+    let mut out = String::from("\"");
+    for &c in s {
+        if !(0x20..=0x7e).contains(&c) || c == b'"' || c == b'\\' {
+            out.push_str(&format!("\\x{c:02x}"));
+        } else {
+            out.push(c as char);
+        }
+    }
+    out.push('"');
+    out
+}
+
+fn fnv1a(data: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for &b in data {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}
+
+/// The bytes a mapping points at.
+fn mapped(m: &dyn Mapping) -> &[u8] {
+    if m.get_mapping().is_null() {
+        return &[];
+    }
+    // SAFETY: by the Mapping contract the pointer covers get_size() bytes
+    // while `m` is borrowed; callers only ask for mappings mapped readable,
+    // as the C++ driver reads them.
+    unsafe { std::slice::from_raw_parts(m.get_mapping(), m.get_size()) }
+}
+
+fn gen_data(r: &mut Rng, max_len: u64) -> Vec<u8> {
+    let n = r.below(max_len + 1) as usize;
+    (0..n).map(|_| r.next() as u8).collect()
+}
+
+const K_FILE_NAMES: [&[u8]; 12] = [
+    b"a",
+    b"b",
+    b"c.txt",
+    b"d",
+    b"\xc3\xa4\xe3\x83\x86",
+    b"sp ace",
+    b"x\xff",
+    b".",
+    b"..x",
+    b"",
+    b"nl\nx",
+    b"a.temp",
+];
+
+fn gen_rel_path(r: &mut Rng) -> Vec<u8> {
+    match r.below(12) {
+        0 => vec![b'n'; 256],
+        1 | 2 => {
+            let mut p = Vec::new();
+            let n = 2 + r.below(2);
+            for i in 0..n {
+                if i != 0 {
+                    p.push(b'/');
+                }
+                p.extend_from_slice(K_FILE_NAMES[r.below(4) as usize]);
+            }
+            p
+        }
+        3 => b"a/./b".to_vec(),
+        _ => K_FILE_NAMES[r.below(12) as usize].to_vec(),
+    }
+}
+
+fn perm(p: u64) -> FilePermission {
+    match p {
+        0 => FilePermission::kRead,
+        1 => FilePermission::kWrite,
+        _ => FilePermission::kReadWrite,
+    }
+}
+
+// Fields drop in order: the slots close before the directory is removed,
+// as the C++ context's members are destroyed in reverse.
+struct FileCtx {
+    slots: [UniqueFD; 4],
+    invalid: UniqueFD,
+    dir: ScopedTemporaryDirectory,
+}
+
+const K_BASE_NAMES: [&str; 6] = ["root", "s0", "s1", "s2", "s3", "bad"];
+
+fn gen_base(r: &mut Rng) -> usize {
+    if r.chance(2) { 0 } else { r.below(6) as usize }
+}
+
+fn base(c: &FileCtx, b: usize) -> &UniqueFD {
+    match b {
+        0 => c.dir.fd(),
+        5 => &c.invalid,
+        _ => &c.slots[b - 1],
+    }
+}
+
+fn abs_path(c: &FileCtx, rel: &[u8]) -> Vec<u8> {
+    let mut p = c.dir.path().as_bytes().to_vec();
+    p.push(b'/');
+    p.extend_from_slice(rel);
+    p
+}
+
+fn printing_visit(dir: &UniqueFD, recursive: bool, stop: bool, stop_at: &[u8]) -> bool {
+    let mut visitor = |_d: &UniqueFD, filename: &[u8]| {
+        w!(" {}", quoted(filename));
+        !(stop && filename == stop_at)
+    };
+    if recursive {
+        fml::file::visit_files_recursively(dir, &mut visitor)
+    } else {
+        fml::file::visit_files(dir, &mut visitor)
+    }
+}
+
+fn os_path(p: &[u8]) -> &std::path::Path {
+    use std::os::unix::ffi::OsStrExt;
+    std::path::Path::new(std::ffi::OsStr::from_bytes(p))
+}
+
+/// `::chmod(path, mode)`: the return code and errno.
+fn chmod(path: &[u8], mode: u32) -> (i32, i32) {
+    use std::os::unix::fs::PermissionsExt;
+    let end = path.iter().position(|&b| b == 0).unwrap_or(path.len());
+    match std::fs::set_permissions(os_path(&path[..end]), std::fs::Permissions::from_mode(mode)) {
+        Ok(()) => (0, errno()),
+        Err(e) => (-1, e.raw_os_error().unwrap_or(0)),
+    }
+}
+
+fn file_op(c: &mut FileCtx, r: &mut Rng, depth: i32) {
+    match r.below(16) {
+        0..=3 => {
+            let directory = r.below(4) == 0;
+            let abs = r.chance(6);
+            let b = gen_base(r);
+            let path = gen_rel_path(r);
+            let create = r.chance(2);
+            let p = r.below(3);
+            let slot = r.below(4) as usize;
+            let read_only = r.chance(4);
+            set_errno(0);
+            let fd = if read_only {
+                if directory {
+                    fml::file::open_directory_read_only(base(c, b), &path)
+                } else {
+                    fml::file::open_file_read_only(base(c, b), &path)
+                }
+            } else if abs {
+                if directory {
+                    fml::file::open_directory(abs_path(c, &path), create, perm(p))
+                } else {
+                    fml::file::open_file(abs_path(c, &path), create, perm(p))
+                }
+            } else if directory {
+                fml::file::open_directory_at(base(c, b), &path, create, perm(p))
+            } else {
+                fml::file::open_file_at(base(c, b), &path, create, perm(p))
+            };
+            let e = errno();
+            p!(
+                "  {} {} {} c{} p{} -> s{} {} errno {}",
+                if directory { "opendir" } else { "open" },
+                if read_only { "ro" } else if abs { "abs" } else { K_BASE_NAMES[b] },
+                quoted(&path),
+                create as i32,
+                p,
+                slot,
+                fd.is_valid() as i32,
+                e
+            );
+            c.slots[slot] = fd;
+        }
+        4 => {
+            let b = gen_base(r);
+            let n = r.below(4);
+            let components: Vec<&[u8]> = (0..n).map(|_| K_FILE_NAMES[r.below(7) as usize]).collect();
+            let p = r.below(3);
+            let slot = r.below(4) as usize;
+            set_errno(0);
+            let fd = fml::file::create_directory(base(c, b), &components, perm(p));
+            let e = errno();
+            w!("  mkdirs {}", K_BASE_NAMES[b]);
+            for component in &components {
+                w!(" {}", quoted(component));
+            }
+            p!(" p{} -> s{} {} errno {}", p, slot, fd.is_valid() as i32, e);
+            c.slots[slot] = fd;
+        }
+        5 => {
+            let b = gen_base(r);
+            let path = gen_rel_path(r);
+            let slot = r.below(4) as usize;
+            let is_dir_fd = fml::file::is_directory(&c.slots[slot]);
+            let is_dir = fml::file::is_directory_at(base(c, b), &path);
+            let exists = fml::file::file_exists(base(c, b), &path);
+            let exists_abs = fml::file::file_exists(c.dir.fd(), abs_path(c, &path));
+            let is_file = fml::file::is_file(abs_path(c, &path));
+            p!(
+                "  query {} {} s{} dir {} {} exists {} {} file {}",
+                K_BASE_NAMES[b],
+                quoted(&path),
+                slot,
+                is_dir_fd as i32,
+                is_dir as i32,
+                exists as i32,
+                exists_abs as i32,
+                is_file as i32
+            );
+        }
+        6 => {
+            let slot = r.below(4) as usize;
+            let size = r.below(5000) as usize;
+            set_errno(0);
+            let ok = fml::file::truncate_file(&c.slots[slot], size);
+            let e = errno();
+            p!("  truncate s{slot} {size} -> {} errno {e}", ok as i32);
+        }
+        7 | 8 => {
+            let directory = r.chance(2);
+            let abs = r.chance(6);
+            let b = gen_base(r);
+            let path = gen_rel_path(r);
+            set_errno(0);
+            let ok = match (directory, abs) {
+                (true, true) => fml::file::unlink_directory(abs_path(c, &path)),
+                (true, false) => fml::file::unlink_directory_at(base(c, b), &path),
+                (false, true) => fml::file::unlink_file(abs_path(c, &path)),
+                (false, false) => fml::file::unlink_file_at(base(c, b), &path),
+            };
+            let e = errno();
+            p!(
+                "  {} {} {} -> {} errno {}",
+                if directory { "rmdir" } else { "unlink" },
+                if abs { "abs" } else { K_BASE_NAMES[b] },
+                quoted(&path),
+                ok as i32,
+                e
+            );
+        }
+        9 => {
+            let abs = r.chance(6);
+            let b = gen_base(r);
+            let path = gen_rel_path(r);
+            let data = gen_data(r, 300);
+            let mapping = DataMapping::new(data.clone());
+            set_errno(0);
+            let ok = if abs {
+                fml::file::write_atomically(c.dir.fd(), abs_path(c, &path), &mapping)
+            } else {
+                fml::file::write_atomically(base(c, b), &path, &mapping)
+            };
+            let e = errno();
+            p!(
+                "  write {} {} {} {:016x} -> {} errno {}",
+                if abs { "abs" } else { K_BASE_NAMES[b] },
+                quoted(&path),
+                data.len(),
+                fnv1a(&data),
+                ok as i32,
+                e
+            );
+        }
+        10 | 11 => {
+            let recursive = r.chance(2);
+            let b = gen_base(r);
+            let stop = r.chance(3);
+            let stop_at = K_FILE_NAMES[r.below(12) as usize];
+            w!("  visit{} {}", if recursive { "-r" } else { "" }, K_BASE_NAMES[b]);
+            let ok = printing_visit(base(c, b), recursive, stop, stop_at);
+            p!(" -> {}", ok as i32);
+        }
+        12 => {
+            let whole = r.chance(2);
+            let b = gen_base(r);
+            let path = gen_rel_path(r);
+            set_errno(0);
+            let ok = if whole {
+                fml::file::remove_directory_recursively(base(c, b), &path)
+            } else {
+                fml::file::remove_files_in_directory(base(c, b))
+            };
+            let e = errno();
+            p!(
+                "  {} {} {} -> {} errno {}",
+                if whole { "rmtree" } else { "empty" },
+                K_BASE_NAMES[b],
+                quoted(if whole { &path } else { b"" }),
+                ok as i32,
+                e
+            );
+        }
+        13 => {
+            let from = r.below(4) as usize;
+            let to = r.below(4) as usize;
+            set_errno(0);
+            let fd = fml::file::duplicate(c.slots[from].get());
+            let e = errno();
+            p!(
+                "  dup s{from} -> s{to} {} errno {e} dir {}",
+                fd.is_valid() as i32,
+                fml::file::is_directory(&fd) as i32
+            );
+            c.slots[to] = fd;
+        }
+        14 => {
+            let slot = r.below(4) as usize;
+            set_errno(0);
+            let mapping = FileMapping::new_read_only(&c.slots[slot]);
+            let e = errno();
+            p!(
+                "  map s{slot} valid {} size {} null {} errno {e} fnv {:016x}",
+                mapping.is_valid() as i32,
+                mapping.get_size(),
+                mapping.get_mapping().is_null() as i32,
+                fnv1a(mapped(&mapping))
+            );
+        }
+        _ => {
+            const K_MODES: [u32; 8] = [0, 0o400, 0o200, 0o600, 0o700, 0o500, 0o300, 0o644];
+            let path = gen_rel_path(r);
+            let mode = K_MODES[r.below(8) as usize];
+            let abs = abs_path(c, &path);
+            set_errno(0);
+            let (rc, e) = chmod(&abs, mode);
+            let dir = rc == 0 && std::fs::metadata(os_path(&abs)).map(|m| m.is_dir()).unwrap_or(false);
+            p!("  chmod {} {:o} -> {} errno {} dir {}", quoted(&path), mode, rc, e, dir as i32);
+            if dir {
+                if depth == 0 {
+                    file_op(c, r, 1);
+                }
+                chmod(&abs, 0o700);
+            }
+        }
+    }
+}
+
+fn make_tree_writable(dir: &UniqueFD) {
+    let mut visitor = |directory: &UniqueFD, filename: &[u8]| {
+        if fml::file::is_directory_at(directory, filename) {
+            let mut proc = format!("/proc/self/fd/{}/", directory.get()).into_bytes();
+            proc.extend_from_slice(filename);
+            chmod(&proc, 0o700);
+        }
+        true
+    };
+    fml::file::visit_files_recursively(dir, &mut visitor);
+}
+
+fn suite_file(r: &mut Rng, cases: i32) {
+    let mut c = Box::new(FileCtx {
+        slots: Default::default(),
+        invalid: UniqueFD::default(),
+        dir: ScopedTemporaryDirectory::new(),
+    });
+    let root = c.dir.path().clone();
+    p!(
+        "root {} {} {} valid {}",
+        root,
+        root.starts_with("/tmp/flutter_") as i32,
+        root.len(),
+        c.dir.fd().is_valid() as i32
+    );
+    for i in 0..cases {
+        p!("case {i}");
+        file_op(&mut c, r, 0);
+    }
+    w!("tree");
+    printing_visit(c.dir.fd(), true, false, b"");
+    p!("");
+    make_tree_writable(c.dir.fd());
+    drop(c);
+    p!("removed {}", !std::path::Path::new(&root).exists() as i32);
+}
+
+// ----------------------------------------------------------- mapping ------
+
+static STATIC_BYTES: [u8; 64] = {
+    let mut bytes = [0u8; 64];
+    let mut i = 0;
+    while i < 64 {
+        bytes[i] = (i * 7 + 3) as u8;
+        i += 1;
+    }
+    bytes
+};
+
+fn mapping_text(m: &dyn Mapping) -> String {
+    format!(
+        " size {} null {} dontneed {} fnv {:016x}",
+        m.get_size(),
+        m.get_mapping().is_null() as i32,
+        m.is_dont_need_safe() as i32,
+        fnv1a(mapped(m))
+    )
+}
+
+/// The driver's copy of mapping_posix.cc's ToPosixProtectionFlags.
+fn protection_flags(protection: &[Protection]) -> i32 {
+    let mut flags = 0;
+    for p in protection {
+        match p {
+            Protection::kRead => flags |= 1,
+            Protection::kWrite => flags |= 2,
+            Protection::kExecute => return 1 | 4,
+        }
+    }
+    flags
+}
+
+fn suite_mapping(r: &mut Rng, cases: i32) {
+    let dir = ScopedTemporaryDirectory::new();
+    p!("root {}", dir.path());
+    let bytes: &'static [u8; 64] = &STATIC_BYTES;
+    for i in 0..cases {
+        p!("case {i}");
+        match r.below(10) {
+            0 => {
+                let data = gen_data(r, 64);
+                let from_string = r.chance(2);
+                let m = if from_string { DataMapping::from_string(&data) } else { DataMapping::new(data) };
+                p!("  data {}{}", from_string as i32, mapping_text(&m));
+            }
+            1 => {
+                let offset = r.below(64);
+                let size = r.below(65 - offset);
+                let null = r.chance(8);
+                let release = r.chance(2);
+                let dontneed = r.chance(2);
+                let data = if null { std::ptr::null() } else { bytes[offset as usize..].as_ptr() };
+                let base = bytes.as_ptr() as usize;
+                let proc: Option<fml::mapping::ReleaseProc> = if release {
+                    Some(Box::new(move |d: *const u8, s: usize| {
+                        p!("  release {} {}", if d.is_null() { -1 } else { (d as usize - base) as i64 }, s);
+                    }))
+                } else {
+                    None
+                };
+                // SAFETY: `data` is null or points into STATIC_BYTES, with
+                // `size` bytes left there, for the whole program.
+                let m = unsafe { NonOwnedMapping::new(data, size as usize, proc, dontneed) };
+                w!("  nonowned {} {} same {}", null as i32, offset, (m.get_mapping() == data) as i32);
+                if null {
+                    p!(" size {} dontneed {}", m.get_size(), m.is_dont_need_safe() as i32);
+                } else {
+                    p!("{}", mapping_text(&m));
+                }
+            }
+            2 => {
+                let kind = r.below(4);
+                let data = gen_data(r, 64);
+                if kind == 0 {
+                    let m = MallocMapping::new();
+                    p!("  malloc empty{}", mapping_text(&m));
+                    continue;
+                }
+                let mut m = MallocMapping::copy(&data);
+                p!("  malloc copy{}", mapping_text(&m));
+                if kind == 2 {
+                    let released = m.release();
+                    p!(
+                        "  released {} fnv {:016x} now{}",
+                        released.is_none() as i32,
+                        fnv1a(released.as_deref().unwrap_or(&[])),
+                        mapping_text(&m)
+                    );
+                } else if kind == 3 {
+                    let moved = MallocMapping::take(&mut m);
+                    p!("  moved{} from{}", mapping_text(&moved), mapping_text(&m));
+                }
+            }
+            3..=7 => {
+                let name = format!("f{}", r.below(4));
+                let rewrite = !r.chance(3);
+                let data = gen_data(r, 9000);
+                let pm = r.below(3);
+                let n = r.below(4);
+                let protection: Vec<Protection> = (0..n)
+                    .map(|_| match r.below(3) {
+                        0 => Protection::kRead,
+                        1 => Protection::kWrite,
+                        _ => Protection::kExecute,
+                    })
+                    .collect();
+                if rewrite {
+                    if data.is_empty() {
+                        let fd = fml::file::open_file_at(dir.fd(), &name, true, FilePermission::kReadWrite);
+                        fml::file::truncate_file(&fd, 0);
+                    } else {
+                        let contents = DataMapping::new(data.clone());
+                        fml::file::write_atomically(dir.fd(), &name, &contents);
+                    }
+                }
+                let fd = fml::file::open_file_at(dir.fd(), &name, false, perm(pm));
+                set_errno(0);
+                let mut m = Some(Box::new(FileMapping::new(&fd, &protection)));
+                let e = errno();
+                let flags = protection_flags(&protection);
+                let mm = m.as_ref().unwrap();
+                w!("  file {} {} {} p{} prot", name, rewrite as i32, data.len(), pm);
+                for p in &protection {
+                    w!("{}", *p as i32);
+                }
+                w!(
+                    " valid {} size {} null {} mutable-null {} dontneed {} errno {}",
+                    mm.is_valid() as i32,
+                    mm.get_size(),
+                    mm.get_mapping().is_null() as i32,
+                    mm.get_mutable_mapping().is_null() as i32,
+                    mm.is_dont_need_safe() as i32,
+                    e
+                );
+                if !mm.get_mapping().is_null() && flags & 1 != 0 {
+                    w!(" fnv {:016x}", fnv1a(mapped(&**mm)));
+                }
+                p!("");
+                let size = mm.get_size() as u64;
+                let offset = r.below(size + 1);
+                let length = (r.below(16) + 1).min(size - offset);
+                let fill = r.next() as u8;
+                if !mm.get_mutable_mapping().is_null() && flags & 2 != 0 && length > 0 {
+                    // SAFETY: the mapping is writable (PROT_WRITE, shared) and
+                    // [offset, offset + length) lies within its size.
+                    unsafe {
+                        std::ptr::write_bytes(
+                            mm.get_mutable_mapping().add(offset as usize),
+                            fill,
+                            length as usize,
+                        )
+                    };
+                    m = None;
+                    let check = FileMapping::create_read_only_at(dir.fd(), &name);
+                    p!(
+                        "  wrote {} {} reread {} fnv {:016x}",
+                        offset,
+                        length,
+                        check.is_some() as i32,
+                        check.as_ref().map(|c| fnv1a(mapped(&**c))).unwrap_or(0)
+                    );
+                }
+                drop(m);
+            }
+            8 => {
+                let kind = r.below(6);
+                const K_NAMES: [&str; 6] = ["f0", "f1", "f2", "f3", "missing", ""];
+                let name = K_NAMES[r.below(6) as usize];
+                set_errno(0);
+                let full = format!("{}/{}", dir.path(), name);
+                let m = match kind {
+                    0 => FileMapping::create_read_only(&full),
+                    1 => FileMapping::create_read_only_at(dir.fd(), name),
+                    2 => FileMapping::create_read_only_at(
+                        &fml::file::open_file_at(dir.fd(), name, false, FilePermission::kRead),
+                        "",
+                    ),
+                    3 => FileMapping::create_read_execute(&full),
+                    4 => FileMapping::create_read_execute_at(dir.fd(), name),
+                    _ => FileMapping::create_read_execute_at(
+                        &fml::file::open_file_at(dir.fd(), name, false, FilePermission::kRead),
+                        "",
+                    ),
+                };
+                let e = errno();
+                w!("  factory {} {} -> {} errno {}", kind, quoted(name.as_bytes()), m.is_some() as i32, e);
+                if let Some(m) = &m {
+                    w!(" valid {}{}", m.is_valid() as i32, mapping_text(&**m));
+                }
+                p!("");
+            }
+            _ => {
+                let directory = r.chance(2);
+                let invalid = UniqueFD::default();
+                set_errno(0);
+                let m = FileMapping::new_read_only(if directory { dir.fd() } else { &invalid });
+                let e = errno();
+                p!(
+                    "  file {} valid {} size {} null {} errno {}",
+                    if directory { "dir" } else { "invalid" },
+                    m.is_valid() as i32,
+                    m.get_size(),
+                    m.get_mapping().is_null() as i32,
+                    e
+                );
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------- paths ------
+
+fn gen_path_text(r: &mut Rng) -> Vec<u8> {
+    const K_CHARS: [u8; 14] = [b'a', b'b', b'/', b'%', b'.', b':', b'f', b'F', b'0', b'9', b' ', 0xff, 0x80, 0];
+    let n = r.below(12);
+    (0..n).map(|_| K_CHARS[r.below(14) as usize]).collect()
+}
+
+fn gen_uri_text(r: &mut Rng) -> Vec<u8> {
+    const K_HEX: &[u8] = b"0123456789abcdefABCDEF";
+    let mut s = Vec::new();
+    let n = r.below(16);
+    for _ in 0..n {
+        let k = r.below(10);
+        if k < 3 {
+            s.push(b'%');
+        } else if k < 7 {
+            s.push(K_HEX[r.below(22) as usize]);
+        } else if k == 7 {
+            s.push(b'g');
+        } else if k == 8 {
+            s.push(b'/');
+        } else {
+            s.extend(gen_path_text(r));
+        }
+    }
+    s
+}
+
+fn suite_paths(r: &mut Rng, cases: i32) {
+    use fml::paths;
+    let dir = ScopedTemporaryDirectory::new();
+    let original = std::env::current_dir().unwrap();
+    // AbsolutePath prefixes the working directory, so work in the scratch
+    // directory, whose name the harness masks.
+    std::env::set_current_dir(dir.path()).unwrap();
+    for i in 0..cases {
+        p!("case {i}");
+        match r.below(6) {
+            0 => {
+                let n = r.below(5);
+                let c: Vec<Vec<u8>> = (0..n).map(|_| gen_path_text(r)).collect();
+                let joined = paths::join_paths(&c);
+                w!("  join");
+                for s in &c {
+                    w!(" {}", quoted(s));
+                }
+                p!(" -> {}", quoted(&joined));
+            }
+            1 => {
+                let path = gen_path_text(r);
+                p!("  dirname {} -> {}", quoted(&path), quoted(&paths::get_directory_name(&path)));
+            }
+            2 => {
+                let text = gen_uri_text(r);
+                p!(
+                    "  sanitize {} -> {}",
+                    quoted(&text),
+                    quoted(&paths::sanitize_uri_escaped_characters(&text))
+                );
+            }
+            3 => {
+                const K_PREFIXES: [&[u8]; 4] = [b"file://", b"file:/", b"FILE://", b""];
+                let mut uri = K_PREFIXES[r.below(4) as usize].to_vec();
+                uri.extend(gen_uri_text(r));
+                p!("  from-uri {} -> {}", quoted(&uri), quoted(&paths::from_uri(&uri)));
+            }
+            4 => {
+                let kind = r.below(3);
+                let path = match kind {
+                    0 => Vec::new(),
+                    1 => {
+                        let mut p = b"/".to_vec();
+                        p.extend(gen_path_text(r));
+                        p
+                    }
+                    _ => gen_path_text(r),
+                };
+                p!("  absolute {} -> {}", quoted(&path), quoted(&paths::absolute_path(&path)));
+            }
+            _ => {
+                let exe = paths::get_executable_path();
+                let exe_dir = paths::get_executable_directory_path();
+                p!(
+                    "  exe {} {} dir {} {} caches {}",
+                    exe.0 as i32,
+                    (!exe.1.is_empty() && exe.1[0] == b'/') as i32,
+                    exe_dir.0 as i32,
+                    (exe_dir.1 == paths::get_directory_name(&exe.1)) as i32,
+                    paths::get_caches_directory().is_valid() as i32
+                );
+            }
+        }
+    }
+    std::env::set_current_dir(original).unwrap();
+}
+
+// ------------------------------------------------------- command line ------
+
+const K_ARG_TOKENS: [&str; 21] = [
+    "prog", "", "-", "-x", "--", "--a", "--b", "--a=1", "--a=", "--=", "--=v", "--==", "--===",
+    "--==x", "--a=b=c", "--\u{e9}=\u{fc}", "--a\0b=z", "pos", "--b=2", "arg", "\u{e9}",
+];
+
+const K_OPTION_NAMES: [&str; 8] = ["a", "b", "", "=", "a\0b", "x", "\u{e9}", "a=1"];
+
+fn command_line_text(cl: &fml::command_line::CommandLine) -> String {
+    let mut s = format!(" argv0 {} {}", cl.has_argv0() as i32, quoted(cl.argv0().as_bytes()));
+    s.push_str(" opts");
+    for option in cl.options() {
+        s.push_str(&format!(" {}={}", quoted(option.name.as_bytes()), quoted(option.value.as_bytes())));
+    }
+    s.push_str(" pos");
+    for arg in cl.positional_args() {
+        s.push_str(&format!(" {}", quoted(arg.as_bytes())));
+    }
+    s
+}
+
+fn suite_cmdline(r: &mut Rng, cases: i32) {
+    use fml::command_line::*;
+    for i in 0..cases {
+        p!("case {i}");
+        let n = r.below(7);
+        let argv: Vec<&str> = (0..n).map(|_| K_ARG_TOKENS[r.below(21) as usize]).collect();
+        let (cl, first) = command_line_from_iterators_find_first_positional_arg(&argv);
+        p!("  parse first {}{}", first, command_line_text(&cl));
+        for _ in 0..3 {
+            let name = K_OPTION_NAMES[r.below(8) as usize];
+            let has = cl.has_option(name);
+            let index = has.unwrap_or(12345);
+            let mut value = String::from("untouched");
+            let got = cl.get_option_value(name, &mut value);
+            let values = cl.get_option_values(name);
+            let with_default = cl.get_option_value_with_default(name, "dflt");
+            w!(
+                "  query {} has {} {} got {} {} values",
+                quoted(name.as_bytes()),
+                has.is_some() as i32,
+                index,
+                got as i32,
+                quoted(value.as_bytes())
+            );
+            for v in values {
+                w!(" {}", quoted(v.as_bytes()));
+            }
+            p!(" default {}", quoted(with_default.as_bytes()));
+        }
+        let args = command_line_to_argv(&cl);
+        w!("  argv");
+        for arg in &args {
+            w!(" {}", quoted(arg.as_bytes()));
+        }
+        let again = command_line_from_iterators(&args);
+        p!(" roundtrip {}", (again == cl) as i32);
+        let k = r.below(argv.len() as u64 + 1) as usize;
+        let with0 = command_line_from_iterators_with_argv0("p0", &argv[k..]);
+        p!("  with-argv0 {}{}", k, command_line_text(&with0));
+        let built = CommandLine::with_components(cl.argv0().clone(), cl.options(), cl.positional_args());
+        let copy = cl.clone();
+        let moved = copy;
+        let mut assigned = CommandLine::new();
+        let empty_equal = assigned == cl;
+        assigned = moved.clone();
+        p!(
+            "  components {} {} copy {} empty {} assigned {}",
+            (built == cl) as i32,
+            built.has_option("a").is_some() as i32,
+            (moved == cl) as i32,
+            empty_equal as i32,
+            (assigned == cl) as i32
+        );
+    }
+}
+
+// -------------------------------------------------------------- misc ------
+
+fn gen_u64(r: &mut Rng) -> u64 {
+    match r.below(6) {
+        0 => 0,
+        1 => r.below(1000),
+        2 => 0xffffffff - r.below(3),
+        3 => (1u64 << 32) + r.below(3),
+        4 => !0u64 >> r.below(64),
+        _ => r.next(),
+    }
+}
+
+fn suite_misc(r: &mut Rng, cases: i32) {
+    use std::collections::HashMap;
+    for i in 0..cases {
+        p!("case {i}");
+        match r.below(5) {
+            0 | 1 => {
+                let ordered = r.chance(2);
+                let n = r.below(8);
+                let entries: Vec<(i32, i32)> =
+                    (0..n).map(|_| (r.below(16) as i32, r.below(16) as i32)).collect();
+                let modulus = 1 + r.below(4) as i32;
+                let rem = r.below(modulus as u64) as i32;
+                let result: BTreeMap<i32, i32>;
+                if ordered {
+                    let mut m = BTreeMap::new();
+                    for &(k, v) in &entries {
+                        m.insert(k, v);
+                    }
+                    w!("  map visits");
+                    fml::container::erase_if(&mut m, |k: &i32, v: &mut i32| {
+                        w!(" {k}");
+                        (*k + *v) % modulus == rem
+                    });
+                    result = m;
+                } else {
+                    let mut m = HashMap::new();
+                    for &(k, v) in &entries {
+                        m.insert(k, v);
+                    }
+                    w!("  unordered");
+                    fml::container::erase_if(&mut m, |k: &i32, v: &mut i32| (*k + *v) % modulus == rem);
+                    result = m.into_iter().collect();
+                }
+                w!(" keep");
+                for (k, v) in &result {
+                    w!(" {k}:{v}");
+                }
+                p!("");
+            }
+            2 => {
+                let mut safe = fml::safe_math::SafeMath::new();
+                let steps = 1 + r.below(4);
+                for _ in 0..steps {
+                    let x = gen_u64(r);
+                    let y = gen_u64(r);
+                    let product = safe.mul(x as usize, y as usize);
+                    p!("  mul {x} {y} = {product} overflow {}", safe.overflow_detected() as i32);
+                }
+            }
+            3 => {
+                let text = gen_path_text(r);
+                let copy = fml::posix_wrappers::strdup(&fml::platform::posix::libc::c_string(&text));
+                p!("  strdup {} -> {} 1", quoted(&text), quoted(copy.as_bytes()));
+            }
+            _ => {
+                p!("  pid {}", (fml::process::get_current_proc_id() == std::process::id() as i32) as i32);
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------- affinity ------
+
+const K_AFFINITIES: [(fml::cpu_affinity::CpuAffinity, &str); 4] = [
+    (fml::cpu_affinity::CpuAffinity::kPerformance, "performance"),
+    (fml::cpu_affinity::CpuAffinity::kEfficiency, "efficiency"),
+    (fml::cpu_affinity::CpuAffinity::kNotPerformance, "not-performance"),
+    (fml::cpu_affinity::CpuAffinity::kNotEfficiency, "not-efficiency"),
+];
+
+fn gen_number_text(r: &mut Rng) -> Vec<u8> {
+    match r.below(12) {
+        0 => return b"0x1A".to_vec(),
+        1 => return b"whoa this isnt a number".to_vec(),
+        _ => {}
+    }
+    const K_SPACE: [u8; 6] = [b' ', b'\t', b'\n', 0x0b, 0x0c, b'\r'];
+    const K_SUFFIXES: [&[u8]; 7] = [b"", b"abc", b" 77", b"\n", b".5", b"x1", b"e3"];
+    let mut s = Vec::new();
+    let spaces = r.below(3);
+    for _ in 0..spaces {
+        s.push(K_SPACE[r.below(6) as usize]);
+    }
+    let sign = r.below(4);
+    if sign == 0 {
+        s.push(b'+');
+    } else if sign == 1 {
+        s.push(b'-');
+    }
+    if !r.chance(4) {
+        let digits = 1 + r.below(24);
+        for _ in 0..digits {
+            s.push(b'0' + r.below(10) as u8);
+        }
+    }
+    s.extend_from_slice(K_SUFFIXES[r.below(7) as usize]);
+    s
+}
+
+fn suite_affinity(r: &mut Rng, cases: i32) {
+    use fml::cpu_affinity::*;
+    let dir = ScopedTemporaryDirectory::new();
+    w!("efficiency-count {} request", efficiency_core_count().is_some() as i32);
+    for (a, _) in K_AFFINITIES {
+        w!(" {}", request_affinity(a) as i32);
+    }
+    p!("");
+    const K_SPEEDS: [i64; 9] = [1, 2, 3, 1800000, 2400000, -1, 0, i64::MAX, i64::MIN];
+    for i in 0..cases {
+        p!("case {i}");
+        if r.chance(2) {
+            let n = r.below(7);
+            w!("  tracker");
+            let mut speeds = Vec::new();
+            for _ in 0..n {
+                let index = r.below(8) as usize;
+                let speed = K_SPEEDS[r.below(9) as usize];
+                w!(" {index}:{speed}");
+                speeds.push(CpuIndexAndSpeed { index, speed });
+            }
+            let tracker = CPUSpeedTracker::new(speeds);
+            p!(" valid {}", tracker.is_valid() as i32);
+            for (a, name) in K_AFFINITIES {
+                w!("    {name}");
+                for index in tracker.get_indices(a) {
+                    w!(" {index}");
+                }
+                p!("");
+            }
+        } else {
+            let kind = r.below(8);
+            let mut path = format!("{}/speed", dir.path());
+            let mut text = Vec::new();
+            if kind == 0 {
+                path = format!("{}/missing", dir.path());
+            } else if kind == 1 {
+                path = dir.path().clone();
+            } else {
+                text = gen_number_text(r);
+                let fd = fml::file::open_file_at(dir.fd(), "speed", true, FilePermission::kReadWrite);
+                fml::file::truncate_file(&fd, 0);
+                if !text.is_empty() {
+                    let data = DataMapping::from_string(&text);
+                    fml::file::write_atomically(dir.fd(), "speed", &data);
+                }
+            }
+            let value = read_int_from_file(&path);
+            p!("  read {} {} -> {} {}", kind, quoted(&text), value.is_some() as i32, value.unwrap_or(0));
+        }
+    }
+}
+
+// ------------------------------------------------------------ native ------
+
+const K_SYMBOLS: [&str; 6] = ["strlen", "malloc", "IO_putc", "_IO_putc", "no_such_symbol", ""];
+
+fn resolve_some(r: &mut Rng, lib: &fml::native_library::NativeLibrary) {
+    for _ in 0..2 {
+        let symbol = K_SYMBOLS[r.below(6) as usize];
+        p!("    resolve {} -> {}", quoted(symbol.as_bytes()), (!lib.resolve_symbol(symbol).is_null()) as i32);
+    }
+}
+
+fn suite_native(r: &mut Rng, cases: i32) {
+    use fml::mapping::SymbolMapping;
+    use fml::memory::ref_ptr::RefPtr;
+    use fml::native_library::NativeLibrary;
+    let dir = ScopedTemporaryDirectory::new();
+    let not_a_library = DataMapping::from_string("hello");
+    fml::file::write_atomically(dir.fd(), "notalib", &not_a_library);
+    let libraries: [String; 7] = [
+        "libc.so.6".into(),
+        "libm.so.6".into(),
+        "/nonexistent/libnope.so".into(),
+        "".into(),
+        format!("{}/notalib", dir.path()),
+        dir.path().clone(),
+        "libpthread.so.0".into(),
+    ];
+    let libc = NativeLibrary::create("libc.so.6");
+    for i in 0..cases {
+        p!("case {i}");
+        match r.below(5) {
+            0 => {
+                let path = &libraries[r.below(7) as usize];
+                let lib = NativeLibrary::create(path);
+                p!("  create {} -> {}", quoted(path.as_bytes()), lib.as_bool() as i32);
+                if let Some(lib) = lib.get() {
+                    resolve_some(r, lib);
+                }
+            }
+            1 => {
+                let lib = NativeLibrary::create_for_current_process();
+                p!("  process {}", lib.as_bool() as i32);
+                resolve_some(r, &lib);
+                p!("    same-strlen {}", (lib.resolve_symbol("strlen") == libc.resolve_symbol("strlen")) as i32);
+            }
+            2 => {
+                let null = r.chance(3);
+                let close = r.chance(2);
+                let handle = if null {
+                    std::ptr::null_mut()
+                } else {
+                    // SAFETY: the name is NUL-terminated; libm's initializers
+                    // are the C library's own.
+                    unsafe { dlopen(c"libm.so.6".as_ptr(), 2 /* RTLD_NOW */) }
+                };
+                {
+                    // SAFETY: `handle` is null or fresh from dlopen; with
+                    // `close` the library closes it, else the driver does
+                    // below, after the library is gone.
+                    let lib = unsafe { NativeLibrary::create_with_handle(handle, close) };
+                    w!("  handle {} close {} -> {}", null as i32, close as i32, lib.as_bool() as i32);
+                    if let Some(lib) = lib.get() {
+                        w!(" cos {}", (!lib.resolve_symbol("cos").is_null()) as i32);
+                    }
+                    p!("");
+                }
+                if !handle.is_null() && !close {
+                    // SAFETY: the handle came from dlopen above and nothing
+                    // holds it any more.
+                    unsafe { dlclose(handle) };
+                }
+            }
+            3 => {
+                let which = r.below(3);
+                let null_name = r.chance(5);
+                let symbol = K_SYMBOLS[r.below(6) as usize];
+                let lib: RefPtr<NativeLibrary> = match which {
+                    0 => RefPtr::null(),
+                    1 => NativeLibrary::create_for_current_process(),
+                    _ => libc.clone(),
+                };
+                let m = SymbolMapping::new(lib, if null_name { None } else { Some(symbol) });
+                p!(
+                    "  symbol {} {} size {} null {} dontneed {}",
+                    which,
+                    quoted(if null_name { b"<null>" } else { symbol.as_bytes() }),
+                    m.get_size(),
+                    m.get_mapping().is_null() as i32,
+                    m.is_dont_need_safe() as i32
+                );
+            }
+            _ => {
+                type Strlen = unsafe extern "C" fn(*const std::os::raw::c_char) -> usize;
+                let text = gen_path_text(r);
+                // SAFETY: strlen's C type is size_t(const char*).
+                let strlen_fn = unsafe { libc.resolve_function::<Strlen>("strlen") };
+                // SAFETY: any type will do for a symbol that is not found.
+                let missing = unsafe { libc.resolve_function::<Strlen>("no_such_symbol") };
+                let c_text = fml::platform::posix::libc::c_string(&text);
+                // SAFETY: strlen reads the NUL-terminated `c_text`.
+                let length = unsafe { strlen_fn.unwrap()(c_text.as_ptr()) };
+                p!(
+                    "  call {} {} {} -> {}",
+                    strlen_fn.is_some() as i32,
+                    missing.is_some() as i32,
+                    quoted(&text),
+                    length
+                );
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------- trace ------
+
+fn print_trace_event(
+    label: &str,
+    timestamp0: i64,
+    timestamp1_or_async_id: i64,
+    flow_ids: &[i64],
+    type_: fml::trace_event::Dart_Timeline_Event_Type,
+    argument_names: &[&str],
+    argument_values: &[&str],
+) {
+    w!("    event {} {} {} {} flows", type_ as i32, quoted(label.as_bytes()), timestamp0, timestamp1_or_async_id);
+    for id in flow_ids {
+        w!(" {id}");
+    }
+    w!(" args");
+    for (name, value) in argument_names.iter().zip(argument_values) {
+        w!(" {}={}", quoted(name.as_bytes()), quoted(value.as_bytes()));
+    }
+    p!("");
+}
+
+static G_TRACE_CLOCK: AtomicI64 = AtomicI64::new(0);
+
+fn counting_micros() -> i64 {
+    G_TRACE_CLOCK.fetch_add(3, SeqCst) + 3
+}
+
+fn constant_micros() -> i64 {
+    7
+}
+
+const K_TRACE_LABELS: [&str; 7] = ["frame", "raster", "fml::OpenFile", "ui", "Frame Build", "a", ""];
+const K_TRACE_WORDS: [&str; 6] = ["fr", "frame", "ra", "fml", "", "u"];
+
+fn trace_label(r: &mut Rng) -> &'static str {
+    K_TRACE_LABELS[r.below(7) as usize]
+}
+
+fn gen_trace_double(r: &mut Rng) -> f64 {
+    const K_VALUES: [f64; 10] =
+        [0.0, -0.0, 1.5, -2.25, 1e20, 3.14159265358979, 1e-7, f64::INFINITY, f64::NEG_INFINITY, f64::NAN];
+    K_VALUES[r.below(10) as usize]
+}
+
+fn gen_trace_point(r: &mut Rng) -> TimePoint {
+    TimePoint::from_epoch_delta(TimeDelta::from_microseconds(
+        r.below(2000000000001) as i64 - 1000000000000,
+    ))
+}
+
+fn suite_trace(r: &mut Rng, cases: i32) {
+    use fml::trace_event::*;
+    use fml::{
+        fml_trace_counter, fml_trace_event, trace_event_async_begin0, trace_event_async_begin1,
+        trace_event_async_end0, trace_event_instant0, trace_event_instant1, trace_event_instant2,
+        trace_event0, trace_event0_with_flow_ids, trace_event1, trace_event1_with_flow_ids,
+        trace_event2, trace_event2_int, trace_flow_begin, trace_flow_end, trace_flow_step,
+    };
+    trace_set_timeline_micros_source(counting_micros);
+    for i in 0..cases {
+        p!("case {i}");
+        match r.below(16) {
+            0 => {
+                let n = r.below(4);
+                w!("  allow");
+                let allowlist: Vec<&str> = (0..n)
+                    .map(|_| {
+                        let word = K_TRACE_WORDS[r.below(6) as usize];
+                        w!(" {}", quoted(word.as_bytes()));
+                        word
+                    })
+                    .collect();
+                p!("");
+                trace_set_allowlist(&allowlist);
+            }
+            1 => {
+                let set = !r.chance(3);
+                trace_set_timeline_event_handler(if set { Some(print_trace_event) } else { None });
+                p!("  handler {} {}", set as i32, trace_has_timeline_event_handler() as i32);
+            }
+            2 => {
+                let counting = !r.chance(4);
+                trace_set_timeline_micros_source(if counting { counting_micros } else { constant_micros });
+                p!("  micros {} {}", counting as i32, trace_get_timeline_micros());
+            }
+            3 => {
+                let label = trace_label(r);
+                p!("  event0");
+                {
+                    trace_event0!("flutter", label);
+                    p!("  inside");
+                }
+            }
+            4 => {
+                let label = trace_label(r);
+                let value = trace_label(r);
+                p!("  event1");
+                {
+                    trace_event1!("flutter", label, "k", value);
+                    p!("  inside");
+                }
+            }
+            5 => {
+                let label = trace_label(r);
+                let v1 = trace_label(r);
+                let v2 = trace_label(r);
+                p!("  event2");
+                {
+                    trace_event2!("flutter", label, "k1", v1, "k2", v2);
+                    p!("  inside");
+                }
+            }
+            6 => {
+                let label = trace_label(r);
+                let form = r.below(4);
+                let n = edge_i64(r);
+                let d = gen_trace_double(r);
+                let t = gen_trace_point(r);
+                p!("  fml-event {form}");
+                match form {
+                    0 => {
+                        fml_trace_event!("flutter", label, "i", n as i32);
+                        p!("  inside");
+                    }
+                    1 => {
+                        fml_trace_event!("flutter", label, "s", trace_label(r).to_string(), "d", d);
+                        p!("  inside");
+                    }
+                    2 => {
+                        fml_trace_event!("flutter", label, "b", n % 2 == 0, "c", "chars", "t", t);
+                        p!("  inside");
+                    }
+                    _ => {
+                        fml_trace_event!("flutter", label, "u", n as u64, "f", d as f32, "n", n);
+                        p!("  inside");
+                    }
+                }
+            }
+            7 => {
+                let label = trace_label(r);
+                let id = edge_i64(r);
+                let two = r.chance(2);
+                let n = edge_i64(r);
+                let d = gen_trace_double(r);
+                p!("  counter {}", two as i32);
+                if two {
+                    fml_trace_counter!("flutter", label, id, "x", d, "y", "str");
+                } else {
+                    fml_trace_counter!("flutter", label, id, "x", n);
+                }
+            }
+            8 => {
+                let label = trace_label(r);
+                let id = edge_i64(r);
+                let value = trace_label(r);
+                let which = r.below(4);
+                p!("  async {which}");
+                match which {
+                    0 => {
+                        trace_event_async_begin0!("flutter", label, id);
+                    }
+                    1 => {
+                        trace_event_async_end0!("flutter", label, id);
+                    }
+                    2 => {
+                        trace_event_async_begin1!("flutter", label, id, "k", value);
+                    }
+                    _ => trace_event_async_end1("flutter", label, id, "k", value),
+                }
+            }
+            9 => {
+                let label = trace_label(r);
+                let v1 = trace_label(r);
+                let v2 = trace_label(r);
+                let which = r.below(3);
+                p!("  instant {which}");
+                match which {
+                    0 => {
+                        trace_event_instant0!("flutter", label);
+                    }
+                    1 => {
+                        trace_event_instant1!("flutter", label, "k", v1);
+                    }
+                    _ => {
+                        trace_event_instant2!("flutter", label, "k1", v1, "k2", v2);
+                    }
+                }
+            }
+            10 => {
+                let label = trace_label(r);
+                let id = edge_i64(r);
+                let which = r.below(3);
+                p!("  flow {which}");
+                match which {
+                    0 => {
+                        trace_flow_begin!("flutter", label, id);
+                    }
+                    1 => {
+                        trace_flow_step!("flutter", label, id);
+                    }
+                    _ => {
+                        trace_flow_end!("flutter", label, id);
+                    }
+                }
+            }
+            11 => {
+                let label = trace_label(r);
+                let begin = gen_trace_point(r);
+                let end = gen_trace_point(r);
+                let args = r.chance(2);
+                p!("  complete {}", args as i32);
+                if args {
+                    let (keys, values) = fml::trace_split_arguments!("k", "v");
+                    trace_event_async_complete("flutter", label, begin, end, &keys, &values);
+                } else {
+                    trace_event_async_complete("flutter", label, begin, end, &[], &[]);
+                }
+            }
+            12 => {
+                let label = trace_label(r);
+                let other = trace_label(r);
+                let steps = r.below(3);
+                let named_step = r.chance(2);
+                let end = r.chance(2);
+                let move_ = r.chance(3);
+                p!("  traceflow {} {} {} {}", steps, named_step as i32, end as i32, move_ as i32);
+                let mut flow = TraceFlow::new(label);
+                for _ in 0..steps {
+                    flow.step(if named_step { Some(other) } else { None });
+                }
+                if move_ {
+                    let moved = TraceFlow::take(&mut flow);
+                    moved.step(None);
+                }
+                if end {
+                    flow.end(Some(other));
+                }
+            }
+            13 => {
+                let label = trace_label(r);
+                let mut ids = [0u64; 3];
+                let count = r.below(4) as usize;
+                for id in ids.iter_mut().take(count) {
+                    *id = edge_i64(r) as u64;
+                }
+                let one = r.chance(2);
+                let value = trace_label(r);
+                p!("  with-flows {} {}", count, one as i32);
+                if one {
+                    trace_event1_with_flow_ids!("flutter", label, count, ids, "k", value);
+                    p!("  inside");
+                } else {
+                    trace_event0_with_flow_ids!("flutter", label, count, ids);
+                    p!("  inside");
+                }
+            }
+            14 => {
+                let label = trace_label(r);
+                let a = edge_i64(r) as i32;
+                let b = edge_i64(r);
+                p!("  event2-int");
+                {
+                    trace_event2_int!("flutter", label, "a", a, "b", b);
+                    p!("  inside");
+                }
+            }
+            _ => {
+                p!("  openfile nonce {}", trace_nonce());
+                fml::file::open_file("/nonexistent-fml-oracle", false, FilePermission::kRead);
+            }
+        }
+    }
+    trace_set_timeline_event_handler(None);
+}
+
+// --------------------------------------------------------- backtrace ------
+
+fn backtrace_shape(trace: &str) -> &'static str {
+    if trace.is_empty() {
+        return "empty";
+    }
+    let mut pos = 0;
+    let mut expected = 0;
+    while pos < trace.len() {
+        let Some(eol) = trace[pos..].find('\n').map(|e| e + pos) else {
+            return "unterminated";
+        };
+        let line = trace[pos..eol].as_bytes();
+        let prefix = format!("Frame {expected}: 0x");
+        if !line.starts_with(prefix.as_bytes()) {
+            return "bad-number";
+        }
+        let mut i = prefix.len();
+        let hex_start = i;
+        while i < line.len() && line[i].is_ascii_hexdigit() {
+            i += 1;
+        }
+        if i == hex_start || i + 1 >= line.len() || line[i] != b' ' {
+            return "bad-frame";
+        }
+        expected += 1;
+        pos = eol + 1;
+    }
+    "ok"
+}
+
+/// See DeepBacktrace in oracle/fml_dump.cc.
+#[inline(never)]
+fn deep_backtrace(depth: i32, offset: usize) -> String {
+    if depth == 0 {
+        return fml::backtrace::backtrace_here(offset);
+    }
+    let trace = deep_backtrace(std::hint::black_box(depth - 1), offset);
+    std::hint::black_box(trace)
+}
+
+const K_CRASH_SIGNALS: [i32; 8] = [6, 8, 15, 11, 7, 31, 13, 14];
+
+fn crash_child(signal: i32) {
+    fml::backtrace::install_crash_handler();
+    // SAFETY: raise sends a signal to this thread, whose handler (just
+    // installed) logs and lets it kill the process.
+    unsafe { c_raise(signal) };
+    p!("survived");
+}
+
+fn run_crash_child(signal: i32) {
+    use std::os::unix::process::ExitStatusExt;
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["crash", &signal.to_string(), "0"])
+        .stdout(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let (kind, code) = match out.status.signal() {
+        Some(signal) => ("signal", signal),
+        None => ("exit", out.status.code().unwrap_or(-1)),
+    };
+    let text = String::from_utf8_lossy(&out.stderr).into_owned();
+    let (header, mut frames) = match text.find('\n') {
+        Some(eol) => (text[..eol].to_string(), text[eol + 1..].to_string()),
+        None => (text.clone(), String::new()),
+    };
+    let tail = frames.ends_with("\n\n");
+    if tail {
+        frames.pop();
+    }
+    p!("  child {kind} {code} {} frames {} tail {}", escaped(&header), backtrace_shape(&frames), tail as i32);
+}
+
+fn suite_backtrace(r: &mut Rng, cases: i32) {
+    p!("supported {}", fml::backtrace::is_crash_handling_supported() as i32);
+    for i in 0..cases {
+        p!("case {i}");
+        if r.chance(4) {
+            let signal = K_CRASH_SIGNALS[r.below(8) as usize];
+            p!("  crash {signal}");
+            run_crash_child(signal);
+        } else {
+            const K_OFFSETS: [usize; 5] = [0, 1, 2, 3, 300];
+            let offset = K_OFFSETS[r.below(5) as usize];
+            p!("  here {} {}", offset, backtrace_shape(&deep_backtrace(8, offset)));
+        }
+    }
 }

@@ -12,3 +12,8 @@ path = "src/lib.rs"
 [[bin]]
 name = "fml_dump"
 path = "src/bin/fml_dump.rs"
+
+[features]
+# Upstream's FLUTTER_RELEASE (off Android and Fuchsia): trace_event's
+# functions do nothing (FLUTTER_TIMELINE_ENABLED is 0).
+flutter_release = []

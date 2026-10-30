@@ -126,6 +126,8 @@ pub fn build_oracle() -> PathBuf {
     let driver = src.join("flutter/fml/rust/oracle/fml_dump.cc");
     let mut inputs: Vec<PathBuf> = vec![driver.clone()];
     inputs.extend(files_under(&src.join(SHIM_DIR)));
+    // This file too: it holds the compiler flags.
+    inputs.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/oracle.rs"));
     inputs.extend(UPSTREAM_SOURCES.iter().map(|s| src.join(s)));
     let newest_input = inputs
         .iter()
@@ -142,6 +144,12 @@ pub fn build_oracle() -> PathBuf {
     let mut cmd = Command::new(&cxx);
     cmd.current_dir(&src);
     cmd.arg("-std=c++20").arg("-O2").arg("-fwrapv").arg("-w");
+    // Headers are found through `-I .`, so their __FILE__ reads
+    // "./flutter/fml/..."; the engine's build reaches them through
+    // `-I ../..`, whose "../" prefixes FML_LOG strips. Drop the "./" so that
+    // logs from inline header code (NativeLibrary::ResolveSymbol) name the
+    // file as the engine's do.
+    cmd.arg("-fmacro-prefix-map=./=");
     if !debug {
         cmd.arg("-DNDEBUG");
     }

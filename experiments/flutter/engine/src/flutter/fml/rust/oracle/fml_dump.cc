@@ -3319,6 +3319,18 @@ std::string BacktraceShape(const std::string& trace) {
   return "ok";
 }
 
+// BacktraceHere under eight more frames of the driver's own, so that the
+// C++ and the Rust binary (whose stacks below main differ in depth) both
+// have frames past every offset the suite skips.
+__attribute__((noinline)) std::string DeepBacktrace(int depth, size_t offset) {
+  if (depth == 0) {
+    return fml::BacktraceHere(offset);
+  }
+  std::string trace = DeepBacktrace(depth - 1, offset);
+  asm volatile("" : : "r"(trace.data()) : "memory");
+  return trace;
+}
+
 const int kCrashSignals[] = {SIGABRT, SIGFPE,  SIGTERM, SIGSEGV,
                              SIGBUS,  SIGSYS, SIGPIPE, SIGALRM};
 
@@ -3382,7 +3394,7 @@ void SuiteBacktrace(Rng& r, int cases) {
       static const size_t kOffsets[] = {0, 1, 2, 3, 300};
       size_t offset = kOffsets[r.Below(5)];
       std::printf("  here %zu %s\n", offset,
-                  BacktraceShape(fml::BacktraceHere(offset)).c_str());
+                  BacktraceShape(DeepBacktrace(8, offset)).c_str());
     }
   }
 }
