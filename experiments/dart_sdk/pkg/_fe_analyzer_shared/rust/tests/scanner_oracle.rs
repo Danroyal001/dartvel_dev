@@ -37,7 +37,10 @@ const SCANNER_TESTS: &[&str] = &[
 ];
 
 fn sdk_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap()
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../..")
+        .canonicalize()
+        .unwrap()
 }
 
 fn dart() -> String {
@@ -53,7 +56,9 @@ fn work_dir() -> PathBuf {
 
 fn run(command: &mut Command) {
     let description = format!("{command:?}");
-    let mut child = command.spawn().unwrap_or_else(|e| panic!("cannot run {description}: {e}"));
+    let mut child = command
+        .spawn()
+        .unwrap_or_else(|e| panic!("cannot run {description}: {e}"));
     let deadline = Instant::now() + TIME_LIMIT;
     loop {
         if let Some(status) = child.try_wait().unwrap() {
@@ -80,15 +85,24 @@ fn oracle_command(program: &str) -> Command {
 
 fn corpus(work: &Path) -> Vec<String> {
     if let Ok(roots) = std::env::var("SCANNER_CORPUS") {
-        return roots.split(':').filter(|r| !r.is_empty()).map(String::from).collect();
+        return roots
+            .split(':')
+            .filter(|r| !r.is_empty())
+            .map(String::from)
+            .collect();
     }
     let root = sdk_root();
     let tests = work.join("scanner_test_inputs");
     let _ = fs::remove_dir_all(&tests);
-    run(oracle_command("extract_test_inputs.dart").arg("--out").arg(&tests).args(SCANNER_TESTS));
+    run(oracle_command("extract_test_inputs.dart")
+        .arg("--out")
+        .arg(&tests)
+        .args(SCANNER_TESTS));
     vec![
         tests.to_string_lossy().to_string(),
-        root.join("pkg/_fe_analyzer_shared/lib").to_string_lossy().to_string(),
+        root.join("pkg/_fe_analyzer_shared/lib")
+            .to_string_lossy()
+            .to_string(),
         root.join("pkg/analyzer/lib").to_string_lossy().to_string(),
     ]
 }
@@ -97,7 +111,9 @@ fn files_under(dir: &Path) -> Vec<PathBuf> {
     let mut result = Vec::new();
     let mut stack = vec![dir.to_path_buf()];
     while let Some(d) = stack.pop() {
-        let Ok(entries) = fs::read_dir(&d) else { continue };
+        let Ok(entries) = fs::read_dir(&d) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -172,7 +188,9 @@ fn scanner_output_is_identical_to_upstream() {
         let (files, differences, report) = compare(&dart_out, &rust_out);
         eprintln!("scanner={kind}: {files} files, {differences} differences");
         if differences > 0 {
-            failures.push_str(&format!("scanner={kind}: {differences} of {files} files differ\n{report}"));
+            failures.push_str(&format!(
+                "scanner={kind}: {differences} of {files} files differ\n{report}"
+            ));
         } else {
             // Identical: the dumps are not needed any more.
             let _ = fs::remove_dir_all(&dart_out);
