@@ -6,11 +6,33 @@
 // remainder by zero, and i64::MIN / -1, trap in both.
 //
 // FromSecondsF/FromMillisecondsF convert a double to int64_t; a value out of
-// range is undefined behaviour in C++ and saturates here (Rust `as`). The
-// oracle only feeds them values in range.
+// range is undefined behaviour in C++, and the port converts it as the
+// compiled C++ does (`double_to_i64`). The oracle only feeds them values in
+// range.
 
 use std::cmp::Ordering;
 use std::ops::{Add, Div, Mul, Rem, Sub};
+
+/// `static_cast<int64_t>(double)` as the compiled C++ performs it: on x86-64
+/// the cvttsd2si instruction, which gives INT64_MIN for NaN and for anything
+/// out of range (and costs nothing beyond itself, where Rust's saturating
+/// `as` adds compares); elsewhere Rust's `as`, which saturates and maps NaN
+/// to 0 as AArch64's fcvtzs does.
+#[inline(always)]
+fn double_to_i64(value: f64) -> i64 {
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+    {
+        use std::arch::x86_64::{_mm_cvttsd_si64, _mm_set_sd};
+        // SAFETY: both intrinsics need only SSE2, which this cfg guarantees
+        // is enabled (it is part of the x86-64 baseline); they read and
+        // write registers only.
+        unsafe { _mm_cvttsd_si64(_mm_set_sd(value)) }
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "sse2")))]
+    {
+        value as i64
+    }
+}
 
 /// `std::chrono::duration<double, std::milli>`.
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
@@ -85,11 +107,11 @@ impl TimeDelta {
     }
 
     pub fn from_seconds_f(seconds: f64) -> TimeDelta {
-        Self::from_nanoseconds((seconds * (1000.0 * 1000.0 * 1000.0)) as i64)
+        Self::from_nanoseconds(double_to_i64(seconds * (1000.0 * 1000.0 * 1000.0)))
     }
 
     pub fn from_milliseconds_f(millis: f64) -> TimeDelta {
-        Self::from_nanoseconds((millis * (1000.0 * 1000.0)) as i64)
+        Self::from_nanoseconds(double_to_i64(millis * (1000.0 * 1000.0)))
     }
 
     pub const fn to_nanoseconds(self) -> i64 {
