@@ -3570,7 +3570,7 @@ impl Parser {
         debug_assert!(
             self.is_a(on_keyword, kw::ON)
                 || self.is_a(on_keyword, kw::EXTENDS)
-                || self.tokens.lexeme_string(on_keyword) == "extend"
+                || self.tokens.lexeme_equals(on_keyword, "extend")
         );
         let mut type_count = 0;
         loop {
@@ -3605,7 +3605,7 @@ impl Parser {
         self.listener
             .begin_extension_declaration_prelude(&mut self.tokens, extension_keyword);
         let next = self.next(token);
-        if self.tokens.is_identifier(next) && self.tokens.lexeme_string(next) == "type" {
+        if self.tokens.is_identifier(next) && self.tokens.lexeme_equals(next, "type") {
             let type_keyword = next;
             self.parse_extension_type_declaration(
                 begin_token,
@@ -3956,7 +3956,7 @@ impl Parser {
         type_keyword: TokenId,
     ) -> TokenId {
         debug_assert!(
-            self.tokens.is_identifier(token) && self.tokens.lexeme_string(token) == "type"
+            self.tokens.is_identifier(token) && self.tokens.lexeme_equals(token, "type")
         );
         let mut const_keyword = NO_TOKEN;
         if self.is_a(self.next(token), kw::CONST) {
@@ -5287,7 +5287,7 @@ impl Parser {
 
     pub fn is_unary_minus(&self, token: TokenId) -> bool {
         self.tokens.kind(token) == IDENTIFIER_TOKEN
-            && self.tokens.lexeme_string(token) == "unary"
+            && self.tokens.lexeme_equals(token, "unary")
             && self.is_a(self.next(token), TokenType::MINUS)
     }
 

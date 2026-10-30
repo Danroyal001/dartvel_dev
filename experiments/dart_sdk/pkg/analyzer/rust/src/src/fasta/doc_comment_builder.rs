@@ -272,10 +272,10 @@ impl<'a> DocCommentBuilder<'a> {
         self.parse_doc_comment();
         let mut tokens = vec![self.start_token];
         let mut token = self.start_token;
-        if self.tokens.lexeme_string(token).starts_with("///") {
+        if self.tokens.lexeme_starts_with(token, "///") {
             token = self.tokens.next(token);
             while token != NO_TOKEN {
-                if self.tokens.lexeme_string(token).starts_with("///") {
+                if self.tokens.lexeme_starts_with(token, "///") {
                     tokens.push(token);
                 }
                 token = self.tokens.next(token);
@@ -1019,7 +1019,7 @@ struct CharacterSequence {
 
 impl CharacterSequence {
     fn new(tokens: &TokenStore, token: TokenId) -> CharacterSequence {
-        let is_from_single_line_comment = tokens.lexeme_string(token).starts_with("///");
+        let is_from_single_line_comment = tokens.lexeme_starts_with(token, "///");
         CharacterSequence {
             offset: -1,
             kind: if is_from_single_line_comment {
@@ -1101,7 +1101,7 @@ impl CharacterSequence {
                         }
                         *token = next_token;
                         self.offset = tokens.offset(next_token);
-                        if tokens.lexeme_string(*token).starts_with("///") {
+                        if tokens.lexeme_starts_with(*token, "///") {
                             break;
                         }
                     }

@@ -176,13 +176,12 @@ pub fn find_dart_doc(tokens: &TokenStore, token: TokenId) -> TokenId {
     let mut dartdoc = NO_TOKEN;
     let mut is_multiline = false;
     while comments != NO_TOKEN {
-        let lexeme = tokens.lexeme_string(comments);
-        if lexeme.starts_with("///") {
+        if tokens.lexeme_starts_with(comments, "///") {
             if !is_multiline {
                 dartdoc = comments;
                 is_multiline = true;
             }
-        } else if lexeme.starts_with("/**") {
+        } else if tokens.lexeme_starts_with(comments, "/**") {
             dartdoc = comments;
             is_multiline = false;
         }
@@ -610,7 +609,7 @@ impl Modifiers {
 
     pub fn const_keyword(&self, tokens: &TokenStore) -> TokenId {
         if self.final_const_or_var_keyword != NO_TOKEN
-            && tokens.lexeme_string(self.final_const_or_var_keyword) == "const"
+            && tokens.lexeme_equals(self.final_const_or_var_keyword, "const")
         {
             self.final_const_or_var_keyword
         } else {
