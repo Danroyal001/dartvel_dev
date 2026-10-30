@@ -762,15 +762,24 @@ class ModelGenerator {
         );
         sb.writeln('      DVForm<$className>(model, onSubmit);');
         sb.writeln();
+        // The skeleton's fields: what a card will show, so the placeholder
+        // is the shape of what is coming. A sensitive field is never shown
+        // in a generated collection, so it has no line either.
+        final String skeletonFields = '<String>[${fields.map((f) => f['name']!).where((String n) => !sensitiveFieldNames.contains(n)).map((String n) => "'$n'").join(', ')}]';
         sb.writeln('  /// Generated lazy list component for [$className].');
         sb.writeln('  ///');
         sb.writeln('  /// [empty] is which empty an empty list is, and what it');
         sb.writeln('  /// offers; nothing yet, with no action, by default.');
+        sb.writeln('  /// Null [models] is a load still in flight, drawn as the');
+        sb.writeln('  /// skeleton of the cards rather than as empty.');
         sb.writeln('  static Widget List(');
-        sb.writeln('    Iterable<$className> models, {');
+        sb.writeln('    Iterable<$className>? models, {');
         sb.writeln('    Widget Function($className)? builder,');
         sb.writeln('    DVEmpty? empty,');
         sb.writeln('  }) {');
+        sb.writeln('    if (models == null) {');
+        sb.writeln('      return const DVSkeletonCards(fields: $skeletonFields);');
+        sb.writeln('    }');
         // An empty list rendered nothing at all, which is indistinguishable
         // from one that failed to load.
         sb.writeln('    if (models.isEmpty) {');
@@ -805,8 +814,11 @@ class ModelGenerator {
         sb.writeln('    DVEmpty? empty,');
         sb.writeln('  }) {');
         sb.writeln('    if (builder != null) {');
+        sb.writeln('      if (models == null) {');
+        sb.writeln('        return DVSkeletonCards(fields: $skeletonFields, columns: columns);');
+        sb.writeln('      }');
         sb.writeln(
-          '      return DVBox.builder<$className>(models ?? <$className>[], builder).grid(columns: columns);',
+          '      return DVBox.builder<$className>(models, builder).grid(columns: columns);',
         );
         sb.writeln('    }');
         // Null and empty are different answers. A skeleton is derived from

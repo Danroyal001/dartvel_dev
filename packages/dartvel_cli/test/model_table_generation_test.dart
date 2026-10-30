@@ -153,4 +153,34 @@ void main() {
     expect(table, contains('if (builder != null)'));
     expect(table, contains('.grid(columns: columns)'));
   });
+
+  test('a list not here yet is the skeleton of its fields, not empty', () {
+    // Error, Empty, and Loading States: the card list and grid have a
+    // skeleton derived from the model's field layout, as the table does.
+    final int start = generated.indexOf('static Widget List(');
+    final String list =
+        generated.substring(start, generated.indexOf('static Widget Table', start));
+    expect(list, contains('Iterable<Person>? models'));
+    final int skeleton = list.indexOf('if (models == null)');
+    expect(skeleton, isNot(-1));
+    expect(skeleton, lessThan(list.indexOf('if (models.isEmpty)')),
+        reason: 'loading is decided before empty, or a load reads as empty');
+    expect(list,
+        contains("DVSkeletonCards(fields: <String>['id', 'fullName', 'age'])"));
+  });
+
+  test('the card grid has the same skeleton, in its columns', () {
+    expect(table,
+        contains("DVSkeletonCards(fields: <String>['id', 'fullName', 'age'], columns: columns)"));
+  });
+
+  test('a sensitive field has no placeholder line either', () {
+    // The skeleton is the shape of what the reader will see, and a sensitive
+    // field is never shown in a generated collection.
+    final int start = generated.indexOf('static Widget List(');
+    final String list =
+        generated.substring(start, generated.indexOf('static Widget Table', start));
+    expect(list, isNot(contains("'passwordHash'")));
+    expect(table, isNot(contains("'passwordHash'")));
+  });
 }
