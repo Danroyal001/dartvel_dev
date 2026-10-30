@@ -137,7 +137,10 @@ pub fn with_suffix(t: &TypeImpl, suffix: NullabilitySuffix) -> TypeImpl {
             r.nullability_suffix = suffix;
             TypeImpl::Record(Rc::new(r))
         }
-        TypeImpl::TypeParameter(p) => TypeImpl::type_parameter(p.element, suffix),
+        TypeImpl::TypeParameter(p) => TypeImpl::TypeParameter(crate::src::dart::element::r#type::TypeParameterTypeImpl {
+            nullability_suffix: suffix,
+            ..p.clone()
+        }),
         TypeImpl::Builder(_) => panic!("a TypeBuilder has no nullability outside linking"),
     }
 }
@@ -161,7 +164,12 @@ pub fn is_bottom(store: &ElementStore, t: &TypeImpl) -> bool {
                 if p.nullability_suffix == NullabilitySuffix::question {
                     return false;
                 }
-                match store.element(p.element).type_.clone() {
+                // `bound`: the promoted bound, else the declared one.
+                let bound = match &p.promoted_bound {
+                    Some(b) => Some((**b).clone()),
+                    None => store.element(p.element).type_.clone(),
+                };
+                match bound {
                     Some(TypeImpl::TypeParameter(bound)) => p = bound,
                     Some(bound) => return is_bottom(store, &bound),
                     None => return false,
@@ -184,6 +192,9 @@ fn non_nullable(store: &ElementStore, t: &TypeImpl, visited: &mut Vec<ElementId>
     match t {
         TypeImpl::Dynamic | TypeImpl::Invalid | TypeImpl::Unknown | TypeImpl::Void => return false,
         _ if is_null_class(store, t) => return false,
+        TypeImpl::TypeParameter(p) if p.promoted_bound.is_some() => {
+            return non_nullable(store, p.promoted_bound.as_ref().unwrap(), visited);
+        }
         TypeImpl::Builder(_) => return false,
         _ => {}
     }

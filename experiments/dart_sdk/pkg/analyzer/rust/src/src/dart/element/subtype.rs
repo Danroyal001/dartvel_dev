@@ -12,7 +12,7 @@ use std::rc::Rc;
 use crate::dart::element::nullability_suffix::NullabilitySuffix;
 use crate::src::dart::element::class_hierarchy::{from_interface_type, ClassHierarchy};
 use crate::src::dart::element::element::{ElementId, ElementKind, ElementStore};
-use crate::src::dart::element::r#type::{FunctionTypeImpl, TypeImpl};
+use crate::src::dart::element::r#type::{FunctionTypeImpl, TypeImpl, TypeParameterTypeImpl};
 use crate::src::dart::element::type_algebra::{substitute, Substitution};
 use crate::src::dart::element::type_system::{
     is_future_or, is_null_class, is_object_class, null_none, object_type, other_nullability, sdk_class, with_suffix,
@@ -56,6 +56,19 @@ impl<'a> TypeSystem<'a> {
             .unwrap_or_else(|| object_type(self.store, NullabilitySuffix::question))
     }
 
+    /// Left promoted variable (`X0 & S0` with `S0 <: T1`) or left type
+    /// variable bound (`X0` with bound `B0 <: T1`).
+    fn left_type_variable(&mut self, p: &TypeParameterTypeImpl, t1: &TypeImpl) -> bool {
+        if let Some(s0) = &p.promoted_bound {
+            let s0 = (**s0).clone();
+            if self.is_subtype_of(&s0, t1) {
+                return true;
+            }
+        }
+        let b0 = self.bound_or_object_question(p.element);
+        self.is_subtype_of(&b0, t1)
+    }
+
     /// `_isSubtypeOf`.
     fn subtype(&mut self, t0: &TypeImpl, t1: &TypeImpl) -> bool {
         // `_` is treated as a top and a bottom type during inference.
@@ -90,7 +103,10 @@ impl<'a> TypeSystem<'a> {
         if t1_suffix == NullabilitySuffix::none && is_object_class(self.store, t1) {
             if t0_suffix == NullabilitySuffix::none {
                 if let TypeImpl::TypeParameter(p) = t0 {
-                    let b = self.bound_or_object_question(p.element);
+                    let b = match &p.promoted_bound {
+                        Some(s) => (**s).clone(),
+                        None => self.bound_or_object_question(p.element),
+                    };
                     let on = object_type(self.store, NullabilitySuffix::none);
                     return self.is_subtype_of(&b, &on);
                 }
@@ -149,8 +165,16 @@ impl<'a> TypeSystem<'a> {
         }
         // Type variable reflexivity.
         if let (TypeImpl::TypeParameter(a), TypeImpl::TypeParameter(b)) = (t0, t1) {
-            if a.element == b.element {
+            if b.promoted_bound.is_none() && a.element == b.element {
                 return true;
+            }
+        }
+        // Right promoted variable: `T0 <: X1 & S1` iff `T0 <: X1` and `T0 <: S1`.
+        if let TypeImpl::TypeParameter(b) = t1 {
+            if let Some(s1) = &b.promoted_bound {
+                let x1 = TypeImpl::type_parameter(b.element, b.nullability_suffix);
+                let s1 = (**s1).clone();
+                return self.is_subtype_of(t0, &x1) && self.is_subtype_of(t0, &s1);
             }
         }
         // Right FutureOr.
@@ -162,8 +186,7 @@ impl<'a> TypeSystem<'a> {
                 return true;
             }
             if let TypeImpl::TypeParameter(p) = t0 {
-                let b0 = self.bound_or_object_question(p.element);
-                if self.is_subtype_of(&b0, t1) {
+                if self.left_type_variable(p, t1) {
                     return true;
                 }
             }
@@ -180,8 +203,7 @@ impl<'a> TypeSystem<'a> {
                 return true;
             }
             if let TypeImpl::TypeParameter(p) = t0 {
-                let b0 = self.bound_or_object_question(p.element);
-                if self.is_subtype_of(&b0, t1) {
+                if self.left_type_variable(p, t1) {
                     return true;
                 }
             }
@@ -189,10 +211,7 @@ impl<'a> TypeSystem<'a> {
         }
         match (t0, t1) {
             (TypeImpl::Interface(_), TypeImpl::Interface(_)) => self.interface_subtype(t0, t1),
-            (TypeImpl::TypeParameter(p), _) => {
-                let b0 = self.bound_or_object_question(p.element);
-                self.is_subtype_of(&b0, t1)
-            }
+            (TypeImpl::TypeParameter(p), _) => self.left_type_variable(p, t1),
             (TypeImpl::Function(f), TypeImpl::Function(g)) => self.function_subtype(f, g),
             (TypeImpl::Function(_), TypeImpl::Interface(i)) => self.store.is_dart_core_class(i.element, "Function"),
             (TypeImpl::Record(a), TypeImpl::Record(b)) => {

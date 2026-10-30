@@ -48,7 +48,13 @@ impl NormalizeHelper<'_> {
             return self.nullability_question(t);
         }
         match t {
-            TypeImpl::TypeParameter(p) => self.type_parameter_type(p.element, t),
+            TypeImpl::TypeParameter(p) => match &p.promoted_bound {
+                Some(promoted_bound) => {
+                    let s = self.normalize(promoted_bound);
+                    self.type_parameter_type_promoted(p.element, s)
+                }
+                None => self.type_parameter_type(p.element, t),
+            },
             TypeImpl::Interface(i) => {
                 let arguments = i.type_arguments.iter().map(|a| self.normalize(a)).collect();
                 TypeImpl::interface(i.element, arguments, NullabilitySuffix::none)
@@ -148,5 +154,29 @@ impl NormalizeHelper<'_> {
             return TypeImpl::Never(NullabilitySuffix::none);
         }
         t.clone()
+    }
+
+    /// `_typeParameterType_promoted`: NORM(X & T), with S = NORM(T).
+    fn type_parameter_type_promoted(&mut self, x: ElementId, s: TypeImpl) -> TypeImpl {
+        if matches!(s, TypeImpl::Never(NullabilitySuffix::none)) {
+            return TypeImpl::Never(NullabilitySuffix::none);
+        }
+        if is_top(self.store, &s) {
+            return TypeImpl::type_parameter(x, NullabilitySuffix::none);
+        }
+        if let TypeImpl::TypeParameter(p) = &s {
+            if p.nullability_suffix == NullabilitySuffix::none && p.element == x {
+                return TypeImpl::type_parameter(x, NullabilitySuffix::none);
+            }
+        }
+        if other_nullability(&s) == NullabilitySuffix::none && is_object_class(self.store, &s) {
+            if let Some(b) = self.store.element(x).type_.clone() {
+                let b_norm = self.normalize(&b);
+                if other_nullability(&b_norm) == NullabilitySuffix::none && is_object_class(self.store, &b_norm) {
+                    return TypeImpl::type_parameter(x, NullabilitySuffix::none);
+                }
+            }
+        }
+        TypeImpl::promoted_type_parameter(x, NullabilitySuffix::none, s)
     }
 }

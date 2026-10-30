@@ -181,10 +181,12 @@ impl RecordTypeImpl {
 }
 
 /// `TypeParameterTypeImpl`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct TypeParameterTypeImpl {
     pub element: ElementId,
     pub nullability_suffix: NullabilitySuffix,
+    /// `promotedBound`: `B` of the promoted type `X & B`.
+    pub promoted_bound: Option<Rc<TypeImpl>>,
 }
 
 /// `String.compareTo`: by UTF-16 code units.
@@ -205,6 +207,16 @@ impl TypeImpl {
         TypeImpl::TypeParameter(TypeParameterTypeImpl {
             element,
             nullability_suffix,
+            promoted_bound: None,
+        })
+    }
+
+    /// The promoted type `X & B`.
+    pub fn promoted_type_parameter(element: ElementId, nullability_suffix: NullabilitySuffix, bound: TypeImpl) -> TypeImpl {
+        TypeImpl::TypeParameter(TypeParameterTypeImpl {
+            element,
+            nullability_suffix,
+            promoted_bound: Some(Rc::new(bound)),
         })
     }
 
@@ -271,7 +283,7 @@ impl TypeImpl {
                 if t.nullability_suffix == nullability_suffix {
                     return self.clone();
                 }
-                TypeImpl::type_parameter(t.element, nullability_suffix)
+                TypeImpl::TypeParameter(TypeParameterTypeImpl { nullability_suffix, ..t.clone() })
             }
             TypeImpl::Builder(id) => crate::src::summary2::type_builder::with_nullability(store, *id, nullability_suffix),
         }
@@ -327,6 +339,11 @@ fn equals(store: &ElementStore, a: &TypeImpl, b: &TypeImpl, related: &mut Vec<(E
         (TypeImpl::TypeParameter(x), TypeImpl::TypeParameter(y)) => {
             if x.nullability_suffix != y.nullability_suffix {
                 return false;
+            }
+            match (&x.promoted_bound, &y.promoted_bound) {
+                (None, None) => {}
+                (Some(a), Some(b)) if equals(store, a, b, related) => {}
+                _ => return false,
             }
             if x.element == y.element {
                 return true;

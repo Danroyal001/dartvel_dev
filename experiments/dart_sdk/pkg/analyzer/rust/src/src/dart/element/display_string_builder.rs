@@ -104,7 +104,20 @@ impl<'a> ElementDisplayStringBuilder<'a> {
             }
             TypeImpl::TypeParameter(t) => {
                 let name = self.display_name(t.element);
-                self.write(&name);
+                if let Some(promoted_bound) = &t.promoted_bound {
+                    let has_suffix = t.nullability_suffix != NullabilitySuffix::none;
+                    if has_suffix {
+                        self.write("(");
+                    }
+                    self.write(&name);
+                    self.write(" & ");
+                    self.write_type(promoted_bound);
+                    if has_suffix {
+                        self.write(")");
+                    }
+                } else {
+                    self.write(&name);
+                }
                 self.write_nullability(t.nullability_suffix);
             }
             TypeImpl::Function(t) => self.write_function_type(t),
