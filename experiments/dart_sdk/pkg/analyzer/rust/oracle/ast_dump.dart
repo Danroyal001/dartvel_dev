@@ -54,6 +54,7 @@ void main(List<String> args) {
   int bench = 0;
   bool retain = false;
   bool api = false;
+  bool walk = false;
   List<String> roots = [];
   for (int i = 0; i < args.length; i++) {
     String arg = args[i];
@@ -61,6 +62,8 @@ void main(List<String> args) {
       bench = int.parse(arg.substring('--bench='.length));
     } else if (arg == '--api') {
       api = true;
+    } else if (arg == '--walk') {
+      walk = true;
     } else if (arg == '--retain') {
       retain = true;
     } else if (arg == '--out') {
@@ -78,6 +81,10 @@ void main(List<String> args) {
 
   List<(String, String)> inputs = corpusFiles(roots);
 
+  if (bench > 0 && walk) {
+    runWalkBench(inputs, bench);
+    return;
+  }
   if (bench > 0 && api) {
     runToSourceBench(inputs, bench);
     return;
@@ -929,5 +936,50 @@ void runToSourceBench(List<(String, String)> inputs, int rounds) {
     'dart toSource files=${units.length} rounds=$rounds '
     'min_us=${times.first} median_us=${times[times.length ~/ 2]} '
     'chars=$chars max_rss=${ProcessInfo.maxRss}',
+  );
+}
+
+/// Counts the identifiers a RecursiveAstVisitor walk of the V1 view meets.
+class IdentifierCounter extends RecursiveAstVisitor<void> {
+  int count = 0;
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    count++;
+    super.visitSimpleIdentifier(node);
+  }
+}
+
+/// `--walk --bench=N`: each round parses every file (untimed), then times a
+/// RecursiveAstVisitor walk of the V1 view of every unit, which projects the
+/// V1 nodes from the parsed (V2) ones as it goes.
+void runWalkBench(List<(String, String)> inputs, int rounds) {
+  List<String> sources = [
+    for (var (String path, _) in inputs) readSource(path),
+  ];
+  Stopwatch watch = new Stopwatch();
+  List<int> times = [];
+  int identifiers = 0;
+  for (int round = 0; round < rounds; round++) {
+    List<CompilationUnit> units = [
+      for (String source in sources)
+        parseString(content: source, throwIfDiagnostics: false).unit,
+    ];
+    watch
+      ..reset()
+      ..start();
+    for (CompilationUnit unit in units) {
+      IdentifierCounter counter = new IdentifierCounter();
+      unit.accept(counter);
+      identifiers += counter.count;
+    }
+    watch.stop();
+    times.add(watch.elapsedMicroseconds);
+  }
+  times.sort();
+  stdout.writeln(
+    'dart walk files=${sources.length} rounds=$rounds '
+    'min_us=${times.first} median_us=${times[times.length ~/ 2]} '
+    'identifiers=$identifiers max_rss=${ProcessInfo.maxRss}',
   );
 }

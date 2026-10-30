@@ -30,6 +30,7 @@ fn main() {
     let mut bench = 0usize;
     let mut retain = false;
     let mut api = false;
+    let mut walk = false;
     let mut roots: Vec<String> = Vec::new();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -37,6 +38,8 @@ fn main() {
             bench = n.parse().expect("--bench=N");
         } else if arg == "--api" {
             api = true;
+        } else if arg == "--walk" {
+            walk = true;
         } else if arg == "--retain" {
             retain = true;
         } else if arg == "--out" {
@@ -52,6 +55,10 @@ fn main() {
 
     let inputs = corpus_files(&roots);
 
+    if bench > 0 && walk {
+        run_walk_bench(&inputs, bench);
+        return;
+    }
     if bench > 0 && api {
         run_to_source_bench(&inputs, bench);
         return;
@@ -503,6 +510,56 @@ fn run_to_source_bench(inputs: &[(PathBuf, String)], rounds: usize) {
     println!(
         "rust toSource files={} rounds={rounds} min_us={} median_us={} chars={chars} max_rss={}",
         results.len(),
+        times[0],
+        times[times.len() / 2],
+        status_bytes("VmHWM"),
+    );
+}
+
+/// Counts the identifiers a RecursiveAstVisitor walk of the V1 view meets.
+struct IdentifierCounter {
+    count: usize,
+}
+
+impl analyzer::dart::ast::visitor_g::RecursiveAstVisitor for IdentifierCounter {
+    fn visit_simple_identifier(
+        &mut self,
+        ast: analyzer::src::dart::ast::ast_store::Ast<'_>,
+        node: analyzer::src::dart::ast::ast_store::NodeId,
+    ) -> Option<()> {
+        self.count += 1;
+        analyzer::dart::ast::visitor_g::recursive_ast_visitor::visit_simple_identifier(self, ast, node)
+    }
+}
+
+analyzer::recursive_ast_visitor!(IdentifierCounter, ());
+
+/// `--walk --bench=N`: each round parses every file (untimed), then times a
+/// RecursiveAstVisitor walk of the V1 view of every unit, which projects the
+/// V1 nodes from the parsed (V2) ones as it goes.
+fn run_walk_bench(inputs: &[(PathBuf, String)], rounds: usize) {
+    let sources: Vec<Rc<[u16]>> = inputs.iter().map(|(p, _)| read_source(p)).collect();
+    let mut times = Vec::new();
+    let mut identifiers = 0usize;
+    for _ in 0..rounds {
+        let results: Vec<ParseStringResult> = sources
+            .iter()
+            .map(|s| parse_string(s.clone(), None, None))
+            .collect();
+        let watch = Instant::now();
+        for result in &results {
+            let ast = analyzer::src::dart::ast::ast_store::Ast::new(&result.ast, &result.tokens);
+            let mut counter = IdentifierCounter { count: 0 };
+            ast.accept(result.unit, &mut counter);
+            identifiers += counter.count;
+        }
+        times.push(watch.elapsed().as_micros());
+        drop(results);
+    }
+    times.sort();
+    println!(
+        "rust walk files={} rounds={rounds} min_us={} median_us={} identifiers={identifiers} max_rss={}",
+        sources.len(),
         times[0],
         times[times.len() / 2],
         status_bytes("VmHWM"),
