@@ -9,6 +9,13 @@ members = [
 
 [profile.release]
 debug = false
+# Matches the engine's -O2 C++ build: whole-program optimization, one codegen
+# unit, and panics that abort as the engine builds C++ with -fno-exceptions.
+# This is what makes the ported code smaller than upstream's (fml README).
+opt-level = 2
+lto = "fat"
+codegen-units = 1
+panic = "abort"
 
 # For benchmarks and size comparisons (see each crate's README): whole-
 # program optimization, as a C++ consumer gets for code upstream keeps in
