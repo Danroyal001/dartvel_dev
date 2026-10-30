@@ -70,7 +70,13 @@ fn has_type_double(c: &LinterContext<'_>, expression: NodeId) -> bool {
 
 fn check(c: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
     let value = c.ast[Id::<DoubleLiteral>::from_raw(node)].value;
-    if !value.is_finite() || value != value.trunc() {
+    // Dart `if (value != value.truncate()) return;`, with `on UnsupportedError`
+    // returning too. On the VM the analyzer runs on, `double.truncate()` throws
+    // only for infinity and NaN and otherwise saturates to the 64-bit int
+    // range, as a Rust `as i64` cast does; `double != int` compares with
+    // `int.toDouble()`. So `1e300` is not reported, and `9223372036854775808.0`
+    // (whose truncation `0x7FFF...` converts back to it) is.
+    if !value.is_finite() || value != (value.trunc() as i64) as f64 {
         return;
     }
     let replaceable = match c
