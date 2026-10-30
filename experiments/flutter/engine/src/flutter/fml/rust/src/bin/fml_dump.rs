@@ -1244,6 +1244,10 @@ fn merger_op(c: &MergerCtx, indent: &str) {
         }
         4 => {
             let lease = 1 + st.r.below(4) as usize;
+            let s = &st.shared[si];
+            if !same && s.enabled && !s.merged() {
+                return; // FML_DCHECK(IsMergedUnSafe()) in debug builds.
+            }
             p!("{indent}extend m{m} {lease}");
             merger.extend_lease_to(lease);
             let s = &mut st.shared[si];

@@ -1119,6 +1119,9 @@ void MergerOp(MergerCtx& c, const char* indent) {
     }
     case 4: {
       size_t lease = 1 + r.Below(4);
+      if (!same && s.enabled && !s.Merged()) {
+        break;  // FML_DCHECK(IsMergedUnSafe()) in debug builds.
+      }
       std::printf("%sextend m%d %zu\n", indent, m, lease);
       merger->ExtendLeaseTo(lease);
       if (!same && s.enabled) {
