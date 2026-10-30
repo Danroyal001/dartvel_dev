@@ -154,3 +154,27 @@ fn ordering_multi_task_heaps_secondary_paused() {
     task_source.pop_task(grade);
     assert_eq!(value.load(Ordering::SeqCst), 1);
 }
+
+// Not upstream: tasks due at the same time run in the order they were
+// registered (DelayedTask's tie-break on `order`). Upstream's tests register
+// tasks at distinct clock readings, so none of them notices a reversed
+// tie-break; the oracle's queues suite does.
+#[test]
+fn equal_target_times_run_in_registration_order() {
+    let mut task_source = TaskSource::new(TaskQueueId::new(1));
+    let time_stamp = chrono_ticks_since_epoch();
+    let value = Arc::new(AtomicI32::new(0));
+    for order in 0..5 {
+        task_source.register_task(DelayedTask::new(
+            order as usize,
+            set(&value, order),
+            time_stamp,
+            TaskSourceGrade::kUnspecified,
+        ));
+    }
+    for order in 0..5 {
+        (task_source.top().task.get_task())();
+        task_source.pop_task(TaskSourceGrade::kUnspecified);
+        assert_eq!(value.load(Ordering::SeqCst), order);
+    }
+}
