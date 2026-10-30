@@ -699,13 +699,32 @@ fn analyze_parity_lints_ext() {
         eprintln!("skipped: dart 3.13.3 is not on PATH");
         return;
     }
-    let source =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/analyze_driver/lints_ext");
+    check_lint_fixture_projects("lints_ext");
+}
+
+/// Lint rules whose results differed from `dart analyze` on real projects
+/// analyzed with every lint rule enabled (one project per root cause).
+#[test]
+fn analyze_parity_lints_parity() {
+    if !dart_available() {
+        eprintln!("skipped: dart 3.13.3 is not on PATH");
+        return;
+    }
+    check_lint_fixture_projects("lints_parity");
+}
+
+/// Copies the projects of `tests/fixtures/analyze_driver/<name>`, writes a
+/// package config into each one, and compares `dart analyze` with
+/// `dartr analyze` on them.
+fn check_lint_fixture_projects(name: &str) {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/analyze_driver")
+        .join(name);
     // Copy the fixtures and write a package config into each project,
     // except for the `*_no_config` variants: without a package config the
     // workspace package is not a pub package and the pubspec rules report
     // nothing.
-    let prepared = scratch().join("lints_ext_src");
+    let prepared = scratch().join(format!("{name}_src"));
     if prepared.exists() {
         fs::remove_dir_all(&prepared).unwrap();
     }
@@ -737,5 +756,5 @@ fn analyze_parity_lints_ext() {
         fs::create_dir_all(root.join(".dart_tool")).unwrap();
         fs::write(root.join(".dart_tool/package_config.json"), config).unwrap();
     }
-    check_fixture_projects(&prepared, "lints_ext");
+    check_fixture_projects(&prepared, name);
 }

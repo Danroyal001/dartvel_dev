@@ -97,6 +97,22 @@ fn check(c: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
         {
             continue;
         }
+        // The function type that declares a parameter: the type of an
+        // executable, or of a `GenericFunctionTypeElement` (the parameters
+        // of a function type written in source, e.g. in the return type of
+        // a local function), which is not an executable and has no
+        // `ExecutableElement.type`.
+        let enclosing_function_type = |owner: dartr_element::ElementId| {
+            if owner.is::<dartr_element::ExecutableElement>() {
+                Some(member::type_(&r.ctx, ElemRef::Base(owner)))
+            } else if let Some(function_type) =
+                owner.cast::<dartr_element::GenericFunctionTypeElement>()
+            {
+                r.ctx.get(function_type).type_.get()
+            } else {
+                None
+            }
+        };
         // The parameters of a function type that substitution or LUB/GLB
         // changed are synthetic copies
         // (`FormalParameterElementMixinExtension.copyWith`) whose
@@ -113,10 +129,8 @@ fn check(c: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
                             .cast::<dartr_element::ExtensionElement>()
                             .is_some_and(|e| !r.ctx.get(e).type_params.is_empty())
                 })
-                && dartr_constant::has_type_parameter_reference(
-                    &r.ctx,
-                    member::type_(&r.ctx, ElemRef::Base(executable)),
-                )
+                && enclosing_function_type(executable)
+                    .is_some_and(|ty| dartr_constant::has_type_parameter_reference(&r.ctx, ty))
         };
         let synthetic = redirected.is_none()
             && r.ctx
@@ -140,8 +154,8 @@ fn check(c: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
                                 let fn_ty = c.static_type(c.ast[invocation].function).map(|t| {
                                     dartr_typesystem::TypeSystem::new(r.ctx).resolve_to_bound(t)
                                 });
-                                let exec_ty = member::type_(&r.ctx, ElemRef::Base(executable));
                                 if let Some(fn_ty) = fn_ty
+                                    && let Some(exec_ty) = enclosing_function_type(executable)
                                     && let (
                                         dartr_element::TypeKind::Function(fn_f),
                                         dartr_element::TypeKind::Function(exec_f),
