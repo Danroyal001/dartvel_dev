@@ -28,6 +28,7 @@ use crate::src::summary2::reference_resolver::{LinkingTypes, ReferenceResolver};
 use crate::src::summary2::default_types_builder::build_default_types;
 use crate::src::summary2::type_builder::BuildContext;
 use crate::src::summary2::types_builder::TypesBuilder;
+use crate::src::summary2::type_alias::TypeAliasSelfReferenceFinder;
 use crate::src::dart::ast::ast_store::NodeId;
 use std::collections::HashSet;
 
@@ -180,6 +181,20 @@ impl Linker {
             let feature_set = &parsed.ast.node(parsed.unit).as_compilation_unit_impl().feature_set;
             nonfunction_type_aliases.insert(builder.element, feature_set.is_enabled(Feature::nonfunction_type_aliases));
         }
+        // `TypeAliasSelfReferenceFinder().perform(this)`.
+        let units: Vec<(UnitId, NodeId)> = self.builders[first_new..]
+            .iter()
+            .flat_map(|b| b.units.iter().map(|u| (u.fragment, u.parsed.as_ref().unwrap().unit)))
+            .collect();
+        TypeAliasSelfReferenceFinder {
+            store: &mut self.store,
+            asts: &asts,
+            node_elements: &self.types.node_elements,
+            fragment_of_node: &self.types.fragment_of_node,
+            linking_libraries: &linking_libraries,
+        }
+        .perform(&units);
+
         let declarations: Vec<(UnitId, NodeId)> = self.types.declarations[declarations_start..].to_vec();
         let builders: Vec<u32> = self.types.type_builders[builders_start..].to_vec();
         let LinkingTypes { node_types, fragment_of_node, .. } = &mut self.types;
