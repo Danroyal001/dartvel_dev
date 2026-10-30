@@ -1,0 +1,1015 @@
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import 'package:meta/meta.dart';
+import 'package:process/process.dart';
+
+import '../artifacts.dart';
+import '../base/common.dart';
+import '../base/config.dart';
+import '../base/file_system.dart';
+import '../base/io.dart';
+import '../base/logger.dart';
+import '../base/platform.dart';
+import '../base/process.dart';
+import '../base/template.dart';
+import '../build_info.dart';
+import '../build_system/build_system.dart';
+import '../build_system/targets/ios.dart';
+import '../cache.dart';
+import '../context/apple_context.dart';
+import '../context/tool_context.dart';
+import '../convert.dart';
+import '../darwin/darwin.dart';
+import '../flutter_plugins.dart';
+import '../ios/plist_parser.dart';
+import '../ios/xcodeproj.dart';
+import '../macos/cocoapod_utils.dart';
+import '../macos/xcode.dart';
+import '../project.dart';
+import '../runner/flutter_command.dart';
+import '../version.dart';
+import 'build.dart';
+import 'darwin_add_to_app.dart';
+
+abstract class BuildFrameworkCommand extends BuildSubCommand {
+  BuildFrameworkCommand({
+    required this._appleContext,
+    required this._buildSystem,
+    required this.codesign,
+    required this.templateRenderer,
+    required ToolContext super.toolContext,
+    required super.verboseHelp,
+  }) : super(logger: toolContext.logger) {
+    registerOptionBundle(const DarwinAddToAppOptionsBundle());
+    argParser.addDescriptors(const <OptionDescriptor<Object?>>[
+      debugMode,
+      profileMode,
+      releaseMode,
+      cocoapods,
+      plugins,
+      output,
+      force,
+    ], verboseHelp: verboseHelp);
+  }
+
+  static const debugMode = FlagOptionDescriptor(
+    name: 'debug',
+    defaultsTo: true,
+    help:
+        'Whether to produce a framework for the debug build configuration. '
+        'By default, all build configurations are built.',
+  );
+
+  static const profileMode = FlagOptionDescriptor(
+    name: 'profile',
+    defaultsTo: true,
+    help:
+        'Whether to produce a framework for the profile build configuration. '
+        'By default, all build configurations are built.',
+  );
+
+  static const releaseMode = FlagOptionDescriptor(
+    name: 'release',
+    defaultsTo: true,
+    help:
+        'Whether to produce a framework for the release build configuration. '
+        'By default, all build configurations are built.',
+  );
+
+  static const cocoapods = FlagOptionDescriptor(
+    name: 'cocoapods',
+    help: 'Produce a Flutter.podspec instead of an engine Flutter.xcframework (recommended if host app uses CocoaPods).',
+  );
+
+  static const plugins = FlagOptionDescriptor(
+    name: 'plugins',
+    defaultsTo: true,
+    help:
+        'Whether to produce frameworks for the plugins. '
+        'This is intended for cases where plugins are already being built separately.',
+  );
+
+  static const FlagOptionDescriptor staticFrameworks = DarwinAddToAppOptionsBundle.staticFrameworks;
+
+  static const output = StringOptionDescriptor(
+    name: 'output',
+    abbr: 'o',
+    valueHelp: 'path/to/directory/',
+    help: 'Location to write the frameworks.',
+  );
+
+  static const force = FlagOptionDescriptor(
+    name: 'force',
+    abbr: 'f',
+    verboseOnly: true,
+    help: 'Force Flutter.podspec creation on the master channel. This is only intended for testing the tool itself.',
+  );
+
+  final DarwinAddToAppCodesigning codesign;
+  final TemplateRenderer templateRenderer;
+
+  final AppleContext _appleContext;
+  final BuildSystem _buildSystem;
+
+  AppleContext get appleContext => _appleContext;
+
+  @protected
+  BuildSystem get buildSystem => _buildSystem;
+
+  @protected
+  @override
+  ToolContext get toolContext => super.toolContext!;
+
+  @protected
+  Cache get cache => toolContext.cache;
+
+  @protected
+  Platform get platform => toolContext.platform;
+
+  @protected
+  FlutterVersion get flutterVersion => toolContext.flutterVersion;
+
+  Future<List<BuildInfo>> getBuildInfos() async {
+    return <BuildInfo>[
+      if (getValue(debugMode)) await getBuildInfo(forcedBuildMode: BuildMode.debug),
+      if (getValue(profileMode)) await getBuildInfo(forcedBuildMode: BuildMode.profile),
+      if (getValue(releaseMode)) await getBuildInfo(forcedBuildMode: BuildMode.release),
+    ];
+  }
+
+  @protected
+  Future<String?> getCodesignIdentity({
+    required BuildInfo buildInfo,
+    required Directory outputDirectory,
+    required XcodeBasedProject xcodeProject,
+  }) => codesign.getCodesignIdentity(
+    buildInfo: buildInfo,
+    codesignEnabled: getValue(BuildInfoOptions.codesign),
+    codesignIdentityOption: getValue(BuildInfoOptions.codesignIdentity),
+    identityFile: outputDirectory.childFile('.codesign_identity'),
+    xcodeProject: xcodeProject,
+  );
+
+  @override
+  bool get supported => platform.isMacOS;
+
+  @override
+  Future<void> validateCommand() async {
+    await super.validateCommand();
+    if (!supported) {
+      throwToolExit('Building frameworks for iOS is only supported on the Mac.');
+    }
+
+    if (!getValue(debugMode) && !getValue(profileMode) && !getValue(releaseMode)) {
+      throwToolExit('At least one of "--debug" or "--profile", or "--release" is required.');
+    }
+
+    if (!getValue(plugins) && getValue(staticFrameworks)) {
+      throwToolExit('--static cannot be used with the --no-plugins flag');
+    }
+  }
+
+  static Iterable<String> findCodeAssetFrameworkNames(Directory outputDirectory) {
+    final Directory nativeAssetsDirectory = outputDirectory.childDirectory('native_assets');
+    if (!nativeAssetsDirectory.existsSync()) {
+      return const <String>[];
+    }
+    return nativeAssetsDirectory
+        .listSync()
+        .whereType<Directory>()
+        .where((Directory d) => !d.basename.endsWith('.dSYM'))
+        .map((Directory d) => d.basename);
+  }
+
+  /// Verifies that code assets built for physical devices and simulators are
+  /// consistent.
+  ///
+  /// The physical device build is considered the source of truth. Every asset
+  /// in the simulator build must also be in the physical device build and have
+  /// the same framework path.
+  static void verifyCodeAssetConsistency(
+    Directory iPhoneBuildOutput,
+    Directory simulatorBuildOutput,
+  ) {
+    final Map<String, String> deviceAssets = DarwinAddToAppNativeAssets.parseNativeAssetsManifest(
+      iPhoneBuildOutput,
+      FlutterDarwinPlatform.ios,
+    );
+    final Map<String, String> simulatorAssets =
+        DarwinAddToAppNativeAssets.parseNativeAssetsManifest(
+          simulatorBuildOutput,
+          FlutterDarwinPlatform.ios,
+        );
+
+    for (final String assetId in deviceAssets.keys) {
+      final String deviceAssetPath = deviceAssets[assetId]!;
+      final String? simulatorAssetPath = simulatorAssets[assetId];
+      if (simulatorAssetPath != null && deviceAssetPath != simulatorAssetPath) {
+        throwToolExit(
+          'Consistent code asset framework names are required for '
+          'XCFramework creation.\n'
+          'The asset "$assetId" has different framework paths across '
+          'platforms:\n'
+          '  - iphoneos: $deviceAssetPath\n'
+          '  - iphonesimulator: $simulatorAssetPath\n\n'
+          'This is likely an issue in the package providing the asset. '
+          'Please report this to the package maintainers and ensure the '
+          '"build.dart" hook produces consistent filenames.',
+        );
+      }
+    }
+
+    for (final String assetId in simulatorAssets.keys) {
+      if (!deviceAssets.containsKey(assetId)) {
+        throwToolExit(
+          'The simulator build contains a code asset "$assetId" that is '
+          'not present in the physical device build. \n'
+          'The device build is the source of truth for distributed '
+          'frameworks. \n\n'
+          'This is likely an issue in the package providing the asset. '
+          'Please report this to the package maintainers and ensure '
+          '"$assetId" is also built for physical devices.',
+        );
+      }
+    }
+  }
+
+  static Future<void> produceXCFramework(
+    Iterable<Directory> frameworks,
+    String frameworkBinaryName,
+    Directory outputDirectory,
+    ProcessManager processManager,
+    String? codesignIdentity,
+    BuildMode buildMode,
+  ) async {
+    final xcframeworkCommand = <String>[
+      'xcrun',
+      'xcodebuild',
+      '-create-xcframework',
+      for (final Directory framework in frameworks) ...<String>[
+        '-framework',
+        framework.path,
+        ...framework.parent
+            .listSync()
+            .where(
+              (FileSystemEntity entity) =>
+                  entity.basename.endsWith('dSYM') && !entity.basename.startsWith('Flutter'),
+            )
+            .map((FileSystemEntity entity) => <String>['-debug-symbols', entity.path])
+            .expand<String>((List<String> parameter) => parameter),
+      ],
+      '-output',
+      outputDirectory.childDirectory('$frameworkBinaryName.xcframework').path,
+    ];
+
+    final ProcessResult xcframeworkResult = await processManager.run(xcframeworkCommand);
+
+    if (xcframeworkResult.exitCode != 0) {
+      throwToolExit(
+        'Unable to create $frameworkBinaryName.xcframework: ${xcframeworkResult.stderr}',
+      );
+    }
+    if (codesignIdentity != null) {
+      await DarwinAddToAppCodesigning.codesign(
+        codesignIdentity: codesignIdentity,
+        artifact: outputDirectory.childDirectory('$frameworkBinaryName.xcframework'),
+        processManager: processManager,
+        buildMode: buildMode,
+      );
+    }
+  }
+
+  /// Copies vendored frameworks from CocoaPods plugins to the output directory.
+  ///
+  /// Parses the Pods.xcodeproj/project.pbxproj to find vendored frameworks
+  /// in PBXGroups named "Frameworks", then copies them to the output directory.
+  /// This approach is more reliable than parsing podspecs because CocoaPods
+  /// has already resolved all paths, wildcards, and platform-specific entries.
+  ///
+  /// Note: This only copies frameworks from CocoaPods-based plugins.
+  /// Swift Package Manager support will be added in a separate command.
+  Future<void> copyVendoredFrameworks(
+    Directory modeDirectory,
+    Directory hostAppRoot,
+    PlistParser plistParser,
+  ) async {
+    final ToolContext(:FileSystem fs, :Logger logger) = toolContext;
+
+    final File projectFile = hostAppRoot
+        .childDirectory('Pods')
+        .childDirectory('Pods.xcodeproj')
+        .childFile('project.pbxproj');
+
+    if (!projectFile.existsSync()) {
+      logger.printTrace('Pods.xcodeproj not found, skipping vendored frameworks');
+      return;
+    }
+
+    final List<String> frameworkPaths = parseVendoredFrameworksFromPbxproj(
+      projectFile,
+      plistParser,
+      logger,
+    );
+
+    if (frameworkPaths.isEmpty) {
+      return;
+    }
+
+    final processedFrameworks = <String>{};
+    final Directory podsRoot = hostAppRoot.childDirectory('Pods');
+
+    for (final frameworkPath in frameworkPaths) {
+      final String frameworkName = fs.path.basename(frameworkPath);
+
+      // Skip Flutter's own frameworks.
+      if (frameworkName == 'Flutter.framework' ||
+          frameworkName == 'Flutter.xcframework' ||
+          frameworkName == 'App.framework' ||
+          frameworkName == 'App.xcframework') {
+        continue;
+      }
+
+      // Framework paths from CocoaPods virtual groups (e.g. "Development Pods/[plugin]/Frameworks")
+      // may have a "../../../" prefix. Strip it so the path resolves correctly relative to Pods.
+      final String absolutePath = fs.path.normalize(
+        fs.path.join(podsRoot.path, frameworkPath.replaceFirst('../../../', '')),
+      );
+      final Directory frameworkEntity = fs.directory(absolutePath);
+
+      if (!frameworkEntity.existsSync()) {
+        logger.printTrace('Vendored framework not found: $absolutePath');
+        continue;
+      }
+
+      final String binaryName = fs.path.basenameWithoutExtension(frameworkName);
+
+      // Skip if we've already processed this framework name
+      if (processedFrameworks.contains(binaryName)) {
+        continue;
+      }
+      processedFrameworks.add(binaryName);
+
+      final bool isXcframework = frameworkName.endsWith('.xcframework');
+      final bool isFramework = frameworkName.endsWith('.framework');
+      if (!isXcframework && !isFramework) {
+        continue;
+      }
+
+      final Directory destination = modeDirectory.childDirectory(frameworkName);
+      if (destination.existsSync()) {
+        continue;
+      }
+
+      final kind = isXcframework ? 'xcframework' : 'framework';
+      logger.printTrace('Copying vendored $kind: $frameworkName');
+      copyDirectory(frameworkEntity, destination);
+    }
+  }
+}
+
+/// Parses vendored framework paths from a Pods.xcodeproj/project.pbxproj file.
+///
+/// This function uses PlistParser to parse the project.pbxproj file and finds
+/// all framework/xcframework references in PBXGroups named "Frameworks".
+///
+/// Returns a list of framework paths relative to the Pods directory.
+@visibleForTesting
+List<String> parseVendoredFrameworksFromPbxproj(
+  File projectFile,
+  PlistParser plistParser,
+  Logger logger,
+) {
+  final String? jsonContent = plistParser.plistJsonContent(projectFile.path);
+  if (jsonContent == null) {
+    logger.printTrace('Failed to parse project.pbxproj');
+    return <String>[];
+  }
+
+  final Map<String, Object?> projectData;
+  try {
+    projectData = json.decode(jsonContent) as Map<String, Object?>;
+  } on FormatException catch (e) {
+    logger.printTrace('Failed to decode project.pbxproj JSON: $e');
+    return <String>[];
+  }
+
+  final objects = projectData['objects'] as Map<String, Object?>?;
+  if (objects == null) {
+    return <String>[];
+  }
+
+  final results = <String>[];
+  final fileReferenceIds = <String>{};
+
+  // Find all PBXGroups named "Frameworks" and collect their children
+  for (final MapEntry<String, Object?> entry in objects.entries) {
+    final objectValue = entry.value as Map<String, Object?>?;
+    if (objectValue == null) {
+      continue;
+    }
+
+    final isa = objectValue['isa'] as String?;
+    if (isa != 'PBXGroup') {
+      continue;
+    }
+
+    final name = objectValue['name'] as String?;
+    if (name != 'Frameworks') {
+      continue;
+    }
+
+    final children = objectValue['children'] as List<Object?>?;
+    if (children == null) {
+      continue;
+    }
+
+    for (final Object? child in children) {
+      if (child is String) {
+        fileReferenceIds.add(child);
+      }
+    }
+  }
+
+  // Look up the file paths for each file reference
+  for (final refId in fileReferenceIds) {
+    final fileRef = objects[refId] as Map<String, Object?>?;
+    if (fileRef == null) {
+      continue;
+    }
+
+    final isa = fileRef['isa'] as String?;
+    if (isa != 'PBXFileReference') {
+      continue;
+    }
+
+    final path = fileRef['path'] as String?;
+    if (path == null) {
+      continue;
+    }
+
+    // Only include .framework and .xcframework files
+    if (path.endsWith('.framework') || path.endsWith('.xcframework')) {
+      results.add(path);
+    }
+  }
+
+  return results;
+}
+
+/// Produces a .framework for integration into a host iOS app. The .framework
+/// contains the Flutter engine and framework code as well as plugins. It can
+/// be integrated into plain Xcode projects without using or other package
+/// managers.
+class BuildIOSFrameworkCommand extends BuildFrameworkCommand {
+  BuildIOSFrameworkCommand({
+    required super.appleContext,
+    required super.buildSystem,
+    required super.codesign,
+    required super.templateRenderer,
+    required super.toolContext,
+    required super.verboseHelp,
+  }) {
+    argParser.addDescriptors(const <OptionDescriptor<Object?>>[
+      BuildInfoOptions.flavor,
+      _universal,
+      _xcframework,
+    ], verboseHelp: verboseHelp);
+  }
+
+  static const _universal = FlagOptionDescriptor(
+    name: 'universal',
+    verboseOnly: true,
+    help: '(deprecated) Produce universal frameworks that include all valid architectures.',
+  );
+
+  static const _xcframework = FlagOptionDescriptor(
+    name: 'xcframework',
+    defaultsTo: true,
+    negatable: false,
+    verboseOnly: true,
+    help: 'Produce xcframeworks that include all valid architectures.',
+  );
+
+  @override
+  final name = 'ios-framework';
+
+  @override
+  final description =
+      'Produces .xcframeworks for a Flutter project '
+      'and its plugins for integration into existing, plain iOS Xcode projects.\n'
+      'This can only be run on macOS hosts.';
+
+  @override
+  Future<Set<DevelopmentArtifact>> get requiredArtifacts async => const <DevelopmentArtifact>{
+    DevelopmentArtifact.iOS,
+  };
+
+  @override
+  Future<void> validateCommand() async {
+    await super.validateCommand();
+
+    if (getValue(_universal)) {
+      throwToolExit('--universal has been deprecated, only XCFrameworks are supported.');
+    }
+  }
+
+  @override
+  bool get regeneratePlatformSpecificToolingDuringVerify => false;
+
+  @override
+  bool get deprecated => true;
+
+  @override
+  String get deprecationWarning {
+    return '${toolContext.logger.terminal.warningMark} The "flutter build ios-framework" command is '
+        'deprecated and has been replaced by "flutter build swift-package --platform ios". '
+        'For more information, see: https://docs.flutter.dev/add-to-app/ios/project-setup\n';
+  }
+
+  @override
+  Future<FlutterCommandResult> runCommand() async {
+    final ToolContext(
+      :Config config,
+      :FileSystem fs,
+      :Logger logger,
+      :ProcessManager processManager,
+    ) = toolContext;
+
+    final String outputArgument =
+        getValue(BuildFrameworkCommand.output) ??
+        fs.path.join(fs.currentDirectory.path, getBuildDirectory(config, fs), 'ios', 'framework');
+
+    if (outputArgument.isEmpty) {
+      throwToolExit('--output is required.');
+    }
+
+    if (!project.ios.existsSync()) {
+      throwToolExit('Project does not support iOS');
+    }
+
+    final Directory outputDirectory = fs.directory(
+      fs.path.absolute(fs.path.normalize(outputArgument)),
+    );
+    final List<BuildInfo> buildInfos = await getBuildInfos();
+
+    final String? codesignIdentity = await getCodesignIdentity(
+      buildInfo: buildInfos.first,
+      outputDirectory: outputDirectory,
+      xcodeProject: project.ios,
+    );
+
+    for (final buildInfo in buildInfos) {
+      // Create the build-mode specific metadata.
+      //
+      // This normally would be done in the verifyAndRun step of FlutterCommand, but special "meta"
+      // build commands (like flutter build ios-framework) make multiple builds, and do not have a
+      // single "buildInfo", so the step has to be done manually for each build.
+      //
+      // See regeneratePlatformSpecificToolingDurifyVerify.
+      await regeneratePlatformSpecificToolingIfApplicable(
+        project,
+        releaseMode: buildInfo.mode.isRelease,
+      );
+
+      logger.printStatus('Building frameworks in ${buildInfo.mode.cliName} mode...');
+
+      final String xcodeBuildConfiguration = buildInfo.mode.uppercaseName;
+      final Directory modeDirectory = outputDirectory.childDirectory(xcodeBuildConfiguration);
+
+      if (modeDirectory.existsSync()) {
+        modeDirectory.deleteSync(recursive: true);
+      }
+
+      if (getValue(BuildFrameworkCommand.cocoapods)) {
+        produceFlutterPodspec(
+          buildInfo.mode,
+          modeDirectory,
+          force: getValue(BuildFrameworkCommand.force),
+        );
+      } else {
+        // Copy Flutter.xcframework.
+        await _produceFlutterFramework(buildInfo, modeDirectory, codesignIdentity);
+      }
+
+      // Build aot, create module.framework and copy.
+      final Directory iPhoneBuildOutput = modeDirectory.childDirectory(
+        XcodeSdk.IPhoneOS.platformName,
+      );
+      final Directory simulatorBuildOutput = modeDirectory.childDirectory(
+        XcodeSdk.IPhoneSimulator.platformName,
+      );
+      await _produceAppFramework(
+        buildInfo,
+        modeDirectory,
+        iPhoneBuildOutput,
+        simulatorBuildOutput,
+        codesignIdentity,
+      );
+
+      // Build and copy plugins.
+      if (getValue(BuildFrameworkCommand.plugins)) {
+        await processPodsIfNeeded(
+          project.ios,
+          getIosBuildDirectory(config: config, fileSystem: fs),
+          buildInfo.mode,
+          cocoaPods: appleContext.cocoaPods,
+          templateRenderer: templateRenderer,
+          toolContext: toolContext,
+          forceCocoaPodsOnly: true,
+        );
+        if (hasPlugins(project)) {
+          await _producePlugins(
+            buildInfo.mode,
+            xcodeBuildConfiguration,
+            iPhoneBuildOutput,
+            simulatorBuildOutput,
+            modeDirectory,
+            codesignIdentity,
+          );
+        }
+      }
+
+      final Status status = logger.startProgress(
+        ' └─Moving to ${fs.path.relative(modeDirectory.path)}',
+      );
+
+      // Package native assets.
+      BuildFrameworkCommand.verifyCodeAssetConsistency(iPhoneBuildOutput, simulatorBuildOutput);
+
+      final Iterable<String> frameworkNames = <String>{
+        ...BuildFrameworkCommand.findCodeAssetFrameworkNames(simulatorBuildOutput),
+        ...BuildFrameworkCommand.findCodeAssetFrameworkNames(iPhoneBuildOutput),
+      };
+      for (final frameworkName in frameworkNames) {
+        final Directory frameworkDirectoryDevice = iPhoneBuildOutput
+            .childDirectory('native_assets')
+            .childDirectory(frameworkName);
+        final Directory frameworkDirectorySimulator = simulatorBuildOutput
+            .childDirectory('native_assets')
+            .childDirectory(frameworkName);
+        final frameworks = <Directory>[
+          if (frameworkDirectoryDevice.existsSync()) frameworkDirectoryDevice,
+          if (frameworkDirectorySimulator.existsSync()) frameworkDirectorySimulator,
+        ];
+        await BuildFrameworkCommand.produceXCFramework(
+          frameworks,
+          frameworkName.replaceAll('.framework', ''),
+          modeDirectory,
+          processManager,
+          codesignIdentity,
+          buildInfo.mode,
+        );
+      }
+
+      try {
+        // Delete the intermediaries since they would have been copied into our
+        // output frameworks.
+        if (iPhoneBuildOutput.existsSync()) {
+          iPhoneBuildOutput.deleteSync(recursive: true);
+        }
+        if (simulatorBuildOutput.existsSync()) {
+          simulatorBuildOutput.deleteSync(recursive: true);
+        }
+      } finally {
+        status.stop();
+      }
+    }
+
+    logger.printStatus('Frameworks written to ${outputDirectory.path}.');
+
+    if (!project.isModule && hasPlugins(project)) {
+      // Apps do not generate a FlutterPluginRegistrant.framework. Users will need
+      // to copy the GeneratedPluginRegistrant class to their project manually.
+      final File pluginRegistrantHeader = project.ios.pluginRegistrantHeader;
+      final File pluginRegistrantImplementation = project.ios.pluginRegistrantImplementation;
+      pluginRegistrantHeader.copySync(
+        outputDirectory.childFile(pluginRegistrantHeader.basename).path,
+      );
+      pluginRegistrantImplementation.copySync(
+        outputDirectory.childFile(pluginRegistrantImplementation.basename).path,
+      );
+      logger.printStatus(
+        '\nCopy the ${fs.path.basenameWithoutExtension(pluginRegistrantHeader.path)} class into your project.\n'
+        'See https://flutter.dev/to/ios-create-flutter-engine for more information.',
+      );
+    }
+
+    if (buildInfos.any((BuildInfo info) => info.isDebug)) {
+      // Add-to-App must manually add the LLDB Init File to their native Xcode
+      // project, so provide the files and instructions.
+      final File lldbInitSourceFile = project.ios.lldbInitFile;
+      final File lldbInitTargetFile = outputDirectory.childFile(lldbInitSourceFile.basename);
+      final File lldbHelperPythonFile = project.ios.lldbHelperPythonFile;
+
+      if (!lldbInitTargetFile.existsSync()) {
+        // If LLDB is being added to the output, print a warning with instructions on how to add.
+        logger.printWarning(
+          'Debugging Flutter on new iOS versions requires an LLDB Init File. To '
+          'ensure debug mode works, please complete instructions found in '
+          '"Embed a Flutter module in your iOS app > Use frameworks > Set LLDB Init File" '
+          'section of https://docs.flutter.dev/to/ios-add-to-app-embed-setup.',
+        );
+      }
+      lldbInitSourceFile.copySync(lldbInitTargetFile.path);
+      lldbHelperPythonFile.copySync(outputDirectory.childFile(lldbHelperPythonFile.basename).path);
+    }
+
+    return FlutterCommandResult.success();
+  }
+
+  /// Create podspec that will download and unzip remote engine assets so host apps can leverage CocoaPods
+  /// vendored framework caching.
+  @visibleForTesting
+  void produceFlutterPodspec(BuildMode mode, Directory modeDirectory, {bool force = false}) {
+    final Status status = logger.startProgress(' ├─Creating Flutter.podspec...');
+    try {
+      final GitTagVersion gitTagVersion = flutterVersion.gitTagVersion;
+      if (!force &&
+          (gitTagVersion.x == null ||
+              gitTagVersion.y == null ||
+              gitTagVersion.z == null ||
+              gitTagVersion.commits != 0)) {
+        throwToolExit(
+          '--cocoapods is only supported on the beta or stable channel. Detected version is ${flutterVersion.frameworkVersion}',
+        );
+      }
+
+      // Podspecs use semantic versioning, which don't support hotfixes.
+      // Fake out a semantic version with major.minor.(patch * 100) + hotfix.
+      // A real increasing version is required to prompt CocoaPods to fetch
+      // new artifacts when the source URL changes.
+      final int minorHotfixVersion = (gitTagVersion.z ?? 0) * 100 + (gitTagVersion.hotfix ?? 0);
+
+      final File license = cache.getLicenseFile();
+      if (!license.existsSync()) {
+        throwToolExit('Could not find license at ${license.path}');
+      }
+      final String licenseSource = license.readAsStringSync();
+      final String artifactsMode = FlutterDarwinPlatform.ios.artifactName(mode);
+
+      final podspecContents =
+          '''
+Pod::Spec.new do |s|
+  s.name                  = '${FlutterDarwinPlatform.ios.binaryName}'
+  s.version               = '${gitTagVersion.x}.${gitTagVersion.y}.$minorHotfixVersion' # ${flutterVersion.frameworkVersion}
+  s.summary               = 'A UI toolkit for beautiful and fast apps.'
+  s.description           = <<-DESC
+Flutter is Google's UI toolkit for building beautiful, fast apps for mobile, web, desktop, and embedded devices from a single codebase.
+This pod vends the iOS Flutter engine framework. It is compatible with application frameworks created with this version of the engine and tools.
+The pod version matches Flutter version major.minor.(patch * 100) + hotfix.
+DESC
+  s.homepage              = 'https://flutter.dev'
+  s.license               = { :type => 'BSD', :text => <<-LICENSE
+$licenseSource
+LICENSE
+  }
+  s.author                = { 'Flutter Dev Team' => 'flutter-dev@googlegroups.com' }
+  s.source                = { :http => '${cache.storageBaseUrl}/flutter_infra_release/flutter/${cache.engineRevision}/$artifactsMode/${FlutterDarwinPlatform.ios.artifactZip}' }
+  s.documentation_url     = 'https://docs.flutter.dev'
+  s.platform              = :ios, '${FlutterDarwinPlatform.ios.deploymentTarget()}'
+  s.vendored_frameworks   = '${FlutterDarwinPlatform.ios.xcframeworkName}'
+end
+''';
+
+      final File podspec = modeDirectory.childFile('Flutter.podspec')..createSync(recursive: true);
+      podspec.writeAsStringSync(podspecContents);
+    } finally {
+      status.stop();
+    }
+  }
+
+  Future<void> _produceFlutterFramework(
+    BuildInfo buildInfo,
+    Directory modeDirectory,
+    String? codesignIdentity,
+  ) async {
+    final ToolContext(
+      :Artifacts artifacts,
+      :FileSystem fs,
+      :Logger logger,
+      :ProcessManager processManager,
+    ) = toolContext;
+
+    final Status status = logger.startProgress(' ├─Copying Flutter.xcframework...');
+    final String engineCacheFlutterFrameworkDirectory = artifacts.getArtifactPath(
+      Artifact.flutterXcframework,
+      platform: TargetPlatform.ios,
+      mode: buildInfo.mode,
+    );
+    final String flutterFrameworkFileName = fs.path.basename(engineCacheFlutterFrameworkDirectory);
+    final Directory flutterFrameworkCopy = modeDirectory.childDirectory(flutterFrameworkFileName);
+
+    try {
+      // Copy xcframework engine cache framework to mode directory.
+      copyDirectory(fs.directory(engineCacheFlutterFrameworkDirectory), flutterFrameworkCopy);
+      if (codesignIdentity != null) {
+        await DarwinAddToAppCodesigning.codesignFlutterXCFramework(
+          codesignIdentity: codesignIdentity,
+          xcframework: flutterFrameworkCopy,
+          processManager: processManager,
+          buildMode: buildInfo.mode,
+        );
+      }
+    } finally {
+      status.stop();
+    }
+  }
+
+  Future<void> _produceAppFramework(
+    BuildInfo buildInfo,
+    Directory outputDirectory,
+    Directory iPhoneBuildOutput,
+    Directory simulatorBuildOutput,
+    String? codesignIdentity,
+  ) async {
+    final ToolContext(
+      :Artifacts artifacts,
+      :Cache cache,
+      :FileSystem fs,
+      :Logger logger,
+      :Platform platform,
+      :ProcessManager processManager,
+    ) = toolContext;
+    final AppleContext(:Xcode xcode) = appleContext;
+
+    const appFrameworkName = 'App.framework';
+    final Status status = logger.startProgress(' ├─Building App.xcframework...');
+    final frameworks = <Directory>[];
+
+    try {
+      for (final EnvironmentType sdkType in EnvironmentType.values) {
+        final Directory outputBuildDirectory = switch (sdkType) {
+          EnvironmentType.physical => iPhoneBuildOutput,
+          EnvironmentType.simulator => simulatorBuildOutput,
+        };
+        frameworks.add(outputBuildDirectory.childDirectory(appFrameworkName));
+        final environment = Environment(
+          projectDir: fs.currentDirectory,
+          packageConfigPath: packageConfigPath(),
+          outputDir: outputBuildDirectory,
+          buildDir: project.dartTool.childDirectory('flutter_build'),
+          cacheDir: cache.getRoot(),
+          flutterRootDir: fs.directory(Cache.flutterRoot),
+          defines: <String, String>{
+            kTargetFile: targetFile,
+            kTargetPlatform: TargetPlatform.ios.getName(),
+            kIosArchs: defaultIOSArchsForEnvironment(
+              sdkType,
+              artifacts,
+            ).map((CpuArch e) => e.darwinArchName).join(' '),
+            kSdkRoot: await xcode.sdkLocation(sdkType),
+            ...buildInfo.toBuildSystemEnvironment(),
+          },
+          artifacts: artifacts,
+          fileSystem: fs,
+          logger: logger,
+          processManager: processManager,
+          platform: platform,
+          analytics: analytics,
+          engineVersion: artifacts.usesLocalArtifacts ? null : flutterVersion.engineRevision,
+          generateDartPluginRegistry: true,
+        );
+        Target target;
+        // Always build debug for simulator.
+        if (buildInfo.isDebug || sdkType == EnvironmentType.simulator) {
+          target = const DebugIosApplicationBundle();
+        } else if (buildInfo.isProfile) {
+          target = const ProfileIosApplicationBundle();
+        } else {
+          target = const ReleaseIosApplicationBundle();
+        }
+        final BuildResult result = await buildSystem.build(target, environment);
+        if (!result.success) {
+          for (final ExceptionMeasurement measurement in result.exceptions.values) {
+            logger.printError(measurement.exception.toString());
+          }
+          throwToolExit('The App.xcframework build failed.');
+        }
+      }
+    } finally {
+      status.stop();
+    }
+
+    await BuildFrameworkCommand.produceXCFramework(
+      frameworks,
+      'App',
+      outputDirectory,
+      processManager,
+      codesignIdentity,
+      buildInfo.mode,
+    );
+  }
+
+  Future<void> _producePlugins(
+    BuildMode mode,
+    String xcodeBuildConfiguration,
+    Directory iPhoneBuildOutput,
+    Directory simulatorBuildOutput,
+    Directory modeDirectory,
+    String? codesignIdentity,
+  ) async {
+    final ToolContext(
+      :FileSystem fs,
+      :Logger logger,
+      :ProcessManager processManager,
+      :ProcessUtils processUtils,
+    ) = toolContext;
+    final AppleContext(:PlistParser plistParser, :Xcode xcode) = appleContext;
+
+    final Status status = logger.startProgress(' ├─Building plugins...');
+    try {
+      var pluginsBuildCommand = <String>[
+        ...xcode.xcrunCommand(),
+        'xcodebuild',
+        '-alltargets',
+        '-sdk',
+        XcodeSdk.IPhoneOS.platformName,
+        '-configuration',
+        xcodeBuildConfiguration,
+        'SYMROOT=${iPhoneBuildOutput.path}',
+        'ONLY_ACTIVE_ARCH=NO', // No device targeted, so build all valid architectures.
+        'BUILD_LIBRARY_FOR_DISTRIBUTION=YES',
+        if (getValue(BuildFrameworkCommand.staticFrameworks)) 'MACH_O_TYPE=staticlib',
+      ];
+
+      RunResult buildPluginsResult = await processUtils.run(
+        pluginsBuildCommand,
+        workingDirectory: project.ios.hostAppRoot.childDirectory('Pods').path,
+      );
+
+      if (buildPluginsResult.exitCode != 0) {
+        throwToolExit('Unable to build plugin frameworks: ${buildPluginsResult.stderr}');
+      }
+
+      // Always build debug for simulator.
+      final String simulatorConfiguration = BuildMode.debug.uppercaseName;
+      pluginsBuildCommand = <String>[
+        ...xcode.xcrunCommand(),
+        'xcodebuild',
+        '-alltargets',
+        '-sdk',
+        XcodeSdk.IPhoneSimulator.platformName,
+        '-configuration',
+        simulatorConfiguration,
+        'SYMROOT=${simulatorBuildOutput.path}',
+        'ONLY_ACTIVE_ARCH=NO', // No device targeted, so build all valid architectures.
+        'BUILD_LIBRARY_FOR_DISTRIBUTION=YES',
+        if (getValue(BuildFrameworkCommand.staticFrameworks)) 'MACH_O_TYPE=staticlib',
+      ];
+
+      buildPluginsResult = await processUtils.run(
+        pluginsBuildCommand,
+        workingDirectory: project.ios.hostAppRoot.childDirectory('Pods').path,
+      );
+
+      if (buildPluginsResult.exitCode != 0) {
+        throwToolExit(
+          'Unable to build plugin frameworks for simulator: ${buildPluginsResult.stderr}',
+        );
+      }
+
+      final Directory iPhoneBuildConfiguration = iPhoneBuildOutput.childDirectory(
+        '$xcodeBuildConfiguration-${XcodeSdk.IPhoneOS.platformName}',
+      );
+      final Directory simulatorBuildConfiguration = simulatorBuildOutput.childDirectory(
+        '$simulatorConfiguration-${XcodeSdk.IPhoneSimulator.platformName}',
+      );
+
+      final Iterable<Directory> products = iPhoneBuildConfiguration
+          .listSync(followLinks: false)
+          .whereType<Directory>();
+      for (final builtProduct in products) {
+        for (final FileSystemEntity podProduct in builtProduct.listSync(followLinks: false)) {
+          final String podFrameworkName = podProduct.basename;
+          if (fs.path.extension(podFrameworkName) != '.framework') {
+            continue;
+          }
+          final String binaryName = toolContext.fs.path.basenameWithoutExtension(podFrameworkName);
+
+          final frameworks = <Directory>[
+            podProduct as Directory,
+            simulatorBuildConfiguration
+                .childDirectory(builtProduct.basename)
+                .childDirectory(podFrameworkName),
+          ];
+
+          await BuildFrameworkCommand.produceXCFramework(
+            frameworks,
+            binaryName,
+            modeDirectory,
+            processManager,
+            codesignIdentity,
+            mode,
+          );
+        }
+      }
+
+      // Copy vendored frameworks from CocoaPods plugins.
+      await copyVendoredFrameworks(modeDirectory, project.ios.hostAppRoot, plistParser);
+    } finally {
+      status.stop();
+    }
+  }
+}

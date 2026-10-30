@@ -1,0 +1,26 @@
+# See Dependabot documentation for all configuration options:
+# https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    allow:
+      - dependency-name: "actions/*"
+      - dependency-name: "google-github-actions/*"
+    groups:
+      all-github-actions:
+        patterns: [ "*" ]
+    reviewers:
+      - "jmagman"
+      - "jtmcdole"
+    labels:
+      - "team-infra"
+      - "autosubmit"
+    # Updating patch versions for "github-actions" is too chatty.
+    # See https://github.com/flutter/flutter/issues/158350.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]

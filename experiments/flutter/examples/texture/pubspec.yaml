@@ -1,0 +1,22 @@
+name: texture
+
+environment:
+  sdk: ^3.13.0-0
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  material_ui: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_driver:
+    sdk: flutter
+  test: any
+
+
+# PUBSPEC CHECKSUM: 2rmgtd
