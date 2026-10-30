@@ -93,17 +93,28 @@ fn cmp<T: Ord>(a: T, b: T) -> i32 {
 // Everything goes through one buffer, as C++ stdio does, so output printed
 // from inside a task closure lands in order.
 static OUT: std::sync::Mutex<Vec<u8>> = std::sync::Mutex::new(Vec::new());
+// Set in bench mode, where output is formatted and dropped, as the C++ driver
+// formats it into /dev/null.
+static DISCARD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn discard_if_benching(out: &mut Vec<u8>) {
+    if out.len() > 4096 && DISCARD.load(std::sync::atomic::Ordering::Relaxed) {
+        out.clear();
+    }
+}
 
 macro_rules! w {
     ($($arg:tt)*) => {{
         let mut out = OUT.lock().unwrap();
         write!(out, $($arg)*).unwrap();
+        discard_if_benching(&mut out);
     }};
 }
 macro_rules! p {
     ($($arg:tt)*) => {{
         let mut out = OUT.lock().unwrap();
         writeln!(out, $($arg)*).unwrap();
+        discard_if_benching(&mut out);
     }};
 }
 
@@ -796,6 +807,7 @@ fn peak_rss_kib() -> i64 {
 }
 
 fn bench(name: &str, iterations: i32) {
+    DISCARD.store(true, std::sync::atomic::Ordering::Relaxed);
     let mut rounds = Vec::new();
     for i in 0..iterations {
         let start = std::time::Instant::now();
