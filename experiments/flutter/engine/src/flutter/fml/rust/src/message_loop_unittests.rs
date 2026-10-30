@@ -283,3 +283,30 @@ fn runs_tasks_on_current_thread_follows_merges() {
     .join()
     .unwrap();
 }
+
+// Not upstream: tasks that fall due while the loop is being terminated still
+// run, in the flush MessageLoopImpl::DoRun makes after the platform loop
+// returns. Here the second task is posted by the first, after the flush that
+// runs the first has read the time, so only that last flush can run it.
+#[test]
+fn tasks_due_when_the_loop_terminates_still_run() {
+    let ran = Arc::new(AtomicBool::new(false));
+    let r = ran.clone();
+    std::thread::spawn(move || {
+        MessageLoop::ensure_initialized_for_current_thread();
+        let loop_ = MessageLoop::get_current();
+        loop_.get_task_runner().post_task(Arc::new(move || {
+            let r = r.clone();
+            // Make sure the clock moves past the running flush's.
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            MessageLoop::get_current()
+                .get_task_runner()
+                .post_task(Arc::new(move || r.store(true, Ordering::SeqCst)));
+            MessageLoop::get_current().terminate();
+        }));
+        loop_.run();
+    })
+    .join()
+    .unwrap();
+    assert!(ran.load(Ordering::SeqCst));
+}

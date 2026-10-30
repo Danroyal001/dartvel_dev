@@ -83,3 +83,23 @@ fn closure_not_invoked_when_moved_via_assignment() {
 
     assert_eq!(1, invoked.load(Ordering::SeqCst));
 }
+
+// Not upstream: move-assigning onto a holder that has a closure drops that
+// closure without invoking it (`closure_ = other.Release()`), and the moved
+// closure runs once.
+#[test]
+fn closure_replaced_by_move_assignment_is_not_invoked() {
+    let (first, first_closure) = counter();
+    let (second, second_closure) = counter();
+
+    {
+        let mut cleanup = ScopedCleanupClosure::new(first_closure);
+        cleanup.assign(ScopedCleanupClosure::new(second_closure));
+
+        assert_eq!(0, first.load(Ordering::SeqCst));
+        assert_eq!(0, second.load(Ordering::SeqCst));
+    }
+
+    assert_eq!(0, first.load(Ordering::SeqCst));
+    assert_eq!(1, second.load(Ordering::SeqCst));
+}
