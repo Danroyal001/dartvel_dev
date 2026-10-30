@@ -204,6 +204,10 @@ impl Driver {
                     let lints = match &result {
                         Ok(resolved) if !rules.is_empty() => {
                             let enabled: Vec<&str> = rules.iter().map(String::as_str).collect();
+                            // Each rule runs under its own catch (see
+                            // `AnalysisRuleVisitor`); a panic here is outside
+                            // the rules and loses all lints of the library,
+                            // so it is reported like a rule's.
                             catch_unwind(AssertUnwindSafe(|| {
                                 crate::lints::compute_lints_unfiltered_with_package(
                                     &input,
@@ -212,7 +216,20 @@ impl Driver {
                                     pkg_info.as_deref(),
                                 )
                             }))
-                            .unwrap_or_default()
+                            .unwrap_or_else(|e| {
+                                dartr_lints::report_internal_error(
+                                    dartr_lints::LintInternalError {
+                                        rule: None,
+                                        path: units
+                                            .first()
+                                            .map_or_else(String::new, |u| u.path.to_string()),
+                                        node: None,
+                                        message: panic_message(e),
+                                        count: 1,
+                                    },
+                                );
+                                Vec::new()
+                            })
                         }
                         _ => Vec::new(),
                     };

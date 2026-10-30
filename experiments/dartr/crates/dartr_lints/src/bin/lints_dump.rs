@@ -152,7 +152,28 @@ fn main() {
             diagnostics[index] = result.into_iter().map(diagnostic_json).collect();
         }
     }
+    // A rule that panicked lost its diagnostics: record it on the file (the
+    // differential tools list `panic` records) and fail the run.
+    let internal_errors = dartr_lints::take_internal_errors();
     for (path, diagnostics) in paths.iter().zip(diagnostics) {
-        println!("{}", json!({"path":path,"diagnostics":diagnostics}));
+        let panic: Vec<String> = internal_errors
+            .iter()
+            .filter(|e| e.path == *path)
+            .map(|e| e.to_string())
+            .collect();
+        if panic.is_empty() {
+            println!("{}", json!({"path":path,"diagnostics":diagnostics}));
+        } else {
+            println!(
+                "{}",
+                json!({"path":path,"diagnostics":diagnostics,"panic":panic.join("\n")})
+            );
+        }
+    }
+    for error in &internal_errors {
+        eprintln!("lints_dump: {error}");
+    }
+    if !internal_errors.is_empty() {
+        std::process::exit(1);
     }
 }

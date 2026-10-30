@@ -1130,8 +1130,125 @@ pub fn lint_resolved_library(
     out
 }
 
+/// A lint rule that panicked, or a lint computation that panicked outside
+/// the rules. Dart's `AnalysisRuleVisitor._logException` catches the
+/// exception of one rule on one node, logs it and goes on with the other
+/// rules and nodes; dartr does the same, and keeps the error here so that the
+/// caller can report it: diagnostics are missing, and that must not go
+/// unnoticed (`dartr analyze` prints these and exits with 4).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LintInternalError {
+    /// The rule that panicked; `None` when the lint computation of the
+    /// library panicked outside a rule.
+    pub rule: Option<String>,
+    /// The file whose unit was being linted.
+    pub path: String,
+    /// The kind of the node the rule visited; `None` for an after-library
+    /// callback.
+    pub node: Option<String>,
+    /// The panic message of the first panic.
+    pub message: String,
+    /// How many callbacks of this rule panicked in this file.
+    pub count: usize,
+}
+
+impl std::fmt::Display for LintInternalError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match (&self.rule, &self.node) {
+            (Some(rule), Some(node)) => write!(
+                f,
+                "internal error: the lint rule '{rule}' panicked while visiting a {node} in {}",
+                self.path
+            )?,
+            (Some(rule), None) => write!(
+                f,
+                "internal error: the lint rule '{rule}' panicked after visiting the library of {}",
+                self.path
+            )?,
+            (None, _) => write!(
+                f,
+                "internal error: computing the lints of {} panicked",
+                self.path
+            )?,
+        }
+        if self.count > 1 {
+            write!(f, " ({} times)", self.count)?;
+        }
+        write!(f, ": {}", self.message)
+    }
+}
+
+static INTERNAL_ERRORS: std::sync::Mutex<Vec<LintInternalError>> =
+    std::sync::Mutex::new(Vec::new());
+
+/// Records [error]; a second panic of the same rule in the same file counts.
+pub fn report_internal_error(error: LintInternalError) {
+    let mut errors = INTERNAL_ERRORS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(existing) = errors
+        .iter_mut()
+        .find(|e| e.rule == error.rule && e.path == error.path)
+    {
+        existing.count += error.count;
+    } else {
+        errors.push(error);
+    }
+}
+
+/// The internal errors recorded since the last call, in the order they
+/// happened.
+pub fn take_internal_errors() -> Vec<LintInternalError> {
+    std::mem::take(
+        &mut *INTERNAL_ERRORS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+    )
+}
+
+/// The message of a caught panic.
+pub fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
+        .unwrap_or_else(|| "panic".to_string())
+}
+
+/// The rule named by `DARTR_LINT_PANIC_FOR_TESTING`, which panics instead of
+/// running: the tests of the internal-error reporting use it to make a real
+/// rule fail inside the real `dartr analyze`.
+fn panic_injected_for(rule: &str) -> bool {
+    static INJECTED: std::sync::LazyLock<Option<String>> =
+        std::sync::LazyLock::new(|| std::env::var("DARTR_LINT_PANIC_FOR_TESTING").ok());
+    INJECTED.as_deref() == Some(rule)
+}
+
+/// Runs one callback of [rule] under its own `catch_unwind` (Dart
+/// `_runSubscriptions`), recording a panic as a [LintInternalError].
+fn run_rule_callback(rule: &str, path: &str, node: Option<NodeKind>, callback: impl FnOnce()) {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if panic_injected_for(rule) {
+            panic!("panic injected into the lint rule '{rule}' by DARTR_LINT_PANIC_FOR_TESTING");
+        }
+        callback();
+    }));
+    if let Err(payload) = result {
+        report_internal_error(LintInternalError {
+            rule: Some(rule.to_string()),
+            path: path.to_string(),
+            node: node.map(|kind| format!("{kind:?}")),
+            message: panic_message(&*payload),
+            count: 1,
+        });
+    }
+}
+
 /// The generated Dart visitor runs each node's subscriptions before children.
-/// Panics propagate, so a failed rule cannot silently produce incomplete output.
+/// Each callback runs under its own `catch_unwind`, like Dart's
+/// `_runSubscriptions` catches the exception of one subscription: a rule that
+/// panics loses its own diagnostic for that node, the other rules and nodes
+/// still run, and the panic is recorded (see [take_internal_errors]).
 pub struct AnalysisRuleVisitor<'a> {
     registry: &'a RuleVisitorRegistry,
 }
@@ -1142,12 +1259,13 @@ impl<'a> AnalysisRuleVisitor<'a> {
     pub fn visit(&self, ctx: &LinterContext<'_>, root: NodeId, out: &mut Vec<Diagnostic>) {
         let mut pending = vec![root];
         while let Some(node) = pending.pop() {
-            if let Some(subscriptions) = self.registry.subscriptions.get(&ctx.ast.kind(node)) {
+            let kind = ctx.ast.kind(node);
+            if let Some(subscriptions) = self.registry.subscriptions.get(&kind) {
                 for (rule, processor) in subscriptions {
                     if self.registry.enable_timing {
                         self.registry.timers.borrow_mut().get_timer(rule).start();
                     }
-                    processor(ctx, node, out);
+                    run_rule_callback(rule, ctx.path, Some(kind), || processor(ctx, node, out));
                     if self.registry.enable_timing {
                         self.registry.timers.borrow_mut().get_timer(rule).stop();
                     }
@@ -1161,7 +1279,7 @@ impl<'a> AnalysisRuleVisitor<'a> {
             if self.registry.enable_timing {
                 self.registry.timers.borrow_mut().get_timer(rule).start();
             }
-            callback(ctx, out);
+            run_rule_callback(rule, ctx.path, None, || callback(ctx, out));
             if self.registry.enable_timing {
                 self.registry.timers.borrow_mut().get_timer(rule).stop();
             }
@@ -1193,4 +1311,87 @@ pub fn lint_with_config(
         }
     }
     diagnostics
+}
+
+#[cfg(test)]
+mod internal_error_tests {
+    use super::*;
+
+    fn panicking(_: &LinterContext<'_>, _: NodeId, _: &mut Vec<Diagnostic>) {
+        panic!("boom");
+    }
+
+    fn reporting(c: &LinterContext<'_>, node: NodeId, out: &mut Vec<Diagnostic>) {
+        c.report_node(out, &dartr_diagnostics::diag::EMPTY_STATEMENTS, node, &[]);
+    }
+
+    fn panicking_after_library(_: &LinterContext<'_>, _: &mut Vec<Diagnostic>) {
+        panic!("boom after library");
+    }
+
+    /// A rule that panics on every node does not stop the rule after it on
+    /// the same node, nor the visit of the later nodes; each panic is
+    /// recorded once per rule and file, with a count.
+    #[test]
+    fn a_panicking_rule_is_recorded_and_the_others_still_report() {
+        let path = "/internal_error_tests/a.dart";
+        let source = "void f() { ; ; ; }\n";
+        let parsed = dartr_ast_builder::parse_string(source, path);
+        let units = [RuleContextUnit {
+            parsed: &parsed,
+            source,
+            path,
+            source_uri: None,
+            package_info: None,
+        }];
+        let ctx = LinterContext {
+            parsed: &parsed,
+            ast: &parsed.ast,
+            source,
+            path,
+            all_units: &units,
+            current_unit: 0,
+            resolved: None,
+            resolved_units: &[],
+            package_info: None,
+            lazy_package_info: None,
+        };
+        let mut registry = RuleVisitorRegistry::default();
+        registry.add(NodeKind::EmptyStatement, "panicking_rule", panicking);
+        registry.add(NodeKind::EmptyStatement, "reporting_rule", reporting);
+        registry.add_after_library("panicking_after_library", panicking_after_library);
+        let visitor = AnalysisRuleVisitor::new(&registry);
+        let mut out = vec![];
+        visitor.visit(&ctx, parsed.unit.raw(), &mut out);
+        visitor.after_library(&ctx, &mut out);
+        assert_eq!(out.len(), 3, "the reporting rule runs on all three nodes");
+        let errors: Vec<_> = take_internal_errors()
+            .into_iter()
+            .filter(|e| e.path == path)
+            .collect();
+        assert_eq!(
+            errors,
+            vec![
+                LintInternalError {
+                    rule: Some("panicking_rule".to_string()),
+                    path: path.to_string(),
+                    node: Some("EmptyStatement".to_string()),
+                    message: "boom".to_string(),
+                    count: 3,
+                },
+                LintInternalError {
+                    rule: Some("panicking_after_library".to_string()),
+                    path: path.to_string(),
+                    node: None,
+                    message: "boom after library".to_string(),
+                    count: 1,
+                },
+            ]
+        );
+        assert_eq!(
+            errors[0].to_string(),
+            "internal error: the lint rule 'panicking_rule' panicked while visiting a \
+             EmptyStatement in /internal_error_tests/a.dart (3 times): boom"
+        );
+    }
 }

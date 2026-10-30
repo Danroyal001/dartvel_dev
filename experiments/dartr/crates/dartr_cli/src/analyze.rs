@@ -316,6 +316,23 @@ fn run_parsed(
     for message in &plugin_output.plugin_errors {
         let _ = writeln!(stderr, "{message}");
     }
+    // A lint rule that panicked lost diagnostics (dartr runs each rule under
+    // its own catch, as Dart's `AnalysisRuleVisitor` does, so the other
+    // rules still report). Dart only logs such an exception to its
+    // instrumentation log; dartr says so on stderr and exits with 4
+    // (dartdev `_Result.crash`) even when issues were found, because the
+    // exit code of the severities is computed from an incomplete set.
+    let internal_errors = dartr_lints::take_internal_errors();
+    for error in &internal_errors {
+        let _ = writeln!(stderr, "dartr: {error}");
+    }
+    if !internal_errors.is_empty() {
+        let _ = writeln!(
+            stderr,
+            "dartr: the diagnostics of these files are incomplete; this is a bug in dartr."
+        );
+    }
+    let internal_error = !internal_errors.is_empty();
     let t_diagnostics = start.elapsed();
     if std::env::var_os("DARTR_TIMINGS").is_some() {
         let _ = writeln!(
@@ -380,11 +397,11 @@ fn run_parsed(
     if priority_errors.is_empty() && non_priority_errors.is_empty() {
         if json_format {
             output::emit_json_format(&mut out, &[], memory);
-        } else if !machine_format && !server_error_received {
+        } else if !machine_format && !server_error_received && !internal_error {
             out.push_str("No issues found!\n");
         }
         let _ = stdout.write_all(out.as_bytes());
-        return Ok(if server_error_received {
+        return Ok(if server_error_received || internal_error {
             ExitResult::Crash
         } else {
             ExitResult::Success
@@ -455,7 +472,9 @@ fn run_parsed(
             dartr_diagnostics::DiagnosticSeverity::None => {}
         }
     }
-    let result = if has_errors {
+    let result = if internal_error {
+        ExitResult::Crash
+    } else if has_errors {
         ExitResult::Errors
     } else if args.fatal_warnings && has_warnings {
         ExitResult::Warnings
