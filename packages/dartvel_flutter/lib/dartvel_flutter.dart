@@ -11483,6 +11483,10 @@ abstract final class DVFrameworkStrings {
   /// What an empty [DVTable] announces.
   static const DVTranslationKey tableEmpty = DVTranslationKey('dv.table.empty');
 
+  /// What a [DVTable] announces while its rows are on their way.
+  static const DVTranslationKey tableLoading =
+      DVTranslationKey('dv.table.loading');
+
   /// What every page says while the device is offline.
   static const DVTranslationKey offline = DVTranslationKey('dv.network.offline');
 
@@ -11495,6 +11499,7 @@ abstract final class DVFrameworkStrings {
   /// The catalogue default for each framework key, by key.
   static const Map<String, String> defaults = <String, String>{
     'dv.table.empty': 'No rows',
+    'dv.table.loading': 'Loading',
     'dv.network.offline': "You're offline",
     'dv.page.error': 'Something went wrong',
     'dv.action.retry': 'Try again',

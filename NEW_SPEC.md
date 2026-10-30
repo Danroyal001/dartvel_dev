@@ -15080,7 +15080,11 @@ The distinction generated components make, because the answers differ:
 
 Skeletons are derived from the model's field layout, so the placeholder is the
 shape of what is coming rather than a spinner — a generated table knows its
-columns before it has rows.
+columns before it has rows. The table's is built: `Article.Table(null)` is a
+load in flight, and renders its header and placeholder cells in the model's
+columns, announced once as the framework string `dv.table.loading` — never as
+its empty label, because loading is not empty. The card list and grid have no
+skeleton yet.
 
 An offline banner is driven by the connectivity signal Offline-First Models
 defines, and a background-task tray shows uploads, exports and imports from

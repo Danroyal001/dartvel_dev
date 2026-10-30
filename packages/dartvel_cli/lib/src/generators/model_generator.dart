@@ -783,19 +783,27 @@ class ModelGenerator {
         sb.writeln('  ///');
         sb.writeln('  /// One column per non-sensitive field. Pass [builder]');
         sb.writeln('  /// to fall back to a card grid instead.');
+        sb.writeln('  ///');
+        sb.writeln('  /// Null [models] is a load still in flight: the table');
+        sb.writeln('  /// shows its header and a skeleton of its columns rather');
+        sb.writeln('  /// than announcing that there are no rows.');
         sb.writeln('  static Widget Table(');
-        sb.writeln('    Iterable<$className> models, {');
+        sb.writeln('    Iterable<$className>? models, {');
         sb.writeln('    int columns = 2,');
         sb.writeln('    Widget Function($className)? builder,');
         sb.writeln('  }) {');
         sb.writeln('    if (builder != null) {');
         sb.writeln(
-          '      return DVBox.builder<$className>(models, builder).grid(columns: columns);',
+          '      return DVBox.builder<$className>(models ?? <$className>[], builder).grid(columns: columns);',
         );
         sb.writeln('    }');
+        // Null and empty are different answers. A skeleton is derived from
+        // the same columns the rows will fill, so the placeholder is the
+        // shape of what is coming.
         sb.writeln(
             '    return DVTable<$className>(');
-        sb.writeln('      models.toList(growable: false),');
+        sb.writeln('      models?.toList(growable: false) ?? <$className>[],');
+        sb.writeln('      loading: models == null,');
         sb.writeln('      columns: <DVTableColumn<$className>>[');
         for (final field in fields) {
           final name = field['name']!;

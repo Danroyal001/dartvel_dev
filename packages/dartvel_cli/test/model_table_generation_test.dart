@@ -115,6 +115,16 @@ void main() {
         contains('compare: (a, b) => a.fullName.compareTo(b.fullName)'));
   });
 
+  test('rows not here yet are the skeleton of the columns, not "No rows"', () {
+    // A generated table knows its columns before it has rows. Null is a
+    // load in flight; an empty iterable is a load that found nothing. They
+    // render differently, and a loading table that announced "No rows" was
+    // plausible and false.
+    expect(table, contains('Iterable<Person>? models'));
+    expect(table, contains('loading: models == null'));
+    expect(table, contains('models?.toList(growable: false) ?? <Person>[]'));
+  });
+
   test('a builder still gives the card grid, for callers that want it', () {
     // The old behaviour stays reachable rather than being removed from under
     // anyone using it.

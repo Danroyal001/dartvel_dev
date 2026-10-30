@@ -126,6 +126,30 @@ class DVTableHeaderCell extends StatelessWidget {
   }
 }
 
+/// One placeholder cell of a loading [DVTable], as its own type so a test
+/// can count them.
+class DVTableSkeletonCell extends StatelessWidget {
+  const DVTableSkeletonCell({super.key, this.width});
+
+  final double? width;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Widget bar = Padding(
+      padding: const .symmetric(horizontal: 12, vertical: 14),
+      child: Container(
+        height: 12,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
+          borderRadius: .circular(4),
+        ),
+      ),
+    );
+    return width == null ? Expanded(child: bar) : SizedBox(width: width, child: bar);
+  }
+}
+
 /// A table over [rows].
 class DVTable<T> extends StatefulWidget {
   const DVTable(
@@ -133,9 +157,32 @@ class DVTable<T> extends StatefulWidget {
     super.key,
     required this.columns,
     this.emptyLabel,
+    this.loading = false,
+    this.placeholderRows = 3,
   });
 
+  /// A table whose rows are still on their way: its header, and a skeleton
+  /// of [placeholderRows] rows in its own [columns].
+  const DVTable.loading({
+    super.key,
+    required this.columns,
+    this.placeholderRows = 3,
+  })  : rows = const <Never>[],
+        emptyLabel = null,
+        loading = true;
+
   final List<T> rows;
+
+  /// Whether the rows are still being loaded.
+  ///
+  /// Loading is not empty. A table with no rows yet that said "No rows" was
+  /// plausible and false, so while this is true the table shows the shape of
+  /// what is coming -- its header, which it knows before it has rows, and
+  /// placeholder cells in its columns -- and never its empty label.
+  final bool loading;
+
+  /// How many placeholder rows a loading table shows.
+  final int placeholderRows;
   final List<DVTableColumn<T>> columns;
 
   /// Shown instead of an empty rectangle, which is indistinguishable from a
@@ -294,7 +341,30 @@ class DVTableState<T> extends State<DVTable<T>> {
               ],
             ),
           ),
-          if (rows.isEmpty)
+          // The skeleton, outside the table node for the reason the empty
+          // label is: a placeholder is not a row, and nobody should hear
+          // "row 1 of 3" read out for a bar of grey. It is announced once,
+          // as loading, and the cells under it say nothing.
+          if (widget.loading)
+            Semantics(
+              container: true,
+              label: DV.I18n.t(DVFrameworkStrings.tableLoading),
+              excludeSemantics: true,
+              child: Column(
+                crossAxisAlignment: .stretch,
+                mainAxisSize: .min,
+                children: <Widget>[
+                  for (int r = 0; r < widget.placeholderRows; r += 1)
+                    Row(
+                      children: <Widget>[
+                        for (final DVTableColumn<T> column in widget.columns)
+                          DVTableSkeletonCell(width: column.width),
+                      ],
+                    ),
+                ],
+              ),
+            )
+          else if (rows.isEmpty)
             Padding(
               padding: const .all(24),
               child: Semantics(
