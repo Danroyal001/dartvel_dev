@@ -416,18 +416,22 @@ void main() {
       if (Platform.isWindows) return;
       pubspec().writeAsStringSync(_flutterApp);
       final DVAdoptionPlan plan = dvPlanAdoption(root.path);
-      // A directory nobody may create a file in: the temporary copy cannot
-      // be written, so the rename that would replace the pubspec never runs.
-      Process.runSync('chmod', <String>['555', root.path]);
-      try {
-        final DVAdoptionApplyResult result = dvApplyAdoption(plan);
-        expect(result.written, isFalse);
-      } finally {
-        Process.runSync('chmod', <String>['755', root.path]);
-      }
+      // A directory where the temporary copy goes: it cannot be written, so
+      // the rename that would replace the pubspec never runs. A read-only
+      // project directory was the old way, and root ignores the mode -- in a
+      // container or a CI image the write went through and the test failed
+      // for a reason that had nothing to do with the code.
+      final Directory blocker =
+          Directory(p.join(root.path, '.pubspec.yaml.dartvel-init'))..createSync();
+      final DVAdoptionApplyResult result = dvApplyAdoption(plan);
+      expect(result.written, isFalse);
       expect(pubspec().readAsStringSync(), _flutterApp);
-      expect(root.listSync().map((FileSystemEntity e) => p.basename(e.path)),
-          <String>['pubspec.yaml']);
+      // Nothing was left behind: the project holds what it held before.
+      expect(
+        root.listSync().map((FileSystemEntity e) => p.basename(e.path)).toList()..sort(),
+        <String>['.pubspec.yaml.dartvel-init', 'pubspec.yaml'],
+      );
+      expect(blocker.listSync(), isEmpty);
     });
   });
 
