@@ -16,10 +16,11 @@
 //   DART       the Dart executable (default: `dart` on PATH); its SDK must be
 //              at least the version pkg/analyzer requires.
 //   PUB_CACHE  the pub cache holding [PUB_PACKAGES] (default: ~/.pub-cache).
-//   AST_CORPUS corpus roots separated by `:` (default:
-//              pkg/_fe_analyzer_shared/lib, pkg/analyzer/lib and
-//              tests/language). A relative root is resolved against the SDK
-//              root.
+//   AST_CORPUS corpus roots separated by `:` (default: the inputs of the
+//              analyzer's AST and parser recovery tests, extracted by
+//              oracle/extract_test_inputs.dart, pkg/_fe_analyzer_shared/lib,
+//              pkg/analyzer/lib and tests/language). A relative root is
+//              resolved against the SDK root.
 //   AST_WORK   scratch directory (default: target/ast_oracle), relative to
 //              the SDK root.
 //
@@ -134,10 +135,50 @@ fn run(command: &mut Command) {
     }
 }
 
-fn corpus() -> Vec<String> {
-    let roots = std::env::var("AST_CORPUS").unwrap_or_else(|_| {
-        "pkg/_fe_analyzer_shared/lib:pkg/analyzer/lib:tests/language".to_string()
-    });
+/// The analyzer's tests of the syntax tree, whose inputs
+/// oracle/extract_test_inputs.dart adds to the default corpus.
+const AST_TESTS: &[&str] = &[
+    "pkg/analyzer/test/dart/ast/ast_test.dart",
+    "pkg/analyzer/test/dart/ast/visitor_test.dart",
+    "pkg/analyzer/test/src/dart/ast/ast_test.dart",
+    "pkg/analyzer/test/src/dart/ast/to_source_visitor_test.dart",
+    "pkg/analyzer/test/src/dart/ast/utilities_test.dart",
+];
+
+/// The corpus roots: `AST_CORPUS`, or the inputs of the analyzer's AST
+/// tests and of its parser recovery tests, extracted into [work], and the
+/// default roots.
+fn corpus(work: &Path, package_config: &Path) -> Vec<String> {
+    if let Ok(roots) = std::env::var("AST_CORPUS") {
+        return split_roots(&roots);
+    }
+    let root = sdk_root();
+    let mut tests: Vec<PathBuf> = AST_TESTS.iter().map(|t| root.join(t)).collect();
+    let mut recovery: Vec<PathBuf> = fs::read_dir(root.join("pkg/analyzer/test/src/fasta/recovery"))
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "dart"))
+        .collect();
+    recovery.sort();
+    tests.extend(recovery);
+    let inputs = work.join("ast_test_inputs");
+    let _ = fs::remove_dir_all(&inputs);
+    run(Command::new(dart())
+        .current_dir(&root)
+        .arg(format!("--packages={}", package_config.display()))
+        .arg("pkg/analyzer/rust/oracle/extract_test_inputs.dart")
+        .arg("--out")
+        .arg(&inputs)
+        .args(&tests));
+    let mut roots = vec![inputs.to_string_lossy().to_string()];
+    roots.extend(split_roots(
+        "pkg/_fe_analyzer_shared/lib:pkg/analyzer/lib:tests/language",
+    ));
+    roots
+}
+
+fn split_roots(roots: &str) -> Vec<String> {
     roots
         .split(':')
         .filter(|r| !r.is_empty())
@@ -214,7 +255,7 @@ fn check(name: &str, flags: &[&str]) {
     let work = work_dir().join(name);
     fs::create_dir_all(&work).unwrap();
     let package_config = write_package_config(&work);
-    let roots = corpus();
+    let roots = corpus(&work, &package_config);
     let dart_out = work.join("dart");
     let rust_out = work.join("rust");
     let _ = fs::remove_dir_all(&dart_out);
