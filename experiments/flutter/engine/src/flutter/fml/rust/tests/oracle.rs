@@ -13,6 +13,9 @@
 //   FML_ORACLE_CASES      cases per seed (default 250)
 //   FML_ORACLE_SUITES     comma-separated subset of the suites (default all)
 //   FML_ORACLE_WORK       scratch directory (default <target>/fml_oracle)
+//
+// The C++ is built with -DNDEBUG in release test runs and without it in debug
+// ones, matching the port's debug_assertions.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -32,9 +35,29 @@ const UPSTREAM_SOURCES: &[&str] = &[
     "flutter/fml/time/time_point.cc",
     "flutter/fml/synchronization/count_down_latch.cc",
     "flutter/fml/synchronization/waitable_event.cc",
+    "flutter/fml/message_loop.cc",
+    "flutter/fml/message_loop_impl.cc",
+    "flutter/fml/platform/linux/message_loop_linux.cc",
+    "flutter/fml/platform/linux/timerfd.cc",
+    "flutter/fml/task_runner.cc",
+    "flutter/fml/task_runner_util.cc",
+    "flutter/fml/thread.cc",
+    "flutter/fml/concurrent_message_loop.cc",
+    "flutter/fml/concurrent_message_loop_factory.cc",
+    "flutter/fml/raster_thread_merger.cc",
+    "flutter/fml/shared_thread_merger.cc",
+    "flutter/fml/memory/task_runner_checker.cc",
+    "flutter/fml/unique_fd.cc",
 ];
 
-const SUITES: &[&str] = &["time", "strings", "codec", "hash", "endian", "trie", "queues"];
+/// Headers that stand in for upstream ones the oracle cannot build against,
+/// searched before engine/src (see the files for why).
+const SHIM_DIR: &str = "flutter/fml/rust/oracle/shim";
+
+const SUITES: &[&str] = &[
+    "time", "strings", "codec", "hash", "endian", "trie", "queues", "loop", "merger", "thread",
+    "logging",
+];
 
 fn engine_src() -> PathBuf {
     // CARGO_MANIFEST_DIR is engine/src/flutter/fml/rust.
@@ -63,9 +86,13 @@ pub fn build_oracle() -> PathBuf {
     let src = engine_src();
     let stdlib = env_or("FML_ORACLE_STDLIB", "libc++");
     let cxx = env_or("FML_ORACLE_CXX", if stdlib == "libc++" { "clang++" } else { "g++" });
-    let out = work_dir().join(format!("fml_dump_{stdlib}"));
+    // The oracle is built with NDEBUG exactly when the port is built without
+    // debug assertions, so that FML_DLOG and FML_DCHECK are compiled in or
+    // out on both sides alike.
+    let debug = cfg!(debug_assertions);
+    let out = work_dir().join(format!("fml_dump_{stdlib}{}", if debug { "_debug" } else { "" }));
     let driver = src.join("flutter/fml/rust/oracle/fml_dump.cc");
-    let mut inputs: Vec<PathBuf> = vec![driver.clone()];
+    let mut inputs: Vec<PathBuf> = vec![driver.clone(), src.join(SHIM_DIR).join("flutter/fml/trace_event.h")];
     inputs.extend(UPSTREAM_SOURCES.iter().map(|s| src.join(s)));
     let newest_input = inputs
         .iter()
@@ -81,11 +108,14 @@ pub fn build_oracle() -> PathBuf {
     // so __FILE__ (and so FML_LOG's file name) reads "flutter/fml/...".
     let mut cmd = Command::new(&cxx);
     cmd.current_dir(&src);
-    cmd.arg("-std=c++20").arg("-O2").arg("-DNDEBUG").arg("-fwrapv").arg("-w");
+    cmd.arg("-std=c++20").arg("-O2").arg("-fwrapv").arg("-w");
+    if !debug {
+        cmd.arg("-DNDEBUG");
+    }
     if stdlib == "libc++" {
         cmd.arg("-stdlib=libc++");
     }
-    cmd.arg("-I").arg(".").arg("-o").arg(&out);
+    cmd.arg("-I").arg(SHIM_DIR).arg("-I").arg(".").arg("-o").arg(&out);
     cmd.arg("flutter/fml/rust/oracle/fml_dump.cc");
     cmd.args(UPSTREAM_SOURCES).arg("-lpthread");
     let status = cmd.status().unwrap_or_else(|e| panic!("cannot run {cxx}: {e}"));
@@ -103,6 +133,28 @@ fn run(bin: &Path, args: &[&str]) -> (Vec<u8>, Vec<u8>) {
         String::from_utf8_lossy(&out.stderr)
     );
     (out.stdout, out.stderr)
+}
+
+/// Replaces the pointer in SharedThreadMerger::DecrementLease's warning
+/// ("... caller=0x55d0c0ffee00"), the one address upstream logs, with
+/// `<ptr>`: where the allocator puts a merger is not behaviour.
+fn normalize_log(log: &[u8]) -> Vec<u8> {
+    const KEY: &[u8] = b"caller=0x";
+    let mut out = Vec::with_capacity(log.len());
+    let mut i = 0;
+    while i < log.len() {
+        if log[i..].starts_with(KEY) {
+            out.extend_from_slice(b"caller=<ptr>");
+            i += KEY.len();
+            while i < log.len() && log[i].is_ascii_hexdigit() {
+                i += 1;
+            }
+        } else {
+            out.push(log[i]);
+            i += 1;
+        }
+    }
+    out
 }
 
 fn first_difference(a: &[u8], b: &[u8]) -> String {
@@ -139,6 +191,7 @@ fn oracle_matches_upstream() {
             let args = [*suite, seed.as_str(), cases.as_str()];
             let (expected, expected_log) = run(&oracle, &args);
             let (actual, actual_log) = run(&port, &args);
+            let (expected_log, actual_log) = (normalize_log(&expected_log), normalize_log(&actual_log));
             compared += expected.len() + expected_log.len();
             if expected != actual {
                 failures.push(format!(
