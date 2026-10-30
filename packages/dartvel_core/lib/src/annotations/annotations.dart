@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import '../ai/ai.dart' show DVToolApproval;
 
 import '../auth/sessions.dart' show DVMfa;
 import '../data/record_history.dart' show DVConflict, DVHistory;
@@ -1103,7 +1104,15 @@ class DVHomeWidget {
 /// Annotation for exposing a function as an AI-callable tool.
 class DVAITool {
   final String? description;
-  const DVAITool({this.description});
+
+  /// Whether a model's call waits for approval before the tool runs. A tool
+  /// that moves money or changes data takes [DVToolApproval.required]: an
+  /// agent run stops at it with a DVAIToolPause, and calling it any other
+  /// way is `DV-AI-010`. Written as `DVToolApproval.required` or
+  /// `.required`, because the generator reads it from source.
+  final DVToolApproval approval;
+
+  const DVAITool({this.description, this.approval = DVToolApproval.none});
 }
 
 /// Annotation for excluding a backend function from AI tool auto-exposure.

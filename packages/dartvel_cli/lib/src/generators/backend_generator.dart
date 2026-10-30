@@ -4059,7 +4059,11 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       sb
         ..writeln('  },')
         ..writeln("      description: '${esc(entry.description)}',")
-        ..writeln('      parameters: $schema);');
+        ..writeln(
+          entry.requiresApproval
+              ? '      parameters: $schema,\n      approval: .required);'
+              : '      parameters: $schema);',
+        );
     }
     sb.writeln('}');
 
@@ -4502,15 +4506,21 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     required String importUri,
     required Map<String, _AIToolEntry> entriesByName,
   }) {
+    // The arguments are read as a run of string literals and other text, so
+    // a ')' inside the description is text and a string never runs past its
+    // closing quote. It used to be one optional `description:` and nothing
+    // else: with a second argument the lazy description ran on into the
+    // next tool's annotation, so one tool vanished and the next was
+    // registered with the wrong description and without its approval.
     final pattern = RegExp(
-      r"""@DVAITool\s*\(\s*(?:description\s*:\s*(['"])(.*?)\1\s*)?\)\s*"""
+      r"""@DVAITool\s*\(((?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|[^)'"])*)\)\s*"""
       r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*'
       r'(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
       r'([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)',
-      dotAll: true,
     );
     for (final match in pattern.allMatches(source)) {
-      final name = match.group(3)!;
+      final name = match.group(2)!;
+      final String arguments = match.group(1) ?? '';
       if (name.startsWith('_')) {
         throw StateError(
           'Dartvel AI tool inputs are private in the spec, but this generator '
@@ -4523,7 +4533,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       final parameterNames = <String>[];
       final parameterTypes = <String>[];
       var named = '0';
-      RouteUtils.extractParams(match.group(4) ?? '', (n, t) {
+      RouteUtils.extractParams(match.group(3) ?? '', (n, t) {
         parameterNames.add(n);
         parameterTypes.add(t);
       }, onNamed: (v) => named = v);
@@ -4531,7 +4541,12 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         name: name,
         returnsVoid: _dvReturnsNothing(match.group(0) ?? '', name),
         returnsPlainVoid: _dvReturnsPlainVoid(match.group(0) ?? '', name),
-        description: match.group(2) ?? '',
+        description: _dvToolDescription(arguments),
+        requiresApproval: _dvToolRequiresApproval(
+          arguments,
+          tool: name,
+          relativePath: relativePath,
+        ),
         importUri: importUri,
         relativePath: relativePath,
         parameterNames: parameterNames,
@@ -4590,15 +4605,24 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       final publicName = name.startsWith('_') ? name.substring(1) : name;
       final hasExplicitAITool = declaration.contains('aiTool');
       String description = '';
+      bool requiresApproval = false;
       if (hasExplicitAITool) {
-        // The description is the string literal after `description:` inside
-        // `aiTool: DVAITool(...)`, read as a literal so a ')' in it is text.
+        // The arguments of `aiTool: DVAITool(...)`, read with string literals
+        // skipped so a ')' in the description is text.
         final aiToolStart = declaration.indexOf('aiTool');
-        final descriptionMatch = RegExp(
-          r'''description\s*:\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")''',
-        ).firstMatch(declaration.substring(aiToolStart));
-        description =
-            descriptionMatch?.group(1) ?? descriptionMatch?.group(2) ?? '';
+        final int toolAt = declaration.indexOf('DVAITool', aiToolStart);
+        final int argsFrom =
+            toolAt < 0 ? aiToolStart : toolAt + 'DVAITool'.length;
+        final int argsTo = _dvSkipAnnotationArguments(declaration, argsFrom);
+        final String arguments = argsTo > argsFrom
+            ? declaration.substring(argsFrom, argsTo)
+            : declaration.substring(aiToolStart);
+        description = _dvToolDescription(arguments);
+        requiresApproval = _dvToolRequiresApproval(
+          arguments,
+          tool: name,
+          relativePath: relativePath,
+        );
       }
       if (!hasExplicitAITool && !exposeBackendFunctions) {
         continue;
@@ -4628,8 +4652,52 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         parameterTypes: parameterTypes,
         named: named == '1',
         declaredName: name,
+        requiresApproval: requiresApproval,
       );
     }
+  }
+
+  /// The `description:` string literal in a `DVAITool(...)` argument list.
+  static String _dvToolDescription(String arguments) {
+    final Match? match = RegExp(
+      r'''description\s*:\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")''',
+    ).firstMatch(arguments);
+    return match?.group(1) ?? match?.group(2) ?? '';
+  }
+
+  /// Whether a `DVAITool(...)` argument list declares
+  /// `approval: DVToolApproval.required`.
+  ///
+  /// An approval the generator cannot read stops the build. Read as none, it
+  /// would register a tool that runs on a model's word while its source says
+  /// it asks first; dropped with its tool, the author is left wondering where
+  /// the tool went.
+  static bool _dvToolRequiresApproval(
+    String arguments, {
+    required String tool,
+    required String relativePath,
+  }) {
+    // String literals emptied first, so a description mentioning approval
+    // is not read as the argument.
+    final String code = arguments.replaceAll(
+      RegExp(r"'(?:[^'\\]|\\.)*'" '|' r'"(?:[^"\\]|\\.)*"'),
+      "''",
+    );
+    final Match? declared =
+        RegExp(r'\bapproval\s*:\s*([^,)]*)').firstMatch(code);
+    if (declared == null) return false;
+    final String value = declared.group(1)!.trim();
+    final Match? known =
+        RegExp(r'^(?:DVToolApproval)?\.(none|required)$').firstMatch(value);
+    if (known == null) {
+      throw StateError(
+        'dartvel: the AI tool $tool in $relativePath declares '
+        'approval: $value, which the generator cannot read. Write '
+        'DVToolApproval.required (or .required) or DVToolApproval.none in '
+        'the annotation itself.',
+      );
+    }
+    return known.group(1) == 'required';
   }
 
   /// The index just past an annotation's argument list starting at [from], or
@@ -4769,6 +4837,10 @@ class _AIToolEntry {
   /// against the public name would be generated code that does not compile.
   final String declaredName;
 
+  /// Whether the tool was declared with `approval: DVToolApproval.required`,
+  /// so it is registered as one an agent run stops at.
+  final bool requiresApproval;
+
   const _AIToolEntry({
     required this.name,
     required this.description,
@@ -4779,6 +4851,7 @@ class _AIToolEntry {
     this.named = false,
     this.returnsVoid = false,
     this.returnsPlainVoid = false,
+    this.requiresApproval = false,
     String? declaredName,
   }) : declaredName = declaredName ?? name;
 }
