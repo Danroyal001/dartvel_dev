@@ -225,19 +225,28 @@ fn cmp<T: Ord>(a: T, b: T) -> i32 {
 // formatted: the arguments are not even evaluated, as in the C++ driver.
 static OUT: std::sync::Mutex<Vec<u8>> = std::sync::Mutex::new(Vec::new());
 
+// One function writes for every call site (a macro expanding the lock and
+// the write at each of them would repeat that code hundreds of times).
+#[inline(never)]
+fn emit(args: std::fmt::Arguments<'_>, newline: bool) {
+    let mut out = OUT.lock().unwrap();
+    out.write_fmt(args).unwrap();
+    if newline {
+        out.push(b'\n');
+    }
+}
+
 macro_rules! w {
     ($($arg:tt)*) => {{
         if !QUIET.load(Relaxed) {
-            let mut out = OUT.lock().unwrap();
-            write!(out, $($arg)*).unwrap();
+            emit(format_args!($($arg)*), false);
         }
     }};
 }
 macro_rules! p {
     ($($arg:tt)*) => {{
         if !QUIET.load(Relaxed) {
-            let mut out = OUT.lock().unwrap();
-            writeln!(out, $($arg)*).unwrap();
+            emit(format_args!($($arg)*), true);
         }
     }};
 }
@@ -2564,6 +2573,9 @@ use fml::file::{FilePermission, ScopedTemporaryDirectory};
 use fml::mapping::{DataMapping, FileMapping, MallocMapping, Mapping, NonOwnedMapping, Protection};
 use fml::unique_fd::UniqueFD;
 
+// SAFETY: declarations only, each matching its prototype in <errno.h>, <dlfcn.h> and <signal.h>
+// for the LP64 Linux/Apple targets this crate builds for; every call
+// below is in its own unsafe block that says why it is sound.
 unsafe extern "C" {
     fn __errno_location() -> *mut i32;
     fn dlopen(filename: *const std::os::raw::c_char, flags: i32) -> *mut std::ffi::c_void;
