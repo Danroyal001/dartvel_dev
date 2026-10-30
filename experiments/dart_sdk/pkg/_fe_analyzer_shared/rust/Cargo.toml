@@ -16,3 +16,11 @@ path = "src/bin/scanner_dump.rs"
 [[test]]
 name = "scanner_oracle"
 path = "tests/scanner_oracle.rs"
+
+[[bin]]
+name = "parser_dump"
+path = "src/bin/parser_dump/main.rs"
+
+[[test]]
+name = "parser_oracle"
+path = "tests/parser_oracle.rs"
