@@ -3,10 +3,12 @@
 
 /// Inserts the given [arguments] into [pattern].
 ///
-///     format('Hello, {0}!', ['John']) = 'Hello, John!'
-///     format('{0} are you {1}ing?', ['How', 'do']) = 'How are you doing?'
-///     format('{0} are you {1}ing?', ['What', 'read']) =
-///         'What are you reading?'
+/// ```text
+/// format('Hello, {0}!', ['John']) = 'Hello, John!'
+/// format('{0} are you {1}ing?', ['How', 'do']) = 'How are you doing?'
+/// format('{0} are you {1}ing?', ['What', 'read']) =
+///     'What are you reading?'
+/// ```
 ///
 /// The pattern is UTF-16 code units, as a Dart string is; the arguments are
 /// the strings their `toString()` returns.
