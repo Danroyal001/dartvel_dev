@@ -1,0 +1,255 @@
+// Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/syntactic_entity.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/src/dart/element/element.dart';
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
+import 'package:analyzer/src/error/listener.dart';
+
+/// Checks for missing arguments for required named parameters.
+class RequiredParametersVerifier extends SimpleAstVisitor2<void> {
+  final DiagnosticReporter _errorReporter;
+
+  new(this._errorReporter);
+
+  void verifyNamedFunctionInvocation(NamedFunctionInvocation node) {
+    if (node.resolution case StaticInvocationResolution(:var invokeType)) {
+      _check(
+        parameters: invokeType.formalParameters,
+        arguments: node.argumentList.arguments2,
+        errorEntity: node.name,
+      );
+    }
+  }
+
+  @override
+  void visitCallInvocation(CallInvocation node) {
+    if (node.resolution case StaticInvocationResolution(:var invokeType)) {
+      _check(
+        parameters: invokeType.formalParameters,
+        arguments: node.argumentList.arguments2,
+        errorEntity: node,
+      );
+    }
+  }
+
+  @override
+  void visitCascadeMethodInvocation(CascadeMethodInvocation node) {
+    verifyNamedFunctionInvocation(node);
+  }
+
+  @override
+  void visitConstructorInvocation(ConstructorInvocation node) {
+    _check(
+      parameters: node.constructorReference.element?.formalParameters,
+      arguments: node.argumentList.arguments2,
+      errorEntity: node.constructorReference,
+    );
+  }
+
+  @override
+  void visitDotShorthandConstructorInvocation2(
+    DotShorthandConstructorInvocation2 node,
+  ) {
+    var constructorElement = node.element;
+    if (constructorElement != null) {
+      _check(
+        parameters: constructorElement.formalParameters,
+        arguments: node.argumentList.arguments2,
+        errorEntity: node.name,
+      );
+    }
+  }
+
+  @override
+  void visitDotShorthandMethodInvocation(DotShorthandMethodInvocation node) {
+    verifyNamedFunctionInvocation(node);
+  }
+
+  @override
+  void visitEnumConstantDeclaration2(EnumConstantDeclaration2 node) {
+    _check(
+      parameters: node.constructorElement?.formalParameters,
+      arguments: node.arguments?.argumentList.arguments2 ?? <Argument>[],
+      errorEntity: node.name,
+    );
+  }
+
+  @override
+  void visitImportPrefixedFunctionInvocation(
+    ImportPrefixedFunctionInvocation node,
+  ) {
+    verifyNamedFunctionInvocation(node);
+  }
+
+  @override
+  void visitReceiverMethodInvocation(ReceiverMethodInvocation node) {
+    verifyNamedFunctionInvocation(node);
+  }
+
+  @override
+  void visitRedirectingConstructorInvocation(
+    RedirectingConstructorInvocation node,
+  ) {
+    _check(
+      parameters: _executableElement(node.element)?.formalParameters,
+      arguments: node.argumentList.arguments2,
+      errorEntity: node,
+    );
+  }
+
+  @override
+  void visitSuperConstructorInvocation(
+    SuperConstructorInvocation node, {
+    ConstructorElement? enclosingConstructor,
+  }) {
+    _check(
+      parameters: _executableElement(node.element)?.formalParameters,
+      enclosingConstructor: enclosingConstructor,
+      arguments: node.argumentList.arguments2,
+      errorEntity: node,
+    );
+  }
+
+  @override
+  void visitUnqualifiedFunctionInvocation(UnqualifiedFunctionInvocation node) {
+    verifyNamedFunctionInvocation(node);
+  }
+
+  void _check({
+    required List<FormalParameterElement>? parameters,
+    ConstructorElement? enclosingConstructor,
+    required List<Argument> arguments,
+    required SyntacticEntity errorEntity,
+  }) {
+    if (parameters == null) {
+      return;
+    }
+
+    for (FormalParameterElement parameter in parameters) {
+      if (parameter.isRequiredNamed) {
+        var parameterName = parameter.name;
+        if (parameterName == null) {
+          continue;
+        }
+
+        if (!_containsNamedExpression(
+          enclosingConstructor,
+          arguments,
+          parameterName,
+        )) {
+          _containsNamedExpression(
+            enclosingConstructor,
+            arguments,
+            parameterName,
+          );
+          _errorReporter.report(
+            diag.missingRequiredArgument
+                .withArguments(name: parameterName)
+                .at(errorEntity),
+          );
+        }
+      }
+      if (parameter.isOptionalNamed) {
+        var annotation = _requiredAnnotation(parameter);
+        if (annotation != null) {
+          String parameterName = parameter.name!;
+          if (!_containsNamedExpression(
+            enclosingConstructor,
+            arguments,
+            parameterName,
+          )) {
+            var reason = annotation.getReason(strictCasts: true);
+            if (reason != null) {
+              _errorReporter.report(
+                diag.missingRequiredParamWithDetails
+                    .withArguments(name: parameterName, details: reason)
+                    .at(errorEntity),
+              );
+            } else {
+              _errorReporter.report(
+                diag.missingRequiredParam
+                    .withArguments(name: parameterName)
+                    .at(errorEntity),
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  static bool _containsNamedExpression(
+    ConstructorElement? enclosingConstructor,
+    List<Argument> arguments,
+    String name,
+  ) {
+    for (int i = arguments.length - 1; i >= 0; i--) {
+      var argument = arguments[i];
+      if (argument is NamedArgument) {
+        if (argument.name.lexeme == name) {
+          return true;
+        }
+      }
+    }
+
+    if (enclosingConstructor != null) {
+      return enclosingConstructor.formalParameters.any(
+        (e) => e is SuperFormalParameterElement && e.isNamed && e.name == name,
+      );
+    }
+
+    return false;
+  }
+
+  static ExecutableElement? _executableElement(Element? element) {
+    if (element is ExecutableElement) {
+      return element;
+    } else {
+      return null;
+    }
+  }
+
+  static _RequiredAnnotation? _requiredAnnotation(
+    FormalParameterElement element,
+  ) {
+    ElementAnnotationImpl? annotation;
+    for (var a in element.metadata.annotations) {
+      if (a.isRequired) {
+        annotation = a as ElementAnnotationImpl;
+        break;
+      }
+    }
+    if (annotation != null) {
+      return _RequiredAnnotation(annotation);
+    }
+
+    if (element.baseElement.isRequiredNamed) {
+      return _RequiredAnnotation(annotation);
+    }
+
+    return null;
+  }
+}
+
+class _RequiredAnnotation {
+  /// The instance of `@required` annotation.
+  /// If `null`, then the parameter is `required` in null safety.
+  final ElementAnnotationImpl? annotation;
+
+  new(this.annotation);
+
+  String? getReason({required bool strictCasts}) {
+    if (annotation == null) {
+      return null;
+    }
+
+    var constantValue = annotation!.computeConstantValue();
+    var value = constantValue?.getField('reason')?.toStringValue();
+    return (value == null || value.isEmpty) ? null : value;
+  }
+}

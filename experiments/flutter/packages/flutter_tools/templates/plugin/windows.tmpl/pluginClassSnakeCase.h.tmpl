@@ -1,0 +1,30 @@
+#ifndef FLUTTER_PLUGIN_{{pluginClassCapitalSnakeCase}}_H_
+#define FLUTTER_PLUGIN_{{pluginClassCapitalSnakeCase}}_H_
+
+#include <flutter/method_channel.h>
+#include <flutter/plugin_registrar_windows.h>
+
+#include <memory>
+
+#include "messages.g.h"
+
+namespace {{projectName}} {
+
+class {{pluginClass}} : public flutter::Plugin, public {{pluginClass}}Api {
+ public:
+  static void RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar);
+
+  {{pluginClass}}();
+
+  virtual ~{{pluginClass}}();
+
+  // Disallow copy and assign.
+  {{pluginClass}}(const {{pluginClass}}&) = delete;
+  {{pluginClass}}& operator=(const {{pluginClass}}&) = delete;
+
+  ErrorOr<std::string> GetPlatformVersion() override;
+};
+
+}  // namespace {{projectName}}
+
+#endif  // FLUTTER_PLUGIN_{{pluginClassCapitalSnakeCase}}_H_

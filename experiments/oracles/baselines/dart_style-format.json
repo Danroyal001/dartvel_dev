@@ -1,0 +1,341 @@
+{
+  "corpus": {
+    "submodule": "experiments/upstream/dart_style",
+    "path": "lib",
+    "revision": "81042caf2e54ac6d080e2b0c70669b52703c0b24"
+  },
+  "command": "cp pubspec_overrides.pinned.yaml pubspec_overrides.yaml && dart pub get && dart run bin/dump.dart ../../experiments/upstream/dart_style/lib --out <dir> --tool format",
+  "harness": "dartvel-oracles",
+  "schema": 1,
+  "tool": "format",
+  "toolVersions": {
+    "dart_style": {
+      "version": "3.1.15-wip",
+      "source": "path",
+      "revision": "81042caf2e54ac6d080e2b0c70669b52703c0b24"
+    }
+  },
+  "dartSdk": "3.13.7",
+  "settings": {
+    "languageVersion": "pubspec sdk lower bound",
+    "pageWidth": "analysis_options formatter.page_width, else 80",
+    "trailingCommas": "analysis_options formatter.trailing_commas",
+    "perFile": "languageVersion, pageWidth, trailingCommas in files[]"
+  },
+  "corpusRoots": [
+    "lib"
+  ],
+  "fileCount": 77,
+  "errorCount": 0,
+  "overallSha256": "2d91b543764070e88c3b14ec41995974a9fe2616ca0a493eb7010d2e002d0cc0",
+  "files": [
+    {
+      "output": "lib/dart_style.dart.formatted",
+      "sha256": "3d0d77cfdfa577ce3dd526f34eade8c21d16420168b07265bb75a5626aa8f9cf"
+    },
+    {
+      "output": "lib/src/ast_extensions.dart.formatted",
+      "sha256": "fac5c18109795384998c6f09f2838fc3fe58edeb8721beb0d6e546f14f9918ef"
+    },
+    {
+      "output": "lib/src/back_end/code.dart.formatted",
+      "sha256": "95aafd9ba869e25e9379eca357c670c818fbd7944d6cfb9516ac03b35a7fe56b"
+    },
+    {
+      "output": "lib/src/back_end/code_writer.dart.formatted",
+      "sha256": "42e1933d8950178cb1825d0dba8d72b1bc0e4f109ca00ba9852ec0478b1bab4f"
+    },
+    {
+      "output": "lib/src/back_end/solution.dart.formatted",
+      "sha256": "b31b38a43001c96001913361481f497d1b80f55ef8e690a77ba51df134afc508"
+    },
+    {
+      "output": "lib/src/back_end/solution_cache.dart.formatted",
+      "sha256": "603291a7068d09a5dc075007b14e75edfa21d86d085b790155454fe55e87f148"
+    },
+    {
+      "output": "lib/src/back_end/solver.dart.formatted",
+      "sha256": "03d9800e13ae0e88123413e371cb2a3d722ca425b55b25f82bfd72cf09ca521e"
+    },
+    {
+      "output": "lib/src/cli/analyzer.dart.formatted",
+      "sha256": "3730356a6ce14a58d2895cd8450c9cea193441a9c20448f9ed9a67ecb11e6443"
+    },
+    {
+      "output": "lib/src/cli/format_command.dart.formatted",
+      "sha256": "e5e27d773fd32d61462ebfc1add4499af88a8018fd9a71da85dbbc638e6059b5"
+    },
+    {
+      "output": "lib/src/cli/formatter_options.dart.formatted",
+      "sha256": "434163319bf55835d0b22d0d18d0d6aa53eca7258b1304c21a46bee801aafcc5"
+    },
+    {
+      "output": "lib/src/cli/io.dart.formatted",
+      "sha256": "38faf0db032f4ab9a190cf8ba2ff3a4be7187fc63e5044fe2962da185b33469d"
+    },
+    {
+      "output": "lib/src/cli/output.dart.formatted",
+      "sha256": "67ef609a5b386474150ab7414d110999472f39b61a030c94de38884e973d7c69"
+    },
+    {
+      "output": "lib/src/cli/show.dart.formatted",
+      "sha256": "a875d52d5c6caa4b4c70c04150e9e254d574b9ff2fc7885fbd7a13e013b2705c"
+    },
+    {
+      "output": "lib/src/cli/summary.dart.formatted",
+      "sha256": "4aa6e267ae02e92a1548b797f4faea73369965f7067340cff516a6690449d136"
+    },
+    {
+      "output": "lib/src/comment_type.dart.formatted",
+      "sha256": "fbc0e495a58cc9dd0a178e0c8b8e8baedb1ce5a67df312738d5e3692a5dc26b7"
+    },
+    {
+      "output": "lib/src/constants.dart.formatted",
+      "sha256": "1566bb9af38243fb415644902a90fa4e4a522e8f21e4da8ffe86cf06b39dc99b"
+    },
+    {
+      "output": "lib/src/dart_formatter.dart.formatted",
+      "sha256": "fdf25e50da3160d148372359e739f5354c8802eff603c4513caf38f07d65b9ff"
+    },
+    {
+      "output": "lib/src/dart_version_history.dart.formatted",
+      "sha256": "a889cfadde58c94637b8881615c7caf32952254d9b900d14d129ad8332514695"
+    },
+    {
+      "output": "lib/src/debug.dart.formatted",
+      "sha256": "04d3c582d71af32b8aa040c0b6a6fccff5ab645f58245568f75ed7dec8519828"
+    },
+    {
+      "output": "lib/src/exceptions.dart.formatted",
+      "sha256": "5a9cbc58dec8d0ead11560311d30c31d52c9b7a15eebcf8c63ed099779e69656"
+    },
+    {
+      "output": "lib/src/fast_hash.dart.formatted",
+      "sha256": "5f254e3a323cabf82592559c98f135c045dd07f435992d89405049e9d086d7a8"
+    },
+    {
+      "output": "lib/src/front_end/ast_node_visitor.dart.formatted",
+      "sha256": "480b543939cd9359e3f0a3cb98b9c2424a406110c62c80afbed4a812b520839d"
+    },
+    {
+      "output": "lib/src/front_end/chain_builder.dart.formatted",
+      "sha256": "caedea2976be05e72f6ce5f785523d140d74aa8db6960f0bed8281b28224c306"
+    },
+    {
+      "output": "lib/src/front_end/comment_writer.dart.formatted",
+      "sha256": "27b5602b655f6217e38baa9f209a3ddf90eec5d0805131e1755fea3fd27a2ef3"
+    },
+    {
+      "output": "lib/src/front_end/delimited_list_builder.dart.formatted",
+      "sha256": "e079927b92ad73b9efb2d9755276b68055965daa8e13a7400ebf0eeb4572ec62"
+    },
+    {
+      "output": "lib/src/front_end/expression_contents.dart.formatted",
+      "sha256": "83814607b071d351e839a14d4c1ea398115b6b683eb65f11c328b9a4ffc9c75c"
+    },
+    {
+      "output": "lib/src/front_end/formatting_style.dart.formatted",
+      "sha256": "c6c3fa3a150965aa5163712c028d63826644dd40f78512ab6c402b68895ce31b"
+    },
+    {
+      "output": "lib/src/front_end/piece_factory.dart.formatted",
+      "sha256": "e582116286e4bf3dd1d68eaa70582eda381be3565049a88eb4cdfcad70304d95"
+    },
+    {
+      "output": "lib/src/front_end/piece_writer.dart.formatted",
+      "sha256": "9bc7bbe86d02d7fb8e0f5e5dbc47872e84dab1baa013d717e1730c9e23fe32b1"
+    },
+    {
+      "output": "lib/src/front_end/sequence_builder.dart.formatted",
+      "sha256": "f749cf921d8775a5487b5743c135fb92ec93a1b1e7772f7db4473727e7906459"
+    },
+    {
+      "output": "lib/src/front_end/type_builder.dart.formatted",
+      "sha256": "21ed5f324dc14d41802d294216877089409fc039ec55ccc34c52694f2c7116c0"
+    },
+    {
+      "output": "lib/src/piece/adjacent.dart.formatted",
+      "sha256": "a8a0ce6c56cc45f10000535b4cf726df7b796750096a002f11e56781b66e88ad"
+    },
+    {
+      "output": "lib/src/piece/assign.dart.formatted",
+      "sha256": "3f5d9c40d1b85044378f606e6de1470955bb9e88aa10a823832f2900e7fde55f"
+    },
+    {
+      "output": "lib/src/piece/assign_3_dot_7.dart.formatted",
+      "sha256": "48a1bf0e6fbfd72d8c1c4be915e9b370930a525092b25eda86a78ea4aedd2153"
+    },
+    {
+      "output": "lib/src/piece/case.dart.formatted",
+      "sha256": "1bbd317c6b9da23b311145eaab2009fcd2b192ad98b211e81d28408bfa3cd4e0"
+    },
+    {
+      "output": "lib/src/piece/chain.dart.formatted",
+      "sha256": "f68cb6f7bb1d2e2197f821f993afd1eb9655b57e560645c8c3f6bcf06b2a4274"
+    },
+    {
+      "output": "lib/src/piece/clause.dart.formatted",
+      "sha256": "014da43f4828b896225e0572213decbdac85863aa979390270dd312ffc9c31ae"
+    },
+    {
+      "output": "lib/src/piece/constructor.dart.formatted",
+      "sha256": "2d0d22a1fbf7e9eaa97d12b167eba7dd326a5e710256a2ab6848ed04e725740e"
+    },
+    {
+      "output": "lib/src/piece/control_flow.dart.formatted",
+      "sha256": "2abe9c0714280d3cc6ebf69aa598c7e5b8573e2717985947c5ef9fd28abc96a5"
+    },
+    {
+      "output": "lib/src/piece/for.dart.formatted",
+      "sha256": "1ef4a9b5b375066f66031556d684f721ca63e0776e6016d4913ce1a6c35b5c37"
+    },
+    {
+      "output": "lib/src/piece/grouping.dart.formatted",
+      "sha256": "094a6ba4a70996d6c05620199545e92e103945f36586a575079efbcc0707e236"
+    },
+    {
+      "output": "lib/src/piece/if_case.dart.formatted",
+      "sha256": "c14830e3bab22a1a2c29b45f3acc2552b9e75dde1ba726979712958cd411072b"
+    },
+    {
+      "output": "lib/src/piece/infix.dart.formatted",
+      "sha256": "005c86eadf17fe983fb059b2dafb7d058cb66a90d1fc68b55f00904e8b142f35"
+    },
+    {
+      "output": "lib/src/piece/leading_comment.dart.formatted",
+      "sha256": "a054c392e35f9ce64be7d41388591338bb66db836971ffac86765ddf76cc59c9"
+    },
+    {
+      "output": "lib/src/piece/list.dart.formatted",
+      "sha256": "5803c50cba0bcce2e993b37c9e4eef75020d0e055b5e83e193c1b1049a446926"
+    },
+    {
+      "output": "lib/src/piece/piece.dart.formatted",
+      "sha256": "23d9a36d1bdc87343a730186567ca6d130207eed90adb4b17ac96a35b1e86927"
+    },
+    {
+      "output": "lib/src/piece/prefix.dart.formatted",
+      "sha256": "04e81c8f9dd89048a92cd335e0ce4c561ff60c508ef30d594eb6bbb936f31e02"
+    },
+    {
+      "output": "lib/src/piece/sequence.dart.formatted",
+      "sha256": "77c4f269949316ce6c159933c0e0c9f130e492151acd0d8f940d793b4debe424"
+    },
+    {
+      "output": "lib/src/piece/text.dart.formatted",
+      "sha256": "a4bdf5ef1dd3212224d68a56806b6b51147e474637a9df771a0c93911d3b198f"
+    },
+    {
+      "output": "lib/src/piece/type.dart.formatted",
+      "sha256": "7f25f9c3c30ed557f7dc62448c12a2633225f0c5afc52022fb895c179b88f32e"
+    },
+    {
+      "output": "lib/src/piece/type_parameter_bound.dart.formatted",
+      "sha256": "8c5e96afc6ebc753dd09dc91c7202f954076ded57f77c99513eb751120609fb4"
+    },
+    {
+      "output": "lib/src/piece/type_test.dart.formatted",
+      "sha256": "f847667a2952cc3cab2b4e1ef8ceaf3ce817ec4758b64ca73ca7d609ec134b60"
+    },
+    {
+      "output": "lib/src/piece/variable.dart.formatted",
+      "sha256": "c3b6df8eb57ed6f8e8fbe89d48b2b1699bfe2d1eefa0a0e558dc3cc81cebfa91"
+    },
+    {
+      "output": "lib/src/profile.dart.formatted",
+      "sha256": "441245931e9a7bd362184e9d4b314e7431940f0417d8479e7c1b35c63ab8d767"
+    },
+    {
+      "output": "lib/src/short/argument_list_visitor.dart.formatted",
+      "sha256": "428bffc9a36459d55cdd7a354f9851e5b3d1005d957168bcd2c179f3f652b6a2"
+    },
+    {
+      "output": "lib/src/short/call_chain_visitor.dart.formatted",
+      "sha256": "8b5896165350f1a19dd65a3eef603c1c2673c418b251bb4d670e3c63e06c789a"
+    },
+    {
+      "output": "lib/src/short/chunk.dart.formatted",
+      "sha256": "bb8d424891b4680aa3416132e8a24f76f1f7ae29103b1c8ff967e165acfa69e8"
+    },
+    {
+      "output": "lib/src/short/chunk_builder.dart.formatted",
+      "sha256": "b9f8d13adc5ac40df0f6f28cb17a5cca7339feb4c28e1ea6f208a496640d5b41"
+    },
+    {
+      "output": "lib/src/short/line_splitting/line_splitter.dart.formatted",
+      "sha256": "2dd651fc6cb81c37cb26aef86882ad3f83b30867bde25593fe1d61b4042ec2b3"
+    },
+    {
+      "output": "lib/src/short/line_splitting/rule_set.dart.formatted",
+      "sha256": "848c858e20ae61524dfe5bfdb6d0619b94776a133b197c0d6870292b047bd89a"
+    },
+    {
+      "output": "lib/src/short/line_splitting/solve_state.dart.formatted",
+      "sha256": "ba9025f29c7db5f19d8dd2b1756c3897f8987a411dc55507ce73e57b5bc1f54d"
+    },
+    {
+      "output": "lib/src/short/line_splitting/solve_state_queue.dart.formatted",
+      "sha256": "e44c14f2c653ca0486ac2189982bfe5fffd6641cc369cf05df0d471ad236ff3e"
+    },
+    {
+      "output": "lib/src/short/line_writer.dart.formatted",
+      "sha256": "55a8adc310a1dffbe916e0cd88f5bb891e1378e77fd1f17054f1b31a00f2d544"
+    },
+    {
+      "output": "lib/src/short/marking_scheme.dart.formatted",
+      "sha256": "4611a40e7d0d74bf9bb801f314e963395d221b1693986a866d816f8cffaca242"
+    },
+    {
+      "output": "lib/src/short/nesting_builder.dart.formatted",
+      "sha256": "a73be3b9a4e78a529aed976a37958c2d57061d288155a33c4e9363d7d73d8bd2"
+    },
+    {
+      "output": "lib/src/short/nesting_level.dart.formatted",
+      "sha256": "9d7c520b2e6fa2520615c7e4761505a95a257d6fc8388373846cd8a336898b65"
+    },
+    {
+      "output": "lib/src/short/rule/argument.dart.formatted",
+      "sha256": "0293b1ed9602c05e5d92aaf702c55f449c979e2fe5710ac16fd1a8393cec3b31"
+    },
+    {
+      "output": "lib/src/short/rule/combinator.dart.formatted",
+      "sha256": "9c9ecdcd7f38d5ecea7f3fb03fc6f61a754107292c200def985b3bed7647f0bc"
+    },
+    {
+      "output": "lib/src/short/rule/rule.dart.formatted",
+      "sha256": "64860d6ab72cca698c9537d8f0b7ae16d3e89f102ca2fd8248819220bd215de7"
+    },
+    {
+      "output": "lib/src/short/rule/type_argument.dart.formatted",
+      "sha256": "0c0d5f244660e07ea7ca5dd74b1696780b94a37300cc62af3276348b41270146"
+    },
+    {
+      "output": "lib/src/short/selection.dart.formatted",
+      "sha256": "d2473add005a65ab04831bc31661747e4dfa5a418949f2ddf4303c6849d0f437"
+    },
+    {
+      "output": "lib/src/short/source_comment.dart.formatted",
+      "sha256": "b3ab8fcecd227d6544db2dd9d20833471a8f07c25825b504fa9aeeda6ba1c1af"
+    },
+    {
+      "output": "lib/src/short/source_visitor.dart.formatted",
+      "sha256": "d2d893c71b5c2487959a10c40d7053b15b95fed616ac4dc1ec0b6117037de19f"
+    },
+    {
+      "output": "lib/src/source_code.dart.formatted",
+      "sha256": "d8ebbba9721c9e81fbf8e63f84da9eba994b537ae8703ad1afcb48f34622f6ee"
+    },
+    {
+      "output": "lib/src/string_compare.dart.formatted",
+      "sha256": "5967f4eecb264a6ba74ca92293fc831b36bc92d8afab6258ef5a81cff09ec91e"
+    },
+    {
+      "output": "lib/src/testing/benchmark.dart.formatted",
+      "sha256": "67d2b8c4ea4f5d9441f4871b13367b7a71d8ea2705ab9963aa178a16accad668"
+    },
+    {
+      "output": "lib/src/testing/test_file.dart.formatted",
+      "sha256": "1ba3839c53cc076fea64b4f9e24eff17ade2cffce3d3bd05cb4802d74a931dec"
+    }
+  ]
+}

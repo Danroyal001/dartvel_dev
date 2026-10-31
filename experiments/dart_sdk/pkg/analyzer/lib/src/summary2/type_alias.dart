@@ -1,0 +1,136 @@
+// Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/ast/extensions.dart';
+import 'package:analyzer/src/dart/element/element.dart';
+import 'package:analyzer/src/summary2/link.dart';
+
+class TypeAliasSelfReferenceFinder {
+  /// Check typedefs and mark the ones having self references.
+  void perform(Linker linker) {
+    for (var builder in linker.builders.values) {
+      for (var linkingUnit in builder.units) {
+        for (var node in linkingUnit.node.declarations2) {
+          if (node is FunctionTypeAlias2Impl) {
+            var finder = _Finder(linker, node);
+            finder.functionTypeAlias(node);
+            var element = node.declaredFragment!.element;
+            element.hasSelfReference = finder.hasSelfReference;
+          } else if (node is GenericTypeAlias2Impl) {
+            var finder = _Finder(linker, node);
+            finder.genericTypeAlias(node);
+            var element = node.declaredFragment!.element;
+            element.hasSelfReference = finder.hasSelfReference;
+          }
+        }
+      }
+    }
+  }
+}
+
+class _Finder {
+  final Linker linker;
+  final AstNode self;
+  final Set<AstNode> visited = Set.identity();
+  bool hasSelfReference = false;
+
+  new(this.linker, this.self);
+
+  void functionTypeAlias(FunctionTypeAlias2 node) {
+    _typeParameterList(node.typeParameters);
+    _formalParameterList(node.parameters);
+    _visit(node.returnType);
+  }
+
+  void genericTypeAlias(GenericTypeAlias2 node) {
+    _typeParameterList(node.typeParameters);
+    _visit(node.type);
+  }
+
+  void _argumentList(TypeArgumentList? node) {
+    if (node != null) {
+      for (var argument in node.arguments) {
+        _visit(argument);
+      }
+    }
+  }
+
+  void _formalParameter(FormalParameter node) {
+    if (node.functionTypedSuffix case var functionTypedSuffix?) {
+      _visit(node.type);
+      _formalParameterList(functionTypedSuffix.formalParameters);
+    } else {
+      _visit(node.type);
+    }
+  }
+
+  void _formalParameterList(FormalParameterList node) {
+    for (var parameter in node.allFormalParameters) {
+      _formalParameter(parameter);
+    }
+  }
+
+  void _typeParameterList(TypeParameterList? node) {
+    if (node != null) {
+      for (var parameter in node.typeParameters) {
+        _visit(parameter.bound);
+      }
+    }
+  }
+
+  void _visit(TypeAnnotation? node) {
+    if (hasSelfReference) return;
+    if (node == null) return;
+
+    if (node is NamedType) {
+      var element = node.element;
+      if (element is! ElementImpl) {
+        return;
+      }
+
+      if (linker.isLinkingElement(element)) {
+        var typeNode = linker.getLinkingNode(element.firstFragment);
+        if (typeNode != null) {
+          if (typeNode == self) {
+            hasSelfReference = true;
+            return;
+          }
+          if (typeNode is ClassDeclaration2) {
+            if (visited.add(typeNode)) {
+              _typeParameterList(typeNode.namePart.typeParameters);
+            }
+          } else if (typeNode is ClassTypeAlias2) {
+            if (visited.add(typeNode)) {
+              _typeParameterList(typeNode.typeParameters);
+            }
+          } else if (typeNode is FunctionTypeAlias2) {
+            if (visited.add(typeNode)) {
+              functionTypeAlias(typeNode);
+            }
+          } else if (typeNode is GenericTypeAlias2) {
+            if (visited.add(typeNode)) {
+              genericTypeAlias(typeNode);
+            }
+          } else if (typeNode is MixinDeclaration2) {
+            if (visited.add(typeNode)) {
+              _typeParameterList(typeNode.typeParameters);
+            }
+          }
+        }
+      }
+      _argumentList(node.typeArguments);
+    } else if (node is GenericFunctionType) {
+      _typeParameterList(node.typeParameters);
+      _formalParameterList(node.parameters);
+      _visit(node.returnType);
+    } else if (node is RecordTypeAnnotation) {
+      for (var field in node.fields) {
+        _visit(field.type);
+      }
+    } else {
+      throw UnimplementedError('(${node.runtimeType}) $node');
+    }
+  }
+}

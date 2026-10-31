@@ -1,0 +1,12 @@
+library;
+import self as self;
+import "dart:core" as core;
+
+static method foo1(core::int outer1) → dynamic
+  ;
+static method foo2(core::int outer2) → dynamic
+  ;
+static method foo3({required core::int outer3}) → dynamic
+  ;
+static method foo4(core::int outer4) → dynamic
+  ;

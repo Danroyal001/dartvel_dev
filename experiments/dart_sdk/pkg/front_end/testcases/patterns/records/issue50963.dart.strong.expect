@@ -1,0 +1,31 @@
+library;
+import self as self;
+import "dart:core" as core;
+
+static method test() → dynamic {
+  final(core::int, core::int) x = (1, 2);
+  core::print( block {
+    core::int #t1;
+    #L1:
+    switch(x) /*(core::int, core::int) */ {
+      #L2:
+      default:
+        {
+          #t1 = 1;
+          break #L1;
+        }
+    }
+  } =>#t1);
+  core::print( block {
+    core::int #t2;
+    #L3:
+    switch((1, 2)) /*(core::int, core::int) */ {
+      #L4:
+      default:
+        {
+          #t2 = 1;
+          break #L3;
+        }
+    }
+  } =>#t2);
+}

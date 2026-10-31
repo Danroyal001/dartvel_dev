@@ -1,0 +1,2111 @@
+// Copyright (c) 2017, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/source/source_range.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/test_utilities/find_node.dart';
+import 'package:test/test.dart';
+import 'package:test_reflective_loader/test_reflective_loader.dart';
+
+import '../../../util/language_feature_directive_lowering.dart';
+import '../../diagnostics/parser_diagnostics.dart';
+import '../resolution/context_collection_resolution.dart';
+
+main() {
+  defineReflectiveSuite(() {
+    defineReflectiveTests(CompilationUnitImplTest);
+    defineReflectiveTests(EvaluateExpressionTest);
+    defineReflectiveTests(ExpressionImplTest);
+    defineReflectiveTests(ConstructorInvocationImplTest);
+    defineReflectiveTests(ForEachPartsImplTest);
+    defineReflectiveTests(IntegerLiteralImplTest);
+    defineReflectiveTests(NodeCoveringTest);
+    defineReflectiveTests(ReceiverPropertyExtractionImplTest);
+  });
+}
+
+@reflectiveTest
+class CompilationUnitImplTest extends ParserDiagnosticsTest {
+  CompilationUnitImpl parse(String source) {
+    return parseTestCodeWithDiagnostics(source).unit as CompilationUnitImpl;
+  }
+
+  test_languageVersionComment_afterScriptTag() {
+    var unit = parse('''
+#!/bin/false
+// @dart=2.9
+void main() {}
+''');
+    var token = unit.languageVersionToken!;
+    expect(token.major, 2);
+    expect(token.minor, 9);
+    expect(token.offset, 13);
+  }
+
+  test_languageVersionComment_afterScriptTag_andComment() {
+    var unit = parse('''
+#!/bin/false
+// A normal comment.
+// @dart=2.9
+void main() {}
+''');
+    var token = unit.languageVersionToken!;
+    expect(token.major, 2);
+    expect(token.minor, 9);
+    expect(token.offset, 34);
+  }
+
+  test_languageVersionComment_firstComment() {
+    var unit = parse('''
+// @dart=2.6
+void main() {}
+''');
+    expect(unit.languageVersionToken, unit.beginToken.precedingComments);
+  }
+
+  test_languageVersionComment_none() {
+    var unit = parse('''
+void main() {}
+''');
+    expect(unit.languageVersionToken, null);
+  }
+
+  test_languageVersionComment_none_onlyNormalComment() {
+    var unit = parse('''
+// A normal comment.
+void main() {}
+''');
+    expect(unit.languageVersionToken, null);
+  }
+
+  test_languageVersionComment_secondComment() {
+    var unit = parse('''
+// A normal comment.
+// @dart=2.6
+void main() {}
+''');
+    expect(unit.languageVersionToken, unit.beginToken.precedingComments!.next);
+  }
+
+  test_languageVersionComment_thirdComment() {
+    var unit = parse('''
+// A normal comment.
+// Another normal comment.
+// @dart=2.6
+void main() {}
+''');
+    expect(
+      unit.languageVersionToken,
+      unit.beginToken.precedingComments!.next!.next,
+    );
+  }
+}
+
+@reflectiveTest
+class ConstructorInvocationImplTest extends PubPackageResolutionTest {
+  assertIsConst(
+    TestResolvedUnitResult result,
+    String search,
+    bool expectedResult,
+  ) {
+    var node = result.findNode.constructorInvocation(search);
+    expect((node as ConstructorInvocationImpl).isConst, expectedResult);
+  }
+
+  test_isConst_notInContext_constructor_const_constParam_identifier() async {
+    var result = await resolveTestCode('''
+var v = C(C.a);
+class C {
+  static const C a = C.c();
+  const C(c);
+  const C.c();
+}
+''');
+    assertIsConst(result, "C(C", false);
+  }
+
+  test_isConst_notInContext_constructor_const_constParam_named() async {
+    var result = await resolveTestCode('''
+var v = C(c: C());
+class C {
+  const C({c});
+}
+''');
+    assertIsConst(result, "C(c", false);
+  }
+
+  test_isConst_notInContext_constructor_const_constParam_named_parens() async {
+    var result = await resolveTestCode('''
+var v = C(c: (C()));
+class C {
+  const C({c});
+}
+''');
+    assertIsConst(result, "C(c", false);
+  }
+
+  test_isConst_notInContext_constructor_const_constParam_parens() async {
+    var result = await resolveTestCode('''
+var v = C( (C.c()) );
+class C {
+  const C(c);
+  const C.c();
+}
+''');
+    assertIsConst(result, "C( (", false);
+  }
+
+  test_isConst_notInContext_constructor_const_generic_named() async {
+    var result = await resolveTestCode('''
+f() => <Object>[C<int>.n()];
+class C<E> {
+  const C.n();
+}
+''');
+    assertIsConst(result, "C<int>.n", false);
+  }
+
+  test_isConst_notInContext_constructor_const_generic_named_prefixed() async {
+    newFile('$testPackageLibPath/c.dart', '''
+class C<E> {
+  const C.n();
+}
+''');
+    var result = await resolveTestCode('''
+import 'c.dart' as p;
+f() => <Object>[p.C<int>.n()];
+''');
+    assertIsConst(result, "C<int>", false);
+  }
+
+  test_isConst_notInContext_constructor_const_generic_unnamed() async {
+    var result = await resolveTestCode('''
+f() => <Object>[C<int>()];
+class C<E> {
+  const C();
+}
+''');
+    assertIsConst(result, "C<int>", false);
+  }
+
+  test_isConst_notInContext_constructor_const_generic_unnamed_prefixed() async {
+    newFile('$testPackageLibPath/c.dart', '''
+class C<E> {
+  const C();
+}
+''');
+    var result = await resolveTestCode('''
+import 'c.dart' as p;
+f() => <Object>[p.C<int>()];
+''');
+    assertIsConst(result, "C<int>", false);
+  }
+
+  test_isConst_notInContext_constructor_const_nonConstParam_constructor() async {
+    var result = await resolveTestCode('''
+f() {
+  return A(B());
+}
+
+class A {
+  const A(B b);
+}
+
+class B {
+  B();
+}
+''');
+    assertIsConst(result, "B())", false);
+  }
+
+  test_isConst_notInContext_constructor_const_nonConstParam_variable() async {
+    var result = await resolveTestCode('''
+f(int i) => <Object>[C(i)];
+class C {
+  final int f;
+  const C(this.f);
+}
+''');
+    assertIsConst(result, "C(i)", false);
+  }
+
+  test_isConst_notInContext_constructor_const_nonGeneric_named() async {
+    var result = await resolveTestCode('''
+f() => <Object>[C.n()];
+class C<E> {
+  const C.n();
+}
+''');
+    assertIsConst(result, "C.n()]", false);
+  }
+
+  test_isConst_notInContext_constructor_const_nonGeneric_named_prefixed() async {
+    newFile('$testPackageLibPath/c.dart', '''
+class C {
+  const C.n();
+}
+''');
+    var result = await resolveTestCode('''
+import 'c.dart' as p;
+f() => <Object>[p.C.n()];
+''');
+    assertIsConst(result, "C.n()", false);
+  }
+
+  test_isConst_notInContext_constructor_const_nonGeneric_unnamed() async {
+    var result = await resolveTestCode('''
+f() => <Object>[C()];
+class C {
+  const C();
+}
+''');
+    assertIsConst(result, "C()]", false);
+  }
+
+  test_isConst_notInContext_constructor_const_nonGeneric_unnamed_prefixed() async {
+    newFile('$testPackageLibPath/c.dart', '''
+class C {
+  const C();
+}
+''');
+    var result = await resolveTestCode('''
+import 'c.dart' as p;
+f() => <Object>[p.C()];
+''');
+    assertIsConst(result, "C()", false);
+  }
+
+  test_isConst_notInContext_constructor_nonConst() async {
+    var result = await resolveTestCode('''
+f() => <Object>[C()];
+class C {
+  C();
+}
+''');
+    assertIsConst(result, "C()]", false);
+  }
+
+  @V1Ast('Tests the V1 projection.')
+  test_typeArgumentsAfterConstructorName_v1Projection() async {
+    var result = await resolveTestCode('''
+void f() {
+  const C.named<int>();
+}
+class C<E> {
+  const C.named();
+}
+''');
+    var offset = result.content.indexOf('<int>');
+    var node = result.unit.nodeCovering(offset: offset, length: 5);
+    var invocation = result.findNode.constructorInvocation(
+      'C.named<int>',
+    ) as ConstructorInvocationImpl;
+
+    expect(node, isA<TypeArgumentListImpl>());
+    expect(invocation.constructorReference.typeReference.typeArguments, null);
+    expect(invocation.typeArguments, same(node));
+    expect(node?.parent, isA<InstanceCreationExpressionImpl>());
+  }
+
+  @V1Ast('Tests the V1 projection.')
+  test_v1Projection() async {
+    var result = await resolveTestCode('''
+var x = C<int>.named(0);
+class C<T> {
+  C.named(T value);
+}
+''');
+    var v2 = result.findNode.constructorInvocation(
+      'C<int>',
+    ) as ConstructorInvocationImpl;
+    var reference = v2.constructorReference;
+    var v1 = v2.instanceCreationExpression;
+
+    expect(v2.instanceCreationExpression, same(v1));
+    expect(v1.toSource(), 'C<int>.named(0)');
+    expect(v1.constructorName.element, same(reference.element));
+    expect(v1.constructorName.name!.element, same(reference.element));
+    expect(v1.staticType, same(v2.staticType));
+
+    expect(v1.parent, same(result.findNodeV1.variableDeclaration('x =')));
+    expect(v1.constructorName.parent, same(v1));
+    expect(v1.argumentList, same(v2.argumentList));
+    expect(v1.argumentList.parent, same(v1));
+    expect(v1.argumentList.parent2, same(v2));
+    expect(() => v1.parent2, throwsStateError);
+    expect(() => v2.parent, throwsStateError);
+    expect(() => v1.accept2(ThrowingAstVisitor2<void>()), throwsStateError);
+
+    var selector = reference.selector;
+    reference.selector = null;
+    expect(v1.constructorName.name, isNull);
+    expect(v1.constructorName.period, isNull);
+
+    reference.selector = selector;
+    expect(v1.constructorName.name!.token, selector!.name2);
+    reference.typeReference.typeArguments = null;
+    expect(v1.constructorName.type.typeArguments, isNull);
+  }
+}
+
+@reflectiveTest
+class EvaluateExpressionTest extends PubPackageResolutionTest {
+  test_hasError_listLiteral_forElement() async {
+    var unitResult = await resolveTestCode('''
+var x = const [for (var i = 0; i < 4; i++) i];
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isNotEmpty);
+    expect(result.value, isNull);
+  }
+
+  test_hasError_mapLiteral_forElement() async {
+    var unitResult = await resolveTestCode('''
+var x = const {for (var i = 0; i < 4; i++) i: 0};
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result?.diagnostics, isNotEmpty);
+    expect(result?.value, isNull);
+  }
+
+  test_hasError_methodInvocation() async {
+    var unitResult = await resolveTestCode('''
+var x = 42.abs();
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isNotEmpty);
+    expect(result.value, isNull);
+  }
+
+  test_hasError_setLiteral_forElement() async {
+    var unitResult = await resolveTestCode('''
+var x = const {for (var i = 0; i < 4; i++) i};
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isNotEmpty);
+    expect(result.value, isNull);
+  }
+
+  test_hasValue_binaryExpression() async {
+    var unitResult = await resolveTestCode('''
+var x = 1 + 2;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isEmpty);
+    expect(result.value!.toIntValue(), 3);
+  }
+
+  test_hasValue_booleanLiteral() async {
+    var unitResult = await resolveTestCode('''
+var x = true;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isEmpty);
+    expect(result.value!.toBoolValue(), isTrue);
+  }
+
+  test_hasValue_constantReference() async {
+    var unitResult = await resolveTestCode('''
+const a = 42;
+var x = a;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isEmpty);
+    expect(result.value!.toIntValue(), 42);
+  }
+
+  test_hasValue_constantReference_imported() async {
+    newFile('$testPackageLibPath/a.dart', r'''
+const a = 42;
+''');
+    var unitResult = await resolveTestCode('''
+import 'a.dart';
+var x = a;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isEmpty);
+    expect(result.value!.toIntValue(), 42);
+  }
+
+  test_hasValue_constantReference_importPrefixed() async {
+    newFile('$testPackageLibPath/a.dart', 'const a = 42;');
+    var unitResult = await resolveTestCode('''
+import 'a.dart' as p;
+const x = p.a;
+''');
+    var declaration = unitResult.findNode.topLevelVariableByName('x');
+    var expression = declaration.initializer!;
+    expect(expression.inConstantContext, isTrue);
+    var result = expression.computeConstantValue();
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isEmpty);
+    expect(result.value!.toIntValue(), 42);
+  }
+
+  test_hasValue_doubleLiteral() async {
+    var unitResult = await resolveTestCode('''
+var x = 3.14;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isEmpty);
+    expect(result.value!.toDoubleValue(), 3.14);
+  }
+
+  test_hasValue_intLiteral() async {
+    var unitResult = await resolveTestCode('''
+var x = 42;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isEmpty);
+    expect(result.value!.toIntValue(), 42);
+  }
+
+  test_hasValue_nullLiteral() async {
+    var unitResult = await resolveTestCode('''
+var x = null;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isEmpty);
+    expect(result.value!.isNull, isTrue);
+  }
+
+  test_hasValue_stringLiteral() async {
+    var unitResult = await resolveTestCode('''
+var x = 'hello';
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isEmpty);
+    expect(result.value!.toStringValue(), 'hello');
+  }
+
+  test_nonConstant() async {
+    var unitResult = await resolveTestCode('''
+var a = 42;
+var x = a;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNull);
+  }
+
+  test_nonConstant_assignment() async {
+    var unitResult = await resolveTestCode('''
+var a = 0;
+var x = (a = 1);
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNull);
+  }
+
+  test_nonConstant_cascade() async {
+    var unitResult = await resolveTestCode('''
+var x = [1]..add(2);
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNull);
+  }
+
+  test_nonConstant_functionExpression() async {
+    var unitResult = await resolveTestCode('''
+var x = () => 42;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNull);
+  }
+
+  test_nonConstant_getter() async {
+    var unitResult = await resolveTestCode('''
+int get g => 42;
+var x = g;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNull);
+  }
+
+  test_nonConstant_instanceCreation() async {
+    var unitResult = await resolveTestCode('''
+class C {
+  C();
+}
+var x = C();
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNull);
+  }
+
+  test_nonConstant_nullAssertion() async {
+    var unitResult = await resolveTestCode('''
+int? a = 42;
+var x = a!;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNull);
+  }
+
+  test_nonConstant_postfix() async {
+    var unitResult = await resolveTestCode('''
+var a = 0;
+var x = a++;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNull);
+  }
+
+  test_nonConstant_prefixIncrement() async {
+    var unitResult = await resolveTestCode('''
+var a = 0;
+var x = ++a;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNull);
+  }
+
+  test_nonConstant_throw() async {
+    var unitResult = await resolveTestCode('''
+var x = throw 42;
+''');
+    var result = _evaluateX(unitResult);
+    expect(result, isNull);
+  }
+
+  @V1Ast('Tests the V1 projection.')
+  test_v1_constantReference_importPrefixed() async {
+    newFile('$testPackageLibPath/a.dart', 'const a = 42;');
+    var unitResult = await resolveTestCode('''
+import 'a.dart' as p;
+const x = p.a;
+''');
+    var declaration = unitResult.findNodeV1.topVariableDeclarationByName('x');
+    var expression = declaration.initializer!;
+    expect(expression.inConstantContext, isTrue);
+    var result = expression.computeConstantValue();
+    expect(result, isNotNull);
+    expect(result!.diagnostics, isEmpty);
+    expect(result.value!.toIntValue(), 42);
+  }
+
+  @V1Ast('Tests the V1 projection.')
+  test_v1_extensionOverride() async {
+    var unitResult = await resolveTestCode('''
+extension E on int {
+  int get foo => 0;
+}
+
+var x = E(0).foo;
+''');
+    var node = unitResult.findNodeV1.extensionOverride('E(0)');
+    expect(node.computeConstantValue(), isNull);
+  }
+
+  @V1Ast('Tests the V1 projection.')
+  test_v1_prefixedIdentifier_assignmentTarget() async {
+    newFile('$testPackageLibPath/a.dart', r'''
+var a = 0;
+''');
+    var unitResult = await resolveTestCode('''
+import 'a.dart' as p;
+
+void f() {
+  p.a = 0;
+}
+''');
+    var node = unitResult.findNodeV1.prefixed('p.a');
+    expect(node.computeConstantValue(), isNull);
+  }
+
+  @V1Ast('Tests the V1 projection.')
+  test_v1_simpleIdentifier_propertyName() async {
+    var unitResult = await resolveTestCode('''
+class A {
+  static const foo = 42;
+}
+
+var x = A.foo;
+''');
+    var node = unitResult.findNodeV1.prefixed('A.foo');
+    expect(node.computeConstantValue()!.value!.toIntValue(), 42);
+    expect(node.identifier.computeConstantValue(), isNull);
+  }
+
+  @V1Ast('Tests the V1 projection.')
+  test_v1_superExpression() async {
+    var unitResult = await resolveTestCode('''
+class A {
+  void f() {
+    super.toString();
+  }
+}
+''');
+    var node = unitResult.findNodeV1.super_('super');
+    expect(node.computeConstantValue(), isNull);
+  }
+
+  AttemptedConstantEvaluationResult? _evaluateX(TestResolvedUnitResult result) {
+    var node = result.findNode.topLevelVariableByName('x').initializer!;
+    return node.computeConstantValue();
+  }
+}
+
+@reflectiveTest
+class ExpressionImplTest extends ParserDiagnosticsTest {
+  late final String testSource;
+  late final CompilationUnitImpl testUnit;
+
+  assertInContext(String snippet, bool isInContext) {
+    int index = testSource.indexOf(snippet);
+    expect(index >= 0, isTrue);
+    var node = testUnit
+        .nodeCovering2(offset: index)!
+        .thisOrAncestorOfType2<ExpressionImpl>();
+    expect(node, TypeMatcher<ExpressionImpl>());
+    expect(
+      (node as ExpressionImpl).inConstantContext,
+      isInContext ? isTrue : isFalse,
+    );
+  }
+
+  parse(String source) {
+    testSource = LanguageFeatureDirectiveLowering(source).loweredCode;
+    testUnit = parseTestCodeWithDiagnostics(source).unit as CompilationUnitImpl;
+  }
+
+  test_constantContext2_constructorInvocation_v2() {
+    parse('''
+class C {
+  const C(Object value);
+}
+var x = const C(0);
+''');
+    var expression =
+        testUnit.nodeCovering2(offset: testSource.indexOf('0'))!
+            as ExpressionImpl;
+
+    var context = expression.constantContext2(includeSelf: false);
+
+    expect(context?.$1, isA<ConstructorInvocation>());
+    expect(context?.$2?.lexeme, 'const');
+  }
+
+  @V1Ast('Tests the V1 projection.')
+  test_constantContext_constructorInvocation_v1Projection() {
+    parse('''
+class C {
+  const C(Object value);
+}
+var x = const C(0);
+''');
+    var expression =
+        testUnit.nodeCovering(offset: testSource.indexOf('0'))!
+            as ExpressionImpl;
+
+    var context = expression.constantContext(includeSelf: false);
+
+    expect(context?.$1, isA<InstanceCreationExpressionImpl>());
+    expect(context?.$2?.lexeme, 'const');
+  }
+
+  test_inConstantContext_constructorInvocation_annotation_true() {
+    parse('''
+@C(C(0))
+class C {
+  const C(_);
+}
+''');
+    assertInContext("C(0", true);
+  }
+
+  test_inConstantContext_constructorInvocation_constructorInvocation_false() {
+    parse('''
+f() {
+  return new C(C());
+}
+class C {
+  const C(_);
+}
+''');
+    assertInContext("C())", false);
+  }
+
+  test_inConstantContext_constructorInvocation_constructorInvocation_true() {
+    parse('''
+f() {
+  return new C(C());
+}
+class C {
+  const C(_);
+}
+''');
+    assertInContext("C())", false);
+  }
+
+  test_inConstantContext_constructorInvocation_fieldWithConstConstructor() {
+    parse('''
+class C {
+  final d = D();
+  const C();
+}
+class D {
+  const D();
+}
+''');
+    assertInContext("D()", false);
+  }
+
+  test_inConstantContext_constructorInvocation_fieldWithoutConstConstructor() {
+    parse('''
+class C {
+  final d = D();
+  C();
+}
+class D {
+  const D();
+}
+''');
+    assertInContext("D()", false);
+  }
+
+  test_inConstantContext_constructorInvocation_functionLiteral() {
+    parse('''
+const V = () => C();
+class C {
+  const C();
+}
+''');
+    assertInContext("C()", false);
+  }
+
+  test_inConstantContext_constructorInvocation_listLiteral_false() {
+    parse('''
+f() {
+  return [C()];
+}
+class C {
+  const C();
+}
+''');
+    assertInContext("C()]", false);
+  }
+
+  test_inConstantContext_constructorInvocation_listLiteral_true() {
+    parse('''
+f() {
+  return const [C()];
+}
+class C {
+  const C();
+}
+''');
+    assertInContext("C()]", true);
+  }
+
+  test_inConstantContext_constructorInvocation_mapLiteral_false() {
+    parse('''
+f() {
+  return {'a' : C()};
+}
+class C {
+  const C();
+}
+''');
+    assertInContext("C()}", false);
+  }
+
+  test_inConstantContext_constructorInvocation_mapLiteral_true() {
+    parse('''
+f() {
+  return const {'a' : C()};
+}
+class C {
+  const C();
+}
+''');
+    assertInContext("C()}", true);
+  }
+
+  test_inConstantContext_constructorInvocation_nestedListLiteral_false() {
+    parse('''
+f() {
+  return [[''], [C()]];
+}
+class C {
+  const C();
+}
+''');
+    assertInContext("C()]", false);
+  }
+
+  test_inConstantContext_constructorInvocation_nestedListLiteral_true() {
+    parse('''
+f() {
+  return const [[''], [C()]];
+}
+class C {
+  const C();
+}
+''');
+    assertInContext("C()]", true);
+  }
+
+  test_inConstantContext_constructorInvocation_nestedMapLiteral_false() {
+    parse('''
+f() {
+  return {'a' : {C() : C()}};
+}
+class C {
+  const C();
+}
+''');
+    assertInContext("C() :", false);
+    assertInContext("C()}", false);
+  }
+
+  test_inConstantContext_constructorInvocation_nestedMapLiteral_true() {
+    parse('''
+f() {
+  return const {'a' : {C() : C()}};
+}
+class C {
+  const C();
+}
+''');
+    assertInContext("C() :", true);
+    assertInContext("C()}", true);
+  }
+
+  test_inConstantContext_constructorInvocation_staticConstField_true() {
+    parse('''
+class C {
+  static const d = D();
+}
+class D {
+  const D();
+}
+''');
+    assertInContext("D()", true);
+  }
+
+  test_inConstantContext_constructorInvocation_staticFinalField_false() {
+    parse('''
+class C {
+  static final d = D();
+}
+class D {
+  const D();
+}
+''');
+    assertInContext("D()", false);
+  }
+
+  test_inConstantContext_constructorInvocation_switch_true() {
+    parse('''
+f(v) {
+  switch (v) {
+  case const C():
+    break;
+  }
+}
+class C {
+  const C();
+}
+''');
+    assertInContext("C()", true);
+  }
+
+  test_inConstantContext_constructorInvocation_switch_true_beforePatterns() {
+    // Expected: true
+    //   Actual: <false>
+    parse('''
+// %before-language-feature: patterns
+f(v) {
+  switch (v) {
+  case C():
+    break;
+  }
+}
+class C {
+  const C();
+}
+''');
+    assertInContext("C()", true);
+  }
+
+  test_inConstantContext_constructorInvocation_topLevelVariable_false() {
+    parse('''
+var c = C();
+class C {
+  const C();
+}
+''');
+    assertInContext("C()", false);
+  }
+
+  test_inConstantContext_constructorInvocation_topLevelVariable_true() {
+    parse('''
+const c = C();
+class C {
+  const C();
+}
+''');
+    assertInContext("C()", true);
+  }
+
+  test_inConstantContext_enumConstant_true() {
+    parse('''
+enum E {
+  v([]);
+  const E(_);
+}
+''');
+    assertInContext('[]', true);
+  }
+
+  test_inConstantContext_listLiteral_annotation_true() {
+    parse('''
+@C([])
+class C {
+  const C(_);
+}
+''');
+    assertInContext("[]", true);
+  }
+
+  test_inConstantContext_listLiteral_constructorInvocation_false() {
+    parse('''
+f() {
+  return new C([]);
+}
+class C {
+  const C(_);
+}
+''');
+    assertInContext("[]", false);
+  }
+
+  test_inConstantContext_listLiteral_constructorInvocation_true() {
+    parse('''
+f() {
+  return const C([]);
+}
+class C {
+  const C(_);
+}
+''');
+    assertInContext("[]", true);
+  }
+
+  test_inConstantContext_listLiteral_functionLiteral() {
+    parse('''
+const V = () => [];
+class C {
+  const C();
+}
+''');
+    assertInContext("[]", false);
+  }
+
+  test_inConstantContext_listLiteral_initializer_false() {
+    parse('''
+var c = [];
+''');
+    assertInContext("[]", false);
+  }
+
+  test_inConstantContext_listLiteral_initializer_true() {
+    parse('''
+const c = [];
+''');
+    assertInContext("[]", true);
+  }
+
+  test_inConstantContext_listLiteral_listLiteral_false() {
+    parse('''
+f() {
+  return [[''], []];
+}
+''');
+    assertInContext("['']", false);
+    assertInContext("[]", false);
+  }
+
+  test_inConstantContext_listLiteral_listLiteral_true() {
+    parse('''
+f() {
+  return const [[''], []];
+}
+''');
+    assertInContext("['']", true);
+    assertInContext("[]", true);
+  }
+
+  test_inConstantContext_listLiteral_mapLiteral_false() {
+    parse('''
+f() {
+  return {'a' : [''], 'b' : []};
+}
+''');
+    assertInContext("['']", false);
+    assertInContext("[]", false);
+  }
+
+  test_inConstantContext_listLiteral_mapLiteral_true() {
+    parse('''
+f() {
+  return const {'a' : [''], 'b' : []};
+}
+''');
+    assertInContext("['']", true);
+    assertInContext("[]", true);
+  }
+
+  test_inConstantContext_listLiteral_namedFields_recordLiteral_false() {
+    parse('''
+final x = (0, foo: [1]);
+''');
+    assertInContext('[1]', false);
+  }
+
+  test_inConstantContext_listLiteral_namedFields_recordLiteral_true() {
+    parse('''
+final x = const (0, foo: [1]);
+''');
+    assertInContext('[1]', true);
+  }
+
+  test_inConstantContext_listLiteral_positionalFields_recordLiteral_false() {
+    parse('''
+final x = (0, [1]);
+''');
+    assertInContext('[1]', false);
+  }
+
+  test_inConstantContext_listLiteral_positionalFields_recordLiteral_true() {
+    parse('''
+final x = const (0, [1]);
+''');
+    assertInContext('[1]', true);
+  }
+
+  test_inConstantContext_listLiteral_switch_true() {
+    parse('''
+f(v) {
+  switch (v) {
+  case const []:
+    break;
+  }
+}
+''');
+    assertInContext("[]", true);
+  }
+
+  test_inConstantContext_listLiteral_switch_true_beforePatterns() {
+    // Expected: <Instance of 'ExpressionImpl'>
+    //   Actual: ListPatternImpl:<[]>
+    //    Which: is not an instance of 'ExpressionImpl'
+    parse('''
+// %before-language-feature: patterns
+f(v) {
+  switch (v) {
+  case []:
+    break;
+  }
+}
+''');
+    assertInContext("[]", true);
+  }
+
+  test_inConstantContext_mapLiteral_annotation_true() {
+    parse('''
+@C({})
+class C {
+  const C(_);
+}
+''');
+    assertInContext("{}", true);
+  }
+
+  test_inConstantContext_mapLiteral_constructorInvocation_false() {
+    parse('''
+f() {
+  return new C({});
+}
+class C {
+  const C(_);
+}
+''');
+    assertInContext("{}", false);
+  }
+
+  test_inConstantContext_mapLiteral_constructorInvocation_true() {
+    parse('''
+f() {
+  return const C({});
+}
+class C {
+  const C(_);
+}
+''');
+    assertInContext("{}", true);
+  }
+
+  test_inConstantContext_mapLiteral_functionLiteral() {
+    parse('''
+const V = () => {};
+class C {
+  const C();
+}
+''');
+    assertInContext("{}", false);
+  }
+
+  test_inConstantContext_mapLiteral_initializer_false() {
+    parse('''
+var c = {};
+''');
+    assertInContext("{}", false);
+  }
+
+  test_inConstantContext_mapLiteral_initializer_true() {
+    parse('''
+const c = {};
+''');
+    assertInContext("{}", true);
+  }
+
+  test_inConstantContext_mapLiteral_listLiteral_false() {
+    parse('''
+f() {
+  return [{'a' : 1}, {'b' : 2}];
+}
+''');
+    assertInContext("{'a", false);
+    assertInContext("{'b", false);
+  }
+
+  test_inConstantContext_mapLiteral_listLiteral_true() {
+    parse('''
+f() {
+  return const [{'a' : 1}, {'b' : 2}];
+}
+''');
+    assertInContext("{'a", true);
+    assertInContext("{'b", true);
+  }
+
+  test_inConstantContext_mapLiteral_mapLiteral_false() {
+    parse('''
+f() {
+  return {'a' : {'b' : 0}, 'c' : {'d' : 1}};
+}
+''');
+    assertInContext("{'b", false);
+    assertInContext("{'d", false);
+  }
+
+  test_inConstantContext_mapLiteral_mapLiteral_true() {
+    parse('''
+f() {
+  return const {'a' : {'b' : 0}, 'c' : {'d' : 1}};
+}
+''');
+    assertInContext("{'b", true);
+    assertInContext("{'d", true);
+  }
+
+  test_inConstantContext_mapLiteral_switch_true() {
+    parse('''
+f(v) {
+  switch (v) {
+  case const {}:
+    break;
+  }
+}
+''');
+    assertInContext("{}", true);
+  }
+
+  test_inConstantContext_mapLiteral_switch_true_beforePatterns() {
+    // Expected: <Instance of 'ExpressionImpl'>
+    //   Actual: MapPatternImpl:<{}>
+    //    Which: is not an instance of 'ExpressionImpl'
+    parse('''
+// %before-language-feature: patterns
+f(v) {
+  switch (v) {
+  case {}:
+    break;
+  }
+}
+''');
+    assertInContext("{}", true);
+  }
+
+  test_inConstantContext_recordLiteral_listLiteral_false() {
+    parse('''
+final x = [0, (1, 2)];
+''');
+    assertInContext('(1, 2)', false);
+  }
+
+  test_inConstantContext_recordLiteral_listLiteral_true() {
+    parse('''
+final x = const [0, (1, 2)];
+''');
+    assertInContext('(1, 2)', true);
+  }
+
+  test_inConstantContext_recordLiteral_namedFields_recordLiteral_false() {
+    parse('''
+final x = (0, foo: (1, 2));
+''');
+    assertInContext('(1, 2)', false);
+  }
+
+  test_inConstantContext_recordLiteral_namedFields_recordLiteral_true() {
+    parse('''
+final x = const (0, foo: (1, 2));
+''');
+    assertInContext('(1, 2)', true);
+  }
+
+  test_inConstantContext_recordLiteral_positionalFields_recordLiteral_false() {
+    parse('''
+final x = (0, (1, 2));
+''');
+    assertInContext('(1, 2)', false);
+  }
+
+  test_inConstantContext_recordLiteral_positionalFields_recordLiteral_true() {
+    parse('''
+final x = const (0, (1, 2));
+''');
+    assertInContext('(1, 2)', true);
+  }
+
+  @V1Ast('Tests the V1 projection.')
+  test_inConstantContext_topLevelGetter_v1Projection() {
+    parse('''
+int get foo => 0;
+''');
+    var getter = testUnit.declarations2.single as TopLevelGetterDeclarationImpl;
+    var functionExpression = getter.v1Projection.functionExpression;
+    expect(functionExpression.inConstantContext, isFalse);
+  }
+}
+
+@reflectiveTest
+class ForEachPartsImplTest extends PubPackageResolutionTest {
+  @V1Ast('Tests the V1 projection.')
+  test_iterable_constructorInvocation_astViews() async {
+    var result = await resolveTestCode('''
+class C {}
+void f() {
+  for (var x in C()) {}
+}
+''');
+    var forStatement = result.findNode.forStatement('for (');
+    var parts = forStatement.forLoopParts as ForEachPartsWithDeclaration;
+
+    expect(parts.iterable, isA<InstanceCreationExpression>());
+    expect(parts.iterable2, isA<ConstructorInvocation>());
+
+    result.unit.accept(RecursiveAstVisitor<void>());
+    result.unit.accept2(RecursiveAstVisitor2<void>());
+  }
+}
+
+@reflectiveTest
+class IntegerLiteralImplTest extends ParserDiagnosticsTest {
+  test_parseDoubleValue_dec_1024Bits() {
+    expect(
+      _hasDoubleValue(
+        '179769313486231570814527423731704356798070567525844996598917476803'
+        '157260780028538760589558632766878171540458953514382464234321326889'
+        '464182768467546703537516986049910576551282076245490090389328944075'
+        '868508455133942304583236903222948165808559332123348274797826204144'
+        '723168738177180919299881250404026184124858369',
+      ),
+      false,
+    );
+  }
+
+  test_parseDoubleValue_dec_11ExponentBits() {
+    expect(
+      _hasDoubleValue(
+        '359538626972463141629054847463408713596141135051689993197834953606'
+        '314521560057077521179117265533756343080917907028764928468642653778'
+        '928365536935093407075033972099821153102564152490980180778657888151'
+        '737016910267884609166473806445896331617118664246696549595652408289'
+        '446337476354361838599762500808052368249716736',
+      ),
+      false,
+    );
+  }
+
+  test_parseDoubleValue_dec_16CharValue() {
+    // 16 characters is used as a cutoff point for optimization
+    expect(_hasDoubleValue('9007199254740991'), true);
+  }
+
+  test_parseDoubleValue_dec_53BitsMax() {
+    expect(
+      _hasDoubleValue(
+        '179769313486231570814527423731704356798070567525844996598917476803'
+        '157260780028538760589558632766878171540458953514382464234321326889'
+        '464182768467546703537516986049910576551282076245490090389328944075'
+        '868508455133942304583236903222948165808559332123348274797826204144'
+        '723168738177180919299881250404026184124858368',
+      ),
+      true,
+    );
+  }
+
+  test_parseDoubleValue_dec_54BitsMax() {
+    expect(_hasDoubleValue('18014398509481983'), false);
+  }
+
+  test_parseDoubleValue_dec_54BitsMin() {
+    expect(_hasDoubleValue('9007199254740993'), false);
+  }
+
+  test_parseDoubleValue_dec_fewDigits() {
+    expect(_hasDoubleValue('45'), true);
+  }
+
+  test_parseDoubleValue_dec_largest15CharValue() {
+    // 16 characters is used as a cutoff point for optimization
+    expect(_hasDoubleValue('999999999999999'), true);
+  }
+
+  test_parseDoubleValue_exactLarge() {
+    var literal = _parseLiteral('1267650600228229401496703205376');
+
+    expect(literal.parseDoubleValue(negated: false), 1.2676506002282294e30);
+    expect(literal.parseDoubleValue(negated: true), -1.2676506002282294e30);
+  }
+
+  test_parseDoubleValue_hex_1024Bits() {
+    expect(
+      _hasDoubleValue(
+        '0xFFFFFFFFFFFFF800000000000000000000000000000000000000000000000000'
+        '000000000000000000000000000000000000000000000000000000000000000000'
+        '000000000000000000000000000000000000000000000000000000000000000000'
+        '000000000000000000000000000000000000000000000000000000000001',
+      ),
+      false,
+    );
+  }
+
+  test_parseDoubleValue_hex_11ExponentBits() {
+    expect(
+      _hasDoubleValue(
+        '0x1FFFFFFFFFFFFF00000000000000000000000000000000000000000000000000'
+        '000000000000000000000000000000000000000000000000000000000000000000'
+        '000000000000000000000000000000000000000000000000000000000000000000'
+        '0000000000000000000000000000000000000000000000000000000000000',
+      ),
+      false,
+    );
+  }
+
+  test_parseDoubleValue_hex_16CharValue() {
+    // 16 characters is used as a cutoff point for optimization
+    expect(_hasDoubleValue('0x0FFFFFFFFFFFFF'), true);
+  }
+
+  test_parseDoubleValue_hex_53BitsMax() {
+    expect(
+      _hasDoubleValue(
+        '0xFFFFFFFFFFFFF800000000000000000000000000000000000000000000000000'
+        '000000000000000000000000000000000000000000000000000000000000000000'
+        '000000000000000000000000000000000000000000000000000000000000000000'
+        '000000000000000000000000000000000000000000000000000000000000',
+      ),
+      true,
+    );
+  }
+
+  test_parseDoubleValue_hex_54BitsMax() {
+    expect(_hasDoubleValue('0x3FFFFFFFFFFFFF'), false);
+  }
+
+  test_parseDoubleValue_hex_54BitsMin() {
+    expect(_hasDoubleValue('0x20000000000001'), false);
+  }
+
+  test_parseDoubleValue_hex_fewDigits() {
+    expect(_hasDoubleValue('0x45'), true);
+  }
+
+  test_parseDoubleValue_hex_largest15CharValue() {
+    // 16 characters is used as a cutoff point for optimization
+    expect(_hasDoubleValue('0xFFFFFFFFFFFFF'), true);
+  }
+
+  test_parseDoubleValue_imprecise() {
+    var literal = _parseLiteral('9223372036854775809');
+
+    expect(literal.parseDoubleValue(negated: false), isNull);
+    expect(literal.parseDoubleValue(negated: true), isNull);
+  }
+
+  test_parseDoubleValue_negativeZero() {
+    var literal = _parseLiteral('0');
+
+    var value = literal.parseDoubleValue(negated: true)!;
+    expect(value, 0.0);
+    expect(value.isNegative, isTrue);
+  }
+
+  test_parseIntValue_dec_negative_equalMax() {
+    expect(_hasIntValue('9223372036854775808', negated: true), true);
+  }
+
+  test_parseIntValue_dec_negative_fewDigits() {
+    expect(_hasIntValue('24', negated: true), true);
+  }
+
+  test_parseIntValue_dec_negative_leadingZeros_overMax() {
+    expect(_hasIntValue('009923372036854775807', negated: true), false);
+  }
+
+  test_parseIntValue_dec_negative_leadingZeros_underMax() {
+    expect(_hasIntValue('004223372036854775807', negated: true), true);
+  }
+
+  test_parseIntValue_dec_negative_oneOverMax() {
+    expect(_hasIntValue('9223372036854775809', negated: true), false);
+  }
+
+  test_parseIntValue_dec_negative_tooManyDigits() {
+    expect(_hasIntValue('10223372036854775808', negated: true), false);
+  }
+
+  test_parseIntValue_dec_positive_equalMax() {
+    expect(_hasIntValue('9223372036854775807', negated: false), true);
+  }
+
+  test_parseIntValue_dec_positive_fewDigits() {
+    expect(_hasIntValue('42', negated: false), true);
+  }
+
+  test_parseIntValue_dec_positive_leadingZeros_overMax() {
+    expect(_hasIntValue('009923372036854775807', negated: false), false);
+  }
+
+  test_parseIntValue_dec_positive_leadingZeros_underMax() {
+    expect(_hasIntValue('004223372036854775807', negated: false), true);
+  }
+
+  test_parseIntValue_dec_positive_oneOverMax() {
+    expect(_hasIntValue('9223372036854775808', negated: false), false);
+  }
+
+  test_parseIntValue_dec_positive_tooManyDigits() {
+    expect(_hasIntValue('10223372036854775808', negated: false), false);
+  }
+
+  test_parseIntValue_heX_negative_equalMax() {
+    expect(_hasIntValue('0X8000000000000000', negated: true), true);
+  }
+
+  test_parseIntValue_hex_negative_equalMax() {
+    expect(_hasIntValue('0x8000000000000000', negated: true), true);
+  }
+
+  test_parseIntValue_heX_negative_fewDigits() {
+    expect(_hasIntValue('0XFF', negated: true), true);
+  }
+
+  test_parseIntValue_hex_negative_fewDigits() {
+    expect(_hasIntValue('0xFF', negated: true), true);
+  }
+
+  test_parseIntValue_heX_negative_leadingZeros_overMax() {
+    expect(_hasIntValue('0X00FFFFFFFFFFFFFFFFF', negated: true), false);
+  }
+
+  test_parseIntValue_hex_negative_leadingZeros_overMax() {
+    expect(_hasIntValue('0x00FFFFFFFFFFFFFFFFF', negated: true), false);
+  }
+
+  test_parseIntValue_heX_negative_leadingZeros_underMax() {
+    expect(_hasIntValue('0X007FFFFFFFFFFFFFFF', negated: true), true);
+  }
+
+  test_parseIntValue_hex_negative_leadingZeros_underMax() {
+    expect(_hasIntValue('0x007FFFFFFFFFFFFFFF', negated: true), true);
+  }
+
+  test_parseIntValue_heX_negative_oneBelowMax() {
+    expect(_hasIntValue('0X7FFFFFFFFFFFFFFF', negated: true), true);
+  }
+
+  test_parseIntValue_hex_negative_oneBelowMax() {
+    expect(_hasIntValue('0x7FFFFFFFFFFFFFFF', negated: true), true);
+  }
+
+  test_parseIntValue_heX_negative_oneOverMax() {
+    expect(_hasIntValue('0X8000000000000001', negated: true), false);
+  }
+
+  test_parseIntValue_hex_negative_oneOverMax() {
+    expect(_hasIntValue('0x8000000000000001', negated: true), false);
+  }
+
+  test_parseIntValue_heX_negative_tooManyDigits() {
+    expect(_hasIntValue('0X10000000000000000', negated: true), false);
+  }
+
+  test_parseIntValue_hex_negative_tooManyDigits() {
+    expect(_hasIntValue('0x10000000000000000', negated: true), false);
+  }
+
+  test_parseIntValue_heX_positive_equalMax() {
+    expect(_hasIntValue('0X7FFFFFFFFFFFFFFF', negated: false), true);
+  }
+
+  test_parseIntValue_hex_positive_equalMax() {
+    expect(_hasIntValue('0x7FFFFFFFFFFFFFFF', negated: false), true);
+  }
+
+  test_parseIntValue_heX_positive_fewDigits() {
+    expect(_hasIntValue('0XFF', negated: false), true);
+  }
+
+  test_parseIntValue_hex_positive_fewDigits() {
+    expect(_hasIntValue('0xFF', negated: false), true);
+  }
+
+  test_parseIntValue_heX_positive_leadingZeros_overMax() {
+    expect(_hasIntValue('0X00FFFFFFFFFFFFFFFFF', negated: false), false);
+  }
+
+  test_parseIntValue_hex_positive_leadingZeros_overMax() {
+    expect(_hasIntValue('0x00FFFFFFFFFFFFFFFFF', negated: false), false);
+  }
+
+  test_parseIntValue_heX_positive_leadingZeros_underMax() {
+    expect(_hasIntValue('0X007FFFFFFFFFFFFFFF', negated: false), true);
+  }
+
+  test_parseIntValue_hex_positive_leadingZeros_underMax() {
+    expect(_hasIntValue('0x007FFFFFFFFFFFFFFF', negated: false), true);
+  }
+
+  test_parseIntValue_heX_positive_oneOverMax() {
+    expect(_hasIntValue('0X10000000000000000', negated: false), false);
+  }
+
+  test_parseIntValue_hex_positive_oneOverMax() {
+    expect(_hasIntValue('0x10000000000000000', negated: false), false);
+  }
+
+  test_parseIntValue_heX_positive_tooManyDigits() {
+    expect(_hasIntValue('0XFF0000000000000000', negated: false), false);
+  }
+
+  test_parseIntValue_hex_positive_tooManyDigits() {
+    expect(_hasIntValue('0xFF0000000000000000', negated: false), false);
+  }
+
+  test_parseIntValue_minValue_withSeparators() {
+    var literal = _parseLiteral('9_223_372_036_854_775_808');
+
+    expect(literal.parseIntValue(negated: false), isNull);
+    expect(literal.parseIntValue(negated: true), -9223372036854775808);
+  }
+
+  bool _hasDoubleValue(String source) {
+    return _parseLiteral(source).parseDoubleValue(negated: false) != null;
+  }
+
+  bool _hasIntValue(String source, {required bool negated}) {
+    return _parseLiteral(source).parseIntValue(negated: negated) != null;
+  }
+
+  IntegerLiteral _parseLiteral(String source) {
+    var code = 'var x = $source;';
+    var result = parseTestCodeWithDiagnostics(code);
+    return FindNode2(code, result.unit).singleIntegerLiteral;
+  }
+}
+
+@reflectiveTest
+class NodeCoveringTest extends PubPackageResolutionTest {
+  Future<AstNode> coveringNode(String sourceCode) async {
+    var (result, range) = await _range(sourceCode);
+    var node = result.unit.nodeCovering2(
+      offset: range.offset,
+      length: range.length,
+    );
+    return node!;
+  }
+
+  void test_after_EOF() async {
+    var result = await resolveTestCode('''
+library myLib;
+''');
+    var node = result.unit.nodeCovering2(offset: 100, length: 20);
+    expect(node, null);
+  }
+
+  Future<void> test_after_lastNonEOF() async {
+    var node = await coveringNode('''
+library myLib;
+
+^
+''');
+    node as CompilationUnit;
+  }
+
+  Future<void> test_atBOF_atClass() async {
+    var node = await coveringNode('''
+^class A {}
+''');
+    node as ClassDeclaration2;
+  }
+
+  Future<void> test_atBOF_atComment() async {
+    var node = await coveringNode('''
+^// comment
+class A {}
+''');
+    node as CompilationUnit;
+  }
+
+  Future<void> test_atCommentEnd() async {
+    var node = await coveringNode('''
+/// ^
+class A {}
+''');
+    node as Comment;
+  }
+
+  Future<void> test_atEOF() async {
+    var node = await coveringNode('''
+library myLib;
+
+^''');
+    node as CompilationUnit;
+  }
+
+  Future<void> test_before_firstNonEOF() async {
+    var node = await coveringNode('''
+^
+
+library myLib;
+''');
+    node as CompilationUnit;
+  }
+
+  Future<void> test_between_arrowAndIdentifier() async {
+    var node = await coveringNode('''
+void f(int i) {
+  return switch (i) {
+    1 =>^g();
+    _ => 0;
+  }
+}
+int g() => 0;
+''');
+    node as UnqualifiedFunctionInvocation;
+  }
+
+  Future<void> test_between_classMembers() async {
+    var node = await coveringNode('''
+class C {
+  void a() {}
+^
+  void b() {}
+}
+''');
+    node as BlockInstanceDeclarationBody;
+  }
+
+  Future<void> test_between_colonAndIdentifier_namedExpression() async {
+    var node = await coveringNode('''
+void f(int i) {
+  g(a:^i)
+}
+void g({required int a}) {}
+''');
+    node as UnqualifiedNameExpression;
+  }
+
+  Future<void> test_between_colonAndIdentifier_switchCase() async {
+    var node = await coveringNode('''
+void f(int i) {
+  switch (i) {
+    case 1:^g();
+  }
+}
+void g() {}
+''');
+    node as UnqualifiedFunctionInvocation;
+  }
+
+  Future<void> test_between_commaAndComma_arguments_synthetic() async {
+    var node = await coveringNode('''
+void f(int a, int b, int c) {
+  f(a,^,c);
+}
+''');
+    node as UnqualifiedNameExpression;
+    expect(node.isSynthetic, isTrue);
+  }
+
+  Future<void> test_between_commaAndIdentifier_arguments() async {
+    var node = await coveringNode('''
+void f(int a, int b) {
+  f(a,^b);
+}
+''');
+    node as UnqualifiedNameExpression;
+  }
+
+  Future<void> test_between_commaAndIdentifier_parameters() async {
+    var node = await coveringNode('''
+class C {
+  void m(int a,^int b) {}
+}
+''');
+    node as NamedType;
+  }
+
+  Future<void> test_between_commaAndIdentifier_typeArguments() async {
+    var node = await coveringNode('''
+var m = Map<int,^int>();
+''');
+    node as NamedType;
+  }
+
+  Future<void> test_between_commaAndIdentifier_typeParameters() async {
+    var node = await coveringNode('''
+class C<S,^T> {}
+''');
+    node as TypeParameter;
+  }
+
+  Future<void> test_between_declarations() async {
+    var node = await coveringNode('''
+class A {}
+^
+class B {}
+''');
+    node as CompilationUnit;
+  }
+
+  Future<void> test_between_directives() async {
+    var node = await coveringNode('''
+library myLib;
+^
+import 'dart:core';
+''');
+    node as CompilationUnit;
+  }
+
+  Future<void> test_between_identifierAndArgumentList() async {
+    var node = await coveringNode('''
+void f(C c) {
+  c.m^();
+}
+class C {
+  void m() {}
+}
+''');
+    node as ReceiverMethodInvocation;
+  }
+
+  Future<void> test_between_identifierAndArgumentList_synthetic() async {
+    var node = await coveringNode('''
+void f(C c) {
+  c.^();
+}
+class C {
+  void m() {}
+}
+''');
+    node as ReceiverMethodInvocation;
+    expect(node.name.isSynthetic, isTrue);
+  }
+
+  Future<void> test_between_identifierAndComma_arguments() async {
+    var node = await coveringNode('''
+void f(int a, int b) {
+  f(a^, b);
+}
+''');
+    node as UnqualifiedNameExpression;
+  }
+
+  Future<void> test_between_identifierAndComma_parameters() async {
+    var node = await coveringNode('''
+class C {
+  void m(int a^, int b) {}
+}
+''');
+    node as RegularFormalParameter;
+  }
+
+  Future<void> test_between_identifierAndComma_typeArguments() async {
+    var node = await coveringNode('''
+var m = Map<int^, int>();
+''');
+    node as NamedType;
+  }
+
+  Future<void> test_between_identifierAndComma_typeParameters() async {
+    var node = await coveringNode('''
+class C<S^, T> {}
+''');
+    node as TypeParameter;
+  }
+
+  Future<void> test_between_identifierAndParameterList() async {
+    var node = await coveringNode('''
+void f^() {}
+''');
+    node as TopLevelFunctionDeclaration;
+  }
+
+  Future<void> test_between_identifierAndPeriod() async {
+    var node = await coveringNode('''
+var x = o^.m();
+''');
+    node as UnqualifiedNameExpression;
+  }
+
+  Future<void>
+  test_between_identifierAndTypeArgumentList_methodInvocation() async {
+    var node = await coveringNode('''
+void f(C c) {
+  c.m^<int>();
+}
+class C {
+  void m<T>() {}
+}
+''');
+    node as ReceiverMethodInvocation;
+  }
+
+  Future<void> test_between_identifierAndTypeParameterList() async {
+    var node = await coveringNode('''
+class C^<T> {}
+''');
+    node as NameWithTypeParameters;
+  }
+
+  Future<void> test_between_modifierAndFunctionBody() async {
+    var node = await coveringNode('''
+void f() async^{}
+''');
+    node as BlockFunctionBody;
+  }
+
+  Future<void> test_between_nameAndParameters_function() async {
+    var node = await coveringNode('''
+void f^() {}
+''');
+    node as TopLevelFunctionDeclaration;
+  }
+
+  Future<void> test_between_nameAndParameters_method() async {
+    var node = await coveringNode('''
+class C {
+  void m^() {}
+}
+''');
+    node as MethodDeclaration2;
+  }
+
+  Future<void> test_between_periodAndIdentifier() async {
+    var node = await coveringNode('''
+var x = o.^m();
+''');
+    node as ReceiverMethodInvocation;
+  }
+
+  Future<void> test_between_statements() async {
+    var node = await coveringNode('''
+void f() {
+  var x = 0;
+^
+  print(x);
+}
+''');
+    node as Block;
+  }
+
+  Future<void> test_inComment_beginning() async {
+    var node = await coveringNode('''
+/// A [^B].
+class C {}
+''');
+    node as CommentReferenceComponent;
+  }
+
+  Future<void> test_inComment_beginning_qualified() async {
+    var node = await coveringNode('''
+/// A [B.^b].
+class C {}
+''');
+    node as CommentReferenceComponent;
+  }
+
+  Future<void> test_inComment_end() async {
+    var node = await coveringNode('''
+/// A [B.b^].
+class C {}
+''');
+    node as CommentReferenceComponent;
+  }
+
+  Future<void> test_inComment_middle() async {
+    var node = await coveringNode('''
+/// A [B.b^b].
+class C {}
+''');
+    node as CommentReferenceComponent;
+  }
+
+  Future<void> test_inName_class() async {
+    var node = await coveringNode('''
+class A^B {}
+''');
+    node as NameWithTypeParameters;
+  }
+
+  Future<void> test_inName_function() async {
+    var node = await coveringNode('''
+void f^f() {}
+''');
+    node as TopLevelFunctionDeclaration;
+  }
+
+  Future<void> test_inName_method() async {
+    var node = await coveringNode('''
+class C {
+  void m^m() {}
+}
+''');
+    node as MethodDeclaration2;
+  }
+
+  Future<void> test_inOperator_assignment() async {
+    var node = await coveringNode('''
+void f(int x) {
+  x +^= 3;
+}
+''');
+    node as CompoundAssignment;
+  }
+
+  Future<void> test_inOperator_nullAwareAccess() async {
+    var node = await coveringNode('''
+var x = o?^.m();
+''');
+    node as ReceiverMethodInvocation;
+  }
+
+  Future<void> test_inOperator_postfix() async {
+    var node = await coveringNode('''
+var x = y+^+;
+''');
+    node as IncrementOrDecrementExpression;
+  }
+
+  Future<void> test_libraryKeyword() async {
+    var node = await coveringNode('''
+libr^ary myLib;
+''');
+    node as LibraryDirective;
+  }
+
+  Future<void> test_parentAndChildWithSameRange_blockFunctionBody() async {
+    var node = await coveringNode('''
+void f() { ^ }
+''');
+    node as Block;
+    var parent = node.parent2;
+    parent as BlockFunctionBody;
+    expect(parent.offset, node.offset);
+    expect(parent.length, node.length);
+  }
+
+  Future<void> test_parentAndChildWithSameRange_implicitCall() async {
+    var node = await coveringNode('''
+class C { void call() {} }  Function f = C^();
+''');
+    node as ConstructorTypeReference;
+  }
+
+  Future<(TestResolvedUnitResult, SourceRange)> _range(
+    String sourceCode,
+  ) async {
+    // TODO(brianwilkerson): Move TestCode to the analyzer package and make use
+    //  of it here.
+    var offset = sourceCode.indexOf('^');
+    if (offset < 0 || sourceCode.contains('^', offset + 1)) {
+      fail('Tests must contain a single selection range');
+    }
+    var testCode =
+        sourceCode.substring(0, offset) + sourceCode.substring(offset + 1);
+    var result = await resolveTestCode(testCode);
+    return (result, SourceRange(offset, 0));
+  }
+}
+
+@reflectiveTest
+class ReceiverPropertyExtractionImplTest extends PubPackageResolutionTest {
+  @V1Ast('Tests the V1 projection.')
+  test_v1Projection_recordReceiver_parent() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f((int,) r) {
+  (r.$1);
+}
+''');
+    var resolved =
+        result.findNode.singleReceiverPropertyExtraction
+            as ReceiverPropertyExtractionImpl;
+    var resolvedParent = resolved.parent2 as ParenthesizedExpressionImpl;
+    var receiver = resolved.receiver as ExpressionImpl;
+    var receiverType = receiver.staticType;
+    receiver.setPseudoExpressionStaticType(null);
+    var node = ReceiverPropertyExtractionImpl(
+      receiver: receiver,
+      operator: resolved.operator,
+      name: resolved.name,
+    );
+    var parent = ParenthesizedExpressionImpl(
+      leftParenthesis: resolvedParent.leftParenthesis,
+      expression2: node,
+      rightParenthesis: resolvedParent.rightParenthesis,
+    );
+
+    var provisional = parent.expression;
+    expect(provisional, isA<PrefixedIdentifier>());
+    expect(provisional.parent, same(parent));
+
+    receiver.setPseudoExpressionStaticType(receiverType);
+
+    var finalized = parent.expression;
+    expect(finalized, isA<PropertyAccess>());
+    expect(finalized.parent, same(parent));
+    expect(provisional.parent, isNull);
+    expect(node.parent2, same(parent));
+    expect(node.v1Projection, same(finalized));
+  }
+}

@@ -1,0 +1,233 @@
+// Copyright (c) 2024, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/ast/syntactic_entity.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/ast/extensions.dart';
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
+import 'package:analyzer/src/error/listener.dart';
+import 'package:analyzer/src/utilities/extensions/ast.dart';
+
+/// Checks if the arguments for a parameter annotated with `@mustBeConst` are
+/// actually constant.
+class ConstArgumentsVerifier extends SimpleAstVisitor2<void> {
+  final DiagnosticReporter _diagnosticReporter;
+
+  new(this._diagnosticReporter);
+
+  void checkNameExpression(NameExpression node) {
+    if (node.resolution?.element case var element?) {
+      _checkTearoff(node, element);
+    }
+  }
+
+  void verifyNamedFunctionInvocation(NamedFunctionInvocation node) {
+    if (node.resolution is StaticInvocationResolution) {
+      _check(arguments: node.argumentList.arguments2, errorNode: node);
+    }
+  }
+
+  @override
+  void visitAnonymousMethodInvocation(AnonymousMethodInvocation node) {
+    var parameters = node.parameters?.allFormalParameters;
+    if (parameters == null || parameters.isEmpty) {
+      return;
+    }
+
+    var parameter = parameters.first;
+    var element = parameter.declaredFragment?.element;
+    if (element == null) {
+      return;
+    }
+
+    if (element.metadata.hasMustBeConst) {
+      var target = node.realTarget2;
+      if (!_isConst(target)) {
+        _diagnosticReporter.report(
+          diag.nonConstArgumentForConstParameter
+              .withArguments(name: element.name!)
+              .at(target),
+        );
+      }
+    }
+  }
+
+  @override
+  void visitBinaryOperatorInvocation(BinaryOperatorInvocation node) {
+    _check(arguments: [node.rightOperand], errorNode: node.operator);
+  }
+
+  @override
+  void visitCallInvocation(CallInvocation node) {
+    if (node.resolution is StaticInvocationResolution) {
+      _check(arguments: node.argumentList.arguments2, errorNode: node);
+    }
+  }
+
+  @override
+  void visitCascadeMethodInvocation(CascadeMethodInvocation node) {
+    verifyNamedFunctionInvocation(node);
+  }
+
+  @override
+  void visitCompoundAssignment(CompoundAssignment node) {
+    _check(arguments: [node.value], errorNode: node.operator);
+  }
+
+  @override
+  void visitConstructorInvocation(ConstructorInvocation node) {
+    if (node.inConstantContext) return;
+    _check(
+      arguments: node.argumentList.arguments2,
+      errorNode: node.constructorReference,
+    );
+  }
+
+  @override
+  void visitConstructorTearOff(ConstructorTearOff node) {
+    _checkTearoff(node, node.element);
+  }
+
+  @override
+  void visitDirectAssignment(DirectAssignment node) {
+    _check(arguments: [node.value], errorNode: node.operator);
+  }
+
+  @override
+  void visitDotShorthandMethodInvocation(DotShorthandMethodInvocation node) {
+    verifyNamedFunctionInvocation(node);
+  }
+
+  @override
+  void visitIfNullAssignment(IfNullAssignment node) {
+    _check(arguments: [node.value], errorNode: node.operator);
+  }
+
+  @override
+  void visitImportPrefixedFunctionInvocation(
+    ImportPrefixedFunctionInvocation node,
+  ) {
+    verifyNamedFunctionInvocation(node);
+  }
+
+  @override
+  void visitReceiverIndexExpression(ReceiverIndexExpression node) {
+    _check(arguments: [node.index], errorNode: node.leftBracket);
+  }
+
+  @override
+  void visitReceiverMethodInvocation(ReceiverMethodInvocation node) {
+    verifyNamedFunctionInvocation(node);
+  }
+
+  @override
+  void visitRedirectingConstructorInvocation(
+    RedirectingConstructorInvocation node,
+  ) {
+    _check(
+      arguments: node.argumentList.arguments2,
+      errorNode: node.constructorSelector?.name2 ?? node.thisKeyword,
+    );
+  }
+
+  @override
+  void visitSuperConstructorInvocation(SuperConstructorInvocation node) {
+    _check(
+      arguments: node.argumentList.arguments2,
+      errorNode: node.constructorSelector?.name2 ?? node.superKeyword,
+    );
+  }
+
+  @override
+  void visitUnqualifiedFunctionInvocation(UnqualifiedFunctionInvocation node) {
+    verifyNamedFunctionInvocation(node);
+  }
+
+  void _check({
+    required List<Argument> arguments,
+    required SyntacticEntity errorNode,
+  }) {
+    for (var argument in arguments) {
+      var parameter = argument.correspondingParameter;
+      if (parameter == null) {
+        continue;
+      }
+
+      var parameterName = parameter.name;
+      if (parameterName == null) {
+        continue;
+      }
+
+      if (parameter.metadata.hasMustBeConst) {
+        var resolvedArgument = argument.argumentExpression2;
+        if (!_isConst(resolvedArgument)) {
+          _diagnosticReporter.report(
+            diag.nonConstArgumentForConstParameter
+                .withArguments(name: parameterName)
+                .at(argument),
+          );
+        }
+      }
+    }
+  }
+
+  void _checkTearoff(Expression node, Element? element) {
+    if (element is! ExecutableElement) return;
+    if (!element.formalParameters.any((p) => p.metadata.hasMustBeConst)) return;
+    if (_isTearOff(node)) {
+      var name = element.name;
+      if (name != null && name.isNotEmpty) {
+        _diagnosticReporter.report(
+          diag.tearoffWithMustBeConstParameter
+              .withArguments(name: name)
+              .at(node is PropertyExtraction ? node.name : node),
+        );
+      }
+    }
+  }
+
+  bool _isConst(Expression expression) {
+    if (expression.inConstantContext) {
+      return true;
+    } else if (expression is ConstructorInvocation && expression.isConst) {
+      return true;
+    } else if (expression is Literal) {
+      return switch (expression) {
+        BooleanLiteral() => true,
+        DoubleLiteral() => true,
+        IntegerLiteral() => true,
+        NullLiteral() => true,
+        SimpleStringLiteral() => true,
+        AdjacentStrings() => true,
+        SymbolLiteral() => true,
+        RecordLiteral() => expression.isConst,
+        TypedLiteral() => expression.isConst,
+        // TODO(mosum): Expand the logic to check if the individual interpolation elements are const.
+        StringInterpolation() => false,
+      };
+    } else if (expression is NameExpression) {
+      var element = expression.resolution?.elementOrRecovery;
+      return switch (element) {
+        GetterElement() => element.variable.isConst,
+        VariableElement() => element.isConst,
+        _ => false,
+      };
+    }
+    return false;
+  }
+
+  bool _isTearOff(Expression node) {
+    if (node is ConstructorTearOff) return true;
+    if (node is FunctionInstantiation) return true;
+    if (node is ImplicitFunctionInstantiation) return true;
+    if (node is DotShorthandNameExpression) return true;
+    if (node.inCommentReference2) return false;
+    if (node is NameExpression) {
+      return node.resolution is ExecutableTearOffResolution;
+    }
+    return false;
+  }
+}

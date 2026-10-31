@@ -1,0 +1,369 @@
+// Copyright (c) 2023, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:test/test.dart';
+
+import '../utils.dart';
+import 'helpers.dart';
+
+void main([List<String> args = const []]) async {
+  if (!nativeAssetsExperimentAvailableOnCurrentChannel) {
+    test('dart run', timeout: longTimeout, () async {
+      await nativeAssetsTest('dart_app', (dartAppUri) async {
+        final result = await runDart(
+          arguments: ['run'],
+          workingDirectory: dartAppUri,
+          logger: logger,
+          expectExitCodeZero: false,
+        );
+        expect(result.exitCode, 254);
+        expect(
+          result.stderr,
+          stringContainsInOrder(['Unavailable experiment: native-assets']),
+        );
+      });
+    });
+
+    return;
+  }
+
+  // No --source option, `dart run` from source does not output target program
+  // stdout.
+
+  for (final (verbose, residentCompiler) in [
+    (true, false),
+    (false, false),
+    (false, true),
+  ]) {
+    var testModifier = '';
+    testModifier += residentCompiler ? ' resident' : '';
+    testModifier += verbose ? ' verbose' : '';
+    test('dart run$testModifier', timeout: longTimeout, () async {
+      await nativeAssetsTest('dart_app', (dartAppUri) async {
+        final serverInfoFile = File.fromUri(
+          dartAppUri.resolve('.resident-info'),
+        ).path;
+        final result = await runDart(
+          arguments: [
+            'run',
+            if (residentCompiler) ...[
+              '--resident',
+              '--resident-compiler-info-file=$serverInfoFile',
+            ],
+            if (verbose) '-v',
+          ],
+          workingDirectory: dartAppUri,
+          logger: logger,
+        );
+        expect(result.stderr, isNot(contains('Running build hooks')));
+        expect(result.stderr, isNot(contains('Running link hooks')));
+        expectDartAppStdout(result.stdout);
+        if (verbose) {
+          expect(result.stderr, contains('build.dart'));
+        } else {
+          expect(result.stderr, isNot(contains('build.dart')));
+        }
+      });
+    });
+  }
+
+  test(
+    'dart run stdout is exactly the program output',
+    timeout: longTimeout,
+    () async {
+      await nativeAssetsTest('dart_app', (dartAppUri) async {
+        // Resolve dependencies up front, so that `dart run` only has to run the
+        // build hooks and compile the program.
+        await runPubGet(workingDirectory: dartAppUri, logger: logger);
+        final result = await runDart(
+          arguments: ['run'],
+          workingDirectory: dartAppUri,
+          logger: logger,
+        );
+        expect(
+          const LineSplitter().convert(result.stdout),
+          ['add(5, 6) = 11', 'subtract(5, 6) = -1'],
+        );
+        // Hook errors are still forwarded to stderr, but dartdev's own status
+        // messages are not shown when the output is not a terminal.
+        expect(result.stderr, contains('Some stderr.'));
+        expect(result.stderr, isNot(contains('Running build hooks')));
+        expect(result.stderr, isNot(contains('Running link hooks')));
+        expect(result.stderr, isNot(contains('Generated: ')));
+      });
+    },
+  );
+
+  test('dart run --verbosity=error', timeout: longTimeout, () async {
+    await nativeAssetsTest('dart_app', (dartAppUri) async {
+      final result = await runDart(
+        arguments: ['run', '--verbosity=error'],
+        workingDirectory: dartAppUri,
+        logger: logger,
+      );
+      expect(result.stderr, isNot(contains('Running build hooks')));
+      expectDartAppStdout(result.stdout);
+    });
+  });
+
+  test('dart run test/xxx_test.dart', timeout: longTimeout, () async {
+    await nativeAssetsTest('native_add', (packageUri) async {
+      final result = await runDart(
+        arguments: ['run', 'test/native_add_test.dart'],
+        workingDirectory: packageUri,
+        logger: logger,
+      );
+      expect(
+        result.stdout,
+        stringContainsInOrder(['All tests passed!']),
+      );
+    });
+  });
+
+  for (final subcommand in ['test', 'test/my_test.dart']) {
+    test(
+      'dart run $subcommand (dev_dependency_with_hook)',
+      timeout: longTimeout,
+      () async {
+        await nativeAssetsTest('dev_dependency_with_hook', (packageUri) async {
+          var expandedReporter = subcommand == 'test';
+          final result = await runDart(
+            arguments: [
+              'run',
+              subcommand,
+              if (expandedReporter) '--reporter=expanded',
+            ],
+            workingDirectory: packageUri,
+            logger: logger,
+          );
+          expect(
+            result.stdout,
+            stringContainsInOrder([
+              if (expandedReporter) 'native add test',
+              'All tests passed!',
+            ]),
+          );
+        });
+      },
+    );
+  }
+
+  test('dart run some_dev_dep', timeout: longTimeout, () async {
+    await nativeAssetsTest('native_add', (packageUri) async {
+      final result = await runDart(
+        arguments: ['run', '-v', 'some_dev_dep'],
+        workingDirectory: packageUri,
+        logger: logger,
+      );
+      // It should not build native_add for running ffigen.
+      expect(result.stderr, isNot(contains('Running build hooks')));
+    });
+  });
+
+  test('dart link assets succeeds', timeout: longTimeout, () async {
+    await nativeAssetsTest('drop_dylib_link', (dartAppUri) async {
+      await runDart(
+        arguments: ['run', 'bin/drop_dylib_link.dart', 'add'],
+        workingDirectory: dartAppUri,
+        logger: logger,
+        expectExitCodeZero: true,
+      );
+    });
+  });
+
+  test(
+    'dart link assets doesnt have treeshaken asset',
+    timeout: longTimeout,
+    () async {
+      await nativeAssetsTest('drop_dylib_link', (dartAppUri) async {
+        try {
+          await runDart(
+            arguments: ['run', 'bin/drop_dylib_link.dart', 'multiply'],
+            workingDirectory: dartAppUri,
+            logger: logger,
+            expectExitCodeZero: false,
+          );
+        } catch (e) {
+          expect(e, e is ArgumentError);
+          expect(
+            (e as ArgumentError).message.toString(),
+            contains('''
+Couldn't resolve native function 'multiply' in 'package:drop_dylib_link/dylib_multiply' : No asset with id 'package:drop_dylib_link/dylib_multiply' found. Available native assets: package:drop_dylib_link/dylib_add.
+'''),
+          );
+        }
+      });
+    },
+  );
+
+  test('dart add asset in linking', timeout: longTimeout, () async {
+    await nativeAssetsTest('add_asset_link', (dartAppUri) async {
+      final result = await runDart(
+        arguments: ['run', 'bin/add_asset_link.dart'],
+        workingDirectory: dartAppUri,
+        logger: logger,
+        expectExitCodeZero: false,
+      );
+      expect(
+        result.exitCode,
+        isNot(0), // Linking is not enabled. The build hook will throw.
+      );
+    });
+  });
+
+  test('dart run with native dynamic linking', timeout: longTimeout, () async {
+    await nativeAssetsTest('native_dynamic_linking', (packageUri) async {
+      final result = await runDart(
+        arguments: ['run', 'bin/native_dynamic_linking.dart'],
+        workingDirectory: packageUri,
+        logger: logger,
+      );
+      expect(result.stdout, contains('42'));
+    });
+  });
+
+  for (final usePubWorkspace in [true, false]) {
+    test('dart run with user defines', timeout: longTimeout, () async {
+      await nativeAssetsTest('user_defines', usePubWorkspace: usePubWorkspace, (
+        packageUri,
+      ) async {
+        final result = await runDart(
+          arguments: ['run', 'bin/user_defines.dart'],
+          workingDirectory: packageUri,
+          logger: logger,
+        );
+        expect(result.stdout, contains('Hello world!'));
+      });
+    });
+  }
+
+  // Regression test for Bug: https://github.com/dart-lang/native/issues/2921.
+  test(
+    'dart run invoking dart run',
+    // Windows not supported: https://github.com/dart-lang/native/issues/1534.
+    skip: Platform.isWindows,
+    timeout: longTimeout,
+    () async {
+      await nativeAssetsTest('recursive_invocation', (dartAppUri) async {
+        final result = await runDart(
+          arguments: ['run', 'bin/subprocess.dart'],
+          workingDirectory: dartAppUri,
+          logger: logger,
+        );
+        // No crash.
+        expect(result.exitCode, equals(0));
+      });
+    },
+  );
+
+  test('dart run from different directory', timeout: longTimeout, () async {
+    await nativeAssetsTest('dart_app', (dartAppUri) async {
+      final tempUri = dartAppUri.parent;
+      final otherDirUri = tempUri.resolve('other_dir/');
+      await Directory.fromUri(otherDirUri).create();
+
+      final result = await runDart(
+        arguments: [
+          'run',
+          dartAppUri.resolve('bin/dart_app.dart').toFilePath(),
+        ],
+        workingDirectory: otherDirUri,
+        logger: logger,
+      );
+      expectDartAppStdout(result.stdout);
+    });
+  });
+
+  test(
+    'dart run cleans up temp dir on shutdown',
+    timeout: longTimeout,
+    () async {
+      await nativeAssetsTest('dart_app', (dartAppUri) async {
+        final result = await runDart(
+          arguments: ['run', 'bin/dart_app.dart'],
+          workingDirectory: dartAppUri,
+          logger: logger,
+        );
+        expectDartAppStdout(result.stdout);
+
+        // Read `.dart_tool/native_assets.yaml` to hermetically determine the exact
+        // temporary assets directory (`dart_native_assets_...`) created by this run.
+        final nativeAssetsYaml = File.fromUri(
+          dartAppUri.resolve('.dart_tool/native_assets.yaml'),
+        );
+        expect(await nativeAssetsYaml.exists(), isTrue);
+        final content = await nativeAssetsYaml.readAsString();
+        final match = RegExp(
+          r'dart_native_assets_[^\/\\]+',
+        ).firstMatch(content);
+        expect(match, isNotNull);
+        final dartdevAssetsTempDir = Directory.fromUri(
+          Directory.systemTemp.uri.resolve('${match!.group(0)}/'),
+        );
+
+        // On Windows, the detached cleanup process deletes the temp dir
+        // shortly after the main process exits.
+        await pollUntil(() async => !(await dartdevAssetsTempDir.exists()));
+        expect(await dartdevAssetsTempDir.exists(), isFalse);
+      });
+    },
+  );
+
+  test(
+    'dart run concurrently (10 parallel processes)',
+    timeout: longTimeout,
+    () async {
+      await nativeAssetsTest('dart_app', (dartAppUri) async {
+        final futures = List.generate(
+          10,
+          (_) => runDart(
+            arguments: ['run', 'bin/dart_app.dart'],
+            workingDirectory: dartAppUri,
+            logger: logger,
+          ),
+        );
+        final results = await Future.wait(futures);
+        for (final result in results) {
+          expectDartAppStdout(result.stdout);
+        }
+      });
+    },
+  );
+
+  test(
+    '--delete-temp-dir-on-shutdown VM flag cleans up directory on exit',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'test_delete_flag_',
+      );
+      expect(await tempDir.exists(), isTrue);
+
+      final scriptDir = await Directory.systemTemp.createTemp(
+        'test_script_dir_',
+      );
+      try {
+        final scriptFile = File.fromUri(scriptDir.uri.resolve('script.dart'));
+        await scriptFile.writeAsString('void main() => print("hello");');
+
+        final result = await runDart(
+          arguments: [
+            '--delete-temp-dir-on-shutdown=${tempDir.path}',
+            scriptFile.path,
+          ],
+          logger: logger,
+        );
+        expect(result.stdout, contains('hello'));
+
+        await pollUntil(() async => !(await tempDir.exists()));
+        expect(await tempDir.exists(), isFalse);
+      } finally {
+        if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        if (await scriptDir.exists()) await scriptDir.delete(recursive: true);
+      }
+    },
+  );
+}

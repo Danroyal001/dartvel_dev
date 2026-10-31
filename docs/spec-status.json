@@ -2279,6 +2279,25 @@
       "kind": "narrative"
     },
     {
+      "section": "Side Effort: The Dart and Flutter Stack in Rust",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "experiments/rust_stack/test/line_count_test.dart",
+        "experiments/rust_stack/baselines/sizes-2026-10-29.json",
+        "experiments/dv_dialect/README.md",
+        "experiments/dv_dialect/test/dialect_test.dart"
+      ],
+      "absent": "Absent: Tracks A-H, the forks of dart-lang/sdk and flutter/flutter the ports are done in, and the Track D partition measurement. Built: the oracle harnesses; the Phase 0 size measurement and a first cut of the Track I .dv converter, at 99.98% byte-for-byte round trip over 9,941 files of the Dart SDK, Flutter and Dartvel (the two left are deliberate refusals); the rules are not frozen, which needs all of pub.dev."
+    },
+    {
+      "section": "The `.dv` Language",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": [],
+      "absent": "Accepted 30 October 2026; nothing is built, and nothing starts before the Rust stack side effort is fully compatible with Dart and Flutter. Planned: native compilation of .dv files to a shared library and header, a Wasm module or static linking; a generated dart:ffi binding exported from the dartvel_client barrel and usable from plain Dart; NativeCallable callbacks; struct value types, fixed-width numbers and SIMD, ownership with deterministic destructors, nogc as a compiler rule, pure/noalloc/nothrow/const fn effects, requires/ensures/invariant contracts, counted unsafe; import rust of Rust source files and crates compiled in the same process as the .dv code (distinct from FFI to prebuilt Rust libraries); import c of C source and headers, usable only inside unsafe or through safe wrappers, with C lines reported separately and outside every safety claim; import cpp of C++ source with only its extern \"C\" surface visible, under the same rules, and exceptions aborting at the boundary; plain Wasm or WASI output, with WasmGC only for libraries that use GC-managed objects; a versioned boundary ABI. The optional-semicolon converter in experiments/dv_dialect exists as a prototype."
+    },
+    {
       "section": "Mental Model",
       "kind": "narrative"
     },

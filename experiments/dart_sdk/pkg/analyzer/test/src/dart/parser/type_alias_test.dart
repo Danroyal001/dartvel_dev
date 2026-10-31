@@ -1,0 +1,107 @@
+// Copyright (c) 2024, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:test_reflective_loader/test_reflective_loader.dart';
+
+import '../../diagnostics/parser_diagnostics.dart';
+import '../resolution/node_text_expectations.dart';
+
+main() {
+  defineReflectiveSuite(() {
+    defineReflectiveTests(TypeAliasParserTest);
+    defineReflectiveTests(UpdateNodeTextExpectations);
+  });
+}
+
+@reflectiveTest
+class TypeAliasParserTest extends ParserDiagnosticsTest {
+  test_legacy_augment() {
+    var parseResult = parseTestCodeWithDiagnostics(r'''
+augment typedef void A();
+// [diag.typedefAugmentation][column 1][length 7] Type aliases can't be augmented.
+''');
+
+    var node = parseResult.findNode.singleFunctionTypeAlias;
+    assertParsedNodeText(node, r'''
+FunctionTypeAlias2
+  augmentKeyword: augment
+  typedefKeyword: typedef
+  returnType: NamedType
+    name: void
+  name: A
+  parameters: FormalParameterList
+    leftParenthesis: (
+    rightParenthesis: )
+  semicolon: ;
+V1: FunctionTypeAlias
+  augmentKeyword: augment
+  typedefKeyword: typedef
+  returnType: NamedType
+    name: void
+  name: A
+  parameters: FormalParameterList
+    leftParenthesis: (
+    rightParenthesis: )
+  semicolon: ;
+''');
+  }
+
+  test_modern_augment() {
+    var parseResult = parseTestCodeWithDiagnostics(r'''
+augment typedef A = int;
+// [diag.typedefAugmentation][column 1][length 7] Type aliases can't be augmented.
+''');
+
+    var node = parseResult.findNode.singleGenericTypeAlias;
+    assertParsedNodeText(node, r'''
+GenericTypeAlias2
+  augmentKeyword: augment
+  typedefKeyword: typedef
+  name: A
+  equals: =
+  type: NamedType
+    name: int
+  semicolon: ;
+V1: GenericTypeAlias
+  augmentKeyword: augment
+  typedefKeyword: typedef
+  name: A
+  equals: =
+  type: NamedType
+    name: int
+  semicolon: ;
+''');
+  }
+
+  test_modern_missingName() {
+    // Does not look good.
+    // https://github.com/dart-lang/sdk/issues/56912
+    var parseResult = parseTestCodeWithDiagnostics(r'''
+typedef = int;
+//      ^
+// [diag.missingIdentifier] Expected an identifier.
+''');
+
+    var node = parseResult.findNode.unit;
+    assertParsedNodeText(node, r'''
+CompilationUnit
+  declarations2
+    GenericTypeAlias2
+      typedefKeyword: typedef
+      name: <empty> <synthetic>
+      equals: =
+      type: NamedType
+        name: int
+      semicolon: ;
+  declarations(v1)
+    GenericTypeAlias
+      typedefKeyword: typedef
+      name: <empty> <synthetic>
+      equals: =
+      type: NamedType
+        name: int
+      semicolon: ;
+''');
+  }
+}

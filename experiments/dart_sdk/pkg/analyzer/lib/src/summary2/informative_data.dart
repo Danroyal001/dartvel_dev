@@ -1,0 +1,2563 @@
+// Copyright (c) 2021, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:typed_data';
+
+import 'package:analyzer/dart/ast/token.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/source/line_info.dart';
+import 'package:analyzer/source/source_range.dart';
+import 'package:analyzer/src/binary/binary_reader.dart';
+import 'package:analyzer/src/binary/binary_writer.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/element/element.dart';
+import 'package:analyzer/src/summary2/linked_element_factory.dart';
+import 'package:analyzer/src/summary2/not_serializable_nodes.dart';
+import 'package:analyzer/src/util/collection.dart';
+import 'package:analyzer/src/util/comment.dart';
+import 'package:analyzer/src/utilities/extensions/object.dart';
+import 'package:analyzer/src/utilities/growable_type_data.dart';
+
+Uint8List writeUnitInformative(CompilationUnit unit) {
+  var info = _InfoBuilder().build(unit);
+  var writer = BinaryWriter();
+  info.write(writer);
+  return writer.takeBytes();
+}
+
+class InformativeDataApplier {
+  bool _shouldDeferApplyMembersOffsets = true;
+
+  void applyFromBytes(
+    LibraryFragmentImpl fragment,
+    Uint8List informativeBytes,
+  ) {
+    _shouldDeferApplyMembersOffsets = false;
+    _applyFromBytes(fragment, informativeBytes);
+  }
+
+  void applyToLibrary(
+    LinkedElementFactory elementFactory,
+    LibraryElementImpl libraryElement,
+    Map<Uri, Uint8List> unitsInformativeBytes,
+  ) {
+    if (elementFactory.isApplyingInformativeData) {
+      throw StateError('Unexpected recursion.');
+    }
+    elementFactory.isApplyingInformativeData = true;
+
+    for (var libraryFragment in libraryElement.internal.fragments) {
+      var uri = libraryFragment.source.uri;
+      if (unitsInformativeBytes[uri] case var infoBytes?) {
+        _applyFromBytes(libraryFragment, infoBytes);
+      }
+    }
+
+    elementFactory.isApplyingInformativeData = false;
+  }
+
+  void _applyFromBytes(
+    LibraryFragmentImpl libraryFragment,
+    Uint8List infoBytes,
+  ) {
+    var unitReader = BinaryReader(infoBytes);
+    var unitInfo = _InfoUnit.read(unitReader);
+    _applyFromInfo(libraryFragment, unitInfo);
+  }
+
+  void _applyFromInfo(LibraryFragmentImpl libraryFragment, _InfoUnit unitInfo) {
+    var libraryElement = libraryFragment.library;
+    if (identical(libraryElement.internal.firstFragment, libraryFragment)) {
+      _applyToLibrary(libraryElement, unitInfo);
+    }
+
+    libraryFragment.setCodeRange(unitInfo.codeOffset, unitInfo.codeLength);
+    libraryFragment.lineInfo = LineInfo(unitInfo.lineStarts);
+
+    DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+      _applyToImports(libraryFragment.libraryImports, unitInfo);
+      _applyToExports(libraryFragment.libraryExports, unitInfo);
+      _applyToPartIncludes(libraryFragment.parts, unitInfo);
+    });
+
+    libraryFragment.deferConstantOffsets(unitInfo.libraryConstantOffsets, (
+      applier,
+    ) {
+      applier.applyToImports(libraryFragment.libraryImports);
+      applier.applyToExports(libraryFragment.libraryExports);
+      applier.applyToParts(libraryFragment.parts);
+    });
+
+    _applyToAccessors(libraryFragment.getters, unitInfo.topLevelGetters);
+    _applyToAccessors(libraryFragment.setters, unitInfo.topLevelSetters);
+
+    forCorrespondingPairs(
+      libraryFragment.classes.where((fragment) => !fragment.isMixinApplication),
+      unitInfo.classDeclarations,
+      _applyToClassDeclaration,
+    );
+
+    forCorrespondingPairs(
+      libraryFragment.classes.where((fragment) => fragment.isMixinApplication),
+      unitInfo.classTypeAliases,
+      _applyToClassTypeAlias,
+    );
+
+    forCorrespondingPairs(
+      libraryFragment.enums,
+      unitInfo.enums,
+      _applyToEnumDeclaration,
+    );
+
+    forCorrespondingPairs(
+      libraryFragment.extensions,
+      unitInfo.extensions,
+      _applyToExtensionDeclaration,
+    );
+
+    forCorrespondingPairs(
+      libraryFragment.extensionTypes,
+      unitInfo.extensionTypes,
+      _applyToExtensionTypeDeclaration,
+    );
+
+    forCorrespondingPairs(
+      libraryFragment.functions,
+      unitInfo.topLevelFunctions,
+      _applyToFunctionDeclaration,
+    );
+
+    forCorrespondingPairs(
+      libraryFragment.mixins,
+      unitInfo.mixinDeclarations,
+      _applyToMixinDeclaration,
+    );
+
+    forCorrespondingPairs(
+      libraryFragment.topLevelVariables.withOriginDeclaration,
+      unitInfo.topLevelVariable,
+      _applyToTopLevelVariable,
+    );
+
+    forCorrespondingPairs(
+      libraryFragment.typeAliases,
+      unitInfo.typeAliases,
+      _applyToTypeAlias,
+    );
+  }
+
+  void _applyToAccessors(
+    List<PropertyAccessorFragmentImpl> fragmentList,
+    List<_InfoExecutableDeclaration> infoList,
+  ) {
+    forCorrespondingPairs(fragmentList.withOriginDeclaration, infoList, (
+      fragment,
+      info,
+    ) {
+      fragment.setCodeRange(info.codeOffset, info.codeLength);
+      fragment.firstTokenOffset = info.firstTokenOffset;
+      fragment.nameOffset = info.nameOffset;
+      fragment.documentationComment = info.documentationComment;
+
+      DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+        _applyToFormalParameters(fragment.formalParameters, info.parameters);
+      });
+
+      fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+        applier.applyToMetadata(fragment.metadata);
+        applier.applyToTypeParameters(fragment.typeParameters);
+        applier.applyToFormalParameters(fragment.formalParameters);
+      });
+    });
+  }
+
+  void _applyToClassDeclaration(
+    ClassFragmentImpl fragment,
+    _InfoClassDeclaration info,
+  ) {
+    fragment.setCodeRange(info.codeOffset, info.codeLength);
+    fragment.firstTokenOffset = info.firstTokenOffset;
+    fragment.nameOffset = info.nameOffset;
+    fragment.documentationComment = info.documentationComment;
+
+    DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+      _applyToTypeParameters(fragment.typeParameters, info.typeParameters);
+    });
+
+    fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+      applier.applyToMetadata(fragment.metadata);
+      applier.applyToTypeParameters(fragment.typeParameters);
+    });
+
+    _scheduleApplyMembersOffsets(fragment, () {
+      DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+        _applyToConstructors(fragment.constructors, info.constructors);
+        _applyToFields(fragment.fields, info.fields);
+        _applyToAccessors(fragment.getters, info.getters);
+        _applyToAccessors(fragment.setters, info.setters);
+        _applyToMethods(fragment.methods, info.methods);
+      });
+    });
+  }
+
+  void _applyToClassTypeAlias(
+    ClassFragmentImpl fragment,
+    _InfoClassTypeAlias info,
+  ) {
+    fragment.setCodeRange(info.codeOffset, info.codeLength);
+    fragment.firstTokenOffset = info.firstTokenOffset;
+    fragment.nameOffset = info.nameOffset;
+    fragment.documentationComment = info.documentationComment;
+
+    DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+      _applyToTypeParameters(fragment.typeParameters, info.typeParameters);
+    });
+
+    fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+      applier.applyToMetadata(fragment.metadata);
+      applier.applyToTypeParameters(fragment.typeParameters);
+    });
+  }
+
+  void _applyToCombinators(
+    List<NamespaceCombinator> elementList,
+    List<_InfoCombinator> infoList,
+  ) {
+    forCorrespondingPairs<NamespaceCombinator, _InfoCombinator>(
+      elementList,
+      infoList,
+      (element, info) {
+        if (element is ShowElementCombinatorImpl) {
+          element.offset = info.offset;
+          element.end = info.end;
+        }
+        if (element is HideElementCombinatorImpl) {
+          element.offset = info.offset;
+          element.end = info.end;
+        }
+      },
+    );
+  }
+
+  void _applyToConstructors(
+    List<ConstructorFragmentImpl> fragmentList,
+    List<_InfoConstructorDeclaration> infoList,
+  ) {
+    forCorrespondingPairs(fragmentList.withOriginDeclaration, infoList, (
+      fragment,
+      info,
+    ) {
+      fragment.setCodeRange(info.codeOffset, info.codeLength);
+      fragment.newKeywordOffset = info.newKeywordOffset;
+      fragment.factoryKeywordOffset = info.factoryKeywordOffset;
+      fragment.typeNameOffset = info.typeNameOffset;
+      fragment.periodOffset = info.periodOffset;
+      fragment.firstTokenOffset = info.firstTokenOffset;
+      fragment.nameEnd = info.nameEnd;
+      fragment.nameOffset = info.nameOffset;
+      fragment.thisKeywordOffset = info.thisKeywordOffset;
+      fragment.primaryHeaderCodeRange = info.primaryHeaderCodeRange;
+      fragment.primaryBodyCodeRange = info.primaryBodyCodeRange;
+      fragment.documentationComment = info.documentationComment;
+
+      DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+        _applyToFormalParameters(fragment.formalParameters, info.parameters);
+      });
+
+      fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+        applier.applyToMetadata(fragment.metadata);
+        applier.applyToFormalParameters(fragment.formalParameters);
+        applier.applyToConstructorInitializers(fragment);
+      });
+    });
+  }
+
+  void _applyToEnumDeclaration(
+    EnumFragmentImpl fragment,
+    _InfoEnumDeclaration info,
+  ) {
+    fragment.setCodeRange(info.codeOffset, info.codeLength);
+    fragment.firstTokenOffset = info.firstTokenOffset;
+    fragment.nameOffset = info.nameOffset;
+    fragment.documentationComment = info.documentationComment;
+
+    DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+      _applyToTypeParameters(fragment.typeParameters, info.typeParameters);
+    });
+
+    _scheduleApplyMembersOffsets(fragment, () {
+      DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+        _applyToConstructors(fragment.constructors, info.constructors);
+        _applyToFields(fragment.fields, info.fields);
+        _applyToAccessors(fragment.getters, info.getters);
+        _applyToAccessors(fragment.setters, info.setters);
+        _applyToMethods(fragment.methods, info.methods);
+      });
+    });
+
+    fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+      applier.applyToMetadata(fragment.metadata);
+      applier.applyToTypeParameters(fragment.typeParameters);
+    });
+  }
+
+  void _applyToExports(List<LibraryExportImpl> exports, _InfoUnit info) {
+    forCorrespondingPairs(exports, info.exports, (element, info) {
+      element.exportKeywordOffset = info.exportKeywordOffset;
+      _applyToCombinators(element.combinators, info.combinators);
+    });
+  }
+
+  void _applyToExtensionDeclaration(
+    ExtensionFragmentImpl fragment,
+    _InfoExtensionDeclaration info,
+  ) {
+    fragment.setCodeRange(info.codeOffset, info.codeLength);
+    fragment.firstTokenOffset = info.firstTokenOffset;
+    fragment.nameOffset = info.nameOffset;
+    fragment.documentationComment = info.documentationComment;
+
+    DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+      _applyToTypeParameters(fragment.typeParameters, info.typeParameters);
+    });
+
+    _scheduleApplyMembersOffsets(fragment, () {
+      DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+        _applyToFields(fragment.fields, info.fields);
+        _applyToAccessors(fragment.getters, info.getters);
+        _applyToAccessors(fragment.setters, info.setters);
+        _applyToMethods(fragment.methods, info.methods);
+      });
+    });
+
+    fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+      applier.applyToMetadata(fragment.metadata);
+      applier.applyToTypeParameters(fragment.typeParameters);
+    });
+  }
+
+  void _applyToExtensionTypeDeclaration(
+    ExtensionTypeFragmentImpl fragment,
+    _InfoExtensionTypeDeclaration info,
+  ) {
+    fragment.setCodeRange(info.codeOffset, info.codeLength);
+    fragment.firstTokenOffset = info.firstTokenOffset;
+    fragment.nameOffset = info.nameOffset;
+    fragment.documentationComment = info.documentationComment;
+
+    DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+      _applyToTypeParameters(fragment.typeParameters, info.typeParameters);
+    });
+
+    _scheduleApplyMembersOffsets(fragment, () {
+      DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+        _applyToFields(fragment.fields, info.fields);
+        _applyToConstructors(fragment.constructors, info.constructors);
+        _applyToAccessors(fragment.getters, info.getters);
+        _applyToAccessors(fragment.setters, info.setters);
+        _applyToMethods(fragment.methods, info.methods);
+      });
+    });
+
+    fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+      applier.applyToMetadata(fragment.metadata);
+      applier.applyToTypeParameters(fragment.typeParameters);
+    });
+  }
+
+  void _applyToFields(
+    List<FieldFragmentImpl> fragmentList,
+    List<_InfoFieldDeclaration> infoList,
+  ) {
+    forCorrespondingPairs(fragmentList.withOriginDeclaration, infoList, (
+      fragment,
+      info,
+    ) {
+      fragment.setCodeRange(info.codeOffset, info.codeLength);
+      fragment.firstTokenOffset = info.firstTokenOffset;
+      fragment.nameOffset = info.nameOffset;
+      fragment.documentationComment = info.documentationComment;
+
+      fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+        applier.applyToMetadata(fragment.metadata);
+        applier.applyToConstantInitializer(fragment);
+      });
+    });
+  }
+
+  void _applyToFormalParameters(
+    List<FormalParameterFragmentImpl> parameters,
+    List<_InfoFormalParameter> infoList,
+  ) {
+    forCorrespondingPairs(
+      parameters.where((p) => p.isOriginDeclaration),
+      infoList,
+      (fragment, info) {
+        fragment.setCodeRange(info.codeOffset, info.codeLength);
+        fragment.firstTokenOffset = info.firstTokenOffset;
+        fragment.nameOffset = info.nameOffset;
+        fragment.documentationComment = info.documentationComment;
+      },
+    );
+  }
+
+  void _applyToFunctionDeclaration(
+    TopLevelFunctionFragmentImpl fragment,
+    _InfoExecutableDeclaration info,
+  ) {
+    fragment.setCodeRange(info.codeOffset, info.codeLength);
+    fragment.firstTokenOffset = info.firstTokenOffset;
+    fragment.nameOffset = info.nameOffset;
+    fragment.documentationComment = info.documentationComment;
+
+    DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+      _applyToTypeParameters(fragment.typeParameters, info.typeParameters);
+      _applyToFormalParameters(fragment.formalParameters, info.parameters);
+    });
+
+    fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+      applier.applyToMetadata(fragment.metadata);
+      applier.applyToTypeParameters(fragment.typeParameters);
+      applier.applyToFormalParameters(fragment.formalParameters);
+    });
+  }
+
+  void _applyToImports(List<LibraryImportImpl> imports, _InfoUnit info) {
+    forCorrespondingPairs(imports, info.imports, (element, info) {
+      element.importKeywordOffset = info.importKeywordOffset;
+      if (element.prefix case var prefixFragment?) {
+        prefixFragment.nameOffset = info.prefixOffset;
+        prefixFragment.offset = info.prefixOffset ?? info.importKeywordOffset;
+      }
+      _applyToCombinators(element.combinators, info.combinators);
+    });
+  }
+
+  void _applyToLibrary(LibraryElementImpl element, _InfoUnit info) {
+    element.nameOffset = info.libraryName.offset;
+    element.nameLength = info.libraryName.length;
+    element.documentationComment = info.docComment;
+
+    element.deferConstantOffsets(info.libraryConstantOffsets, (applier) {
+      applier.applyToMetadata(element.metadata);
+    });
+  }
+
+  void _applyToMethods(
+    List<MethodFragmentImpl> fragmentList,
+    List<_InfoExecutableDeclaration> infoList,
+  ) {
+    forCorrespondingPairs(fragmentList, infoList, (fragment, info) {
+      fragment.setCodeRange(info.codeOffset, info.codeLength);
+      fragment.firstTokenOffset = info.firstTokenOffset;
+      fragment.nameOffset = info.nameOffset;
+      fragment.documentationComment = info.documentationComment;
+
+      DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+        _applyToTypeParameters(fragment.typeParameters, info.typeParameters);
+        _applyToFormalParameters(fragment.formalParameters, info.parameters);
+      });
+
+      fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+        applier.applyToMetadata(fragment.metadata);
+        applier.applyToTypeParameters(fragment.typeParameters);
+        applier.applyToFormalParameters(fragment.formalParameters);
+      });
+    });
+  }
+
+  void _applyToMixinDeclaration(
+    MixinFragmentImpl fragment,
+    _InfoMixinDeclaration info,
+  ) {
+    fragment.setCodeRange(info.codeOffset, info.codeLength);
+    fragment.firstTokenOffset = info.firstTokenOffset;
+    fragment.nameOffset = info.nameOffset;
+    fragment.documentationComment = info.documentationComment;
+
+    DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+      _applyToTypeParameters(fragment.typeParameters, info.typeParameters);
+    });
+
+    _scheduleApplyMembersOffsets(fragment, () {
+      DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+        _applyToConstructors(fragment.constructors, info.constructors);
+        _applyToFields(fragment.fields, info.fields);
+        _applyToAccessors(fragment.getters, info.getters);
+        _applyToAccessors(fragment.setters, info.setters);
+        _applyToMethods(fragment.methods, info.methods);
+      });
+    });
+
+    fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+      applier.applyToMetadata(fragment.metadata);
+      applier.applyToTypeParameters(fragment.typeParameters);
+    });
+  }
+
+  void _applyToPartIncludes(List<PartIncludeImpl> imports, _InfoUnit info) {
+    forCorrespondingPairs(imports, info.parts, (element, info) {
+      element.partKeywordOffset = info.partKeywordOffset;
+    });
+  }
+
+  void _applyToTopLevelVariable(
+    TopLevelVariableFragmentImpl fragment,
+    _InfoTopLevelVariable info,
+  ) {
+    fragment.setCodeRange(info.codeOffset, info.codeLength);
+    fragment.firstTokenOffset = info.firstTokenOffset;
+    fragment.nameOffset = info.nameOffset;
+    fragment.documentationComment = info.documentationComment;
+
+    fragment.deferConstantOffsets(info.constantOffsets, (applier) {
+      applier.applyToMetadata(fragment.metadata);
+      applier.applyToConstantInitializer(fragment);
+    });
+  }
+
+  void _applyToTypeAlias(TypeAliasFragmentImpl fragment, _InfoTypeAlias info) {
+    fragment.setCodeRange(info.codeOffset, info.codeLength);
+    fragment.firstTokenOffset = info.firstTokenOffset;
+    fragment.nameOffset = info.nameOffset;
+    fragment.documentationComment = info.documentationComment;
+
+    DeferredResolutionReadingHelper.withoutLoadingResolution(() {
+      _applyToTypeParameters(fragment.typeParameters, info.typeParameters);
+    });
+
+    _setupApplyConstantOffsetsForTypeAlias(fragment, info.constantOffsets);
+  }
+
+  void _applyToTypeParameters(
+    List<TypeParameterFragmentImpl> fragmentList,
+    List<_InfoTypeParameter> infoList,
+  ) {
+    forCorrespondingPairs(fragmentList, infoList, (fragment, info) {
+      fragment.setCodeRange(info.codeOffset, info.codeLength);
+      fragment.firstTokenOffset = info.firstTokenOffset;
+      fragment.nameOffset = info.nameOffset;
+    });
+  }
+
+  /// Either defer, or eagerly invoke [callback].
+  void _scheduleApplyMembersOffsets(
+    InstanceFragmentImpl fragment,
+    void Function() callback,
+  ) {
+    if (_shouldDeferApplyMembersOffsets) {
+      fragment.deferApplyMembersOffsets(callback);
+    } else {
+      callback();
+    }
+  }
+
+  void _setupApplyConstantOffsetsForTypeAlias(
+    TypeAliasFragmentImpl fragment,
+    Uint32List constantOffsets,
+  ) {
+    fragment.deferConstantOffsets(constantOffsets, (applier) {
+      applier.applyToMetadata(fragment.metadata);
+      applier.applyToTypeParameters(fragment.typeParameters);
+    });
+  }
+}
+
+class _InfoBuilder {
+  _InfoUnit build(CompilationUnit unit) {
+    // Build all needed lists from `unit.declarations2` with a single iteration
+    // the list.
+    var classDeclarations = <_InfoClassDeclaration>[];
+    var classTypeAliases = <_InfoClassTypeAlias>[];
+    var enums = <_InfoEnumDeclaration>[];
+    var extensions = <_InfoExtensionDeclaration>[];
+    var extensionTypes = <_InfoExtensionTypeDeclaration>[];
+    var mixinDeclarations = <_InfoMixinDeclaration>[];
+    var topLevelFunctions = <_InfoExecutableDeclaration>[];
+    var topLevelGetters = <_InfoExecutableDeclaration>[];
+    var topLevelSetters = <_InfoExecutableDeclaration>[];
+    var topLevelVariable = <_InfoTopLevelVariable>[];
+    var typeAliases = <_InfoTypeAlias>[];
+    for (var declaration in unit.declarations2) {
+      if (declaration is ClassDeclaration2) {
+        classDeclarations.add(_buildClass(declaration));
+      } else if (declaration is ClassTypeAlias2) {
+        classTypeAliases.add(_buildClassTypeAlias(declaration));
+      } else if (declaration is EnumDeclaration2Impl) {
+        enums.add(_buildEnum(declaration));
+      } else if (declaration is ExtensionDeclaration2) {
+        extensions.add(_buildExtension(declaration));
+      } else if (declaration is ExtensionTypeDeclaration2) {
+        extensionTypes.add(_buildExtensionType(declaration));
+      } else if (declaration is MixinDeclaration2Impl) {
+        mixinDeclarations.add(_buildMixin(declaration));
+      } else if (declaration is TopLevelFunctionDeclarationImpl) {
+        topLevelFunctions.add(_buildTopLevelFunction(declaration));
+      } else if (declaration is TopLevelGetterDeclarationImpl) {
+        topLevelGetters.add(_buildTopLevelGetter(declaration));
+      } else if (declaration is TopLevelSetterDeclarationImpl) {
+        topLevelSetters.add(_buildTopLevelSetter(declaration));
+      } else if (declaration is TopLevelVariablesDeclaration) {
+        for (var variable in declaration.variables) {
+          topLevelVariable.add(_buildTopLevelVariable(declaration, variable));
+        }
+      } else if (declaration is FunctionTypeAlias2) {
+        typeAliases.add(_buildFunctionTypeAlias(declaration));
+      } else if (declaration is GenericTypeAlias2) {
+        typeAliases.add(_buildGenericTypeAlias(declaration));
+      }
+    }
+
+    // Build all needed lists from `unit.directives` with a single iteration
+    // the list.
+    var imports = <_InfoImport>[];
+    var exports = <_InfoExport>[];
+    var parts = <_InfoPart>[];
+    var rawImports = <ImportDirective>[];
+    var rawExports = <ExportDirective>[];
+    var rawParts = <PartDirective>[];
+    LibraryDirective? firstLibraryDirective;
+    for (var directive in unit.directives) {
+      if (directive is ImportDirective) {
+        rawImports.add(directive);
+        imports.add(_buildImport(directive));
+      } else if (directive is ExportDirective) {
+        rawExports.add(directive);
+        exports.add(_buildExport(directive));
+      } else if (directive is PartDirective) {
+        rawParts.add(directive);
+        parts.add(_buildPart(directive));
+      } else if (directive is LibraryDirective) {
+        firstLibraryDirective ??= directive;
+      }
+    }
+
+    return _InfoUnit(
+      codeOffset: unit.offset,
+      codeLength: unit.length,
+      lineStarts: unit.lineInfo.lineStarts,
+      libraryName: _buildLibraryName(firstLibraryDirective),
+      libraryConstantOffsets: _buildLibraryConstantOffsets(
+        unit.directives.firstOrNull,
+        rawImports,
+        rawExports,
+        rawParts,
+      ),
+      docComment: _getDocumentationComment(unit.directives.firstOrNull),
+      imports: imports,
+      exports: exports,
+      parts: parts,
+      classDeclarations: classDeclarations,
+      classTypeAliases: classTypeAliases,
+      enums: enums,
+      extensions: extensions,
+      extensionTypes: extensionTypes,
+      mixinDeclarations: mixinDeclarations,
+      topLevelFunctions: topLevelFunctions,
+      topLevelGetters: topLevelGetters,
+      topLevelSetters: topLevelSetters,
+      topLevelVariable: topLevelVariable,
+      typeAliases: typeAliases,
+    );
+  }
+
+  _InfoClassDeclaration _buildClass(ClassDeclaration2 node) {
+    return _InfoClassDeclaration(
+      data: _buildInterfaceData(
+        node,
+        name: node.namePart.typeName,
+        typeParameters: node.namePart.typeParameters,
+        primaryConstructor: node.namePart.tryCast(),
+        members: node.body.members,
+      ),
+    );
+  }
+
+  _InfoClassTypeAlias _buildClassTypeAlias(ClassTypeAlias2 node) {
+    return _InfoClassTypeAlias(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: node.name.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(node),
+      typeParameters: _buildTypeParameters(node.typeParameters),
+      constantOffsets: _buildConstantOffsets(
+        metadata: node.metadata,
+        typeParameters: node.typeParameters,
+      ),
+    );
+  }
+
+  _InfoCombinator _buildCombinator(Combinator node) {
+    return _InfoCombinator(offset: node.offset, end: node.end);
+  }
+
+  List<_InfoCombinator> _buildCombinators(List<Combinator> combinators) {
+    return combinators.map(_buildCombinator).toList();
+  }
+
+  Uint32List _buildConstantOffsets({
+    NodeList<Annotation>? metadata,
+    Iterable<ImportDirective>? importDirectives,
+    Iterable<ExportDirective>? exportDirectives,
+    Iterable<PartDirective>? partDirectives,
+    TypeParameterList? typeParameters,
+    FormalParameterList? formalParameters,
+    Expression? constantInitializer,
+    NodeList<ConstructorInitializer>? constructorInitializers,
+    NodeList<EnumConstantDeclaration2>? enumConstants,
+    TypeAnnotation? aliasedType,
+    EnumConstantArguments? enumConstantArguments,
+  }) {
+    var collector = _OffsetsCollector();
+
+    void addDirectives(Iterable<Directive>? directives) {
+      if (directives != null) {
+        for (var directive in directives) {
+          directive.metadata.accept2(collector);
+        }
+      }
+    }
+
+    void addTypeParameters(TypeParameterList? typeParameters) {
+      if (typeParameters != null) {
+        for (var typeParameter in typeParameters.typeParameters) {
+          typeParameter.metadata.accept2(collector);
+        }
+      }
+    }
+
+    void addFormalParameters(FormalParameterList? formalParameters) {
+      if (formalParameters != null) {
+        for (var parameter in formalParameters.allFormalParameters) {
+          parameter.metadata.accept2(collector);
+          addFormalParameters(parameter.functionTypedSuffix?.formalParameters);
+          if (parameter.defaultClause case var defaultClause?) {
+            collector.visitReplaceable(defaultClause.value2);
+          }
+        }
+      }
+    }
+
+    metadata?.accept2(collector);
+    addDirectives(importDirectives);
+    addDirectives(exportDirectives);
+    addDirectives(partDirectives);
+    addTypeParameters(typeParameters);
+    addFormalParameters(formalParameters);
+    collector.visitReplaceable(constantInitializer);
+    constructorInitializers?.accept2(collector);
+    if (enumConstants != null) {
+      for (var enumConstant in enumConstants) {
+        enumConstant.metadata.accept2(collector);
+      }
+    }
+    if (aliasedType is GenericFunctionType) {
+      addTypeParameters(aliasedType.typeParameters);
+      addFormalParameters(aliasedType.parameters);
+    }
+    if (enumConstantArguments != null) {
+      // Detaching replaces the whole initializer of an enum constant.
+      if (isSerializable(enumConstantArguments)) {
+        enumConstantArguments.typeArguments?.accept2(collector);
+        enumConstantArguments.argumentList.accept2(collector);
+      }
+    }
+    return collector.offsets.takeAndReset();
+  }
+
+  _InfoConstructorDeclaration _buildConstructor(ConstructorDeclaration2 node) {
+    return _InfoConstructorDeclaration(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: node.name?.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(node),
+      typeParameters: const [],
+      parameters: _buildFormalParameters(node.formalParameters),
+      constantOffsets: _buildConstantOffsets(
+        metadata: node.metadata,
+        formalParameters: node.formalParameters,
+        constructorInitializers: node.initializers,
+      ),
+      newKeywordOffset: node.newKeyword?.offset,
+      factoryKeywordOffset: node.factoryKeyword?.offset,
+      typeNameOffset: node.typeName?.offset,
+      periodOffset: node.period?.offset,
+      nameEnd: (node.name ?? node.typeName)?.end,
+      thisKeywordOffset: null,
+      primaryHeaderCodeRange: null,
+      primaryBodyCodeRange: null,
+    );
+  }
+
+  _InfoEnumDeclaration _buildEnum(EnumDeclaration2Impl node) {
+    return _InfoEnumDeclaration(
+      data: _buildInterfaceData(
+        node,
+        name: node.namePart.typeName,
+        typeParameters: node.namePart.typeParameters,
+        primaryConstructor: node.namePart.tryCast(),
+        members: node.body.members,
+        fields: [
+          ...node.body.constants.map(_buildEnumConstant),
+          for (var declaration
+              in node.body.members.whereType<FieldsDeclaration>())
+            for (var field in declaration.fields)
+              _buildField(declaration, field),
+        ],
+      ),
+    );
+  }
+
+  _InfoFieldDeclaration _buildEnumConstant(EnumConstantDeclaration2 node) {
+    var codeOffset = node.offset;
+    return _InfoFieldDeclaration(
+      firstTokenOffset: node.offset,
+      codeOffset: codeOffset,
+      codeLength: node.end - codeOffset,
+      nameOffset: node.name.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(node),
+      constantOffsets: _buildConstantOffsets(
+        metadata: node.metadata,
+        enumConstantArguments: node.arguments,
+      ),
+    );
+  }
+
+  _InfoExport _buildExport(ExportDirective node) {
+    return _InfoExport(
+      exportKeywordOffset: node.exportKeyword.offset,
+      combinators: _buildCombinators(node.combinators),
+    );
+  }
+
+  _InfoExtensionDeclaration _buildExtension(ExtensionDeclaration2 node) {
+    return _InfoExtensionDeclaration(
+      data: _buildInstanceData(
+        node,
+        name: node.name,
+        typeParameters: node.typeParameters,
+        members: node.body.members,
+      ),
+    );
+  }
+
+  _InfoExtensionTypeDeclaration _buildExtensionType(
+    ExtensionTypeDeclaration2 node,
+  ) {
+    return _InfoExtensionTypeDeclaration(
+      data: _buildInterfaceData(
+        node,
+        name: node.namePart.typeName,
+        typeParameters: node.namePart.typeParameters,
+        primaryConstructor: node.namePart.tryCast(),
+        members: node.body.members,
+      ),
+    );
+  }
+
+  _InfoFieldDeclaration _buildField(
+    FieldsDeclaration declaration,
+    Field2 node,
+  ) {
+    var codeOffset = node == declaration.fields.first
+        ? declaration.offset
+        : node.offset;
+    return _InfoFieldDeclaration(
+      firstTokenOffset: node.offset,
+      codeOffset: codeOffset,
+      codeLength: node.end - codeOffset,
+      nameOffset: node.name.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(declaration),
+      constantOffsets: _buildConstantOffsets(
+        metadata: declaration.metadata,
+        constantInitializer: node.initializer,
+      ),
+    );
+  }
+
+  _InfoFormalParameter _buildFormalParameter(FormalParameter node) {
+    var functionTypedSuffix = node.functionTypedSuffix;
+
+    return _InfoFormalParameter(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: node.name?.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(node),
+      typeParameters: _buildTypeParameters(functionTypedSuffix?.typeParameters),
+      parameters: _buildFormalParameters(functionTypedSuffix?.formalParameters),
+    );
+  }
+
+  List<_InfoFormalParameter> _buildFormalParameters(FormalParameterList? node) {
+    if (node == null) {
+      return [];
+    }
+    var parameters = node.allFormalParameters;
+    return List.generate(
+      parameters.length,
+      (index) => _buildFormalParameter(parameters[index]),
+    );
+  }
+
+  _InfoTypeAlias _buildFunctionTypeAlias(FunctionTypeAlias2 node) {
+    return _InfoTypeAlias(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: node.name.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(node),
+      typeParameters: _buildTypeParameters(node.typeParameters),
+      constantOffsets: _buildConstantOffsets(
+        metadata: node.metadata,
+        typeParameters: node.typeParameters,
+        aliasedType: node.returnType,
+      ),
+    );
+  }
+
+  _InfoTypeAlias _buildGenericTypeAlias(GenericTypeAlias2 node) {
+    return _InfoTypeAlias(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: node.name.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(node),
+      typeParameters: _buildTypeParameters(node.typeParameters),
+      constantOffsets: _buildConstantOffsets(
+        metadata: node.metadata,
+        typeParameters: node.typeParameters,
+        aliasedType: node.type,
+      ),
+    );
+  }
+
+  _InfoImport _buildImport(ImportDirective node) {
+    return _InfoImport(
+      importKeywordOffset: node.importKeyword.offset,
+      prefixOffset: node.prefixName?.offsetIfNotEmpty,
+      combinators: _buildCombinators(node.combinators),
+    );
+  }
+
+  _InstanceData _buildInstanceData(
+    AnnotatedNode node, {
+    required Token? name,
+    required TypeParameterList? typeParameters,
+    required List<AnnotatedNode> members,
+    List<_InfoFieldDeclaration>? fields,
+  }) {
+    // Build all needed lists based on `members` with a single iteration the list.
+    var getters = <_InfoExecutableDeclaration>[];
+    var setters = <_InfoExecutableDeclaration>[];
+    var methods = <_InfoExecutableDeclaration>[];
+    bool processFields = fields == null;
+    fields ??= <_InfoFieldDeclaration>[];
+    for (var member in members) {
+      if (member is MethodDeclarationV1OriginImpl) {
+        switch (member) {
+          case GetterDeclarationImpl():
+            getters.add(_buildMethodDeclaration(member));
+          case SetterDeclarationImpl():
+            setters.add(_buildMethodDeclaration(member));
+          case MethodDeclaration2Impl() || OperatorDeclarationImpl():
+            methods.add(_buildMethodDeclaration(member));
+        }
+      } else if (processFields && member is FieldsDeclaration) {
+        for (var field in member.fields) {
+          fields.add(_buildField(member, field));
+        }
+      }
+    }
+
+    var annotatedNode = node;
+    return _InstanceData(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: name?.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(annotatedNode),
+      typeParameters: _buildTypeParameters(typeParameters),
+      fields: fields,
+      getters: getters,
+      setters: setters,
+      methods: methods,
+      constantOffsets: _buildConstantOffsets(
+        metadata: annotatedNode.metadata,
+        typeParameters: typeParameters,
+      ),
+    );
+  }
+
+  _InterfaceData _buildInterfaceData(
+    AnnotatedNode node, {
+    required Token? name,
+    required TypeParameterList? typeParameters,
+    PrimaryConstructorDeclaration? primaryConstructor,
+    required List<AnnotatedNode> members,
+    List<_InfoFieldDeclaration>? fields,
+  }) {
+    var instanceData = _buildInstanceData(
+      node,
+      name: name,
+      typeParameters: typeParameters,
+      members: members,
+      fields: fields,
+    );
+
+    var primaryConstructorBody = members
+        .whereType<PrimaryConstructorBody2>()
+        .firstOrNull;
+
+    return _InterfaceData(
+      instanceData: instanceData,
+      constructors: [
+        if (primaryConstructor != null)
+          _buildPrimaryConstructor(
+            primaryConstructor,
+            body: primaryConstructorBody,
+          ),
+        ...members.whereType<ConstructorDeclaration2>().map(_buildConstructor),
+      ],
+    );
+  }
+
+  Uint32List _buildLibraryConstantOffsets(
+    Directive? firstDirective,
+    List<ImportDirective> imports,
+    List<ExportDirective> exports,
+    List<PartDirective> parts,
+  ) {
+    return _buildConstantOffsets(
+      metadata: firstDirective?.metadata,
+      importDirectives: imports,
+      exportDirectives: exports,
+      partDirectives: parts,
+    );
+  }
+
+  _InfoLibraryName _buildLibraryName(LibraryDirective? firstLibraryDirective) {
+    var nameOffset = -1;
+    var nameLength = 0;
+    var libraryName = firstLibraryDirective?.name;
+    if (libraryName != null) {
+      nameOffset = libraryName.offset;
+      nameLength = libraryName.length;
+    }
+    return _InfoLibraryName(offset: nameOffset, length: nameLength);
+  }
+
+  _InfoExecutableDeclaration _buildMethodDeclaration(
+    MethodDeclarationV1OriginImpl node,
+  ) {
+    return _InfoExecutableDeclaration(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: node.nameToken.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(node),
+      typeParameters: _buildTypeParameters(node.writtenTypeParameters),
+      parameters: _buildFormalParameters(node.writtenFormalParameters),
+      constantOffsets: _buildConstantOffsets(
+        metadata: node.metadata,
+        typeParameters: node.writtenTypeParameters,
+        formalParameters: node.writtenFormalParameters,
+      ),
+    );
+  }
+
+  _InfoMixinDeclaration _buildMixin(MixinDeclaration2Impl node) {
+    return _InfoMixinDeclaration(
+      data: _buildInterfaceData(
+        node,
+        name: node.name,
+        typeParameters: node.typeParameters,
+        members: node.body.members,
+      ),
+    );
+  }
+
+  _InfoPart _buildPart(PartDirective node) {
+    return _InfoPart(partKeywordOffset: node.partKeyword.offset);
+  }
+
+  _InfoConstructorDeclaration _buildPrimaryConstructor(
+    PrimaryConstructorDeclaration node, {
+    required PrimaryConstructorBody2? body,
+  }) {
+    var headerOffset = (node.constructorName ?? node.formalParameters).offset;
+    return _InfoConstructorDeclaration(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: node.constructorName?.name.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(body),
+      typeParameters: const [],
+      parameters: _buildFormalParameters(node.formalParameters),
+      constantOffsets: _buildConstantOffsets(
+        metadata: body?.metadata,
+        formalParameters: node.formalParameters,
+        constructorInitializers: body?.initializers,
+      ),
+      newKeywordOffset: null,
+      factoryKeywordOffset: null,
+      typeNameOffset: node.typeName.offset,
+      periodOffset: node.constructorName?.period.offset,
+      nameEnd: (node.constructorName?.name ?? node.typeName).end,
+      thisKeywordOffset: body?.thisKeyword.offset,
+      primaryHeaderCodeRange: SourceRange(
+        headerOffset,
+        node.end - headerOffset,
+      ),
+      primaryBodyCodeRange: body != null
+          ? SourceRange(body.offset, body.length)
+          : null,
+    );
+  }
+
+  _InfoExecutableDeclaration _buildTopLevelFunction(
+    TopLevelFunctionDeclarationImpl node,
+  ) {
+    return _InfoExecutableDeclaration(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: node.name.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(node),
+      typeParameters: _buildTypeParameters(node.typeParameters),
+      parameters: _buildFormalParameters(node.formalParameters),
+      constantOffsets: _buildConstantOffsets(
+        metadata: node.metadata,
+        typeParameters: node.typeParameters,
+        formalParameters: node.formalParameters,
+      ),
+    );
+  }
+
+  _InfoExecutableDeclaration _buildTopLevelGetter(
+    TopLevelGetterDeclarationImpl node,
+  ) {
+    return _InfoExecutableDeclaration(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: node.name.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(node),
+      typeParameters: const [],
+      parameters: _buildFormalParameters(node.recoveryFormalParameters),
+      constantOffsets: _buildConstantOffsets(
+        metadata: node.metadata,
+        formalParameters: node.recoveryFormalParameters,
+      ),
+    );
+  }
+
+  _InfoExecutableDeclaration _buildTopLevelSetter(
+    TopLevelSetterDeclarationImpl node,
+  ) {
+    return _InfoExecutableDeclaration(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: node.name.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(node),
+      typeParameters: const [],
+      parameters: _buildFormalParameters(node.formalParameters),
+      constantOffsets: _buildConstantOffsets(
+        metadata: node.metadata,
+        formalParameters: node.formalParameters,
+      ),
+    );
+  }
+
+  _InfoTopLevelVariable _buildTopLevelVariable(
+    TopLevelVariablesDeclaration declaration,
+    TopLevelVariable2 node,
+  ) {
+    var codeOffset = node == declaration.variables.first
+        ? declaration.offset
+        : node.offset;
+    return _InfoTopLevelVariable(
+      firstTokenOffset: node.offset,
+      codeOffset: codeOffset,
+      codeLength: node.end - codeOffset,
+      nameOffset: node.name.offsetIfNotEmpty,
+      documentationComment: _getDocumentationComment(declaration),
+      constantOffsets: _buildConstantOffsets(
+        metadata: declaration.metadata,
+        constantInitializer: node.initializer,
+      ),
+    );
+  }
+
+  _InfoTypeParameter _buildTypeParameter(TypeParameter node) {
+    return _InfoTypeParameter(
+      firstTokenOffset: node.offset,
+      codeOffset: node.offset,
+      codeLength: node.length,
+      nameOffset: node.name.offsetIfNotEmpty,
+    );
+  }
+
+  List<_InfoTypeParameter> _buildTypeParameters(TypeParameterList? node) {
+    if (node == null) {
+      return [];
+    }
+    var typeParameters = node.typeParameters;
+    return List.generate(
+      typeParameters.length,
+      (index) => _buildTypeParameter(typeParameters[index]),
+    );
+  }
+
+  String? _getDocumentationComment(AnnotatedNode? node) {
+    var comment = node?.documentationComment;
+    return getCommentNodeRawText(comment);
+  }
+}
+
+class _InfoClassDeclaration extends _InfoInterfaceDeclaration {
+  new({required super.data});
+
+  new read(super.reader) : super.read();
+}
+
+class _InfoClassTypeAlias extends _InfoNode {
+  final List<_InfoTypeParameter> typeParameters;
+  final Uint32List constantOffsets;
+
+  new({
+    required super.firstTokenOffset,
+    required super.codeOffset,
+    required super.codeLength,
+    required super.nameOffset,
+    required super.documentationComment,
+    required this.typeParameters,
+    required this.constantOffsets,
+  }) : super();
+
+  new read(super.reader)
+    : typeParameters = reader.readList(_InfoTypeParameter.read),
+      constantOffsets = reader.readUint30List(),
+      super.read();
+
+  @override
+  void write(BinaryWriter writer) {
+    writer.writeList(typeParameters, (v) => v.write(writer));
+    writer.writeUint30List(constantOffsets);
+    super.write(writer);
+  }
+}
+
+class _InfoCombinator {
+  final int offset;
+  final int end;
+
+  new({required this.offset, required this.end});
+
+  factory read(BinaryReader reader) {
+    return _InfoCombinator(
+      offset: reader.readUint30(),
+      end: reader.readUint30(),
+    );
+  }
+
+  void write(BinaryWriter writer) {
+    writer.writeUint30(offset);
+    writer.writeUint30(end);
+  }
+}
+
+class _InfoConstructorDeclaration extends _InfoExecutableDeclaration {
+  final int? newKeywordOffset;
+  final int? factoryKeywordOffset;
+  final int? typeNameOffset;
+  final int? periodOffset;
+  final int? nameEnd;
+  final int? thisKeywordOffset;
+  final SourceRange? primaryHeaderCodeRange;
+  final SourceRange? primaryBodyCodeRange;
+
+  new({
+    required super.firstTokenOffset,
+    required super.codeOffset,
+    required super.codeLength,
+    required super.nameOffset,
+    required super.documentationComment,
+    required super.typeParameters,
+    required super.parameters,
+    required super.constantOffsets,
+    required this.newKeywordOffset,
+    required this.factoryKeywordOffset,
+    required this.typeNameOffset,
+    required this.periodOffset,
+    required this.nameEnd,
+    required this.thisKeywordOffset,
+    required this.primaryHeaderCodeRange,
+    required this.primaryBodyCodeRange,
+  });
+
+  new read(super.reader)
+    : newKeywordOffset = reader.readOptionalUint30(),
+      factoryKeywordOffset = reader.readOptionalUint30(),
+      typeNameOffset = reader.readOptionalUint30(),
+      periodOffset = reader.readOptionalUint30(),
+      nameEnd = reader.readOptionalUint30(),
+      thisKeywordOffset = reader.readOptionalUint30(),
+      primaryHeaderCodeRange = reader.readOptionalSourceRange(),
+      primaryBodyCodeRange = reader.readOptionalSourceRange(),
+      super.read();
+
+  @override
+  void write(BinaryWriter writer) {
+    writer.writeOptionalUint30(newKeywordOffset);
+    writer.writeOptionalUint30(factoryKeywordOffset);
+    writer.writeOptionalUint30(typeNameOffset);
+    writer.writeOptionalUint30(periodOffset);
+    writer.writeOptionalUint30(nameEnd);
+    writer.writeOptionalUint30(thisKeywordOffset);
+    writer.writeOptionalSourceRange(primaryHeaderCodeRange);
+    writer.writeOptionalSourceRange(primaryBodyCodeRange);
+    super.write(writer);
+  }
+}
+
+class _InfoEnumDeclaration extends _InfoInterfaceDeclaration {
+  new({required super.data});
+
+  new read(super.reader) : super.read();
+}
+
+class _InfoExecutableDeclaration extends _InfoNode {
+  final List<_InfoTypeParameter> typeParameters;
+  final List<_InfoFormalParameter> parameters;
+  final Uint32List constantOffsets;
+
+  new({
+    required super.firstTokenOffset,
+    required super.codeOffset,
+    required super.codeLength,
+    required super.nameOffset,
+    required super.documentationComment,
+    required this.typeParameters,
+    required this.parameters,
+    required this.constantOffsets,
+  }) : super();
+
+  new read(super.reader)
+    : typeParameters = reader.readList(_InfoTypeParameter.read),
+      parameters = reader.readList(_InfoFormalParameter.read),
+      constantOffsets = reader.readUint30List(),
+      super.read();
+
+  @override
+  void write(BinaryWriter writer) {
+    writer.writeList(typeParameters, (v) => v.write(writer));
+    writer.writeList(parameters, (v) => v.write(writer));
+    writer.writeUint30List(constantOffsets);
+    super.write(writer);
+  }
+}
+
+class _InfoExport {
+  final int exportKeywordOffset;
+  final List<_InfoCombinator> combinators;
+
+  new({required this.exportKeywordOffset, required this.combinators});
+
+  factory read(BinaryReader reader) {
+    return _InfoExport(
+      exportKeywordOffset: reader.readUint30(),
+      combinators: reader.readList(_InfoCombinator.read),
+    );
+  }
+
+  void write(BinaryWriter writer) {
+    writer.writeUint30(exportKeywordOffset);
+    writer.writeList(combinators, (v) => v.write(writer));
+  }
+}
+
+class _InfoExtensionDeclaration extends _InfoInstanceDeclaration {
+  new({required super.data});
+
+  new read(super.reader) : super.read();
+}
+
+class _InfoExtensionTypeDeclaration extends _InfoInterfaceDeclaration {
+  new({required super.data});
+
+  new read(super.reader) : super.read();
+}
+
+class _InfoFieldDeclaration extends _InfoNode {
+  final Uint32List constantOffsets;
+
+  new({
+    required super.firstTokenOffset,
+    required super.codeOffset,
+    required super.codeLength,
+    required super.nameOffset,
+    required super.documentationComment,
+    required this.constantOffsets,
+  }) : super();
+
+  new read(super.reader)
+    : constantOffsets = reader.readUint30List(),
+      super.read();
+
+  @override
+  void write(BinaryWriter writer) {
+    writer.writeUint30List(constantOffsets);
+    super.write(writer);
+  }
+}
+
+class _InfoFormalParameter extends _InfoNode {
+  final List<_InfoTypeParameter> typeParameters;
+  final List<_InfoFormalParameter> parameters;
+
+  new({
+    required super.firstTokenOffset,
+    required super.codeOffset,
+    required super.codeLength,
+    required super.nameOffset,
+    required super.documentationComment,
+    required this.typeParameters,
+    required this.parameters,
+  });
+
+  new read(super.reader)
+    : typeParameters = reader.readList(_InfoTypeParameter.read),
+      parameters = reader.readList(_InfoFormalParameter.read),
+      super.read();
+
+  @override
+  void write(BinaryWriter writer) {
+    writer.writeList(typeParameters, (v) => v.write(writer));
+    writer.writeList(parameters, (v) => v.write(writer));
+    super.write(writer);
+  }
+}
+
+class _InfoImport {
+  final int importKeywordOffset;
+  final int? prefixOffset;
+  final List<_InfoCombinator> combinators;
+
+  new({
+    required this.importKeywordOffset,
+    required this.prefixOffset,
+    required this.combinators,
+  });
+
+  factory read(BinaryReader reader) {
+    return _InfoImport(
+      importKeywordOffset: reader.readUint30(),
+      prefixOffset: reader.readOptionalUint30(),
+      combinators: reader.readList(_InfoCombinator.read),
+    );
+  }
+
+  void write(BinaryWriter writer) {
+    writer.writeUint30(importKeywordOffset);
+    writer.writeOptionalUint30(prefixOffset);
+    writer.writeList(combinators, (v) => v.write(writer));
+  }
+}
+
+abstract class _InfoInstanceDeclaration extends _InfoNode {
+  final List<_InfoTypeParameter> typeParameters;
+  final List<_InfoFieldDeclaration> fields;
+  final List<_InfoExecutableDeclaration> getters;
+  final List<_InfoExecutableDeclaration> setters;
+  final List<_InfoExecutableDeclaration> methods;
+  final Uint32List constantOffsets;
+
+  new({required _InstanceData data})
+    : typeParameters = data.typeParameters,
+      fields = data.fields,
+      getters = data.getters,
+      setters = data.setters,
+      methods = data.methods,
+      constantOffsets = data.constantOffsets,
+      super(
+        codeOffset: data.codeOffset,
+        codeLength: data.codeLength,
+        firstTokenOffset: data.firstTokenOffset,
+        nameOffset: data.nameOffset,
+        documentationComment: data.documentationComment,
+      );
+
+  new read(super.reader)
+    : typeParameters = reader.readList(_InfoTypeParameter.read),
+      fields = reader.readList(_InfoFieldDeclaration.read),
+      getters = reader.readList(_InfoExecutableDeclaration.read),
+      setters = reader.readList(_InfoExecutableDeclaration.read),
+      methods = reader.readList(_InfoExecutableDeclaration.read),
+      constantOffsets = reader.readUint30List(),
+      super.read();
+
+  @override
+  void write(BinaryWriter writer) {
+    writer.writeList(typeParameters, (v) => v.write(writer));
+    writer.writeList(fields, (v) => v.write(writer));
+    writer.writeList(getters, (v) => v.write(writer));
+    writer.writeList(setters, (v) => v.write(writer));
+    writer.writeList(methods, (v) => v.write(writer));
+    writer.writeUint30List(constantOffsets);
+    super.write(writer);
+  }
+}
+
+abstract class _InfoInterfaceDeclaration extends _InfoInstanceDeclaration {
+  final List<_InfoConstructorDeclaration> constructors;
+
+  new({required _InterfaceData data})
+    : constructors = data.constructors,
+      super(data: data.instanceData);
+
+  new read(super.reader)
+    : constructors = reader.readList(_InfoConstructorDeclaration.read),
+      super.read();
+
+  @override
+  void write(BinaryWriter writer) {
+    writer.writeList(constructors, (v) => v.write(writer));
+    super.write(writer);
+  }
+}
+
+class _InfoLibraryName {
+  final int offset;
+  final int length;
+
+  new({required this.offset, required this.length});
+
+  factory read(BinaryReader reader) {
+    return _InfoLibraryName(
+      offset: reader.readUint30() - 1,
+      length: reader.readUint30(),
+    );
+  }
+
+  void write(BinaryWriter writer) {
+    writer.writeUint30(offset + 1);
+    writer.writeUint30(length);
+  }
+}
+
+class _InfoMixinDeclaration extends _InfoInterfaceDeclaration {
+  new({required super.data});
+
+  new read(super.reader) : super.read();
+}
+
+abstract class _InfoNode {
+  final int firstTokenOffset;
+  final int codeOffset;
+  final int codeLength;
+  final int? nameOffset;
+  final String? documentationComment;
+
+  new({
+    required this.firstTokenOffset,
+    required this.codeOffset,
+    required this.codeLength,
+    required this.nameOffset,
+    required this.documentationComment,
+  });
+
+  new read(BinaryReader reader)
+    : firstTokenOffset = reader.readUint30(),
+      codeOffset = reader.readUint30(),
+      codeLength = reader.readUint30(),
+      nameOffset = reader.readOptionalUint30(),
+      documentationComment = reader.readStringUtf8().nullIfEmpty;
+
+  void write(BinaryWriter writer) {
+    writer.writeUint30(firstTokenOffset);
+    writer.writeUint30(codeOffset);
+    writer.writeUint30(codeLength);
+    writer.writeOptionalUint30(nameOffset);
+    writer.writeStringUtf8(documentationComment ?? '');
+  }
+}
+
+class _InfoPart {
+  final int partKeywordOffset;
+
+  new({required this.partKeywordOffset});
+
+  factory read(BinaryReader reader) {
+    return _InfoPart(partKeywordOffset: reader.readUint30());
+  }
+
+  void write(BinaryWriter writer) {
+    writer.writeUint30(partKeywordOffset);
+  }
+}
+
+class _InfoTopLevelVariable extends _InfoNode {
+  final Uint32List constantOffsets;
+
+  new({
+    required super.firstTokenOffset,
+    required super.codeOffset,
+    required super.codeLength,
+    required super.nameOffset,
+    required super.documentationComment,
+    required this.constantOffsets,
+  }) : super();
+
+  new read(super.reader)
+    : constantOffsets = reader.readUint30List(),
+      super.read();
+
+  @override
+  void write(BinaryWriter writer) {
+    writer.writeUint30List(constantOffsets);
+    super.write(writer);
+  }
+}
+
+class _InfoTypeAlias extends _InfoNode {
+  final List<_InfoTypeParameter> typeParameters;
+  final Uint32List constantOffsets;
+
+  new({
+    required super.firstTokenOffset,
+    required super.codeOffset,
+    required super.codeLength,
+    required super.nameOffset,
+    required super.documentationComment,
+    required this.typeParameters,
+    required this.constantOffsets,
+  }) : super();
+
+  new read(super.reader)
+    : typeParameters = reader.readList(_InfoTypeParameter.read),
+      constantOffsets = reader.readUint30List(),
+      super.read();
+
+  @override
+  void write(BinaryWriter writer) {
+    writer.writeList(typeParameters, (v) => v.write(writer));
+    writer.writeUint30List(constantOffsets);
+    super.write(writer);
+  }
+}
+
+class _InfoTypeParameter extends _InfoNode {
+  new({
+    required super.firstTokenOffset,
+    required super.codeOffset,
+    required super.codeLength,
+    required super.nameOffset,
+  }) : super(documentationComment: null);
+
+  new read(super.reader) : super.read();
+}
+
+class _InfoUnit {
+  final int codeOffset;
+  final int codeLength;
+  final List<int> lineStarts;
+  final _InfoLibraryName libraryName;
+  final Uint32List libraryConstantOffsets;
+  final String? docComment;
+  final List<_InfoImport> imports;
+  final List<_InfoExport> exports;
+  final List<_InfoPart> parts;
+  final List<_InfoClassDeclaration> classDeclarations;
+  final List<_InfoClassTypeAlias> classTypeAliases;
+  final List<_InfoEnumDeclaration> enums;
+  final List<_InfoExtensionDeclaration> extensions;
+  final List<_InfoExtensionTypeDeclaration> extensionTypes;
+  final List<_InfoMixinDeclaration> mixinDeclarations;
+  final List<_InfoExecutableDeclaration> topLevelFunctions;
+  final List<_InfoExecutableDeclaration> topLevelGetters;
+  final List<_InfoExecutableDeclaration> topLevelSetters;
+  final List<_InfoTopLevelVariable> topLevelVariable;
+  final List<_InfoTypeAlias> typeAliases;
+
+  new({
+    required this.codeOffset,
+    required this.codeLength,
+    required this.lineStarts,
+    required this.libraryName,
+    required this.libraryConstantOffsets,
+    required this.docComment,
+    required this.imports,
+    required this.exports,
+    required this.parts,
+    required this.classDeclarations,
+    required this.classTypeAliases,
+    required this.enums,
+    required this.extensions,
+    required this.extensionTypes,
+    required this.mixinDeclarations,
+    required this.topLevelFunctions,
+    required this.topLevelGetters,
+    required this.topLevelSetters,
+    required this.topLevelVariable,
+    required this.typeAliases,
+  });
+
+  new read(BinaryReader reader)
+    : codeOffset = reader.readUint30(),
+      codeLength = reader.readUint30(),
+      lineStarts = reader.readUint30List(),
+      libraryName = _InfoLibraryName.read(reader),
+      libraryConstantOffsets = reader.readUint30List(),
+      docComment = reader.readOptionalStringUtf8(),
+      imports = reader.readList(_InfoImport.read),
+      exports = reader.readList(_InfoExport.read),
+      parts = reader.readList(_InfoPart.read),
+      classDeclarations = reader.readList(_InfoClassDeclaration.read),
+      classTypeAliases = reader.readList(_InfoClassTypeAlias.read),
+      enums = reader.readList(_InfoEnumDeclaration.read),
+      extensions = reader.readList(_InfoExtensionDeclaration.read),
+      extensionTypes = reader.readList(_InfoExtensionTypeDeclaration.read),
+      mixinDeclarations = reader.readList(_InfoMixinDeclaration.read),
+      topLevelFunctions = reader.readList(_InfoExecutableDeclaration.read),
+      topLevelGetters = reader.readList(_InfoExecutableDeclaration.read),
+      topLevelSetters = reader.readList(_InfoExecutableDeclaration.read),
+      topLevelVariable = reader.readList(_InfoTopLevelVariable.read),
+      typeAliases = reader.readList(_InfoTypeAlias.read);
+
+  void write(BinaryWriter writer) {
+    writer.writeUint30(codeOffset);
+    writer.writeUint30(codeLength);
+    writer.writeUint30List(lineStarts);
+    libraryName.write(writer);
+    writer.writeUint30List(libraryConstantOffsets);
+    writer.writeOptionalStringUtf8(docComment);
+    writer.writeList(imports, (v) => v.write(writer));
+    writer.writeList(exports, (v) => v.write(writer));
+    writer.writeList(parts, (v) => v.write(writer));
+    writer.writeList(classDeclarations, (v) => v.write(writer));
+    writer.writeList(classTypeAliases, (v) => v.write(writer));
+    writer.writeList(enums, (v) => v.write(writer));
+    writer.writeList(extensions, (v) => v.write(writer));
+    writer.writeList(extensionTypes, (v) => v.write(writer));
+    writer.writeList(mixinDeclarations, (v) => v.write(writer));
+    writer.writeList(topLevelFunctions, (v) => v.write(writer));
+    writer.writeList(topLevelGetters, (v) => v.write(writer));
+    writer.writeList(topLevelSetters, (v) => v.write(writer));
+    writer.writeList(topLevelVariable, (v) => v.write(writer));
+    writer.writeList(typeAliases, (v) => v.write(writer));
+  }
+}
+
+class _InstanceData {
+  final int firstTokenOffset;
+  final int codeOffset;
+  final int codeLength;
+  final int? nameOffset;
+  final String? documentationComment;
+  final List<_InfoTypeParameter> typeParameters;
+  final List<_InfoFieldDeclaration> fields;
+  final List<_InfoExecutableDeclaration> getters;
+  final List<_InfoExecutableDeclaration> setters;
+  final List<_InfoExecutableDeclaration> methods;
+  final Uint32List constantOffsets;
+
+  new({
+    required this.firstTokenOffset,
+    required this.codeOffset,
+    required this.codeLength,
+    required this.nameOffset,
+    required this.documentationComment,
+    required this.typeParameters,
+    required this.fields,
+    required this.getters,
+    required this.setters,
+    required this.methods,
+    required this.constantOffsets,
+  });
+}
+
+class _InterfaceData {
+  final _InstanceData instanceData;
+  final List<_InfoConstructorDeclaration> constructors;
+
+  new({required this.instanceData, required this.constructors});
+}
+
+class _OffsetsApplier extends _OffsetsAstVisitor {
+  final _SafeListIterator<int> _iterator;
+
+  new(this._iterator);
+
+  void applyToConstantInitializer(FragmentImpl fragment) {
+    if (fragment is FieldFragmentImpl && fragment.isEnumConstant) {
+      _applyToEnumConstantInitializer(fragment);
+    } else if (fragment is VariableFragmentImpl) {
+      fragment.constantInitializer2?.accept2(this);
+    }
+  }
+
+  void applyToConstructorInitializers(ConstructorFragmentImpl fragment) {
+    for (var initializer in fragment.constantInitializers) {
+      initializer.accept2(this);
+    }
+  }
+
+  void applyToEnumConstants(List<FieldFragmentImpl> constants) {
+    for (var constant in constants) {
+      applyToMetadata(constant.metadata);
+    }
+  }
+
+  void applyToExports(List<LibraryExportImpl> elements) {
+    for (var element in elements) {
+      applyToMetadata(element.metadata);
+    }
+  }
+
+  void applyToFormalParameters(
+    List<FormalParameterFragmentImpl> formalParameters,
+  ) {
+    for (var formalParameters in formalParameters) {
+      applyToMetadata(formalParameters.metadata);
+      applyToConstantInitializer(formalParameters);
+    }
+  }
+
+  void applyToImports(List<LibraryImportImpl> elements) {
+    for (var element in elements) {
+      applyToMetadata(element.metadata);
+    }
+  }
+
+  void applyToMetadata(MetadataImpl metadata) {
+    for (var annotation in metadata.annotations) {
+      var node = annotation.annotationAst;
+      node.accept2(this);
+    }
+  }
+
+  void applyToParts(List<PartIncludeImpl> elements) {
+    for (var element in elements) {
+      applyToMetadata(element.metadata);
+    }
+  }
+
+  void applyToTypeParameters(List<TypeParameterFragmentImpl> typeParameters) {
+    for (var typeParameter in typeParameters) {
+      applyToMetadata(typeParameter.metadata);
+    }
+  }
+
+  @override
+  void handleToken(Token token) {
+    var offset = _iterator.take();
+    if (offset != null) {
+      token.offset = offset;
+    }
+  }
+
+  @override
+  void visitRegularFormalParameter(RegularFormalParameter node) {
+    super.visitRegularFormalParameter(node);
+
+    var fragment = node.declaredFragment;
+    var identifier = node.name;
+    if (fragment is FormalParameterFragmentImpl && identifier != null) {
+      fragment.firstTokenOffset = identifier.offset;
+      fragment.nameOffset = identifier.offsetIfNotEmpty;
+    }
+  }
+
+  @override
+  void visitUnqualifiedNameExpression(UnqualifiedNameExpression node) {
+    if (isNotSerializableMarker(node)) {
+      return;
+    }
+
+    super.visitUnqualifiedNameExpression(node);
+  }
+
+  void _applyToEnumConstantInitializer(FieldFragmentImpl fragment) {
+    var initializer = fragment.constantInitializer2;
+    if (initializer is ConstructorInvocationImpl) {
+      initializer.constructorReference.typeReference.typeArguments?.accept2(
+        this,
+      );
+      initializer.argumentList.accept2(this);
+    }
+  }
+}
+
+abstract class _OffsetsAstVisitor extends RecursiveAstVisitor2<void> {
+  void handleToken(Token token);
+
+  @override
+  void visitAnnotation(Annotation node) {
+    _tokenOrNull(node.atSign);
+    super.visitAnnotation(node);
+  }
+
+  @override
+  void visitArgumentList(covariant ArgumentListImpl node) {
+    _tokenOrNull(node.leftParenthesis);
+    _tokenOrNull(node.rightParenthesis);
+    for (var argument in node.arguments2) {
+      switch (argument) {
+        case ExpressionImpl():
+          visitReplaceable(argument);
+        case NamedArgumentImpl():
+          argument.accept2(this);
+      }
+    }
+  }
+
+  @override
+  void visitAsExpression(AsExpression node) {
+    _tokenOrNull(node.asOperator);
+    super.visitAsExpression(node);
+  }
+
+  @override
+  void visitAssertInitializer(AssertInitializer node) {
+    _tokenOrNull(node.assertKeyword);
+    _tokenOrNull(node.leftParenthesis);
+    _tokenOrNull(node.comma);
+    _tokenOrNull(node.rightParenthesis);
+    visitReplaceable(node.condition2);
+    visitReplaceable(node.message2);
+  }
+
+  @override
+  void visitBinaryOperatorInvocation(BinaryOperatorInvocation node) {
+    _tokenOrNull(node.operator);
+    super.visitBinaryOperatorInvocation(node);
+  }
+
+  @override
+  void visitBooleanLiteral(BooleanLiteral node) {
+    _tokenOrNull(node.literal);
+  }
+
+  @override
+  void visitCascadeIndexAssignmentTarget(CascadeIndexAssignmentTarget node) {
+    _tokenOrNull(node.leftBracket);
+    _tokenOrNull(node.rightBracket);
+    super.visitCascadeIndexAssignmentTarget(node);
+  }
+
+  @override
+  void visitCascadeIndexExpression(CascadeIndexExpression node) {
+    _tokenOrNull(node.leftBracket);
+    _tokenOrNull(node.rightBracket);
+    super.visitCascadeIndexExpression(node);
+  }
+
+  @override
+  void visitCascadeMethodInvocation(CascadeMethodInvocation node) {
+    _tokenOrNull(node.name);
+    node.typeArguments?.accept2(this);
+    node.argumentList.accept2(this);
+  }
+
+  @override
+  void visitCascadePropertyAssignmentTarget(
+    CascadePropertyAssignmentTarget node,
+  ) {
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitCascadePropertyExtraction(CascadePropertyExtraction node) {
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitCascadeSection(CascadeSection node) {
+    _tokenOrNull(node.operator);
+    super.visitCascadeSection(node);
+  }
+
+  @override
+  void visitCompoundAssignment(CompoundAssignment node) {
+    _tokenOrNull(node.operator);
+    super.visitCompoundAssignment(node);
+  }
+
+  @override
+  void visitConditionalExpression(ConditionalExpression node) {
+    _tokenOrNull(node.question);
+    _tokenOrNull(node.colon);
+    super.visitConditionalExpression(node);
+  }
+
+  @override
+  void visitConstructorFieldInitializer(ConstructorFieldInitializer node) {
+    _tokenOrNull(node.thisKeyword);
+    _tokenOrNull(node.fieldName2);
+    _tokenOrNull(node.equals);
+    visitReplaceable(node.expression2);
+  }
+
+  @override
+  void visitConstructorInvocation(ConstructorInvocation node) {
+    _tokenOrNull(node.keyword);
+    node.constructorReference.accept2(this);
+    node.argumentList.accept2(this);
+  }
+
+  @override
+  void visitConstructorSelector(ConstructorSelector node) {
+    _tokenOrNull(node.period);
+    _tokenOrNull(node.name2);
+  }
+
+  @override
+  void visitConstructorTypeReference(ConstructorTypeReference node) {
+    node.importPrefix?.accept2(this);
+    _tokenOrNull(node.name);
+    node.typeArguments?.accept2(this);
+  }
+
+  @override
+  void visitDelimitedFormalParameters(DelimitedFormalParameters node) {
+    _tokenOrNull(node.leftDelimiter);
+    _tokenOrNull(node.rightDelimiter);
+    node.formalParameters.accept2(this);
+  }
+
+  @override
+  void visitDirectAssignment(DirectAssignment node) {
+    _tokenOrNull(node.operator);
+    super.visitDirectAssignment(node);
+  }
+
+  @override
+  void visitDotShorthandConstructorInvocation2(
+    DotShorthandConstructorInvocation2 node,
+  ) {
+    _tokenOrNull(node.constKeyword);
+    _tokenOrNull(node.period);
+    _tokenOrNull(node.name);
+    node.typeArguments?.accept2(this);
+    node.argumentList.accept2(this);
+  }
+
+  @override
+  void visitDotShorthandMethodInvocation(DotShorthandMethodInvocation node) {
+    _tokenOrNull(node.period);
+    _tokenOrNull(node.name);
+    node.typeArguments?.accept2(this);
+    node.argumentList.accept2(this);
+  }
+
+  @override
+  void visitDotShorthandNameExpression(DotShorthandNameExpression node) {
+    _tokenOrNull(node.period);
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitDoubleLiteral(DoubleLiteral node) {
+    _tokenOrNull(node.literal);
+  }
+
+  @override
+  void visitFormalParameterList(FormalParameterList node) {
+    _tokenOrNull(node.leftParenthesis);
+    _tokenOrNull(node.rightParenthesis);
+    super.visitFormalParameterList(node);
+  }
+
+  @override
+  void visitGenericFunctionType(GenericFunctionType node) {
+    _tokenOrNull(node.functionKeyword);
+    super.visitGenericFunctionType(node);
+  }
+
+  @override
+  void visitIfElement(IfElement node) {
+    _tokenOrNull(node.ifKeyword);
+    _tokenOrNull(node.leftParenthesis);
+    _tokenOrNull(node.rightParenthesis);
+    _tokenOrNull(node.elseKeyword);
+    super.visitIfElement(node);
+  }
+
+  @override
+  void visitIfNull(IfNull node) {
+    _tokenOrNull(node.operator);
+    super.visitIfNull(node);
+  }
+
+  @override
+  void visitIfNullAssignment(IfNullAssignment node) {
+    _tokenOrNull(node.operator);
+    super.visitIfNullAssignment(node);
+  }
+
+  @override
+  void visitImportPrefixedAssignmentTarget(
+    ImportPrefixedAssignmentTarget node,
+  ) {
+    node.importPrefix.accept2(this);
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitImportPrefixedFunctionInvocation(
+    ImportPrefixedFunctionInvocation node,
+  ) {
+    node.importPrefix.accept2(this);
+    _tokenOrNull(node.name);
+    node.typeArguments?.accept2(this);
+    node.argumentList.accept2(this);
+  }
+
+  @override
+  void visitImportPrefixedNameExpression(ImportPrefixedNameExpression node) {
+    node.importPrefix.accept2(this);
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitImportPrefixReference(ImportPrefixReference node) {
+    _tokenOrNull(node.name);
+    _tokenOrNull(node.period);
+  }
+
+  @override
+  void visitIncrementOrDecrementExpression(
+    IncrementOrDecrementExpression node,
+  ) {
+    _tokenOrNull(node.operator);
+    super.visitIncrementOrDecrementExpression(node);
+  }
+
+  @override
+  void visitIntegerLiteral(IntegerLiteral node) {
+    _tokenOrNull(node.literal);
+  }
+
+  @override
+  void visitInterpolationExpression(InterpolationExpression node) {
+    _tokenOrNull(node.leftBracket);
+    _tokenOrNull(node.rightBracket);
+    super.visitInterpolationExpression(node);
+  }
+
+  @override
+  void visitInterpolationString(InterpolationString node) {
+    _tokenOrNull(node.contents);
+  }
+
+  @override
+  void visitIsExpression(IsExpression node) {
+    _tokenOrNull(node.isOperator);
+    super.visitIsExpression(node);
+  }
+
+  @override
+  void visitLabel(Label node) {
+    _tokenOrNull(node.colon);
+    super.visitLabel(node);
+  }
+
+  @override
+  void visitListLiteral(ListLiteral node) {
+    _tokenOrNull(node.constKeyword);
+    _tokenOrNull(node.leftBracket);
+    _tokenOrNull(node.rightBracket);
+    super.visitListLiteral(node);
+  }
+
+  @override
+  void visitLogicalAnd(LogicalAnd node) {
+    _tokenOrNull(node.operator);
+    super.visitLogicalAnd(node);
+  }
+
+  @override
+  void visitLogicalNot(LogicalNot node) {
+    _tokenOrNull(node.operator);
+    super.visitLogicalNot(node);
+  }
+
+  @override
+  void visitLogicalOr(LogicalOr node) {
+    _tokenOrNull(node.operator);
+    super.visitLogicalOr(node);
+  }
+
+  @override
+  void visitMapLiteralEntry(MapLiteralEntry node) {
+    _tokenOrNull(node.separator);
+    super.visitMapLiteralEntry(node);
+  }
+
+  @override
+  void visitNamedArgument(NamedArgument node) {
+    _tokenOrNull(node.name);
+    _tokenOrNull(node.colon);
+    visitReplaceable(node.argumentExpression2);
+  }
+
+  @override
+  void visitNamedType(NamedType node) {
+    node.importPrefix?.accept2(this);
+    _tokenOrNull(node.name);
+    node.typeArguments?.accept2(this);
+    _tokenOrNull(node.question);
+  }
+
+  @override
+  void visitNullAssertionExpression(NullAssertionExpression node) {
+    _tokenOrNull(node.operator);
+    super.visitNullAssertionExpression(node);
+  }
+
+  @override
+  void visitNullLiteral(NullLiteral node) {
+    _tokenOrNull(node.literal);
+  }
+
+  @override
+  void visitParenthesizedExpression(ParenthesizedExpression node) {
+    _tokenOrNull(node.leftParenthesis);
+    _tokenOrNull(node.rightParenthesis);
+    super.visitParenthesizedExpression(node);
+  }
+
+  @override
+  void visitParsedCascadeName(ParsedCascadeName node) {
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitParsedDotShorthandName(ParsedDotShorthandName node) {
+    _tokenOrNull(node.period);
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitParsedNameAccess(ParsedNameAccess node) {
+    node.operand.accept2(this);
+    _tokenOrNull(node.operator);
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitParsedNameAccessAssignmentTarget(
+    ParsedNameAccessAssignmentTarget node,
+  ) {
+    node.operand.accept2(this);
+    _tokenOrNull(node.operator);
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitParsedUnqualifiedName(ParsedUnqualifiedName node) {
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitReceiverIndexAssignmentTarget(ReceiverIndexAssignmentTarget node) {
+    _tokenOrNull(node.leftBracket);
+    _tokenOrNull(node.rightBracket);
+    super.visitReceiverIndexAssignmentTarget(node);
+  }
+
+  @override
+  void visitReceiverIndexExpression(ReceiverIndexExpression node) {
+    _tokenOrNull(node.question);
+    _tokenOrNull(node.leftBracket);
+    _tokenOrNull(node.rightBracket);
+    super.visitReceiverIndexExpression(node);
+  }
+
+  @override
+  void visitReceiverMethodInvocation(ReceiverMethodInvocation node) {
+    node.receiver.accept2(this);
+    _tokenOrNull(node.operator);
+    _tokenOrNull(node.name);
+    node.typeArguments?.accept2(this);
+    node.argumentList.accept2(this);
+  }
+
+  @override
+  void visitReceiverPropertyAssignmentTarget(
+    ReceiverPropertyAssignmentTarget node,
+  ) {
+    _tokenOrNull(node.operator);
+    _tokenOrNull(node.name);
+    super.visitReceiverPropertyAssignmentTarget(node);
+  }
+
+  @override
+  void visitReceiverPropertyExtraction(ReceiverPropertyExtraction node) {
+    // Parsed chains and their lowered receivers must enumerate tokens in
+    // the same order when offsets are restored from informative data.
+    node.receiver.accept2(this);
+    _tokenOrNull(node.operator);
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitRecordLiteral(RecordLiteral node) {
+    _tokenOrNull(node.constKeyword);
+    _tokenOrNull(node.leftParenthesis);
+    _tokenOrNull(node.rightParenthesis);
+    super.visitRecordLiteral(node);
+  }
+
+  @override
+  void visitRecordLiteralNamedField(RecordLiteralNamedField node) {
+    _tokenOrNull(node.name);
+    _tokenOrNull(node.colon);
+    super.visitRecordLiteralNamedField(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotation(RecordTypeAnnotation node) {
+    _tokenOrNull(node.leftParenthesis);
+    _tokenOrNull(node.rightParenthesis);
+    _tokenOrNull(node.question);
+    super.visitRecordTypeAnnotation(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedField(
+    RecordTypeAnnotationNamedField node,
+  ) {
+    _tokenOrNull(node.name);
+    super.visitRecordTypeAnnotationNamedField(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedFields(
+    RecordTypeAnnotationNamedFields node,
+  ) {
+    _tokenOrNull(node.leftBracket);
+    _tokenOrNull(node.rightBracket);
+    super.visitRecordTypeAnnotationNamedFields(node);
+  }
+
+  @override
+  void visitRecordTypeAnnotationPositionalField(
+    RecordTypeAnnotationPositionalField node,
+  ) {
+    _tokenOrNull(node.name);
+    super.visitRecordTypeAnnotationPositionalField(node);
+  }
+
+  @override
+  void visitRedirectingConstructorInvocation(
+    RedirectingConstructorInvocation node,
+  ) {
+    _tokenOrNull(node.thisKeyword);
+    super.visitRedirectingConstructorInvocation(node);
+  }
+
+  @override
+  void visitRegularFormalParameter(RegularFormalParameter node) {
+    _tokenOrNull(node.requiredKeyword);
+    _tokenOrNull(node.name);
+    super.visitRegularFormalParameter(node);
+  }
+
+  /// Visits [node], which detaching might replace with a marker, see
+  /// [replaceNotSerializableExpression].
+  void visitReplaceable(Expression? node) {
+    node?.accept2(this);
+  }
+
+  @override
+  void visitSetOrMapLiteral(SetOrMapLiteral node) {
+    _tokenOrNull(node.constKeyword);
+    _tokenOrNull(node.leftBracket);
+    _tokenOrNull(node.rightBracket);
+    super.visitSetOrMapLiteral(node);
+  }
+
+  @override
+  void visitSimpleStringLiteral(SimpleStringLiteral node) {
+    _tokenOrNull(node.literal);
+  }
+
+  @override
+  void visitSpreadElement(SpreadElement node) {
+    _tokenOrNull(node.spreadOperator);
+    super.visitSpreadElement(node);
+  }
+
+  @override
+  void visitStaticQualifier(StaticQualifier node) {
+    node.importPrefix?.accept2(this);
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitSuperConstructorInvocation(SuperConstructorInvocation node) {
+    _tokenOrNull(node.superKeyword);
+    super.visitSuperConstructorInvocation(node);
+  }
+
+  @override
+  void visitSuperReference(SuperReference node) {
+    _tokenOrNull(node.superKeyword);
+  }
+
+  @override
+  void visitSymbolLiteral(SymbolLiteral node) {
+    _tokenOrNull(node.poundSign);
+    node.components.forEach(_tokenOrNull);
+  }
+
+  @override
+  void visitThisExpression(ThisExpression node) {
+    _tokenOrNull(node.thisKeyword);
+  }
+
+  @override
+  void visitThrowExpression(ThrowExpression node) {
+    _tokenOrNull(node.throwKeyword);
+    super.visitThrowExpression(node);
+  }
+
+  @override
+  void visitTypeArgumentList(TypeArgumentList node) {
+    _tokenOrNull(node.leftBracket);
+    _tokenOrNull(node.rightBracket);
+    super.visitTypeArgumentList(node);
+  }
+
+  @override
+  void visitUnaryOperatorInvocation(UnaryOperatorInvocation node) {
+    _tokenOrNull(node.operator);
+    super.visitUnaryOperatorInvocation(node);
+  }
+
+  @override
+  void visitUnqualifiedFunctionInvocation(UnqualifiedFunctionInvocation node) {
+    _tokenOrNull(node.name);
+    node.typeArguments?.accept2(this);
+    node.argumentList.accept2(this);
+  }
+
+  @override
+  void visitUnqualifiedNameAssignmentTarget(
+    UnqualifiedNameAssignmentTarget node,
+  ) {
+    _tokenOrNull(node.name);
+  }
+
+  @override
+  void visitUnqualifiedNameExpression(UnqualifiedNameExpression node) {
+    _tokenOrNull(node.name);
+  }
+
+  void _tokenOrNull(Token? token) {
+    if (token != null) {
+      handleToken(token);
+    }
+  }
+}
+
+class _OffsetsCollector extends _OffsetsAstVisitor {
+  final GrowableUint32List offsets = GrowableUint32List();
+
+  @override
+  void handleToken(Token token) {
+    offsets.add(token.offset);
+  }
+
+  @override
+  void visitReplaceable(Expression? node) {
+    if (node != null && isSerializable(node)) {
+      node.accept2(this);
+    }
+  }
+}
+
+class _SafeListIterator<T> {
+  final List<T> _elements;
+  int _index = 0;
+
+  new(this._elements);
+
+  bool get hasNext {
+    return _index < _elements.length;
+  }
+
+  T? take() {
+    if (hasNext) {
+      return _elements[_index++];
+    } else {
+      return null;
+    }
+  }
+}
+
+extension on BinaryReader {
+  List<T> readList<T>(T Function(BinaryReader) read) {
+    return readTypedListFromBinaryReader(read);
+  }
+}
+
+extension on Token {
+  int? get offsetIfNotEmpty {
+    return lexeme.isNotEmpty ? offset : null;
+  }
+}
+
+extension on String {
+  String? get nullIfEmpty {
+    return isNotEmpty ? this : null;
+  }
+}
+
+extension on DeferredResolutionReadingMixin {
+  /// We want to have actual offsets for tokens of various constants in the
+  /// element model, such as metadata and constant initializers. But we read
+  /// these additional pieces of resolution data later, on demand. So, these
+  /// offsets are different from `nameOffset` for example, which are applied
+  /// directly after creating corresponding elements during a library loading.
+  void deferConstantOffsets(
+    Uint32List constantOffsets,
+    void Function(_OffsetsApplier applier) callback,
+  ) {
+    deferResolutionConstantOffsets(() {
+      var applier = _OffsetsApplier(_SafeListIterator(constantOffsets));
+      callback(applier);
+    });
+  }
+}
+
+extension on List<ConstructorFragmentImpl> {
+  Iterable<ConstructorFragmentImpl> get withOriginDeclaration {
+    return where((e) => e.isOriginDeclaration);
+  }
+}
+
+extension _ListOfPropertyAccessorFragment<
+  T extends PropertyAccessorFragmentImpl
+>
+    on List<T> {
+  Iterable<T> get withOriginDeclaration {
+    return where((e) => e.isOriginDeclaration);
+  }
+}
+
+extension _ListOfPropertyInducingFragment<
+  T extends PropertyInducingFragmentImpl
+>
+    on List<T> {
+  Iterable<T> get withOriginDeclaration {
+    return where((e) => e.isOriginDeclaration);
+  }
+}

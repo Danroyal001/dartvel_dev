@@ -1,0 +1,51 @@
+main = main::main;
+library from "org-dartlang-test:///main.dart" as main {
+
+  static field dart.core::int value = block {
+    dart.core::int #t1;
+    #L1:
+    switch(0) /* dart.core::int */ {
+      #L2:
+      case #C1:
+        {
+          #t1 = 1;
+          break #L1;
+        }
+      #L3:
+      default:
+        {
+          #t1 = 2;
+          break #L1;
+        }
+    }
+  } =>#t1;
+  static method main() → dynamic {
+    dart.core::print(main::value);
+  }
+}
+constants  {
+  #C1 = 0
+}
+
+And 21 platform libraries:
+ - dart:_http
+ - dart:_builtin
+ - dart:vmservice_io
+ - dart:_compact_hash
+ - dart:_vm
+ - dart:async
+ - dart:cli
+ - dart:collection
+ - dart:concurrent
+ - dart:convert
+ - dart:core
+ - dart:developer
+ - dart:ffi
+ - dart:nativewrappers
+ - dart:_internal
+ - dart:io
+ - dart:isolate
+ - dart:math
+ - dart:mirrors
+ - dart:typed_data
+ - dart:_vmservice

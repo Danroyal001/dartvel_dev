@@ -1,0 +1,19 @@
+// Copyright (c) 2019, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import "package:expect/expect.dart";
+
+import "helpers/on_object.dart" deferred as p1 hide OnObject;
+
+void main() {
+  Object o = 1;
+  OnObject(o).onObject;
+  // [error column 3, length 8]
+  // [analyzer] COMPILE_TIME_ERROR.UNDEFINED_UNQUALIFIED_NAME_READ
+  // [cfe] Method not found: 'OnObject'.
+  o.onObject;
+  //^^^^^^^^
+  // [analyzer] COMPILE_TIME_ERROR.UNDEFINED_INSTANCE_MEMBER_READ
+  // [cfe] The getter 'onObject' isn't defined for the type 'Object'.
+}

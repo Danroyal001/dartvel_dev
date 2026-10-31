@@ -1,0 +1,528 @@
+// Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/analysis/features.dart';
+import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/type.dart';
+import 'package:analyzer/src/dart/ast/ast.dart'
+    show DotShorthandNameExpressionImpl, VariableBindingImpl;
+import 'package:analyzer/src/dart/ast/extensions.dart';
+import 'package:analyzer/src/dart/element/element.dart'
+    show FieldElementImpl, PrefixElementImpl;
+import 'package:analyzer/src/dart/element/type.dart';
+
+/// Some [ConstructorElement]s can be temporary marked as "const" to check
+/// if doing this is valid.
+final temporaryConstConstructorElements = Expando<bool>();
+
+/// Check if the [node] and all its sub-nodes are potentially constant.
+///
+/// Return the list of nodes that are not potentially constant.
+List<AstNode> getNotPotentiallyConstants(
+  AstNode node, {
+  required FeatureSet featureSet,
+}) {
+  var collector = _Collector(featureSet: featureSet);
+  collector.collect(node);
+  return collector.nodes;
+}
+
+/// Returns the nodes in [node] that aren't potentially constant, see
+/// [getNotPotentiallyConstants], with invalid named reads set apart.
+///
+/// An invalid named read, such as an undefined name, isn't potentially
+/// constant either, but resolution has already reported it. So, it is not in
+/// `reportable`, and only the first one is returned as
+/// `firstInvalidNamedRead`, for clients that need an error even when
+/// `reportable` is empty.
+({List<AstNode> reportable, Expression? firstInvalidNamedRead})
+getReportableNotPotentiallyConstants(
+  AstNode node, {
+  required FeatureSet featureSet,
+}) {
+  var reportable = <AstNode>[];
+  Expression? firstInvalidNamedRead;
+  for (var notConstant in getNotPotentiallyConstants(
+    node,
+    featureSet: featureSet,
+  )) {
+    if (notConstant is Expression && notConstant.isInvalidNamedRead) {
+      firstInvalidNamedRead ??= notConstant;
+    } else {
+      reportable.add(notConstant);
+    }
+  }
+  return (reportable: reportable, firstInvalidNamedRead: firstInvalidNamedRead);
+}
+
+/// Return `true` if the [node] is a constant type expression.
+bool isConstantTypeExpression(TypeAnnotation node) {
+  return _ConstantTypeChecker(potentially: false).check(node);
+}
+
+/// Return `true` if the [node] is a potentially constant type expression.
+bool isPotentiallyConstantTypeExpression(TypeAnnotation node) {
+  return _ConstantTypeChecker(potentially: true).check(node);
+}
+
+class _Collector {
+  final FeatureSet featureSet;
+  final List<AstNode> nodes = [];
+
+  new({required this.featureSet});
+
+  void collect(AstNode node) {
+    if (node is BooleanLiteral ||
+        node is DoubleLiteral ||
+        node is IntegerLiteral ||
+        node is NullLiteral ||
+        node is SimpleStringLiteral ||
+        node is SymbolLiteral) {
+      return;
+    }
+
+    if (node is AdjacentStrings) {
+      for (var string in node.strings) {
+        collect(string);
+      }
+      return;
+    }
+
+    if (node is DotShorthandNameExpressionImpl) {
+      switch (node.resolution) {
+        case GetterInvocationResolution(:var element)
+            when element.variable.isConst:
+        case ExecutableTearOffResolution():
+          return;
+        default:
+          nodes.add(node);
+          return;
+      }
+    }
+
+    if (node is ImportPrefixedNameExpression) {
+      var prefixElement = node.importPrefix.element;
+      if (prefixElement is PrefixElementImpl && prefixElement.isDeferred) {
+        nodes.add(node);
+        return;
+      }
+      return _nameExpression(node, node.resolution);
+    }
+
+    if (node is UnqualifiedNameExpression) {
+      return _nameExpression(node, node.resolution);
+    }
+
+    if (node is DotShorthandConstructorInvocation2) {
+      if (!node.isConst) {
+        nodes.add(node);
+      }
+      return;
+    }
+
+    if (node is StringInterpolation) {
+      for (var component in node.elements) {
+        if (component is InterpolationExpression) {
+          collect(component.expression2);
+        }
+      }
+      return;
+    }
+
+    if (node is ConstructorInvocation) {
+      if (!node.isConst) {
+        nodes.add(node);
+      }
+      return;
+    }
+
+    if (node is TypedLiteral) {
+      return _typedLiteral(node);
+    }
+
+    if (node is ParenthesizedExpression) {
+      collect(node.expression2);
+      return;
+    }
+
+    if (node is RecordLiteral) {
+      return _recordLiteral(node);
+    }
+
+    if (node is NamedFunctionInvocation) {
+      return _namedFunctionInvocation(node);
+    }
+
+    if (node is NamedArgument) {
+      return collect(node.argumentExpression2);
+    }
+
+    if (node is RecordLiteralNamedField) {
+      return collect(node.fieldExpression2);
+    }
+
+    if (node is BinaryOperatorInvocation) {
+      collect(node.leftOperand);
+      collect(node.rightOperand);
+      return;
+    }
+
+    if (node is IfNull) {
+      collect(node.leftOperand);
+      collect(node.rightOperand);
+      return;
+    }
+
+    if (node is LogicalAnd) {
+      collect(node.leftOperand);
+      collect(node.rightOperand);
+      return;
+    }
+
+    if (node is LogicalNot) {
+      collect(node.operand);
+      return;
+    }
+
+    if (node is LogicalOr) {
+      collect(node.leftOperand);
+      collect(node.rightOperand);
+      return;
+    }
+
+    if (node is UnaryOperatorInvocation) {
+      collect(node.operand);
+      return;
+    }
+
+    if (node is IncrementOrDecrementExpression) {
+      nodes.add(node);
+      return;
+    }
+
+    if (node is ConditionalExpression) {
+      collect(node.condition2);
+      collect(node.thenExpression2);
+      collect(node.elseExpression2);
+      return;
+    }
+
+    if (node is ReceiverPropertyExtraction) {
+      return _receiverPropertyExtraction(node);
+    }
+
+    if (node is AsExpression) {
+      if (featureSet.isEnabled(Feature.non_nullable)) {
+        if (!isPotentiallyConstantTypeExpression(node.type)) {
+          nodes.add(node.type);
+        }
+      } else {
+        if (!isConstantTypeExpression(node.type)) {
+          nodes.add(node.type);
+        }
+      }
+      collect(node.expression2);
+      return;
+    }
+
+    if (node is IsExpression) {
+      if (featureSet.isEnabled(Feature.non_nullable)) {
+        if (!isPotentiallyConstantTypeExpression(node.type)) {
+          nodes.add(node.type);
+        }
+      } else {
+        if (!isConstantTypeExpression(node.type)) {
+          nodes.add(node.type);
+        }
+      }
+      collect(node.expression2);
+      return;
+    }
+
+    if (node is MapLiteralEntry) {
+      collect(node.key2);
+      collect(node.value2);
+      return;
+    }
+
+    if (node is SpreadElement) {
+      collect(node.expression2);
+      return;
+    }
+
+    if (node is IfElement) {
+      collect(node.expression2);
+      collect(node.thenElement2);
+      if (node.elseElement2 != null) {
+        collect(node.elseElement2!);
+      }
+      return;
+    }
+
+    if (node is ConstructorTearOff) {
+      _typeArgumentList(node.typeReference.typeArguments);
+      return;
+    }
+
+    if (node is FunctionInstantiation) {
+      _typeArgumentList(node.typeArguments);
+      collect(node.operand);
+      return;
+    }
+
+    if (node is ImplicitFunctionInstantiation) {
+      collect(node.operand);
+      return;
+    }
+
+    if (node is TypeLiteral) {
+      var type = node.type;
+      var element = type.element;
+      if (element is TypeParameterElement &&
+          !featureSet.isEnabled(Feature.constructor_tearoffs)) {
+        nodes.add(node);
+      }
+      _typeArgumentList(node.type.typeArguments);
+      return;
+    }
+
+    nodes.add(node);
+  }
+
+  void _namedFunctionInvocation(NamedFunctionInvocation node) {
+    var arguments = node.argumentList.arguments2;
+    if (arguments.length == 2) {
+      if (node.resolution case ExecutableInvocationResolution(:var element)) {
+        if (element is TopLevelFunctionElement && element.isDartCoreIdentical) {
+          collect(arguments[0]);
+          collect(arguments[1]);
+          return;
+        }
+      }
+    }
+    // TODO(srawlins): collect type arguments.
+    nodes.add(node);
+  }
+
+  void _nameExpression(AstNode node, NamedReadResolution? resolution) {
+    var element = resolution?.elementOrRecovery;
+
+    if (element is FormalParameterElement) {
+      var enclosing = element.enclosingElement;
+      if (enclosing is ConstructorElement &&
+          isConstConstructorElement(enclosing)) {
+        if (node.thisOrAncestorOfType2<ConstructorInitializer>() != null) {
+          return;
+        }
+        var fieldElement = node
+            .thisOrAncestorOfType2<VariableBindingImpl>()
+            ?.declaredFragment
+            ?.element;
+        if (fieldElement is FieldElementImpl &&
+            !fieldElement.isStatic &&
+            !fieldElement.isLate) {
+          return;
+        }
+      }
+      nodes.add(node);
+      return;
+    }
+
+    if (element is VariableElement) {
+      if (!element.isConst) {
+        nodes.add(node);
+      }
+      return;
+    }
+    if (element is GetterElement) {
+      if (!element.variable.isConst) {
+        nodes.add(node);
+      }
+      return;
+    }
+    if (element is TopLevelFunctionElement ||
+        element is MethodElement && element.isStatic) {
+      return;
+    }
+    nodes.add(node);
+  }
+
+  void _receiverPropertyExtraction(ReceiverPropertyExtraction node) {
+    if (node.receiver case StaticQualifier(:var importPrefix)) {
+      if (importPrefix?.element case PrefixElementImpl(isDeferred: true)) {
+        nodes.add(node);
+        return;
+      }
+      switch (node.resolution?.element) {
+        case GetterElement(variable: VariableElement(isConst: true)):
+        case MethodElement(isStatic: true):
+          return;
+      }
+      nodes.add(node);
+      return;
+    }
+    if (node.name.lexeme == 'length') {
+      collect(node.receiver);
+      return;
+    }
+
+    nodes.add(node);
+  }
+
+  void _recordLiteral(RecordLiteral node) {
+    for (var field in node.fields2) {
+      collect(field);
+    }
+  }
+
+  void _typeArgumentList(TypeArgumentList? typeArgumentList) {
+    var typeArguments = typeArgumentList?.arguments;
+    if (typeArguments != null) {
+      for (var typeArgument in typeArguments) {
+        if (!isPotentiallyConstantTypeExpression(typeArgument)) {
+          nodes.add(typeArgument);
+        }
+      }
+    }
+  }
+
+  void _typedLiteral(TypedLiteral node) {
+    if (!node.isConst) {
+      nodes.add(node);
+      return;
+    }
+
+    if (node is ListLiteral) {
+      var typeArguments = node.typeArguments?.arguments;
+      if (typeArguments != null && typeArguments.length == 1) {
+        var elementType = typeArguments[0];
+        if (!isPotentiallyConstantTypeExpression(elementType)) {
+          nodes.add(elementType);
+        }
+      }
+
+      for (var element in node.elements2) {
+        collect(element);
+      }
+      return;
+    }
+
+    if (node is SetOrMapLiteral) {
+      var typeArguments = node.typeArguments?.arguments;
+      if (typeArguments != null && typeArguments.length == 1) {
+        var elementType = typeArguments[0];
+        if (!isPotentiallyConstantTypeExpression(elementType)) {
+          nodes.add(elementType);
+        }
+      }
+
+      if (typeArguments != null && typeArguments.length == 2) {
+        var keyType = typeArguments[0];
+        var valueType = typeArguments[1];
+        if (!isConstantTypeExpression(keyType)) {
+          nodes.add(keyType);
+        }
+        if (!isConstantTypeExpression(valueType)) {
+          nodes.add(valueType);
+        }
+      }
+
+      for (var element in node.elements2) {
+        collect(element);
+      }
+    }
+  }
+
+  static bool isConstConstructorElement(ConstructorElement element) {
+    if (element.isConst) return true;
+    return temporaryConstConstructorElements[element] ?? false;
+  }
+}
+
+class _ConstantTypeChecker {
+  final bool potentially;
+
+  new({required this.potentially});
+
+  /// Returns whether the [node] is a (potentially) constant type expression.
+  bool check(TypeAnnotation? node) {
+    if (node == null) {
+      return false;
+    }
+    if (potentially &&
+        node is NamedType &&
+        node.element is TypeParameterElement) {
+      return true;
+    }
+
+    return switch (node) {
+      NamedType() => _checkNamedType(node),
+      GenericFunctionType() => _checkGenericFunctionType(node),
+      RecordTypeAnnotation() => _checkRecordTypeAnnotation(node),
+    };
+  }
+
+  bool _checkGenericFunctionType(GenericFunctionType node) {
+    var returnType = node.returnType;
+    if (returnType != null) {
+      if (!check(returnType)) {
+        return false;
+      }
+    }
+
+    var typeParameters = node.typeParameters?.typeParameters;
+    if (typeParameters != null) {
+      for (var parameter in typeParameters) {
+        var bound = parameter.bound;
+        if (bound != null && !check(bound)) {
+          return false;
+        }
+      }
+    }
+
+    var formalParameters = node.parameters.allFormalParameters;
+    for (var formalParameter in formalParameters) {
+      if (formalParameter is RegularFormalParameter &&
+          formalParameter.functionTypedSuffix == null) {
+        if (!check(formalParameter.type)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  bool _checkNamedType(NamedType node) {
+    if (node.isConstantNamedType) {
+      var arguments = node.typeArguments?.arguments;
+      if (arguments != null && arguments.any((argument) => !check(argument))) {
+        return false;
+      }
+      return true;
+    }
+    var type = node.type;
+    if (type is DynamicTypeImpl || type is NeverType || type is VoidType) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _checkRecordTypeAnnotation(RecordTypeAnnotation node) {
+    if (node.fields.any((field) => !check(field.type))) {
+      return false;
+    }
+    return true;
+  }
+}
+
+extension on NamedType {
+  bool get isConstantNamedType {
+    var element = this.element;
+    if (element is InterfaceElement || element is TypeAliasElement) {
+      return !isDeferred;
+    }
+    return false;
+  }
+}

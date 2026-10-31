@@ -1,0 +1,151 @@
+// Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:async';
+import 'dart:io';
+
+import 'package:_fe_analyzer_shared/src/exhaustiveness/exhaustive.dart';
+import 'package:_fe_analyzer_shared/src/exhaustiveness/key.dart';
+import 'package:_fe_analyzer_shared/src/exhaustiveness/shape.dart';
+import 'package:_fe_analyzer_shared/src/exhaustiveness/space.dart';
+import 'package:_fe_analyzer_shared/src/exhaustiveness/test_helper.dart';
+import 'package:_fe_analyzer_shared/src/testing/features.dart';
+import 'package:_fe_analyzer_shared/src/testing/id.dart' show ActualDataMap, Id;
+import 'package:_fe_analyzer_shared/src/testing/id_testing.dart';
+import 'package:analyzer/dart/analysis/features.dart';
+import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/analysis/experiments.dart';
+import 'package:analyzer/src/dart/analysis/testing_data.dart';
+import 'package:analyzer/src/generated/exhaustiveness.dart';
+import 'package:analyzer/src/util/ast_data_extractor.dart';
+
+import '../util/id_testing_helper.dart';
+
+main(List<String> args) {
+  Directory dataDir = Directory.fromUri(
+    Platform.script.resolve(
+      '../../../_fe_analyzer_shared/test/exhaustiveness/data',
+    ),
+  );
+  return runTests<Features>(
+    dataDir,
+    args: args,
+    createUriForFileName: createUriForFileName,
+    onFailure: onFailure,
+    runTest: runTestFor(const _ExhaustivenessDataComputer(), [
+      TestConfig(
+        analyzerMarker,
+        'analyzer with experiments',
+        featureSet: FeatureSet.fromEnableFlags2(
+          sdkLanguageVersion: ExperimentStatus.currentVersion,
+          flags: ['patterns', 'records', 'sealed-class', 'inline-class'],
+        ),
+      ),
+    ]),
+  );
+}
+
+class _ExhaustivenessDataComputer extends DataComputer<Features> {
+  const new();
+
+  @override
+  DataInterpreter<Features> get dataValidator =>
+      const FeaturesDataInterpreter();
+
+  @override
+  bool get supportsErrors => true;
+
+  @override
+  void computeUnitData(
+    TestingData testingData,
+    CompilationUnit unit,
+    ActualDataMap<Features> actualMap,
+  ) {
+    var unitUri = unit.declaredFragment!.source.uri;
+    var exhaustivenessData = testingData.uriToExhaustivenessData[unitUri]!;
+    _ExhaustivenessDataExtractor(
+      unitUri,
+      actualMap,
+      exhaustivenessData,
+    ).run(unit);
+  }
+}
+
+class _ExhaustivenessDataExtractor extends AstDataExtractor<Features> {
+  final ExhaustivenessDataForTesting _exhaustivenessData;
+
+  new(super.uri, super.actualMap, this._exhaustivenessData);
+
+  @override
+  FutureOr<Features?> computeNodeValue(Id id, AstNode node) async {
+    Features features = Features();
+    if (node is SwitchStatement || node is SwitchExpression) {
+      Shape? scrutineeShape = _exhaustivenessData.switchScrutineeShape[node];
+      List<Space>? caseSpaces = _exhaustivenessData.switchCases[node];
+      if (scrutineeShape != null && caseSpaces != null) {
+        Set<Key> propertiesOfInterest = {};
+        Set<Key> keysOfInterest = {};
+        for (Space caseSpace in caseSpaces) {
+          for (SingleSpace singleSpace in caseSpace.singleSpaces) {
+            propertiesOfInterest.addAll(singleSpace.properties.keys);
+            keysOfInterest.addAll(singleSpace.additionalProperties.keys);
+          }
+        }
+        features[Tags.scrutineeType] = shapeToText(scrutineeShape);
+        if (propertiesOfInterest.isNotEmpty) {
+          features[Tags.scrutineeFields] = propertiesToText(
+            scrutineeShape,
+            _exhaustivenessData.objectPropertyLookup,
+            propertiesOfInterest,
+          );
+        }
+        String? subtypes = shapesToText(
+          scrutineeShape.getSubshapes(keysOfInterest),
+        );
+        if (subtypes != null) {
+          features[Tags.subtypes] = subtypes;
+        }
+        if (scrutineeShape.isSealed) {
+          String? expandedSubtypes = shapesToText(
+            expandSealedSubshapes(scrutineeShape, keysOfInterest),
+          );
+          if (subtypes != expandedSubtypes && expandedSubtypes != null) {
+            features[Tags.expandedSubtypes] = expandedSubtypes;
+          }
+          String? order = shapesToText(
+            checkingOrder(scrutineeShape, keysOfInterest),
+          );
+          if (order != null) {
+            features[Tags.checkingOrder] = order;
+          }
+        }
+      }
+      NonExhaustiveness? nonExhaustiveness =
+          _exhaustivenessData.nonExhaustivenesses[node];
+      if (nonExhaustiveness != null) {
+        String nonExhaustivenessText = nonExhaustivenessToText(
+          nonExhaustiveness,
+        );
+        features[Tags.error] = nonExhaustivenessText;
+        String reducedText = await reducedNonExhaustivenessToText(
+          nonExhaustiveness,
+        );
+        if (nonExhaustivenessText != reducedText) {
+          features[Tags.reduced] = reducedText;
+        }
+      }
+    } else if (node is SwitchMember || node is SwitchExpressionCase) {
+      Space? caseSpace = _exhaustivenessData.caseSpaces[node];
+      if (caseSpace != null) {
+        features[Tags.space] = spacesToText(caseSpace);
+      }
+      CaseUnreachability? caseUnreachability =
+          _exhaustivenessData.caseUnreachabilities[node];
+      if (caseUnreachability != null) {
+        features[Tags.error] = 'unreachable';
+      }
+    }
+    return features.isNotEmpty ? features : null;
+  }
+}

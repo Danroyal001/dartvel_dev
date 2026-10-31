@@ -1,0 +1,26 @@
+[package]
+name = "fe_analyzer_shared"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Rust port of pkg/_fe_analyzer_shared, file by file."
+license = "BSD-3-Clause"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "scanner_dump"
+path = "src/bin/scanner_dump.rs"
+
+[[test]]
+name = "scanner_oracle"
+path = "tests/scanner_oracle.rs"
+
+[[bin]]
+name = "parser_dump"
+path = "src/bin/parser_dump/main.rs"
+
+[[test]]
+name = "parser_oracle"
+path = "tests/parser_oracle.rs"

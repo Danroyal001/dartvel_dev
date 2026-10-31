@@ -1,0 +1,41 @@
+[package]
+name = "analyzer"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Rust port of pkg/analyzer, file by file."
+license = "BSD-3-Clause"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+fe_analyzer_shared = { path = "../../_fe_analyzer_shared/rust" }
+
+[[bin]]
+name = "ast_dump"
+path = "src/bin/ast_dump/main.rs"
+
+[[test]]
+name = "ast_oracle"
+path = "tests/ast_oracle.rs"
+
+[[test]]
+name = "utilities_test"
+path = "tests/utilities_test.rs"
+
+[[test]]
+name = "visitor_test"
+path = "tests/visitor_test.rs"
+
+[[bin]]
+name = "element_dump"
+path = "src/bin/element_dump/main.rs"
+
+[[test]]
+name = "element_oracle"
+path = "tests/element_oracle.rs"
+
+[[test]]
+name = "element_builder_test"
+path = "tests/element_builder_test.rs"
