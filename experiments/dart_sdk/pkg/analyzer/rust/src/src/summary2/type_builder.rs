@@ -122,6 +122,10 @@ pub struct BuildContext<'a> {
     pub nonfunction_type_aliases: &'a HashMap<LibraryId, bool>,
     /// `node.declaredFragment`.
     pub fragment_of_node: &'a HashMap<(UnitId, NodeId), FragmentId>,
+    /// `namedType.element`, as the reference resolver found it.
+    pub node_elements: &'a HashMap<(UnitId, NodeId), Option<crate::src::dart::element::scope::ScopeElement>>,
+    /// Whether each linking library has `inference-using-bounds`.
+    pub inference_using_bounds: &'a HashMap<LibraryId, bool>,
 }
 
 impl BuildContext<'_> {

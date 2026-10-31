@@ -7,9 +7,14 @@
 // parameter's type, an executable's return type, a bound, an aliased type, an
 // extended type or a supertype) and in `ElementTypes`.
 //
-// Not ported yet: mixin inference (`_MixinsInference`), which needs the class
-// hierarchy -- a mixin's type is used as written, which is what inference
-// gives whenever type arguments are written -- and `breakInterfaceCycles`.
+// Mixin inference (`_MixinsInference`, `_MixinInference`) infers the type
+// arguments of a generic mixin written without them from the supertypes the
+// class already has. Upstream runs it lazily: while a declaration waits for
+// inference, reading its `mixins` (from the class hierarchy) infers it first,
+// and reading them during its own inference answers `[]`. Here the same
+// order comes from walking, before inferring a declaration, the hierarchy
+// its inference reads. `withClauseMixinStartIndex` is not ported; nothing
+// reads it while linking.
 
 use std::rc::Rc;
 
@@ -23,11 +28,19 @@ use crate::src::dart::element::element::{
 };
 use crate::src::dart::element::r#type::{FormalParameter, FunctionTypeImpl, TypeImpl};
 use crate::src::summary2::type_builder::{error_function_type, BuildContext};
+use crate::src::dart::element::class_hierarchy::{from_interface_type, ClassHierarchy, InterfacesMerger};
+use crate::src::dart::element::generic_inferrer::{gather_mixin_supertype_constraints_for_inference, match_supertype_constraints};
+use crate::src::dart::element::scope::ScopeElement;
+use crate::src::dart::element::subtype::TypeSystem;
+use crate::src::dart::element::type_algebra::substitute;
 
 use FragmentFlag::*;
 
 pub struct TypesBuilder<'c, 'a> {
     pub ctx: &'c mut BuildContext<'a>,
+    /// `_toInferMixins`: the declarations with a with clause, in the order
+    /// first met, with the with clause of each fragment.
+    pub to_infer_mixins: Vec<(ElementId, Vec<(UnitId, NodeId)>)>,
 }
 
 impl<'c, 'a> TypesBuilder<'c, 'a> {
@@ -96,6 +109,7 @@ impl<'c, 'a> TypesBuilder<'c, 'a> {
         }
         self.set_default_supertypes(libraries);
         self.copy_declaring_formal_parameters_explicit_types(declaring_fields);
+        self.mixins_inference();
         // `breakInterfaceCycles(_linker, nodes.declarations)`.
         let mut elements: Vec<ElementId> = Vec::new();
         for &(unit, node) in declarations {
@@ -221,6 +235,7 @@ impl<'c, 'a> TypesBuilder<'c, 'a> {
                 let interfaces = self.clause_types(unit, n.implements_clause);
                 let interfaces = self.to_interface_type_list(unit, &interfaces);
                 self.ctx.store.types_mut(element).interfaces = interfaces;
+                self.add_mixins(unit, element, n.with_clause);
             }
             AstNodeImpl::EnumDeclaration2Impl(n) => {
                 let element = self.element(unit, node);
@@ -333,15 +348,15 @@ impl<'c, 'a> TypesBuilder<'c, 'a> {
         }
     }
 
-    /// The mixins of a with clause; inference is not ported yet, so the
-    /// types are used as written (`_addFragmentWithClause`).
+    /// `_addFragmentWithClause`: the with clause waits for mixin inference.
     fn add_mixins(&mut self, unit: UnitId, element: ElementId, with_clause: NodeId) {
         if with_clause == NO_NODE {
             return;
         }
-        let nodes = self.clause_types(unit, with_clause);
-        let mixins = self.to_interface_type_list(unit, &nodes);
-        self.ctx.store.types_mut(element).mixins.extend(mixins);
+        match self.to_infer_mixins.iter_mut().find(|(e, _)| *e == element) {
+            Some((_, fragments)) => fragments.push((unit, with_clause)),
+            None => self.to_infer_mixins.push((element, vec![(unit, with_clause)])),
+        }
     }
 
     fn variables(&mut self, unit: UnitId, type_node: NodeId, variables: &[NodeId]) {
@@ -536,5 +551,202 @@ impl<'c, 'a> TypesBuilder<'c, 'a> {
                 }
             }
         }
+    }
+}
+
+/// Where a declaration stands in mixin inference: the callback upstream
+/// keeps in `mixinInferenceCallback`.
+#[derive(Clone, Copy, PartialEq)]
+enum MixinInferenceState {
+    /// `_callbackWhenRecursion`: reading its mixins infers it.
+    Pending,
+    /// `_callbackWhenLoop`: reading its mixins answers `[]`.
+    InProgress,
+    /// No callback.
+    Idle,
+}
+
+/// `_MixinsInference`.
+struct MixinsInference {
+    declarations: Vec<(ElementId, Vec<(UnitId, NodeId)>)>,
+    states: std::collections::HashMap<ElementId, MixinInferenceState>,
+    /// The elements whose hierarchy has been read, as the session's class
+    /// hierarchy caches it.
+    walked: std::collections::HashSet<ElementId>,
+    hierarchy: ClassHierarchy,
+}
+
+impl TypesBuilder<'_, '_> {
+    /// `_MixinsInference.perform`.
+    fn mixins_inference(&mut self) {
+        let declarations = std::mem::take(&mut self.to_infer_mixins);
+        let mut inference = MixinsInference {
+            states: declarations.iter().map(|(e, _)| (*e, MixinInferenceState::Pending)).collect(),
+            declarations,
+            walked: Default::default(),
+            hierarchy: ClassHierarchy::default(),
+        };
+        for index in 0..inference.declarations.len() {
+            self.infer_mixins_of_declaration(&mut inference, index);
+        }
+        // `_resetHierarchies`: the hierarchy goes with the inference.
+    }
+
+    /// Reading the mixins of [element]: the callback, if it has one.
+    fn read_mixins(&mut self, inference: &mut MixinsInference, element: ElementId) {
+        match inference.states.get(&element).copied() {
+            Some(MixinInferenceState::Pending) => {
+                let index = inference.declarations.iter().position(|(e, _)| *e == element).unwrap();
+                self.infer_mixins_of_declaration(inference, index);
+            }
+            Some(MixinInferenceState::InProgress) => {
+                // `_callbackWhenLoop`.
+                inference.states.insert(element, MixinInferenceState::Idle);
+                self.ctx.store.types_mut(element).mixins = Vec::new();
+            }
+            _ => {}
+        }
+    }
+
+    /// The class hierarchy of [t]'s element is read: its mixins, and the
+    /// hierarchies of everything it extends, implements or mixes in.
+    fn walk_hierarchy(&mut self, inference: &mut MixinsInference, t: Option<&TypeImpl>) {
+        let Some(element) = t.and_then(|t| t.as_interface()).map(|i| i.element) else {
+            return;
+        };
+        if !inference.walked.insert(element) {
+            return;
+        }
+        self.read_mixins(inference, element);
+        let kind = self.ctx.store.element(element).kind;
+        let mut supertypes: Vec<TypeImpl> = Vec::new();
+        if kind != ElementKind::MIXIN {
+            supertypes.extend(self.ctx.store.element(element).type_.clone());
+        }
+        if let Some(types) = self.ctx.store.types(element) {
+            if kind == ElementKind::MIXIN {
+                supertypes.extend(types.superclass_constraints.iter().cloned());
+            }
+            supertypes.extend(types.interfaces.iter().cloned());
+            supertypes.extend(types.mixins.iter().cloned());
+        }
+        for s in &supertypes {
+            self.walk_hierarchy(inference, Some(s));
+        }
+    }
+
+    /// `_inferDeclaration`.
+    fn infer_mixins_of_declaration(&mut self, inference: &mut MixinsInference, index: usize) {
+        let (element, fragments) = inference.declarations[index].clone();
+        inference.states.insert(element, MixinInferenceState::InProgress);
+
+        let supertype = if self.ctx.store.element(element).kind == ElementKind::MIXIN {
+            None
+        } else {
+            self.ctx.store.element(element).type_.clone()
+        };
+        self.walk_hierarchy(inference, supertype.as_ref());
+        for &(unit, with_clause) in &fragments {
+            for node in self.clause_types(unit, with_clause) {
+                let t = self.node_type(unit, node);
+                self.walk_hierarchy(inference, t.as_ref());
+                if let Some(Some(ScopeElement::Element(e))) = self.ctx.node_elements.get(&(unit, node)) {
+                    if self.ctx.store.element(*e).kind == ElementKind::TYPE_ALIAS {
+                        let aliased = self.ctx.store.element(*e).type_.clone();
+                        self.walk_hierarchy(inference, aliased.as_ref());
+                    }
+                }
+            }
+        }
+
+        let library = self.ctx.store.element(element).library;
+        let inference_using_bounds = self.ctx.inference_using_bounds.get(&library).copied().unwrap_or(true);
+        // `_MixinInference(element, ...)`.
+        let mut merger = InterfacesMerger::default();
+        merger.add_with_supertypes(self.ctx.store, &mut inference.hierarchy, supertype.as_ref());
+        let mut mixins = Vec::new();
+        for &(unit, with_clause) in &fragments {
+            for node in self.clause_types(unit, with_clause) {
+                let Some(mixin_type) = self.infer_single_mixin(inference, &merger, unit, node, inference_using_bounds) else {
+                    continue;
+                };
+                if mixin_type.as_interface().is_some_and(|i| i.is_valid_superinterface(self.ctx.store)) {
+                    merger.add_with_supertypes(self.ctx.store, &mut inference.hierarchy, Some(&mixin_type));
+                    mixins.push(mixin_type);
+                }
+            }
+        }
+        self.ctx.store.types_mut(element).mixins = mixins;
+        inference.states.insert(element, MixinInferenceState::Idle);
+    }
+
+    /// `_MixinInference._inferSingle`.
+    fn infer_single_mixin(
+        &mut self,
+        inference: &mut MixinsInference,
+        merger: &InterfacesMerger,
+        unit: UnitId,
+        node: NodeId,
+        inference_using_bounds: bool,
+    ) -> Option<TypeImpl> {
+        // `_interfaceType`.
+        let mixin_type = self
+            .node_type(unit, node)
+            .filter(|t| t.as_interface().is_some_and(|i| i.is_valid_superinterface(self.ctx.store)))?;
+        if self.ast(unit).node(node).as_named_type_impl().type_arguments != NO_NODE {
+            return Some(mixin_type);
+        }
+        let suffix = mixin_type.as_interface().unwrap().nullability_suffix;
+        let Some(Some(ScopeElement::Element(mixin_element))) = self.ctx.node_elements.get(&(unit, node)).cloned() else {
+            return Some(mixin_type);
+        };
+        let kind = self.ctx.store.element(mixin_element).kind;
+        let type_parameters = self.ctx.store.type_parameters(mixin_element);
+        let supertype_constraints: Vec<TypeImpl> = match kind {
+            ElementKind::CLASS | ElementKind::ENUM | ElementKind::MIXIN | ElementKind::EXTENSION_TYPE
+                if !type_parameters.is_empty() =>
+            {
+                gather_mixin_supertype_constraints_for_inference(self.ctx.store, mixin_element)
+            }
+            ElementKind::TYPE_ALIAS if !type_parameters.is_empty() => {
+                // `rawType.superclassConstraints`.
+                let Some(raw) = self.ctx.store.element(mixin_element).type_.clone() else {
+                    return Some(mixin_type);
+                };
+                let Some(raw) = raw.as_interface().cloned() else {
+                    return Some(mixin_type);
+                };
+                let constraints =
+                    self.ctx.store.types(raw.element).map(|t| t.superclass_constraints.clone()).unwrap_or_default();
+                let substitution = from_interface_type(self.ctx.store, raw.element, &raw.type_arguments);
+                constraints.iter().map(|c| substitute(self.ctx.store, &substitution, c)).collect()
+            }
+            _ => return Some(mixin_type),
+        };
+
+        // `_findInterfaceTypesForConstraints`.
+        let interface_types = merger.type_list();
+        let mut matching = Vec::with_capacity(supertype_constraints.len());
+        for constraint in &supertype_constraints {
+            let element = constraint.as_interface().unwrap().element;
+            let found = interface_types.iter().find(|t| t.as_interface().is_some_and(|i| i.element == element));
+            match found {
+                Some(t) => matching.push(t.clone()),
+                None => return Some(mixin_type),
+            }
+        }
+
+        let inferred = {
+            let mut ts = TypeSystem::new(self.ctx.store, &mut inference.hierarchy);
+            match_supertype_constraints(&mut ts, &type_parameters, &supertype_constraints, &matching, inference_using_bounds)
+        };
+        let Some(arguments) = inferred else {
+            return Some(mixin_type);
+        };
+        Some(if kind == ElementKind::TYPE_ALIAS {
+            self.ctx.instantiate_type_alias(mixin_element, &type_parameters, arguments, suffix)
+        } else {
+            TypeImpl::interface(mixin_element, arguments, suffix)
+        })
     }
 }

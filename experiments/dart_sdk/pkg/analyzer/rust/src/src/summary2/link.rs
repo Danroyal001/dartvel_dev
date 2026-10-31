@@ -171,6 +171,7 @@ impl Linker {
         let mut asts: HashMap<UnitId, Ast<'_>> = HashMap::new();
         let mut linking_libraries: HashSet<LibraryId> = HashSet::new();
         let mut nonfunction_type_aliases: HashMap<LibraryId, bool> = HashMap::new();
+        let mut inference_using_bounds: HashMap<LibraryId, bool> = HashMap::new();
         for builder in &self.builders[first_new..] {
             linking_libraries.insert(builder.element);
             for unit in &builder.units {
@@ -180,6 +181,7 @@ impl Linker {
             let parsed = builder.units[0].parsed.as_ref().unwrap();
             let feature_set = &parsed.ast.node(parsed.unit).as_compilation_unit_impl().feature_set;
             nonfunction_type_aliases.insert(builder.element, feature_set.is_enabled(Feature::nonfunction_type_aliases));
+            inference_using_bounds.insert(builder.element, feature_set.is_enabled(Feature::inference_using_bounds));
         }
         // `TypeAliasSelfReferenceFinder().perform(this)`.
         let units: Vec<(UnitId, NodeId)> = self.builders[first_new..]
@@ -197,7 +199,7 @@ impl Linker {
 
         let declarations: Vec<(UnitId, NodeId)> = self.types.declarations[declarations_start..].to_vec();
         let builders: Vec<u32> = self.types.type_builders[builders_start..].to_vec();
-        let LinkingTypes { node_types, fragment_of_node, .. } = &mut self.types;
+        let LinkingTypes { node_types, fragment_of_node, node_elements, .. } = &mut self.types;
         let mut ctx = BuildContext {
             store: &mut self.store,
             node_types,
@@ -205,6 +207,8 @@ impl Linker {
             linking_libraries: &linking_libraries,
             nonfunction_type_aliases: &nonfunction_type_aliases,
             fragment_of_node,
+            node_elements,
+            inference_using_bounds: &inference_using_bounds,
         };
         build_default_types(&mut ctx, &declarations);
         for id in builders {
@@ -213,7 +217,7 @@ impl Linker {
         let libraries: Vec<LibraryId> = self.builders[first_new..].iter().map(|b| b.element).collect();
         let declaring_fields: Vec<(FragmentId, FragmentId)> =
             self.builders[first_new..].iter().flat_map(|b| b.fragments.declaring_fields.clone()).collect();
-        TypesBuilder { ctx: &mut ctx }.build(&declarations, &libraries, &declaring_fields);
+        TypesBuilder { ctx: &mut ctx, to_infer_mixins: Vec::new() }.build(&declarations, &libraries, &declaring_fields);
     }
 
     /// The library files the imports and exports of [file] and of the parts
