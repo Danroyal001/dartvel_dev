@@ -52,7 +52,13 @@ const String _extract = r"""() => {
       // role="heading", so the tag carries the level. A walker that accepted
       // only <a> and <flt-semantics> skipped every heading on the page.
       const heading = /^h([1-6])$/.exec(tag);
-      if (tag !== 'a' && tag !== 'flt-semantics' && !heading) continue;
+      // Anything else is a wrapper: Flutter puts an app bar's title in a <header>
+      // landmark, and a heading inside it is the page's level 1. Its contents
+      // are walked as if they sat here; the wrapper adds no node of its own.
+      if (tag !== 'a' && tag !== 'flt-semantics' && !heading) {
+        out.push(...walk(child));
+        continue;
+      }
       const aria = child.getAttribute('aria-level');
       // A Dartvel role travels as the node's identifier, because Flutter's
       // Semantics has no role for code and SelectableText would otherwise be
@@ -104,6 +110,9 @@ const String _extract = r"""() => {
 
   return JSON.stringify(walk(host));
 }""";
+
+/// [_extract], exported for the tests that run it in a browser on Flutter-shaped markup.
+const String dvSemanticsExtractScript = _extract;
 
 /// Where a route's captured tree is written.
 String dvSemanticsPathFor(String projectRoot, String route) {

@@ -29,7 +29,7 @@ import 'package:yaml/yaml.dart';
 
 /// Bumped when the semantics capture changes what it writes, so captures
 /// from an older capture are never reused.
-const int dvSemanticsCaptureVersion = 1;
+const int dvSemanticsCaptureVersion = 2; // 2: walks into landmark wrappers (header, nav, main).
 
 /// Where the cache lives inside a project.
 const String dvBuildCacheDirectory = '.dartvel/cache';
