@@ -1,4 +1,7 @@
-## Unreleased
+## 0.13.17 — 2026-11-01
+
+- The accessibility audit sees headings inside landmark wrappers: the semantics capture walks into `<header>`, `<nav>` and `<main>`, so a page whose level-1 heading is its app bar title is no longer reported as having none. Captures from the old walker are not reused.
+
 
 - `dartvel --version | head -1` (or any command piped into a reader that stops early) ends quietly instead of printing an unhandled broken-pipe exception and exiting 255.
 
