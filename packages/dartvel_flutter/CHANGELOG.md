@@ -1,3 +1,7 @@
+## 0.13.18 — 2026-11-01
+
+- A chained `.modifier()` on DVBox and DVText now adds to the modifier already set instead of replacing it, so a `maxWidth` given to the constructor survives a style chained after it.
+
 ## 0.13.17 — 2026-11-01
 
 - Version aligned with dartvel_core 0.13.17.

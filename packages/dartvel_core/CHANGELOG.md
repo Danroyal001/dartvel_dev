@@ -1,3 +1,7 @@
+## 0.13.18 — 2026-11-01
+
+- Version aligned with dartvel_core 0.13.18.
+
 ## 0.13.17 — 2026-11-01
 
 - SMTP over STARTTLS works: the upgrade no longer shuts the socket's read side mid-handshake, the certificate is checked against the host connected to, and a failed upgrade reports its TLS error instead of "Bad state: Already cancelled". `dvConnectSmtp` takes an optional `SecurityContext`.

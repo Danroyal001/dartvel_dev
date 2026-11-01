@@ -1,3 +1,7 @@
+## 0.13.18 — 2026-11-01
+
+- Version aligned with dartvel_core 0.13.18.
+
 ## 0.13.17 — 2026-11-01
 
 - The accessibility audit sees headings inside landmark wrappers: the semantics capture walks into `<header>`, `<nav>` and `<main>`, so a page whose level-1 heading is its app bar title is no longer reported as having none. Captures from the old walker are not reused.
