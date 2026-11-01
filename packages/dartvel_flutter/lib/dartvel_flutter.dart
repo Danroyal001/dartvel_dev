@@ -2519,7 +2519,12 @@ class DVBox<T> extends StatelessWidget {
     );
   }
 
-  DVBox<T> modifier(DVModifier mod) => _copyWith(modifier: mod);
+  /// Layers [mod] over the modifier this box already has: a field [mod] sets
+  /// wins, one it leaves alone keeps its value. Replacing it dropped the
+  /// constructor's `modifier:` (a column's maxWidth) whenever a style was
+  /// chained after it.
+  DVBox<T> modifier(DVModifier mod) =>
+      _copyWith(modifier: _modifier?.merge(mod) ?? mod);
   DVBox<T> styleModifier(DVModifier mod) => modifier(mod);
 
   DVBox<T> row({double spacing = 8, DVAlign align = DVAlign.start}) =>
@@ -4003,8 +4008,10 @@ class DVText extends StatelessWidget {
 
   const DVText(this.text, [DVModifier? modifier]) : _modifier = modifier;
 
-  DVText modifier(DVModifier mod) => DVText(text, mod);
-  DVText styleModifier(DVModifier mod) => DVText(text, mod);
+  /// Layers [mod] over this text's modifier, as [DVBox.modifier] does.
+  DVText modifier(DVModifier mod) =>
+      DVText(text, _modifier?.merge(mod) ?? mod);
+  DVText styleModifier(DVModifier mod) => modifier(mod);
 
   @override
   Widget build(BuildContext context) {
