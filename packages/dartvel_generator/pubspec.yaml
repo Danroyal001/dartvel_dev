@@ -23,7 +23,7 @@ platforms:
   windows:
 
 dependencies:
-  build: ^4.0.0
+  build: ">=4.0.0 <6.0.0"
   source_gen: ^4.1.1
   # 14.4 reads Dart 3.13, the floor. On 10.x a primary constructor
   # anywhere in a project this runs in is a parse error.

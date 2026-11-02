@@ -39,14 +39,14 @@ dependencies:
   # this package's own rust/ crate now: it used to be packaged by
   # dartvel_shelf, which meant a frontend acquired a server to get a client.
   ffi: ^2.1.0
-  mime: ^1.0.4
+  mime: ">=1.0.4 <3.0.0"
   http_parser: ^4.0.2
-  shelf_multipart: ^1.0.0
-  sqlite3: ^2.9.4
+  shelf_multipart: ">=1.0.0 <3.0.0"
+  sqlite3: ">=2.9.4 <4.0.0"
   drift: ^2.14.0
   pointycastle: ^4.0.0
   # SAML assertions are XML, and their signatures are over canonical XML.
-  xml: ^6.5.0
+  xml: ">=6.5.0 <8.0.0"
   # The native-asset build hook that compiles this package's rust/ crate.
   # They belong in dependencies rather than dev_dependencies: the hook runs
   # for anything that depends on this package, not only when testing it.
