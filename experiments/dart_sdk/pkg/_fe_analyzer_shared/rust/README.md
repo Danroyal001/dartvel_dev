@@ -142,3 +142,35 @@ median of the Dart AOT run moved between 346 and 400 ms across runs.
 | `parseUnit` | Dart AOT | 312.4 ms | 400.2 ms | 496.5 MiB |
 | `parseUnit` | Dart JIT | 399.6 ms | 457.1 ms | 981.6 MiB |
 | `parseUnit` | Rust | 164.0 ms | 186.4 ms | 494.3 MiB |
+
+### Single-file cold start
+
+Measured 2026-11-03 on an 8-core host shared with other work (load average
+11 to 16 throughout, so the medians and slow ends are noisy; the fastest
+run is the steadiest figure), Dart 3.13.4, rustc 1.99.0. Each run is a new
+process that reads one file and writes its dump: the Dart programs built
+with `dart compile exe`, the Rust binaries of this workspace, 31 runs of
+each, Dart and Rust alternating. The small file is
+`_fe_analyzer_shared/lib/src/util/link.dart` (5,659 bytes), the medium one
+`analyzer/lib/src/dart/element/type_system.dart` (77,769 bytes), the large
+one `analyzer/lib/src/dart/ast/ast.dart` (1,765,016 bytes).
+
+| Program | File | Dart AOT fastest / median | Rust fastest / median |
+|---|---|---|---|
+| `scanner_dump` | small | 22.3 / 66.2 ms | 11.4 / 29.0 ms |
+| `scanner_dump` | medium | 66.0 / 187.5 ms | 12.8 / 54.0 ms |
+| `scanner_dump` | large | 1150.0 / 1848.7 ms | 93.5 / 139.0 ms |
+| `parser_dump` | small | 26.0 / 51.0 ms | 10.3 / 15.6 ms |
+| `parser_dump` | medium | 75.4 / 145.1 ms | 15.6 / 30.9 ms |
+| `parser_dump` | large | 1579.0 / 2883.3 ms | 165.6 / 303.0 ms |
+| `ast_dump` (analyzer) | small | 34.4 / 68.0 ms | 11.5 / 25.1 ms |
+| `ast_dump` (analyzer) | medium | 87.2 / 179.6 ms | 17.3 / 51.6 ms |
+| `ast_dump` (analyzer) | large | 1698.9 / 2246.0 ms | 238.3 / 323.8 ms |
+
+Rust is faster on the fastest and the median run of every row. The earlier
+note of a loss at the slow end (Rust 4–31 ms against Dart AOT 8–23 ms) is
+not reproduced, but the slowest runs of both sides on this loaded host
+reach hundreds of milliseconds, so the slow end is not settled. Not
+measured: instruction counts (`perf stat` needs `perf_event_paranoid` of 2
+or less; this host has 4) and the in-process rows above, which still date
+from 2026-10-30.
