@@ -620,6 +620,26 @@ pub struct ElementTypes {
     pub variance: Option<Variance>,
     /// `TypeAliasElementImpl.hasSelfReference`.
     pub has_self_reference: bool,
+    /// `PropertyInducingElementImpl.typeInference`, which top-level
+    /// inference sets on a variable or field that has no type of its own.
+    pub type_inference: Option<PropertyInducingElementTypeInference>,
+}
+
+/// `PropertyInducingElementTypeInference`: what
+/// `_PropertyInducingElementTypeInference.perform` (top_level_inference.dart)
+/// infers the type from, decided from the variable's linking node when
+/// `_addVariableNode` creates it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PropertyInducingElementTypeInference {
+    /// A declaring formal parameter with no default value and no
+    /// function-typed suffix: `Object?`.
+    DeclaringFormalParameter,
+    /// Nothing to infer from (no initializer, no default value): `dynamic`.
+    NoInitializer,
+    /// The initializer of a variable or the default value of a declaring
+    /// formal parameter, which `AstResolver` resolves. Not ported: the type
+    /// is left unset.
+    Initializer,
 }
 
 /// The member lists of `InstanceElementImpl` and `InterfaceElementImpl`.
@@ -1015,6 +1035,63 @@ impl ElementStore {
             .iter()
             .copied()
             .find(|&c| self.element(c).name.as_deref() == Some("Object"))
+    }
+
+    /// `TypeSystemImpl.objectQuestion`: `Object?`, when `dart:core` is in
+    /// the store.
+    pub fn object_question(&self) -> Option<TypeImpl> {
+        self.dart_core_object()
+            .map(|o| TypeImpl::interface(o, Vec::new(), crate::dart::element::nullability_suffix::NullabilitySuffix::question))
+    }
+
+    /// The `PropertyInducingElementImpl.type` setter: the type of the
+    /// variable [variable], and the return type or value parameter type of
+    /// the accessors it induces.
+    pub fn set_property_inducing_type(&mut self, variable: ElementId, t: TypeImpl) {
+        self.elements[variable as usize].type_ = Some(t.clone());
+        let (getter, setter) = {
+            let v = self.element(variable);
+            (v.getter, v.setter)
+        };
+        let is_origin_variable = |store: &Self, accessor: ElementId| {
+            let first = store.element(accessor).first_fragment;
+            store.fragment(first).has_flag(FragmentFlag::propertyAccessorFragment_isOriginVariable)
+        };
+        if getter != NO_ELEMENT && is_origin_variable(self, getter) {
+            self.elements[getter as usize].type_ = Some(t.clone());
+        }
+        if setter != NO_ELEMENT && is_origin_variable(self, setter) {
+            self.elements[setter as usize].type_ = Some(TypeImpl::Void);
+            let first = self.element(setter).first_fragment;
+            if let Some(&value) = self.fragment(first).formal_parameters.first() {
+                let value_element = self.fragment(value).element;
+                self.elements[value_element as usize].type_ = Some(t);
+            }
+        }
+    }
+
+    /// The `PropertyInducingElementImpl.type` getter while linking: the
+    /// type set, else what the element's type inference gives (which sets
+    /// it), else `InvalidType`, which is set too, so that a variable read
+    /// before top-level inference creates its inference keeps it (as
+    /// `breakInterfaceCycles` reads an untyped representation field).
+    ///
+    /// `None` only for an inference from an initializer, which is not
+    /// ported (`PropertyInducingElementTypeInference::Initializer`).
+    pub fn property_inducing_type(&mut self, variable: ElementId) -> Option<TypeImpl> {
+        if let Some(t) = &self.element(variable).type_ {
+            return Some(t.clone());
+        }
+        let t = match self.types(variable).and_then(|t| t.type_inference) {
+            Some(PropertyInducingElementTypeInference::DeclaringFormalParameter) => {
+                self.object_question().unwrap_or(TypeImpl::Invalid)
+            }
+            Some(PropertyInducingElementTypeInference::NoInitializer) => TypeImpl::Dynamic,
+            Some(PropertyInducingElementTypeInference::Initializer) => return None,
+            None => TypeImpl::Invalid,
+        };
+        self.set_property_inducing_type(variable, t.clone());
+        Some(t)
     }
 
     /// Whether [id] is declared by a `dart:` library (`isInSdk`).

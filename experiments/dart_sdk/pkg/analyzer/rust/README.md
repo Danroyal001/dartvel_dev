@@ -282,6 +282,26 @@ which need nothing more:
    and setters a field, a variable or an accessor induces; `dynamic` and
    `Never` in `dart:core`), then `_buildExportScopes`.
 3. `_buildClassSyntheticConstructors` and `_buildEnumSyntheticConstructors`.
+4. `_resolveTypes`: the scopes type annotations are resolved in
+   (`dart/element/scope.dart`), `ReferenceResolver`, the type builders
+   (`named_type_builder.dart`, function and record type builders),
+   `TypeAliasSelfReferenceFinder`, `DefaultTypesBuilder` and
+   `TypesBuilder` (declared types, supertypes, mixins and interfaces,
+   mixin inference through `matchSupertypeConstraints`,
+   `breakInterfaceCycles`, `buildEnumChildren`), with the type system they
+   need: subtyping, NORM, NNBD_TOP_MERGE, the class hierarchy, least and
+   greatest closures, upper and lower bounds, the type constraint gatherer
+   and `GenericInferrer`.
+5. `_performTopLevelInference`, the part representation types need (see
+   `summary2/top_level_inference.rs`): an untyped declaring formal
+   parameter with no default value gets `Object?`, a variable with nothing
+   to infer from `dynamic`. Inference from an initializer or a default
+   value (`AstResolver`) and override inference (`InstanceMemberInferrer`)
+   are not ported; the oracle writes those types as `implicit`, and
+   override inference never changes an extension type's field.
+6. `buildExtensionTypes`: representation types that depend on each other
+   become `InvalidType` (the erasure of an acyclic representation is not
+   computed; nothing reads it yet).
 
 and, from `dart/resolver/scope.dart`, the namespace of each import. The
 files, their URIs and their kinds (library or part, `part of` checks) come
@@ -289,8 +309,10 @@ from `dart/analysis/file_state.dart`, with the SDK's library map read from
 its `libraries.dart` (`dart/sdk/sdk.dart`) and the package config
 (`context/packages.dart`), as `AnalysisContextCollection` sets them up.
 
-The boundary is the next step, `_resolveTypes`: nothing about types is
-ported (see [Not ported yet](#not-ported-yet)).
+The steps between `_resolveTypes` and `buildExtensionTypes` that the
+declared types do not read (`_computeHasNonFinalField`, constant fields,
+field formals, field promotability, `SuperConstructorResolver`) and every
+step after it are not ported (see [Not ported yet](#not-ported-yet)).
 
 ### The oracle
 
@@ -320,9 +342,10 @@ formal parameters inherit (which need the super constructor) are left out.
 `--types` adds the declared types (`getDisplayString()` of bounds,
 supertypes, mixins, interfaces, superclass constraints, extended and
 aliased types, return types and variable and parameter types; `implicit`
-where inference decides). The Rust binary does not port it yet and exits
-with status 70, so `declared_types_are_identical_to_upstream` fails, by
-design, until it is.
+where inference decides), and each extension type's `representationType`,
+which is the one inferred type the dump reads (`element.representation.type`
+after linking: what top-level inference and `buildExtensionTypes` leave).
+`declared_types_are_identical_to_upstream` compares them.
 
 ### Running it
 
@@ -355,6 +378,14 @@ names other roots and `ELEMENT_WORK` moves the scratch directory (default
 | `src/dart/sdk/sdk.dart`, `src/generated/sdk.dart` (library map) | `src/dart/sdk/sdk.rs` |
 | `src/context/packages.dart` | `src/context/packages.rs` |
 | `src/utilities/uri_cache.dart`, `_fe_analyzer_shared`'s `resolve_relative_uri.dart` (with `dart:core`'s `Uri.resolveUri`) | `src/utilities/uri_cache.rs` |
+| `src/dart/element/type.dart`, `display_string_builder.dart`, `type_algebra.dart` (substitution) | `src/dart/element/type.rs`, `display_string_builder.rs`, `type_algebra.rs` |
+| `src/dart/element/scope.dart` | `src/dart/element/scope.rs` |
+| `src/summary2/reference_resolver.dart`, `type_builder.dart`, `named_type_builder.dart`, `function_type_builder.dart`, `record_type_builder.dart` | `src/summary2/reference_resolver.rs`, `type_builder.rs` |
+| `src/summary2/type_alias.dart`, `default_types_builder.dart`, `types_builder.dart`, `interface_cycles.dart` | `src/summary2/` (same names) |
+| `src/summary2/top_level_inference.dart` (`TopLevelInference`, `_InitializerInference`; see above for what is not ported) | `src/summary2/top_level_inference.rs` |
+| `src/summary2/extension_type.dart` (`buildExtensionTypes`, but the erasure) | `src/summary2/extension_type.rs` |
+| `src/dart/element/subtype.dart`, `normalize.dart`, `top_merge.dart`, `class_hierarchy.dart`, `least_greatest_closure.dart`, `least_upper_bound.dart`, `greatest_lower_bound.dart`, `type_schema_elimination.dart`, `type_constraint_gatherer.dart`, `generic_inferrer.dart`, parts of `type_system.dart` | `src/dart/element/` (same names) |
+| `_fe_analyzer_shared`'s `util/dependency_walker.dart`, `Variance` | `src/fe_analyzer_shared/` |
 
 ### Conventions
 
@@ -397,7 +428,22 @@ Miri): relative URIs with dot segments and `dart:` parts, the package
 config's JSON escapes, an ambiguous export keeping the first element, a
 name exported twice, `show` and `hide` applied to setters, accessors of
 one name sharing a variable unless repeated, a part of another library and
-a part included twice.
+a part included twice. The type algorithms have tests of their own
+(`subtype_test.rs`, `normalize_test.rs`, `bounds_test.rs`,
+`closure_test.rs`, `constraint_gatherer_test.rs`,
+`generic_inferrer_test.rs`, `promoted_test.rs`, `type_display_test.rs`,
+`scope_test.rs`, on the hand-built SDK of `tests/common`).
+`tests/top_level_inference_test.rs` checks the representation types of
+extension types against what upstream's `element_dump.dart --types` writes
+for the same declarations: `Object?` for an untyped declaring parameter,
+`InvalidType` for a recovery representation field, for an untyped
+representation that `breakInterfaceCycles` reads before inference, and for
+representations that depend on each other (with their declaring formal
+parameters). Not memoizing the `InvalidType` the `type` getter gives fails
+two of its four tests, and the oracle on `tests/language` reported the
+declaring parameters (19 rows in 4 libraries) before they were ported;
+the representation cycles are in no corpus file, and were found by
+comparing the two dumps on a file of such declarations.
 
 Each check was seen to fail on a broken port: with `Combinator.matches`
 comparing setter names with their `=`, `ExportScope.export` replacing an
@@ -423,6 +469,13 @@ libraries), `pkg/linter/lib`, `pkg/kernel/lib`, `pkg/front_end/lib` and
 (4784), and `tests/lib`, `tests/corelib`, `tests/ffi` and
 `tests/standalone` (2312): 9333 libraries, no differences. (The linking
 of each of them also links the `dart:` libraries they import.)
+The declared types (`--types`) match too, re-measured 2026-11-03 with Dart
+3.13.4 and rustc 1.99.0: 0 differences on the default corpus (567
+libraries) and 0 on the held-out roots `tests/language`, `sdk/lib`,
+`pkg/front_end/lib`, `pkg/linter/lib` and `pkg/kernel/lib` (5371
+libraries, where 19 representation types in 4 libraries differed before
+top-level inference was ported); the element oracle stays at 0 on both.
+The other held-out roots above were not re-run with `--types`.
 `pkg/front_end/testcases` and `parser_testcases` cannot be used: their
 `analysis_options.yaml` excludes them, so the oracle finds no context for
 them.
@@ -472,23 +525,18 @@ that stops after the export scopes.
 
 In the order linking needs them:
 
-- **Declared types** (`--types`): `_resolveTypes`, i.e. the `DartType`
-  classes of `dart/element/type.dart` (interface, function, record, type
-  parameter, `dynamic`, `void`, `Never`, invalid; nullability and alias
-  info), `display_string_builder.dart`, the library and declaration scopes
-  of `dart/element/scope.dart`, `summary2/reference_resolver.dart` and
-  `named_type_builder.dart` (with type aliases and import prefixes),
-  `types_builder.dart` (function types, supertypes, mixin inference),
-  `default_types_builder.dart` and `simply_bounded.dart` (instantiation to
-  bounds of raw types), `variance_builder.dart`, `type_alias.dart`, the
-  `TypeProvider`, and `buildEnumChildren` (`Enum` supertype, `values`
-  type). This is also what the fragments of type annotations wait for:
-  `GenericFunctionType` fragments and the formal parameters of
-  function-typed formal parameters, which `FragmentBuilder` skips.
-- The steps after it: field formals and constructors, top-level and
-  instance member inference, constant initializers and default values
-  (with what super formal parameters inherit), metadata and `@Since`,
-  field promotability, and the flags they set.
+- Of `_resolveTypes`: `simply_bounded.dart` and `variance_builder.dart`
+  (no row of the oracle's corpora needs them yet), and the alias
+  information of types (`preferTypeAlias` display).
+- Of top-level inference: inference from initializers and default values
+  (`AstResolver`, which is the resolver of expressions), dependency cycles
+  between them, and override inference (`InstanceMemberInferrer`); the
+  erasure of representation types (`ExtensionTypeErasure`).
+- The other steps: `_computeHasNonFinalField`, constant fields without a
+  const constructor, field formals and constructors, field promotability,
+  `SuperConstructorResolver`, constant initializers and default values
+  (with what super formal parameters inherit), metadata and `@Since`, and
+  the flags they set.
 - Augmentations beyond chains of fragments that declare the same formal
   and type parameters (`_linkFormalParameters` and `_linkTypeParameters`
   growing the chains with `isOriginOtherFragmentOfEnclosing` parameters),

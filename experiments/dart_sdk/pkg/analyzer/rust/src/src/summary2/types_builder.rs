@@ -132,26 +132,7 @@ impl<'c, 'a> TypesBuilder<'c, 'a> {
     /// `PropertyInducingElementImpl.type=`: the type, and the return or value
     /// parameter type of the accessors the variable induces.
     fn set_variable_type(&mut self, variable: ElementId, t: TypeImpl) {
-        self.set_type(variable, t.clone());
-        let (getter, setter) = {
-            let v = self.ctx.store.element(variable);
-            (v.getter, v.setter)
-        };
-        let is_origin_variable = |this: &Self, accessor: ElementId| {
-            let first = this.ctx.store.element(accessor).first_fragment;
-            this.ctx.store.fragment(first).has_flag(propertyAccessorFragment_isOriginVariable)
-        };
-        if getter != NO_ELEMENT && is_origin_variable(self, getter) {
-            self.set_type(getter, t.clone());
-        }
-        if setter != NO_ELEMENT && is_origin_variable(self, setter) {
-            self.set_type(setter, TypeImpl::Void);
-            let first = self.ctx.store.element(setter).first_fragment;
-            if let Some(&value) = self.ctx.store.fragment(first).formal_parameters.first() {
-                let value_element = self.ctx.store.fragment(value).element;
-                self.set_type(value_element, t);
-            }
-        }
+        self.ctx.store.set_property_inducing_type(variable, t);
     }
 
     /// `_copyDeclaringFormalParametersExplicitTypes`.

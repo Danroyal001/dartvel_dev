@@ -134,6 +134,8 @@ pub mod src {
         pub mod library_builder;
         pub mod link;
         pub mod not_serializable_nodes;
+        pub mod top_level_inference;
+        pub mod extension_type;
     }
     pub mod utilities {
         pub mod uri_cache;

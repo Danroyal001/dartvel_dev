@@ -11,8 +11,10 @@
 // computes them for a cycle, come out the same, since a library's export
 // scope depends only on the libraries it exports.
 //
-// The steps after these (resolving types, top-level inference, constants,
-// metadata) and writing summaries are not ported yet.
+// Then `_resolveTypes`, the part of `_performTopLevelInference` that
+// top_level_inference.rs ports, and `buildExtensionTypes`. The other steps
+// (field formals, promotability, constructors, constants, metadata) and
+// writing summaries are not ported yet.
 
 use std::collections::HashMap;
 
@@ -106,6 +108,8 @@ impl Linker {
         self.build_class_synthetic_constructors(first_new);
         self.build_enum_synthetic_constructors(first_new);
         self.resolve_types(first_new);
+        self.perform_top_level_inference(first_new);
+        self.build_extension_types(first_new);
 
         // `_detachNodes`: the trees are not needed any more.
         for builder in &mut self.builders[first_new..] {
@@ -113,6 +117,25 @@ impl Linker {
                 unit.parsed = None;
             }
         }
+    }
+
+    /// `_performTopLevelInference`: `TopLevelInference(this).infer()`, the
+    /// part `top_level_inference.rs` ports.
+    fn perform_top_level_inference(&mut self, first_new: usize) {
+        crate::src::summary2::top_level_inference::infer(&mut self.store, &self.builders[first_new..]);
+    }
+
+    /// `buildExtensionTypes(this)`.
+    fn build_extension_types(&mut self, first_new: usize) {
+        let libraries: Vec<LibraryId> = self.builders[first_new..].iter().map(|b| b.element).collect();
+        let mut declaring_formal: HashMap<crate::src::dart::element::element::ElementId, crate::src::dart::element::element::ElementId> =
+            HashMap::new();
+        for builder in &self.builders[first_new..] {
+            for &(field, formal) in &builder.fragments.declaring_fields {
+                declaring_formal.insert(self.store.fragment(field).element, self.store.fragment(formal).element);
+            }
+        }
+        crate::src::summary2::extension_type::build_extension_types(&mut self.store, &libraries, &declaring_formal);
     }
 
     /// `_resolveTypes`, so far `LibraryBuilder.resolveTypes`: resolves the

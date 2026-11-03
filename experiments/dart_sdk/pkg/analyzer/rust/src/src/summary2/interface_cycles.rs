@@ -72,12 +72,11 @@ impl ImplementsWalk<'_> {
             }
             ElementKind::EXTENSION_TYPE => {
                 store.types_mut(element).has_implements_self_reference = true;
-                let representation = store
-                    .element(element)
-                    .members()
-                    .fields
-                    .first()
-                    .and_then(|&f| store.element(f).type_.clone());
+                // `element.representation.type`: read before top-level
+                // inference, an untyped representation field becomes
+                // `InvalidType` for good.
+                let field = store.element(element).members().fields.first().copied();
+                let representation = field.and_then(|f| store.property_inducing_type(f));
                 let suffix = if representation.as_ref().is_some_and(|t| is_non_nullable(store, t)) {
                     NullabilitySuffix::none
                 } else {
