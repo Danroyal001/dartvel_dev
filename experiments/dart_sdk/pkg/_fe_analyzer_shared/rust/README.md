@@ -170,7 +170,30 @@ one `analyzer/lib/src/dart/ast/ast.dart` (1,765,016 bytes).
 Rust is faster on the fastest and the median run of every row. The earlier
 note of a loss at the slow end (Rust 4–31 ms against Dart AOT 8–23 ms) is
 not reproduced, but the slowest runs of both sides on this loaded host
-reach hundreds of milliseconds, so the slow end is not settled. Not
-measured: instruction counts (`perf stat` needs `perf_event_paranoid` of 2
-or less; this host has 4) and the in-process rows above, which still date
-from 2026-10-30.
+reach hundreds of milliseconds, so the slow end is not settled by time
+alone.
+
+Instruction counts settle it, since they do not depend on host load.
+Measured 2026-11-04 with `perf stat -e instructions:u,task-clock -r 11`
+(`perf_event_paranoid` lowered to 1 for the run, then restored), same three
+files, each in a folder of its own, same Dart 3.13.4 AOT builds and Rust
+release binaries. Every Rust dump is byte-identical to the Dart one.
+
+| Program | File | Dart AOT instructions / mean | Rust instructions / mean | Fewer instructions |
+|---|---|---|---|---|
+| `scanner_dump` | small | 21.0M / 28.2 ms | 1.7M / 4.8 ms | 12.4× |
+| `scanner_dump` | medium | 145.8M / 71.3 ms | 12.0M / 7.3 ms | 12.2× |
+| `scanner_dump` | large | 4,538.3M / 2,301.7 ms | 336.3M / 114.8 ms | 13.5× |
+| `parser_dump` | small | 28.2M / 66.6 ms | 3.0M / 5.9 ms | 9.4× |
+| `parser_dump` | medium | 166.3M / 112.8 ms | 19.6M / 9.0 ms | 8.5× |
+| `parser_dump` | large | 5,122.0M / 1,995.3 ms | 582.3M / 203.8 ms | 8.8× |
+| `ast_dump` (analyzer) | small | 40.5M / 51.4 ms | 3.8M / 3.9 ms | 10.7× |
+| `ast_dump` (analyzer) | medium | 220.6M / 114.2 ms | 25.4M / 39.9 ms | 8.7× |
+| `ast_dump` (analyzer) | large | 6,036.5M / 2,564.6 ms | 726.9M / 273.0 ms | 8.3× |
+
+Rust executes 8–14× fewer user-space instructions on every row, including
+the small file, where the slow-end loss had been reported. Binary size, same
+builds (unstripped Rust release against `dart compile exe`): `scanner_dump`
+0.67 MB against 6.85 MB, `parser_dump` 1.37 MB against 7.71 MB, `ast_dump`
+4.79 MB against 10.47 MB. Still not re-measured: the in-process rows above
+(2026-10-30) and peak memory of the single-file runs.
