@@ -7711,7 +7711,7 @@ class DVLocalAuthProvider implements DVAuthProvider {
   }
 
   String _newId(String prefix) =>
-      '$prefix-${DateTime.now().microsecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+      '$prefix-${DateTime.now().microsecondsSinceEpoch}-${math.Random().nextInt(0x10000)}${math.Random().nextInt(0x10000)}';
 }
 
 class DVAuth {

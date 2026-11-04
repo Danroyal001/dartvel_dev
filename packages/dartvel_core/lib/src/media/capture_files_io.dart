@@ -29,7 +29,8 @@ final class DVPrivateCaptureFiles implements DVCaptureFiles {
     _ensureDirectory();
     for (int attempt = 0; attempt < 8; attempt++) {
       final String name = 'capture-${DateTime.now().microsecondsSinceEpoch}-'
-          '${_random.nextInt(1 << 32).toRadixString(16)}.$extension';
+          '${_random.nextInt(0x10000).toRadixString(16).padLeft(4, '0')}'
+          '${_random.nextInt(0x10000).toRadixString(16).padLeft(4, '0')}.$extension';
       final String path = '$directory${Platform.pathSeparator}$name';
       if (FileSystemEntity.typeSync(path, followLinks: false) !=
           FileSystemEntityType.notFound) {
