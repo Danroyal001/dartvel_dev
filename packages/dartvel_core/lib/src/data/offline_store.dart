@@ -890,7 +890,8 @@ class DVOfflineStore {
     final DateTime device = clock.deviceNow;
     final DateTime corrected = device.add(clock.offset);
     final String id = '${device.microsecondsSinceEpoch}-$sequence-'
-        '${_random.nextInt(1 << 32).toRadixString(16)}';
+        '${_random.nextInt(0x10000).toRadixString(16).padLeft(4, '0')}'
+        '${_random.nextInt(0x10000).toRadixString(16).padLeft(4, '0')}';
     await _database.execute(
       'INSERT INTO $logTable '
       '(seq, mutation_id, op, record_key, payload, state, rejection) '
