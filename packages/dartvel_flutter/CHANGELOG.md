@@ -1,3 +1,7 @@
+## 0.13.19 — 2026-11-04
+
+- Generated widget ids work on the web: the random part no longer asks `Random.nextInt(1 << 32)`, which threw in JavaScript.
+
 ## 0.13.18 — 2026-11-01
 
 - A chained `.modifier()` on DVBox and DVText now adds to the modifier already set instead of replacing it, so a `maxWidth` given to the constructor survives a style chained after it.
