@@ -50,6 +50,34 @@ void main() {
     );
   });
 
+  // A function returning a DVExportResult answers with the file itself, so
+  // the document must say a file comes back, not a JSON object.
+  test('a DVExportResult function is documented as a file download', () {
+    for (final String returnType in <String>[
+      'Future<DVExportResult>',
+      'DVExportResult',
+    ]) {
+      final doc = build(<OpenApiOperation>[
+        OpenApiOperation(
+          method: 'get',
+          path: '/tracker.csv',
+          name: 'trackerCsv',
+          parameterNames: const <String>[],
+          parameterTypes: const <String>[],
+          returnType: returnType,
+        ),
+      ]);
+      final op = ((doc['paths']! as Map)['/tracker.csv'] as Map)['get'] as Map;
+      final ok = (op['responses'] as Map)['200'] as Map;
+      final content = ok['content'] as Map;
+      expect(content.keys, <String>['application/octet-stream'],
+          reason: returnType);
+      expect((content['application/octet-stream'] as Map)['schema'],
+          <String, Object?>{'type': 'string', 'format': 'binary'});
+      expect((ok['headers'] as Map).keys, contains('Content-Disposition'));
+    }
+  });
+
   test('bracket path params become path parameters in brace form', () {
     final doc = build(const <OpenApiOperation>[
       OpenApiOperation(
