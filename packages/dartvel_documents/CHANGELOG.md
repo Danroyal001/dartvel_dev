@@ -1,3 +1,7 @@
+## 0.13.20 — 2026-11-05
+
+- Version aligned with dartvel_core 0.13.20.
+
 ## Unreleased
 
 - `dartvel_documents` compiles for the web: PDFium sits behind a conditional import, and on the web `DVDocuments.open` answers `DVDocumentUnavailable` with the reason. Its first version imported `dart:ffi` from the public library, which broke Media-Bits' web build.

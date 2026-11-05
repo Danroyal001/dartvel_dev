@@ -1,3 +1,7 @@
+## 0.13.20 — 2026-11-05
+
+- Generated servers answer a `DVExportResult` function with the file; generated clients return the `DVExportResult` (bytes, type, name) and throw on an error answer; OpenAPI describes it as a binary download.
+
 ## 0.13.19 — 2026-11-04
 
 - Version aligned with dartvel_core 0.13.19.

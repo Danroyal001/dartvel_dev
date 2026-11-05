@@ -1,3 +1,7 @@
+## 0.13.20 — 2026-11-05
+
+- Version aligned with dartvel_core 0.13.20.
+
 ## 0.13.19 — 2026-11-04
 
 - Generated widget ids work on the web: the random part no longer asks `Random.nextInt(1 << 32)`, which threw in JavaScript.

@@ -1,3 +1,7 @@
+## 0.13.20 — 2026-11-05
+
+- A backend function that returns a `DVExportResult` is answered with the file (its bytes, content type and an RFC 6266 `content-disposition`) instead of failing with a 500; `DVExportResult.fromHttpResponse` and `dvContentDisposition` read and write it, and `DVHttpResponse` carries the response headers.
+
 ## 0.13.19 — 2026-11-04
 
 - Offline-store saves and capture file names work on the web: their random ids no longer ask `Random.nextInt(1 << 32)`, which is `nextInt(0)` in JavaScript and threw on every save. A guard test fails on any such call left in package code.
