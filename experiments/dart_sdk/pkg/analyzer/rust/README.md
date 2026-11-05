@@ -218,8 +218,12 @@ ends, `DelegatingAstVisitor2` visits the children before the delegates, or
 
 ## Results
 
-Measured 2026-10-30 on a 4-core Intel Xeon at 2.10 GHz, Dart 3.13.3, rustc
-1.97.0. Dart AOT is `oracle/ast_dump.dart` built with `dart compile exe`.
+Measured 2026-11-05 on an 8-core AMD EPYC host shared with other work,
+Dart 3.13.4, rustc 1.99.0, by `../../_fe_analyzer_shared/rust/tool/measure_rows.sh`:
+11 processes a side, Dart AOT and Rust alternating, user-space instructions
+from `perf stat`, peak RSS from `/usr/bin/time` (method and the scanner and
+parser rows in `pkg/_fe_analyzer_shared/rust/README.md`, Measurements).
+Dart AOT is `oracle/ast_dump.dart` built with `dart compile exe`.
 
 Both oracles match on the default corpus (5152 files, 28,328,001 bytes,
 and 2221 inputs of the analyzer's AST tests). The tree oracle also matches
@@ -241,28 +245,41 @@ diagnostics) takes, with only the sources loaded before. `--api --bench=N`
 parses the corpus once and times `toSource` of every unit N times
 (177,688,640 code units a round).
 
-| `parseString`, 10 rounds | Fastest round | Median round | Peak RSS |
-|---|---|---|---|
-| Dart AOT | 1179.2 ms | 1363.5 ms | 120.3 MiB |
-| Rust | 669.0 ms | 803.2 ms | 92.4 MiB |
+Fastest round is the fastest of the 11 processes, median round the median
+of their medians; instructions (the whole process) and peak RSS are
+medians.
 
-| `toSource` of every unit, 10 rounds | Fastest round | Median round | Peak RSS |
-|---|---|---|---|
-| Dart AOT | 446.6 ms | 475.1 ms | 646.4 MiB |
-| Rust | 151.2 ms | 176.8 ms | 597.2 MiB |
+| `parseString`, 10 rounds | Instructions | Fastest round | Median round | Peak RSS |
+|---|---|---|---|---|
+| Dart AOT | 84.38 G | 2620.6 ms | 3638.9 ms | 126.4 MiB |
+| Rust | **56.42 G** | **1545.4 ms** | **1858.5 ms** | **93.2 MiB** |
 
-The peak of the `toSource` runs is the parsed corpus they hold.
+| `toSource` of every unit, 10 rounds | Instructions | Fastest round | Median round | Peak RSS |
+|---|---|---|---|---|
+| Dart AOT | 45.04 G | 871.3 ms | 1152.3 ms | 698.6 MiB |
+| Rust | **16.42 G** | **268.7 ms** | **370.5 ms** | **485.0 MiB** |
 
-| Whole corpus kept (`--retain`) | Sources loaded | After parsing | Parsed corpus |
-|---|---|---|---|
-| Dart AOT | 75.4 MiB | 593.8 MiB | 518.4 MiB |
-| Rust | 58.8 MiB | 595.7 MiB | 536.9 MiB |
+The peak of the `toSource` runs is the parsed corpus they hold. Dart's peak
+RSS on `parseString` ranged 125.0–260.5 MiB across its processes; Rust's
+varied by under 1.5% on every row.
+
+| Whole corpus kept (`--retain`) | Instructions | Sources loaded | After parsing | Parsed corpus | Peak RSS |
+|---|---|---|---|---|---|
+| Dart AOT | 21.48 G | 78.8 MiB | 641.0 MiB | 562.1 MiB | 640.4 MiB |
+| Rust | **7.88 G** | **59.2 MiB** | **483.0 MiB** | **423.8 MiB** | **482.7 MiB** |
 
 The Rust corpus is 3,845,602 nodes at 32 bytes each (165.7 MiB of node
 store, lists included, plus the boxed large nodes), their parents (4 bytes
-each, 14.7 MiB, which took the parsed corpus past Dart's) and 5,201,677
-tokens, whose store (`TokenData` is 92 bytes, from the scanner port) takes
-458.0 MiB: the tokens, not the tree, dominate the parsed corpus.
+each, 14.7 MiB) and 5,201,677 tokens at 28 bytes each (246.7 MiB of token
+store with its spare capacity). On 2026-10-30, when `TokenData` took 92
+bytes, the token store was 458.0 MiB and the parsed corpus 536.9 MiB against
+Dart's 518.4 MiB; the 28-byte token (`43e9c5127` in the scanner port) is
+what turned that loss into a win.
+
+Earlier measurements (2026-10-30, 4-core Xeon, Dart 3.13.3, rustc 1.97.0,
+one process each): `parseString` 1179.2 / 1363.5 ms, 120.3 MiB (Dart AOT)
+against 669.0 / 803.2 ms, 92.4 MiB (Rust); `toSource` 446.6 / 475.1 ms,
+646.4 MiB against 151.2 / 176.8 ms, 597.2 MiB.
 
 ## The element model
 

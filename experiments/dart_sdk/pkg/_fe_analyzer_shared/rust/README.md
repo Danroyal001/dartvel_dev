@@ -113,87 +113,108 @@ every event.
 - Behaviour that looks like an upstream slip is ported as is and marked with
   a comment, never fixed: the oracle would report the fix as a difference.
 
-## Baseline
+## Measurements
 
-Measured 2026-10-30 on a 4-core Intel Xeon at 2.10 GHz, Dart 3.13.3, rustc
-1.97.0, on the default corpus (1178 files, 12,790,695 bytes, 1,545,787
-tokens), 20 rounds in one process, comments included. Dart AOT is
-`scanner_dump.dart` built with `dart compile exe`; peak RSS is the whole
-process, which holds the corpus in memory.
+Measured 2026-11-05 on an 8-core AMD EPYC host shared with other work (load
+average 6 to 10 throughout), Dart 3.13.4 (`dart compile exe`), rustc 1.99.0
+(the workspace's release profile: fat LTO, one codegen unit). Every row is
+Dart AOT against the Rust binary of this workspace, measured by
+`tool/measure_rows.sh` (run from the SDK root; `tool/measure.sh` is the
+harness), which runs the two programs alternately, Dart first on odd runs
+and Rust first on even ones, and records for each run:
 
-| Scanner | Implementation | Fastest round | Median round | Peak RSS |
-|---|---|---|---|---|
-| `scan` (UTF-8) | Dart AOT | 94.6 ms | 100.0 ms | 71.5 MiB |
-| `scan` (UTF-8) | Dart JIT | 92.0 ms | 107.2 ms | 260.3 MiB |
-| `scan` (UTF-8) | Rust | 48.5 ms | 50.8 ms | 28.6 MiB |
-| `scanString` | Dart AOT | 101.7 ms | 109.8 ms | 86.7 MiB |
-| `scanString` | Dart JIT | 98.2 ms | 113.5 ms | 279.9 MiB |
-| `scanString` | Rust | 49.1 ms | 51.9 ms | 53.3 MiB |
+- the **instructions** the process executes in user space
+  (`perf stat -e instructions:u`), which do not depend on host load and
+  vary by less than 0.1% between runs of the same Rust binary (Dart:
+  0.1–4%, from its garbage collector);
+- the **wall time**, or for an in-process row the program's own fastest
+  and median round;
+- the **peak RSS** of the process (`/usr/bin/time -f %M`).
 
-The parser, measured the same day on its default corpus (5152 files,
-28,328,001 bytes), 20 rounds in one process. Each round scans every file
-first and times only `parseUnit` with a listener that ignores every event.
-Peak RSS is sampled from `/proc` every 50 ms and is dominated by the token
-streams of the whole corpus, which both programs hold before parsing. The
-median of the Dart AOT run moved between 346 and 400 ms across runs.
+On this loaded host wall times vary by 5–15% (in-process rounds) and much
+more for short runs; the instruction counts are the steady figure, and Rust
+wins every row by them as well as by time. The scanner, parser and tree
+oracles (`scanner_oracle`, `parser_oracle`, `ast_oracle`) were run on the
+same binaries the same day: 0 differences.
 
-| Parser | Implementation | Fastest round | Median round | Peak RSS |
-|---|---|---|---|---|
-| `parseUnit` | Dart AOT | 312.4 ms | 400.2 ms | 496.5 MiB |
-| `parseUnit` | Dart JIT | 399.6 ms | 457.1 ms | 981.6 MiB |
-| `parseUnit` | Rust | 164.0 ms | 186.4 ms | 494.3 MiB |
+### In process
+
+11 processes a side. Fastest round is the fastest of all of them; median
+round is the median of the 11 per-process medians; instructions and peak
+RSS are the medians of the 11 processes (each whole process: reading the
+corpus and every round). The scanner corpus is the scanner oracle's default
+one (1178 files, 12,790,695 bytes, 1,545,787 tokens), 20 rounds, comments
+included. The parser and the tree use the parser's (5152 files, 28,328,001
+bytes). Each parser round scans every file first and times only `parseUnit`
+with a listener that ignores every event, so the process holds the token
+streams of the whole corpus. `ast_dump` (`pkg/analyzer/rust`) rows are
+described in that crate's README.
+
+| Row | Implementation | Instructions | Fastest round | Median round | Peak RSS |
+|---|---|---|---|---|---|
+| `scan` (UTF-8), 20 rounds | Dart AOT | 15.33 G | 157.8 ms | 226.5 ms | 80.5 MiB |
+| | Rust | **9.09 G** | **81.4 ms** | **103.8 ms** | **22.7 MiB** |
+| `scanString`, 20 rounds | Dart AOT | 16.03 G | 179.9 ms | 261.5 ms | 83.3 MiB |
+| | Rust | **9.51 G** | **83.6 ms** | **95.9 ms** | **47.9 MiB** |
+| `parseUnit`, 20 rounds | Dart AOT | 200.46 G | 666.2 ms | 834.2 ms | 484.6 MiB |
+| | Rust | **59.63 G** | **362.6 ms** | **431.1 ms** | **305.9 MiB** |
+| `parseString` (tree), 10 rounds | Dart AOT | 84.38 G | 2620.6 ms | 3638.9 ms | 126.4 MiB |
+| | Rust | **56.42 G** | **1545.4 ms** | **1858.5 ms** | **93.2 MiB** |
+| `toSource` of every unit, 10 rounds | Dart AOT | 45.04 G | 871.3 ms | 1152.3 ms | 698.6 MiB |
+| | Rust | **16.42 G** | **268.7 ms** | **370.5 ms** | **485.0 MiB** |
+| Whole corpus kept (`--retain`) | Dart AOT | 21.48 G | | | 640.4 MiB |
+| | Rust | **7.88 G** | | | **482.7 MiB** |
+
+Spread over the 11 processes: Dart's peak RSS ranged 448.7–564.4 MiB on
+`parseUnit` and 125.0–260.5 MiB on `parseString` (its heap grows at
+different points in different runs), Rust's by under 1.5% on every row.
+The parser's peak RSS fell from 494.3 MiB (2026-10-30, equal to Dart's then)
+to 305.9 MiB since a token takes 28 bytes instead of 52 (`43e9c5127`).
 
 ### Single-file cold start
 
-Measured 2026-11-03 on an 8-core host shared with other work (load average
-11 to 16 throughout, so the medians and slow ends are noisy; the fastest
-run is the steadiest figure), Dart 3.13.4, rustc 1.99.0. Each run is a new
-process that reads one file and writes its dump: the Dart programs built
-with `dart compile exe`, the Rust binaries of this workspace, 31 runs of
-each, Dart and Rust alternating. The small file is
+31 runs a side, each a new process that reads one file and writes its dump;
+every Rust dump is byte-identical to the Dart one. The small file is
 `_fe_analyzer_shared/lib/src/util/link.dart` (5,659 bytes), the medium one
 `analyzer/lib/src/dart/element/type_system.dart` (77,769 bytes), the large
-one `analyzer/lib/src/dart/ast/ast.dart` (1,765,016 bytes).
+one `analyzer/lib/src/dart/ast/ast.dart` (1,765,016 bytes), each in a folder
+of its own. Instructions and peak RSS are medians.
 
-| Program | File | Dart AOT fastest / median | Rust fastest / median |
+| Program | File | Dart AOT instructions | Rust instructions | Dart AOT wall fastest / median | Rust wall fastest / median | Dart AOT peak RSS | Rust peak RSS |
+|---|---|---|---|---|---|---|---|
+| `scanner_dump` | small | 20.9 M | **1.66 M** | 14.2 / 22.9 ms | **2.6 / 6.0 ms** | 8.9 MiB | **2.6 MiB** |
+| `scanner_dump` | medium | 145.7 M | **12.0 M** | 47.1 / 82.6 ms | **5.8 / 13.4 ms** | 15.8 MiB | **3.5 MiB** |
+| `scanner_dump` | large | 4,380.6 M | **336.3 M** | 1114.5 / 1494.4 ms | **86.5 / 120.0 ms** | 148.4 MiB | **27.0 MiB** |
+| `parser_dump` | small | 28.1 M | **2.92 M** | 16.7 / 25.7 ms | **3.2 / 6.0 ms** | 9.7 MiB | **3.2 MiB** |
+| `parser_dump` | medium | 166.1 M | **19.5 M** | 61.0 / 102.8 ms | **8.0 / 13.9 ms** | 19.3 MiB | **4.2 MiB** |
+| `parser_dump` | large | 5,107.6 M | **582.0 M** | 1541.3 / 1957.6 ms | **155.5 / 238.8 ms** | 173.2 MiB | **38.3 MiB** |
+| `ast_dump` (analyzer) | small | 40.3 M | **3.80 M** | 28.5 / 47.7 ms | **4.2 / 8.5 ms** | 12.8 MiB | **4.6 MiB** |
+| `ast_dump` (analyzer) | medium | 220.3 M | **25.3 M** | 64.7 / 114.8 ms | **10.6 / 16.3 ms** | 22.4 MiB | **6.1 MiB** |
+| `ast_dump` (analyzer) | large | 6,012.3 M | **726.9 M** | 1609.9 / 2058.7 ms | **223.5 / 336.5 ms** | 151.5 MiB | **54.0 MiB** |
+
+Rust runs 8–13× fewer instructions, is 5–13× faster on the fastest run and
+4–12× on the median, and peaks at 2.8–5.5× less memory, on every row. The
+slow-end loss once reported for cold start (Rust 4–31 ms against Dart AOT
+8–23 ms) is not reproduced by time (2026-11-03) or by instructions
+(2026-11-04, `9531c64c5`), and the slowest runs of both sides on this host
+are set by its load, not by the programs.
+
+### Binary size
+
+| Program | Dart AOT (`dart compile exe`) | Rust unstripped | Rust stripped |
 |---|---|---|---|
-| `scanner_dump` | small | 22.3 / 66.2 ms | 11.4 / 29.0 ms |
-| `scanner_dump` | medium | 66.0 / 187.5 ms | 12.8 / 54.0 ms |
-| `scanner_dump` | large | 1150.0 / 1848.7 ms | 93.5 / 139.0 ms |
-| `parser_dump` | small | 26.0 / 51.0 ms | 10.3 / 15.6 ms |
-| `parser_dump` | medium | 75.4 / 145.1 ms | 15.6 / 30.9 ms |
-| `parser_dump` | large | 1579.0 / 2883.3 ms | 165.6 / 303.0 ms |
-| `ast_dump` (analyzer) | small | 34.4 / 68.0 ms | 11.5 / 25.1 ms |
-| `ast_dump` (analyzer) | medium | 87.2 / 179.6 ms | 17.3 / 51.6 ms |
-| `ast_dump` (analyzer) | large | 1698.9 / 2246.0 ms | 238.3 / 323.8 ms |
+| `scanner_dump` | 6,853,080 bytes | **671,184 bytes** | **557,144 bytes** |
+| `parser_dump` | 7,705,512 bytes | **1,373,312 bytes** | **1,071,744 bytes** |
+| `ast_dump` | 10,472,152 bytes | **4,788,688 bytes** | **3,801,624 bytes** |
 
-Rust is faster on the fastest and the median run of every row. The earlier
-note of a loss at the slow end (Rust 4–31 ms against Dart AOT 8–23 ms) is
-not reproduced, but the slowest runs of both sides on this loaded host
-reach hundreds of milliseconds, so the slow end is not settled by time
-alone.
+A Dart AOT executable cannot be stripped: `strip` drops the appended
+snapshot and the result no longer runs, so its one size is both columns.
 
-Instruction counts settle it, since they do not depend on host load.
-Measured 2026-11-04 with `perf stat -e instructions:u,task-clock -r 11`
-(`perf_event_paranoid` lowered to 1 for the run, then restored), same three
-files, each in a folder of its own, same Dart 3.13.4 AOT builds and Rust
-release binaries. Every Rust dump is byte-identical to the Dart one.
+### Earlier measurements
 
-| Program | File | Dart AOT instructions / mean | Rust instructions / mean | Fewer instructions |
-|---|---|---|---|---|
-| `scanner_dump` | small | 21.0M / 28.2 ms | 1.7M / 4.8 ms | 12.4× |
-| `scanner_dump` | medium | 145.8M / 71.3 ms | 12.0M / 7.3 ms | 12.2× |
-| `scanner_dump` | large | 4,538.3M / 2,301.7 ms | 336.3M / 114.8 ms | 13.5× |
-| `parser_dump` | small | 28.2M / 66.6 ms | 3.0M / 5.9 ms | 9.4× |
-| `parser_dump` | medium | 166.3M / 112.8 ms | 19.6M / 9.0 ms | 8.5× |
-| `parser_dump` | large | 5,122.0M / 1,995.3 ms | 582.3M / 203.8 ms | 8.8× |
-| `ast_dump` (analyzer) | small | 40.5M / 51.4 ms | 3.8M / 3.9 ms | 10.7× |
-| `ast_dump` (analyzer) | medium | 220.6M / 114.2 ms | 25.4M / 39.9 ms | 8.7× |
-| `ast_dump` (analyzer) | large | 6,036.5M / 2,564.6 ms | 726.9M / 273.0 ms | 8.3× |
-
-Rust executes 8–14× fewer user-space instructions on every row, including
-the small file, where the slow-end loss had been reported. Binary size, same
-builds (unstripped Rust release against `dart compile exe`): `scanner_dump`
-0.67 MB against 6.85 MB, `parser_dump` 1.37 MB against 7.71 MB, `ast_dump`
-4.79 MB against 10.47 MB. Still not re-measured: the in-process rows above
-(2026-10-30) and peak memory of the single-file runs.
+2026-10-30 (4-core Xeon, Dart 3.13.3, rustc 1.97.0, 20 rounds, one process
+each): `scan` 94.6 / 100.0 ms and 71.5 MiB (Dart AOT) against 48.5 / 50.8 ms
+and 28.6 MiB (Rust); `scanString` 101.7 / 109.8 ms, 86.7 MiB against
+49.1 / 51.9 ms, 53.3 MiB; `parseUnit` 312.4 / 400.2 ms, 496.5 MiB against
+164.0 / 186.4 ms, 494.3 MiB. Dart JIT was slower than Dart AOT on every
+median and took 2–4× the memory, so it is no longer measured.
