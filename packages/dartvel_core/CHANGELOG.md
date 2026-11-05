@@ -1,3 +1,7 @@
+## 0.13.21 — 2026-11-05
+
+- Version aligned with dartvel_core 0.13.21.
+
 ## 0.13.20 — 2026-11-05
 
 - A backend function that returns a `DVExportResult` is answered with the file (its bytes, content type and an RFC 6266 `content-disposition`) instead of failing with a 500; `DVExportResult.fromHttpResponse` and `dvContentDisposition` read and write it, and `DVHttpResponse` carries the response headers.

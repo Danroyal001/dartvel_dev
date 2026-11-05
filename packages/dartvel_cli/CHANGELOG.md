@@ -1,3 +1,7 @@
+## 0.13.21 — 2026-11-05
+
+- Projects with a raw handler typed `Future<Response>` build again: 0.13.20's file-download check did not compile on those routes.
+
 ## 0.13.20 — 2026-11-05
 
 - Generated servers answer a `DVExportResult` function with the file; generated clients return the `DVExportResult` (bytes, type, name) and throw on an error answer; OpenAPI describes it as a binary download.
