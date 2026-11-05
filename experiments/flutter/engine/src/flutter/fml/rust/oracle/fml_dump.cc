@@ -145,7 +145,9 @@ void InsIoctl(unsigned long request) {
   }
 }
 
-// The instructions counted since the last reset, or -1.
+// The instructions counted so far, or -1. RESET would not do between rounds:
+// it clears the running threads' counts but not those folded in from threads
+// that have exited, so a round is the difference of two reads.
 int64_t InsRead() {
   uint64_t value = 0;
   if (g_ins_fd < 0 || read(g_ins_fd, &value, 8) != 8) {
@@ -167,7 +169,6 @@ uint64_t SwNowNs() {
 void SwReset() {
   g_sw_depth.store(1, std::memory_order_relaxed);
   g_sw_total_ns.store(0, std::memory_order_relaxed);
-  InsIoctl(PERF_EVENT_IOC_RESET);
 }
 
 // Stops the clock (it may already be stopped; pauses nest).
@@ -4093,6 +4094,7 @@ void Bench(const std::string& name, int iterations) {
   uint64_t check = 0;
   for (int i = 0; i < iterations; i++) {
     SwReset();
+    int64_t ins_before = InsRead();
     Rng r{static_cast<uint64_t>(i)};
     auto timed = [](void (*f)()) {
       SwResume();
@@ -4141,7 +4143,7 @@ void Bench(const std::string& name, int iterations) {
       std::exit(2);
     }
     rounds.push_back(g_sw_total_ns.load(std::memory_order_relaxed) / 1e3);
-    instructions.push_back(InsRead());
+    instructions.push_back(ins_before < 0 ? -1 : InsRead() - ins_before);
   }
   std::sort(rounds.begin(), rounds.end());
   std::sort(instructions.begin(), instructions.end());

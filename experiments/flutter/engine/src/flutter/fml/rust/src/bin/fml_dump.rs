@@ -115,7 +115,6 @@ fn sw_now_ns() -> u64 {
 fn sw_reset() {
     SW_DEPTH.store(1, Relaxed);
     SW_TOTAL_NS.store(0, Relaxed);
-    ins_ioctl(PERF_EVENT_IOC_RESET);
 }
 
 /// Stops the clock (it may already be stopped; pauses nest).
@@ -162,7 +161,6 @@ static INS_FD: AtomicI64 = AtomicI64::new(-1);
 
 const PERF_EVENT_IOC_ENABLE: u64 = 0x2400;
 const PERF_EVENT_IOC_DISABLE: u64 = 0x2401;
-const PERF_EVENT_IOC_RESET: u64 = 0x2403;
 #[cfg(target_arch = "x86_64")]
 const SYS_PERF_EVENT_OPEN: i64 = 298;
 #[cfg(target_arch = "aarch64")]
@@ -209,14 +207,16 @@ fn ins_open() {
 fn ins_ioctl(request: u64) {
     let fd = INS_FD.load(Relaxed);
     if fd >= 0 {
-        // SAFETY: the perf ioctls ENABLE, DISABLE and RESET take no argument
+        // SAFETY: the perf ioctls ENABLE and DISABLE take no argument
         // and act on the counter and its inherited copies; `fd` is the
         // descriptor ins_open opened, never closed.
         unsafe { c_ioctl(fd as i32, request, 0u64) };
     }
 }
 
-/// The instructions counted since the last reset, or -1.
+/// The instructions counted so far, or -1. RESET would not do between
+/// rounds: it clears the running threads' counts but not those folded in
+/// from threads that have exited, so a round is the difference of two reads.
 fn ins_read() -> i64 {
     let fd = INS_FD.load(Relaxed);
     if fd < 0 {
@@ -1043,6 +1043,7 @@ fn bench(name: &str, iterations: i32) {
     let mut check = 0u64;
     for i in 0..iterations {
         sw_reset();
+        let ins_before = ins_read();
         let mut r = Rng { s: i as u64 };
         let timed = |f: &dyn Fn()| {
             sw_resume();
@@ -1078,7 +1079,7 @@ fn bench(name: &str, iterations: i32) {
             }
         }
         rounds.push(SW_TOTAL_NS.load(Relaxed) as f64 / 1e3);
-        instructions.push(ins_read());
+        instructions.push(if ins_before < 0 { -1 } else { ins_read() - ins_before });
     }
     rounds.sort_by(|a, b| a.partial_cmp(b).unwrap());
     instructions.sort();
