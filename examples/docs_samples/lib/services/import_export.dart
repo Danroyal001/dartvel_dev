@@ -28,6 +28,14 @@ Future<void> resumableImport(String csv) async {
   // docs:end
 }
 
+Future<void> downloadArticles() async {
+  // docs:start backend-file-client
+  // The generated client function hands back the file the server sent.
+  final DVExportResult file = await articlesCsv();
+  await DV.FileStorage.put(file.fileName, file.bytes, contentType: file.contentType);
+  // docs:end
+}
+
 Future<void> exports(List<Article> articles) async {
   // docs:start export-files
   final DVExportResult csv = Article.exportCsv(
