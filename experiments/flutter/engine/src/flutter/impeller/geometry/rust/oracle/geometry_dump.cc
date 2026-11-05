@@ -2769,6 +2769,14 @@ static void Bench(const std::string& name, int rounds) {
         Fold(sc.value_or(-1.0f));
         Fold(Matrix::MakeRotationZ(Radians(s[i])).m[1]);
       }
+    } else if (name == "invert") {
+      for (int i = 0; i < kN; i++) {
+        Fold(m0[i].Invert().m[i & 15]);
+      }
+    } else if (name == "determinant") {
+      for (int i = 0; i < kN; i++) {
+        Fold(m0[i].GetDeterminant());
+      }
     } else if (name == "decompose") {
       for (int i = 0; i < kN; i++) {
         auto d = m0[i].Decompose();

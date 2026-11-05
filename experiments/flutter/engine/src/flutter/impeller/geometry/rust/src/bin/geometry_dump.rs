@@ -2798,6 +2798,16 @@ fn bench(name: &str, rounds: i32) {
                     o.f(Matrix::make_rotation_z(Radians::new(s[i])).m[1]);
                 }
             }
+            "invert" => {
+                for i in 0..kN {
+                    o.f(m0[i].invert().m[i & 15]);
+                }
+            }
+            "determinant" => {
+                for i in 0..kN {
+                    o.f(m0[i].get_determinant());
+                }
+            }
             "decompose" => {
                 for i in 0..kN {
                     if let Some(d) = m0[i].decompose() {
