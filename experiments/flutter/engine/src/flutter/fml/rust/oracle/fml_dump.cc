@@ -49,8 +49,11 @@
 
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <linux/perf_event.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <pthread.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -106,6 +109,51 @@ bool g_quiet = false;
 #define QFPUTS(...) (g_quiet ? 0 : std::fputs(__VA_ARGS__))
 #define QFPUTC(...) (g_quiet ? 0 : std::fputc(__VA_ARGS__))
 
+// ---------------------------------------------------- bench counter ------
+//
+// With FML_BENCH_INS=1 the stopwatch also counts the user-space instructions
+// retired while it runs, in every thread of the process
+// (src/bin/fml_dump.rs does the same): one perf_event_open counter,
+// inherited by the threads created after it, enabled when the clock starts
+// and disabled when it stops. Reading it sums the threads that are running
+// and those that have exited. Off by default, so that the timed runs make no
+// extra system call; where perf events are not allowed
+// (perf_event_paranoid above 2), the count is reported as -1.
+
+int g_ins_fd = -1;
+
+void InsOpen() {
+  const char* on = std::getenv("FML_BENCH_INS");
+  if (on == nullptr || std::strcmp(on, "1") != 0) {
+    return;
+  }
+  struct perf_event_attr attr;
+  std::memset(&attr, 0, sizeof(attr));
+  attr.type = PERF_TYPE_HARDWARE;
+  attr.size = PERF_ATTR_SIZE_VER0;
+  attr.config = PERF_COUNT_HW_INSTRUCTIONS;
+  attr.disabled = 1;
+  attr.inherit = 1;
+  attr.exclude_kernel = 1;
+  attr.exclude_hv = 1;
+  g_ins_fd = static_cast<int>(syscall(SYS_perf_event_open, &attr, 0, -1, -1, 0));
+}
+
+void InsIoctl(unsigned long request) {
+  if (g_ins_fd >= 0) {
+    ioctl(g_ins_fd, request, 0);
+  }
+}
+
+// The instructions counted since the last reset, or -1.
+int64_t InsRead() {
+  uint64_t value = 0;
+  if (g_ins_fd < 0 || read(g_ins_fd, &value, 8) != 8) {
+    return -1;
+  }
+  return static_cast<int64_t>(value);
+}
+
 std::atomic<size_t> g_sw_depth{1};
 std::atomic<uint64_t> g_sw_total_ns{0};
 std::atomic<uint64_t> g_sw_start_ns{0};
@@ -119,6 +167,7 @@ uint64_t SwNowNs() {
 void SwReset() {
   g_sw_depth.store(1, std::memory_order_relaxed);
   g_sw_total_ns.store(0, std::memory_order_relaxed);
+  InsIoctl(PERF_EVENT_IOC_RESET);
 }
 
 // Stops the clock (it may already be stopped; pauses nest).
@@ -127,6 +176,7 @@ void SwPause() {
     uint64_t elapsed = SwNowNs() - g_sw_start_ns.load(std::memory_order_relaxed);
     g_sw_total_ns.store(g_sw_total_ns.load(std::memory_order_relaxed) + elapsed,
                         std::memory_order_relaxed);
+    InsIoctl(PERF_EVENT_IOC_DISABLE);
   }
   g_sw_depth.store(g_sw_depth.load(std::memory_order_relaxed) + 1,
                    std::memory_order_relaxed);
@@ -137,6 +187,7 @@ void SwResume() {
   size_t depth = g_sw_depth.load(std::memory_order_relaxed) - 1;
   g_sw_depth.store(depth, std::memory_order_relaxed);
   if (depth == 0) {
+    InsIoctl(PERF_EVENT_IOC_ENABLE);
     g_sw_start_ns.store(SwNowNs(), std::memory_order_relaxed);
   }
 }
@@ -4036,6 +4087,8 @@ uint64_t KernelCmdline(Rng& r, size_t cases) {
 void Bench(const std::string& name, int iterations) {
   g_quiet = true;
   std::vector<double> rounds;
+  std::vector<int64_t> instructions;
+  InsOpen();
   uint64_t check = 0;
   for (int i = 0; i < iterations; i++) {
     SwReset();
@@ -4087,13 +4140,17 @@ void Bench(const std::string& name, int iterations) {
       std::exit(2);
     }
     rounds.push_back(g_sw_total_ns.load(std::memory_order_relaxed) / 1e3);
+    instructions.push_back(InsRead());
   }
   std::sort(rounds.begin(), rounds.end());
+  std::sort(instructions.begin(), instructions.end());
   std::fprintf(stderr,
                "bench %s fastest %.1f us median %.1f us slowest %.1f us "
-               "peak_rss %ld KiB check %016" PRIx64 "\n",
+               "peak_rss %ld KiB check %016" PRIx64 " ins_fewest %" PRId64
+               " ins_median %" PRId64 "\n",
                name.c_str(), rounds.front(), rounds[rounds.size() / 2],
-               rounds.back(), PeakRssKiB(), check);
+               rounds.back(), PeakRssKiB(), check,
+               instructions.front(), instructions[instructions.size() / 2]);
 }
 
 }  // namespace

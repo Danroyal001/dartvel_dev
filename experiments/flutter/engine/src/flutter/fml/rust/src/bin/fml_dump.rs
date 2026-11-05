@@ -115,6 +115,7 @@ fn sw_now_ns() -> u64 {
 fn sw_reset() {
     SW_DEPTH.store(1, Relaxed);
     SW_TOTAL_NS.store(0, Relaxed);
+    ins_ioctl(PERF_EVENT_IOC_RESET);
 }
 
 /// Stops the clock (it may already be stopped; pauses nest).
@@ -122,6 +123,7 @@ fn sw_pause() {
     if SW_DEPTH.load(Relaxed) == 0 {
         let elapsed = sw_now_ns() - SW_START_NS.load(Relaxed);
         SW_TOTAL_NS.store(SW_TOTAL_NS.load(Relaxed) + elapsed, Relaxed);
+        ins_ioctl(PERF_EVENT_IOC_DISABLE);
     }
     SW_DEPTH.store(SW_DEPTH.load(Relaxed) + 1, Relaxed);
 }
@@ -131,6 +133,7 @@ fn sw_resume() {
     let depth = SW_DEPTH.load(Relaxed) - 1;
     SW_DEPTH.store(depth, Relaxed);
     if depth == 0 {
+        ins_ioctl(PERF_EVENT_IOC_ENABLE);
         SW_START_NS.store(sw_now_ns(), Relaxed);
     }
 }
@@ -143,6 +146,88 @@ fn untimed<T>(f: impl FnOnce() -> T) -> T {
     v
 }
 
+
+// ---------------------------------------------------- bench counter ------
+//
+// With FML_BENCH_INS=1 the stopwatch also counts the user-space instructions
+// retired while it runs, in every thread of the process (oracle/fml_dump.cc
+// does the same): one perf_event_open counter, inherited by the threads
+// created after it, enabled when the clock starts and disabled when it
+// stops. Reading it sums the threads that are running and those that have
+// exited. Off by default, so that the timed runs make no extra system call;
+// where perf events are not allowed (perf_event_paranoid above 2), the
+// count is reported as -1.
+
+static INS_FD: AtomicI64 = AtomicI64::new(-1);
+
+const PERF_EVENT_IOC_ENABLE: u64 = 0x2400;
+const PERF_EVENT_IOC_DISABLE: u64 = 0x2401;
+const PERF_EVENT_IOC_RESET: u64 = 0x2403;
+#[cfg(target_arch = "x86_64")]
+const SYS_PERF_EVENT_OPEN: i64 = 298;
+#[cfg(target_arch = "aarch64")]
+const SYS_PERF_EVENT_OPEN: i64 = 241;
+
+/// `struct perf_event_attr` up to `bp_addr` (PERF_ATTR_SIZE_VER0, 64 bytes),
+/// which every kernel accepts.
+#[repr(C)]
+#[derive(Default)]
+struct PerfEventAttr {
+    type_: u32,
+    size: u32,
+    config: u64,
+    sample_period: u64,
+    sample_type: u64,
+    read_format: u64,
+    flags: u64,
+    wakeup_events: u32,
+    bp_type: u32,
+    bp_addr: u64,
+}
+const _: () = assert!(std::mem::size_of::<PerfEventAttr>() == 64);
+
+fn ins_open() {
+    if std::env::var_os("FML_BENCH_INS").is_none_or(|v| v != "1") {
+        return;
+    }
+    let attr = PerfEventAttr {
+        type_: 0, // PERF_TYPE_HARDWARE
+        size: 64,
+        config: 1, // PERF_COUNT_HW_INSTRUCTIONS
+        // disabled (bit 0), inherit (bit 1), exclude_kernel (bit 5),
+        // exclude_hv (bit 6).
+        flags: 1 | 1 << 1 | 1 << 5 | 1 << 6,
+        ..Default::default()
+    };
+    // SAFETY: perf_event_open(attr, pid 0 = this process, cpu -1 = any,
+    // group_fd -1, flags 0) only reads the 64-byte struct `attr` points to,
+    // whose `size` says so; it returns a new descriptor or -1.
+    let fd = unsafe { c_syscall(SYS_PERF_EVENT_OPEN, &attr as *const PerfEventAttr, 0i32, -1i32, -1i32, 0u64) };
+    INS_FD.store(fd, Relaxed);
+}
+
+fn ins_ioctl(request: u64) {
+    let fd = INS_FD.load(Relaxed);
+    if fd >= 0 {
+        // SAFETY: the perf ioctls ENABLE, DISABLE and RESET take no argument
+        // and act on the counter and its inherited copies; `fd` is the
+        // descriptor ins_open opened, never closed.
+        unsafe { c_ioctl(fd as i32, request, 0u64) };
+    }
+}
+
+/// The instructions counted since the last reset, or -1.
+fn ins_read() -> i64 {
+    let fd = INS_FD.load(Relaxed);
+    if fd < 0 {
+        return -1;
+    }
+    let mut value = 0u64;
+    // SAFETY: a counter opened with read_format 0 reads as one u64, which
+    // `value` is.
+    let n = unsafe { c_read(fd as i32, (&mut value as *mut u64).cast(), 8) };
+    if n == 8 { value as i64 } else { -1 }
+}
 const TAPE_LEN: usize = 4096;
 static TAPE_ON: AtomicBool = AtomicBool::new(false);
 static TAPE: [AtomicU64; TAPE_LEN] = [const { AtomicU64::new(0) }; TAPE_LEN];
@@ -953,6 +1038,8 @@ fn peak_rss_kib() -> i64 {
 fn bench(name: &str, iterations: i32) {
     QUIET.store(true, Relaxed);
     let mut rounds = Vec::new();
+    let mut instructions = Vec::new();
+    ins_open();
     let mut check = 0u64;
     for i in 0..iterations {
         sw_reset();
@@ -991,16 +1078,20 @@ fn bench(name: &str, iterations: i32) {
             }
         }
         rounds.push(SW_TOTAL_NS.load(Relaxed) as f64 / 1e3);
+        instructions.push(ins_read());
     }
     rounds.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    instructions.sort();
     // One write, as the C++ driver's fprintf makes (stderr is unbuffered).
     let report = format!(
-        "bench {name} fastest {:.1} us median {:.1} us slowest {:.1} us peak_rss {} KiB check {:016x}\n",
+        "bench {name} fastest {:.1} us median {:.1} us slowest {:.1} us peak_rss {} KiB check {:016x} ins_fewest {} ins_median {}\n",
         rounds[0],
         rounds[rounds.len() / 2],
         rounds[rounds.len() - 1],
         peak_rss_kib(),
-        check
+        check,
+        instructions[0],
+        instructions[instructions.len() / 2],
     );
     let _ = std::io::stderr().write_all(report.as_bytes());
 }
@@ -2581,7 +2672,7 @@ use fml::file::{FilePermission, ScopedTemporaryDirectory};
 use fml::mapping::{DataMapping, FileMapping, MallocMapping, Mapping, NonOwnedMapping, Protection};
 use fml::unique_fd::UniqueFD;
 
-// SAFETY: declarations only, each matching its prototype in <errno.h>, <dlfcn.h>, <signal.h>, <sys/stat.h> and <time.h>
+// SAFETY: declarations only, each matching its prototype in <errno.h>, <dlfcn.h>, <signal.h>, <sys/stat.h>, <time.h>, <unistd.h> and <sys/ioctl.h>
 // for the LP64 Linux/Apple targets this crate builds for; every call
 // below is in its own unsafe block that says why it is sound.
 unsafe extern "C" {
@@ -2594,6 +2685,12 @@ unsafe extern "C" {
     fn c_chmod(path: *const std::os::raw::c_char, mode: u32) -> i32;
     #[link_name = "clock_gettime"]
     fn c_clock_gettime(clock: i32, ts: *mut fml::time::time_delta::timespec) -> i32;
+    #[link_name = "syscall"]
+    fn c_syscall(number: i64, ...) -> i64;
+    #[link_name = "ioctl"]
+    fn c_ioctl(fd: i32, request: u64, ...) -> i32;
+    #[link_name = "read"]
+    fn c_read(fd: i32, buf: *mut std::ffi::c_void, count: usize) -> isize;
 }
 
 /// `errno = value`, as the C++ driver clears it before a call.
