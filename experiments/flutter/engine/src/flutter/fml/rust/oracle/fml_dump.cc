@@ -3702,11 +3702,14 @@ long PeakRssKiB() {
 // clock stopped, then only the ported calls run while it runs, each result
 // folded into a checksum that both drivers must agree on (so neither can
 // drop the work). The same inputs, calls and folds as src/bin/fml_dump.rs.
+// The fold is one addition: a rotate and an xor made every case of `time` a
+// chain of 37 dependent two-cycle steps, slower than the calls it checked,
+// so the kernel timed the checksum rather than the port.
 
 constexpr size_t kChunk = 1000;
 
 inline void Fold(uint64_t& h, uint64_t v) {
-  h = ((h << 5) | (h >> 59)) ^ v;
+  h += v;
 }
 
 struct TimeIn {

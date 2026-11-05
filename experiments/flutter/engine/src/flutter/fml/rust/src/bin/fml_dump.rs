@@ -1102,12 +1102,15 @@ fn bench(name: &str, iterations: i32) {
 // clock stopped, then only the ported calls run while it runs, each result
 // folded into a checksum that both drivers must agree on (so neither can
 // drop the work). The same inputs, calls and folds as oracle/fml_dump.cc.
+// The fold is one addition: a rotate and an xor made every case of `time` a
+// chain of 37 dependent two-cycle steps, slower than the calls it checked,
+// so the kernel timed the checksum rather than the port.
 
 const K_CHUNK: usize = 1000;
 
 #[inline(always)]
 fn fold(h: &mut u64, v: u64) {
-    *h = h.rotate_left(5) ^ v;
+    *h = h.wrapping_add(v);
 }
 
 struct TimeIn {
