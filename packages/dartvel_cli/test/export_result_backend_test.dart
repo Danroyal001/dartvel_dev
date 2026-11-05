@@ -59,7 +59,7 @@ Future<void> main() async {
   final Map<String, Object?> out = <String, Object?>{};
   try {
     for (final String name in <String>[
-      'tracker.csv', 'report', 'note', 'raw', 'numbers', 'summary',
+      'tracker.csv', 'report', 'note', 'raw', 'numbers', 'summary', 'hook',
     ]) {
       out[name] = await fetch(port, '/api/$name');
     }
@@ -161,6 +161,15 @@ import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction()
 Future<Map<String, Object?>> _summary() async => <String, Object?>{'rows': 2};
+''');
+  // A raw handler typed Future<Response>, as Dartvel Authenticator's payment
+  // webhook is: the generated route must still compile beside the file check.
+  write('lib/backend/functions/hook.get.dart', '''
+import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
+
+@DVBackendFunction(rawPath: '/api/hook')
+Future<dv.Response> handler(dv.Request req) async => dv.Response.text('hooked');
 ''');
   write('bin/probe.dart', _probe);
 
@@ -278,5 +287,8 @@ void main() {
     expect(jsonDecode(utf8.decode(bytesOf('summary'))), <String, Object?>{
       'rows': 2,
     });
+
+    expect(at('hook')['status'], 200, reason: '${at('hook')}');
+    expect(utf8.decode(bytesOf('hook')), 'hooked');
   });
 }
