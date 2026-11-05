@@ -2370,7 +2370,8 @@ void MakeTreeWritable(const fml::UniqueFD& dir) {
 
 void SuiteFile(Rng& r, int cases) {
   auto c = std::make_unique<FileCtx>();
-  const std::string& root = c->dir.path();
+  // A copy: the path is read again after `c` (and its directory) is gone.
+  const std::string root = c->dir.path();
   QPRINTF("root %s %d %zu valid %d\n", root.c_str(),
               root.rfind("/tmp/flutter_", 0) == 0, root.size(),
               c->dir.fd().is_valid());
