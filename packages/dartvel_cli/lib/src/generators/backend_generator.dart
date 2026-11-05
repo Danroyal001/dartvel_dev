@@ -1629,7 +1629,9 @@ ${backendEntries.map((e) {
             final String rawCall = typed.isEmpty ? 'await f$i.handler(req)' : 'await $invocation($callArgs)';
             return '''$limitDeclarations  router.$method($routeTarget, $handlerOpen$mfaGate$policyGate$contextPrelude
     try {
-      final result = $rawCall;$contextDone
+      // Object?, as the other routes: typed as the handler's own Future<Response>,
+      // the file check below no longer compiled.
+      final Object? result = $rawCall;$contextDone
       if (result is dv.Response) return result;
       if (result is core.DVExportResult) return _dvExportResponse(result);
       return dv.Response(200, body: Stream<List<int>>.value(conv.utf8.encode(result.toString())));
