@@ -575,3 +575,151 @@ fn get_transformed_pixel_size() {
   }
 }
 
+
+// Not upstream's: `Invert` and `GetDeterminant` give upstream's bits for every
+// input. The port computes them in vector lanes (see matrix.rs); these
+// references are upstream's expressions written out term for term, in C++'s
+// evaluation order, and the inputs cover ±0, subnormals, FLT_MAX, ±infinity,
+// NaN, singular matrices and ordinary values. NaNs compare equal whatever
+// their sign and payload, as in the oracle (README.md, The oracle).
+
+#[rustfmt::skip]
+fn upstream_invert(m: &[Scalar; 16]) -> [Scalar; 16] {
+  let tmp: [Scalar; 16] = [
+      m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] +
+          m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10],
+      -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] -
+          m[9] * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10],
+      m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] +
+          m[5] * m[3] * m[14] + m[13] * m[2] * m[7] - m[13] * m[3] * m[6],
+      -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] -
+          m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6],
+      -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] -
+          m[8] * m[7] * m[14] - m[12] * m[6] * m[11] + m[12] * m[7] * m[10],
+      m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] +
+          m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10],
+      -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] -
+          m[4] * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6],
+      m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] +
+          m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6],
+      m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] +
+          m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9],
+      -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] -
+          m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9],
+      m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] +
+          m[4] * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5],
+      -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] -
+          m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5],
+      -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14] -
+          m[8] * m[6] * m[13] - m[12] * m[5] * m[10] + m[12] * m[6] * m[9],
+      m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] +
+          m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9],
+      -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] -
+          m[4] * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5],
+      m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] +
+          m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5]];
+  let det: Scalar = m[0] * tmp[0] + m[1] * tmp[4] + m[2] * tmp[8] + m[3] * tmp[12];
+  if det == 0.0 {
+    return Matrix::default().m;
+  }
+  // `det = 1.0 / det;` divides in double and narrows on the assignment.
+  let det = (1.0f64 / det as f64) as Scalar;
+  tmp.map(|t| t * det)
+}
+
+#[rustfmt::skip]
+fn upstream_determinant(m: &[Scalar; 16]) -> Scalar {
+  let e = |i: usize, j: usize| m[i * 4 + j];
+  let (a00, a01, a02, a03) = (e(0, 0), e(0, 1), e(0, 2), e(0, 3));
+  let (a10, a11, a12, a13) = (e(1, 0), e(1, 1), e(1, 2), e(1, 3));
+  let (a20, a21, a22, a23) = (e(2, 0), e(2, 1), e(2, 2), e(2, 3));
+  let (a30, a31, a32, a33) = (e(3, 0), e(3, 1), e(3, 2), e(3, 3));
+  let b00 = a00 * a11 - a01 * a10;
+  let b01 = a00 * a12 - a02 * a10;
+  let b02 = a00 * a13 - a03 * a10;
+  let b03 = a01 * a12 - a02 * a11;
+  let b04 = a01 * a13 - a03 * a11;
+  let b05 = a02 * a13 - a03 * a12;
+  let b06 = a20 * a31 - a21 * a30;
+  let b07 = a20 * a32 - a22 * a30;
+  let b08 = a20 * a33 - a23 * a30;
+  let b09 = a21 * a32 - a22 * a31;
+  let b10 = a21 * a33 - a23 * a31;
+  let b11 = a22 * a33 - a23 * a32;
+  b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06
+}
+
+/// Matrices whose entries are drawn from edge values, raw bit patterns and
+/// small integers (which make exact cancellations and zero determinants
+/// common), with whole rows, columns or the matrix copied to make singular
+/// ones.
+fn edge_matrices(count: usize) -> Vec<[Scalar; 16]> {
+  let mut state: u64 = 0x5eed_1234_abcd_0001;
+  let mut next = move || {
+    state = state.wrapping_add(0x9e3779b97f4a7c15);
+    let mut z = state;
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+    z ^ (z >> 31)
+  };
+  let edges: [Scalar; 14] = [
+    0.0, -0.0, 1.0, -1.0, 0.5, f32::MIN_POSITIVE, 1.0e-40, -1.0e-45, f32::MAX, -f32::MAX,
+    f32::INFINITY, f32::NEG_INFINITY, f32::NAN, 3.0e19,
+  ];
+  let mut out = Vec::with_capacity(count);
+  for _ in 0..count {
+    let kind = next() % 4;
+    let mut m = [0.0f32; 16];
+    for v in m.iter_mut() {
+      let r = next();
+      *v = match kind {
+        0 => edges[(r % edges.len() as u64) as usize],
+        1 => f32::from_bits(r as u32),
+        2 => ((r % 7) as i32 - 3) as Scalar,
+        _ => {
+          if r % 5 == 0 { edges[((r >> 8) % edges.len() as u64) as usize] }
+          else { ((r >> 16) % 2001) as Scalar / 100.0 - 10.0 }
+        }
+      };
+    }
+    match next() % 6 {
+      0 => {
+        let (a, b) = ((next() % 4) as usize, (next() % 4) as usize);
+        for k in 0..4 { m[b * 4 + k] = m[a * 4 + k]; }
+      }
+      1 => {
+        let (a, b) = ((next() % 4) as usize, (next() % 4) as usize);
+        for k in 0..4 { m[k * 4 + b] = m[k * 4 + a]; }
+      }
+      _ => {}
+    }
+    out.push(m);
+  }
+  out
+}
+
+fn same_bits(a: Scalar, b: Scalar) -> bool {
+  (a.is_nan() && b.is_nan()) || a.to_bits() == b.to_bits()
+}
+
+#[test]
+fn invert_is_upstreams_bit_for_bit() {
+  for m in edge_matrices(40000) {
+    let expected = upstream_invert(&m);
+    for (name, actual) in [("invert", Matrix::from_array(m).invert().m), ("portable", Matrix::from_array(m).invert_portable().m)] {
+      for k in 0..16 {
+        assert!(same_bits(expected[k], actual[k]), "{name} of {m:?}: entry {k} is {:?}, upstream's {:?}", actual[k], expected[k]);
+      }
+    }
+  }
+}
+
+#[test]
+fn determinant_is_upstreams_bit_for_bit() {
+  for m in edge_matrices(40000) {
+    let expected = upstream_determinant(&m);
+    for (name, actual) in [("get_determinant", Matrix::from_array(m).get_determinant()), ("portable", Matrix::from_array(m).get_determinant_portable())] {
+      assert!(same_bits(expected, actual), "{name} of {m:?} is {actual:?}, upstream's {expected:?}");
+    }
+  }
+}

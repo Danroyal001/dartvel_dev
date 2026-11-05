@@ -5,7 +5,9 @@
 // first line; `*_unittests` modules port the upstream gtest files of the same
 // name. See README.md.
 
-#![forbid(unsafe_code)]
+// `unsafe` is denied everywhere but the two calls into SSE2 code in matrix.rs
+// (README.md, Unsafe code; tests/unsafe_audit.rs).
+#![deny(unsafe_code)]
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
 pub mod arc;

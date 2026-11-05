@@ -16,6 +16,21 @@ use crate::scalar::{Radians, Scalar, scalar_nearly_equal_tol, scalar_nearly_zero
 use crate::size::TSize;
 use crate::vector::{Vector3, Vector4};
 
+// The four lanes of an SSE register, by value (a store through a pointer would
+// need `unsafe`); LLVM folds the extracts into one store.
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+#[target_feature(enable = "sse2")]
+#[inline]
+fn lanes(v: core::arch::x86_64::__m128) -> [Scalar; 4] {
+    use core::arch::x86_64::*;
+    [
+        _mm_cvtss_f32(v),
+        _mm_cvtss_f32(_mm_shuffle_ps::<0x55>(v, v)),
+        _mm_cvtss_f32(_mm_shuffle_ps::<0xaa>(v, v)),
+        _mm_cvtss_f32(_mm_shuffle_ps::<0xff>(v, v)),
+    ]
+}
+
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Matrix {
@@ -391,7 +406,118 @@ impl Matrix {
         )
     }
 
+    #[allow(unsafe_code)]
     pub fn invert(&self) -> Matrix {
+        // SAFETY: `invert_sse2` needs SSE2 (`#[target_feature]`), and this
+        // line is compiled only for targets that have it (`target_feature =
+        // "sse2"`, every x86-64), so the CPU running it has the instructions.
+        #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+        return unsafe { self.invert_sse2() };
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "sse2")))]
+        return self.invert_portable();
+    }
+
+    // The same lanes and sums as `invert_portable`, in SSE2 registers, which
+    // every x86-64 has: rustc 1.99's LLVM leaves the array version scalar
+    // (136 `mulss`). Lane l of group g is tmp[4g + l]; `c[j]` is
+    // [m[j], m[4+j], m[8+j], m[12+j]], made by transposing the four columns,
+    // and every operand is one shuffle of one `c[j]`:
+    //   lo(x) = [x1, x0, x0, x0], mid(x) = [x2, x2, x1, x1],
+    //   hi(x) = [x3, x3, x3, x2].
+    // A subtracted term is added with its last factor negated (exact, as in
+    // `invert_portable`). `mulps`, `addps` and `xorps` round each lane as
+    // `mulss`, `addss` and a negation do, so every entry has upstream's bits
+    // (`invert_is_upstreams_bit_for_bit`).
+    // The intrinsics are safe to call here because the function enables
+    // SSE2; calling the function is what takes `unsafe` (see `invert`).
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+    #[target_feature(enable = "sse2")]
+    #[inline]
+    fn invert_sse2(&self) -> Matrix {
+        use core::arch::x86_64::*;
+        let m = &self.m;
+        let col = |k: usize| _mm_setr_ps(m[4 * k], m[4 * k + 1], m[4 * k + 2], m[4 * k + 3]);
+        let (col0, col1, col2, col3) = (col(0), col(1), col(2), col(3));
+        let (t0, t1) = (_mm_unpacklo_ps(col0, col1), _mm_unpacklo_ps(col2, col3));
+        let (t2, t3) = (_mm_unpackhi_ps(col0, col1), _mm_unpackhi_ps(col2, col3));
+        let c = [_mm_movelh_ps(t0, t1), _mm_movehl_ps(t1, t0), _mm_movelh_ps(t2, t3), _mm_movehl_ps(t3, t2)];
+        let lo = |x: __m128| _mm_shuffle_ps::<0x01>(x, x);
+        let mid = |x: __m128| _mm_shuffle_ps::<0x5a>(x, x);
+        let hi = |x: __m128| _mm_shuffle_ps::<0xbf>(x, x);
+        // Negates lanes 1 and 3 (`odd`) or lanes 0 and 2 (`even`).
+        let odd = _mm_setr_ps(0.0, -0.0, 0.0, -0.0);
+        let even = _mm_setr_ps(-0.0, 0.0, -0.0, 0.0);
+        let term = |pair: __m128, last: __m128, negate: __m128| _mm_mul_ps(pair, _mm_xor_ps(last, negate));
+        let (lo0, lo1, lo2, lo3) = (lo(c[0]), lo(c[1]), lo(c[2]), lo(c[3]));
+        let (mid0, mid1, mid2, mid3) = (mid(c[0]), mid(c[1]), mid(c[2]), mid(c[3]));
+        let (hi0, hi1, hi2, hi3) = (hi(c[0]), hi(c[1]), hi(c[2]), hi(c[3]));
+        let v0 = _mm_mul_ps(lo1, mid2);
+        let v1 = _mm_mul_ps(lo1, mid3);
+        let v2 = _mm_mul_ps(lo2, mid1);
+        let v3 = _mm_mul_ps(lo3, mid1);
+        let v4 = _mm_mul_ps(lo2, hi1);
+        let v5 = _mm_mul_ps(lo3, hi1);
+        let v6 = _mm_mul_ps(lo0, mid2);
+        let v7 = _mm_mul_ps(lo0, mid3);
+        let v8 = _mm_mul_ps(lo2, mid0);
+        let v9 = _mm_mul_ps(lo3, mid0);
+        let v10 = _mm_mul_ps(lo2, hi0);
+        let v11 = _mm_mul_ps(lo3, hi0);
+        let v12 = _mm_mul_ps(lo0, mid1);
+        let v13 = _mm_mul_ps(lo1, mid0);
+        let v14 = _mm_mul_ps(lo1, hi0);
+        let g0 = term(v0, hi3, odd);
+        let g0 = _mm_add_ps(g0, term(v1, hi2, even));
+        let g0 = _mm_add_ps(g0, term(v2, hi3, even));
+        let g0 = _mm_add_ps(g0, term(v3, hi2, odd));
+        let g0 = _mm_add_ps(g0, term(v4, mid3, odd));
+        let g0 = _mm_add_ps(g0, term(v5, mid2, even));
+        let g1 = term(v6, hi3, even);
+        let g1 = _mm_add_ps(g1, term(v7, hi2, odd));
+        let g1 = _mm_add_ps(g1, term(v8, hi3, odd));
+        let g1 = _mm_add_ps(g1, term(v9, hi2, even));
+        let g1 = _mm_add_ps(g1, term(v10, mid3, even));
+        let g1 = _mm_add_ps(g1, term(v11, mid2, odd));
+        let g2 = term(v12, hi3, odd);
+        let g2 = _mm_add_ps(g2, term(v7, hi1, even));
+        let g2 = _mm_add_ps(g2, term(v13, hi3, even));
+        let g2 = _mm_add_ps(g2, term(v9, hi1, odd));
+        let g2 = _mm_add_ps(g2, term(v14, mid3, odd));
+        let g2 = _mm_add_ps(g2, term(v11, mid1, even));
+        let g3 = term(v12, hi2, even);
+        let g3 = _mm_add_ps(g3, term(v6, hi1, odd));
+        let g3 = _mm_add_ps(g3, term(v13, hi2, odd));
+        let g3 = _mm_add_ps(g3, term(v8, hi1, even));
+        let g3 = _mm_add_ps(g3, term(v14, mid2, even));
+        let g3 = _mm_add_ps(g3, term(v10, mid1, odd));
+
+        // det = m[0] * tmp[0] + m[1] * tmp[4] + m[2] * tmp[8] + m[3] * tmp[12],
+        // the four products in one register, summed left to right.
+        let firsts = _mm_movelh_ps(_mm_unpacklo_ps(g0, g1), _mm_unpacklo_ps(g2, g3));
+        let p = lanes(_mm_mul_ps(col0, firsts));
+        let mut det: Scalar = p[0] + p[1] + p[2] + p[3];
+
+        if det == 0.0 {
+            return Matrix::default();
+        }
+
+        // As in `invert_portable`: the float division gives the bits of
+        // upstream's double one.
+        det = 1.0 / det;
+
+        let d = _mm_set1_ps(det);
+        let (r0, r1) = (lanes(_mm_mul_ps(g0, d)), lanes(_mm_mul_ps(g1, d)));
+        let (r2, r3) = (lanes(_mm_mul_ps(g2, d)), lanes(_mm_mul_ps(g3, d)));
+        Matrix::new(
+            r0[0], r0[1], r0[2], r0[3], r1[0], r1[1], r1[2], r1[3],
+            r2[0], r2[1], r2[2], r2[3], r3[0], r3[1], r3[2], r3[3],
+        )
+    }
+
+    // The lanes as arrays: the code for targets without SSE2, and the
+    // reference the SSE2 code is tested against.
+    #[cfg(any(test, not(all(target_arch = "x86_64", target_feature = "sse2"))))]
+    pub(crate) fn invert_portable(&self) -> Matrix {
         let m = &self.m;
         // Upstream writes each cofactor tmp[i] out as six triple products
         // `m[a] * m[b] * m[c]` summed left to right, some subtracted. Here
@@ -480,7 +606,54 @@ impl Matrix {
         Matrix::from_array(tmp.map(|t| t * det))
     }
 
+    #[allow(unsafe_code)]
     pub fn get_determinant(&self) -> Scalar {
+        // SAFETY: as in `invert`: compiled only where SSE2 is part of the
+        // target, which `get_determinant_sse2` needs.
+        #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+        return unsafe { self.get_determinant_sse2() };
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "sse2")))]
+        return self.get_determinant_portable();
+    }
+
+    // Upstream's twelve 2x2 minors, three registers of four, each lane the
+    // same two products and difference as upstream's bNN, then the six
+    // products of the sum in two registers and the sum left to right.
+    // Row i of `e` is column i of `m`: r[i] = [ai0, ai1, ai2, ai3].
+    //   [b00 b01 b02 b03] = [a00 a00 a00 a01] * [a11 a12 a13 a12]
+    //                     - [a01 a02 a03 a02] * [a10 a10 a10 a11]
+    //   [b06 b07 b08 b09]   the same from rows 2 and 3
+    //   [b04 b05 b10 b11] = [a01 a02 a21 a22] * [a13 a13 a33 a33]
+    //                     - [a03 a03 a23 a23] * [a11 a12 a31 a32]
+    // (`determinant_is_upstreams_bit_for_bit`).
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+    #[target_feature(enable = "sse2")]
+    #[inline]
+    fn get_determinant_sse2(&self) -> Scalar {
+        use core::arch::x86_64::*;
+        let m = &self.m;
+        let row = |i: usize| _mm_setr_ps(m[4 * i], m[4 * i + 1], m[4 * i + 2], m[4 * i + 3]);
+        let (r0, r1, r2, r3) = (row(0), row(1), row(2), row(3));
+        let minors = |p: __m128, q: __m128| {
+            let (p0001, p1232) = (_mm_shuffle_ps::<0x40>(p, p), _mm_shuffle_ps::<0xb9>(p, p));
+            let (q0001, q1232) = (_mm_shuffle_ps::<0x40>(q, q), _mm_shuffle_ps::<0xb9>(q, q));
+            _mm_sub_ps(_mm_mul_ps(p0001, q1232), _mm_mul_ps(p1232, q0001))
+        };
+        let b00_03 = minors(r0, r1);
+        let b06_09 = minors(r2, r3);
+        let b04_05_10_11 = _mm_sub_ps(
+            _mm_mul_ps(_mm_shuffle_ps::<0x99>(r0, r2), _mm_shuffle_ps::<0xff>(r1, r3)),
+            _mm_mul_ps(_mm_shuffle_ps::<0xff>(r0, r2), _mm_shuffle_ps::<0x99>(r1, r3)),
+        );
+        // [b00*b11, b01*b10, b02*b09, b03*b08] and [b04*b07, b05*b06, _, _].
+        let p = lanes(_mm_mul_ps(b00_03, _mm_shuffle_ps::<0xbb>(b04_05_10_11, b06_09)));
+        let q = lanes(_mm_mul_ps(b04_05_10_11, _mm_shuffle_ps::<0x01>(b06_09, b06_09)));
+        p[0] - p[1] + p[2] + p[3] - q[0] + q[1]
+    }
+
+    #[cfg(any(test, not(all(target_arch = "x86_64", target_feature = "sse2"))))]
+    #[inline]
+    pub(crate) fn get_determinant_portable(&self) -> Scalar {
         let m = &self.m;
         let row = |i: usize| [m[i * 4], m[i * 4 + 1], m[i * 4 + 2], m[i * 4 + 3]];
         // Upstream's bNN = aIJ * aKL - aMN * aOP, computed a row at a time:
