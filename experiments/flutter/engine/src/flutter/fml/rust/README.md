@@ -159,8 +159,11 @@ directory. The test fails on the first differing line of any run and prints
 it.
 
 Benchmarks: `fml_dump bench <name> <rounds>` with either binary prints the
-fastest, median and slowest round, the peak RSS and a check value the two
-drivers must agree on. Only the ported code runs while a round's stopwatch
+fastest, median and slowest round, the peak RSS, a check value the two
+drivers must agree on and, with `FML_BENCH_INS=1`, the fewest and median
+instructions retired under the stopwatch in a round (see *Benchmarks*).
+`tool/measure.sh` runs the two drivers alternately and summarizes every
+measure; `tool/measure_rows.sh` runs every row of the table. Only the ported code runs while a round's stopwatch
 runs, on both sides alike:
 
 - `loop`, `thread` and `concurrent` post 10000 tasks to a Linux loop, an
@@ -390,110 +393,130 @@ change was restored.
 
 ## Benchmarks
 
-Measured 2026-10-30 on a shared 4-core Intel Xeon at 2.10 GHz whose load
-average stood at 7–9 from other builds throughout, clang 18.1.3 with libc++
-18 at `-O2 -DNDEBUG`, rustc 1.97.0 with the workspace's release profile.
-Each benchmark ran 4–8 times, alternating the C++ and the Rust binary, each
-run a number of rounds (below); *fastest* is the fastest round of all runs,
-*median* the median of the runs' medians. Peak RSS is the whole process
-(`VmHWM`), the largest of the runs. Every run's check value agreed between
-the two sides. On a machine this loaded the system-call-bound benchmarks
-(`loop`, `thread`, `concurrent`, `merger`, `file`, `mapping`) move by tens
-of percent from run to run, so for those the deterministic measures follow
-the table.
+Measured 2026-11-05 with `tool/measure_rows.sh` on a shared 4-core AMD EPYC
+whose load average stood at 8–12 from other work throughout, clang 21.1.8
+against libc++ 21 headers (libc++ 22 runtime, the one the host's packages
+ship) at `-O2 -DNDEBUG`, rustc 1.99.0 with the workspace's release profile.
+The harness runs the C++ and the Rust driver alternately, 15 runs a side
+(C++ first on odd runs, Rust on even), each run the rounds below, and every
+run's check value agreed between the sides. Per row: **instructions** are
+the user-space instructions retired under the stopwatch in a median round,
+in every thread (`FML_BENCH_INS=1`, a separate execution of the same run);
+*fastest* is the fastest round of all runs, *median* the median of the
+runs' medians; peak RSS is the whole process (`VmHWM`), the largest of the
+runs. Instruction counts vary by less than 0.1% between runs on the
+single-threaded rows and 0.2–2.3% on the threaded ones, so they are the
+steady figure; the times' coefficient of variation between runs was 3–9%
+on the kernels and 6–46% on the rows that wait on the kernel or the
+scheduler (`merger`, `file`, `mapping`, `loop`, `thread`, `concurrent`,
+`queues`).
 
-| Benchmark (rounds per run) | C++ fastest | C++ median | Rust fastest | Rust median | C++ RSS | Rust RSS |
-|---|---|---|---|---|---|---|
-| `queues` (300) | 502 µs | 3935 µs | **355 µs** | **3881 µs** | 4.8 MiB | **4.0 MiB** |
-| `dispatch` (20) | 18.3 ms | 23.8 ms | **16.4 ms** | **23.5 ms** | 3.7 MiB | **2.9 MiB** |
-| `time` (300) | 388 µs | 435 µs | 394 µs | **434 µs** | 3.3 MiB | **2.9 MiB** |
-| `strings` (20) | 98.4 ms | 111.0 ms | **4.0 ms** | **4.3 ms** | 3.6 MiB | **3.2 MiB** |
-| `hash` (100) | 1037 µs | 1169 µs | **963 µs** | 1176 µs | 3.6 MiB | **3.3 MiB** |
-| `loop` (10) | 459 ms | 544 ms | **448 ms** | 566 ms | 4.3 MiB | **4.0 MiB** |
-| `thread` (10) | 438 ms | 573 ms | 450 ms | **499 ms** | 4.1 MiB | **3.4 MiB** |
-| `concurrent` (200) | 0.78 ms | 4.10 ms | 1.11 ms | 5.02 ms | 4.2 MiB | **3.7 MiB** |
-| `merger` (3) | 89.7 ms | 102.3 ms | **88.0 ms** | **99.8 ms** | 3.8 MiB | **3.1 MiB** |
-| `file` (20) | 1.96 ms | 6.73 ms | 2.65 ms | 7.31 ms | 3.7 MiB | **2.9 MiB** |
-| `mapping` (5) | 230 ms | 434 ms | 239 ms | **390 ms** | 3.7 MiB | **3.0 MiB** |
-| `paths` (50) | 8.72 ms | 9.70 ms | **7.92 ms** | **9.36 ms** | 3.7 MiB | **3.2 MiB** |
-| `cmdline` (50) | 22.0 ms | 24.4 ms | **13.3 ms** | **15.0 ms** | 3.7 MiB | **3.2 MiB** |
-| `trace` (50) | 2.80 ms | 3.50 ms | **2.42 ms** | **3.02 ms** | 3.7 MiB | **2.8 MiB** |
+| Benchmark (rounds per run) | C++ instructions | Rust instructions | C++ fastest | Rust fastest | C++ median | Rust median | C++ RSS | Rust RSS |
+|---|---|---|---|---|---|---|---|---|
+| `queues` (300) | 2.68 M | **1.80 M** | 1038 µs | **600 µs** | 5272 µs | **4105 µs** | 5.1 MiB | **3.9 MiB** |
+| `dispatch` (20) | 75.06 M | **48.93 M** | 29.5 ms | **20.2 ms** | 41.8 ms | **30.4 ms** | 4.0 MiB | **2.8 MiB** |
+| `time` (300) | 2.60 M | **2.51 M** | 236 µs | **222 µs** | 392 µs | **367 µs** | 3.7 MiB | **2.7 MiB** |
+| `strings` (20) | 469.5 M | **20.0 M** | 84.1 ms | **5.1 ms** | 103.6 ms | **6.3 ms** | 4.0 MiB | **3.2 MiB** |
+| `hash` (100) | 7.72 M | **6.83 M** | 1077 µs | **898 µs** | 1480 µs | **1250 µs** | 4.0 MiB | **2.9 MiB** |
+| `loop` (10) | 36.87 M | **15.28 M** | 167 ms | **137 ms** | 252 ms | **208 ms** | 4.9 MiB | **3.5 MiB** |
+| `thread` (10) | 34.50 M | **15.61 M** | 181 ms | **171 ms** | 288 ms | **233 ms** | 4.3 MiB | **3.6 MiB** |
+| `concurrent` (200) | 5.68 M | **2.56 M** | 1.65 ms | **0.77 ms** | 7.82 ms | **4.21 ms** | 4.7 MiB | **3.4 MiB** |
+| `merger` (3) | 8.29 M | **6.78 M** | 54.2 ms | **49.3 ms** | **68.9 ms** | 72.6 ms | 4.3 MiB | **3.1 MiB** |
+| `file` (20) | 0.240 M | **0.218 M** | 308.5 µs | **308.3 µs** | 1474 µs | **1473 µs** | 4.1 MiB | **3.0 MiB** |
+| `mapping` (5) | 3.37 M | **3.18 M** | 27.1 ms | **24.8 ms** | 41.6 ms | **40.9 ms** | 4.1 MiB | **3.0 MiB** |
+| `paths` (50) | 11.96 M | **8.49 M** | **15.5 ms** | 16.0 ms | 22.1 ms | **21.1 ms** | 4.0 MiB | **3.0 MiB** |
+| `cmdline` (50) | 187.1 M | **96.4 M** | 36.7 ms | **19.4 ms** | 45.5 ms | **26.3 ms** | 4.1 MiB | **3.1 MiB** |
+| `trace` (50) | 19.70 M | **12.41 M** | 5.49 ms | **3.50 ms** | 7.41 ms | **5.29 ms** | 4.1 MiB | **2.9 MiB** |
 
-Bold where Rust is ahead. Before this work (the old harness, which timed the
-drivers' formatting with the ports, at 30 or 10 rounds) Rust trailed on
-`cmdline` (94.5/102.0 ms against 52.5/60.3), `paths`, `trace`, `mapping`
-and on the fastest rounds of `hash`, `dispatch`, `thread` and
-`concurrent`. What changed:
+Bold where a side is ahead. Rust retires fewer instructions and uses less
+memory on every row, and is ahead on time everywhere but three cells, all on
+rows whose time is the kernel's and the scheduler's rather than the code's:
+`paths` (both drivers make exactly 32 994 `readlink` and 10 710 `getcwd`
+calls per five rounds; user code is 29% fewer instructions in Rust),
+`merger` median (identical `timerfd_settime`, `epoll_ctl` and
+`rt_sigprocmask` counts and fewer futex calls in Rust, 3 035 against 3 432)
+and `file`, a tie (the same file calls, which the oracle checks one by one
+with `errno` after each; user code is 0.22 M instructions of a round that
+takes 0.3–1.5 ms). Those
+cells change sides from one measurement to the next. A second measurement
+of the four rows with 31 runs a side, straight after, had Rust ahead on
+`paths` (15.0/21.0 ms against 16.5/22.3) and on the `merger`, `file` and
+`mapping` medians (83.4 ms against 85.7, 1521 µs against 1692, 40.0 ms
+against 40.6), and behind on their fastest rounds (47.5 ms against 42.6,
+308 µs against 280, 28.6 ms against 24.7), each the single quickest of 31
+rounds on a machine whose load moved them by 20–40%; the medians of the
+runs' fastest rounds were 62.2 against 72.4 ms, 414 against 411 µs and
+34.6 against 35.2 ms. On this host those cells cannot be called either
+way; the instruction counts and system-call counts can, and favour Rust.
 
-- **Fair benchmarks** (see *Running it*): the drivers no longer time their
-  own input generation and formatting.
-- `cmdline`: libc++ keeps strings of up to 22 bytes inline and a Rust
-  `String` always allocates, which made copies of a command line twice as
-  slow; command lines now hold `SmallString`s, drop upstream's never
-  iterated index map (lookups search the options from the back), and move
-  rather than copy what the builder made.
-- `hash`: CityHash's words are read at constant offsets from fixed-size
-  arrays, without bounds checks.
-- `dispatch`/`queues`/`thread`: the popped task's closure is moved out
-  instead of cloned (an atomic increment and decrement per task).
-- `paths`: `getcwd`/`readlink` into PATH_MAX stack buffers, one copy out.
-- `trace`: the handler and micros source are atomics (they were behind
-  read-write locks), argument and flow-id lists live on the stack, values are
-  `SmallString`s formatted through a stack buffer.
-- `concurrent`: std's `Condvar` makes a futex call on every `notify_one`,
-  where `pthread_cond_signal` makes none without a waiter. The loop now
-  notifies only when a worker waits that no earlier notification will wake:
-  futex calls in 20 rounds fell from about 550 000 to 60 000–100 000, which
-  is upstream's range (74 000–101 000).
-- `time`: `FromSecondsF` converts with `cvttsd2si`, as upstream's compiled
-  code does, instead of Rust's saturating cast; the per-case instruction
-  count is now upstream's to 0.4% (3.42 M against 3.41 M for 20000 cases).
+What changed since the 30 October table (measured then with clang 18,
+libc++ 18 and rustc 1.97, without instruction counts):
 
-Where Rust is not ahead in the table:
+- **Instruction counts** (`FML_BENCH_INS=1`, both drivers): one
+  `perf_event_open` counter, inherited by the threads created after it,
+  enabled while the stopwatch runs; a round's count is the difference of two
+  reads, since `PERF_EVENT_IOC_RESET` does not clear the counts folded in
+  from threads that have exited. It needs `perf_event_paranoid` at 2 or
+  lower and is otherwise reported as -1.
+- **`hash`**: the new toolchain put Rust behind (10.85 M instructions
+  against 7.90 M, 1276/1805 µs against 1092/1411). libc++ 19 and later
+  compile CityHash64 into the library as `__hash_memory`, declared
+  `[[gnu::pure]]`, so clang hashed each case's string once where the kernel
+  asks for it three times (`HashCombine(s)`, `HashCombine(s, a, f, g)`,
+  `HashCombineSeed(seed, a, s)`). The port's hash is now a body the
+  optimizer can tell is pure: never inlined, no panic path, generic so that
+  the calling crate compiles its own copy and merges the calls before
+  whole-program optimization (which does not), see `hash_combine.rs`.
+- **The kernels' check value is a sum**: folding every result with a
+  rotate and an xor made each `time` case a chain of 37 dependent
+  two-cycle steps, so both drivers ran at the chain's latency (448 µs
+  against 451) whatever the calls cost. With one addition per result the
+  calls decide (236 against 222 µs).
+- **The oracle's `file` suite read freed memory**: it kept a reference to
+  the scratch directory's path, read it after destroying its owner, and so
+  printed "removed 1" for a directory that was still there; built against
+  libc++ 21 the 14 of 16 seeds where that directory survives differed. It
+  reads a copy now, and both sides print what is on disk.
+- `concurrent` (fixed before this table, in `closure.rs`; see *Unsafe
+  code*): every posted task was an `Arc` closure allocated on the posting
+  thread and freed on a worker; `closure` keeps up to three words of
+  captures in place, as libc++'s `std::function` does. Now 2.56 M
+  instructions against 5.68 M, 0.77/4.21 ms against 1.65/7.82.
 
-- `time` fastest (+1.5%) and `hash` median (+0.6%): within the run-to-run
-  spread on this machine; Callgrind counts the same work as upstream's
-  (`time`) or less (`hash`). With the recommended profile below `hash` is
-  ahead on both (902/1070 µs against 1038/1195) and `time` stays level
-  within the spread (369/430 µs against 326/428: that fastest C++ round is
-  25% under its median, an outlier of the load rather than of the code,
-  whose instruction counts match).
-- `loop` median, `thread` fastest, `file`, `mapping` fastest: these make the
-  same system calls as upstream (`strace -c`: 20 001 `timerfd_settime` in
-  both for `loop`; 20 004 against 20 031 and 3 344 against 35 900 futex
-  calls for `thread`; the same `openat`/`fsync`/`mmap` counts for `file`
-  and `mapping`) and fewer user-space instructions (`thread`: 19.0 M against
-  37.6 M), and they are ahead in other runs (`file` 3.8/9.0 ms against
-  3.4/12.1, `mapping` 263/373 ms against 369/406 earlier the same day). The
-  difference is the scheduler and the disk.
-- `concurrent` (fixed since; see *Unsafe code*): every posted task was an
-  `Arc` closure, allocated on the posting thread and freed on a worker
-  (malloc, free and `malloc_consolidate` were 40% of the benchmark's
-  instructions). `closure` now keeps up to three words of captures in
-  place, as libc++'s `std::function` does: the benchmark's instructions
-  fell from 128.4 M to 49.6 M (upstream: 124.2 M, Callgrind, 20 rounds).
+Earlier work, kept from the previous tables: fair benchmarks (the drivers
+no longer time their own input generation and formatting); `cmdline` holds
+`SmallString`s (libc++ keeps strings of up to 22 bytes inline); CityHash's
+words are read at constant offsets without bounds checks; popped tasks are
+moved out instead of cloned; `getcwd`/`readlink` read into PATH_MAX stack
+buffers; the trace handler and micros source are atomics with stack-held
+arguments; the concurrent loop notifies only a worker no earlier
+notification will wake (std's `Condvar` makes a futex call on every
+`notify_one`); `FromSecondsF` converts with `cvttsd2si` as upstream's
+compiled code does.
 
 ### Binary size
 
 The driver binary (`fml_dump`, the oracle and benchmarks over each side) and
-the ported code alone, in bytes:
+the ported code alone, in bytes, with the toolchains above:
 
-| | C++ as the oracle builds it (libc++ shared) | C++, libc++ linked in | Rust, workspace profile | Rust, recommended profile |
-|---|---|---|---|---|
-| `fml_dump` unstripped | 634 056 | 1 749 072 | 1 432 816 | **1 034 600** |
-| `fml_dump` stripped | 454 400 | 1 262 264 | 1 103 848 | **876 328** |
-| ported code: text + data + bss | 168 824 (42 objects) | | 202 911 | **162 511** |
-| ported code: object file(s) | 604 560 (667 082 as `.a`) | | 571 248 | **424 456** |
+| | C++ as the oracle builds it (libc++ shared) | C++, libc++ and libc++abi linked in | Rust, release profile |
+|---|---|---|---|
+| `fml_dump` unstripped | 635 784 | 1 816 536 | **1 052 168** |
+| `fml_dump` stripped | 462 616 | 1 327 840 | **884 464** |
+| ported code: text + data + bss | 168 197 (42 objects) | | **166 904** |
+| ported code: object file(s) | 593 808 | | **432 456** |
 
 The C++ driver as the oracle builds it is smaller only because libc++
-(`libc++.so.1`, `libc++abi.so.1`, `libunwind.so.1`) stays outside it; Rust
-links its standard library in. Linked the same way, with libc++ inside, the
-C++ binary is larger than either Rust one, unstripped and stripped. The
-ported code is measured as the 42 upstream sources compiled to objects at
-`-O2` against the crate compiled to one object (`cargo rustc --lib --
---emit=obj`). The workspace profile (`opt-level = 3`, 16 codegen units,
-unwinding) makes more code than `-O2`. The **recommended profile**, which
-matches `-O2`, is
+(`libc++.so.1`, `libc++abi.so.1`) stays outside it; Rust links its standard
+library in. Linked the same way, with `libc++.a` and `libc++abi.a` inside,
+the C++ binary is 1.7 times the Rust one unstripped and 1.5 times stripped.
+The ported code is measured as the 42 upstream sources compiled to objects
+at `-O2` against the crate compiled to one object at the release profile
+without whole-program optimization (`CARGO_PROFILE_RELEASE_LTO=off cargo
+rustc --release -p fml --lib -- --emit=obj`; with it the object is LLVM
+bitcode). The release profile in the workspace's `Cargo.toml`
+(`experiments/flutter/Cargo.toml`, shared with the other crates there)
+matches the engine's `-O2` build:
 
 ```toml
 [profile.release]
@@ -503,17 +526,10 @@ codegen-units = 1
 panic = "abort"
 ```
 
-in the workspace's `Cargo.toml` (`experiments/flutter/Cargo.toml`, shared
-with the other crates there); the oracle passes under it (nothing in the
-port catches a panic; FATAL and failed checks abort either way), and its
-run of the table above is no slower: ahead on `queues`, `dispatch`,
-`strings`, `hash`, `thread` fastest, `merger` median, `file` fastest,
-`paths`, `cmdline` and `trace`; behind on `time` (above), `loop`,
-`concurrent` and the fastest `mapping` round, for the reasons above. The
-driver also writes all output through one function (`emit`) instead of
+Nothing in the port catches a panic; FATAL and failed checks abort either
+way. The driver writes all output through one function (`emit`) instead of
 expanding the lock and the write at each of its several hundred call sites,
 which took 190 KB off it.
-
 ## Safety
 
 Every `.rs` file names the upstream file it ports in its first line, or says
@@ -530,8 +546,8 @@ logic. Every site has a
 sound; `tests/unsafe_audit.rs` fails the build of the test suite when one
 does not, and tests its own checker on a failing sample. The library's sites
 (line numbers as of this table; the unit tests add pthread calls, reads of
-mapped bytes and a counting allocator, the driver `errno`, `dlopen` and
-`raise`):
+mapped bytes and a counting allocator, the driver `errno`, `dlopen`,
+`raise` and the benchmark counter's `perf_event_open`, `ioctl` and `read`):
 
 | File | Lines | What | Why it is needed | Verified by |
 |---|---|---|---|---|
@@ -552,6 +568,16 @@ mapped bytes and a counting allocator, the driver `errno`, `dlopen` and
 | `closure.rs` | 22 … 126 (the vtable's `unsafe fn` entries 22–24 and their bodies 46–48; writing the callable 96; calling, cloning and dropping through the vtable 105, 116, 126; `Send`/`Sync` 70, 72) | `closure` keeps a callable of up to three words in a buffer beside a pointer to a per-type vtable (call, clone, drop), as libc++'s `std::function` keeps `__buf_` beside its `__base` vtable; a larger or over-aligned callable is boxed and the `Box` kept in the buffer, so one vtable per type is the only erasure | posting a task allocated an `Arc` per closure on the posting thread and freed it on another, which was 40% of the `concurrent` benchmark's instructions; `std::function` allocates nothing for small captures. Moves need no entry (a Rust move copies the bytes); `Send`/`Sync` hold because every constructor requires them of the callable | `closure_unittests` (in place, boxed, zero-sized, over-aligned, shared, cloned, moved through a growing `Vec`, called from threads, a panic during a call and during a clone, every capture counted live; a counting allocator proves three words allocate nothing and a larger capture once per copy) under Miri; TSan over the unit tests, `concurrent_worker_wake` and the threaded oracle suites; the full oracle |
 
 ### Checks
+
+Re-run 2026-11-05 for the string hash change (nightly 2026-11-04): the
+`hash_combine` unit test under Miri passes with no undefined behaviour;
+under ThreadSanitizer (a debug build, 224 unit tests) 223 unit tests and
+`concurrent_worker_wake` pass with no data race reported; the other,
+`frames_are_symbolized`, fails there for a reason that is not a race: in
+the unoptimized build the test's own helper is not inlined, so it is frame
+0 where the test expects the named frame (it passes in the release build).
+The full oracle (20 suites × 16 seeds × 250 cases) matches with 0
+differences.
 
 Run 2026-10-30 with rustc 1.101.0-nightly (2026-10-29) for Miri, the
 sanitizers and coverage:
