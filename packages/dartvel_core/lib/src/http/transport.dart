@@ -88,12 +88,21 @@ class DVHttpResponse {
   /// Early hints received before this response, in arrival order.
   final List<DVEarlyHints> earlyHints;
 
+  /// The response headers, names lower-cased.
+  ///
+  /// Empty when the transport did not report them. A body is not always
+  /// enough: a file a backend function returns carries its type in
+  /// `content-type` and its name in `content-disposition`, and a client that
+  /// only kept the body handed back bytes with no name.
+  final Map<String, String> headers;
+
   const DVHttpResponse({
     required this.statusCode,
     required this.body,
     List<int>? bytes,
     this.protocol,
     this.earlyHints = const <DVEarlyHints>[],
+    this.headers = const <String, String>{},
   }) : _bytes = bytes;
 
   /// The raw response body. Falls back to encoding [body] when the transport
@@ -301,6 +310,7 @@ Future<DVHttpResponse> _sendWithPackageHttp(DVHttpRequest request,
       // Binary bodies are kept verbatim; the text view tolerates non-UTF-8.
       body: utf8.decode(bytes, allowMalformed: true),
       bytes: bytes,
+      headers: _dvLowerCaseHeaders(streamed.headers),
     );
   } finally {
     client.close();
@@ -477,6 +487,7 @@ Future<DVHttpResponse> dvSendHttpRequest(DVHttpRequest request) async {
     body: utf8.decode(body, allowMalformed: true),
     bytes: body,
     protocol: response.protocol,
+    headers: _dvLowerCaseHeaders(response.headers),
   );
 }
 
@@ -549,3 +560,9 @@ class DVCompositeHttpTransport implements DVHttpTransport {
   Future<DVHttpStreamedResponse> stream(DVHttpRequest request) =>
       _require(request).stream(request);
 }
+
+Map<String, String> _dvLowerCaseHeaders(Map<String, String> headers) =>
+    <String, String>{
+      for (final MapEntry<String, String> header in headers.entries)
+        header.key.toLowerCase(): header.value,
+    };
