@@ -2165,6 +2165,38 @@ No manual openapi configs, they get auto-generated
 
 Just typed functions.
 
+## Returning a file
+
+A function that returns a `DVExportResult` (or a `Future` of one) answers with
+the file, not a JSON description of it:
+
+```dart
+@DVBackendFunction()
+Future<DVExportResult> _articlesCsv() async =>
+    Article.exportCsv(await Article.all(), fileName: 'articles.csv');
+```
+
+- The body is `bytes`, unchanged. A byte-order mark or binary data survives.
+- `content-type` is the export's `contentType`.
+- `content-disposition` is `attachment` with a quoted ASCII `filename` and a
+  UTF-8 `filename*` (RFC 6266, RFC 8187). Control characters become `_`, so a
+  name cannot end the header. The header is listed in
+  `access-control-expose-headers` so a client on another origin can read it,
+  and `x-content-type-options: nosniff` is set.
+- `metadata` is not sent. It can name a tenant, and it stays on the server.
+
+The generated client function takes no `fromJson` mapper and returns the
+`DVExportResult` read back with `DVExportResult.fromHttpResponse`: the body,
+the `content-type`, and the name from `content-disposition` (`filename*`
+first, last path segment only), falling back to the route's last segment. A
+response that is not 2xx throws `DVExportDownloadException` rather than
+returning the error page as the file. The OpenAPI document describes the
+response as `application/octet-stream` with a `Content-Disposition` header.
+
+The other results that are not JSON keep their shapes: a `String` is sent as
+`text/plain`, a `Stream<List<int>>` as raw bytes, and any other `Stream<T>` as
+Server-Sent Events. A `Stream<DVExportResult>` is not a download yet.
+
 Under the hood, `dartvel_shelf` runs the HTTP server in Rust, on Axum, Hyper
 and Tokio, as a native library the Dart process loads. The Rust side owns the
 connections, TLS, HTTP/2, body limits and timeouts, and hands each request to

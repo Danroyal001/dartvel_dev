@@ -461,6 +461,12 @@ the app:
 final Map<String, Object?> greeting = await hello(name: 'Ada');
 ```
 
+A function that returns a `DVExportResult` answers with the file itself: the
+bytes as the body, its content type, and a `Content-Disposition` naming the
+file, so `GET /api/articles.csv` downloads `articles.csv`. Its client function
+returns that `DVExportResult`. See
+[Return a file to download](https://dartvel.dev/docs/backend-functions#files).
+
 ---
 
 ## 🖥️ One binary: web-server and Studio

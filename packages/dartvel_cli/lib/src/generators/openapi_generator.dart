@@ -94,6 +94,10 @@ Map<String, Object?> buildOpenApiDocument({
     }
 
     final isStream = op.returnType.startsWith('Stream<');
+    // A DVExportResult is answered as the file: its bytes, its own content
+    // type, and its name in Content-Disposition.
+    final isFile = !isStream &&
+        _unwrap(op.returnType).replaceAll(' ', '') == 'DVExportResult';
     final operation = <String, Object?>{
       'operationId': op.name.isEmpty ? _fallbackId(method, op.path) : op.name,
       if (queryOrPathParams.isNotEmpty) 'parameters': queryOrPathParams,
@@ -122,9 +126,22 @@ Map<String, Object?> buildOpenApiDocument({
         '200': <String, Object?>{
           'description': isStream
               ? 'Server-sent event stream of ${_unwrap(op.returnType)}'
+              : isFile
+              ? 'The exported file, with the content type it was exported as'
               : 'Successful response',
+          if (isFile)
+            'headers': const <String, Object?>{
+              'Content-Disposition': <String, Object?>{
+                'description': 'attachment; filename="..."; filename*=UTF-8\'\'...',
+                'schema': <String, Object?>{'type': 'string'},
+              },
+            },
           'content': <String, Object?>{
-            if (isStream)
+            if (isFile)
+              'application/octet-stream': const <String, Object?>{
+                'schema': <String, Object?>{'type': 'string', 'format': 'binary'},
+              }
+            else if (isStream)
               'text/event-stream': <String, Object?>{
                 'schema': _schemaFor(_unwrap(op.returnType)),
               }

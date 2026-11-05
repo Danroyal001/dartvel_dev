@@ -1389,6 +1389,21 @@ dv.Response _dvTooLarge(int limit) => dv.Response(413,
     body: Stream<List<int>>.value(
         conv.utf8.encode(core.dvTooLargeMessage(limit))));
 
+/// A file a backend function returned, answered as that file.
+///
+/// The bytes are the body and nothing wraps them; the content type is the
+/// export's own and the name goes in an RFC 6266 content-disposition, which
+/// a cross-origin client may read. Metadata does not travel: it can name a
+/// tenant, and a header is no place for that.
+dv.Response _dvExportResponse(core.DVExportResult export) => dv.Response(200,
+    headers: dv.Headers({
+      'content-type': export.contentType,
+      'content-disposition': core.dvContentDisposition(export.fileName),
+      'access-control-expose-headers': 'content-disposition',
+      'x-content-type-options': 'nosniff',
+    }),
+    body: Stream<List<int>>.value(export.bytes));
+
 ${servesCrashes ? '/// The crash endpoint\'s ingest, built on the first report.\ncore.DVCrashIngest? _dartvelCrashIngest;\n\n/// Reads a report with the symbols uploaded for its release.\ncore.DVRepositoryCrashSymbolicator? _dartvelSymbolicator;\n\n/// The symbols endpoint\'s ingest, built on the first upload.\ncore.DVSymbolIngest? _dartvelSymbolIngest;\n\n/// Where this process keeps symbols: DARTVEL_SYMBOLS_DIR, else beside the\n/// application (.dartvel/symbols), which survives the restart a deploy causes.\ncore.DVSymbolRepository _dartvelSymbolRepository() => core.DVDirectorySymbolRepository(\n  core.dvServerSymbolsDirectoryFor(\n    appId: \'$pkgName\',\n    environment: Platform.environment,\n    currentDirectory: Directory.current.path,\n    tempDirectory: Directory.systemTemp.path,\n  ),\n);\n\n' : ''}${servesClientLogs ? '/// The client-logs endpoint\'s ingest, built on the first batch.\ncore.DVLogIngest? _dartvelLogIngest;\n\n' : ''}dv.Response _dvCsrfForbidden() => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(conv.utf8.encode('CSRF token missing')));
@@ -1616,6 +1631,7 @@ ${backendEntries.map((e) {
     try {
       final result = $rawCall;$contextDone
       if (result is dv.Response) return result;
+      if (result is core.DVExportResult) return _dvExportResponse(result);
       return dv.Response(200, body: Stream<List<int>>.value(conv.utf8.encode(result.toString())));
     } catch (e, st) {
 $contextFailed
@@ -1687,6 +1703,8 @@ $requestPrelude$mfaGate$policyGate$contextPrelude
     try {
       Object? result = await $invocation($callArgs);$contextDone
       if (result is dv.Response) return result;
+      // The file is the answer, not a JSON description of it.
+      if (result is core.DVExportResult) return _dvExportResponse(result);
       if (result is Stream<List<int>>) return dv.Response(200, body: result);
       if (result is Stream) {
         return dv.Response(200,
@@ -1720,6 +1738,8 @@ $requestPrelude$mfaGate$policyGate$contextPrelude
     try {
       Object? result = await $invocation($callArgs);$contextDone
       if (result is dv.Response) return result;
+      // The file is the answer, not a JSON description of it.
+      if (result is core.DVExportResult) return _dvExportResponse(result);
       if (result is Stream<List<int>>) return dv.Response(200, body: result);
       if (result is Stream) {
         return dv.Response(200,
@@ -2965,6 +2985,19 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
             // client reads the text. `r.data` would JSON-decode it, and a
             // String that holds JSON would arrive as a Map.
             if (tt == 'String') return 'r.body';
+            // The server answers a DVExportResult with the file itself, so the
+            // caller gets the file back -- bytes, type and name read from the
+            // response, an error answer thrown -- and there is no JSON to map.
+            if (tt == 'DVExportResult') {
+              final String fallback = clientPath
+                  .split('/')
+                  .lastWhere(
+                    (String segment) =>
+                        segment.isNotEmpty && !segment.startsWith(':'),
+                    orElse: () => 'download',
+                  );
+              return "DVExportResult.fromHttpResponse(r, fallbackFileName: '${esc(fallback)}')";
+            }
             if (tt == 'int') {
               return "(r.data is int) ? (r.data as int) : (int.tryParse(r.data?.toString() ?? '') ?? 0)";
             }

@@ -252,6 +252,10 @@ class DVRustHttpTransport implements DVHttpTransport {
       bytes: bytes,
       protocol: streamed.protocol,
       earlyHints: streamed.earlyHints,
+      headers: <String, String>{
+        for (final MapEntry<String, String> header in streamed.headers.entries)
+          header.key.toLowerCase(): header.value,
+      },
     );
   }
 

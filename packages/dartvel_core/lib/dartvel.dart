@@ -1907,6 +1907,164 @@ class DVExportResult {
     required this.bytes,
     this.metadata = const <String, String>{},
   });
+
+  /// The file a backend function answered with, read back from its response.
+  ///
+  /// A `@DVBackendFunction` returning a [DVExportResult] answers with the
+  /// file itself: [bytes] as the body, [contentType] as `content-type` and
+  /// [fileName] in `content-disposition`. This is the generated client's half.
+  /// [metadata] does not travel -- it can name a tenant, and a header is not
+  /// the place for that -- so the result here has none.
+  ///
+  /// [fallbackFileName] names the file when the response does not (the
+  /// generated client passes the route's last segment). An answer that is not
+  /// a success throws [DVExportDownloadException]: an error page handed over
+  /// as `tracker.csv` is a file that looks like it worked.
+  factory DVExportResult.fromHttpResponse(
+    DVHttpResponse response, {
+    required String fallbackFileName,
+  }) {
+    if (!response.isSuccess) {
+      throw DVExportDownloadException(response.statusCode, response.body);
+    }
+    return DVExportResult(
+      fileName:
+          dvContentDispositionFileName(response.headers['content-disposition']) ??
+              fallbackFileName,
+      contentType:
+          response.headers['content-type'] ?? 'application/octet-stream',
+      bytes: response.bodyBytes,
+    );
+  }
+}
+
+/// A download of a [DVExportResult] that the server refused or failed.
+class DVExportDownloadException implements Exception {
+  /// The HTTP status the server answered with.
+  final int statusCode;
+
+  /// What the server said instead of the file.
+  final String body;
+
+  const DVExportDownloadException(this.statusCode, this.body);
+
+  @override
+  String toString() =>
+      'DVExportDownloadException: the server answered $statusCode instead '
+      'of the file: $body';
+}
+
+/// A `content-disposition` header that downloads a file named [fileName].
+///
+/// RFC 6266: a quoted ASCII `filename` for clients that read only that, and
+/// `filename*` in UTF-8 (RFC 8187) carrying the real name. Control characters
+/// become `_` in both, so a name can never end the header and start another;
+/// a quote or backslash is escaped inside the quoted form. An empty name is
+/// `download`.
+String dvContentDisposition(String fileName) {
+  final String safe = String.fromCharCodes(fileName.runes.map(
+      (int rune) => rune < 0x20 || rune == 0x7f ? 0x5f : rune));
+  final String name = safe.isEmpty ? 'download' : safe;
+  final StringBuffer ascii = StringBuffer();
+  for (final int rune in name.runes) {
+    if (rune > 0x7e) {
+      ascii.write('_');
+    } else if (rune == 0x22 || rune == 0x5c) {
+      ascii
+        ..write(r'\')
+        ..writeCharCode(rune);
+    } else {
+      ascii.writeCharCode(rune);
+    }
+  }
+  const String attrChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+      '0123456789!#\$&+-.^_`|~';
+  final StringBuffer encoded = StringBuffer();
+  for (final int byte in utf8.encode(name)) {
+    if (byte < 0x80 && attrChars.contains(String.fromCharCode(byte))) {
+      encoded.writeCharCode(byte);
+    } else {
+      encoded.write('%${byte.toRadixString(16).toUpperCase().padLeft(2, '0')}');
+    }
+  }
+  return 'attachment; filename="$ascii"; filename*=UTF-8\'\'$encoded';
+}
+
+/// The file name a `content-disposition` [header] gives, or null.
+///
+/// Prefers `filename*` (RFC 8187, UTF-8 or ISO-8859-1) over `filename`, and
+/// keeps only the last path segment: a name is a name, and a sender's
+/// `../../etc/passwd` or `..\boot.ini` must not become a path on the device
+/// that saves it.
+String? dvContentDispositionFileName(String? header) {
+  if (header == null) return null;
+  // Parameters split on `;` outside quotes, so a quoted name holding `;` or
+  // a lookalike `filename*=` stays one value.
+  final Map<String, String> parameters = <String, String>{};
+  final StringBuffer part = StringBuffer();
+  bool quoted = false;
+  void finish() {
+    final String text = part.toString();
+    part.clear();
+    final int equals = text.indexOf('=');
+    if (equals < 0) return;
+    final String key = text.substring(0, equals).trim().toLowerCase();
+    String value = text.substring(equals + 1).trim();
+    if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+      value = value
+          .substring(1, value.length - 1)
+          .replaceAllMapped(RegExp(r'\\(.)'), (Match m) => m.group(1)!);
+    }
+    parameters.putIfAbsent(key, () => value);
+  }
+
+  for (int index = 0; index < header.length; index++) {
+    final String char = header[index];
+    if (quoted && char == r'\' && index + 1 < header.length) {
+      part
+        ..write(char)
+        ..write(header[++index]);
+    } else if (char == '"') {
+      quoted = !quoted;
+      part.write(char);
+    } else if (char == ';' && !quoted) {
+      finish();
+    } else {
+      part.write(char);
+    }
+  }
+  finish();
+
+  String? name;
+  final String? extended = parameters['filename*'];
+  if (extended != null) {
+    final RegExpMatch? match =
+        RegExp(r"^([A-Za-z0-9!#$%&+\-^_`{}~]+)'[^']*'(.*)$").firstMatch(extended);
+    if (match != null) {
+      final List<int> bytes = <int>[];
+      final String raw = match.group(2)!;
+      for (int index = 0; index < raw.length; index++) {
+        if (raw[index] == '%' && index + 2 < raw.length) {
+          final int? byte = int.tryParse(raw.substring(index + 1, index + 3),
+              radix: 16);
+          if (byte != null) {
+            bytes.add(byte);
+            index += 2;
+            continue;
+          }
+        }
+        bytes.addAll(utf8.encode(raw[index]));
+      }
+      name = match.group(1)!.toLowerCase() == 'utf-8'
+          ? utf8.decode(bytes, allowMalformed: true)
+          : latin1.decode(bytes, allowInvalid: true);
+    }
+  }
+  name ??= parameters['filename'];
+  if (name == null) return null;
+  final String base = name.split(RegExp(r'[/\\]')).last.trim();
+  if (base.isEmpty || base == '.' || base == '..') return null;
+  return base;
 }
 
 class DVExportOptions<TModel> {

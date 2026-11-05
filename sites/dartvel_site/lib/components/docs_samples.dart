@@ -255,6 +255,22 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '  };',
     '}',
   ],
+  'backend-file': <String>[
+    '// lib/backend/functions/articles.csv.get.dart',
+    'import \'package:dartvel_core/dartvel.dart\';',
+    '',
+    'import \'../../dartvel_client/dartvel_server.dart\';',
+    '',
+    '// GET /api/articles.csv downloads articles.csv.',
+    '\u0040DVBackendFunction()',
+    'Future<DVExportResult> _articlesCsv() async =>',
+    '    Article.exportCsv(await Article.all(), fileName: \'articles.csv\');',
+  ],
+  'backend-file-client': <String>[
+    '// The generated client function hands back the file the server sent.',
+    'final DVExportResult file = await articlesCsv();',
+    'await DV.FileStorage.put(file.fileName, file.bytes, contentType: file.contentType);',
+  ],
   'backend-hello': <String>[
     '// lib/backend/functions/hello.get.dart is served at GET /api/hello.',
     'import \'package:dartvel_core/dartvel.dart\';',

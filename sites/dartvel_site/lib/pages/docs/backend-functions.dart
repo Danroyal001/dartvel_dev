@@ -134,6 +134,33 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'files',
+          title: 'Return a file to download',
+          children: <Widget>[
+            DocsCode('backend-file'),
+            DocsText('Return a DVExportResult and the endpoint answers with '
+                'the file itself: its bytes as the body, its contentType, and '
+                'a Content-Disposition that names fileName, so a link, a '
+                'browser or curl downloads it. Nothing is wrapped in JSON.'),
+            DocsCode('backend-file-client'),
+            Bullets(<String>[
+              'The client function returns the DVExportResult read back from '
+                  'the response: the bytes, the type and the name.',
+              'An error answer throws DVExportDownloadException. You never '
+                  'get an error page saved as the file.',
+              'A name that is not plain ASCII still arrives intact. Any '
+                  'folders in a name are dropped when it is read back.',
+              'metadata stays on the server. It is not sent with the file.',
+              'A String is sent as text and a Stream<List<int>> as raw bytes, '
+                  'with no file name.',
+            ]),
+            DocsStatus('Backend', missing: <String>[
+              'A Stream<DVExportResult>, as exportStreamCsv gives, is not '
+                  'served as a download yet. Return one DVExportResult.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'transactions',
           title: 'Undo partial work with a transaction',
           children: <Widget>[
