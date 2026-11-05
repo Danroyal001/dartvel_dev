@@ -2985,6 +2985,19 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
             // client reads the text. `r.data` would JSON-decode it, and a
             // String that holds JSON would arrive as a Map.
             if (tt == 'String') return 'r.body';
+            // The server answers a DVExportResult with the file itself, so the
+            // caller gets the file back -- bytes, type and name read from the
+            // response, an error answer thrown -- and there is no JSON to map.
+            if (tt == 'DVExportResult') {
+              final String fallback = clientPath
+                  .split('/')
+                  .lastWhere(
+                    (String segment) =>
+                        segment.isNotEmpty && !segment.startsWith(':'),
+                    orElse: () => 'download',
+                  );
+              return "DVExportResult.fromHttpResponse(r, fallbackFileName: '${esc(fallback)}')";
+            }
             if (tt == 'int') {
               return "(r.data is int) ? (r.data as int) : (int.tryParse(r.data?.toString() ?? '') ?? 0)";
             }
