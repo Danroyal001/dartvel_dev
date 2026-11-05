@@ -167,11 +167,11 @@ fn hash_len_0_to_16(s: &[u8]) -> u64 {
 
 /// 17 to 32 bytes: `head` and `tail` are the first and last 16.
 #[inline(always)]
-fn hash_len_17_to_32(len: u64, head: &[u8; 16], tail: &[u8; 16]) -> u64 {
-    let a = word(head, 0).wrapping_mul(K1);
-    let b = word(head, 8);
-    let c = word(tail, 8).wrapping_mul(K2);
-    let d = word(tail, 0).wrapping_mul(K0);
+fn hash_len_17_to_32(len: u64, head: [u8; 16], tail: [u8; 16]) -> u64 {
+    let a = word(&head, 0).wrapping_mul(K1);
+    let b = word(&head, 8);
+    let c = word(&tail, 8).wrapping_mul(K2);
+    let d = word(&tail, 0).wrapping_mul(K0);
     hash_len_16(
         rotate(a.wrapping_sub(b), 43).wrapping_add(rotate(c, 30)).wrapping_add(d),
         a.wrapping_add(rotate(b ^ K3, 20)).wrapping_sub(c).wrapping_add(len),
@@ -197,24 +197,24 @@ fn weak_hash_len_32_with_seeds<const N: usize>(b: &[u8; N], at: usize, x: u64, y
 
 /// 33 to 64 bytes: `head` and `tail` are the first and last 32.
 #[inline(always)]
-fn hash_len_33_to_64(len: u64, head: &[u8; 32], tail: &[u8; 32]) -> u64 {
+fn hash_len_33_to_64(len: u64, head: [u8; 32], tail: [u8; 32]) -> u64 {
     // In upstream's offsets, s + len - k is tail + 32 - k.
-    let mut z = word(head, 24);
-    let mut a = word(head, 0).wrapping_add(len.wrapping_add(word(tail, 16)).wrapping_mul(K0));
+    let mut z = word(&head, 24);
+    let mut a = word(&head, 0).wrapping_add(len.wrapping_add(word(&tail, 16)).wrapping_mul(K0));
     let mut b = rotate(a.wrapping_add(z), 52);
     let mut c = rotate(a, 37);
-    a = a.wrapping_add(word(head, 8));
+    a = a.wrapping_add(word(&head, 8));
     c = c.wrapping_add(rotate(a, 7));
-    a = a.wrapping_add(word(head, 16));
+    a = a.wrapping_add(word(&head, 16));
     let vf = a.wrapping_add(z);
     let vs = b.wrapping_add(rotate(a, 31)).wrapping_add(c);
-    a = word(head, 16).wrapping_add(word(tail, 0));
-    z = z.wrapping_add(word(tail, 24));
+    a = word(&head, 16).wrapping_add(word(&tail, 0));
+    z = z.wrapping_add(word(&tail, 24));
     b = rotate(a.wrapping_add(z), 52);
     c = rotate(a, 37);
-    a = a.wrapping_add(word(tail, 8));
+    a = a.wrapping_add(word(&tail, 8));
     c = c.wrapping_add(rotate(a, 7));
-    a = a.wrapping_add(word(tail, 16));
+    a = a.wrapping_add(word(&tail, 16));
     let wf = a.wrapping_add(z);
     let ws = b.wrapping_add(rotate(a, 31)).wrapping_add(c);
     let r = shift_mix(
@@ -224,40 +224,63 @@ fn hash_len_33_to_64(len: u64, head: &[u8; 32], tail: &[u8; 32]) -> u64 {
 }
 
 /// libc++'s `__murmur2_or_cityhash<size_t, 64>`, the string hash.
+///
+/// libc++ 19 and later compile it into the library as `__hash_memory`,
+/// which its headers declare `[[gnu::pure]]`, so the C++ compiler computes
+/// the hash of a string once however often a function asks for it (as
+/// `HashCombine(s, ...)` after `HashCombine(s)` does). Rust has no such
+/// attribute; the optimizer infers it instead, for a function that only
+/// reads its argument, cannot panic and is not inlined into its callers,
+/// and it has to know it while it still optimizes the caller's crate on its
+/// own (whole-program optimization no longer looks past one call to merge
+/// two). Hence the hash is `murmur2_or_cityhash_body`: never inlined,
+/// generic only so that each calling crate compiles its own copy and sees
+/// what it does, with no index or `unwrap` that the optimizer cannot prove
+/// in bounds (a panic writes memory, which would make every call look
+/// impure).
 #[inline]
 pub fn murmur2_or_cityhash(s: &[u8]) -> usize {
+    murmur2_or_cityhash_body::<()>(s)
+}
+
+#[inline(never)]
+fn murmur2_or_cityhash_body<InstantiatedInTheCaller>(s: &[u8]) -> usize {
     let n = s.len();
     let len = n as u64;
     if n <= 16 {
         return hash_len_0_to_16(s) as usize;
     }
     if n <= 32 {
-        let (head, tail) = (s.first_chunk::<16>().unwrap(), s.last_chunk::<16>().unwrap());
+        let (head, tail) = (*s.first_chunk::<16>().unwrap(), *s.last_chunk::<16>().unwrap());
         return hash_len_17_to_32(len, head, tail) as usize;
     }
     if n <= 64 {
-        let (head, tail) = (s.first_chunk::<32>().unwrap(), s.last_chunk::<32>().unwrap());
+        let (head, tail) = (*s.first_chunk::<32>().unwrap(), *s.last_chunk::<32>().unwrap());
         return hash_len_33_to_64(len, head, tail) as usize;
     }
     murmur2_or_cityhash_long(s) as usize
 }
 
 /// More than 64 bytes. In upstream's offsets, s + len - k is tail + 64 - k.
-#[inline(never)]
+#[inline(always)]
 fn murmur2_or_cityhash_long(s: &[u8]) -> u64 {
     let n = s.len();
-    let tail = s.last_chunk::<64>().unwrap();
-    let mut len = n as u64;
+    // The caller passes more than 64 bytes; the `else` only keeps a panic
+    // (and so a write to memory) out of murmur2_or_cityhash.
+    let (Some(head), Some(tail)) = (s.first_chunk::<8>(), s.last_chunk::<64>()) else {
+        return 0;
+    };
+    let len = n as u64;
     let mut x = word(tail, 24);
     let mut y = word(tail, 48).wrapping_add(word(tail, 8));
     let mut z = hash_len_16(word(tail, 16).wrapping_add(len), word(tail, 40));
     let mut v = weak_hash_len_32_with_seeds(tail, 0, len, z);
     let mut w = weak_hash_len_32_with_seeds(tail, 32, y.wrapping_add(K1), x);
-    x = x.wrapping_mul(K1).wrapping_add(word(s.first_chunk::<8>().unwrap(), 0));
+    x = x.wrapping_mul(K1).wrapping_add(word(head, 0));
 
-    len = (len - 1) & !63u64;
-    for block in s[..len as usize].chunks_exact(64) {
-        let block: &[u8; 64] = block.try_into().unwrap();
+    // Upstream hashes the (len - 1) & ~63 bytes before the tail in 64-byte
+    // blocks: (n - 1) / 64 of them, each a whole chunk of `s`.
+    for block in s.as_chunks::<64>().0.iter().take((n - 1) / 64) {
         x = rotate(x.wrapping_add(y).wrapping_add(v.0).wrapping_add(word(block, 8)), 37)
             .wrapping_mul(K1);
         y = rotate(y.wrapping_add(v.1).wrapping_add(word(block, 48)), 42).wrapping_mul(K1);
