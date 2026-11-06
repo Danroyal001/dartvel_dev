@@ -10,6 +10,29 @@ import 'package:puppeteer/puppeteer.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('a pending Flutter view cannot cover the first-frame picture', () async {
+    final browser = await puppeteer.launch(
+      executablePath: await dvChromeExecutable(), args: dvChromeLaunchArgs);
+    try {
+      final page = await browser.newPage();
+      await page.setViewport(const DeviceViewport(width: 390, height: 844));
+      await page.setContent(dvFirstFrameHtml(const [
+        DVFirstFrame(width: 390, dark: false, src: 'picture.png'),
+      ]));
+      await page.evaluate<Object?>('''()=>{
+        document.getElementById('dv-first-frame').style.backgroundColor='blue';
+        const view=document.createElement('flutter-view');
+        view.style.cssText='position:absolute;inset:0;background:white';
+        document.body.append(view);
+      }''');
+      expect(await page.evaluate<bool>('''()=>
+        document.elementFromPoint(195,400).closest('#dv-first-frame')!==null
+      '''), isTrue, reason: 'the picture stays above an unrendered canvas');
+    } finally {
+      await browser.close();
+    }
+  });
+
   test('a premature Flutter callback cannot remove the unrendered picture', () async {
     final browser = await puppeteer.launch(
       executablePath: await dvChromeExecutable(), args: dvChromeLaunchArgs);

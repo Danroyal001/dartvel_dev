@@ -92,7 +92,7 @@ void main() {
   test('the first frame removes the splash and the text stays hidden', () async {
     final Page page = await _open();
     await page.evaluate<void>(
-        '() => window.dispatchEvent(new Event("flutter-first-frame"))');
+        '() => window.dispatchEvent(new Event("dartvel-first-frame"))');
     expect(await _textWidth(page), lessThanOrEqualTo(1));
     // Still in the document for find, crawlers and print.
     expect(await page.evaluate<String>(

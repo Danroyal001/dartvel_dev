@@ -346,7 +346,7 @@ dartvel:
     });
 
     test('is removed on the first frame', () {
-      expect(dvWebSplashApply(_webIndex, splash), contains('flutter-first-frame'));
+      expect(dvWebSplashApply(_webIndex, splash), contains('dartvel-first-frame'));
     });
 
     test('the compiled app starts downloading while the page is parsed', () {
