@@ -470,6 +470,20 @@ The table is the contract. Each row says which entries a target has, what
   the same page with the same data and the route's data is not fetched twice.
   `ready` is when Flutter has taken over; the fallback and the splash are
   removed then, not before.
+- **The first frame before the app loads.** The build opens each public route
+  in Chrome at the widths `dartvel.web.firstFrame.widths` names (default 390,
+  1366 and 1920), light and dark, and keeps a picture of the first screen with
+  the place of every piece of text and every link the semantics tree reports.
+  The page shows that picture from its first byte to a window of exactly that
+  width and scheme, with the text laid over it -- transparent, selectable,
+  findable with Ctrl+F, links followable -- and hides the splash there. Flutter's
+  first frame removes it, and the two are the same pixels, so nothing moves.
+  Any other width keeps the splash; a browser with no script gets the page's
+  document; screen readers read the document, never the picture's text layer.
+  A route rendered at another path than its own (a pattern's record) and a
+  guarded route have no picture. `dartvel.web.firstFrame: false` turns it off.
+  Pictures are WebP, named by their content, and a dark one identical to the
+  light one is not kept.
 - **Service worker** registration is phase 7. The service worker is generated
   JavaScript (`push`, `notificationclick`, precache), not a Dart entry; a push
   that must run Dart while no tab is open is out of reach on the web and

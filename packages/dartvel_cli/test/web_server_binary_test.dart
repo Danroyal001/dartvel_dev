@@ -36,6 +36,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVSessions,
         DVTenants;
 import 'package:dartvel_cli/src/build/chrome_launch.dart';
+import 'package:dartvel_cli/src/build/first_frame_capture.dart' show dvEmulateColourScheme;
+import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:puppeteer/puppeteer.dart';
 import 'package:test/test.dart';
@@ -391,6 +393,67 @@ Widget _notesPage(BuildContext context) {
     } finally {
       again.process.kill();
       await again.process.exitCode;
+    }
+  }, skip: skip, timeout: const Timeout(Duration(minutes: 5)));
+
+  test('before the app loads the page is the app\'s own first screen, and the '
+      'app takes over with nothing on screen changing', () async {
+    final run = await start();
+    final Browser browser = await puppeteer.launch(
+      executablePath: await dvChromeExecutable(),
+      args: dvChromeLaunchArgs,
+    );
+    /// The page at 1366 wide, with the app's code blocked or let through.
+    Future<Page> open({required bool app}) async {
+      final Page page = await browser.newPage();
+      await page.setViewport(const DeviceViewport(width: 1366, height: 900));
+      await dvEmulateColourScheme(page, 'light');
+      await page.setRequestInterception(true);
+      page.onRequest.listen((Request request) {
+        if (!app && RegExp(r'main\.dart|flutter_bootstrap|canvaskit|\.wasm').hasMatch(request.url)) {
+          request.abort();
+        } else {
+          request.continueRequest();
+        }
+      });
+      await page.evaluateOnNewDocument(
+          'addEventListener("flutter-first-frame", () => { window.dvFirstFrame = true })');
+      await page.goto('http://127.0.0.1:${run.port}/notes', wait: Until.networkIdle);
+      return page;
+    }
+
+    try {
+      final Page server = await open(app: false);
+      expect(await server.evaluate<String>(
+              '() => getComputedStyle(document.getElementById("dv-first-frame")).display'),
+          'block', reason: 'the picture shows at a captured width');
+      expect(await server.evaluate<bool>(
+              '() => !document.getElementById("dartvel-splash") || getComputedStyle(document.getElementById("dartvel-splash")).display === "none"'),
+          isTrue, reason: 'no splash where the picture is');
+      expect(await server.evaluate<bool>('() => window.find("Save a note")'), isTrue,
+          reason: 'find reaches the words on the picture');
+      final img.Image before = img.decodePng(await server.screenshot())!;
+
+      final Page app = await open(app: true);
+      await app.waitForFunction('() => window.dvFirstFrame === true', timeout: const Duration(minutes: 1));
+      await Future<void>.delayed(const Duration(seconds: 2));
+      expect(await app.evaluate<bool>('() => document.getElementById("dv-first-frame") === null'), isTrue,
+          reason: 'the first frame of the app takes the picture away');
+      final img.Image after = img.decodePng(await app.screenshot())!;
+
+      int changed = 0;
+      for (int y = 0; y < before.height; y++) {
+        for (int x = 0; x < before.width; x++) {
+          final img.Pixel a = before.getPixel(x, y), b = after.getPixel(x, y);
+          if ((a.r - b.r).abs() > 24 || (a.g - b.g).abs() > 24 || (a.b - b.b).abs() > 24) changed++;
+        }
+      }
+      expect(changed / (before.width * before.height), lessThan(0.001),
+          reason: '$changed pixels changed when the app took over');
+    } finally {
+      await browser.close();
+      run.process.kill();
+      await run.process.exitCode;
     }
   }, skip: skip, timeout: const Timeout(Duration(minutes: 5)));
 
