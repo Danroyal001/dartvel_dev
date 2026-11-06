@@ -7,7 +7,7 @@ use analyzer::src::dart::ast::ast_store::{Ast, ChildValue1, NodeId};
 use analyzer::src::dart::element::display_string_builder::display_string;
 use analyzer::src::dart::element::element::ElementStore;
 use analyzer::src::dart::element::type_provider::TypeProviderImpl;
-use analyzer::src::dart::resolver::type_analyzer::TypeAnalyzer;
+use analyzer::src::dart::resolver::type_analyzer::{TypeAnalyzer, is_context_independent_literal};
 use analyzer::src::dart::sdk::sdk::FolderBasedDartSdk;
 use analyzer::src::summary2::link::Linker;
 use std::{
@@ -102,14 +102,19 @@ fn dump_node(
     store: &ElementStore,
     out: &mut String,
 ) {
-    if let Some(type_) = analyzer.static_types.get(&node) {
+    if is_context_independent_literal(ast.node(node)) {
+        let type_ = analyzer
+            .static_types
+            .get(&node)
+            .map(|type_| display_string(store, type_))
+            .unwrap_or_else(|| "-".into());
         writeln!(
             out,
             "{} {}+{} type={}",
             ast.node(node).runtime_type(),
             ast.offset(node),
             ast.length(node),
-            display_string(store, type_)
+            type_
         )
         .unwrap();
     }

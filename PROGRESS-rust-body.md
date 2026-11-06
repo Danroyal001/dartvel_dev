@@ -56,3 +56,8 @@
 - Analyzer release build finished in 4m47s; conditional-directive fixture comparison is now running.
 - Next: rerun comparator tests, finish fixture/default/held-out validation; do not claim whole-body parity.
 - Comparator regression GREEN: all 3 tests pass after the fix; `git diff --check` clean. Formatting applied to changed Rust files.
+
+## Step 9 — Conditional directives GREEN
+- Unchanged literal oracle: **43 expression rows, 4 files, 0 differences**, 70.39s after release compilation. Includes the new conditional import/export fixture; the original default-corpus RED was 2 differences.
+- Comparator hardening committed locally as `6a0d2016d`; no remote action.
+- Next: default corpus with hardened comparator, then held-out roots; full inference/resolution and measurements still pending.

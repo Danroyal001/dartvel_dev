@@ -10,6 +10,19 @@ use crate::src::dart::element::r#type::TypeImpl;
 use crate::src::dart::element::type_provider::TypeProviderImpl;
 use std::collections::HashMap;
 
+pub fn is_context_independent_literal(node: &AstNodeImpl) -> bool {
+    matches!(
+        node,
+        AstNodeImpl::BooleanLiteralImpl(_)
+            | AstNodeImpl::DoubleLiteralImpl(_)
+            | AstNodeImpl::NullLiteralImpl(_)
+            | AstNodeImpl::SimpleStringLiteralImpl(_)
+            | AstNodeImpl::AdjacentStringsImpl(_)
+            | AstNodeImpl::StringInterpolationImpl(_)
+            | AstNodeImpl::SymbolLiteralImpl(_)
+    )
+}
+
 pub struct TypeAnalyzer<'a> {
     pub type_provider: &'a TypeProviderImpl,
     pub static_types: HashMap<NodeId, TypeImpl>,
@@ -26,6 +39,10 @@ impl<'a> TypeAnalyzer<'a> {
     /// Visits a parsed unit; only the seven literal visitors record types.
     /// This is not a substitute for full body resolution.
     pub fn analyze_literals(&mut self, ast: Ast<'_>, node: NodeId) {
+        // visitConfiguration: upstream deliberately does not resolve children.
+        if matches!(ast.node(node), AstNodeImpl::ConfigurationImpl(_)) {
+            return;
+        }
         for child in ast.named_child_entities2(node) {
             match child.value {
                 ChildValue::Node(id) => self.analyze_literals(ast, id),
