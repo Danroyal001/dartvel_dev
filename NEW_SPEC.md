@@ -486,6 +486,9 @@ The table is the contract. Each row says which entries a target has, what
   event after Flutter's `waitUntilFirstFrameRasterized` completes. Flutter's
   own `flutter-first-frame` callback is insufficient: it also fires for a
   deferred frame, before anything has reached the screen.
+  A generated page whose deferred library is already loaded draws its body
+  synchronously, without inserting another loading frame for a completed
+  future. Resetting deferred pages clears that readiness along with the cache.
   Any other width keeps the splash; a browser with no script gets the page's
   document; screen readers read the document, never the picture's text layer.
   A route rendered at another path than its own (a pattern's record) and a
