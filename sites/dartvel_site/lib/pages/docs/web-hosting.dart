@@ -41,7 +41,7 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
                   'description, Open Graph tags and splash'],
               <String>['<route>/index.html', 'One page per route, so a deep '
                   'link and a crawler get real HTML'],
-              <String>['dv-first-frame/', 'A picture of each page\'s first '
+              <String>['dv-first-frame/', 'A lossless PNG of each page\'s first '
                   'screen, shown until the app has loaded'],
               <String>['manifest.json, icons/', 'The installable PWA'],
               <String>['flutter_service_worker.js', 'Offline caching, '

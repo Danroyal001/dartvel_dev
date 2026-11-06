@@ -482,7 +482,7 @@ The table is the contract. Each row says which entries a target has, what
   document; screen readers read the document, never the picture's text layer.
   A route rendered at another path than its own (a pattern's record) and a
   guarded route have no picture. `dartvel.web.firstFrame: false` turns it off.
-  Pictures are WebP, named by their content, and a dark one identical to the
+  Pictures are lossless PNG, named by their content, and a dark one identical to the
   light one is not kept.
 - **Service worker** registration is phase 7. The service worker is generated
   JavaScript (`push`, `notificationclick`, precache), not a Dart entry; a push

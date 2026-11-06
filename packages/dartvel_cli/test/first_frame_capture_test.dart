@@ -4,9 +4,47 @@ import 'dart:io';
 import 'package:dartvel_cli/src/build/first_frame_capture.dart';
 import 'package:dartvel_core/dartvel.dart' show DVFirstFrame;
 import 'package:path/path.dart' as p;
+import 'package:dartvel_cli/src/build/chrome_launch.dart';
+import 'package:image/image.dart' as img;
+import 'package:puppeteer/puppeteer.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('captured pixels survive encoding without changing the app', () async {
+    final Browser browser = await puppeteer.launch(
+      executablePath: await dvChromeExecutable(), args: dvChromeLaunchArgs);
+    final Directory root = Directory.systemTemp.createTempSync('dv_ff_pixels_');
+    try {
+      final Page page = await browser.newPage();
+      await page.setViewport(const DeviceViewport(width: 390, height: 844));
+      // Fine edges and saturated colours expose WebP chroma subsampling.
+      await page.setContent('''<style>body{margin:0}</style><canvas width="390" height="844"></canvas>
+        <script>const c=document.querySelector('canvas').getContext('2d');
+        for(let y=0;y<844;y++)for(let x=0;x<390;x++){
+          c.fillStyle='rgb('+((x*37+y*13)%256)+','+((x*11)%256)+','+((y*29)%256)+')';
+          c.fillRect(x,y,1,1);
+        }</script>''');
+      final img.Image expected = img.decodePng(await page.screenshot())!;
+      await dvCaptureFirstFrames(page, projectRoot: root.path, route: '/', widths: <int>[390]);
+      final List<DVFirstFrame> frames = dvPublishFirstFrames(
+        root: root.path, route: '/', webRoot: p.join(root.path, 'web'));
+      final img.Image actual = img.decodeImage(
+        File(p.join(root.path, 'web', frames.first.src)).readAsBytesSync())!;
+      int changed = 0;
+      for (int y = 0; y < expected.height; y++) {
+        for (int x = 0; x < expected.width; x++) {
+          final a = expected.getPixel(x, y);
+          final b = actual.getPixel(x, y);
+          if (a.r != b.r || a.g != b.g || a.b != b.b) changed++;
+        }
+      }
+      expect(changed, 0, reason: 'a first-frame picture must preserve every pixel');
+    } finally {
+      await browser.close();
+      root.deleteSync(recursive: true);
+    }
+  });
+
   group('dartvel.web.firstFrame', () {
     test('captures the common phone and desktop widths unless told otherwise', () {
       expect(dvFirstFrameWidths(null), dvDefaultFirstFrameWidths);

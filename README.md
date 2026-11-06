@@ -505,7 +505,7 @@ data.
 
 Before the app has loaded, a visitor at a captured window width (390, 1366
 and 1920 by default, light and dark; `dartvel.web.firstFrame`) sees the page
-itself: a picture of its first screen taken at build time, with the words laid
+itself: a lossless PNG of its first screen taken at build time, with the words laid
 over it to select, find and follow. Flutter's first frame replaces it with the
 same pixels. Other widths, and pages rendered per record, keep the splash.
 

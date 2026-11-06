@@ -127,11 +127,13 @@ Future<int> dvCaptureFirstFrames(
         await page.evaluate<Object?>('() => window.scrollTo(0, 0)');
         await _settle(page);
         final List<int> bytes = base64Decode(
-            await page.devTools.page.captureScreenshot(format: 'webp', quality: 90));
+            await page.devTools.page.captureScreenshot(format: 'png'));
         final Digest digest = sha256.convert(bytes);
         if (dark && digest == light) continue;
         if (!dark) light = digest;
-        final String file = '$width-${dark ? 'dark' : 'light'}.webp';
+        // PNG preserves the canvas pixels, including text edges. Chrome's
+        // WebP screenshot encoder is lossy even at quality 100.
+        final String file = '$width-${dark ? 'dark' : 'light'}.png';
         File(p.join(pictures.path, file)).writeAsBytesSync(bytes);
         frames.add(<String, Object?>{
           'width': width,
@@ -170,7 +172,7 @@ List<DVFirstFrame> dvPublishFirstFrames({
     final int width = (entry['width'] as num).toInt();
     final bool dark = entry['dark'] == true;
     final String name =
-        '${_routeName(route)}-$width-${dark ? 'dark' : 'light'}-${sha256.convert(bytes).toString().substring(0, 10)}.webp';
+        '${_routeName(route)}-$width-${dark ? 'dark' : 'light'}-${sha256.convert(bytes).toString().substring(0, 10)}${p.extension(picture.path)}';
     File(p.join(published.path, name)).writeAsBytesSync(bytes);
     out.add(DVFirstFrame(
       width: width,
