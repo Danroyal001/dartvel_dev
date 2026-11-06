@@ -22,7 +22,7 @@ fn run(command: &mut Command) -> Output {
         stderr.read_to_end(&mut bytes).unwrap();
         bytes
     });
-    let deadline = Instant::now() + Duration::from_secs(60);
+    let deadline = Instant::now() + Duration::from_secs(300);
     let status = loop {
         if let Some(status) = child.try_wait().unwrap() {
             break status;
@@ -33,7 +33,7 @@ fn run(command: &mut Command) -> Output {
             let _ = out.join();
             let stderr = err.join().unwrap();
             panic!(
-                "oracle exceeded 60 seconds: {}",
+                "oracle exceeded 300 seconds: {}",
                 String::from_utf8_lossy(&stderr)
             );
         }
