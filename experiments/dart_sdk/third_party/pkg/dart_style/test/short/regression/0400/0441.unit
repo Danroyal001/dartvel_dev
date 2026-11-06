@@ -1,0 +1,14 @@
+>>>
+getSomeFoo(
+    {fooooooooooooooooooooo: const [
+  'baaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+]}) {
+  return 'rhubarb';
+}
+<<< 3.6
+getSomeFoo(
+    {fooooooooooooooooooooo: const [
+      'baaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    ]}) {
+  return 'rhubarb';
+}

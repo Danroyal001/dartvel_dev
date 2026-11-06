@@ -1,0 +1,67 @@
+>>> comments on single cascade lines
+receiver..cascade(); // comment
+<<< 3.6
+receiver..cascade(); // comment
+>>> comments on split cascade lines
+receiver
+  ..cascade() // a
+  ..cascade() // b
+  ..more(); // c
+<<< 3.6
+receiver
+  ..cascade() // a
+  ..cascade() // b
+  ..more(); // c
+>>> comment before first multi-line cascade section stays on line
+receiver // comment
+  ..cascade()
+  ..more();
+<<< 3.6
+receiver // comment
+  ..cascade()
+  ..more();
+>>> collapse blank lines before comment before first cascade
+receiver
+
+
+
+
+  // comment
+  ..cascade()
+  ..cascade();
+<<< 3.6
+receiver
+
+  // comment
+  ..cascade()
+  ..cascade();
+>>> preserve one blank line before comments on other cascades
+receiver
+
+
+
+
+  // comment
+  ..cascade()
+  // no blank
+  ..cascade()
+
+  // comment
+  ..cascade()
+
+
+  // comment
+  ..cascade();
+<<< 3.6
+receiver
+
+  // comment
+  ..cascade()
+  // no blank
+  ..cascade()
+
+  // comment
+  ..cascade()
+
+  // comment
+  ..cascade();

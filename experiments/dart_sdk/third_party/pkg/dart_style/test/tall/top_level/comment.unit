@@ -1,0 +1,169 @@
+40 columns                              |
+>>> Remove blank lines at top of file.
+
+
+// comment
+<<< 3.7
+// comment
+>>> Remove blank lines at end of file.
+// comment
+
+
+
+
+<<< 3.7
+// comment
+>>> Keep up to one blank line between top level comments.
+
+// one
+
+// two
+// three
+
+
+
+// four
+
+
+<<< 3.7
+// one
+
+// two
+// three
+
+// four
+>>> Remove extra spaces between adjacent inline block comments.
+  /* foo */   /* bar */
+<<< 3.7
+/* foo */ /* bar */
+>>> Inline comment between different kinds of directives.
+library a; /* comment */ import 'b.dart';
+<<< 3.7
+library a; /* comment */
+
+import 'b.dart';
+>>> Inline comment between directives.
+import 'a.dart'; /* comment */ import 'b.dart';
+<<< 3.7
+import 'a.dart'; /* comment */
+import 'b.dart';
+>>> Inline comment after directive.
+import 'a.dart'; /* comment */
+import 'b.dart';
+<<< 3.7
+import 'a.dart'; /* comment */
+import 'b.dart';
+>>> Inline comment before directive.
+import 'a.dart';
+/* comment */ import 'b.dart';
+<<< 3.7
+import 'a.dart';
+/* comment */
+import 'b.dart';
+>>> Ensure blank line above doc comments on top level directives and declarations.
+#!script
+/// Doc library.
+library;
+/// Doc export.
+export 'a.dart';
+/// Doc import.
+import 'a.dart';
+/// Doc class.
+class C {}
+/// Doc variable.
+var a = 1;
+/// Doc function.
+void b() => body;
+/// Doc function.
+void c() {;}
+<<< 3.7
+#!script
+
+/// Doc library.
+library;
+
+/// Doc export.
+export 'a.dart';
+
+/// Doc import.
+import 'a.dart';
+
+/// Doc class.
+class C {}
+
+/// Doc variable.
+var a = 1;
+
+/// Doc function.
+void b() => body;
+
+/// Doc function.
+void c() {
+  ;
+}
+>>> Preserve one blank line between a leading comment and declaration.
+// comment
+
+
+
+var a = 1;
+<<< 3.7
+// comment
+
+var a = 1;
+>>> Preserve one blank line between a leading comment and directive.
+// comment
+
+
+
+import 'x.dart';
+<<< 3.7
+// comment
+
+import 'x.dart';
+>>> Preserve one blank line between comments and declarations.
+// comment
+var a = 1;
+
+// comment
+
+var b = 2;
+
+
+
+// comment
+
+
+
+var c = 3;
+<<< 3.7
+// comment
+var a = 1;
+
+// comment
+
+var b = 2;
+
+// comment
+
+var c = 3;
+>>> A newline inside comments counts for the required blank.
+import 'dart:io';
+// import 'dart:math';
+
+// comment
+part 'x.dart';
+<<< 3.7
+import 'dart:io';
+// import 'dart:math';
+
+// comment
+part 'x.dart';
+>>> Don't add a blank line before a trailing comment after a block declaration.
+main(){;}
+// comment
+<<< 3.7
+main() {
+  ;
+}
+// comment

@@ -1,0 +1,17 @@
+>>>
+class Foo {
+  void main() {
+    List<TypeParameterElement> typeParameterElements = interfaceTypeContext
+            .element !=
+        null ? interfaceTypeContext.element.typeParameters : null;
+  }
+}
+<<< 3.6
+class Foo {
+  void main() {
+    List<TypeParameterElement> typeParameterElements =
+        interfaceTypeContext.element != null
+            ? interfaceTypeContext.element.typeParameters
+            : null;
+  }
+}

@@ -1,0 +1,75 @@
+40 columns                              |
+>>> Unsplit with clause.
+enum E with M {a,b,c}
+<<< 3.7
+enum E with M { a, b, c }
+>>> Unsplit implements clause.
+enum E implements I {a,b,c}
+<<< 3.7
+enum E implements I { a, b, c }
+>>> Unsplit both clauses.
+enum E with M implements I {a,b,c}
+<<< 3.7
+enum E with M implements I { a, b, c }
+>>> Split with clause.
+enum VeryLongEnumTypeName with LongMixin {a,b,c}
+<<< 3.7
+enum VeryLongEnumTypeName
+    with LongMixin {
+  a,
+  b,
+  c,
+}
+>>> Split implements clause.
+enum VeryLongEnumTypeName implements LongInterface {a,b,c}
+<<< 3.7
+enum VeryLongEnumTypeName
+    implements LongInterface {
+  a,
+  b,
+  c,
+}
+>>> Both clauses split.
+enum SomeEnum with SomeLongMixin, AnotherMixin<int> implements SomeInterface<String, bool>, AnotherInterface {a}
+<<< 3.7
+enum SomeEnum
+    with
+        SomeLongMixin,
+        AnotherMixin<int>
+    implements
+        SomeInterface<String, bool>,
+        AnotherInterface {
+  a,
+}
+>>> Unsplit with clause with empty body.
+enum E with M ;
+<<< 3.13
+enum E with M;
+>>> Unsplit implements clause with empty body.
+enum E implements I ;
+<<< 3.13
+enum E implements I;
+>>> Unsplit both clauses with empty body.
+enum E with M implements I ;
+<<< 3.13
+enum E with M implements I;
+>>> Split with clause with empty body.
+enum VeryLongEnumTypeName with LongMixin ;
+<<< 3.13
+enum VeryLongEnumTypeName
+    with LongMixin;
+>>> Split implements clause with empty body.
+enum VeryLongEnumTypeName implements LongInterface ;
+<<< 3.13
+enum VeryLongEnumTypeName
+    implements LongInterface;
+>>> Both clauses split with empty body.
+enum SomeEnum with SomeLongMixin, AnotherMixin<int> implements SomeInterface<String, bool>, AnotherInterface ;
+<<< 3.13
+enum SomeEnum
+    with
+        SomeLongMixin,
+        AnotherMixin<int>
+    implements
+        SomeInterface<String, bool>,
+        AnotherInterface;

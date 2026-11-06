@@ -1,0 +1,13 @@
+>>> (indent 4)
+    zoop(
+        "zoop description here",
+        spang(() {
+            ;
+        }));
+<<< 3.7
+    zoop(
+      "zoop description here",
+      spang(() {
+        ;
+      }),
+    );

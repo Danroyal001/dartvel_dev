@@ -1,0 +1,85 @@
+40 columns                              |
+>>> Empty block.
+{
+
+}
+<<< 3.7
+{}
+>>> At least one newline between statements.
+{a;b;c;}
+<<< 3.7
+{
+  a;
+  b;
+  c;
+}
+>>> Nested blocks increase indentation.
+{a;{b;{c;}d;}e;}
+<<< 3.7
+{
+  a;
+  {
+    b;
+    {
+      c;
+    }
+    d;
+  }
+  e;
+}
+>>> Allow a blank line between statements.
+{
+  a;
+  b;
+
+  c;
+
+
+
+  d;
+}
+<<< 3.7
+{
+  a;
+  b;
+
+  c;
+
+  d;
+}
+>>> Remove blank lines at beginning and end.
+{
+
+
+  a;
+
+
+}
+<<< 3.7
+{
+  a;
+}
+>>> Labelled statement.
+{label:statement;}
+<<< 3.7
+{
+  label:
+  statement;
+}
+>>> Multiple labels.
+a: b:c:d:
+
+
+
+e:
+
+statement;
+<<< 3.7
+a:
+b:
+c:
+d:
+
+e:
+
+statement;

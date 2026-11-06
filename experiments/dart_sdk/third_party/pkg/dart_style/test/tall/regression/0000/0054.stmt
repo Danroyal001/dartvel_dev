@@ -1,0 +1,19 @@
+>>>
+httpClient.getUrl(url)
+  .then((HttpClientRequest request) {
+    print('have request');
+    return request.close();
+  })
+  .then((HttpClientResponse response) {
+    body;
+  });
+<<< 3.7
+httpClient
+    .getUrl(url)
+    .then((HttpClientRequest request) {
+      print('have request');
+      return request.close();
+    })
+    .then((HttpClientResponse response) {
+      body;
+    });
