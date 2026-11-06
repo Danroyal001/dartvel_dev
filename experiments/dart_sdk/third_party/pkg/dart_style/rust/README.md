@@ -12,7 +12,7 @@ not ported. A successful backend test does not establish formatter parity.
 ## Oracle
 
 `oracle/code.dart` imports and executes the original `GroupCode` implementation.
-`tests/code_oracle.rs` builds the same 256 trees and compares the output as
+`tests/code_oracle.rs` builds the same 260 trees and compares the output as
 UTF-16 code units and selection offsets. Cases exercise nested groups, suppressed
 leading newlines, blank lines, indentation above the upstream small-indent cache,
 non-BMP Unicode, CRLF, and nested/unclosed disabled-format regions. Tests require
@@ -38,6 +38,7 @@ DART=/path/to/dart-3.13.3/bin/dart ~/heavy.sh ~/.cargo/bin/cargo test
   are claimed by this initial backend work.
 
 Verified 2026-11-06 with Dart 3.13.3: 260/260 generated Code tree rows match
-(0 differences). Seven additional native tests pass, including raw UTF-16
-surrogates; all seven also pass under nightly Miri. This covers output building,
-not debug rendering or the remaining formatter. No performance measurements yet.
+(0 differences). Two differential tests pass, covering output building (260 rows) and debug
+rendering (128 trees). Ten focused native tests pass, including raw UTF-16
+surrogates and signed selection offsets; all ten also pass under nightly Miri.
+This does not cover the remaining formatter. No performance measurements yet.

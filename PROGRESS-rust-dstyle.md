@@ -31,3 +31,17 @@
 - Full crate suite: 1 differential test + 7 focused tests passed, `/tmp/rust-dstyle-suite.log`.
 - Nightly Miri: all 7 focused tests passed, `/tmp/rust-dstyle-miri.log`.
 - `git diff --check` passed. No formatter corpus comparisons or benchmarks yet. Debug rendering and signed marker offsets remain to complete the Code layer.
+
+## Step 4 — complete Code debug/signed-offset behavior
+- Backend output-tree slice committed locally as `51ea1af4c`; no push.
+- Added differential cases for negative relative selection markers and 128 debug/tree traversals, including raw unpaired surrogates and disabled regions (which debug rendering must still display).
+- Debug methods intentionally empty and signed marker offsets intentionally clamped for the RED run. Next: observe real comparison failures, then port these behaviors.
+- Debug oracle RED confirmed in `/tmp/rust-dstyle-debug-red.log` (empty Rust traversals vs real upstream trees). Implemented both debug traversals without filtering disabled text or losing raw UTF-16.
+- Signed output-offset RED run queued separately (`/tmp/rust-dstyle-offset-red.log`); the output builder still deliberately mishandles negative offsets until this failure is observed. Added a disabled-region case where the intermediate relative offset is negative but the final absolute position is valid.
+- Updated server STATUS.md with scoped active-task status and the canonical handoff path.
+- Signed-offset RED observed: `/tmp/rust-dstyle-offset-red.log`, native tests 8 pass / 2 fail, plus output differential failure. Backward marker was clamped and disabled-region subtraction incorrectly rejected a valid negative intermediate value.
+- Replaced selection arithmetic with signed wide intermediates, converting only the final position to an index. Same oracle/test expectations retained.
+- Full crate GREEN + Miri rerun queued/running via heavy.sh; results pending.
+- Resumed task: reread server/project rules, brief, lead handoff, queue gates, proposal and crate READMEs. Preserved inherited uncommitted work on `agent/rust-dstyle`.
+- Confirmed completed logs: `/tmp/rust-dstyle-debug-green.log` has both differential tests and 10 native tests passing; `/tmp/rust-dstyle-debug-miri.log` has all 10 focused tests passing under Miri. Debug comparison covers 128 trees; output comparison retains 260 rows. Zero differences in these scoped comparisons.
+- `git diff --check` passes. Next: piece state/shape primitives, followed by the rest of the piece/solver implementation. Full formatter and performance gates remain incomplete.

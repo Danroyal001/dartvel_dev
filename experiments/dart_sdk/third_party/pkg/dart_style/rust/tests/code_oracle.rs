@@ -1,29 +1,10 @@
 // Oracle for lib/src/back_end/code.dart; compares real upstream code with Rust.
 use dart_style::back_end::code::GroupCode;
-use std::process::Command;
+mod common;
 
 #[test]
 fn generated_code_matches_upstream() {
-    let dart = std::env::var("DART").expect("DART must name the Dart 3.13.3 binary");
-    let version = Command::new(&dart).arg("--version").output().unwrap();
-    let version = format!(
-        "{}{}",
-        String::from_utf8_lossy(&version.stdout),
-        String::from_utf8_lossy(&version.stderr)
-    );
-    assert!(
-        version.contains("Dart SDK version: 3.13.3 "),
-        "wrong oracle: {version}"
-    );
-    let output = Command::new(dart)
-        .arg(format!("{}/oracle/code.dart", env!("CARGO_MANIFEST_DIR")))
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    let expected = common::upstream("code.dart");
     let mut actual = String::new();
     for seed in 0..256 {
         let mut root = GroupCode::new(seed % 5);
@@ -69,9 +50,21 @@ fn generated_code_matches_upstream() {
         let hex: String = text.encode_utf16().map(|c| format!("{c:04x}")).collect();
         actual.push_str(&format!("empty{mode}:{hex}:null:null\n"));
     }
-    assert_eq!(
-        String::from_utf8(output.stdout).unwrap(),
-        actual,
-        "upstream/Rust code generation differs"
-    );
+    let mut relative = GroupCode::new(0);
+    relative.write("abc");
+    relative.start_selection(-2);
+    relative.write("d");
+    relative.end_selection(-1);
+    let (text, selection) = relative.build("abcd", false, Some((1, 2)), "\n");
+    let (start, length) = selection.unwrap();
+    actual.push_str(&format!("relative:{text}:{start}:{length}\n"));
+    let mut disabled = GroupCode::new(0);
+    disabled.write("prefix");
+    disabled.set_formatting_enabled(false, 5);
+    disabled.start_selection(0);
+    disabled.end_selection(0);
+    let (text, selection) = disabled.build("0123456789", false, Some((3, 1)), "\n");
+    let (start, length) = selection.unwrap();
+    actual.push_str(&format!("disabled-relative:{text}:{start}:{length}\n"));
+    assert_eq!(expected, actual, "upstream/Rust code generation differs");
 }

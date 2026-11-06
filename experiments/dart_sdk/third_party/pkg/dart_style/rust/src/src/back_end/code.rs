@@ -7,7 +7,7 @@ enum Code {
     Text(Vec<u16>),
     Newline { blank: bool, indent: usize },
     Group(Arc<GroupCode>),
-    Marker { start: bool, offset: usize },
+    Marker { start: bool, offset: isize },
     EnableFormatting { enabled: bool, source_offset: usize },
 }
 
@@ -48,14 +48,14 @@ impl GroupCode {
         self.children.push(Code::Group(group));
     }
 
-    pub fn start_selection(&mut self, offset: usize) {
+    pub fn start_selection(&mut self, offset: isize) {
         self.children.push(Code::Marker {
             start: true,
             offset,
         });
     }
 
-    pub fn end_selection(&mut self, offset: usize) {
+    pub fn end_selection(&mut self, offset: isize) {
         self.children.push(Code::Marker {
             start: false,
             offset,
@@ -67,6 +67,21 @@ impl GroupCode {
             enabled,
             source_offset,
         });
+    }
+
+    pub fn to_debug_utf16(&self) -> Vec<u16> {
+        let mut builder = DebugStringBuilder {
+            buffer: Vec::new(),
+            indent: 0,
+        };
+        builder.traverse(self);
+        builder.buffer
+    }
+
+    pub fn to_code_tree_utf16(&self) -> Vec<u16> {
+        let mut buffer = Vec::new();
+        trace_group(self, 0, &mut buffer);
+        buffer
     }
 
     /// Convenience for valid Unicode source. Use build_utf16 for raw Dart strings.
@@ -186,13 +201,15 @@ impl StringBuilder<'_> {
                             .source_selection
                             .expect("selection marker without source selection");
                         let source_offset = source_start + if *start { 0 } else { source_length };
-                        self.buffer.len()
-                            + source_offset
-                                .checked_sub(disabled)
-                                .expect("selection precedes disabled region")
+                        // Dart computes this signed difference before adding it
+                        // to the output position. A negative intermediate value
+                        // can still produce a valid absolute selection offset.
+                        self.buffer.len() as i128 + source_offset as i128 - disabled as i128
                     } else {
-                        self.buffer.len() + self.indent + offset
+                        self.buffer.len() as i128 + self.indent as i128 + *offset as i128
                     };
+                    let absolute =
+                        usize::try_from(absolute).expect("selectionStart must be non-negative.");
                     if *start {
                         self.selection_start = Some(absolute);
                     } else {
@@ -218,5 +235,80 @@ impl StringBuilder<'_> {
                 }
             }
         }
+    }
+}
+
+struct DebugStringBuilder {
+    buffer: Vec<u16>,
+    indent: usize,
+}
+
+impl DebugStringBuilder {
+    fn traverse(&mut self, group: &GroupCode) {
+        self.indent = group.indent;
+        for code in &group.children {
+            match code {
+                Code::Newline { blank, indent } => {
+                    self.buffer.push(10);
+                    if *blank {
+                        self.buffer.push(10);
+                    }
+                    self.indent = *indent;
+                }
+                Code::Text(text) => {
+                    self.buffer
+                        .resize(self.buffer.len() + self.indent, b' ' as u16);
+                    self.indent = 0;
+                    self.buffer.extend_from_slice(text);
+                }
+                Code::Group(group) => self.traverse(group),
+                Code::Marker { .. } | Code::EnableFormatting { .. } => {}
+            }
+        }
+    }
+}
+
+fn trace_line(buffer: &mut Vec<u16>, depth: usize, text: &[u16]) {
+    if !buffer.is_empty() {
+        for _ in 0..depth {
+            buffer.extend_from_slice(&[b'|' as u16, b' ' as u16]);
+        }
+    }
+    buffer.extend_from_slice(text);
+    buffer.push(10);
+}
+
+fn trace_group(group: &GroupCode, depth: usize, buffer: &mut Vec<u16>) {
+    trace_line(
+        buffer,
+        depth,
+        &format!("Group(indent: {}):", group.indent)
+            .encode_utf16()
+            .collect::<Vec<_>>(),
+    );
+    for code in &group.children {
+        let line = match code {
+            Code::Newline { blank, indent } => format!("Newline(blank: {blank}, indent: {indent})"),
+            Code::Text(text) => {
+                let mut line = vec![b'`' as u16];
+                line.extend_from_slice(text);
+                line.push(b'`' as u16);
+                trace_line(buffer, depth + 1, &line);
+                continue;
+            }
+            Code::Group(group) => {
+                trace_group(group, depth + 1, buffer);
+                continue;
+            }
+            Code::Marker { start, offset } => format!(
+                "Marker(_Marker.{}, offset: {offset})",
+                if *start { "start" } else { "end" }
+            ),
+            Code::EnableFormatting {
+                enabled,
+                source_offset,
+            } => format!("EnableFormattingCode(enabled: {enabled}, offset: {source_offset})"),
+        };
+        trace_line(buffer, depth + 1, &line.encode_utf16().collect::<Vec<_>>());
     }
 }

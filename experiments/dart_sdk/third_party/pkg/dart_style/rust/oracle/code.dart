@@ -48,4 +48,20 @@ void main() {
         .join();
     print('empty$mode:$hex:${result.selectionStart}:${result.selectionLength}');
   }
+  var relative = GroupCode(0);
+  relative.write('abc');
+  relative.startSelection(-2);
+  relative.write('d');
+  relative.endSelection(-1);
+  var result = relative.build(SourceCode('abcd', isCompilationUnit: false,
+    selectionStart: 1, selectionLength: 2));
+  print('relative:${result.text}:${result.selectionStart}:${result.selectionLength}');
+  var disabled = GroupCode(0);
+  disabled.write('prefix');
+  disabled.setFormattingEnabled(false, 5);
+  disabled.startSelection(0);
+  disabled.endSelection(0);
+  var disabledResult = disabled.build(SourceCode('0123456789',
+    isCompilationUnit: false, selectionStart: 3, selectionLength: 1));
+  print('disabled-relative:${disabledResult.text}:${disabledResult.selectionStart}:${disabledResult.selectionLength}');
 }

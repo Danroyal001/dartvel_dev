@@ -78,3 +78,46 @@ fn unclosed_disabled_region_suppresses_final_newline() {
         "before234567"
     );
 }
+
+#[test]
+fn relative_selection_markers_can_point_backwards() {
+    let mut group = GroupCode::new(0);
+    group.write("abc");
+    group.start_selection(-2);
+    group.write("d");
+    group.end_selection(-1);
+    assert_eq!(
+        group.build("abcd", false, Some((1, 2)), "\n"),
+        ("abcd".into(), Some((1, 2)))
+    );
+}
+
+#[test]
+fn debug_rendering_includes_disabled_text_and_ignores_markers() {
+    let mut group = GroupCode::new(1);
+    group.write("x");
+    group.start_selection(-1);
+    group.set_formatting_enabled(false, 0);
+    group.newline(true, 2);
+    group.write("y");
+    let output = String::from_utf16(&group.to_debug_utf16()).unwrap();
+    assert_eq!(output, " x\n\n  y");
+    let tree = String::from_utf16(&group.to_code_tree_utf16()).unwrap();
+    assert_eq!(
+        tree,
+        "Group(indent: 1):\n| `x`\n| Marker(_Marker.start, offset: -1)\n| EnableFormattingCode(enabled: false, offset: 0)\n| Newline(blank: true, indent: 2)\n| `y`\n"
+    );
+}
+
+#[test]
+fn disabled_selection_offsets_may_have_negative_intermediate_values() {
+    let mut group = GroupCode::new(0);
+    group.write("prefix");
+    group.set_formatting_enabled(false, 5);
+    group.start_selection(0);
+    group.end_selection(0);
+    assert_eq!(
+        group.build("0123456789", false, Some((3, 1)), "\n"),
+        ("prefix56789".into(), Some((4, 1)))
+    );
+}
