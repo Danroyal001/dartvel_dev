@@ -67,3 +67,13 @@
 - Hardened body literal oracle passes: **41,283 expression rows, 589 files, 0 differences**, 265.66s (plus 20.85s release rebuild), using Dart 3.13.4 and the SDK checkout's libraries/packages.
 - Command from `experiments/dart_sdk`: `DART=/home/sigmadev/snap/flutter/common/flutter/bin/cache/dart-sdk/bin/dart CARGO_BUILD_JOBS=1 timeout 1200 ~/heavy.sh ~/.cargo/bin/cargo test --release -p analyzer --test body_oracle -- --nocapture`.
 - Next: all requested held-out roots in one comparison; no new resolution slice started before that gate. `perf_event_paranoid=4` still blocks instruction counts.
+
+## Step 11 — Held-out corpus in progress
+- Default evidence/documentation saved locally in `b5bc7011e`.
+- Running `ELEMENT_CORPUS=tests/language:sdk/lib:pkg/front_end/lib:pkg/linter/lib:pkg/kernel/lib` with the same Dart/heavy.sh/release oracle command and a 2400s outer limit; no selections removed. Upstream has produced 4.7 MiB of dumps after about 3 minutes; no comparison result yet.
+- Next: diagnose any differences, then record slice measurements and safety evidence. All non-literal expression types, identifier elements, local/generic inference, invocations and flow remain unported.
+
+## Step 12 — All requested held-out roots GREEN
+- **146,712 expression rows, 5,730 files, 0 differences**, 548.06s with the hardened comparator. Roots: `tests/language`, `sdk/lib`, `pkg/front_end/lib`, `pkg/linter/lib`, `pkg/kernel/lib` together.
+- Literal slice compatibility gate now passes fixture (43 rows/4 files), default (41,283/589) and held-out (146,712/5,730). This is only seven literal kinds, not full body-resolution parity.
+- Next: Miri on oracle completeness tests and AOT-vs-Rust fixture-output measurements using the existing interleaved harness. Instruction counts blocked by perf policy. No invocation/generic/flow slice started yet.

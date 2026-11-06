@@ -600,8 +600,10 @@ URIs, parts, annotations, defaults, unreachable literals and conditional
 imports/exports. Conditional-directive children deliberately remain untyped,
 matching upstream's `visitConfiguration`; the default corpus exposed two
 differences before that fix. The default corpus now matches 41,283 rows across
-589 files (265.66 seconds, 2026-11-06). Held-out corpus validation and
-measurements are still pending. This is not body-resolution parity or a
+589 files (265.66 seconds, 2026-11-06). The held-out roots `tests/language`,
+`sdk/lib`, `pkg/front_end/lib`, `pkg/linter/lib` and `pkg/kernel/lib` also
+match: 146,712 rows across 5,730 files, zero differences (548.06 seconds).
+Measurements are still pending. This is not body-resolution parity or a
 completed performance gate.
 
 `tests/oracle_comparison.rs` checks that missing empty dumps count as
