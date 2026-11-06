@@ -563,3 +563,39 @@ In the order linking needs them:
   library is parsed at the latest version unless it has a `// @dart`
   comment; doc imports, documentation comments, code ranges and the
   reference tree and summaries (`bundle_writer.dart`, `bundle_reader.dart`).
+
+## Body resolution (in progress)
+
+`oracle/body_dump.dart` asks the real upstream analyzer for
+`getResolvedUnit`, then records every V1 expression's static type and every
+identifier's resolved element (kind, library URI, declaration offset and
+name). `--literals` selects seven context-independent literal kinds:
+boolean, double, null, simple strings, adjacent strings, interpolated strings
+and symbols. Integers need downward inference (an integer literal may have
+static type `double`) and are outside this first slice.
+
+`src/dart/resolver/type_analyzer.rs` currently records only those literal
+types, using the linked SDK classes through the narrow
+`src/dart/element/type_provider.rs`. It does not resolve identifiers, infer
+locals or calls, perform flow analysis, report diagnostics or rewrite the
+AST. `body_dump` requires `--literals` and refuses full mode rather than
+presenting missing resolution as a full result. The full upstream dump is
+available as a reference for the next slices.
+
+From the SDK root, using the same setup and environment variables as the
+element oracle:
+
+```sh
+DART=/path/to/dart cargo test --release -p analyzer --test body_oracle -- --nocapture
+ELEMENT_CORPUS=pkg/analyzer/rust/tests/body_corpus \
+  DART=/path/to/dart cargo test --release -p analyzer --test body_oracle -- --nocapture
+```
+
+The test requires nonempty expression output, compares every byte and keeps
+mismatches under `ELEMENT_WORK/body-literals` (default
+`target/element_oracle/body-literals`). Before implementation the fixture
+produced 37 upstream rows and all 3 files differed from Rust's empty output;
+with literal typing it matches all 37 rows, including directive URIs, parts,
+annotations, defaults and unreachable literals. Default and held-out corpus
+validation and measurements are still pending. This is not body-resolution
+parity or a completed performance gate.

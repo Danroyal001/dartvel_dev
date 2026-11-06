@@ -133,7 +133,12 @@ pub fn write_sdk(work: &Path) -> PathBuf {
             .find_map(|l| l.strip_prefix(name).map(|v| v.trim().to_string()))
             .unwrap()
     };
-    let version = format!("{}.{}.{}", field("MAJOR "), field("MINOR "), field("PATCH "));
+    let version = format!(
+        "{}.{}.{}",
+        field("MAJOR "),
+        field("MINOR "),
+        field("PATCH ")
+    );
     fs::write(sdk.join("version"), format!("{version}\n")).unwrap();
     sdk
 }
@@ -231,4 +236,3 @@ pub fn compare(expected: &Path, actual: &Path) -> (usize, usize, String) {
     }
     (expected_files.len(), differences, report)
 }
-

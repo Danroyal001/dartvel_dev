@@ -23,3 +23,15 @@
 - Command: from experiments/dart_sdk, `DART=/home/sigmadev/snap/flutter/common/flutter/bin/cache/dart-sdk/bin/dart ELEMENT_CORPUS=pkg/analyzer/rust/tests/body_corpus timeout 600 ~/heavy.sh ~/.cargo/bin/cargo test --release -p analyzer --test body_oracle -- --nocapture`.
 - Result: FAILED for the intended reason: 37 upstream expression rows, 3 files, 3 differences against missing Rust rows. Directive URI literals are resolved as String too (not null).
 - Next: implement type-provider core types and seven literal visitors, retain the same oracle/selection, rerun fixture then default and held-out roots.
+
+## Step 4 — First literal implementation
+- Added a narrow TypeProviderImpl using linked dart:core classes and existing TypeImpl interface types; TypeAnalyzer records the seven literal types beside the AST.
+- Rust dump traverses the V1 view for comparison with upstream; provider links real SDK types, and repeated root labels are disambiguated like existing oracles.
+- All other body visitors, flow effects, diagnostics and integer context inference remain unimplemented; full Rust dumping explicitly refuses unsupported mode.
+- Next: release fixture comparison, then diagnose any default/held-out differences before claiming slice parity.
+
+## Step 5 — Fixture GREEN
+- Same literal comparison now passes: 37 expression rows across 3 files, 0 differences; release test completed in 69.58s (upstream JIT plus SDK resolution included).
+- No oracle selection/assertion weakened after RED. Added no unsafe code.
+- Instruction-counter prerequisite checked: `/proc/sys/kernel/perf_event_paranoid` is 4, so perf-based counts are blocked without changing server policy.
+- Next: default corpus, followed by the five held-out roots; do not advance to another resolution slice yet.
