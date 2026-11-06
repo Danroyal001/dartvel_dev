@@ -35,3 +35,24 @@
 - No oracle selection/assertion weakened after RED. Added no unsafe code.
 - Instruction-counter prerequisite checked: `/proc/sys/kernel/perf_event_paranoid` is 4, so perf-based counts are blocked without changing server policy.
 - Next: default corpus, followed by the five held-out roots; do not advance to another resolution slice yet.
+- Saved oracle-first checkpoint `bc1e80f4a` and fixture-green implementation `dc2e3ff83` locally (owner identity, no attribution trailers). No push.
+- Default run is rebuilding after source formatting timestamps changed during the prior compile; no semantic edits since fixture GREEN. Sources are now stable.
+
+## Step 6 — Default corpus RED: conditional directives
+- Default comparison completed in 229.07s: 589 files, 41,283 expression rows, **2 differences**.
+- Both are alternate URIs inside conditional import/export Configuration nodes: upstream type `-`, Rust incorrectly String. Upstream `TypeAnalyzer.visitConfiguration` explicitly does not visit children (line 2594).
+- Added fixture covering both conditional export and import, including an equality-value string. Implementing the same no-visit rule while keeping untyped literals visible in the dump; comparison/selection unchanged.
+
+## Step 7 — Resumed verification (2026-11-06)
+- Re-read binding home/project rules, brief, queue gate, proposal, analyzer README and recent lead conversation. Preserved existing edits on `agent/rust-body`; no reset or branch replacement.
+- Conditional-directive fix and regression fixture are present from the preceding session. Running the unchanged real-upstream fixture oracle through `~/heavy.sh` before committing them.
+- Next: default and all five held-out roots; investigate every difference before advancing. Full resolution/inference and performance gate remain incomplete.
+- Delivery remains local commits only, as explicitly requested; no push, merge, publishing, deployment or messages.
+- While reviewing the oracle, found a silent comparison bug: a missing Rust dump is replaced with empty bytes, so a missing empty dump is accepted. Added a focused regression test (not run yet); will observe RED before fixing. No oracle selection is narrowed.
+
+## Step 8 — Oracle completeness regression RED
+- Built standalone `tests/oracle_comparison.rs` through heavy.sh and executed it: 2 passed, missing-empty-output case FAILED for the intended reason (`differences` was 0 instead of 1).
+- Fixed comparison to require the actual file to exist before comparing bytes, preserving missing expected dumps as evidence. Read failures now fail rather than silently becoming empty output.
+- Analyzer release build finished in 4m47s; conditional-directive fixture comparison is now running.
+- Next: rerun comparator tests, finish fixture/default/held-out validation; do not claim whole-body parity.
+- Comparator regression GREEN: all 3 tests pass after the fix; `git diff --check` clean. Formatting applied to changed Rust files.

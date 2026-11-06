@@ -204,8 +204,16 @@ pub fn compare(expected: &Path, actual: &Path) -> (usize, usize, String) {
     let mut report = String::new();
     let mut differences = 0;
     for file in &expected_files {
+        if actual_files.binary_search(file).is_err() {
+            differences += 1;
+            report.push_str(&format!(
+                "{}: missing from the Rust output\n",
+                file.display()
+            ));
+            continue;
+        }
         let want = fs::read(expected.join(file)).unwrap();
-        let got = fs::read(actual.join(file)).unwrap_or_default();
+        let got = fs::read(actual.join(file)).unwrap();
         if want == got {
             let _ = fs::remove_file(expected.join(file));
             let _ = fs::remove_file(actual.join(file));
