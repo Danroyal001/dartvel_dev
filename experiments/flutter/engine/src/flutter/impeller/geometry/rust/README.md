@@ -13,8 +13,9 @@ that file in its first line. Files that are not ports (`lib.rs`, `cxx.rs`,
 `*_unittests.rs` modules port the gtest file of the same name.
 
 The crate is a member of the Cargo workspace at `experiments/flutter` and
-uses the `fml` port for `FML_DCHECK`/`FML_UNREACHABLE`. It has no `unsafe`:
-`lib.rs` declares `#![forbid(unsafe_code)]`.
+uses the `fml` port for `FML_DCHECK`/`FML_UNREACHABLE`. `lib.rs` denies
+`unsafe_code`; the only `unsafe` is the two calls into the SSE2 code of
+`Matrix::invert` and `get_determinant` (see *Unsafe code*).
 
 ## What is ported
 
@@ -32,7 +33,7 @@ uses the `fml` port for `FML_DCHECK`/`FML_UNREACHABLE`. It has no `unsafe`:
 | `shear.h`, `.cc` | `src/shear.rs` | — | — |
 | `quaternion.h`, `.cc` | `src/quaternion.rs` | — | — |
 | `matrix_decomposition.h`, `.cc` | `src/matrix_decomposition.rs` | — | — |
-| `matrix.h`, `.cc` | `src/matrix.rs` | 22 | 22 |
+| `matrix.h`, `.cc` | `src/matrix.rs` | 22 | 24 (two added) |
 | `rect.h`, `.cc` | `src/rect.rs` | 97 | 97 |
 | `trig.h`, `.cc` | `src/trig.rs` | 2 | 2 |
 | `sigma.h`, `.cc` | `src/sigma.rs` | — | — |
@@ -52,8 +53,8 @@ uses the `fml` port for `FML_DCHECK`/`FML_UNREACHABLE`. It has no `unsafe`:
 | `geometry_unittests.cc` (vector, color, quaternion, half, …) | `src/geometry_unittests.rs` | 84 | 84 (one ignored, as upstream skips it off macOS/iOS) |
 | `geometry_asserts.h` | `src/geometry_asserts.rs` | — | — |
 
-340 upstream tests, all ported; 3 added (below), and 3 for `cxx.rs`'s
-rounding: 347 pass, 1 is ignored. The gtest assertions become `expect_*!`
+340 upstream tests, all ported; 5 added (below), and the tests of `cxx.rs`'s
+rounding: 351 in all, 350 pass and 1 is ignored. The gtest assertions become `expect_*!`
 macros over a `TestEq` trait that gives C++'s mixed-type `==`; gmock's
 `StrictMock` with a `Sequence` becomes a recording receiver checked in order.
 
@@ -129,7 +130,14 @@ Benchmarks: `geometry_dump bench <name> <rounds>` with either driver. Each
 benchmark runs the ported code only: the inputs (4096 of each kind, from the
 same seed in the same order) are generated before the first round, and each
 result is folded into a checksum, which the two sides must agree on. Build
-the Rust side with `cargo build --profile release-lto -p impeller_geometry`.
+the Rust side with `cargo build --profile release-lto -p impeller_geometry`;
+`tool/measure_rows.sh [bench...]` (from `experiments/flutter`) builds the C++
+driver with the engine's flags and runs every row with `tool/measure.sh`: the
+two drivers alternately, pinned to one core (`CPU`), `RUNS` runs a side of
+`ROUNDS` rounds, failing unless every checksum agrees. `invert` and
+`determinant` time `Matrix::Invert` and `GetDeterminant` alone. Where
+`clang++` has no libc++ headers, `CXX` (and `GEOMETRY_ORACLE_CXX`) can name a
+wrapper that adds them.
 
 ## Porting conventions
 
@@ -156,8 +164,17 @@ the Rust side with `cargo build --profile release-lto -p impeller_geometry`.
     `GetNormalizingTransform`) divide in double and narrow; one division
     rounded twice equals one rounded once when the wider format has at least
     2p+2 bits (53 ≥ 2·24+2), so the port divides in float;
-  - `GetDeterminant`'s twelve minors are computed a row pair at a time, each
-    with its own two products and difference;
+  - on x86-64, `Invert` and `GetDeterminant` run in SSE2 registers
+    (`invert_sse2`, `get_determinant_sse2`): lane l of register g of
+    `Invert` is cofactor 4g+l, and every lane adds upstream's six triple
+    products in upstream's order (a subtracted product is added with its
+    last factor negated, which is exact); `GetDeterminant`'s twelve minors
+    are three registers of four, each lane upstream's two products and
+    difference, and the final sum is taken left to right. `mulps`, `addps`
+    and `xorps` round each lane as the scalar instructions do. rustc 1.99
+    (LLVM 23) left the plain-array form of the same lanes scalar; it stays
+    as the code for targets without SSE2 (`invert_portable`,
+    `get_determinant_portable`) and as what the SSE2 code is tested against;
   - `Decompose` skips dividing by `e[3][3]` when it is 1 (exact);
   - `&&`/`||` chains with no side effects are evaluated with `&`/`|` and
     `Union`/`IntersectionOrEmpty`-style choices are selects, which avoids a
@@ -209,6 +226,8 @@ change was restored.
 | `Rational ==` ignores signs | oracle `misc` (4 of 4); **no upstream test** — `negation_not_equals_different_den` was added and fails |
 | `Rect::Union` | `rect` (4 tests) |
 | `Matrix::Invert` | `matrix` (2 tests) |
+| one cofactor lane of `Invert` with the wrong sign (SSE2 and portable code) | **no upstream test** — `invert_is_upstreams_bit_for_bit` was added and fails |
+| `GetDeterminant`'s sum reassociated (SSE2 and portable code) | **no upstream test** — `determinant_is_upstreams_bit_for_bit` was added and fails |
 | `RoundingRadii::Scaled` | `rounding_radii` (8 tests) |
 | `RectPathSource` close line | `path_source` (2 tests) |
 | Trig rotation | `trig` (9 tests across files) |
@@ -226,72 +245,122 @@ it.
 
 ## Baseline
 
-Measured 2026-10-30 on a 4-core Intel Xeon at 2.10 GHz shared with other
-builds (load average 7–10, so every figure is the best of 7 interleaved runs
-of 300 rounds, pinned to one core). C++: clang 18.1.3, libc++ 18, the
-engine's flags (`-O2 -march=x86-64 -ffp-contract=on -fwrapv -fno-exceptions
--fno-rtti -DNDEBUG`). Rust: rustc 1.97.0, `--profile release-lto` (fat LTO,
-one codegen unit, `panic = "abort"`). Times are per round of 4096 elements,
-in µs; peak RSS is the whole process (`VmHWM`). The checksums agree on every
-benchmark.
+Measured 2026-11-06 with `tool/measure_rows.sh` on a shared 8-core AMD EPYC
+whose load average stood at 5–7 from other work throughout. C++: clang
+21.1.8 against libc++ 21 headers (libc++ 22 runtime), the engine's flags
+(`-O2 -march=x86-64 -ffp-contract=on -fwrapv -fno-exceptions -fno-rtti
+-DNDEBUG`). Rust: rustc 1.99.0 (LLVM 23), `--profile release-lto` (fat LTO,
+one codegen unit, `panic = "abort"`). The harness runs the two drivers
+alternately, 15 runs a side of 300 rounds of 4096 elements, both pinned to
+the same core; every run's checksum agreed between the sides. *Fastest* is
+the fastest round of all runs and *median* the median of the runs' medians,
+in µs; peak RSS is the whole process (`VmHWM`), the largest of the runs.
+The coefficient of variation between runs was 1–7% for the medians and
+2–15% for the fastest rounds. Instruction counts are not given: this host
+has `perf_event_paranoid` at 4, which refuses the counter to user space.
 
-| Benchmark | C++ fastest | C++ median | C++ slowest | Rust fastest | Rust median | Rust slowest | C++ RSS | Rust RSS |
-|---|---|---|---|---|---|---|---|---|
-| `point` (6 ops) | 194 | 212 | 546 | **176** | **188** | 475 | 4.8 MiB | **4.3 MiB** |
-| `matrix` (7 ops) | **425–441** | 463–549 | 765–1065 | 436–446 | 485–513 | 921–1337 | 4.8 MiB | **4.3 MiB** |
-| `decompose` | 585 | 637 | 918 | **581** | **627** | 985 | 4.8 MiB | **4.2 MiB** |
-| `rect` (10 ops) | **200–212** | **218–227** | 307–405 | 213–220 | 225–228 | 313–1142 | 4.8 MiB | **4.3 MiB** |
-| `irect` (6 ops) | 146 | 155 | 286 | **60** | **67** | 144 | 4.8 MiB | **4.2 MiB** |
-| `color` (29 blends, sRGB, `ToIColor`) | 887–1004 | 1090–1163 | 1853–3703 | 997–1040 | **1070–1105** | 2036–2458 | 4.9 MiB | **4.3 MiB** |
-| `rrect` (make, contains, dispatch) | 339 | 373 | 591 | **223** | **236** | 412 | 4.8 MiB | **4.3 MiB** |
-| `rse` (make, contains, dispatch) | 4321–4922 | 4983–6129 | 8562–18507 | **4025–4519** | **4975–5875** | 8613–12326 | 4.8 MiB | **4.3 MiB** |
-| `arc` (bounds, iterations) | 331 | 348 | 517 | **261** | **290** | 434 | 4.8 MiB | **4.3 MiB** |
-| `gradient` | 369 | 402 | 760 | **329** | **345** | 432 | 4.8 MiB | **4.3 MiB** |
+| Benchmark | C++ fastest | Rust fastest | C++ median | Rust median | C++ RSS | Rust RSS | Rust faster (fastest / median) |
+|---|---|---|---|---|---|---|---|
+| `point` (6 ops) | 206 | **168** | 292 | **250** | 5.27 MiB | **4.54 MiB** | 1.23× / 1.17× |
+| `matrix` (7 ops) | 450 | **352** | 618 | **462** | 5.20 MiB | **4.50 MiB** | 1.28× / 1.34× |
+| `invert` (`Invert` alone) | 174 | **93** | 259 | **139** | 5.16 MiB | **4.54 MiB** | 1.87× / 1.86× |
+| `determinant` (`GetDeterminant` alone) | 39 | **29** | 55 | **39** | 5.13 MiB | **4.58 MiB** | 1.32× / 1.40× |
+| `decompose` | 678 | **664** | 849 | **763** | 5.19 MiB | **4.52 MiB** | 1.02× / 1.11× |
+| `rect` (10 ops) | 274 | **258** | 359 | **336** | 5.19 MiB | **4.50 MiB** | 1.06× / 1.07× |
+| `irect` (6 ops) | 189 | **101** | 246 | **131** | 5.27 MiB | **4.51 MiB** | 1.88× / 1.88× |
+| `color` (29 blends, sRGB, `ToIColor`) | 1626 | **1404** | 2401 | **2154** | 5.18 MiB | **4.62 MiB** | 1.16× / 1.11× |
+| `rrect` (make, contains, dispatch) | 473 | **364** | 668 | **485** | 5.19 MiB | **4.59 MiB** | 1.30× / 1.38× |
+| `rse` (make, contains, dispatch) | 7191 | **6870** | 9182 | **8785** | 5.27 MiB | **4.61 MiB** | 1.05× / 1.05× |
+| `arc` (bounds, iterations) | 429 | **380** | 598 | **502** | 5.18 MiB | **4.59 MiB** | 1.13× / 1.19× |
+| `gradient` | 849 | **440** | 1447 | **777** | 5.22 MiB | **4.60 MiB** | 1.93× / 1.86× |
 
-Ranges are over three such measurements where the result was close.
-Rust is faster on `point`, `irect`, `rrect`, `rse`, `arc` and `gradient`,
-level on `decompose` and `color` (each side wins some runs), and **slower on
-`matrix` (by 1–3 %) and `rect` (by 3–7 %)**; it uses about 0.5 MiB less
-memory on every benchmark. In `matrix` the gap is `Invert` and
-`GetDeterminant`, each about 10 % slower than clang 18's code in isolation:
-rustc's LLVM 22 vectorizes the cofactor sums with more shuffles, and four
-bit-identical reformulations (a term table, column groups, row pairs, minor
-pairs) did not beat it. In `rect` it is `Union`, `IntersectionOrEmpty`,
-`RoundOut` and `TransformBounds`, which clang inlines and LLVM 22, given the
-same hints, does not.
+Rust is ahead on every row on all three measures. The closest rows were
+measured again at 31 runs a side and stayed ahead: `decompose` 646 against
+674 fastest, 743 against 825 median; `rect` 260 against 273, 340 against
+353; `rse` 7019 against 7091, 8749 against 9198. Against a C++ driver with
+libc++ linked statically, which does not map the shared libraries, Rust's
+peak RSS is still lower on every row (largest of 5 runs: 4.41–4.58 MiB
+against 4.64–4.82 MiB).
+
+Before this measurement `matrix` was 1–3 % behind on an Intel Xeon with
+clang 18 and rustc 1.97, and on this host with rustc 1.99 level (437 against
+442 µs fastest, 596 against 607 median), with `invert` level and
+`determinant` behind on its fastest round (36 against 31 µs): LLVM 23 left
+`Invert`'s lanes scalar (136 `mulss`, 480 instructions against clang's
+496), and `GetDeterminant` was the same 76 instructions as clang's. The
+SSE2 lanes (*Porting conventions*) are 187 and 51 instructions, with the
+same bits. `rect` was 3–7 % behind on rustc 1.97 because `Union`,
+`IntersectionOrEmpty`, `RoundOut` and `TransformBounds` were not inlined;
+rustc 1.99 inlines all four (none is a symbol of the driver), and the row is
+ahead with no change to the code.
 
 Size, unstripped and stripped (`llvm-strip --strip-unneeded`):
 
 | | C++ | Rust |
 |---|---|---|
-| library, archive of the objects | 123,320 B | **93,294 B** |
-| library, stripped | 120,264 B | **92,950 B** |
-| library, code and data (`size`) | 43,772 B | **39,249 B** |
-| `geometry_dump` driver | **265,880 B** (+ 1,300,112 B of `libc++`, `libc++abi` and `libunwind` it loads) | 799,096 B (std linked in) |
-| `geometry_dump` driver, stripped | **240,456 B** (+ the same) | 709,016 B |
+| library, archive of the objects | 113,762 B | **87,640 B** |
+| library, stripped | 111,786 B | **87,336 B** |
+| library, code and data (`size`) | 41,578 B | **37,033 B** |
+| `geometry_dump` driver, libc++ shared | **269,568 B** (+ 1,347,432 B of `libc++.so.1` and `libc++abi.so.1` it loads) | 772,704 B (std linked in) |
+| `geometry_dump` driver, libc++ shared, stripped | **244,552 B** (+ the same) | 681,768 B |
+| `geometry_dump` driver, libc++ linked in | 1,360,544 B | **772,704 B** |
+| `geometry_dump` driver, libc++ linked in, stripped | 1,040,408 B | **681,768 B** |
 
-The library is the 26 upstream `.cc` files compiled with the engine's flags
-against the Rust crate's object code in a release build (one codegen unit,
-which the workspace sets for this crate: with the default 16 the archive is
-129,970 B). The drivers are not like for like: Rust's carries its standard
-library, C++'s loads libc++ at run time; with its runtime, the C++ driver is
-the larger.
+The library is the 26 upstream geometry `.cc` files compiled with the
+engine's flags against the Rust crate's object code in a release build
+(one codegen unit, which the workspace sets for this crate; emitted without
+LTO, since the LTO build's object is bitcode). The drivers are like for like
+when both carry their standard library: Rust's links std in, so the C++
+driver that loads libc++ at run time is smaller on disk and larger with its
+runtime.
 
-Safety: the crate has no `unsafe` (`#![forbid(unsafe_code)]`). Under Miri
-(`cargo +nightly miri test -p impeller_geometry --lib`, one module at a time,
-nightly 2026-10) 344 of the 347 tests ran and Miri reported no undefined
-behaviour. Seven of them fail under Miri's default, which perturbs the
-results of `sin`, `cos`, `log2` and the like by a few ULP on purpose, because
-upstream compares those exactly (`trig` `multiply_by_scalar_radius`,
-`rstransform` `compare_to_matrix`, `matrix` `is_aligned`, `is_aligned_2d`,
-`min_max_scales_2d`, `geometry` `can_generate_mip_counts`,
-`test_decomposition2`); all seven pass with
-`MIRIFLAGS=-Zmiri-deterministic-floats`. The three `arc` tests that sweep
-thousands of angles (`various_start_angles`, `various_end_angles`,
-`various_tiny_arcs_near_quadrant_axis`) did not finish in 25 minutes each
-under the interpreter and were stopped.
+Compile time, the library alone, one process at a time on the same loaded
+host (3 builds each): the 26 C++ files took 92.9–98.5 s (each pulls in
+libc++'s headers), the Rust crate in a release build (`-j1`, `fml`
+already built) 2.0–9.5 s. Cold start, the driver started and exiting at once
+(its usage error), timed over 9 interleaved blocks of 200 executions: Rust
+4.31 ms fastest block, 5.24 ms median; C++ with libc++ shared 5.16 and 5.76 ms;
+C++ with libc++ linked in 4.32 and 5.64 ms, level with Rust's fastest block
+within this host's noise.
 
-Coverage of the library by the unit tests and the oracle (4 seeds),
+### Unsafe code
+
+`lib.rs` denies `unsafe_code`. Calling a `#[target_feature]` function takes
+`unsafe` even on a target that has the feature, so the SSE2 lanes are
+entered through two `unsafe` blocks, the only ones in the crate; inside
+them the intrinsics are safe calls. `tests/unsafe_audit.rs` (after fml's)
+fails when an `unsafe` has no `SAFETY:` comment above it, tests its checker
+on a failing sample, and pins the number of lines with `unsafe` at 5 (the
+`deny`, and an `allow` and a block on each function).
+
+| File | What | Why it is sound | Verified by |
+|---|---|---|---|
+| `matrix.rs`, `Matrix::invert` | `unsafe { self.invert_sse2() }` | compiled only under `cfg(all(target_arch = "x86_64", target_feature = "sse2"))`, so the CPU running it has the SSE2 that `#[target_feature(enable = "sse2")]` asks for; no pointers, the matrix goes in and out by value | `invert_is_upstreams_bit_for_bit`, the `matrix` tests and oracle `matrix`; under Miri |
+| `matrix.rs`, `Matrix::get_determinant` | `unsafe { self.get_determinant_sse2() }` | as above | `determinant_is_upstreams_bit_for_bit`, oracle `matrix`; under Miri |
+
+Safety: under Miri (`cargo +nightly miri test -p impeller_geometry --lib`,
+one module or test at a time; rustc 1.101 nightly, Miri of 2026-11-04 since
+6 Nov, nightly 2026-10 before), no test has reported undefined behaviour.
+On 30 Oct 344 of the 347 tests then in the crate ran. Seven of them fail
+under Miri's default, which perturbs the results of `sin`, `cos`, `log2` and
+the like by a few ULP on purpose, because upstream compares those exactly
+(`trig` `multiply_by_scalar_radius`, `rstransform` `compare_to_matrix`,
+`matrix` `is_aligned`, `is_aligned_2d`, `min_max_scales_2d`, `geometry`
+`can_generate_mip_counts`, `test_decomposition2`); all seven pass with
+`MIRIFLAGS=-Zmiri-deterministic-floats`. On 6 Nov the three `arc` tests that
+sweep thousands of angles, which had been stopped after 25 minutes each, ran
+to the end with `-Zmiri-deterministic-floats`:
+`arc_iterations_various_tiny_arcs_near_quadrant_axis` passed in 137 s and
+`arc_iterations_various_start_angles_near_quadrant_axis` in 643 s;
+`arc_iterations_various_end_angles_near_quadrant_axis` (36,000 arcs, ten
+times the others) is still running. The `matrix` module with the SSE2 code,
+under Miri's default flags: `determinant_is_upstreams_bit_for_bit` (40,000
+matrices through the SSE2 lanes) passed; `invert_is_upstreams_bit_for_bit`
+is still running.
+
+
+Coverage of the library by the unit tests and the oracle (4 seeds; measured
+2026-10-30, before the SSE2 lanes),
 measured with `-C instrument-coverage -Zcoverage-options=branch` and LLVM 22's
 `llvm-cov`: **94.6 % of lines (4186 of 4424) and 93.9 % of branches (682 of
 726)**; the unit tests alone cover 71.6 % of lines and 78.5 % of branches.
@@ -307,4 +376,3 @@ and `print.rs` (86 %).
 - `geometry_benchmarks.cc`: it benchmarks the tessellator and shadow
   vertices (`impeller/tessellator`, `impeller/entity`), which are not part
   of this library; the drivers' `bench` mode benchmarks the library itself.
-- `matrix` and `rect` are not yet faster than upstream (see *Baseline*).
