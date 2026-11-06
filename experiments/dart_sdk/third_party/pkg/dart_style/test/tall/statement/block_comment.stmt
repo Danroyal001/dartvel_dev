@@ -1,0 +1,138 @@
+40 columns                              |
+>>> Empty block containing line comment.
+{ // comment
+}
+<<< 3.7
+{
+  // comment
+}
+>>> Empty block containing inline block comment.
+{   /* comment */  }
+<<< 3.7
+{
+  /* comment */
+}
+>>> Empty block containing non-inline block comment.
+{
+
+  /* comment */
+
+
+}
+<<< 3.7
+{
+  /* comment */
+}
+>>> Empty block containing multi-line block comment.
+{   /* comment
+line */  }
+<<< 3.7
+{
+  /* comment
+line */
+}
+>>>
+{
+
+  /* comment
+line */
+
+
+}
+<<< 3.7
+{
+  /* comment
+line */
+}
+>>> Remove blank lines before and after comments at end of block.
+{
+
+
+
+  // comment
+
+
+
+}
+<<< 3.7
+{
+  // comment
+}
+>>> Preserve one blank line between line comments and statements.
+{
+  // comment
+  a;
+
+  // comment
+
+  b;
+
+
+
+  // comment
+
+
+
+  c;
+}
+<<< 3.7
+{
+  // comment
+  a;
+
+  // comment
+
+  b;
+
+  // comment
+
+  c;
+}
+>>> Comment before labeled statement.
+{
+  /* c */ a: b: c;
+}
+<<< 3.7
+{
+  /* c */
+  a:
+  b:
+  c;
+}
+>>> Preserve one blank line between a leading comment and statement.
+{
+
+
+
+// comment
+
+
+
+a;
+}
+<<< 3.7
+{
+  // comment
+
+  a;
+}
+>>> Don't move blank line around comment.
+{
+  first;
+  // comment
+
+  second;
+
+  // comment
+  third;
+}
+<<< 3.7
+{
+  first;
+  // comment
+
+  second;
+
+  // comment
+  third;
+}

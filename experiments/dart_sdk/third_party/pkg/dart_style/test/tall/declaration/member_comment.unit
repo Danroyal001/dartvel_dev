@@ -1,0 +1,68 @@
+40 columns                              |
+>>> Ensure blank line above doc comments on members.
+class Foo {
+var a = 1; /// Doc A.
+var b = 2;
+/// Doc c.
+void c() => body; /// Doc d.
+void d() {;}
+}
+<<< 3.7
+class Foo {
+  var a = 1;
+
+  /// Doc A.
+  var b = 2;
+
+  /// Doc c.
+  void c() => body;
+
+  /// Doc d.
+  void d() {
+    ;
+  }
+}
+>>> Comment after `external`.
+class C {
+  external /* c */ int x;
+  external /* c */ int f();
+  external /* c */ int get g;
+}
+<<< 3.7
+class C {
+  external /* c */ int x;
+  external /* c */ int f();
+  external /* c */ int get g;
+}
+>>> Comment after `covariant` on function typed parameter.
+class C {
+  method(covariant /* c */ int Function() f) {}
+}
+<<< 3.7
+class C {
+  method(
+    covariant /* c */ int Function() f,
+  ) {}
+}
+>>> Comment after `static` on method.
+class C {
+  static /* c */ int method() {}
+}
+<<< 3.7
+class C {
+  static /* c */ int method() {}
+}
+>>> Don't move blank line around comment.
+class C {
+  m() {}
+  // comment
+
+  n() {}
+}
+<<< 3.7
+class C {
+  m() {}
+  // comment
+
+  n() {}
+}

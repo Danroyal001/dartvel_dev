@@ -1,0 +1,98 @@
+40 columns                              |
+>>> Inside script tag.
+#!scr‹ip›t
+<<< 3.7
+#!scr‹ip›t
+>>> Inside blank lines between declarations.
+class Foo {}
+
+
+‹  ›
+
+
+class Bar {}
+<<< 3.7
+class Foo {}
+
+‹›class Bar {}
+>>> Select entire file.
+‹main(  )  {
+  body(   )  ;}›
+<<< 3.7
+‹main() {
+  body();
+}›
+>>> With trailing comment.
+   ma‹in() {}
+// com›ment
+<<< 3.7
+ma‹in() {}
+// com›ment
+>>> In discarded whitespace.
+foo(  ‹  argument){  ›  }
+<<< 3.7
+foo(‹argument) {›}
+>>> In zero-length split whitespace.
+main(){veryLongMethodCall(‹veryLongArgumentName);
+veryLongMethodCall(›veryLongArgumentName);
+}
+<<< 3.7
+main() {
+  veryLongMethodCall(
+    ‹veryLongArgumentName,
+  );
+  veryLongMethodCall(›
+    veryLongArgumentName,
+  );
+}
+>>> In split-inserted space.
+main() {shortCall(argument, ‹  argument);
+shortCall(argument,  › argument);
+}
+<<< 3.7
+main() {
+  shortCall(argument, ‹argument);
+  shortCall(argument, ›argument);
+}
+>>> In inserted mandatory newline.
+foo() {body;  ‹  }
+bar() {body;  ›  }
+<<< 3.7
+foo() {
+  body;
+‹}
+
+bar() {
+  body;›
+}
+>>> In inserted mandatory space.
+main() async {
+await‹(1);
+throw›(2);
+}
+<<< 3.7
+main() async {
+  await ‹(1);
+  throw› (2);
+}
+>>> Across pieces that get solved separately.
+foo() {
+
+
+  fir‹st();
+}
+
+bar() {sec›ond();}
+<<< 3.7
+foo() {
+  fir‹st();
+}
+
+bar() {
+  sec›ond();
+}
+>>> Only whitespace in newline selected.
+foo() {} ‹  › bar() {}
+<<< 3.7
+foo() {}
+‹›bar() {}

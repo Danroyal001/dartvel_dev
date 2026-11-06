@@ -1,0 +1,326 @@
+40 columns                              |
+### Tests for disabling formatting on regions of code.
+>>> Simple unformatted region.
+main() {
+  here   +   gets   +   formatted    ;
+  // dart format off
+  here   +   does    +    not   ;
+  // dart format on
+  but   +   here   +    does   ;
+}
+<<< 3.7
+main() {
+  here + gets + formatted;
+  // dart format off
+  here   +   does    +    not   ;
+  // dart format on
+  but + here + does;
+}
+>>> Multiple unformatted regions.
+main() {
+  here   +   gets   +   formatted    ;
+  // dart format off
+  here   +   does    +    not   ;
+  // dart format on
+  but   +   here   +    does   ;
+
+  {
+    more  +  formatted  ;
+    // dart format off
+    more   +   unformatted   ;
+    multiple   +   lines   ;
+    // dart format on
+  }
+}
+<<< 3.7
+main() {
+  here + gets + formatted;
+  // dart format off
+  here   +   does    +    not   ;
+  // dart format on
+  but + here + does;
+
+  {
+    more + formatted;
+    // dart format off
+    more   +   unformatted   ;
+    multiple   +   lines   ;
+    // dart format on
+  }
+}
+>>> Begin outside block and end inside.
+main() {
+  before  ;
+  // dart format off
+  inside  +  region  +  outside  +  block  ;
+  {
+    inside  +  block  +  and  +  region  ;
+    // dart format on
+    inside  +  block  +  outside  +  region  ;
+  }
+  outside  +  block  ;
+}
+<<< 3.7
+main() {
+  before;
+  // dart format off
+  inside  +  region  +  outside  +  block  ;
+  {
+    inside  +  block  +  and  +  region  ;
+    // dart format on
+    inside + block + outside + region;
+  }
+  outside + block;
+}
+>>> Begin inside block and end outside.
+main() {
+  before  ;
+  {
+    inside  +  block  +  outside  +  region  ;
+    // dart format off
+    inside  +  block  +  and  +  region  ;
+  }
+  outside  +  block  +  inside  +  region  ;
+  // dart format on
+  outside  +  block  ;
+}
+<<< 3.7
+main() {
+  before;
+  {
+    inside + block + outside + region;
+    // dart format off
+    inside  +  block  +  and  +  region  ;
+  }
+  outside  +  block  +  inside  +  region  ;
+  // dart format on
+  outside + block;
+}
+>>> Preserve indentation in region but not region marker comments.
+main() {
+      too  +  much  ;
+      // dart format off
+      still  +  too  +  much  ;
+      // dart format on
+      again  +  too  +  much  ;
+}
+<<< 3.7
+main() {
+  too + much;
+  // dart format off
+      still  +  too  +  much  ;
+      // dart format on
+  again + too + much;
+}
+>>> On without off does nothing.
+main() {
+  before  +  marker  ;
+  // dart format on
+  after  +  marker  ;
+}
+<<< 3.7
+main() {
+  before + marker;
+  // dart format on
+  after + marker;
+}
+>>> Off without on leaves rest of file unformatted.
+main() {
+  before  +  marker  ;
+  // dart format off
+  after  +  marker  ;
+}
+<<< 3.7
+main() {
+  before + marker;
+  // dart format off
+  after  +  marker  ;
+}
+>>> Markers do not nest.
+main() {
+  one  ;
+  // dart format off
+  two  ;
+  // dart format off
+  three  ;
+  // dart format on
+  four  ;
+  // dart format on
+  five  ;
+}
+<<< 3.7
+main() {
+  one;
+  // dart format off
+  two  ;
+  // dart format off
+  three  ;
+  // dart format on
+  four;
+  // dart format on
+  five;
+}
+>>> Formatted code on same line before format off comment.
+main() {
+  long  +  code  +  before  +  comment  +  // dart format off
+  unformatted  +  code  +
+  // dart format on
+  after  +  region;
+}
+<<< 3.7
+main() {
+  long +
+      code +
+      before +
+      comment + // dart format off
+  unformatted  +  code  +
+  // dart format on
+      after +
+      region;
+}
+>>> Unformatted code on same line before format on comment.
+main() {
+  before  +  region  +
+  // dart format off
+  unformatted  +  code  +  // dart format on
+  after  +  region;
+}
+<<< 3.7
+main() {
+  before +
+      region +
+      // dart format off
+  unformatted  +  code  +  // dart format on
+      after +
+      region;
+}
+>>> "dart format off" whitespace must match exactly.
+main() {
+  //dart format off
+  unformatted  +  code;
+  // dart format on
+
+  //   dart format off
+  unformatted  +  code;
+  // dart format on
+
+  // dart   format off
+  unformatted  +  code;
+  // dart format on
+
+  // dart format   off
+  unformatted  +  code;
+  // dart format on
+}
+<<< 3.7
+main() {
+  //dart format off
+  unformatted + code;
+  // dart format on
+
+  //   dart format off
+  unformatted + code;
+  // dart format on
+
+  // dart   format off
+  unformatted + code;
+  // dart format on
+
+  // dart format   off
+  unformatted + code;
+  // dart format on
+}
+>>> "dart format on" whitespace must match exactly.
+main() {
+  // dart format off
+  // Doesn't actually turn back on:
+  //dart format on
+  unformatted  +  code;
+
+  // Does now:
+  // dart format on
+  unformatted  +  code;
+
+  // dart format off
+  // Doesn't actually turn back on:
+  //   dart format on
+  unformatted  +  code;
+
+  // Does now:
+  // dart format on
+  unformatted  +  code;
+
+  // dart format off
+  // Doesn't actually turn back on:
+  // dart   format on
+  unformatted  +  code;
+
+  // Does now:
+  // dart format on
+  unformatted  +  code;
+
+  // dart format off
+  // Doesn't actually turn back on:
+  // dart format   on
+  unformatted  +  code;
+
+  // Does now:
+  // dart format on
+  unformatted  +  code;
+}
+<<< 3.7
+main() {
+  // dart format off
+  // Doesn't actually turn back on:
+  //dart format on
+  unformatted  +  code;
+
+  // Does now:
+  // dart format on
+  unformatted + code;
+
+  // dart format off
+  // Doesn't actually turn back on:
+  //   dart format on
+  unformatted  +  code;
+
+  // Does now:
+  // dart format on
+  unformatted + code;
+
+  // dart format off
+  // Doesn't actually turn back on:
+  // dart   format on
+  unformatted  +  code;
+
+  // Does now:
+  // dart format on
+  unformatted + code;
+
+  // dart format off
+  // Doesn't actually turn back on:
+  // dart format   on
+  unformatted  +  code;
+
+  // Does now:
+  // dart format on
+  unformatted + code;
+}
+>>> Can't be doc comment.
+main() {
+  here   +   gets   +   formatted    ;
+  /// dart format off
+  here   +   does    +    too   ;
+  /// dart format on
+  and   +   here   +    does   ;
+}
+<<< 3.7
+main() {
+  here + gets + formatted;
+
+  /// dart format off
+  here + does + too;
+
+  /// dart format on
+  and + here + does;
+}

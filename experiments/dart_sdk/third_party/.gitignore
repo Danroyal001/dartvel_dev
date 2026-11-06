@@ -35,3 +35,6 @@
 !/pkg/dap/*
 !/pkg/language_server_protocol
 !/pkg/language_server_protocol/*
+
+# Pinned source and experimental file-by-file formatter port.
+!/pkg/dart_style
