@@ -483,7 +483,10 @@ The table is the contract. Each row says which entries a target has, what
   have loaded and the content (or error page) has laid out. Disposal releases
   the hold too, so a replaced pending page cannot block the application.
   Picture removal uses the framework's internal `dartvel-first-frame` DOM
-  event after Flutter's `waitUntilFirstFrameRasterized` completes. Flutter's
+  event after Flutter's `waitUntilFirstFrameRasterized` completes and a fresh
+  post-layout frame has rasterized, so scroll metrics listeners can paint
+  their initial scrollbar thumbs. Earlier batched timings do not release it.
+  Flutter's
   own `flutter-first-frame` callback is insufficient: it also fires for a
   deferred frame, before anything has reached the screen.
   A generated page whose deferred library is already loaded draws its body

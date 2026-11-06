@@ -510,7 +510,8 @@ over it to select, find and follow. Flutter's first frame replaces it with the
 same pixels. On the web, the router and page loader hold that frame until the
 initial route, its data and deferred code are ready, so a loading shell cannot
 remove the picture. It stays above the pending canvas until Flutter confirms
-that frame was rendered.
+that frame and a fresh post-layout frame were rendered, including the initial
+scrollbar thumbs.
 Keep the initial viewport deterministic: replaying a reveal or
 typewriter over completed captured content changes that screen at takeover.
 Other widths, and pages rendered per record, keep the splash.
