@@ -507,8 +507,9 @@ Before the app has loaded, a visitor at a captured window width (390, 1366
 and 1920 by default, light and dark; `dartvel.web.firstFrame`) sees the page
 itself: a lossless PNG of its first screen taken at build time, with the words laid
 over it to select, find and follow. Flutter's first frame replaces it with the
-same pixels. The page loader holds that frame until its data and deferred code
-are ready, so a loading shell cannot remove the picture. Keep the initial viewport deterministic: replaying a reveal or
+same pixels. On the web, the router and page loader hold that frame until the
+initial route, its data and deferred code are ready, so a loading shell cannot
+remove the picture. Keep the initial viewport deterministic: replaying a reveal or
 typewriter over completed captured content changes that screen at takeover.
 Other widths, and pages rendered per record, keep the splash.
 

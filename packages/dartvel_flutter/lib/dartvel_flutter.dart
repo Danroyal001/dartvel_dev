@@ -75,6 +75,7 @@ import 'src/platform/storage/device_storage_stub.dart'
 import 'src/progress/top_progress.dart';
 import 'src/purchases/purchases_runtime.dart' show dvInstallPurchaseRuntime;
 import 'src/pwa/install_prompt.dart';
+import 'src/routing/first_frame_gate.dart' show dvHoldWebFirstFrame;
 import 'src/routing/link_menu.dart' show DVLinkMenuScope, dvLinkMenuItems;
 import 'src/routing/mount.dart' show dvMountedLocation;
 import 'src/routing/nav_link.dart' show DVLinkOpener, DVPressedLinkTarget;
@@ -11264,7 +11265,7 @@ class _DvDataLoaderState extends State<DvDataLoader> {
   void initState() {
     super.initState();
     final binding = WidgetsBinding.instance;
-    if (!binding.firstFrameRasterized) {
+    if (dvHoldWebFirstFrame && !binding.firstFrameRasterized) {
       binding.deferFirstFrame();
       _holdingFirstFrame = true;
     }
