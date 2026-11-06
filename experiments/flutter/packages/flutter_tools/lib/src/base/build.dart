@@ -1,0 +1,362 @@
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import 'package:process/process.dart';
+
+import '../artifacts.dart';
+import '../build_info.dart';
+import '../darwin/darwin.dart';
+import '../macos/xcode.dart';
+
+import 'file_system.dart';
+import 'logger.dart';
+import 'process.dart';
+
+/// A snapshot build configuration.
+class SnapshotType {
+  SnapshotType(this.platform, this.mode);
+
+  final TargetPlatform platform;
+  final BuildMode mode;
+
+  @override
+  String toString() => '$platform $mode';
+}
+
+/// Interface to the gen_snapshot command-line tool.
+class GenSnapshot {
+  GenSnapshot({
+    required this._artifacts,
+    required ProcessManager processManager,
+    required Logger logger,
+  }) : _processUtils = ProcessUtils(logger: logger, processManager: processManager);
+
+  final Artifacts _artifacts;
+  final ProcessUtils _processUtils;
+
+  String getSnapshotterPath(SnapshotType snapshotType, Artifact artifact) {
+    return _artifacts.getArtifactPath(
+      artifact,
+      platform: snapshotType.platform,
+      mode: snapshotType.mode,
+    );
+  }
+
+  /// Ignored warning messages from gen_snapshot.
+  static const kIgnoredWarnings = <String>{
+    // --strip on elf snapshot.
+    'Warning: Generating ELF library without DWARF debugging information.',
+    // --strip on ios-assembly snapshot.
+    'Warning: Generating assembly code without DWARF debugging information.',
+    // A fun two-part message with spaces for obfuscation.
+    'Warning: This VM has been configured to obfuscate symbol information which violates the Dart standard.',
+    '         See dartbug.com/30524 for more information.',
+  };
+
+  Future<int> run({
+    required SnapshotType snapshotType,
+    // TODO(chingjun): The [CpuArch] parameter is only used for iOS builds (to
+    // select the correct per-architecture gen_snapshot). This architecture
+    // information should instead be consolidated into [TargetPlatform] so that
+    // callers do not need to pass it separately.
+    CpuArch? cpuArch,
+    Iterable<String> additionalArgs = const <String>[],
+  }) {
+    assert(cpuArch != CpuArch.armv7);
+    assert(snapshotType.platform != TargetPlatform.ios || cpuArch != null);
+    final args = <String>[...additionalArgs];
+
+    // iOS and macOS have separate gen_snapshot binaries for each target
+    // architecture (iOS: armv7, arm64; macOS: x86_64, arm64). Select the right
+    // one for the target architecture in question.
+    Artifact genSnapshotArtifact;
+    if (snapshotType.platform.os case .ios || .macos) {
+      genSnapshotArtifact = cpuArch == CpuArch.arm64
+          ? Artifact.genSnapshotArm64
+          : Artifact.genSnapshotX64;
+    } else {
+      genSnapshotArtifact = Artifact.genSnapshot;
+    }
+
+    final String snapshotterPath = getSnapshotterPath(snapshotType, genSnapshotArtifact);
+
+    return _processUtils.stream(<String>[
+      snapshotterPath,
+      ...args,
+    ], mapFunction: (String line) => kIgnoredWarnings.contains(line) ? null : line);
+  }
+}
+
+class AOTSnapshotter {
+  AOTSnapshotter({
+    required Artifacts artifacts,
+    required this._fileSystem,
+    required Logger logger,
+    required ProcessManager processManager,
+    this._xcode,
+    this._windowsLinkerPath,
+  }) : _logger = logger,
+       _processUtils = ProcessUtils(logger: logger, processManager: processManager),
+       _genSnapshot = GenSnapshot(
+         artifacts: artifacts,
+         processManager: processManager,
+         logger: logger,
+       );
+
+  final Logger _logger;
+  final FileSystem _fileSystem;
+  final Xcode? _xcode;
+  final String? _windowsLinkerPath;
+  final ProcessUtils _processUtils;
+  final GenSnapshot _genSnapshot;
+
+  /// Builds an architecture-specific ahead-of-time compiled snapshot of the specified script.
+  Future<int> build({
+    required TargetPlatform platform,
+    required BuildMode buildMode,
+    required String mainPath,
+    required String outputPath,
+    CpuArch? cpuArch,
+    String? sdkRoot,
+    List<String> extraGenSnapshotOptions = const <String>[],
+    String? splitDebugInfo,
+    required bool dartObfuscation,
+    bool quiet = false,
+  }) async {
+    assert(platform != TargetPlatform.ios || cpuArch != null);
+
+    if (!_isValidAotPlatform(platform, buildMode)) {
+      _logger.printError('${platform.getName()} does not support AOT compilation.');
+      return 1;
+    }
+
+    final Directory outputDir = _fileSystem.directory(outputPath);
+    outputDir.createSync(recursive: true);
+
+    final genSnapshotArgs = <String>['--deterministic'];
+
+    final bool targetingApplePlatform = platform.os == .ios || platform.os == .macos;
+    _logger.printTrace('targetingApplePlatform = $targetingApplePlatform');
+
+    final bool extractAppleDebugSymbols =
+        buildMode == BuildMode.profile || buildMode == BuildMode.release;
+    _logger.printTrace('extractAppleDebugSymbols = $extractAppleDebugSymbols');
+
+    final targetingAndroidPlatform = platform.os == .android;
+    _logger.printTrace('targetingAndroidPlatform = $targetingAndroidPlatform');
+
+    // TODO(team-windows): Support PE/COFF AOT snapshots for Windows Arm64.
+    // See: https://github.com/flutter/flutter/issues/190897
+    final targetingWindowsX64 = platform == TargetPlatform.windows_x64;
+    _logger.printTrace('targetingWindowsX64 = $targetingWindowsX64');
+
+    // We strip snapshot by default, but allow to suppress this behavior
+    // by supplying --no-strip in extraGenSnapshotOptions.
+    var shouldStrip = true;
+    if (extraGenSnapshotOptions.isNotEmpty) {
+      _logger.printTrace('Extra gen_snapshot options: $extraGenSnapshotOptions');
+      for (final option in extraGenSnapshotOptions) {
+        if (option == '--no-strip') {
+          shouldStrip = false;
+          continue;
+        }
+        genSnapshotArgs.add(option);
+      }
+    }
+
+    String aotSharedLibrary = _fileSystem.path.join(outputDir.path, 'app.so');
+    final String windowsAotObject = _fileSystem.path.join(outputDir.path, 'app.o');
+    final String defaultWindowsPdbFile = _fileSystem.path.join(outputDir.path, 'app.pdb');
+    String? frameworkPath;
+    if (targetingApplePlatform) {
+      // On iOS and macOS, we use Xcode to compile the snapshot into a dynamic
+      // library that the end-developer can link into their app.
+      const frameworkName = 'App.framework';
+      if (!quiet) {
+        final String targetArch = cpuArch!.darwinArchName;
+        _logger.printStatus('Building $frameworkName for $targetArch...');
+      }
+      frameworkPath = _fileSystem.path.join(outputPath, frameworkName);
+      _fileSystem.directory(frameworkPath).createSync(recursive: true);
+
+      const frameworkSnapshotName = 'App';
+      aotSharedLibrary = _fileSystem.path.join(frameworkPath, frameworkSnapshotName);
+      final String relocatableObject = _fileSystem.path.join(outputPath, 'app.o');
+      // When the minimum version is updated, remember to update
+      // template MinimumOSVersion.
+      // https://github.com/flutter/flutter/pull/62902
+      final minOSVersion = platform == TargetPlatform.ios
+          ? FlutterDarwinPlatform.ios.deploymentTarget().toString()
+          : FlutterDarwinPlatform.macos.deploymentTarget().toString();
+      genSnapshotArgs.addAll(<String>[
+        '--snapshot_kind=app-aot-macho-dylib',
+        '--macho=$aotSharedLibrary',
+        '--macho-object=$relocatableObject',
+        '--macho-min-os-version=$minOSVersion',
+        '--macho-rpath=@executable_path/Frameworks,@loader_path/Frameworks',
+        '--macho-install-name=@rpath/$frameworkName/$frameworkSnapshotName',
+      ]);
+    } else if (targetingWindowsX64) {
+      genSnapshotArgs.addAll(<String>[
+        '--snapshot_kind=app-aot-pecoff-obj',
+        '--coff=$windowsAotObject',
+      ]);
+    } else {
+      genSnapshotArgs.addAll(<String>['--snapshot_kind=app-aot-elf', '--elf=$aotSharedLibrary']);
+    }
+
+    // When building for iOS and splitting out debug info, we want to strip
+    // manually after the dSYM export, instead of in the `gen_snapshot`.
+    final bool stripAfterBuild;
+    if (targetingApplePlatform) {
+      stripAfterBuild = shouldStrip;
+      if (stripAfterBuild) {
+        _logger.printTrace('Will strip AOT snapshot manually after build and dSYM generation.');
+      }
+    } else if (targetingAndroidPlatform) {
+      stripAfterBuild = false;
+      // When building for Android, we let AGP handle stripping of debug symbols.
+    } else {
+      stripAfterBuild = false;
+      if (shouldStrip) {
+        genSnapshotArgs.add('--strip');
+        _logger.printTrace('Will strip AOT snapshot during build.');
+      }
+    }
+
+    if (platform == TargetPlatform.android_arm) {
+      // Not supported by the Pixel in 32-bit mode.
+      genSnapshotArgs.add('--no-use-integer-division');
+    }
+
+    // The name of the debug file must contain additional information about
+    // the architecture, since a single build command may produce
+    // multiple debug files.
+    final String archName = platform.getName(cpuArch: cpuArch);
+    final debugFilename = 'app.$archName.symbols';
+    final bool shouldSplitDebugInfo = splitDebugInfo?.isNotEmpty ?? false;
+    final String? windowsSplitDebugInfoPdb = shouldSplitDebugInfo && targetingWindowsX64
+        ? _fileSystem.path.join(splitDebugInfo!, 'app.$archName.pdb')
+        : null;
+    final String windowsPdbFile = windowsSplitDebugInfoPdb ?? defaultWindowsPdbFile;
+    if (shouldSplitDebugInfo) {
+      _fileSystem.directory(splitDebugInfo).createSync(recursive: true);
+      if (windowsSplitDebugInfoPdb != null) {
+        final File staleDefaultWindowsPdb = _fileSystem.file(defaultWindowsPdbFile);
+        if (staleDefaultWindowsPdb.existsSync()) {
+          staleDefaultWindowsPdb.deleteSync();
+        }
+        _logger.printTrace('Windows AOT PE/COFF uses PDB for split debug info.');
+      }
+    }
+    final bool emitDwarfDebugInfo = shouldSplitDebugInfo && !targetingWindowsX64;
+
+    // Debugging information.
+    genSnapshotArgs.addAll(<String>[
+      if (emitDwarfDebugInfo) ...<String>[
+        '--dwarf-stack-traces',
+        '--resolve-dwarf-paths',
+        '--save-debugging-info=${_fileSystem.path.join(splitDebugInfo!, debugFilename)}',
+      ],
+      if (dartObfuscation) '--obfuscate',
+    ]);
+
+    genSnapshotArgs.add(mainPath);
+
+    final snapshotType = SnapshotType(platform, buildMode);
+    final int genSnapshotExitCode = await _genSnapshot.run(
+      snapshotType: snapshotType,
+      additionalArgs: genSnapshotArgs,
+      cpuArch: cpuArch,
+    );
+    if (genSnapshotExitCode != 0) {
+      _logger.printError('Dart snapshot generator failed with exit code $genSnapshotExitCode');
+      return genSnapshotExitCode;
+    }
+
+    if (targetingWindowsX64) {
+      final String? linkerPath = _windowsLinkerPath;
+      if (linkerPath == null || !_fileSystem.file(linkerPath).existsSync()) {
+        _logger.printError('Unable to find Visual Studio link.exe required to build Windows AOT.');
+        return 1;
+      }
+      final int linkerExitCode = await _processUtils.stream(<String>[
+        linkerPath,
+        '/NOLOGO',
+        '/DLL',
+        '/NOENTRY',
+        '/MACHINE:X64',
+        '/DEBUG',
+        '/INCREMENTAL:NO',
+        '/OUT:$aotSharedLibrary',
+        '/PDB:$windowsPdbFile',
+        '/EXPORT:_kDartSnapshotData,DATA',
+        '/EXPORT:_kDartSnapshotText,DATA',
+        windowsAotObject,
+      ]);
+      if (linkerExitCode != 0) {
+        _logger.printError('Windows AOT linker failed with exit code $linkerExitCode');
+        return linkerExitCode;
+      }
+    }
+
+    if (targetingApplePlatform) {
+      if (extractAppleDebugSymbols) {
+        final Xcode? xcode = _xcode;
+        if (xcode == null) {
+          throw StateError('Xcode must be provided when targeting Apple platforms.');
+        }
+        final RunResult dsymResult = await xcode.dsymutil(<String>[
+          '-o',
+          '$frameworkPath.dSYM',
+          aotSharedLibrary,
+        ]);
+        if (dsymResult.exitCode != 0) {
+          _logger.printError(
+            'Failed to generate dSYM - dsymutil terminated with exit code ${dsymResult.exitCode}',
+          );
+          return dsymResult.exitCode;
+        }
+
+        if (stripAfterBuild) {
+          // See https://www.unix.com/man-page/osx/1/strip/ for arguments
+          final RunResult stripResult = await xcode.strip(<String>[
+            '-x',
+            aotSharedLibrary,
+            '-o',
+            aotSharedLibrary,
+          ]);
+          if (stripResult.exitCode != 0) {
+            _logger.printError(
+              'Failed to strip debugging symbols from the generated AOT snapshot - strip terminated with exit code ${stripResult.exitCode}',
+            );
+            return stripResult.exitCode;
+          }
+        }
+      } else {
+        assert(!stripAfterBuild);
+      }
+    }
+
+    return 0;
+  }
+
+  bool _isValidAotPlatform(TargetPlatform platform, BuildMode buildMode) {
+    if (buildMode == BuildMode.debug) {
+      return false;
+    }
+    return const <TargetPlatform>[
+      TargetPlatform.android_arm,
+      TargetPlatform.android_arm64,
+      TargetPlatform.android_x64,
+      TargetPlatform.ios,
+      TargetPlatform.darwin,
+      TargetPlatform.linux_x64,
+      TargetPlatform.linux_arm64,
+      TargetPlatform.linux_riscv64,
+      TargetPlatform.windows_x64,
+      TargetPlatform.windows_arm64,
+    ].contains(platform);
+  }
+}

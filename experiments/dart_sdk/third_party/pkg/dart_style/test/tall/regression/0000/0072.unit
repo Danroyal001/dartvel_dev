@@ -1,0 +1,21 @@
+>>>
+class A {
+  foo() {
+    // comment #1
+    if (comment != null && comment.end == token.offset
+        // comment #2
+        && node.parent.beginToken != token) {
+    }
+  }
+}
+<<< 3.7
+class A {
+  foo() {
+    // comment #1
+    if (comment != null &&
+        comment.end == token.offset
+        // comment #2
+        &&
+        node.parent.beginToken != token) {}
+  }
+}

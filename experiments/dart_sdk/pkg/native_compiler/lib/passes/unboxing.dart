@@ -1,0 +1,190 @@
+// Copyright (c) 2026, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:cfg/ir/constant_value.dart';
+import 'package:cfg/ir/instructions.dart';
+import 'package:cfg/ir/types.dart';
+import 'package:cfg/passes/pass.dart';
+import 'package:cfg/utils/bit_vector.dart';
+import 'package:native_compiler/runtime/object_layout.dart';
+
+/// Insert boxing and unboxing instructions to make sure
+/// IR instructions take expected representation of their inputs.
+final class Unboxing extends Pass {
+  final ObjectLayout objectLayout;
+
+  late final BitVector _unboxedPhis = BitVector(graph.instructions.length);
+
+  Unboxing(this.objectLayout) : super('Unboxing');
+
+  @override
+  void run() {
+    _markUnboxedPhis();
+
+    var changed = false;
+    for (final block in graph.reversePostorder) {
+      currentBlock = block;
+      for (final instr in block) {
+        currentInstruction = instr;
+        for (int i = 0, n = instr.inputCount; i < n; ++i) {
+          final input = instr.inputDefAt(i);
+          final isDefUnboxed = hasUnboxedResult(input);
+          final isInputUnboxed = hasUnboxedInput(instr, i);
+          if (isDefUnboxed != isInputUnboxed) {
+            _convertInput(instr, i, input, isDefUnboxed);
+            changed = true;
+          }
+        }
+      }
+    }
+    if (changed) {
+      graph.invalidateInstructionNumbering();
+    }
+  }
+
+  /// Returns true if [instr] takes unboxed value as [inputIndex]-th input.
+  bool hasUnboxedInput(Instruction instr, int inputIndex) {
+    return switch (instr) {
+      Phi() => _unboxedPhis[instr.id],
+      Comparison() => instr.op.isIntComparison || instr.op.isDoubleComparison,
+      CompareAndBranch() =>
+        instr.op.isIntComparison || instr.op.isDoubleComparison,
+      BinaryIntOp() ||
+      UnaryIntOp() ||
+      BinaryDoubleOp() ||
+      UnaryDoubleOp() ||
+      Box() ||
+      IndexCheck() ||
+      LoadExternalField() ||
+      LoadExternalArrayElement() ||
+      SimdOp() => true,
+      LoadArrayElement() => inputIndex == 1,
+      StoreArrayElement() =>
+        inputIndex == 1 || (inputIndex == 2 && instr.kind != .fixedLengthList),
+      CopyArrayElements() =>
+        inputIndex == 1 || inputIndex == 3 || inputIndex == 4,
+      StoreExternalField() =>
+        (inputIndex != instr.inputCount - 1) ||
+            objectLayout.isUnboxedField(instr.field),
+      StoreInstanceField() =>
+        inputIndex == 1 && objectLayout.isUnboxedField(instr.field),
+      CallInstruction() => false, // TODO: support unboxed parameters.
+      Return() => false, // TODO: support unboxed return values.
+      _ => false,
+    };
+  }
+
+  /// Returns true if result of [instr] is an unboxed value.
+  bool hasUnboxedResult(Definition instr) {
+    return switch (instr) {
+      Phi() => _unboxedPhis[instr.id],
+      BinaryIntOp() ||
+      UnaryIntOp() ||
+      BinaryDoubleOp() ||
+      Unbox() ||
+      IndexCheck() ||
+      SimdOp() => true,
+      UnaryDoubleOp() => instr.type is! BoolType,
+      LoadArrayElement() => instr.kind != .fixedLengthList,
+      LoadExternalArrayElement() => instr.type is IntType,
+      LoadExternalField() => objectLayout.isUnboxedField(instr.field),
+      LoadInstanceField() => objectLayout.isUnboxedField(instr.field),
+      Parameter() => false, // TODO: support unboxed parameters.
+      CallInstruction() => false, // TODO: support unboxed return values.
+      Constant() => instr.value.isUnboxed,
+      _ => false,
+    };
+  }
+
+  /// Select representation for phis which can be unboxed.
+  /// Phi is marked as unboxed if it takes at least one unboxed input.
+  void _markUnboxedPhis() {
+    for (final block in graph.reversePostorder) {
+      if (block is! JoinBlock) {
+        continue;
+      }
+      currentBlock = block;
+      for (final phi in block.phis) {
+        currentInstruction = phi;
+        if (!_canBeUnboxed(phi)) {
+          continue;
+        }
+        if (_findUnboxedInput(phi)) {
+          _unboxedPhis[phi.id] = true;
+        }
+      }
+    }
+  }
+
+  bool _canBeUnboxed(Phi instr) {
+    final type = instr.type;
+    return type is IntType || type is DoubleType || type is SimdType;
+  }
+
+  /// Find at least one unboxed input while transitively traversing phis.
+  bool _findUnboxedInput(Phi instr) {
+    final visited = {instr};
+    final workList = [instr];
+    while (workList.isNotEmpty) {
+      instr = workList.removeLast();
+      for (int i = 0, n = instr.inputCount; i < n; ++i) {
+        final input = instr.inputDefAt(i);
+        if (input == instr) {
+          continue;
+        }
+        if (hasUnboxedResult(input)) {
+          return true;
+        }
+        if (input is Phi && _canBeUnboxed(input)) {
+          if (visited.add(input)) {
+            workList.add(input);
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  void _convertInput(
+    Instruction instr,
+    int inputIndex,
+    Definition def,
+    bool isDefUnboxed,
+  ) {
+    final type = def.type;
+    Definition replacement;
+    if (def is Constant) {
+      assert(!isDefUnboxed);
+      replacement = graph.getConstant(
+        ConstantValue(switch (type) {
+          IntType() => UnboxedIntConstant(def.value.intValue),
+          DoubleType() => UnboxedDoubleConstant(def.value.doubleValue),
+          SimdType() =>
+            throw 'Unimplemented SIMD constant', // TODO: SIMD constants
+          _ => throw 'Unexpected unboxed type $type',
+        }),
+      );
+    } else {
+      final insertionPoint = (instr is Phi)
+          ? instr.block!.predecessors[inputIndex].lastInstruction
+          : instr;
+      final sourcePosition = insertionPoint.sourcePosition;
+      replacement = isDefUnboxed
+          ? switch (type) {
+              IntType() => BoxInt(graph, sourcePosition, def),
+              DoubleType() => BoxDouble(graph, sourcePosition, def),
+              SimdType() => BoxSimd(graph, sourcePosition, def, type),
+              _ => throw 'Unexpected unboxed type $type',
+            }
+          : switch (type) {
+              IntType() => UnboxInt(graph, sourcePosition, def),
+              DoubleType() => UnboxDouble(graph, sourcePosition, def),
+              SimdType() => UnboxSimd(graph, sourcePosition, def, type),
+              _ => throw 'Unexpected unboxed type $type',
+            };
+      replacement.insertBefore(insertionPoint);
+    }
+    instr.replaceInputAt(inputIndex, replacement);
+  }
+}

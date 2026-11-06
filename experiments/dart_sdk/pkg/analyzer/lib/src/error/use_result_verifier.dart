@@ -1,0 +1,237 @@
+// Copyright (c) 2021, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/ast/syntactic_entity.dart';
+import 'package:analyzer/dart/ast/token.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
+import 'package:analyzer/src/error/listener.dart';
+
+class UseResultVerifier {
+  final DiagnosticReporter _diagnosticReporter;
+
+  new(this._diagnosticReporter);
+
+  void checkCallInvocation(CallInvocation node) {
+    if (node.resolution case ExecutableInvocationResolution(:var element)) {
+      _check(node, element);
+    }
+  }
+
+  void checkConstructorInvocation(ConstructorInvocation node) {
+    var element = node.constructorReference.element;
+    if (element == null) {
+      return;
+    }
+
+    _check(node, element);
+  }
+
+  void checkNamedFunctionInvocation(NamedFunctionInvocation node) {
+    if (node.resolution case ExecutableInvocationResolution(:var element)) {
+      _check(node, element, nameToken: node.name);
+    }
+  }
+
+  void checkNameExpression(Expression node, NamedReadResolution? resolution) {
+    if (node.parent2 is CallInvocation) {
+      return;
+    }
+    if (resolution?.element case var element?) {
+      _check(node, element);
+    }
+  }
+
+  void checkPropertyExtraction(PropertyExtraction node) {
+    if (node.resolution?.element case var element?) {
+      _check(node, element, nameToken: node.name);
+    }
+  }
+
+  void _check(AstNode node, Element element, {Token? nameToken}) {
+    var parent = node.parent2;
+    if (parent is CommentReference) {
+      // Don't flag references in comments.
+      return;
+    }
+    if (parent is ShowCombinator || parent is HideCombinator) {
+      return;
+    }
+
+    var annotation = _getUseResultMetadata(element);
+    if (annotation == null) {
+      return;
+    }
+
+    if (_passesUsingParam(node, annotation)) {
+      return;
+    }
+
+    if (_isUsed(node)) {
+      return;
+    }
+
+    var toAnnotate = nameToken ?? node.nodeToAnnotate;
+    var displayName = switch (toAnnotate) {
+      Token(:var lexeme) => lexeme,
+      UnqualifiedNameExpression(:var name) => name.lexeme,
+      _ => element.displayName,
+    };
+
+    var message = annotation.useResultMessage;
+    if (message == null || message.isEmpty) {
+      _diagnosticReporter.report(
+        diag.unusedResult.withArguments(name: displayName).at(toAnnotate),
+      );
+    } else {
+      _diagnosticReporter.report(
+        diag.unusedResultWithMessage
+            .withArguments(name: displayName, message: message)
+            .at(toAnnotate),
+      );
+    }
+  }
+
+  bool _passesUsingParam(AstNode node, ElementAnnotation annotation) {
+    var argumentList = switch (node) {
+      FunctionInvocation(:var argumentList) => argumentList,
+      InvocationExpression(:var argumentList) => argumentList,
+      _ => null,
+    };
+    if (argumentList is! ArgumentListImpl) return false;
+
+    var unlessParam = annotation.useResultUnlessParameter;
+    if (unlessParam == null) {
+      return false;
+    }
+
+    var parameters = argumentList.correspondingStaticParameters;
+    if (parameters == null) {
+      return false;
+    }
+
+    for (var param in parameters) {
+      var name = param?.name;
+      if (unlessParam == name) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static ElementAnnotation? _getUseResultMetadata(Element element) {
+    // Implicit getters/setters.
+    if (element is PropertyAccessorElement && element.isOriginVariable) {
+      element = element.variable;
+    }
+
+    var annotations = element.metadata.annotations;
+    for (int i = 0; i < annotations.length; i++) {
+      var annotation = annotations[i];
+      if (annotation.isUseResult) return annotation;
+    }
+    return null;
+  }
+
+  static bool _isUsed(AstNode node) {
+    var parent = node.parent2;
+    if (parent == null) {
+      return false;
+    }
+
+    if (parent is CascadeExpression) {
+      return parent.target2 == node;
+    }
+
+    // Null-checking a result is not a "use".
+    if (parent is NullAssertionExpression) {
+      return _isUsed(parent);
+    }
+
+    if (parent is AsExpression ||
+        parent is AwaitExpression ||
+        parent is ConditionalExpression ||
+        parent is ForElement ||
+        parent is IfElement ||
+        parent is LogicalNot ||
+        parent is ParenthesizedExpression ||
+        (parent is IncrementOrDecrementExpression &&
+            parent.position == IncrementOrDecrementPosition.prefix) ||
+        parent is SpreadElement ||
+        parent is UnaryOperatorInvocation) {
+      return _isUsed(parent);
+    }
+
+    if (parent is ForParts) {
+      // If [node] is the condition of a for-loop, it is used; if it is one of
+      // the updaters, it is not.
+      return parent.condition2 == node;
+    }
+
+    return parent is ArgumentList ||
+        parent is AssertInitializer ||
+        parent is AssertStatement ||
+        // Node should always be RHS so no need to check for a property
+        // assignment.
+        parent is DirectAssignment ||
+        parent is IfNullAssignment ||
+        parent is BinaryOperatorInvocation ||
+        parent is IfNull ||
+        parent is ConstructorFieldInitializer ||
+        parent is DoStatement ||
+        parent is ExpressionFunctionBody ||
+        parent is ForEachParts ||
+        parent is ForLoopParts ||
+        parent is CallInvocation ||
+        parent is IfStatement ||
+        parent is IndexAssignmentTarget ||
+        parent is IndexExpression2 ||
+        parent is InterpolationExpression ||
+        parent is ListLiteral ||
+        parent is MapLiteralEntry ||
+        parent is NamedArgument ||
+        parent is PatternAssignment ||
+        parent is PatternVariableDeclaration ||
+        parent is PropertyExtraction ||
+        parent is RecordLiteral ||
+        parent is RecordLiteralNamedField ||
+        parent is ReceiverMethodInvocation ||
+        parent is ReturnStatement ||
+        parent is SetOrMapLiteral ||
+        parent is SwitchExpression ||
+        parent is SwitchExpressionCase ||
+        parent is SwitchStatement ||
+        parent is ThrowExpression ||
+        parent is VariableBindingImpl ||
+        parent is WhenClause ||
+        parent is WhileStatement ||
+        parent is YieldStatement;
+  }
+}
+
+extension on ElementAnnotation {
+  String? get useResultMessage {
+    if (element is GetterElement) {
+      return null;
+    }
+    return computeConstantValue()?.getField('message')?.toStringValue();
+  }
+
+  String? get useResultUnlessParameter {
+    return computeConstantValue()
+        ?.getField('parameterDefined')
+        ?.toStringValue();
+  }
+}
+
+extension on AstNode {
+  SyntacticEntity get nodeToAnnotate => switch (this) {
+    ReceiverMethodInvocation node => node.name,
+    CallInvocation(receiver: ReceiverPropertyExtraction(:var name)) => name,
+    CallInvocation node => node.receiver.nodeToAnnotate,
+    _ => this,
+  };
+}

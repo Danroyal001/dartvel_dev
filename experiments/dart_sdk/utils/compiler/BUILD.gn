@@ -1,0 +1,106 @@
+# Copyright (c) 2016, the Dart project authors.  Please see the AUTHORS file
+# for details. All rights reserved. Use of this source code is governed by a
+# BSD-style license that can be found in the LICENSE file.
+
+import("../../sdk_args.gni")
+import("../../utils/compile_platform.gni")
+import("../aot_snapshot.gni")
+import("../application_snapshot.gni")
+
+sdk_root = "../../sdk"
+
+if (dart_version_git_info) {
+  dart2js_version =
+      exec_script("../../tools/make_version.py", [], "trim string")
+} else {
+  dart2js_version = exec_script("../../tools/make_version.py",
+                                [ "--no-git-hash" ],
+                                "trim string")
+}
+
+application_snapshot("dart2js") {
+  training_deps = [ ":dart2js_platform" ]
+  training_inputs = [
+    "$root_out_dir/dart2js_platform.dill",
+    "$root_out_dir/dart2js_outline.dill",
+  ]
+  main_dart = "../../pkg/compiler/lib/src/dart2js.dart"
+  vm_args = [ "-DbuildID=" + dart2js_version ]
+  training_args = [
+    "--invoker=gn_build",
+    "--packages=" +
+        rebase_path("../../.dart_tool/package_config.json", root_build_dir),
+    "--libraries-spec=" +
+        rebase_path("$sdk_root/lib/libraries.json", root_build_dir),
+
+    # Specifying the platform explicitly elides running the CFE on the sdk
+    # sources.
+    "--platform-binaries=" + rebase_path("$root_out_dir/", root_build_dir),
+
+    rebase_path("../../pkg/compiler/lib/src/util/memory_compiler.dart",
+                root_build_dir),
+  ]
+}
+
+aot_snapshot("dart2js_aot") {
+  main_dart = "../../pkg/compiler/lib/src/dart2js.dart"
+  gen_kernel_args = [ "-DbuildID=" + dart2js_version ]
+  name = "dart2js_aot"
+}
+
+aot_snapshot("dart2js_sdk_aot") {
+  main_dart = "../../pkg/compiler/lib/src/dart2js.dart"
+  gen_kernel_args = [ "-DbuildID=" + dart2js_version ]
+  name = "dart2js_aot.dart"
+  output = "$root_gen_dir/dart2js_aot.dart.snapshot"
+}
+
+aot_snapshot("dart2js_sdk_aot_product") {
+  main_dart = "../../pkg/compiler/lib/src/dart2js.dart"
+  gen_kernel_args = [ "-DbuildID=" + dart2js_version ]
+  name = "dart2js_aot_product.dart"
+  dill = "$target_gen_dir/dart2js_aot_product.aot.dill"
+  output = "$root_gen_dir/dart2js_aot_product.dart.snapshot"
+
+  # dartaotruntime in the dart sdk has dart_product_config applied to it,
+  # so it is built in product mode in both release and
+  # product sdks, and is built in debug mode in debug
+  # builds. The following line ensures that the dartaotruntime
+  # and dart2js aot snapshot in an SDK build are
+  # always compatible with each other.
+  force_product_mode = !dart_debug
+}
+
+compile_platform("dart2js_platform") {
+  single_root_scheme = "org-dartlang-sdk"
+  single_root_base = rebase_path("$sdk_root/", root_build_dir)
+  libraries_specification_uri = "org-dartlang-sdk:///lib/libraries.json"
+
+  outputs = [
+    "$root_out_dir/dart2js_platform.dill",
+    "$root_out_dir/dart2js_outline.dill",
+  ]
+
+  args = [
+    "--target=dart2js",
+    "--no-defines",
+    "dart:core",
+  ]
+}
+
+compile_platform("dart2js_server_platform") {
+  single_root_scheme = "org-dartlang-sdk"
+  single_root_base = rebase_path("$sdk_root/", root_build_dir)
+  libraries_specification_uri = "org-dartlang-sdk:///lib/libraries.json"
+
+  outputs = [
+    "$root_out_dir/dart2js_server_platform.dill",
+    "$root_out_dir/dart2js_server_outline.dill",
+  ]
+
+  args = [
+    "--target=dart2js_server",
+    "--no-defines",
+    "dart:core",
+  ]
+}

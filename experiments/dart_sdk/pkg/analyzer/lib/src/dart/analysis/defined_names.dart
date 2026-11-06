@@ -1,0 +1,106 @@
+// Copyright (c) 2017, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/ast/token.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+
+/// Compute the [DefinedNames] for the given [unit].
+DefinedNames computeDefinedNames(CompilationUnitImpl unit) {
+  DefinedNames names = DefinedNames();
+
+  void appendName(Set<String> names, Token? token) {
+    var lexeme = token?.lexeme;
+    if (lexeme != null && lexeme.isNotEmpty) {
+      names.add(lexeme);
+    }
+  }
+
+  void appendClassMemberName(MemberDeclarationImpl member) {
+    if (member is MethodDeclarationV1OriginImpl) {
+      appendName(names.classMemberNames, member.nameToken);
+    } else if (member is FieldsDeclarationImpl) {
+      for (var field in member.fields) {
+        appendName(names.classMemberNames, field.name);
+      }
+    }
+  }
+
+  void appendDeclaringFormalParameterNames(
+    PrimaryConstructorDeclarationImpl constructor, {
+    bool isExtensionType = false,
+  }) {
+    var parameters = constructor.formalParameters.allFormalParameters;
+    for (var i = 0; i < parameters.length; i++) {
+      var parameter = parameters[i];
+      var isRepresentation =
+          isExtensionType && i == 0 && parameter is RegularFormalParameterImpl;
+      if (parameter.finalOrVarKeyword != null || isRepresentation) {
+        appendName(names.classMemberNames, parameter.name);
+      }
+    }
+  }
+
+  void appendTopLevelName(TopLevelDeclarationImpl member) {
+    switch (member) {
+      case ClassDeclaration2Impl():
+        appendName(names.topLevelNames, member.namePart.typeName);
+        if (member.namePart
+            case PrimaryConstructorDeclarationImpl constructor) {
+          appendDeclaringFormalParameterNames(constructor);
+        }
+        member.body.members.forEach(appendClassMemberName);
+      case EnumDeclaration2Impl():
+        appendName(names.topLevelNames, member.namePart.typeName);
+        if (member.namePart
+            case PrimaryConstructorDeclarationImpl constructor) {
+          appendDeclaringFormalParameterNames(constructor);
+        }
+        for (var constant in member.body.constants) {
+          appendName(names.classMemberNames, constant.name);
+        }
+        member.body.members.forEach(appendClassMemberName);
+      case ExtensionDeclaration2Impl():
+        appendName(names.topLevelNames, member.name);
+        member.body.members.forEach(appendClassMemberName);
+      case ExtensionTypeDeclaration2Impl():
+        appendName(names.topLevelNames, member.namePart.typeName);
+        if (member.namePart
+            case PrimaryConstructorDeclarationImpl primaryConstructor) {
+          appendDeclaringFormalParameterNames(
+            primaryConstructor,
+            isExtensionType: true,
+          );
+        }
+        member.body.members.forEach(appendClassMemberName);
+      case MixinDeclaration2Impl():
+        appendName(names.topLevelNames, member.name);
+        member.body.members.forEach(appendClassMemberName);
+      case TopLevelFunctionDeclarationImpl():
+        appendName(names.topLevelNames, member.name);
+      case TopLevelVariablesDeclarationImpl():
+        for (var variable in member.variables) {
+          appendName(names.topLevelNames, variable.name);
+        }
+      case TopLevelGetterDeclarationImpl():
+        appendName(names.topLevelNames, member.name);
+      case TopLevelSetterDeclarationImpl():
+        appendName(names.topLevelNames, member.name);
+      case ClassTypeAlias2Impl():
+        appendName(names.topLevelNames, member.name);
+      case FunctionTypeAlias2Impl():
+        appendName(names.topLevelNames, member.name);
+      case GenericTypeAlias2Impl():
+        appendName(names.topLevelNames, member.name);
+    }
+  }
+
+  unit.declarations2.forEach(appendTopLevelName);
+  return names;
+}
+
+/// Defined top-level and class member names.
+class DefinedNames {
+  final Set<String> topLevelNames = <String>{};
+  final Set<String> classMemberNames = <String>{};
+}

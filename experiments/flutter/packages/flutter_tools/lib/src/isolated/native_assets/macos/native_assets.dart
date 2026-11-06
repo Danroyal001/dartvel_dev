@@ -1,0 +1,225 @@
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import 'package:code_assets/code_assets.dart';
+
+import '../../../base/file_system.dart';
+import '../../../base/logger.dart';
+import '../../../base/process.dart';
+import '../../../build_info.dart';
+import '../native_assets.dart';
+import '../native_assets_manifest.dart';
+import 'native_assets_host.dart';
+
+// TODO(dcharkes): Fetch minimum MacOS version from somewhere. https://github.com/flutter/flutter/issues/145104
+const targetMacOSVersion = 13;
+
+/// Extract the [Architecture] from a [CpuArch].
+Architecture getNativeMacOSArchitecture(CpuArch cpuArch) {
+  return switch (cpuArch) {
+    CpuArch.arm64 => Architecture.arm64,
+    CpuArch.x64 => Architecture.x64,
+    CpuArch.armv7 ||
+    CpuArch.x86 ||
+    CpuArch.riscv64 ||
+    CpuArch.unknown => throw Exception('Unknown macOS CPU arch: $cpuArch.'),
+  };
+}
+
+/// Groups native assets by their target framework path for macOS
+/// multi-architecture bundling.
+Map<Uri, List<FlutterCodeAsset>> fatAssetTargetLocationsMacOS(
+  List<FlutterCodeAsset> nativeAssets,
+  Uri? absolutePath, {
+  required Logger logger,
+}) {
+  return fatAssetTargetLocations(
+    assetTargetLocationsMacOS(nativeAssets, absolutePath, logger: logger),
+  );
+}
+
+Map<FlutterCodeAsset, FlutterCodeAssetTargetLocation> assetTargetLocationsMacOS(
+  List<FlutterCodeAsset> nativeAssets,
+  Uri? absolutePath, {
+  required Logger logger,
+}) {
+  return assetTargetLocationsApple(nativeAssets, absolutePath: absolutePath, logger: logger);
+}
+
+/// Copies native assets into a framework per dynamic library.
+///
+/// The framework contains symlinks according to
+/// https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPFrameworks/Concepts/FrameworkAnatomy.html
+///
+/// For `flutter run -release` a multi-architecture solution is needed. So,
+/// `lipo` is used to combine all target architectures into a single file.
+///
+/// The install name is set so that it matches with the place it will
+/// be bundled in the final app. Install names that are referenced in dependent
+/// libraries are updated to match the new install name, so that the referenced
+/// library can be found the dynamic linker.
+///
+/// Code signing is also done here, so that it doesn't have to be done in
+/// in macos_assemble.sh.
+Future<List<File>> copyNativeCodeAssetsMacOS(
+  Uri targetUri,
+  Map<Uri, List<FlutterCodeAsset>> assetTargetLocations,
+  String? codesignIdentity,
+  BuildMode buildMode,
+  FileSystem fileSystem, {
+  required Logger logger,
+  required ProcessUtils processUtils,
+}) async {
+  assert(assetTargetLocations.isNotEmpty);
+  final installedFiles = <File>[];
+  final oldToNewInstallNames = <String, String>{};
+  final dylibs = <(File, String, Directory)>[];
+
+  for (final MapEntry<Uri, List<FlutterCodeAsset>> assetMapping in assetTargetLocations.entries) {
+    final Uri target = assetMapping.key;
+    final sources = <File>[
+      for (final FlutterCodeAsset source in assetMapping.value)
+        fileSystem.file(source.codeAsset.file),
+    ];
+    final Uri assetTargetUri = targetUri.resolveUri(target);
+    final String name = assetTargetUri.pathSegments.last;
+    final Directory frameworkDir = fileSystem.file(assetTargetUri).parent;
+    if (frameworkDir.existsSync()) {
+      await frameworkDir.delete(recursive: true);
+    }
+    // MyFramework.framework/                           frameworkDir
+    //   MyFramework  -> Versions/Current/MyFramework   dylibLink
+    //   Resources    -> Versions/Current/Resources     resourcesLink
+    //   Versions/                                      versionsDir
+    //     A/                                           versionADir
+    //       MyFramework                                dylibFile
+    //       Resources/                                 resourcesDir
+    //         Info.plist
+    //     Current  -> A                                currentLink
+    final Directory versionsDir = frameworkDir.childDirectory('Versions');
+    final Directory versionADir = versionsDir.childDirectory('A');
+    final Directory resourcesDir = versionADir.childDirectory('Resources');
+    await resourcesDir.create(recursive: true);
+    final File dylibFile = versionADir.childFile(name);
+    final Link currentLink = versionsDir.childLink('Current');
+    final Directory currentLinkAsDirectory = versionsDir.childDirectory('Current');
+
+    await currentLink.create(
+      fileSystem.path.relative(versionADir.path, from: currentLink.parent.path),
+    );
+    final Link resourcesLink = frameworkDir.childLink('Resources');
+    await resourcesLink.create(
+      fileSystem.path.relative(
+        currentLinkAsDirectory.childFile('Resources').path,
+        from: resourcesLink.parent.path,
+      ),
+    );
+    await lipoDylibs(dylibFile, sources, processUtils: processUtils);
+    if (buildMode != BuildMode.debug) {
+      final dsymPath = '${frameworkDir.path}.dSYM';
+      await dsymutilDylib(dylibFile, dsymPath, processUtils: processUtils);
+      await stripDylib(dylibFile, logger: logger, processUtils: processUtils);
+      installedFiles.addAll(
+        fileSystem.directory(dsymPath).listSync(recursive: true).whereType<File>(),
+      );
+    }
+    final Link dylibLink = frameworkDir.childLink(name);
+    await dylibLink.create(
+      fileSystem.path.relative(
+        currentLinkAsDirectory.childFile(name).path,
+        from: dylibLink.parent.path,
+      ),
+    );
+
+    final String newInstallName = frameworkInstallName(target);
+    final Set<String> oldInstallNames = await getInstallNamesDylib(
+      dylibFile,
+      processUtils: processUtils,
+    );
+    for (final oldInstallName in oldInstallNames) {
+      oldToNewInstallNames[oldInstallName] = newInstallName;
+    }
+    dylibs.add((dylibFile, newInstallName, frameworkDir));
+
+    await createInfoPlist(name, resourcesDir);
+    installedFiles.addAll(frameworkDir.listSync(recursive: true).whereType<File>());
+  }
+
+  for (final (File dylibFile, String newInstallName, Directory frameworkDir) in dylibs) {
+    await setInstallNamesDylib(
+      dylibFile,
+      newInstallName,
+      oldToNewInstallNames,
+      processUtils: processUtils,
+    );
+    // Do not code-sign the libraries here with identity. Code-signing
+    // for bundled dylibs is done in `macos_assemble.sh embed` because the
+    // "Flutter Assemble" target does not have access to the signing identity.
+    if (codesignIdentity != null) {
+      await codesignDylib(codesignIdentity, buildMode, frameworkDir, processUtils: processUtils);
+    }
+  }
+  return installedFiles;
+}
+
+/// Copies native assets for flutter tester.
+///
+/// For `flutter run -release` a multi-architecture solution is needed. So,
+/// `lipo` is used to combine all target architectures into a single file.
+///
+/// The install names are set to the absolute paths from which the
+/// flutter_tester executable with load them. Install names that are
+/// referenced in dependent libraries are updated to match the new install name,
+/// so that the referenced library can be found the dynamic linker.
+///
+/// Code signing is also done here.
+Future<List<File>> copyNativeCodeAssetsMacOSFlutterTester(
+  Uri targetUri,
+  Map<Uri, List<FlutterCodeAsset>> assetTargetLocations,
+  String? codesignIdentity,
+  BuildMode buildMode,
+  FileSystem fileSystem, {
+  required ProcessUtils processUtils,
+}) async {
+  assert(assetTargetLocations.isNotEmpty);
+  final installedFiles = <File>[];
+  final oldToNewInstallNames = <String, String>{};
+  final dylibs = <(File, String)>[];
+
+  for (final MapEntry<Uri, List<FlutterCodeAsset>> assetMapping in assetTargetLocations.entries) {
+    final Uri target = assetMapping.key;
+    final sources = <File>[
+      for (final FlutterCodeAsset source in assetMapping.value)
+        fileSystem.file(source.codeAsset.file),
+    ];
+    final Uri assetTargetUri = targetUri.resolveUri(target);
+    final File dylibFile = fileSystem.file(assetTargetUri);
+    final Directory targetParent = dylibFile.parent;
+    if (!targetParent.existsSync()) {
+      await targetParent.create(recursive: true);
+    }
+    await lipoDylibs(dylibFile, sources, processUtils: processUtils);
+    installedFiles.add(dylibFile);
+    final String newInstallName = dylibFile.path;
+    final Set<String> oldInstallNames = await getInstallNamesDylib(
+      dylibFile,
+      processUtils: processUtils,
+    );
+    for (final oldInstallName in oldInstallNames) {
+      oldToNewInstallNames[oldInstallName] = newInstallName;
+    }
+    dylibs.add((dylibFile, newInstallName));
+  }
+
+  for (final (File dylibFile, String newInstallName) in dylibs) {
+    await setInstallNamesDylib(
+      dylibFile,
+      newInstallName,
+      oldToNewInstallNames,
+      processUtils: processUtils,
+    );
+    await codesignDylib(codesignIdentity, buildMode, dylibFile, processUtils: processUtils);
+  }
+  return installedFiles;
+}

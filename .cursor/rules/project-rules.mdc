@@ -207,6 +207,16 @@ gap.
   upstream's and not ours to rewrite.
 - `dart run tool/ci/no_python_check.dart` fails when a tracked `.py` file or
   an inline `python3` appears, because a rule nothing checks drifts back.
+- **`experiments/` is the one exception, and only for Rust.** The Dart and
+  Flutter stack in Rust side effort keeps everything in this repository under
+  `experiments/`: its forks of the Dart SDK and Flutter, in-tree at
+  `experiments/dart_sdk` and `experiments/flutter`, where the Rust ports are
+  written beside the files they replace; the other pinned upstream sources as
+  git submodules under `experiments/upstream/`; and its Dart tooling. Do not give
+  a side effort a repository of its own, do not put Rust anywhere outside
+  `experiments/`, and do not let `packages/` depend on anything in it. Python
+  is still refused there, outside the forks' own upstream files, and Dart
+  tooling is still Dart.
 
 ## Commit Message Rule
 

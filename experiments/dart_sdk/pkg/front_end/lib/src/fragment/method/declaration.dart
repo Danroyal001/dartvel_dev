@@ -1,0 +1,322 @@
+// Copyright (c) 2025, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:kernel/ast.dart';
+import 'package:kernel/class_hierarchy.dart';
+import 'package:kernel/type_environment.dart';
+
+import '../../base/local_scope.dart';
+import '../../base/messages.dart';
+import '../../base/scope.dart';
+import '../../base/uri_offset.dart';
+import '../../builder/declaration_builders.dart';
+import '../../builder/formal_parameter_builder.dart';
+import '../../builder/metadata_builder.dart';
+import '../../builder/type_builder.dart';
+import '../../kernel/body_builder_context.dart';
+import '../../kernel/hierarchy/class_member.dart';
+import '../../kernel/hierarchy/members_builder.dart';
+import '../../kernel/internal_ast.dart';
+import '../../kernel/kernel_helper.dart';
+import '../../kernel/type_algorithms.dart';
+import '../../source/name_scheme.dart';
+import '../../source/parameters.dart';
+import '../../source/source_class_builder.dart';
+import '../../source/source_library_builder.dart';
+import '../../source/source_loader.dart';
+import '../../source/source_member_builder.dart';
+import '../../source/source_method_builder.dart';
+import '../../source/stack_listener_impl.dart' show AsyncModifier;
+import '../../source/type_parameter_factory.dart';
+import '../../type_inference/context_allocation_strategy.dart';
+import '../../type_inference/type_schema.dart';
+import '../fragment.dart';
+import 'body_builder_context.dart';
+import 'encoding.dart';
+
+/// Interface for the method declaration aspect of a [SourceMethodBuilder].
+///
+/// If a method is augmented, it will have multiple
+/// [MethodDeclaration]s on a single [SourceMethodBuilder].
+abstract class MethodDeclaration {
+  UriOffsetLength get uriOffset;
+
+  Uri get fileUri;
+
+  Procedure get invokeTarget;
+
+  bool get isOperator;
+
+  List<MetadataBuilder>? get metadata;
+
+  Procedure? get readTarget;
+
+  void buildOutlineExpressions({
+    required ClassHierarchy classHierarchy,
+    required SourceLibraryBuilder libraryBuilder,
+    required DeclarationBuilder? declarationBuilder,
+    required SourceMethodBuilder methodBuilder,
+    required Annotatable annotatable,
+    required Uri annotatableFileUri,
+    required List<DelayedDefaultValueCloner> delayedDefaultValueCloners,
+    required bool includeBody,
+  });
+
+  void buildOutlineNode({
+    required SourceLibraryBuilder libraryBuilder,
+    required ProblemReporting problemReporting,
+    required NameScheme nameScheme,
+    required BuildNodesCallback callback,
+    required MethodReferences? references,
+    required List<TypeParameter>? classTypeParameters,
+  });
+
+  void checkVariance(
+    SourceClassBuilder sourceClassBuilder,
+    TypeEnvironment typeEnvironment,
+  );
+
+  int computeDefaultTypes(ComputeDefaultTypeContext context);
+
+  void createEncoding({
+    required ProblemReporting problemReporting,
+    required SourceMethodBuilder builder,
+    required Parameters parameters,
+    required MethodEncodingStrategy encodingStrategy,
+    required TypeParameterFactory typeParameterFactory,
+    required bool isImplementation,
+  });
+
+  void ensureTypes(
+    ClassMembersBuilder membersBuilder,
+    SourceClassBuilder enclosingClassBuilder,
+    Set<ClassMember>? overrideDependencies,
+  );
+}
+
+class MethodDeclarationImpl
+    implements MethodDeclaration, MethodFragmentDeclaration {
+  final MethodFragment _fragment;
+  late final MethodEncoding _encoding;
+
+  new(this._fragment) {
+    _fragment.declaration = this;
+  }
+
+  @override
+  UriOffsetLength get uriOffset => _fragment.uriOffset;
+
+  @override
+  Uri get fileUri => _fragment.fileUri;
+
+  @override
+  // TODO: implement formals
+  List<FormalParameterBuilder>? get formals => _encoding.formals;
+
+  @override
+  bool get isNoSuchMethodForwarder => _encoding.isNoSuchMethodForwarder;
+
+  @override
+  Procedure get invokeTarget => _encoding.invokeTarget;
+
+  @override
+  bool get isOperator => _fragment.isOperator;
+
+  @override
+  // Coverage-ignore(suite): Not run.
+  List<MetadataBuilder>? get metadata => _fragment.metadata;
+
+  @override
+  Procedure? get readTarget => _encoding.readTarget;
+
+  @override
+  TypeBuilder get returnType => _fragment.returnType;
+
+  @override
+  List<TypeParameter>? get thisTypeParameters => _encoding.thisTypeParameters;
+
+  @override
+  InternalVariable? get thisVariable => _encoding.thisVariable;
+
+  @override
+  void becomeNative(SourceLoader loader) {
+    _encoding.becomeNative(loader);
+  }
+
+  @override
+  void buildOutlineExpressions({
+    required ClassHierarchy classHierarchy,
+    required SourceLibraryBuilder libraryBuilder,
+    required DeclarationBuilder? declarationBuilder,
+    required SourceMethodBuilder methodBuilder,
+    required Annotatable annotatable,
+    required Uri annotatableFileUri,
+    required List<DelayedDefaultValueCloner> delayedDefaultValueCloners,
+    required bool includeBody,
+  }) {
+    _encoding.buildOutlineExpressions(
+      classHierarchy: classHierarchy,
+      libraryBuilder: libraryBuilder,
+      declarationBuilder: declarationBuilder,
+      methodBuilder: methodBuilder,
+      bodyBuilderContext: createBodyBuilderContext(methodBuilder),
+      annotatable: annotatable,
+      annotatableFileUri: annotatableFileUri,
+      delayedDefaultValueCloners: delayedDefaultValueCloners,
+      includeBody: includeBody,
+    );
+  }
+
+  @override
+  void buildOutlineNode({
+    required SourceLibraryBuilder libraryBuilder,
+    required ProblemReporting problemReporting,
+    required NameScheme nameScheme,
+    required BuildNodesCallback callback,
+    required MethodReferences? references,
+    required List<TypeParameter>? classTypeParameters,
+  }) {
+    _encoding.buildOutlineNode(
+      libraryBuilder: libraryBuilder,
+      problemReporting: problemReporting,
+      nameScheme: nameScheme,
+      callback: callback,
+      references: references,
+      isAbstractOrExternal:
+          _fragment.modifiers.isAbstract || _fragment.modifiers.isExternal,
+      classTypeParameters: classTypeParameters,
+    );
+  }
+
+  @override
+  void checkVariance(
+    SourceClassBuilder sourceClassBuilder,
+    TypeEnvironment typeEnvironment,
+  ) {
+    _encoding.checkVariance(sourceClassBuilder, typeEnvironment);
+  }
+
+  @override
+  int computeDefaultTypes(ComputeDefaultTypeContext context) {
+    return _encoding.computeDefaultTypes(context);
+  }
+
+  @override
+  BodyBuilderContext createBodyBuilderContext(SourceMethodBuilder builder) {
+    return new MethodFragmentBodyBuilderContext(
+      _fragment,
+      this,
+      builder.libraryBuilder,
+      builder.declarationBuilder,
+      isDeclarationInstanceMember: builder.isDeclarationInstanceMember,
+    );
+  }
+
+  @override
+  void createEncoding({
+    required ProblemReporting problemReporting,
+    required SourceMethodBuilder builder,
+    required MethodEncodingStrategy encodingStrategy,
+    required Parameters parameters,
+    required TypeParameterFactory typeParameterFactory,
+    required bool isImplementation,
+  }) {
+    _encoding = encodingStrategy.createMethodEncoding(
+      builder,
+      _fragment,
+      typeParameterFactory,
+    );
+    _fragment.typeParameterNameSpace.addTypeParameters(
+      problemReporting,
+      _encoding.clonedAndDeclaredTypeParameters,
+      ownerName: _fragment.name,
+      allowNameConflict: true,
+    );
+    returnType.registerInferredTypeListener(_encoding);
+    parameters.registerParameters(formals, isImplementation: isImplementation);
+  }
+
+  @override
+  LocalScope createFormalParameterScope(LookupScope typeParameterScope) {
+    return _encoding.createFormalParameterScope(typeParameterScope);
+  }
+
+  @override
+  void ensureTypes(
+    ClassMembersBuilder membersBuilder,
+    SourceClassBuilder enclosingClassBuilder,
+    Set<ClassMember>? overrideDependencies,
+  ) {
+    if (overrideDependencies != null) {
+      membersBuilder.inferMethodType(
+        enclosingClassBuilder,
+        _encoding.function,
+        returnType,
+        _fragment.declaredFormals,
+        overrideDependencies,
+        name: _fragment.name,
+        fileUri: fileUri,
+        nameOffset: _fragment.nameOffset,
+        nameLength: _fragment.name.length,
+      );
+    }
+    _encoding.ensureTypes(
+      enclosingClassBuilder.libraryBuilder,
+      membersBuilder.hierarchyBuilder,
+    );
+  }
+
+  @override
+  void registerFunctionBody({
+    required Statement? body,
+    required AsyncModifier asyncModifier,
+    required DartType? emittedValueType,
+    required ScopeProviderInfo? scopeProviderInfo,
+  }) {
+    _encoding.registerFunctionBody(
+      body: body,
+      asyncModifier: asyncModifier,
+      emittedValueType: emittedValueType,
+      scopeProviderInfo: scopeProviderInfo,
+    );
+  }
+
+  @override
+  DartType get returnTypeContext {
+    final bool isReturnTypeUndeclared =
+        _fragment.returnType is OmittedTypeBuilder &&
+        _encoding.function.returnType is DynamicType;
+    return isReturnTypeUndeclared
+        ? const UnknownType()
+        : _encoding.function.returnType;
+  }
+}
+
+/// Interface for using a [MethodFragment] to create a [BodyBuilderContext].
+abstract class MethodFragmentDeclaration {
+  List<FormalParameterBuilder>? get formals;
+
+  void registerFunctionBody({
+    required Statement? body,
+    required AsyncModifier asyncModifier,
+    required DartType? emittedValueType,
+    required ScopeProviderInfo? scopeProviderInfo,
+  });
+
+  DartType get returnTypeContext;
+
+  bool get isNoSuchMethodForwarder;
+
+  TypeBuilder get returnType;
+
+  List<TypeParameter>? get thisTypeParameters;
+
+  InternalVariable? get thisVariable;
+
+  void becomeNative(SourceLoader loader);
+
+  BodyBuilderContext createBodyBuilderContext(SourceMethodBuilder builder);
+
+  LocalScope createFormalParameterScope(LookupScope typeParameterScope);
+}

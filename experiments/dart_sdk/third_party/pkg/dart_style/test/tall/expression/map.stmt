@@ -1,0 +1,171 @@
+40 columns                              |
+>>> Empty.
+(  {  }  );
+<<< 3.7
+({});
+>>> Const.
+const  {  first  :  1  ,  second  :  2  }  ;
+<<< 3.7
+const {first: 1, second: 2};
+>>> Exactly page width.
+(  {  first  :  1  ,  second  :  2  ,  third  :  3  ,  f  :  4  }  );
+<<< 3.7
+({first: 1, second: 2, third: 3, f: 4});
+>>> Split.
+({first: 1, second: 2, third: 3, fourth: 4,});
+<<< 3.7
+({
+  first: 1,
+  second: 2,
+  third: 3,
+  fourth: 4,
+});
+>>> Add trailing comma if split.
+({first: 1, second: 2, third: 3, fourth: 4});
+<<< 3.7
+({
+  first: 1,
+  second: 2,
+  third: 3,
+  fourth: 4,
+});
+>>> Remove trailing comma if unsplit.
+({first: 1, second: 2, third: 3,});
+<<< 3.7
+({first: 1, second: 2, third: 3});
+>>> Prefer to split entry instead of key.
+({
+  first + second + third + fourth: fifth
+});
+<<< 3.7
+({
+  first + second + third + fourth:
+      fifth,
+});
+>>> Prefer to split entry instead of value.
+({
+  first: second + third + fourth + fifth
+});
+<<< 3.7
+({
+  first:
+      second + third + fourth + fifth,
+});
+>>> Split in key forces entry to split.
+({
+  first + second + third + fourth + fifth: sixth
+});
+<<< 3.7
+({
+  first +
+          second +
+          third +
+          fourth +
+          fifth:
+      sixth,
+});
+>>> Split in value forces entry to split.
+({
+  first: second + third + fourth + fifth + sixth
+});
+<<< 3.7
+({
+  first:
+      second +
+      third +
+      fourth +
+      fifth +
+      sixth,
+});
+>>> Remove blank lines before first and last entries. Preserve one between.
+({
+
+
+  firstElement: 1,
+
+
+
+  secondElement: 2,
+
+
+
+  thirdElement: 3
+
+
+});
+<<< 3.7
+({
+  firstElement: 1,
+
+  secondElement: 2,
+
+  thirdElement: 3,
+});
+>>> Discard blank lines if doesn't need to split.
+({
+
+
+  1,
+
+
+
+  2,
+
+
+
+  3,
+
+
+});
+<<< 3.7
+({1, 2, 3});
+>>> With type arguments.
+<  int  ,  String  >  {  1  :  'one'  ,  2  :  'two'  };
+<<< 3.7
+<int, String>{1: 'one', 2: 'two'};
+>>> Split map but not type arguments.
+<int, String>{firstElement: 'one', secondElement: 'two'};
+<<< 3.7
+<int, String>{
+  firstElement: 'one',
+  secondElement: 'two',
+};
+>>> Split type arguments but not map.
+<VeryLongTypeName, AnotherReallyLongTypeName>{1: 'one', 2: 'two'};
+<<< 3.7
+<
+  VeryLongTypeName,
+  AnotherReallyLongTypeName
+>{1: 'one', 2: 'two'};
+>>> Split type arguments and map.
+<VeryLongTypeName, AnotherReallyLongTypeName>
+{1: 'value one', 2: 'value two', 3: 'value three'};
+<<< 3.7
+<
+  VeryLongTypeName,
+  AnotherReallyLongTypeName
+>{
+  1: 'value one',
+  2: 'value two',
+  3: 'value three',
+};
+>>> Split in nested type argument.
+<List<NotSplit>, Map<VeryLongTypeName, AnotherLongTypeName>>{1: 'one', 2: 'two'};
+<<< 3.7
+<
+  List<NotSplit>,
+  Map<
+    VeryLongTypeName,
+    AnotherLongTypeName
+  >
+>{1: 'one', 2: 'two'};
+>>> Force split because of contained block.
+var m = {first: 1, fn: () {"fn";},third:fourth};
+<<< 3.7
+var m = {
+  first: 1,
+  fn: () {
+    "fn";
+  },
+  third: fourth,
+};

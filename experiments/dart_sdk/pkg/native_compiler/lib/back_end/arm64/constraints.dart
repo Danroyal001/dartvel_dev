@@ -1,0 +1,792 @@
+// Copyright (c) 2026, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:cfg/ir/instructions.dart';
+import 'package:cfg/ir/types.dart';
+import 'package:kernel/ast.dart' as ast;
+import 'package:native_compiler/back_end/arm64/assembler.dart';
+import 'package:native_compiler/back_end/arm64/stub_code_generator.dart';
+import 'package:native_compiler/back_end/constraints.dart';
+import 'package:native_compiler/back_end/locations.dart';
+import 'package:native_compiler/back_end/safepoint.dart';
+import 'package:native_compiler/back_end/stack_frame.dart';
+
+/// Defines arm64 register allocation contraints for
+/// inputs/outputs/temporaries of the IR instructions.
+final class Arm64Constraints extends Constraints {
+  // TODO: enable returning unboxed FP values on FP register.
+  static const bool returnFPValuesOnFPRegister = false;
+
+  final StackFrame stackFrame;
+
+  late final allRegisters = <Constraint>[
+    ...getAllocatableRegisters(),
+    ...getAllocatableFPRegisters(),
+  ];
+  // TODO:add callee-save registers
+  late final volatileRegisters = allRegisters;
+
+  late final volatileRegistersExceptReturnReg = volatileRegistersExcept(
+    returnReg,
+  );
+  late final volatileRegistersExceptFPReturnReg = volatileRegistersExcept(
+    returnFPReg,
+  );
+
+  List<Constraint?>? _parameters;
+
+  Arm64Constraints(this.stackFrame);
+
+  @override
+  int getNumberOfRegisters() => numberOfRegisters;
+
+  @override
+  List<Register> getAllocatableRegisters() => allocatableRegisters;
+
+  @override
+  int getNumberOfFPRegisters() => numberOfFPRegisters;
+
+  @override
+  List<FPRegister> getAllocatableFPRegisters() => allocatableFPRegisters;
+
+  List<Constraint> volatileRegistersExcept(PhysicalRegister reg) => [
+    for (final r in volatileRegisters)
+      if (r != reg) r,
+  ];
+
+  List<Constraint> allRegistersExcept(
+    Constraint? result,
+    List<Constraint?> inputs,
+  ) => [
+    for (final r in allRegisters)
+      if (r != result && !inputs.contains(r)) r,
+  ];
+
+  // TODO: pass arguments on registers
+  // TODO: add callee-save registers
+  InstructionConstraints callConstraints(CallInstruction instr) {
+    final resultReg = (returnFPValuesOnFPRegister && instr.type is DoubleType)
+        ? returnFPReg
+        : returnReg;
+    return InstructionConstraints(
+      resultReg,
+      List<Constraint?>.generate(
+        instr.inputCount,
+        (int i) => anyLocationOrImmediate(instr.inputDefAt(i)),
+      ),
+      (resultReg == returnFPReg)
+          ? volatileRegistersExceptFPReturnReg
+          : volatileRegistersExceptReturnReg,
+      Safepoint(),
+    );
+  }
+
+  // TODO: pass arguments on registers
+  Constraint parameterConstraint(Parameter instr) {
+    final paramIndex = instr.variable.index;
+    final function = instr.graph.function;
+    final numParams = function.numberOfParameters;
+    assert(0 <= paramIndex && paramIndex < numParams);
+    Constraint? paramConstraint = _parameters?[paramIndex];
+    if (paramConstraint != null) {
+      return paramConstraint;
+    }
+    if (function.hasOptionalPositionalParameters ||
+        function.hasNamedParameters) {
+      if (paramIndex < argumentRegisters.length) {
+        paramConstraint = argumentRegisters[paramIndex];
+      } else {
+        paramConstraint = stackFrame.getParameterSlot(
+          paramIndex,
+          registerClass(instr),
+        );
+      }
+    } else {
+      paramConstraint = stackFrame.getParameterSlot(
+        paramIndex,
+        registerClass(instr),
+      );
+    }
+    final parameters = (_parameters ??= List<Constraint?>.filled(
+      numParams,
+      null,
+    ));
+    parameters[paramIndex] = paramConstraint;
+    return paramConstraint;
+  }
+
+  @override
+  InstructionConstraints? visitBranch(Branch instr) =>
+      const InstructionConstraints(null, [anyCpuRegister]);
+
+  @override
+  InstructionConstraints? visitCompareAndBranch(CompareAndBranch instr) =>
+      InstructionConstraints(
+        null,
+        instr.op.isDoubleComparison
+            ? const [anyFpuRegister, anyFpuRegister]
+            : [anyCpuRegister, anyRegisterOrImmediate(instr.right)],
+      );
+
+  @override
+  InstructionConstraints? visitComparison(Comparison instr) {
+    final op = instr.op;
+    if (op == .identical || op == .notIdentical) {
+      return const InstructionConstraints(
+        anyCpuRegister,
+        [anyCpuRegister, anyCpuRegister],
+        [anyCpuRegister, anyCpuRegister],
+      );
+    } else {
+      return InstructionConstraints(
+        anyCpuRegister,
+        op.isDoubleComparison
+            ? [anyFpuRegister, anyFpuRegisterOrZero(instr.right)]
+            : [anyCpuRegister, anyRegisterOrImmediate(instr.right)],
+      );
+    }
+  }
+
+  @override
+  InstructionConstraints? visitReturn(Return instr) =>
+      InstructionConstraints(null, [
+        (returnFPValuesOnFPRegister &&
+                instr.graph.function.returnType is DoubleType)
+            ? returnFPReg
+            : returnReg,
+      ]);
+
+  @override
+  InstructionConstraints? visitDirectCall(DirectCall instr) =>
+      callConstraints(instr);
+
+  @override
+  InstructionConstraints? visitInterfaceCall(InterfaceCall instr) =>
+      callConstraints(instr);
+
+  @override
+  InstructionConstraints? visitClosureCall(ClosureCall instr) =>
+      callConstraints(instr);
+
+  @override
+  InstructionConstraints? visitDynamicCall(DynamicCall instr) =>
+      callConstraints(instr);
+
+  @override
+  InstructionConstraints? visitExternalCall(ExternalCall instr) =>
+      callConstraints(instr);
+
+  @override
+  InstructionConstraints? visitParameter(Parameter instr) {
+    Constraint result;
+    if (instr.isFunctionParameter) {
+      result = parameterConstraint(instr);
+    } else {
+      final variable = instr.variable;
+      if (variable.isExceptionVariable) {
+        result = exceptionObjectReg;
+      } else if (variable.isStackTraceVariable) {
+        result = stackTraceObjectReg;
+      } else {
+        result = anyLocation(instr);
+      }
+    }
+    return InstructionConstraints(result, const []);
+  }
+
+  @override
+  InstructionConstraints? visitLoadLocal(LoadLocal instr) =>
+      throw 'Unexpected LoadLocal';
+
+  @override
+  InstructionConstraints? visitStoreLocal(StoreLocal instr) =>
+      throw 'Unexpected StoreLocal';
+
+  @override
+  InstructionConstraints? visitLoadInstanceField(LoadInstanceField instr) {
+    if (instr.checkInitialized) {
+      final inputs = const [R1];
+      return InstructionConstraints(
+        returnReg,
+        inputs,
+        // TODO: save registers on slow path
+        allRegistersExcept(returnReg, inputs),
+        Safepoint(),
+      );
+    }
+    return const InstructionConstraints(anyCpuRegister, [anyCpuRegister]);
+  }
+
+  @override
+  InstructionConstraints? visitStoreInstanceField(StoreInstanceField instr) {
+    if (instr.checkNotInitialized) {
+      final inputs = allocatableRegisters.take(instr.inputCount).toList();
+      return InstructionConstraints(
+        null,
+        inputs,
+        // TODO: save registers on slow path
+        allRegistersExcept(null, inputs),
+        Safepoint(),
+      );
+    }
+    return InstructionConstraints(
+      null,
+      const [anyCpuRegister, anyCpuRegister],
+      const [anyCpuRegister, anyCpuRegister],
+      Safepoint(), // For write barrier slow path.
+    );
+  }
+
+  @override
+  InstructionConstraints? visitLoadStaticField(LoadStaticField instr) =>
+      instr.checkInitialized
+      ? InstructionConstraints(
+          returnReg,
+          const [],
+          // TODO: save registers on slow path
+          volatileRegistersExceptReturnReg,
+          Safepoint(),
+        )
+      : const InstructionConstraints(anyCpuRegister, [], [
+          anyCpuRegister,
+          anyCpuRegister,
+        ]);
+
+  @override
+  InstructionConstraints? visitStoreStaticField(StoreStaticField instr) {
+    if (instr.checkNotInitialized) {
+      final inputs = allocatableRegisters.take(instr.inputCount).toList();
+      return InstructionConstraints(
+        null,
+        inputs,
+        // TODO: save registers on slow path
+        allRegistersExcept(null, inputs),
+        Safepoint(),
+      );
+    }
+    return const InstructionConstraints(
+      null,
+      [anyCpuRegister],
+      [anyCpuRegister, anyCpuRegister],
+    );
+  }
+
+  @override
+  InstructionConstraints? visitLoadExternalField(LoadExternalField instr) =>
+      InstructionConstraints(anyCpuRegister, [
+        if (instr.hasObject) anyCpuRegister,
+      ]);
+
+  @override
+  InstructionConstraints? visitStoreExternalField(StoreExternalField instr) =>
+      InstructionConstraints(null, [
+        if (instr.hasObject) anyCpuRegister,
+        anyCpuRegister,
+      ]);
+
+  @override
+  InstructionConstraints? visitLoadArrayElement(LoadArrayElement instr) =>
+      switch (instr.kind) {
+        .float32List ||
+        .float32ListView ||
+        .float32ByteData ||
+        .float64List ||
+        .float64ListView ||
+        .float64ByteData ||
+        .float32x4List ||
+        .float32x4ListView ||
+        .float32x4ByteData ||
+        .float64x2List ||
+        .float64x2ListView ||
+        .float64x2ByteData ||
+        .int32x4List ||
+        .int32x4ListView ||
+        .int32x4ByteData => InstructionConstraints(anyFpuRegister, [
+          anyCpuRegister,
+          anyRegisterOrImmediate(instr.inputDefAt(1)),
+        ]),
+        _ => InstructionConstraints(anyCpuRegister, [
+          anyCpuRegister,
+          anyRegisterOrImmediate(instr.inputDefAt(1)),
+        ]),
+      };
+
+  @override
+  InstructionConstraints? visitStoreArrayElement(StoreArrayElement instr) =>
+      switch (instr.kind) {
+        .fixedLengthList => InstructionConstraints(
+          null,
+          [anyCpuRegister, anyRegisterOrImmediate(instr.index), anyCpuRegister],
+          const [anyCpuRegister, anyCpuRegister, WriteBarrierStub.slotReg],
+          Safepoint(), // For write barrier.
+        ),
+        .uint8ClampedList || .uint8ClampedListView => InstructionConstraints(
+          null,
+          [anyCpuRegister, anyRegisterOrImmediate(instr.index), anyCpuRegister],
+          const [anyCpuRegister],
+        ),
+        .float32List ||
+        .float32ListView ||
+        .float32ByteData ||
+        .float64List ||
+        .float64ListView ||
+        .float64ByteData ||
+        .float32x4List ||
+        .float32x4ListView ||
+        .float32x4ByteData ||
+        .float64x2List ||
+        .float64x2ListView ||
+        .float64x2ByteData ||
+        .int32x4List ||
+        .int32x4ListView ||
+        .int32x4ByteData => InstructionConstraints(null, [
+          anyCpuRegister,
+          anyRegisterOrImmediate(instr.index),
+          anyFpuRegister,
+        ]),
+        _ => InstructionConstraints(null, [
+          anyCpuRegister,
+          anyRegisterOrImmediate(instr.index),
+          anyCpuRegister,
+        ]),
+      };
+
+  @override
+  InstructionConstraints? visitLoadExternalArrayElement(
+    LoadExternalArrayElement instr,
+  ) => const InstructionConstraints(anyCpuRegister, [
+    anyCpuRegister,
+    anyCpuRegister,
+  ]);
+
+  @override
+  InstructionConstraints? visitCopyArrayElements(CopyArrayElements instr) {
+    final inputs = allocatableRegisters.take(instr.inputCount).toList();
+    return InstructionConstraints(
+      null,
+      inputs,
+      // TODO: save registers on slow path
+      allRegistersExcept(null, inputs),
+      Safepoint(),
+    );
+  }
+
+  @override
+  InstructionConstraints? visitThrow(Throw instr) {
+    final inputs = allocatableRegisters.take(instr.inputCount).toList();
+    return InstructionConstraints(
+      null,
+      inputs,
+      allRegistersExcept(null, inputs),
+      Safepoint(),
+    );
+  }
+
+  @override
+  InstructionConstraints? visitNullCheck(NullCheck instr) =>
+      InstructionConstraints(anyCpuRegister, [anyCpuRegister], [], Safepoint());
+
+  @override
+  InstructionConstraints? visitIndexCheck(IndexCheck instr) =>
+      InstructionConstraints(
+        anyCpuRegister,
+        [anyCpuRegister, anyCpuRegister],
+        [],
+        Safepoint(),
+      );
+
+  @override
+  InstructionConstraints? visitSubtypeCheck(SubtypeCheck instr) {
+    final inputs = allocatableRegisters.take(instr.inputCount).toList();
+
+    return InstructionConstraints(
+      null,
+      inputs,
+      allRegistersExcept(null, inputs),
+      Safepoint(),
+    );
+  }
+
+  @override
+  InstructionConstraints? visitTypeCast(TypeCast instr) {
+    final callsTypeTestingStub =
+        instr.isChecked &&
+        switch (instr.testedType) {
+          ObjectType() ||
+          NullType() ||
+          IntType() ||
+          DoubleType() ||
+          BoolType() ||
+          StringType() => false,
+          _ => true,
+        };
+    if (callsTypeTestingStub) {
+      final inputs = [
+        TypeTestingStub.instanceReg,
+        if (instr.inputCount > 1) ...const [
+          TypeTestingStub.instantiatorTypeArgumentsReg,
+          TypeTestingStub.functionTypeArgumentsReg,
+        ],
+      ];
+      return InstructionConstraints(
+        TypeTestingStub.instanceReg,
+        inputs,
+        // Type testing stub can call runtime without preserving registers.
+        // TODO: save registers on slow path
+        allRegistersExcept(TypeTestingStub.instanceReg, inputs),
+        Safepoint(),
+      );
+    }
+    return InstructionConstraints(
+      anyCpuRegister,
+      [
+        anyCpuRegister,
+        if (instr.inputCount > 1) ...[
+          anyRegisterOrImmediate(instr.inputDefAt(1)),
+          anyRegisterOrImmediate(instr.inputDefAt(2)),
+        ],
+      ],
+      const [],
+      Safepoint(),
+    );
+  }
+
+  @override
+  InstructionConstraints? visitTypeTest(TypeTest instr) {
+    final callsSubtypeTestCacheStub = switch (instr.testedType) {
+      ObjectType() ||
+      NullType() ||
+      IntType() ||
+      DoubleType() ||
+      BoolType() ||
+      StringType() => false,
+      _ => true,
+    };
+    if (callsSubtypeTestCacheStub) {
+      final inputs = [
+        SubtypeTestCacheStub.instanceReg,
+        if (instr.inputCount > 1) ...const [
+          SubtypeTestCacheStub.instantiatorTypeArgumentsReg,
+          SubtypeTestCacheStub.functionTypeArgumentsReg,
+        ],
+      ];
+      return InstructionConstraints(
+        SubtypeTestCacheStub.subtypeTestCacheResultReg,
+        inputs,
+        // TODO: save registers on slow path
+        allRegistersExcept(
+          SubtypeTestCacheStub.subtypeTestCacheResultReg,
+          inputs,
+        ),
+        Safepoint(),
+      );
+    }
+    return InstructionConstraints(anyCpuRegister, [
+      anyCpuRegister,
+      if (instr.inputCount > 1) ...[
+        anyRegisterOrImmediate(instr.inputDefAt(1)),
+        anyRegisterOrImmediate(instr.inputDefAt(2)),
+      ],
+    ]);
+  }
+
+  @override
+  InstructionConstraints? visitTypeArguments(TypeArguments instr) {
+    final inputs = const [
+      InstantiateTypeArgumentsStub.instantiatorTypeArgumentsReg,
+      InstantiateTypeArgumentsStub.functionTypeArgumentsReg,
+    ];
+    return InstructionConstraints(
+      InstantiateTypeArgumentsStub.resultTypeArgumentsReg,
+      inputs,
+      // TODO: save registers on slow ptah
+      allRegistersExcept(
+        InstantiateTypeArgumentsStub.resultTypeArgumentsReg,
+        inputs,
+      ),
+      Safepoint(),
+    );
+  }
+
+  @override
+  InstructionConstraints? visitTypeLiteral(TypeLiteral instr) {
+    final type = instr.uninstantiatedType;
+    final callsRuntime =
+        type is! ast.TypeParameterType || type.nullability == .nullable;
+    if (callsRuntime) {
+      final inputs = const [R1, R2];
+      return InstructionConstraints(
+        R0,
+        inputs,
+        allRegistersExcept(R0, inputs),
+        Safepoint(),
+      );
+    }
+    return const InstructionConstraints(anyCpuRegister, [
+      anyCpuRegister,
+      anyCpuRegister,
+    ]);
+  }
+
+  @override
+  InstructionConstraints? visitAllocateObject(AllocateObject instr) {
+    final inputs = [
+      if (instr.hasTypeArguments) AllocationStub.typeArgumentsReg,
+    ];
+    return InstructionConstraints(
+      AllocationStub.resultReg,
+      inputs,
+      // TODO: save registers on slow path
+      allRegistersExcept(AllocationStub.resultReg, inputs),
+      Safepoint(),
+    );
+  }
+
+  @override
+  InstructionConstraints? visitAllocateClosure(AllocateClosure instr) =>
+      InstructionConstraints(
+        AllocationStub.resultReg,
+        [],
+        // TODO: save registers on slow path
+        allRegistersExcept(AllocationStub.resultReg, []),
+        Safepoint(),
+      );
+
+  @override
+  InstructionConstraints? visitAllocateContext(AllocateContext instr) =>
+      InstructionConstraints(
+        AllocationStub.resultReg,
+        [],
+        // TODO: save registers on slow path
+        allRegistersExcept(AllocationStub.resultReg, []),
+        Safepoint(),
+      );
+
+  @override
+  InstructionConstraints? visitAllocateArray(AllocateArray instr) {
+    final inputs = [
+      if (instr.hasTypeArguments) AllocationStub.typeArgumentsReg,
+      registerOrImmediate(AllocationStub.lengthReg, instr.length),
+    ];
+    return InstructionConstraints(
+      AllocationStub.resultReg,
+      inputs,
+      // TODO: save registers on slow path
+      allRegistersExcept(AllocationStub.resultReg, inputs),
+      Safepoint(),
+    );
+  }
+
+  @override
+  InstructionConstraints? visitAllocateRecord(AllocateRecord instr) =>
+      InstructionConstraints(
+        AllocationStub.resultReg,
+        [],
+        // TODO: save registers on slow path
+        allRegistersExcept(AllocationStub.resultReg, []),
+        Safepoint(),
+      );
+
+  @override
+  InstructionConstraints? visitBoxInt(BoxInt instr) {
+    final inputs = [allocatableRegisters.where((r) => r != returnReg).first];
+    return InstructionConstraints(
+      returnReg,
+      inputs,
+      // TODO: save registers on slow path
+      allRegistersExcept(returnReg, inputs),
+      Safepoint(),
+    );
+  }
+
+  @override
+  InstructionConstraints? visitBoxDouble(BoxDouble instr) {
+    final inputs = [allocatableFPRegisters.first];
+    return InstructionConstraints(
+      returnReg,
+      inputs,
+      // TODO: save registers on slow path
+      allRegistersExcept(returnReg, inputs),
+      Safepoint(),
+    );
+  }
+
+  @override
+  InstructionConstraints? visitBoxSimd(BoxSimd instr) {
+    final inputs = [allocatableFPRegisters.first];
+    return InstructionConstraints(
+      returnReg,
+      inputs,
+      // TODO: save registers on slow path
+      allRegistersExcept(returnReg, inputs),
+      Safepoint(),
+    );
+  }
+
+  @override
+  InstructionConstraints? visitUnboxInt(UnboxInt instr) =>
+      const InstructionConstraints(anyCpuRegister, [anyCpuRegister]);
+
+  @override
+  InstructionConstraints? visitUnboxDouble(UnboxDouble instr) =>
+      const InstructionConstraints(anyFpuRegister, [anyCpuRegister]);
+
+  @override
+  InstructionConstraints? visitUnboxSimd(UnboxSimd instr) =>
+      const InstructionConstraints(anyFpuRegister, [anyCpuRegister]);
+
+  @override
+  InstructionConstraints? visitSimdOp(SimdOp instr) => switch (instr.op) {
+    .float32x4Factory => const InstructionConstraints(anyFpuRegister, [
+      anyFpuRegister,
+      anyFpuRegister,
+      anyFpuRegister,
+      anyFpuRegister,
+    ]),
+    .float64x2Factory => const InstructionConstraints(anyFpuRegister, [
+      anyFpuRegister,
+      anyFpuRegister,
+    ]),
+    .int32x4Factory => const InstructionConstraints(anyFpuRegister, [
+      anyCpuRegister,
+      anyCpuRegister,
+      anyCpuRegister,
+      anyCpuRegister,
+    ]),
+    .float32x4GetX ||
+    .float32x4GetY ||
+    .float32x4GetZ ||
+    .float32x4GetW ||
+    .float64x2GetX ||
+    .float64x2GetY => const InstructionConstraints(anyFpuRegister, [
+      anyFpuRegister,
+    ]),
+    .int32x4GetX || .int32x4GetY || .int32x4GetZ || .int32x4GetW =>
+      const InstructionConstraints(anyCpuRegister, [anyFpuRegister]),
+  };
+
+  @override
+  InstructionConstraints? visitBinaryIntOp(BinaryIntOp instr) =>
+      switch (instr.op) {
+        .truncatingDiv || .rem => InstructionConstraints(
+          anyCpuRegister,
+          const [anyCpuRegister, anyCpuRegister],
+          const [],
+          instr.right.canBeZero ? Safepoint() : null,
+        ),
+        .mod => InstructionConstraints(
+          anyCpuRegister,
+          const [anyCpuRegister, anyCpuRegister],
+          const [anyCpuRegister],
+          instr.right.canBeZero ? Safepoint() : null,
+        ),
+        _ => InstructionConstraints(anyCpuRegister, [
+          anyCpuRegister,
+          anyRegisterOrImmediate(instr.right),
+        ]),
+      };
+
+  @override
+  InstructionConstraints? visitUnaryIntOp(UnaryIntOp instr) =>
+      switch (instr.op) {
+        .toDouble => const InstructionConstraints(anyFpuRegister, [
+          anyCpuRegister,
+        ]),
+        .hash => const InstructionConstraints(
+          anyCpuRegister,
+          [anyCpuRegister],
+          [anyCpuRegister],
+        ),
+        _ => const InstructionConstraints(anyCpuRegister, [anyCpuRegister]),
+      };
+
+  @override
+  InstructionConstraints? visitBinaryDoubleOp(BinaryDoubleOp instr) =>
+      switch (instr.op) {
+        .mod || .rem || .pow || .atan2 => InstructionConstraints(
+          returnFPReg,
+          const [V0, V1],
+          allRegistersExcept(returnFPReg, const [V0, V1]),
+          Safepoint(),
+        ),
+        _ => const InstructionConstraints(anyFpuRegister, [
+          anyFpuRegister,
+          anyFpuRegister,
+        ]),
+      };
+
+  @override
+  InstructionConstraints? visitUnaryDoubleOp(UnaryDoubleOp instr) =>
+      switch (instr.op) {
+        .isNegative || .isInfinite => const InstructionConstraints(
+          anyCpuRegister,
+          [anyFpuRegister],
+        ),
+        .round || .floor || .ceil || .truncate => InstructionConstraints(
+          anyCpuRegister,
+          const [anyFpuRegister],
+          const [],
+          Safepoint(),
+        ),
+        .neg ||
+        .abs ||
+        .square ||
+        .sqrt ||
+        .roundToDouble ||
+        .floorToDouble ||
+        .ceilToDouble ||
+        .truncateToDouble => const InstructionConstraints(anyFpuRegister, [
+          anyFpuRegister,
+        ]),
+        .hash => const InstructionConstraints(
+          anyCpuRegister,
+          [anyFpuRegister],
+          [anyCpuRegister, anyCpuRegister],
+        ),
+        .sin ||
+        .cos ||
+        .tan ||
+        .asin ||
+        .acos ||
+        .atan ||
+        .exp ||
+        .log => InstructionConstraints(
+          returnFPReg,
+          const [V0],
+          allRegistersExcept(returnFPReg, const [V0]),
+          Safepoint(),
+        ),
+      };
+
+  @override
+  InstructionConstraints? visitUnaryBoolOp(UnaryBoolOp instr) =>
+      const InstructionConstraints(anyCpuRegister, [anyCpuRegister]);
+
+  @override
+  InstructionConstraints? visitEnterSuspendableFunction(
+    EnterSuspendableFunction instr,
+  ) {
+    final inputs = [InitSuspendableFunctionStub.typeArgsReg];
+    return InstructionConstraints(
+      null,
+      inputs,
+      allRegistersExcept(null, inputs),
+      Safepoint(),
+    );
+  }
+
+  @override
+  InstructionConstraints? visitSuspend(Suspend instr) {
+    final inputs = [
+      SuspendStub.argumentReg,
+      if (instr.op == .awaitWithTypeCheck) SuspendStub.typeArgsReg,
+    ];
+    return InstructionConstraints(
+      returnReg,
+      inputs,
+      allRegistersExcept(returnReg, inputs),
+      Safepoint(),
+    );
+  }
+}

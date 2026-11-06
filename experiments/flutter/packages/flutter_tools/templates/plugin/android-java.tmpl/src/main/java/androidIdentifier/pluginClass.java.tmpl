@@ -1,0 +1,24 @@
+package {{androidIdentifier}};
+
+import androidx.annotation.NonNull;
+
+import io.flutter.embedding.engine.plugins.FlutterPlugin;
+import {{androidIdentifier}}.Messages.{{pluginClass}}Api;
+
+/** {{pluginClass}} */
+public class {{pluginClass}} implements FlutterPlugin, {{pluginClass}}Api {
+  @Override
+  public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
+    {{pluginClass}}Api.setUp(flutterPluginBinding.getBinaryMessenger(), this);
+  }
+
+  @Override
+  public @NonNull String getPlatformVersion() {
+    return "Android " + android.os.Build.VERSION.RELEASE;
+  }
+
+  @Override
+  public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
+    {{pluginClass}}Api.setUp(binding.getBinaryMessenger(), null);
+  }
+}

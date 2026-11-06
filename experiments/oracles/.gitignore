@@ -1,0 +1,3 @@
+.dart_tool/
+# A local pin to upstream sources; see pubspec_overrides.pinned.yaml.
+pubspec_overrides.yaml

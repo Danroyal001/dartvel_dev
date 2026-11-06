@@ -1,0 +1,207 @@
+library;
+//
+// Problems in library:
+//
+// pkg/front_end/testcases/general/patch_extends_implements/main.dart:8:7: Error: The class 'Class1a' is abstract and can't be instantiated.
+//   new Class1a();
+//       ^^^^^^^
+//
+import self as self;
+import "dart:test" as test;
+
+import "dart:test";
+
+static method test() → dynamic {
+  invalid-expression "The class 'Class1a' is abstract and can't be instantiated.";
+  new test::Class1b::•();
+  test::SuperClass c2a = new test::Class2a::•();
+  test::SuperClass c2b = new test::Class2b::•();
+  test::Interface c3a = new test::Class3a::•();
+  test::Interface c3b = new test::Class3b::•();
+  test::Mixin c4a = new test::Class4a::•();
+  test::Mixin c4b = new test::Class4b::•();
+}
+
+library;
+//
+// Problems in library:
+//
+// pkg/front_end/testcases/general/patch_extends_implements/patch_lib.dart:53:23: Error: The constructor function type 'Class5cImpl Function()' isn't a subtype of 'Class5c Function()'.
+//  - 'Class5cImpl' is from 'dart:test'.
+//  - 'Class5c' is from 'dart:test'.
+//   factory Class5c() = Class5cImpl;
+//                       ^
+//
+// pkg/front_end/testcases/general/patch_extends_implements/patch_lib.dart:62:41: Error: The constructor function type '_Class6aImpl<T> Function(void Function(T))' isn't a subtype of 'Class6a<T> Function(void Function(T))'.
+//  - '_Class6aImpl' is from 'dart:test'.
+//  - 'Class6a' is from 'dart:test'.
+//   factory Class6a(void Function(T) f) = _Class6aImpl<T>;
+//                                         ^
+//
+// pkg/front_end/testcases/general/patch_extends_implements/patch_lib.dart:82:41: Error: The constructor function type '_Class6cImpl<T> Function(void Function(T))' isn't a subtype of 'Class6c<T> Function(void Function(T))'.
+//  - '_Class6cImpl' is from 'dart:test'.
+//  - 'Class6c' is from 'dart:test'.
+//   factory Class6c(void Function(T) f) = _Class6cImpl<T>;
+//                                         ^
+//
+import self as test;
+import "dart:core" as core;
+import "dart:_internal" as _in;
+
+import "dart:_internal";
+
+abstract class Interface extends core::Object {
+  synthetic constructor •() → test::Interface
+    : super core::Object::•()
+    ;
+}
+abstract class Mixin extends core::Object /*isMixinDeclaration*/  {
+}
+class SuperClass extends core::Object {
+  synthetic constructor •() → test::SuperClass
+    : super core::Object::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+abstract class Class1a extends core::Object {
+  synthetic constructor •() → test::Class1a
+    : super core::Object::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class1b extends core::Object {
+  synthetic constructor •() → test::Class1b
+    : super core::Object::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class2a extends test::SuperClass {
+  synthetic constructor •() → test::Class2a
+    : super test::SuperClass::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class2b extends test::SuperClass {
+  synthetic constructor •() → test::Class2b
+    : super test::SuperClass::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class3a extends core::Object implements test::Interface {
+  synthetic constructor •() → test::Class3a
+    : super core::Object::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class3b extends core::Object implements test::Interface {
+  synthetic constructor •() → test::Class3b
+    : super core::Object::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class4a extends test::_Class4a&Object&Mixin {
+  synthetic constructor •() → test::Class4a
+    : super test::_Class4a&Object&Mixin::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class4b extends test::_Class4b&Object&Mixin {
+  synthetic constructor •() → test::Class4b
+    : super test::_Class4b&Object&Mixin::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class5a extends core::Object {
+  @#C1
+  static factory /* from org-dartlang-testcase:///patch_lib.dart */ •() → test::Class5a /* redirection-target: test::Class5aImpl::• */
+    return new test::Class5aImpl::•();
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class5aImpl extends core::Object implements test::Class5a {
+  synthetic constructor •() → test::Class5aImpl
+    : super core::Object::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class5b extends core::Object {
+  @#C1
+  static factory /* from org-dartlang-testcase:///patch_lib.dart */ •() → test::Class5b /* redirection-target: test::Class5bImpl::• */
+    return new test::Class5bImpl::•();
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class5bImpl extends core::Object implements test::Class5b {
+  synthetic constructor •() → test::Class5bImpl
+    : super core::Object::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class5c extends core::Object {
+  @#C1
+  static factory /* from org-dartlang-testcase:///patch_lib.dart */ •() → test::Class5c
+    return invalid-expression "pkg/front_end/testcases/general/patch_extends_implements/patch_lib.dart:53:23: Error: The constructor function type 'Class5cImpl Function()' isn't a subtype of 'Class5c Function()'.
+ - 'Class5cImpl' is from 'dart:test'.
+ - 'Class5c' is from 'dart:test'.
+  factory Class5c() = Class5cImpl;
+                      ^";
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class5cImpl extends core::Object {
+  synthetic constructor •() → test::Class5cImpl
+    : super core::Object::•()
+    ;
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class6a<T extends core::Object? = dynamic> extends core::Object {
+  @#C1
+  static factory /* from org-dartlang-testcase:///patch_lib.dart */ •<T extends core::Object? = dynamic>((test::Class6a::•::T%) → void f) → test::Class6a<test::Class6a::•::T%>
+    return invalid-expression "pkg/front_end/testcases/general/patch_extends_implements/patch_lib.dart:62:41: Error: The constructor function type '_Class6aImpl<T> Function(void Function(T))' isn't a subtype of 'Class6a<T> Function(void Function(T))'.
+ - '_Class6aImpl' is from 'dart:test'.
+ - 'Class6a' is from 'dart:test'.
+  factory Class6a(void Function(T) f) = _Class6aImpl<T>;
+                                        ^";
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class6b<T extends core::Object? = dynamic> extends core::Object {
+  @#C1
+  static factory /* from org-dartlang-testcase:///patch_lib.dart */ •<T extends core::Object? = dynamic>((test::Class6b::•::T%) → void f) → test::Class6b<test::Class6b::•::T%> /* redirection-target: test::_Class6bImpl::•<test::Class6b::•::T%>*/
+    return new test::_Class6bImpl::•<test::Class6b::•::T%>(f);
+}
+@/* from org-dartlang-testcase:///patch_lib.dart */ #C1
+class Class6c<T extends core::Object? = dynamic> extends core::Object {
+  @#C1
+  static factory /* from org-dartlang-testcase:///patch_lib.dart */ •<T extends core::Object? = dynamic>((test::Class6c::•::T%) → void f) → test::Class6c<test::Class6c::•::T%>
+    return invalid-expression "pkg/front_end/testcases/general/patch_extends_implements/patch_lib.dart:82:41: Error: The constructor function type '_Class6cImpl<T> Function(void Function(T))' isn't a subtype of 'Class6c<T> Function(void Function(T))'.
+ - '_Class6cImpl' is from 'dart:test'.
+ - 'Class6c' is from 'dart:test'.
+  factory Class6c(void Function(T) f) = _Class6cImpl<T>;
+                                        ^";
+}
+class _Class6aImpl<T extends core::Object? = dynamic> extends core::Object { // from org-dartlang-testcase:///patch_lib.dart
+  constructor •((test::_Class6aImpl::T%) → void f) → test::_Class6aImpl<test::_Class6aImpl::T%>
+    : super core::Object::•()
+    ;
+}
+class _Class6bImpl<T extends core::Object? = dynamic> extends core::Object implements test::Class6b<test::_Class6bImpl::T%> { // from org-dartlang-testcase:///patch_lib.dart
+  constructor •((test::_Class6bImpl::T%) → void f) → test::_Class6bImpl<test::_Class6bImpl::T%>
+    : super core::Object::•()
+    ;
+}
+class _Class6cImpl<T extends core::Object? = dynamic> extends core::Object { // from org-dartlang-testcase:///patch_lib.dart
+  constructor •((test::_Class6cImpl::T%) → void f) → test::_Class6cImpl<test::_Class6cImpl::T%>
+    : super core::Object::•()
+    ;
+}
+abstract class _Class4a&Object&Mixin extends core::Object implements test::Mixin /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
+  const synthetic constructor •() → test::_Class4a&Object&Mixin
+    : super core::Object::•()
+    ;
+}
+abstract class _Class4b&Object&Mixin extends core::Object implements test::Mixin /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
+  const synthetic constructor •() → test::_Class4b&Object&Mixin
+    : super core::Object::•()
+    ;
+}
+
+constants  {
+  #C1 = _in::_Patch {}
+}

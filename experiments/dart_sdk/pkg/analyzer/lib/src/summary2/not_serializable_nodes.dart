@@ -1,0 +1,62 @@
+// Copyright (c) 2021, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/ast/token.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/ast/token.dart';
+
+const _notSerializableName = '_notSerializableExpression';
+
+bool isNotSerializableMarker(UnqualifiedNameExpression node) {
+  return node.name.lexeme == _notSerializableName;
+}
+
+/// Whether [node] can be serialized, so that
+/// [replaceNotSerializableExpression] keeps it.
+bool isSerializable(AstNode node) {
+  var visitor = _IsSerializableNodeVisitor();
+  node.accept2(visitor);
+  return visitor.result;
+}
+
+/// If [node] is fully serializable, returns it.
+/// Otherwise returns a marker node.
+ExpressionImpl replaceNotSerializableExpression(ExpressionImpl node) {
+  if (isSerializable(node)) {
+    return node;
+  }
+  return UnqualifiedNameExpressionImpl(
+    name: StringToken(TokenType.IDENTIFIER, _notSerializableName, -1),
+  );
+}
+
+class _IsSerializableNodeVisitor extends RecursiveAstVisitor2<void> {
+  bool result = true;
+
+  @override
+  void visitAnonymousMethodInvocation(AnonymousMethodInvocation node) {
+    result = false;
+  }
+
+  @override
+  void visitForElement(ForElement node) {
+    result = false;
+  }
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    result = false;
+  }
+
+  @override
+  void visitPatternAssignment(PatternAssignment node) {
+    result = false;
+  }
+
+  @override
+  void visitSwitchExpression(SwitchExpression node) {
+    result = false;
+  }
+}

@@ -1,0 +1,624 @@
+// Copyright (c) 2022, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
+import 'package:analyzer_testing/package_config_file_builder.dart';
+import 'package:analyzer_testing/utilities/utilities.dart';
+import 'package:test_reflective_loader/test_reflective_loader.dart';
+
+import '../rule_test_support.dart';
+
+void main() {
+  defineReflectiveSuite(() {
+    defineReflectiveTests(PublicMemberApiDocsExtensionTypesTest);
+    defineReflectiveTests(PublicMemberApiDocsTest);
+    defineReflectiveTests(PublicMemberApiDocsTestDirTest);
+    defineReflectiveTests(PublicMemberApiDocsTestPackageTest);
+  });
+}
+
+@reflectiveTest
+class PublicMemberApiDocsExtensionTypesTest extends LintRuleTest {
+  @override
+  bool get addMetaPackageDep => true;
+
+  @override
+  String get lintRule => LintNames.public_member_api_docs;
+
+  test_extensionTypeDeclaration() async {
+    await assertDiagnosticsFromMarkup(r'''
+extension type [!E!](int i) { }
+''');
+  }
+
+  test_field_instance() async {
+    await assertDiagnostics(
+      r'''
+/// Doc.
+extension type E(int i) {
+  int? f;
+}
+''',
+      [error(diag.extensionTypeDeclaresInstanceField, 42, 1)],
+    );
+  }
+
+  test_field_static() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+extension type E(int i) {
+  static int? [!f!];
+}
+''');
+  }
+
+  test_method() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+extension type E(int i) {
+  void [!m!]() { }
+}
+''');
+  }
+
+  test_method_private() async {
+    await assertNoDiagnostics(r'''
+/// Doc.
+extension type E(int i) {
+  void _m() { }
+}
+''');
+  }
+}
+
+@reflectiveTest
+class PublicMemberApiDocsTest extends LintRuleTest {
+  @override
+  bool get addMetaPackageDep => true;
+
+  @override
+  String get lintRule => LintNames.public_member_api_docs;
+
+  /// https://github.com/dart-lang/linter/issues/4526
+  test_abstractFinalConstructor() async {
+    await assertDiagnosticsFromMarkup(r'''
+abstract final class /*[0*/S/*0]*/ {
+  S();
+}
+
+final class /*[1*/A/*1]*/ extends S {}
+''');
+  }
+
+  /// https://github.com/dart-lang/linter/issues/4526
+  test_abstractInterfaceConstructor() async {
+    await assertDiagnosticsFromMarkup(r'''
+abstract interface class /*[0*/S/*0]*/ {
+  S();
+}
+
+final class /*[1*/A/*1]*/ extends S {}
+''');
+  }
+
+  test_annotatedEnumValue() async {
+    await assertNoDiagnostics(r'''
+/// Documented.
+enum A {
+  /// This represents 'a'.
+  @Deprecated("Use 'b'")
+  a,
+
+  /// This represents 'b'.
+  b;
+}
+''');
+  }
+
+  test_constructor_namedGenerative() async {
+    await assertDiagnosticsFromMarkup(r'''
+class /*[0*/C/*0]*/ {
+  C./*[1*/c/*1]*/();
+}
+''');
+  }
+
+  test_constructor_newSyntax() async {
+    await assertDiagnosticsFromMarkup(r'''
+class /*[0*/C/*0]*/ {
+  /*[1*/new/*1]*/();
+}
+''');
+  }
+
+  test_constructor_unnamedFactory() async {
+    await assertDiagnosticsFromMarkup(r'''
+class /*[0*/C/*0]*/ {
+  C._();
+
+  factory /*[1*/C/*1]*/() => C._();
+}
+''');
+  }
+
+  test_constructor_unnamedGenerative() async {
+    await assertDiagnosticsFromMarkup(r'''
+class /*[0*/C/*0]*/ {
+  /*[1*/C/*1]*/();
+}
+''');
+  }
+
+  test_enum() async {
+    await assertDiagnosticsFromMarkup(r'''
+enum /*[0*/A/*0]*/ {
+  /*[1*/a/*1]*/,/*[2*/b/*2]*/,/*[3*/c/*3]*/;
+  int /*[4*/x/*4]*/() => 0;
+  int get /*[5*/y/*5]*/ => 1;
+}
+''');
+  }
+
+  test_enum_privateConstant() async {
+    await assertNoDiagnostics(r'''
+/// Documented.
+enum A {
+  _a;
+}
+''');
+  }
+
+  test_enumConstructor() async {
+    await assertNoDiagnostics(r'''
+/// Documented.
+enum A {
+  /// This represents 'a'.
+  a(),
+
+  /// This represents 'b'.
+  b();
+
+  const A();
+}
+''');
+  }
+
+  /// https://github.com/dart-lang/linter/issues/3525
+  test_extension() async {
+    await assertDiagnosticsFromMarkup(r'''
+extension /*[0*/E/*0]*/ on Object {
+  void /*[1*/f/*1]*/() { }
+}
+''');
+  }
+
+  /// https://github.com/dart-lang/linter/issues/4521
+  test_internalClass() async {
+    await assertDiagnostics(
+      r'''
+import 'package:meta/meta.dart';
+
+@internal
+class C {
+  int? f;
+  int get i => 0;
+  C();
+  void m() {}
+}
+''',
+      [
+        // Technically not in the private API but we can ignore that for testing.
+        error(diag.invalidInternalAnnotation, 35, 8),
+      ],
+    );
+  }
+
+  /// https://github.com/dart-lang/linter/issues/4521
+  test_internalEnum() async {
+    await assertDiagnostics(
+      r'''
+import 'package:meta/meta.dart';
+
+@internal
+enum E {
+  a, b, c;
+  int get i => 0;
+  void m() {}
+
+  const E();
+}
+''',
+      [
+        // Technically not in the private API but we can ignore that for testing.
+        error(diag.invalidInternalAnnotation, 35, 8),
+      ],
+    );
+  }
+
+  /// https://github.com/dart-lang/linter/issues/4521
+  test_internalExtension() async {
+    await assertDiagnostics(
+      r'''
+import 'package:meta/meta.dart';
+
+@internal
+extension X on Object {
+  static int? f;
+  static int get i => 0;
+  void e() {}
+}
+''',
+      [
+        // Technically not in the private API but we can ignore that for testing.
+        error(diag.invalidInternalAnnotation, 35, 8),
+      ],
+    );
+  }
+
+  /// https://github.com/dart-lang/linter/issues/5030
+  test_internalFunction() async {
+    await assertDiagnostics(
+      r'''
+import 'package:meta/meta.dart';
+
+@internal
+void f() {}
+''',
+      [
+        // Technically not in the private API but we can ignore that for testing.
+        error(diag.invalidInternalAnnotation, 35, 8),
+      ],
+    );
+  }
+
+  /// https://github.com/dart-lang/linter/issues/4521
+  test_internalMixin() async {
+    await assertDiagnostics(
+      r'''
+import 'package:meta/meta.dart';
+
+@internal
+mixin M {
+  int? f;
+  int get i => 0;
+  void m() {}
+}
+''',
+      [
+        // Technically not in the private API but we can ignore that for testing.
+        error(diag.invalidInternalAnnotation, 35, 8),
+      ],
+    );
+  }
+
+  /// https://github.com/dart-lang/linter/issues/5030
+  test_internalTopLevelVariable() async {
+    await assertNoDiagnostics(r'''
+import 'package:meta/meta.dart';
+
+@internal
+var f = 1;
+''');
+  }
+
+  test_mixin_method() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// A mixin M.
+mixin M {
+  String [!m!]() => '';
+}''');
+  }
+
+  test_mixin_overridingMethod_OK() async {
+    await assertNoDiagnostics(r'''
+/// A mixin M.
+mixin M {
+  @override
+  String toString() => '';
+}''');
+  }
+
+  test_partFile() async {
+    newFile('$testPackageRootPath/test/a.dart', r'''
+part 'test.dart';
+''');
+
+    await assertDiagnosticsFromMarkup(r'''
+part of 'a.dart';
+
+class [!A!] { }
+''');
+  }
+
+  test_primaryConstructor_abstractFinalClass() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+abstract final class Primary(final int [!value!]);
+''');
+  }
+
+  test_primaryConstructor_abstractInterfaceClass() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+abstract interface class Primary(final int [!value!]);
+''');
+  }
+
+  test_primaryConstructor_bodyDeclaringParameterNoDoc() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+class C(var int [!x!]) {
+  /// Doc.
+  this;
+}
+''');
+  }
+
+  test_primaryConstructor_bodyInternalClass() async {
+    await assertDiagnostics(
+      r'''
+import 'package:meta/meta.dart';
+
+@internal
+class Primary(final int value) {
+  this : assert(value >= 0);
+}
+''',
+      [
+        // Technically not in the private API but we can ignore that for testing.
+        error(diag.invalidInternalAnnotation, 35, 8),
+      ],
+    );
+  }
+
+  test_primaryConstructor_bodyPartNoDoc() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+class C(int x) {
+  [!this!];
+}
+''');
+  }
+
+  test_primaryConstructor_bodyPartWithDoc() async {
+    await assertNoDiagnostics(r'''
+/// Class doc.
+class C(int x) {
+  /// Constructor doc.
+  this;
+}
+''');
+  }
+
+  test_primaryConstructor_bodySealedClass() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+sealed class Primary(final int [!value!]) {
+  this : assert(value >= 0);
+}
+''');
+  }
+
+  test_primaryConstructor_classNoDoc() async {
+    await assertDiagnosticsFromMarkup(r'''
+class /*[0*/C/*0]*/(var int /*[1*/x/*1]*/);
+''');
+  }
+
+  test_primaryConstructor_declaringParameterInternalClass() async {
+    await assertDiagnostics(
+      r'''
+import 'package:meta/meta.dart';
+
+@internal
+class C(var int x);
+''',
+      [
+        // Technically not in the private API but we can ignore that for testing.
+        error(diag.invalidInternalAnnotation, 35, 8),
+      ],
+    );
+  }
+
+  test_primaryConstructor_declaringParameterNoDoc() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+class /*[0*/C/*0]*/(var int /*[1*/x/*1]*/);
+''');
+  }
+
+  test_primaryConstructor_declaringParameterNoDocSealedAndAbstractFinalClass() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+sealed class A(var int /*[0*/x/*0]*/);
+
+/// Doc.
+abstract final class B(var int /*[1*/y/*1]*/);
+''');
+  }
+
+  test_primaryConstructor_declaringParameterOverride() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+abstract class A {
+  /// Doc.
+  int get x;
+}
+
+/// Doc.
+class [!B!](final int x) implements A;
+''');
+  }
+
+  test_primaryConstructor_declaringParameterPrivate() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+class [!C!](var int _x) {
+  /// Doc.
+  int get x => _x;
+}
+''');
+  }
+
+  test_primaryConstructor_declaringParameterWithDoc() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+class [!C!](
+  /// Doc.
+  var int x,
+);
+''');
+  }
+
+  /// https://github.com/dart-lang/sdk/issues/64043
+  test_primaryConstructor_internalClass() async {
+    await assertDiagnostics(
+      r'''
+import 'package:meta/meta.dart';
+
+@internal
+class Primary(final int value) {
+  int get doubled => value * 2;
+  void method() {}
+}
+''',
+      [
+        // Technically not in the private API but we can ignore that for testing.
+        error(diag.invalidInternalAnnotation, 35, 8),
+      ],
+    );
+  }
+
+  test_primaryConstructor_namedInternalClass() async {
+    await assertDiagnostics(
+      r'''
+import 'package:meta/meta.dart';
+
+@internal
+class Primary.named(final int value);
+''',
+      [
+        // Technically not in the private API but we can ignore that for testing.
+        error(diag.invalidInternalAnnotation, 35, 8),
+      ],
+    );
+  }
+
+  test_primaryConstructor_namedSealedClass() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+sealed class Primary.named(final int [!value!]);
+''');
+  }
+
+  test_primaryConstructor_nonDeclaringParameter() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+class [!C!](int x);
+''');
+  }
+
+  test_primaryConstructor_notEffectivelyPrivateClass() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+class /*[0*/Primary/*0]*/(final int /*[1*/value/*1]*/);
+''');
+  }
+
+  test_primaryConstructor_sealedClass() async {
+    await assertDiagnosticsFromMarkup(r'''
+/// Doc.
+sealed class Primary(final int [!value!]);
+''');
+  }
+
+  /// https://github.com/dart-lang/linter/issues/4526
+  test_sealedConstructor() async {
+    await assertDiagnosticsFromMarkup(r'''
+sealed class /*[0*/S/*0]*/ {
+  S();
+}
+
+final class /*[1*/A/*1]*/ extends S {}
+''');
+  }
+
+  test_topLevelMembers() async {
+    await assertDiagnosticsFromMarkup(r'''
+int /*[0*/g/*0]*/ = 1;
+typedef /*[1*/T/*1]*/ = void Function();
+int get /*[2*/z/*2]*/ => 0;
+''');
+  }
+
+  test_topLevelMembers_private() async {
+    await assertNoDiagnostics(r'''
+int _h = 1;
+typedef _T = void Function();
+int get _z => 0;
+''');
+  }
+}
+
+@reflectiveTest
+class PublicMemberApiDocsTestDirTest extends LintRuleTest {
+  @override
+  String get lintRule => LintNames.public_member_api_docs;
+
+  @override
+  String get testPackageLibPath => '$testPackageRootPath/test';
+
+  test_inTestDir() async {
+    await assertNoDiagnostics(r'''
+String? b;
+typedef T = void Function();
+''');
+  }
+}
+
+@reflectiveTest
+class PublicMemberApiDocsTestPackageTest extends LintRuleTest {
+  String get filePath => '$fixturePackageLibPath/a.dart';
+
+  String get fixturePackageLibPath => '$myPackageRootPath/test/fixture/lib';
+
+  @override
+  String get lintRule => LintNames.public_member_api_docs;
+
+  String get myPackageRootPath => '$workspaceRootPath/myPackage';
+
+  @override
+  void setUp() {
+    super.setUp();
+    writePackageConfig2(
+      '$myPackageRootPath/.dart_tool/package_config.json',
+      config: PackageConfigFileBuilder(),
+    );
+    newPubspecYamlFile(
+      myPackageRootPath,
+      pubspecYamlContent(name: 'myPackage'),
+    );
+    newAnalysisOptionsYamlFile(
+      myPackageRootPath,
+      analysisOptionsContent(
+        experimentalFeatures: experimentalFeatures,
+        rules: [lintRule],
+      ),
+    );
+    newFolder(fixturePackageLibPath);
+    writePackageConfig2(
+      '$myPackageRootPath/test/fixture/.dart_tool/package_config.json',
+      config: PackageConfigFileBuilder()
+        ..add(name: 'fixture', rootFolder: getFolder(fixturePackageLibPath)),
+    );
+  }
+
+  test_inTestLibDir() async {
+    newFile(filePath, '''
+String? b;
+typedef T = void Function();
+''');
+    await assertNoDiagnosticsInFile(filePath);
+  }
+}

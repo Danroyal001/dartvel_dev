@@ -1,0 +1,250 @@
+40 columns                              |
+>>> indented line comment (dartbug.com/16383)
+main() {
+  // comment
+}
+<<< 3.6
+main() {
+  // comment
+}
+>>> line comment on opening line
+main() { // comment
+}
+<<< 3.6
+main() {
+  // comment
+}
+>>> indented block comment
+main() {
+  /* comment */
+}
+<<< 3.6
+main() {
+  /* comment */
+}
+>>> block comment with trailing newline
+main() {/* comment */
+}
+<<< 3.6
+main() {
+  /* comment */
+}
+>>> block comment with leading newline
+main() {
+  /* comment */}
+<<< 3.6
+main() {
+  /* comment */
+}
+>>> inline block comment
+main() {  /* comment */  }
+<<< 3.6
+main() {/* comment */}
+>>> multiple comments on opening line
+main() { /* first */ // second
+}
+<<< 3.6
+main() {
+  /* first */ // second
+}
+>>> multiple inline block comments
+main() {  /* 1 */   /* 2 */   /* 3 */  }
+<<< 3.6
+main() {/* 1 */ /* 2 */ /* 3 */}
+>>> multiline trailing block comment
+main() {  /* comment
+*/  }
+<<< 3.6
+main() {
+  /* comment
+*/
+}
+>>> line comments at the start of the line in a function
+main() {
+//  print(1);
+//  print(2);
+  print(3);
+}
+<<< 3.6
+main() {
+//  print(1);
+//  print(2);
+  print(3);
+}
+>>> before "," in param list
+main(a/* c */,b) {}
+<<< 3.6
+main(a /* c */, b) {}
+>>> after "," in param list
+main(a,/* c */b) {}
+<<< 3.6
+main(a, /* c */ b) {}
+>>> before "[" in param list
+main(/* c */[arg]) {}
+<<< 3.6
+main(/* c */ [arg]) {}
+>>> after "[" in param list
+main([/* c */arg]) {}
+<<< 3.6
+main([/* c */ arg]) {}
+>>> before "]" in param list
+main([arg/* c */]) {}
+<<< 3.6
+main([arg /* c */]) {}
+>>> after "]" in param list
+main([arg]/* c */) {}
+<<< 3.6
+main([arg] /* c */) {}
+>>> before "{" in param list
+main(/* c */{arg}) {}
+<<< 3.6
+main(/* c */ {arg}) {}
+>>> after "{" in param list
+main({/* c */arg}) {}
+<<< 3.6
+main({/* c */ arg}) {}
+>>> before "}" in param list
+main({arg/* c */}) {}
+<<< 3.6
+main({arg /* c */}) {}
+>>> after "{" in param list
+main({arg}/* c */) {}
+<<< 3.6
+main({arg} /* c */) {}
+>>>
+longFunction(/* a very long block comment */) {}
+<<< 3.6
+longFunction(
+    /* a very long block comment */) {}
+>>> remove blank lines before beginning of body
+main() {
+
+
+
+  // comment
+}
+<<< 3.6
+main() {
+  // comment
+}
+>>> remove blank lines after end of body
+main() {
+  // comment
+
+
+
+}
+<<< 3.6
+main() {
+  // comment
+}
+>>> comment before "]" with trailing comma
+function([parameter,/* c */]) {;}
+<<< 3.6
+function([
+  parameter,
+  /* c */
+]) {
+  ;
+}
+>>> comment before ")" with trailing comma
+function([parameter,]/* c */) {;}
+<<< 3.6
+function([
+  parameter,
+] /* c */) {
+  ;
+}
+>>>
+function(
+    /* comment */ int a, int b, int c,
+    [direction]) {
+  ;
+}
+<<< 3.6
+function(
+    /* comment */ int a, int b, int c,
+    [direction]) {
+  ;
+}
+>>>
+function(
+    /* comment */ int a, int b, int c) {
+  ;
+}
+<<< 3.6
+function(
+    /* comment */ int a, int b, int c) {
+  ;
+}
+>>>
+function(
+    /* comment */ int a, int b, int c, int d) {
+  ;
+}
+<<< 3.6
+function(/* comment */ int a, int b,
+    int c, int d) {
+  ;
+}
+>>> blank line before comment at beginning of optional parameters
+function([
+
+  // comment
+  a]) {;}
+<<< 3.6
+function(
+    [
+    // comment
+    a]) {
+  ;
+}
+>>> blank line before comment at beginning of named parameters
+function({
+
+  // comment
+  a}) {;}
+<<< 3.6
+function(
+    {
+    // comment
+    a}) {
+  ;
+}
+>>> blank line before comment at beginning of trailing comma optional parameters
+function([
+
+  // comment
+  a,]) {;}
+<<< 3.6
+function([
+  // comment
+  a,
+]) {
+  ;
+}
+>>> blank line before comment at beginning of trailing comma named parameters
+function({
+
+  // comment
+  a,}) {;}
+<<< 3.6
+function({
+  // comment
+  a,
+}) {
+  ;
+}
+>>> splitting in none parameter's metadata doesn't force others to split
+function(@Annotation longParameter,
+  // Comment.
+@Annotation @Other @Third longParameter2,) {}
+<<< 3.6
+function(
+  @Annotation longParameter,
+  // Comment.
+  @Annotation
+  @Other
+  @Third
+  longParameter2,
+) {}

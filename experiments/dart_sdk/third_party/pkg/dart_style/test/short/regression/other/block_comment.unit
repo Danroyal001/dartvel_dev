@@ -1,0 +1,35 @@
+>>>
+setSelectionRange(
+    /* TextInputElement | TextAreaElement */ Element input, int start, int end,
+    [direction]) {
+  ;
+}
+<<< 3.6
+setSelectionRange(
+    /* TextInputElement | TextAreaElement */ Element input, int start, int end,
+    [direction]) {
+  ;
+}
+>>>
+setSelectionRange(/* TextInputElement | TextAreaElement */ Element input, int start, int end,
+    [direction]) {
+  ;
+}
+<<< 3.6
+setSelectionRange(
+    /* TextInputElement | TextAreaElement */ Element input, int start, int end,
+    [direction]) {
+  ;
+}
+>>>
+Future<void> signOutGoogle() async {}
+
+/*Future <FirebaseUser> signUp(email, password) async {
+  ;
+}*/
+<<< 3.6
+Future<void> signOutGoogle() async {}
+
+/*Future <FirebaseUser> signUp(email, password) async {
+  ;
+}*/

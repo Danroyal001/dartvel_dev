@@ -1,0 +1,14 @@
+library;
+import self as self;
+import "dart:core" as core;
+
+static method test() → dynamic /* scope=[
+  #ctx1: not-captured [x],
+] */ {
+  const core::String x = #C1;
+  return #C1;
+}
+
+constants  {
+  #C1 = ""
+}

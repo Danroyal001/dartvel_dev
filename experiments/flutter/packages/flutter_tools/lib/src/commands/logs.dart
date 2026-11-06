@@ -1,0 +1,131 @@
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import 'dart:async';
+
+import '../android/android_device.dart';
+import '../application_package.dart';
+import '../base/common.dart';
+import '../base/io.dart';
+import '../base/logger.dart';
+import '../build_info.dart';
+import '../context/tool_context.dart';
+import '../device.dart';
+import '../runner/flutter_command.dart';
+
+/// Show log output for running Flutter apps.
+class LogsCommand extends FlutterCommand {
+  LogsCommand({
+    required ToolContext super.toolContext,
+    ApplicationPackageFactory? applicationPackageFactory,
+    ProcessSignal? sigint,
+    ProcessSignal? sigterm,
+  }) : _sigint = sigint ?? ProcessSignal.sigint,
+       _sigterm = sigterm ?? ProcessSignal.sigterm {
+    applicationPackages = applicationPackageFactory;
+    argParser.addFlag(
+      'clear',
+      negatable: false,
+      abbr: 'c',
+      help: 'Clear log history before reading from logs.',
+    );
+    registerOptionBundle(const DeviceDiscoveryOptionsBundle());
+    DebuggingOptionDescriptors.adbLogFiltering.addTo(argParser, hideOverride: false);
+  }
+
+  final ProcessSignal _sigint;
+  final ProcessSignal _sigterm;
+
+  @override
+  ToolContext get toolContext => super.toolContext!;
+
+  @override
+  final name = 'logs';
+
+  @override
+  final description = 'Show log output for running Flutter apps.';
+
+  @override
+  final String category = FlutterCommandCategory.tools;
+
+  @override
+  bool get refreshWirelessDevices => true;
+
+  @override
+  Future<Set<DevelopmentArtifact>> get requiredArtifacts async => const <DevelopmentArtifact>{};
+
+  Device? device;
+
+  @override
+  Future<FlutterCommandResult> verifyThenRunCommand(String? commandPath) async {
+    device = await findTargetDevice(includeDevicesUnsupportedByProject: true);
+    if (device == null) {
+      throwToolExit(null);
+    }
+    return super.verifyThenRunCommand(commandPath);
+  }
+
+  @override
+  Future<FlutterCommandResult> runCommand() async {
+    final Logger logger = toolContext.logger;
+    final Device cachedDevice = device!;
+    if (boolArg('clear')) {
+      cachedDevice.clearLogs();
+    }
+
+    final TargetPlatform targetPlatform = await cachedDevice.targetPlatform;
+    final ApplicationPackage? app = targetPlatform == .unsupported
+        ? null
+        : await applicationPackages?.getPackageForPlatform(targetPlatform);
+
+    final bool filtering =
+        argParser.options.containsKey('adb-log-filtering') && boolArg('adb-log-filtering');
+    final DeviceLogReader logReader;
+    if (cachedDevice is AndroidDevice) {
+      logReader = await cachedDevice.getLogReader(app: app, adbLogFiltering: filtering);
+    } else {
+      logReader = await cachedDevice.getLogReader(app: app);
+    }
+
+    logger.printStatus('Showing $logReader logs:');
+
+    final exitCompleter = Completer<int>();
+
+    // First check if we already completed by another branch before completing
+    // with [exitCode].
+    void maybeComplete([int exitCode = 0]) {
+      if (exitCompleter.isCompleted) {
+        return;
+      }
+      exitCompleter.complete(exitCode);
+    }
+
+    // Start reading.
+    final StreamSubscription<String> subscription = logReader.logLines.listen(
+      (String message) => logger.printStatus(message, wrap: false),
+      onDone: () => maybeComplete(),
+      onError: (Object error) => maybeComplete(error is int ? error : 1),
+    );
+
+    // When terminating, close down the log reader.
+    _sigint.watch().listen((ProcessSignal signal) {
+      subscription.cancel();
+      maybeComplete();
+      logger.printStatus('');
+    });
+    _sigterm.watch().listen((ProcessSignal signal) {
+      subscription.cancel();
+      maybeComplete();
+    });
+
+    // Wait for the log reader to be finished.
+    final int result = await exitCompleter.future;
+    await subscription.cancel();
+    if (result != 0) {
+      throwToolExit('Error listening to $logReader logs.');
+    }
+
+    return FlutterCommandResult.success();
+  }
+}

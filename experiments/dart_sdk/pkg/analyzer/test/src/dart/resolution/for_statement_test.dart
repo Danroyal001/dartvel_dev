@@ -1,0 +1,4969 @@
+// Copyright (c) 2018, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:test_reflective_loader/test_reflective_loader.dart';
+
+import 'context_collection_resolution.dart';
+import 'node_text_expectations.dart';
+
+main() {
+  defineReflectiveSuite(() {
+    defineReflectiveTests(
+      ForStatementResolutionTest_ForEachPartsWithDeclaration,
+    );
+    defineReflectiveTests(
+      ForStatementResolutionTest_ForEachPartsWithIdentifier,
+    );
+    defineReflectiveTests(ForStatementResolutionTest_ForEachPartsWithPattern);
+    defineReflectiveTests(ForStatementResolutionTest_ForPartsWithExpression);
+    defineReflectiveTests(ForStatementResolutionTest_ForPartsWithDeclarations);
+    defineReflectiveTests(ForStatementResolutionTest_ForPartsWithPattern);
+    defineReflectiveTests(UpdateNodeTextExpectations);
+  });
+}
+
+// TODO(scheglov): Move other for-in tests here.
+@reflectiveTest
+class ForStatementResolutionTest_ForEachPartsWithDeclaration
+    extends PubPackageResolutionTest {
+  test_async_loopVariable_var_stream() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Stream<int> values) async {
+  await for (var v in values) {
+    v;
+  }
+}''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: v
+      declaredFragment: isPublic v@52
+        element: hasImplicitType isPublic
+          type: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: Stream<int>
+      staticType: Stream<int>
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: Stream<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: v
+          resolution: VariableReadResolution
+            element: v@52
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: v
+          element: v@52
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_async_scope_afterLoop_uses_outer_despite_loopVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Stream<int> x, int i) async {
+  await for (var i in x) {}
+//               ^
+// [diag.unusedLocalVariable] The value of the local variable 'i' isn't used.
+  i;
+}
+''');
+
+    var node = result.findNode.singleBlockFunctionBody;
+    assertResolvedNodeText(node, r'''
+BlockFunctionBody
+  keyword: async
+  block: Block
+    leftBracket: {
+    statements2
+      ForStatement
+        awaitKeyword: await
+        forKeyword: for
+        leftParenthesis: (
+        forLoopParts: ForEachPartsWithDeclaration
+          loopVariable: DeclaredIdentifier
+            keyword: var
+            name: i
+            declaredFragment: isPublic i@54
+              element: hasImplicitType isPublic
+                type: int
+          inKeyword: in
+          iterable2: UnqualifiedNameExpression
+            name: x
+            resolution: VariableReadResolution
+              element: <testLibrary>::@function::f::@formalParameter::x
+              type: Stream<int>
+            staticType: Stream<int>
+          iterable(v1): SimpleIdentifier
+            token: x
+            element: <testLibrary>::@function::f::@formalParameter::x
+            staticType: Stream<int>
+        rightParenthesis: )
+        body2: Block
+          leftBracket: {
+          rightBracket: }
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: i
+          resolution: VariableReadResolution
+            element: <testLibrary>::@function::f::@formalParameter::i
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: i
+          element: <testLibrary>::@function::f::@formalParameter::i
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_async_scope_loopVariable_shadows_numType() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Stream<int> values) async {
+  await for (var num in values) {
+    num;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: num
+      declaredFragment: isPublic num@52
+        element: hasImplicitType isPublic
+          type: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: Stream<int>
+      staticType: Stream<int>
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: Stream<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: num
+          resolution: VariableReadResolution
+            element: num@52
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: num
+          element: num@52
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_contextType() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  // ignore:unused_local_variable
+  for (int v in g()) {}
+}
+
+T g<T>() => throw 0;
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      type: NamedType
+        name: int
+        element: dart:core::@class::int
+        type: int
+      name: v
+      declaredFragment: isPublic v@56
+        element: isPublic
+          type: int
+    inKeyword: in
+    iterable2: UnqualifiedFunctionInvocation
+      name: g
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      resolution: ExecutableInvocationResolution
+        element: <testLibrary>::@function::g
+        invokeType: Iterable<int> Function()
+        type: Iterable<int>
+      staticType: Iterable<int>
+      typeArgumentTypes
+        Iterable<int>
+    iterable(v1): MethodInvocation
+      methodName: SimpleIdentifier
+        token: g
+        element: <testLibrary>::@function::g
+        staticType: T Function<T>()
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      staticInvokeType: Iterable<int> Function()
+      staticType: Iterable<int>
+      typeArgumentTypes
+        Iterable<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_dynamic() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(dynamic values) {
+  for (var v in values) {}
+//         ^
+// [diag.unusedLocalVariable] The value of the local variable 'v' isn't used.
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: v
+      declaredFragment: isPublic v@36
+        element: hasImplicitType isPublic
+          type: dynamic
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: dynamic
+      staticType: dynamic
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: dynamic
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_missing() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  for (var v in) {
+//             ^
+// [diag.missingIdentifier] Expected an identifier.
+    v;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: v
+      declaredFragment: isPublic v@22
+        element: hasImplicitType isPublic
+          type: InvalidType
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: <empty> <synthetic>
+      resolution: InvalidNamedReadResolution
+        recoveryElement: <null>
+      staticType: InvalidType
+    iterable(v1): SimpleIdentifier
+      token: <empty> <synthetic>
+      element: <null>
+      staticType: InvalidType
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: v
+          resolution: VariableReadResolution
+            element: v@22
+            type: InvalidType
+          staticType: InvalidType
+        expression(v1): SimpleIdentifier
+          token: v
+          element: v@22
+          staticType: InvalidType
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_nullable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Iterable<int>? values) {
+  for (var v in values) {
+//              ^^^^^^
+// [diag.uncheckedUseOfNullableValueAsIterator] A nullable expression can't be used as an iterator in a for-in loop.
+    v;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: v
+      declaredFragment: isPublic v@43
+        element: hasImplicitType isPublic
+          type: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: Iterable<int>?
+      staticType: Iterable<int>?
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: Iterable<int>?
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: v
+          resolution: VariableReadResolution
+            element: v@43
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: v
+          element: v@43
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_object() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Object values) {
+  for (var v in values) {
+//              ^^^^^^
+// [diag.forInOfInvalidType] The type 'Object' used in the 'for' loop must implement 'Iterable'.
+    v;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: v
+      declaredFragment: isPublic v@35
+        element: hasImplicitType isPublic
+          type: InvalidType
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: Object
+      staticType: Object
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: Object
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: v
+          resolution: VariableReadResolution
+            element: v@35
+            type: InvalidType
+          staticType: InvalidType
+        expression(v1): SimpleIdentifier
+          token: v
+          element: v@35
+          staticType: InvalidType
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_super() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+abstract class A implements Iterable<int> {
+  void f() {
+    for (var v in super) {}
+//           ^
+// [diag.unusedLocalVariable] The value of the local variable 'v' isn't used.
+//                ^^^^^
+// [diag.missingAssignableSelector] Missing selector such as '.identifier' or '[0]'.
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: v
+      declaredFragment: isPublic v@70
+        element: hasImplicitType isPublic
+          type: InvalidType
+    inKeyword: in
+    iterable2: InvalidSuperExpression
+      superReference: SuperReference
+        superKeyword: super
+      staticType: InvalidType
+    iterable(v1): SuperExpression
+      superKeyword: super
+      staticType: A
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_sync_loopVariable_dynamic() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> values) {
+  for (dynamic v in values) {
+    v;
+  }
+}''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      type: NamedType
+        name: dynamic
+        element: dynamic
+        type: dynamic
+      name: v
+      declaredFragment: isPublic v@42
+        element: isPublic
+          type: dynamic
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: v
+          resolution: VariableReadResolution
+            element: v@42
+            type: dynamic
+          staticType: dynamic
+        expression(v1): SimpleIdentifier
+          token: v
+          element: v@42
+          staticType: dynamic
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_loopVariable_var_genericFunction() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  // ignore:unused_local_variable
+  for (var v in g()) {}
+}
+
+T g<T>() => throw 0;
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: v
+      declaredFragment: isPublic v@56
+        element: hasImplicitType isPublic
+          type: Object?
+    inKeyword: in
+    iterable2: UnqualifiedFunctionInvocation
+      name: g
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      resolution: ExecutableInvocationResolution
+        element: <testLibrary>::@function::g
+        invokeType: Iterable<Object?> Function()
+        type: Iterable<Object?>
+      staticType: Iterable<Object?>
+      typeArgumentTypes
+        Iterable<Object?>
+    iterable(v1): MethodInvocation
+      methodName: SimpleIdentifier
+        token: g
+        element: <testLibrary>::@function::g
+        staticType: T Function<T>()
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      staticInvokeType: Iterable<Object?> Function()
+      staticType: Iterable<Object?>
+      typeArgumentTypes
+        Iterable<Object?>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_sync_loopVariable_var_iterable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Iterable<int> values) {
+  for (var v in values) {
+    v;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: v
+      declaredFragment: isPublic v@42
+        element: hasImplicitType isPublic
+          type: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: Iterable<int>
+      staticType: Iterable<int>
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: Iterable<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: v
+          resolution: VariableReadResolution
+            element: v@42
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: v
+          element: v@42
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_loopVariable_var_list() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> values) {
+  for (var v in values) {
+    v;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: v
+      declaredFragment: isPublic v@38
+        element: hasImplicitType isPublic
+          type: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: v
+          resolution: VariableReadResolution
+            element: v@38
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: v
+          element: v@38
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_scope_afterLoop_uses_outer_despite_loopVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> x, int i) {
+  for (var i in x) {}
+//         ^
+// [diag.unusedLocalVariable] The value of the local variable 'i' isn't used.
+  i;
+}
+''');
+
+    var node = result.findNode.singleBlockFunctionBody;
+    assertResolvedNodeText(node, r'''
+BlockFunctionBody
+  block: Block
+    leftBracket: {
+    statements2
+      ForStatement
+        forKeyword: for
+        leftParenthesis: (
+        forLoopParts: ForEachPartsWithDeclaration
+          loopVariable: DeclaredIdentifier
+            keyword: var
+            name: i
+            declaredFragment: isPublic i@40
+              element: hasImplicitType isPublic
+                type: int
+          inKeyword: in
+          iterable2: UnqualifiedNameExpression
+            name: x
+            resolution: VariableReadResolution
+              element: <testLibrary>::@function::f::@formalParameter::x
+              type: List<int>
+            staticType: List<int>
+          iterable(v1): SimpleIdentifier
+            token: x
+            element: <testLibrary>::@function::f::@formalParameter::x
+            staticType: List<int>
+        rightParenthesis: )
+        body2: Block
+          leftBracket: {
+          rightBracket: }
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: i
+          resolution: VariableReadResolution
+            element: <testLibrary>::@function::f::@formalParameter::i
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: i
+          element: <testLibrary>::@function::f::@formalParameter::i
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_scope_body_shadows_loopVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> values) {
+  for (var i in values) {
+//         ^
+// [diag.unusedLocalVariable] The value of the local variable 'i' isn't used.
+    var i = 'a';
+    i;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: i
+      declaredFragment: isPublic i@38
+        element: hasImplicitType isPublic
+          type: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      LocalVariablesDeclarationStatement
+        declaration: LocalVariablesDeclaration
+          constFinalOrVarKeyword: var
+          variables
+            LocalVariable
+              name: i
+              equals: =
+              initializer: SimpleStringLiteral
+                literal: 'a'
+              declaredFragment: isPublic i@61
+                element: hasImplicitType isPublic
+                  type: String
+        semicolon: ;
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: i
+          resolution: VariableReadResolution
+            element: i@61
+            type: String
+          staticType: String
+        expression(v1): SimpleIdentifier
+          token: i
+          element: i@61
+          staticType: String
+        semicolon: ;
+    statements(v1)
+      VariableDeclarationStatement
+        variables: VariableDeclarationList
+          keyword: var
+          variables
+            VariableDeclaration
+              name: i
+              equals: =
+              initializer: SimpleStringLiteral
+                literal: 'a'
+              declaredFragment: isPublic i@61
+                element: hasImplicitType isPublic
+                  type: String
+        semicolon: ;
+      ExpressionStatement
+        expression: SimpleIdentifier
+          token: i
+          element: i@61
+          staticType: String
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_scope_iterable_uses_outer() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> i) {
+  for (var i in i) {
+    i;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: i
+      declaredFragment: isPublic i@33
+        element: hasImplicitType isPublic
+          type: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: i
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::i
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: i
+      element: <testLibrary>::@function::f::@formalParameter::i
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: i
+          resolution: VariableReadResolution
+            element: i@33
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: i
+          element: i@33
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_scope_loopVariable_shadows_numType() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> values) {
+  for (var num in values) {
+    num;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: num
+      declaredFragment: isPublic num@38
+        element: hasImplicitType isPublic
+          type: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: num
+          resolution: VariableReadResolution
+            element: num@38
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: num
+          element: num@38
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_type_genericFunctionType() async {
+    await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  for (Null Function<T>(T, Null) e in <dynamic>[]) {
+    e;
+  }
+}
+''');
+  }
+}
+
+@reflectiveTest
+class ForStatementResolutionTest_ForEachPartsWithIdentifier
+    extends PubPackageResolutionTest {
+  test_async_iterable_stream() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(v, Stream<int> values) async {
+  await for (v in values) {
+    v;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithIdentifier
+    target: UnqualifiedNameAssignmentTarget
+      name: v
+      read: <null>
+      write: VariableWriteResolution
+        element: <testLibrary>::@function::f::@formalParameter::v
+        acceptedType: dynamic
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: Stream<int>
+      staticType: Stream<int>
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: Stream<int>
+    identifier: SimpleIdentifier
+      token: v
+      element: <testLibrary>::@function::f::@formalParameter::v
+      staticType: dynamic
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: v
+          resolution: VariableReadResolution
+            element: <testLibrary>::@function::f::@formalParameter::v
+            type: dynamic
+          staticType: dynamic
+        expression(v1): SimpleIdentifier
+          token: v
+          element: <testLibrary>::@function::f::@formalParameter::v
+          staticType: dynamic
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_contextType_fromInstanceSetter() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+T g<T>() => throw 0;
+
+class C {
+  set x(int value) {}
+
+  void f() {
+    for (x in g()) {}
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithIdentifier
+    target: UnqualifiedNameAssignmentTarget
+      name: x
+      read: <null>
+      write: SetterInvocationResolution
+        element: <testLibrary>::@class::C::@setter::x
+        acceptedType: int
+    inKeyword: in
+    iterable2: UnqualifiedFunctionInvocation
+      name: g
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      resolution: ExecutableInvocationResolution
+        element: <testLibrary>::@function::g
+        invokeType: Iterable<int> Function()
+        type: Iterable<int>
+      staticType: Iterable<int>
+      typeArgumentTypes
+        Iterable<int>
+    iterable(v1): MethodInvocation
+      methodName: SimpleIdentifier
+        token: g
+        element: <testLibrary>::@function::g
+        staticType: T Function<T>()
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      staticInvokeType: Iterable<int> Function()
+      staticType: Iterable<int>
+      typeArgumentTypes
+        Iterable<int>
+    identifier: SimpleIdentifier
+      token: x
+      element: <testLibrary>::@class::C::@setter::x
+      staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_contextType_fromTopLevelSetter() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+T g<T>() => throw 0;
+
+set x(int value) {}
+
+void f() {
+  for (x in g()) {}
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithIdentifier
+    target: UnqualifiedNameAssignmentTarget
+      name: x
+      read: <null>
+      write: SetterInvocationResolution
+        element: <testLibrary>::@setter::x
+        acceptedType: int
+    inKeyword: in
+    iterable2: UnqualifiedFunctionInvocation
+      name: g
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      resolution: ExecutableInvocationResolution
+        element: <testLibrary>::@function::g
+        invokeType: Iterable<int> Function()
+        type: Iterable<int>
+      staticType: Iterable<int>
+      typeArgumentTypes
+        Iterable<int>
+    iterable(v1): MethodInvocation
+      methodName: SimpleIdentifier
+        token: g
+        element: <testLibrary>::@function::g
+        staticType: T Function<T>()
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      staticInvokeType: Iterable<int> Function()
+      staticType: Iterable<int>
+      typeArgumentTypes
+        Iterable<int>
+    identifier: SimpleIdentifier
+      token: x
+      element: <testLibrary>::@setter::x
+      staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_list() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(v, List<int> values) {
+  for (v in values) {
+    v;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithIdentifier
+    target: UnqualifiedNameAssignmentTarget
+      name: v
+      read: <null>
+      write: VariableWriteResolution
+        element: <testLibrary>::@function::f::@formalParameter::v
+        acceptedType: dynamic
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: List<int>
+    identifier: SimpleIdentifier
+      token: v
+      element: <testLibrary>::@function::f::@formalParameter::v
+      staticType: dynamic
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: v
+          resolution: VariableReadResolution
+            element: <testLibrary>::@function::f::@formalParameter::v
+            type: dynamic
+          staticType: dynamic
+        expression(v1): SimpleIdentifier
+          token: v
+          element: <testLibrary>::@function::f::@formalParameter::v
+          staticType: dynamic
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_super() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+abstract class A implements Iterable<int> {
+  void f(v) {
+    for (v in super) {}
+//            ^^^^^
+// [diag.missingAssignableSelector] Missing selector such as '.identifier' or '[0]'.
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithIdentifier
+    target: UnqualifiedNameAssignmentTarget
+      name: v
+      read: <null>
+      write: VariableWriteResolution
+        element: <testLibrary>::@class::A::@method::f::@formalParameter::v
+        acceptedType: dynamic
+    inKeyword: in
+    iterable2: InvalidSuperExpression
+      superReference: SuperReference
+        superKeyword: super
+      staticType: InvalidType
+    iterable(v1): SuperExpression
+      superKeyword: super
+      staticType: A
+    identifier: SimpleIdentifier
+      token: v
+      element: <testLibrary>::@class::A::@method::f::@formalParameter::v
+      staticType: dynamic
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_sync_scope_afterLoop_uses_outer() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(dynamic v, List<int> values) {
+  for (v in values) {
+    v;
+  }
+  v;
+}
+''');
+
+    var node = result.findNode.singleBlockFunctionBody;
+    assertResolvedNodeText(node, r'''
+BlockFunctionBody
+  block: Block
+    leftBracket: {
+    statements2
+      ForStatement
+        forKeyword: for
+        leftParenthesis: (
+        forLoopParts: ForEachPartsWithIdentifier
+          target: UnqualifiedNameAssignmentTarget
+            name: v
+            read: <null>
+            write: VariableWriteResolution
+              element: <testLibrary>::@function::f::@formalParameter::v
+              acceptedType: dynamic
+          inKeyword: in
+          iterable2: UnqualifiedNameExpression
+            name: values
+            resolution: VariableReadResolution
+              element: <testLibrary>::@function::f::@formalParameter::values
+              type: List<int>
+            staticType: List<int>
+          iterable(v1): SimpleIdentifier
+            token: values
+            element: <testLibrary>::@function::f::@formalParameter::values
+            staticType: List<int>
+          identifier: SimpleIdentifier
+            token: v
+            element: <testLibrary>::@function::f::@formalParameter::v
+            staticType: dynamic
+        rightParenthesis: )
+        body2: Block
+          leftBracket: {
+          statements2
+            ExpressionStatement
+              expression2: UnqualifiedNameExpression
+                name: v
+                resolution: VariableReadResolution
+                  element: <testLibrary>::@function::f::@formalParameter::v
+                  type: dynamic
+                staticType: dynamic
+              expression(v1): SimpleIdentifier
+                token: v
+                element: <testLibrary>::@function::f::@formalParameter::v
+                staticType: dynamic
+              semicolon: ;
+          rightBracket: }
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: v
+          resolution: VariableReadResolution
+            element: <testLibrary>::@function::f::@formalParameter::v
+            type: dynamic
+          staticType: dynamic
+        expression(v1): SimpleIdentifier
+          token: v
+          element: <testLibrary>::@function::f::@formalParameter::v
+          staticType: dynamic
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_scope_header_not_affected_by_body_shadowing() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(dynamic v, List<int> values) {
+  for (v in values) {
+    var v = 0;
+    v;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithIdentifier
+    target: UnqualifiedNameAssignmentTarget
+      name: v
+      read: <null>
+      write: VariableWriteResolution
+        element: <testLibrary>::@function::f::@formalParameter::v
+        acceptedType: dynamic
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: values
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::values
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: values
+      element: <testLibrary>::@function::f::@formalParameter::values
+      staticType: List<int>
+    identifier: SimpleIdentifier
+      token: v
+      element: <testLibrary>::@function::f::@formalParameter::v
+      staticType: dynamic
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      LocalVariablesDeclarationStatement
+        declaration: LocalVariablesDeclaration
+          constFinalOrVarKeyword: var
+          variables
+            LocalVariable
+              name: v
+              equals: =
+              initializer: IntegerLiteral
+                literal: 0
+                staticType: int
+              declaredFragment: isPublic v@68
+                element: hasImplicitType isPublic
+                  type: int
+        semicolon: ;
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: v
+          resolution: VariableReadResolution
+            element: v@68
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: v
+          element: v@68
+          staticType: int
+        semicolon: ;
+    statements(v1)
+      VariableDeclarationStatement
+        variables: VariableDeclarationList
+          keyword: var
+          variables
+            VariableDeclaration
+              name: v
+              equals: =
+              initializer: IntegerLiteral
+                literal: 0
+                staticType: int
+              declaredFragment: isPublic v@68
+                element: hasImplicitType isPublic
+                  type: int
+        semicolon: ;
+      ExpressionStatement
+        expression: SimpleIdentifier
+          token: v
+          element: v@68
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_scope_iterable_uses_outer() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(dynamic v) {
+  for (v in v) {}
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithIdentifier
+    target: UnqualifiedNameAssignmentTarget
+      name: v
+      read: <null>
+      write: VariableWriteResolution
+        element: <testLibrary>::@function::f::@formalParameter::v
+        acceptedType: dynamic
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: v
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::v
+        type: dynamic
+      staticType: dynamic
+    iterable(v1): SimpleIdentifier
+      token: v
+      element: <testLibrary>::@function::f::@formalParameter::v
+      staticType: dynamic
+    identifier: SimpleIdentifier
+      token: v
+      element: <testLibrary>::@function::f::@formalParameter::v
+      staticType: dynamic
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+}
+
+@reflectiveTest
+class ForStatementResolutionTest_ForEachPartsWithPattern
+    extends PubPackageResolutionTest {
+  test_async_iterable_contextType_patternVariable_typed() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() async {
+  await for (var (int a) in g()) {
+    a;
+  }
+}
+
+T g<T>() => throw 0;
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        type: NamedType
+          name: int
+          element: dart:core::@class::int
+          type: int
+        name: a
+        declaredFragment: isPublic a@39
+          element: isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedFunctionInvocation
+      name: g
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      resolution: ExecutableInvocationResolution
+        element: <testLibrary>::@function::g
+        invokeType: Stream<int> Function()
+        type: Stream<int>
+      staticType: Stream<int>
+      typeArgumentTypes
+        Stream<int>
+    iterable(v1): MethodInvocation
+      methodName: SimpleIdentifier
+        token: g
+        element: <testLibrary>::@function::g
+        staticType: T Function<T>()
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      staticInvokeType: Stream<int> Function()
+      staticType: Stream<int>
+      typeArgumentTypes
+        Stream<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@39
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@39
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_async_iterable_contextType_patternVariable_untyped() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() async {
+  await for (var (a) in g()) {
+    a;
+  }
+}
+
+T g<T>() => throw 0;
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@35
+          element: hasImplicitType isPublic
+            type: Object?
+        matchedValueType: Object?
+      rightParenthesis: )
+      matchedValueType: Object?
+    inKeyword: in
+    iterable2: UnqualifiedFunctionInvocation
+      name: g
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      resolution: ExecutableInvocationResolution
+        element: <testLibrary>::@function::g
+        invokeType: Stream<Object?> Function()
+        type: Stream<Object?>
+      staticType: Stream<Object?>
+      typeArgumentTypes
+        Stream<Object?>
+    iterable(v1): MethodInvocation
+      methodName: SimpleIdentifier
+        token: g
+        element: <testLibrary>::@function::g
+        staticType: T Function<T>()
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      staticInvokeType: Stream<Object?> Function()
+      staticType: Stream<Object?>
+      typeArgumentTypes
+        Stream<Object?>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@35
+            type: Object?
+          staticType: Object?
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@35
+          staticType: Object?
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_async_iterable_dynamic() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(x) async {
+  await for (var (a) in x) {
+    a;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@36
+          element: hasImplicitType isPublic
+            type: dynamic
+        matchedValueType: dynamic
+      rightParenthesis: )
+      matchedValueType: dynamic
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: dynamic
+      staticType: dynamic
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: dynamic
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@36
+            type: dynamic
+          staticType: dynamic
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@36
+          staticType: dynamic
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_async_iterable_object() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Object x) async {
+  await for (var (a) in x) {
+//                      ^
+// [diag.forInOfInvalidType] The type 'Object' used in the 'for' loop must implement 'Iterable'.
+    a;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@43
+          element: hasImplicitType isPublic
+            type: InvalidType
+        matchedValueType: InvalidType
+      rightParenthesis: )
+      matchedValueType: InvalidType
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: Object
+      staticType: Object
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: Object
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@43
+            type: InvalidType
+          staticType: InvalidType
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@43
+          staticType: InvalidType
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_async_iterable_stream() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Stream<int> x) async {
+  await for (var (a) in x) {
+    a;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@48
+          element: hasImplicitType isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: Stream<int>
+      staticType: Stream<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: Stream<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@48
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@48
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_async_iterable_stream_wildcard() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Stream<int> x) async {
+  await for (var (_) in x) {}
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: WildcardPattern
+        name: _
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: Stream<int>
+      staticType: Stream<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: Stream<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_async_keyword_final_patternVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Stream<int> x) async {
+  await for (final (a) in x) {
+    a;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: final
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isFinal isPublic a@50
+          element: hasImplicitType isFinal isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: Stream<int>
+      staticType: Stream<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: Stream<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@50
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@50
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_async_pattern_patternVariable_typed() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Stream<int> x) async {
+  await for (var (num a) in x) {
+    a;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        type: NamedType
+          name: num
+          element: dart:core::@class::num
+          type: num
+        name: a
+        declaredFragment: isPublic a@52
+          element: isPublic
+            type: num
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: Stream<int>
+      staticType: Stream<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: Stream<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@52
+            type: num
+          staticType: num
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@52
+          staticType: num
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_async_scope_afterLoop_uses_outer_despite_patternVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Stream<int> x, int a) async {
+  await for (var (a) in x) {}
+//                ^
+// [diag.unusedLocalVariable] The value of the local variable 'a' isn't used.
+  a;
+}
+''');
+
+    var node = result.findNode.singleBlockFunctionBody;
+    assertResolvedNodeText(node, r'''
+BlockFunctionBody
+  keyword: async
+  block: Block
+    leftBracket: {
+    statements2
+      ForStatement
+        awaitKeyword: await
+        forKeyword: for
+        leftParenthesis: (
+        forLoopParts: ForEachPartsWithPattern
+          keyword: var
+          pattern: ParenthesizedPattern
+            leftParenthesis: (
+            pattern: DeclaredVariablePattern
+              name: a
+              declaredFragment: isPublic a@55
+                element: hasImplicitType isPublic
+                  type: int
+              matchedValueType: int
+            rightParenthesis: )
+            matchedValueType: int
+          inKeyword: in
+          iterable2: UnqualifiedNameExpression
+            name: x
+            resolution: VariableReadResolution
+              element: <testLibrary>::@function::f::@formalParameter::x
+              type: Stream<int>
+            staticType: Stream<int>
+          iterable(v1): SimpleIdentifier
+            token: x
+            element: <testLibrary>::@function::f::@formalParameter::x
+            staticType: Stream<int>
+        rightParenthesis: )
+        body2: Block
+          leftBracket: {
+          rightBracket: }
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: <testLibrary>::@function::f::@formalParameter::a
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: <testLibrary>::@function::f::@formalParameter::a
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_async_scope_body_shadows_patternVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Stream<int> x) async {
+  await for (var (a) in x) {
+//                ^
+// [diag.unusedLocalVariable] The value of the local variable 'a' isn't used.
+    var a = 1;
+    a;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@48
+          element: hasImplicitType isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: Stream<int>
+      staticType: Stream<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: Stream<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      LocalVariablesDeclarationStatement
+        declaration: LocalVariablesDeclaration
+          constFinalOrVarKeyword: var
+          variables
+            LocalVariable
+              name: a
+              equals: =
+              initializer: IntegerLiteral
+                literal: 1
+                staticType: int
+              declaredFragment: isPublic a@67
+                element: hasImplicitType isPublic
+                  type: int
+        semicolon: ;
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@67
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@67
+          staticType: int
+        semicolon: ;
+    statements(v1)
+      VariableDeclarationStatement
+        variables: VariableDeclarationList
+          keyword: var
+          variables
+            VariableDeclaration
+              name: a
+              equals: =
+              initializer: IntegerLiteral
+                literal: 1
+                staticType: int
+              declaredFragment: isPublic a@67
+                element: hasImplicitType isPublic
+                  type: int
+        semicolon: ;
+      ExpressionStatement
+        expression: SimpleIdentifier
+          token: a
+          element: a@67
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_async_scope_iterable_uses_outer() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Stream<int> x) async {
+  await for (var (x) in x) {
+    x;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  awaitKeyword: await
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: x
+        declaredFragment: isPublic x@48
+          element: hasImplicitType isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: Stream<int>
+      staticType: Stream<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: Stream<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: x
+          resolution: VariableReadResolution
+            element: x@48
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: x
+          element: x@48
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_metadata() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> x) {
+  for (@foo var (a) in x) {
+    a;
+  }
+}
+
+const foo = 0;
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    metadata
+      Annotation
+        atSign: @
+        expression: UnqualifiedNameExpression
+          name: foo
+          resolution: GetterInvocationResolution
+            element: <testLibrary>::@getter::foo
+            type: int
+          staticType: int
+        name: SimpleIdentifier
+          token: foo
+          element: <testLibrary>::@getter::foo
+          staticType: null
+        element: <testLibrary>::@getter::foo
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@39
+          element: hasImplicitType isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@39
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@39
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_metadata_shadowing() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+const a = 42;
+void f(List<int> x) {
+  for (@a var (a) in x) {
+//     ^^
+// [diag.invalidAnnotation] Annotation must be either a const variable reference or const constructor invocation.
+    a;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    metadata
+      Annotation
+        atSign: @
+        expression: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@51
+            type: InvalidType
+          staticType: InvalidType
+        name: SimpleIdentifier
+          token: a
+          element: a@51
+          staticType: null
+        element: a@51
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@51
+          element: hasImplicitType isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@51
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@51
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_contextType_patternVariable_typed() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  for (var (int a) in g()) {}
+//              ^
+// [diag.unusedLocalVariable] The value of the local variable 'a' isn't used.
+}
+
+T g<T>() => throw 0;
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        type: NamedType
+          name: int
+          element: dart:core::@class::int
+          type: int
+        name: a
+        declaredFragment: isPublic a@27
+          element: isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedFunctionInvocation
+      name: g
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      resolution: ExecutableInvocationResolution
+        element: <testLibrary>::@function::g
+        invokeType: Iterable<int> Function()
+        type: Iterable<int>
+      staticType: Iterable<int>
+      typeArgumentTypes
+        Iterable<int>
+    iterable(v1): MethodInvocation
+      methodName: SimpleIdentifier
+        token: g
+        element: <testLibrary>::@function::g
+        staticType: T Function<T>()
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      staticInvokeType: Iterable<int> Function()
+      staticType: Iterable<int>
+      typeArgumentTypes
+        Iterable<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_contextType_patternVariable_untyped() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  for (var (a) in g()) {}
+//          ^
+// [diag.unusedLocalVariable] The value of the local variable 'a' isn't used.
+}
+
+T g<T>() => throw 0;
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@23
+          element: hasImplicitType isPublic
+            type: Object?
+        matchedValueType: Object?
+      rightParenthesis: )
+      matchedValueType: Object?
+    inKeyword: in
+    iterable2: UnqualifiedFunctionInvocation
+      name: g
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      resolution: ExecutableInvocationResolution
+        element: <testLibrary>::@function::g
+        invokeType: Iterable<Object?> Function()
+        type: Iterable<Object?>
+      staticType: Iterable<Object?>
+      typeArgumentTypes
+        Iterable<Object?>
+    iterable(v1): MethodInvocation
+      methodName: SimpleIdentifier
+        token: g
+        element: <testLibrary>::@function::g
+        staticType: T Function<T>()
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      staticInvokeType: Iterable<Object?> Function()
+      staticType: Iterable<Object?>
+      typeArgumentTypes
+        Iterable<Object?>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_dynamic() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(x) {
+  for (var (a) in x) {
+    a;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@24
+          element: hasImplicitType isPublic
+            type: dynamic
+        matchedValueType: dynamic
+      rightParenthesis: )
+      matchedValueType: dynamic
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: dynamic
+      staticType: dynamic
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: dynamic
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@24
+            type: dynamic
+          staticType: dynamic
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@24
+          staticType: dynamic
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_list() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> x) {
+  for (var (a) in x) {
+    a;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@34
+          element: hasImplicitType isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@34
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@34
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_list_wildcard() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> x) {
+  for (var (_) in x) {}
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: WildcardPattern
+        name: _
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_object() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(Object x) {
+  for (var (a) in x) {
+//                ^
+// [diag.forInOfInvalidType] The type 'Object' used in the 'for' loop must implement 'Iterable'.
+    a;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@31
+          element: hasImplicitType isPublic
+            type: InvalidType
+        matchedValueType: InvalidType
+      rightParenthesis: )
+      matchedValueType: InvalidType
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: Object
+      staticType: Object
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: Object
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@31
+            type: InvalidType
+          staticType: InvalidType
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@31
+          staticType: InvalidType
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_iterable_super() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+abstract class A implements Iterable<int> {
+  void f() {
+    for (var (a) in super) {}
+//            ^
+// [diag.unusedLocalVariable] The value of the local variable 'a' isn't used.
+//                  ^^^^^
+// [diag.missingAssignableSelector] Missing selector such as '.identifier' or '[0]'.
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@71
+          element: hasImplicitType isPublic
+            type: InvalidType
+        matchedValueType: InvalidType
+      rightParenthesis: )
+      matchedValueType: InvalidType
+    inKeyword: in
+    iterable2: InvalidSuperExpression
+      superReference: SuperReference
+        superKeyword: super
+      staticType: InvalidType
+    iterable(v1): SuperExpression
+      superKeyword: super
+      staticType: A
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_sync_keyword_final_patternVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> x) {
+  for (final (a) in x) {
+    a;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: final
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isFinal isPublic a@36
+          element: hasImplicitType isFinal isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@36
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@36
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_pattern_patternVariable_typed() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> x) {
+  for (var (num a) in x) {
+    a;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        type: NamedType
+          name: num
+          element: dart:core::@class::num
+          type: num
+        name: a
+        declaredFragment: isPublic a@38
+          element: isPublic
+            type: num
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@38
+            type: num
+          staticType: num
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@38
+          staticType: num
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_scope_afterLoop_uses_outer_despite_patternVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> x, int a) {
+  for (var (a) in x) {}
+//          ^
+// [diag.unusedLocalVariable] The value of the local variable 'a' isn't used.
+  a;
+}
+''');
+
+    var node = result.findNode.singleBlockFunctionBody;
+    assertResolvedNodeText(node, r'''
+BlockFunctionBody
+  block: Block
+    leftBracket: {
+    statements2
+      ForStatement
+        forKeyword: for
+        leftParenthesis: (
+        forLoopParts: ForEachPartsWithPattern
+          keyword: var
+          pattern: ParenthesizedPattern
+            leftParenthesis: (
+            pattern: DeclaredVariablePattern
+              name: a
+              declaredFragment: isPublic a@41
+                element: hasImplicitType isPublic
+                  type: int
+              matchedValueType: int
+            rightParenthesis: )
+            matchedValueType: int
+          inKeyword: in
+          iterable2: UnqualifiedNameExpression
+            name: x
+            resolution: VariableReadResolution
+              element: <testLibrary>::@function::f::@formalParameter::x
+              type: List<int>
+            staticType: List<int>
+          iterable(v1): SimpleIdentifier
+            token: x
+            element: <testLibrary>::@function::f::@formalParameter::x
+            staticType: List<int>
+        rightParenthesis: )
+        body2: Block
+          leftBracket: {
+          rightBracket: }
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: <testLibrary>::@function::f::@formalParameter::a
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: <testLibrary>::@function::f::@formalParameter::a
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_scope_body_shadows_patternVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> x) {
+  for (var (a) in x) {
+//          ^
+// [diag.unusedLocalVariable] The value of the local variable 'a' isn't used.
+    var a = 1;
+    a;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: a
+        declaredFragment: isPublic a@34
+          element: hasImplicitType isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      LocalVariablesDeclarationStatement
+        declaration: LocalVariablesDeclaration
+          constFinalOrVarKeyword: var
+          variables
+            LocalVariable
+              name: a
+              equals: =
+              initializer: IntegerLiteral
+                literal: 1
+                staticType: int
+              declaredFragment: isPublic a@53
+                element: hasImplicitType isPublic
+                  type: int
+        semicolon: ;
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@53
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@53
+          staticType: int
+        semicolon: ;
+    statements(v1)
+      VariableDeclarationStatement
+        variables: VariableDeclarationList
+          keyword: var
+          variables
+            VariableDeclaration
+              name: a
+              equals: =
+              initializer: IntegerLiteral
+                literal: 1
+                staticType: int
+              declaredFragment: isPublic a@53
+                element: hasImplicitType isPublic
+                  type: int
+        semicolon: ;
+      ExpressionStatement
+        expression: SimpleIdentifier
+          token: a
+          element: a@53
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_sync_scope_iterable_uses_outer() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> x) {
+  for (var (x) in x) {
+    x;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithPattern
+    keyword: var
+    pattern: ParenthesizedPattern
+      leftParenthesis: (
+      pattern: DeclaredVariablePattern
+        name: x
+        declaredFragment: isPublic x@34
+          element: hasImplicitType isPublic
+            type: int
+        matchedValueType: int
+      rightParenthesis: )
+      matchedValueType: int
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: x
+      resolution: VariableReadResolution
+        element: <testLibrary>::@function::f::@formalParameter::x
+        type: List<int>
+      staticType: List<int>
+    iterable(v1): SimpleIdentifier
+      token: x
+      element: <testLibrary>::@function::f::@formalParameter::x
+      staticType: List<int>
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: x
+          resolution: VariableReadResolution
+            element: x@34
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: x
+          element: x@34
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+}
+
+@reflectiveTest
+class ForStatementResolutionTest_ForPartsWithDeclarations
+    extends PubPackageResolutionTest {
+  test_scope_afterLoop_uses_outer_despite_initializerVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(int i) {
+  for (var i = 0; i < 1; i++) {}
+  i;
+}
+''');
+
+    var node = result.findNode.singleBlockFunctionBody;
+    assertResolvedNodeText(node, r'''
+BlockFunctionBody
+  block: Block
+    leftBracket: {
+    statements2
+      ForStatement
+        forKeyword: for
+        leftParenthesis: (
+        forLoopParts: ForPartsWithDeclarations
+          variables2: LocalVariablesDeclaration
+            constFinalOrVarKeyword: var
+            variables
+              LocalVariable
+                name: i
+                equals: =
+                initializer: IntegerLiteral
+                  literal: 0
+                  staticType: int
+                declaredFragment: isPublic i@27
+                  element: hasImplicitType isPublic
+                    type: int
+          variables(v1): VariableDeclarationList
+            keyword: var
+            variables
+              VariableDeclaration
+                name: i
+                equals: =
+                initializer: IntegerLiteral
+                  literal: 0
+                  staticType: int
+                declaredFragment: isPublic i@27
+                  element: hasImplicitType isPublic
+                    type: int
+          leftSeparator: ;
+          condition2: BinaryOperatorInvocation
+            leftOperand: UnqualifiedNameExpression
+              name: i
+              resolution: VariableReadResolution
+                element: i@27
+                type: int
+              staticType: int
+            operator: <
+            rightOperand: IntegerLiteral
+              literal: 1
+              correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+              staticType: int
+            binaryOperator: lessThan
+            element: dart:core::@class::num::@method::<
+            staticType: bool
+          condition(v1): BinaryExpression
+            leftOperand: SimpleIdentifier
+              token: i
+              element: i@27
+              staticType: int
+            operator: <
+            rightOperand: IntegerLiteral
+              literal: 1
+              correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+              staticType: int
+            element: dart:core::@class::num::@method::<
+            staticInvokeType: bool Function(num)
+            staticType: bool
+          rightSeparator: ;
+          updaters2
+            IncrementOrDecrementExpression
+              target: UnqualifiedNameAssignmentTarget
+                name: i
+                read: VariableReadResolution
+                  element: i@27
+                  type: int
+                write: VariableWriteResolution
+                  element: i@27
+                  acceptedType: int
+              operator: ++
+              operation: increment
+              position: postfix
+              element: dart:core::@class::num::@method::+
+              operatorResultType: int
+              staticType: int
+          updaters(v1)
+            PostfixExpression
+              operand: SimpleIdentifier
+                token: i
+                element: i@27
+                staticType: null
+              operator: ++
+              readElement: i@27
+              readType: int
+              writeElement: i@27
+              writeType: int
+              element: dart:core::@class::num::@method::+
+              staticType: int
+        rightParenthesis: )
+        body2: Block
+          leftBracket: {
+          rightBracket: }
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: i
+          resolution: VariableReadResolution
+            element: <testLibrary>::@function::f::@formalParameter::i
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: i
+          element: <testLibrary>::@function::f::@formalParameter::i
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_scope_body_shadows_loopVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(List<int> i) {
+  for (var i = 0; i < 10; ++i) {
+    var i = 'a';
+    i;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithDeclarations
+    variables2: LocalVariablesDeclaration
+      constFinalOrVarKeyword: var
+      variables
+        LocalVariable
+          name: i
+          equals: =
+          initializer: IntegerLiteral
+            literal: 0
+            staticType: int
+          declaredFragment: isPublic i@33
+            element: hasImplicitType isPublic
+              type: int
+    variables(v1): VariableDeclarationList
+      keyword: var
+      variables
+        VariableDeclaration
+          name: i
+          equals: =
+          initializer: IntegerLiteral
+            literal: 0
+            staticType: int
+          declaredFragment: isPublic i@33
+            element: hasImplicitType isPublic
+              type: int
+    leftSeparator: ;
+    condition2: BinaryOperatorInvocation
+      leftOperand: UnqualifiedNameExpression
+        name: i
+        resolution: VariableReadResolution
+          element: i@33
+          type: int
+        staticType: int
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 10
+        correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+        staticType: int
+      binaryOperator: lessThan
+      element: dart:core::@class::num::@method::<
+      staticType: bool
+    condition(v1): BinaryExpression
+      leftOperand: SimpleIdentifier
+        token: i
+        element: i@33
+        staticType: int
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 10
+        correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+        staticType: int
+      element: dart:core::@class::num::@method::<
+      staticInvokeType: bool Function(num)
+      staticType: bool
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        operator: ++
+        target: UnqualifiedNameAssignmentTarget
+          name: i
+          read: VariableReadResolution
+            element: i@33
+            type: int
+          write: VariableWriteResolution
+            element: i@33
+            acceptedType: int
+        operation: increment
+        position: prefix
+        element: dart:core::@class::num::@method::+
+        operatorResultType: int
+        staticType: int
+    updaters(v1)
+      PrefixExpression
+        operator: ++
+        operand: SimpleIdentifier
+          token: i
+          element: i@33
+          staticType: null
+        readElement: i@33
+        readType: int
+        writeElement: i@33
+        writeType: int
+        element: dart:core::@class::num::@method::+
+        staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      LocalVariablesDeclarationStatement
+        declaration: LocalVariablesDeclaration
+          constFinalOrVarKeyword: var
+          variables
+            LocalVariable
+              name: i
+              equals: =
+              initializer: SimpleStringLiteral
+                literal: 'a'
+              declaredFragment: isPublic i@63
+                element: hasImplicitType isPublic
+                  type: String
+        semicolon: ;
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: i
+          resolution: VariableReadResolution
+            element: i@63
+            type: String
+          staticType: String
+        expression(v1): SimpleIdentifier
+          token: i
+          element: i@63
+          staticType: String
+        semicolon: ;
+    statements(v1)
+      VariableDeclarationStatement
+        variables: VariableDeclarationList
+          keyword: var
+          variables
+            VariableDeclaration
+              name: i
+              equals: =
+              initializer: SimpleStringLiteral
+                literal: 'a'
+              declaredFragment: isPublic i@63
+                element: hasImplicitType isPublic
+                  type: String
+        semicolon: ;
+      ExpressionStatement
+        expression: SimpleIdentifier
+          token: i
+          element: i@63
+          staticType: String
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_scope_initializerVariable_visibleInBody() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  for (var i = 0; i < 10; i++) {
+    i;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithDeclarations
+    variables2: LocalVariablesDeclaration
+      constFinalOrVarKeyword: var
+      variables
+        LocalVariable
+          name: i
+          equals: =
+          initializer: IntegerLiteral
+            literal: 0
+            staticType: int
+          declaredFragment: isPublic i@22
+            element: hasImplicitType isPublic
+              type: int
+    variables(v1): VariableDeclarationList
+      keyword: var
+      variables
+        VariableDeclaration
+          name: i
+          equals: =
+          initializer: IntegerLiteral
+            literal: 0
+            staticType: int
+          declaredFragment: isPublic i@22
+            element: hasImplicitType isPublic
+              type: int
+    leftSeparator: ;
+    condition2: BinaryOperatorInvocation
+      leftOperand: UnqualifiedNameExpression
+        name: i
+        resolution: VariableReadResolution
+          element: i@22
+          type: int
+        staticType: int
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 10
+        correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+        staticType: int
+      binaryOperator: lessThan
+      element: dart:core::@class::num::@method::<
+      staticType: bool
+    condition(v1): BinaryExpression
+      leftOperand: SimpleIdentifier
+        token: i
+        element: i@22
+        staticType: int
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 10
+        correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+        staticType: int
+      element: dart:core::@class::num::@method::<
+      staticInvokeType: bool Function(num)
+      staticType: bool
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        target: UnqualifiedNameAssignmentTarget
+          name: i
+          read: VariableReadResolution
+            element: i@22
+            type: int
+          write: VariableWriteResolution
+            element: i@22
+            acceptedType: int
+        operator: ++
+        operation: increment
+        position: postfix
+        element: dart:core::@class::num::@method::+
+        operatorResultType: int
+        staticType: int
+    updaters(v1)
+      PostfixExpression
+        operand: SimpleIdentifier
+          token: i
+          element: i@22
+          staticType: null
+        operator: ++
+        readElement: i@22
+        readType: int
+        writeElement: i@22
+        writeType: int
+        element: dart:core::@class::num::@method::+
+        staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: i
+          resolution: VariableReadResolution
+            element: i@22
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: i
+          element: i@22
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_scope_variables_initializer_uses_outer_sameName() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(int i) {
+  for (var i = i; i < 1; i++) {}
+//         ^
+// [context 1] The declaration of 'i' is here.
+//             ^
+// [diag.referencedBeforeDeclaration][context 1] Local variable 'i' can't be referenced before it is declared.
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithDeclarations
+    variables2: LocalVariablesDeclaration
+      constFinalOrVarKeyword: var
+      variables
+        LocalVariable
+          name: i
+          equals: =
+          initializer: UnqualifiedNameExpression
+            name: i
+            resolution: VariableReadResolution
+              element: i@27
+              type: dynamic
+            staticType: dynamic
+          declaredFragment: isPublic i@27
+            element: hasImplicitType isPublic
+              type: dynamic
+    variables(v1): VariableDeclarationList
+      keyword: var
+      variables
+        VariableDeclaration
+          name: i
+          equals: =
+          initializer: SimpleIdentifier
+            token: i
+            element: i@27
+            staticType: dynamic
+          declaredFragment: isPublic i@27
+            element: hasImplicitType isPublic
+              type: dynamic
+    leftSeparator: ;
+    condition2: BinaryOperatorInvocation
+      leftOperand: UnqualifiedNameExpression
+        name: i
+        resolution: VariableReadResolution
+          element: i@27
+          type: dynamic
+        staticType: dynamic
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 1
+        correspondingParameter: <null>
+        staticType: int
+      binaryOperator: lessThan
+      element: <null>
+      staticType: dynamic
+    condition(v1): BinaryExpression
+      leftOperand: SimpleIdentifier
+        token: i
+        element: i@27
+        staticType: dynamic
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 1
+        correspondingParameter: <null>
+        staticType: int
+      element: <null>
+      staticInvokeType: null
+      staticType: dynamic
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        target: UnqualifiedNameAssignmentTarget
+          name: i
+          read: VariableReadResolution
+            element: i@27
+            type: dynamic
+          write: VariableWriteResolution
+            element: i@27
+            acceptedType: dynamic
+        operator: ++
+        operation: increment
+        position: postfix
+        element: <null>
+        operatorResultType: dynamic
+        staticType: dynamic
+    updaters(v1)
+      PostfixExpression
+        operand: SimpleIdentifier
+          token: i
+          element: i@27
+          staticType: null
+        operator: ++
+        readElement: i@27
+        readType: dynamic
+        writeElement: i@27
+        writeType: dynamic
+        element: <null>
+        staticType: dynamic
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_scope_variables_uses_outer() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(int i) {
+  for (var i2 = i; i2 < 10; ++i2) {}
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithDeclarations
+    variables2: LocalVariablesDeclaration
+      constFinalOrVarKeyword: var
+      variables
+        LocalVariable
+          name: i2
+          equals: =
+          initializer: UnqualifiedNameExpression
+            name: i
+            resolution: VariableReadResolution
+              element: <testLibrary>::@function::f::@formalParameter::i
+              type: int
+            staticType: int
+          declaredFragment: isPublic i2@27
+            element: hasImplicitType isPublic
+              type: int
+    variables(v1): VariableDeclarationList
+      keyword: var
+      variables
+        VariableDeclaration
+          name: i2
+          equals: =
+          initializer: SimpleIdentifier
+            token: i
+            element: <testLibrary>::@function::f::@formalParameter::i
+            staticType: int
+          declaredFragment: isPublic i2@27
+            element: hasImplicitType isPublic
+              type: int
+    leftSeparator: ;
+    condition2: BinaryOperatorInvocation
+      leftOperand: UnqualifiedNameExpression
+        name: i2
+        resolution: VariableReadResolution
+          element: i2@27
+          type: int
+        staticType: int
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 10
+        correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+        staticType: int
+      binaryOperator: lessThan
+      element: dart:core::@class::num::@method::<
+      staticType: bool
+    condition(v1): BinaryExpression
+      leftOperand: SimpleIdentifier
+        token: i2
+        element: i2@27
+        staticType: int
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 10
+        correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+        staticType: int
+      element: dart:core::@class::num::@method::<
+      staticInvokeType: bool Function(num)
+      staticType: bool
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        operator: ++
+        target: UnqualifiedNameAssignmentTarget
+          name: i2
+          read: VariableReadResolution
+            element: i2@27
+            type: int
+          write: VariableWriteResolution
+            element: i2@27
+            acceptedType: int
+        operation: increment
+        position: prefix
+        element: dart:core::@class::num::@method::+
+        operatorResultType: int
+        staticType: int
+    updaters(v1)
+      PrefixExpression
+        operator: ++
+        operand: SimpleIdentifier
+          token: i2
+          element: i2@27
+          staticType: null
+        readElement: i2@27
+        readType: int
+        writeElement: i2@27
+        writeType: int
+        element: dart:core::@class::num::@method::+
+        staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_scope_variables_visibleInNextVariableInitializer() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  for (var i = 0, j = i; j < 1; j++) {}
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithDeclarations
+    variables2: LocalVariablesDeclaration
+      constFinalOrVarKeyword: var
+      variables
+        LocalVariable
+          name: i
+          equals: =
+          initializer: IntegerLiteral
+            literal: 0
+            staticType: int
+          declaredFragment: isPublic i@22
+            element: hasImplicitType isPublic
+              type: int
+        LocalVariable
+          name: j
+          equals: =
+          initializer: UnqualifiedNameExpression
+            name: i
+            resolution: VariableReadResolution
+              element: i@22
+              type: int
+            staticType: int
+          declaredFragment: isPublic j@29
+            element: hasImplicitType isPublic
+              type: int
+    variables(v1): VariableDeclarationList
+      keyword: var
+      variables
+        VariableDeclaration
+          name: i
+          equals: =
+          initializer: IntegerLiteral
+            literal: 0
+            staticType: int
+          declaredFragment: isPublic i@22
+            element: hasImplicitType isPublic
+              type: int
+        VariableDeclaration
+          name: j
+          equals: =
+          initializer: SimpleIdentifier
+            token: i
+            element: i@22
+            staticType: int
+          declaredFragment: isPublic j@29
+            element: hasImplicitType isPublic
+              type: int
+    leftSeparator: ;
+    condition2: BinaryOperatorInvocation
+      leftOperand: UnqualifiedNameExpression
+        name: j
+        resolution: VariableReadResolution
+          element: j@29
+          type: int
+        staticType: int
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 1
+        correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+        staticType: int
+      binaryOperator: lessThan
+      element: dart:core::@class::num::@method::<
+      staticType: bool
+    condition(v1): BinaryExpression
+      leftOperand: SimpleIdentifier
+        token: j
+        element: j@29
+        staticType: int
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 1
+        correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+        staticType: int
+      element: dart:core::@class::num::@method::<
+      staticInvokeType: bool Function(num)
+      staticType: bool
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        target: UnqualifiedNameAssignmentTarget
+          name: j
+          read: VariableReadResolution
+            element: j@29
+            type: int
+          write: VariableWriteResolution
+            element: j@29
+            acceptedType: int
+        operator: ++
+        operation: increment
+        position: postfix
+        element: dart:core::@class::num::@method::+
+        operatorResultType: int
+        staticType: int
+    updaters(v1)
+      PostfixExpression
+        operand: SimpleIdentifier
+          token: j
+          element: j@29
+          staticType: null
+        operator: ++
+        readElement: j@29
+        readType: int
+        writeElement: j@29
+        writeType: int
+        element: dart:core::@class::num::@method::+
+        staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+}
+
+@reflectiveTest
+class ForStatementResolutionTest_ForPartsWithExpression
+    extends PubPackageResolutionTest {
+  test_condition_rewrite() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f(bool Function() b) {
+  for (; b(); ) {}
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithExpression
+    leftSeparator: ;
+    condition2: CallInvocation
+      receiver: UnqualifiedNameExpression
+        name: b
+        resolution: VariableReadResolution
+          element: <testLibrary>::@function::f::@formalParameter::b
+          type: bool Function()
+        staticType: bool Function()
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      resolution: FunctionTypeInvocationResolution
+        invokeType: bool Function()
+        type: bool
+      staticType: bool
+    condition(v1): FunctionExpressionInvocation
+      function: SimpleIdentifier
+        token: b
+        element: <testLibrary>::@function::f::@formalParameter::b
+        staticType: bool Function()
+      argumentList: ArgumentList
+        leftParenthesis: (
+        rightParenthesis: )
+      element: <null>
+      staticInvokeType: bool Function()
+      staticType: bool
+    rightSeparator: ;
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_initialization_patternAssignment() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  int a;
+  for ((a) = 0;;) {
+    a;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithExpression
+    initialization2: PatternAssignment
+      pattern: ParenthesizedPattern
+        leftParenthesis: (
+        pattern: AssignedVariablePattern
+          name: a
+          element: a@17
+          matchedValueType: int
+        rightParenthesis: )
+        matchedValueType: int
+      equals: =
+      expression2: IntegerLiteral
+        literal: 0
+        staticType: int
+      patternTypeSchema: int
+      staticType: int
+    leftSeparator: ;
+    rightSeparator: ;
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@17
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@17
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_scope_body_shadows_outer() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  var i = 0;
+  for (; i < 10; i++) {
+    var i = 'a';
+    i;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithExpression
+    leftSeparator: ;
+    condition2: BinaryOperatorInvocation
+      leftOperand: UnqualifiedNameExpression
+        name: i
+        resolution: VariableReadResolution
+          element: i@17
+          type: int
+        staticType: int
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 10
+        correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+        staticType: int
+      binaryOperator: lessThan
+      element: dart:core::@class::num::@method::<
+      staticType: bool
+    condition(v1): BinaryExpression
+      leftOperand: SimpleIdentifier
+        token: i
+        element: i@17
+        staticType: int
+      operator: <
+      rightOperand: IntegerLiteral
+        literal: 10
+        correspondingParameter: dart:core::@class::num::@method::<::@formalParameter::other
+        staticType: int
+      element: dart:core::@class::num::@method::<
+      staticInvokeType: bool Function(num)
+      staticType: bool
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        target: UnqualifiedNameAssignmentTarget
+          name: i
+          read: VariableReadResolution
+            element: i@17
+            type: int
+          write: VariableWriteResolution
+            element: i@17
+            acceptedType: int
+        operator: ++
+        operation: increment
+        position: postfix
+        element: dart:core::@class::num::@method::+
+        operatorResultType: int
+        staticType: int
+    updaters(v1)
+      PostfixExpression
+        operand: SimpleIdentifier
+          token: i
+          element: i@17
+          staticType: null
+        operator: ++
+        readElement: i@17
+        readType: int
+        writeElement: i@17
+        writeType: int
+        element: dart:core::@class::num::@method::+
+        staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      LocalVariablesDeclarationStatement
+        declaration: LocalVariablesDeclaration
+          constFinalOrVarKeyword: var
+          variables
+            LocalVariable
+              name: i
+              equals: =
+              initializer: SimpleStringLiteral
+                literal: 'a'
+              declaredFragment: isPublic i@56
+                element: hasImplicitType isPublic
+                  type: String
+        semicolon: ;
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: i
+          resolution: VariableReadResolution
+            element: i@56
+            type: String
+          staticType: String
+        expression(v1): SimpleIdentifier
+          token: i
+          element: i@56
+          staticType: String
+        semicolon: ;
+    statements(v1)
+      VariableDeclarationStatement
+        variables: VariableDeclarationList
+          keyword: var
+          variables
+            VariableDeclaration
+              name: i
+              equals: =
+              initializer: SimpleStringLiteral
+                literal: 'a'
+              declaredFragment: isPublic i@56
+                element: hasImplicitType isPublic
+                  type: String
+        semicolon: ;
+      ExpressionStatement
+        expression: SimpleIdentifier
+          token: i
+          element: i@56
+          staticType: String
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_update_super() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+class A {
+  void f() {
+    for (;; super) {}
+//          ^^^^^
+// [diag.missingAssignableSelector] Missing selector such as '.identifier' or '[0]'.
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithExpression
+    leftSeparator: ;
+    rightSeparator: ;
+    updaters2
+      InvalidSuperExpression
+        superReference: SuperReference
+          superKeyword: super
+        staticType: InvalidType
+    updaters(v1)
+      SuperExpression
+        superKeyword: super
+        staticType: A
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+}
+
+@reflectiveTest
+class ForStatementResolutionTest_ForPartsWithPattern
+    extends PubPackageResolutionTest {
+  test_metadata() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  for (@deprecated var (a) = (0); a <= 2; a++) {
+    a;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithPattern
+    variables: PatternVariableDeclaration
+      metadata
+        Annotation
+          atSign: @
+          expression: UnqualifiedNameExpression
+            name: deprecated
+            resolution: GetterInvocationResolution
+              element: dart:core::@getter::deprecated
+              type: Deprecated
+            staticType: Deprecated
+          name: SimpleIdentifier
+            token: deprecated
+            element: dart:core::@getter::deprecated
+            staticType: null
+          element: dart:core::@getter::deprecated
+      keyword: var
+      pattern: ParenthesizedPattern
+        leftParenthesis: (
+        pattern: DeclaredVariablePattern
+          name: a
+          declaredFragment: isPublic a@35
+            element: hasImplicitType isPublic
+              type: int
+          matchedValueType: int
+        rightParenthesis: )
+        matchedValueType: int
+      equals: =
+      expression2: ParenthesizedExpression
+        leftParenthesis: (
+        expression2: IntegerLiteral
+          literal: 0
+          staticType: int
+        rightParenthesis: )
+        staticType: int
+      patternTypeSchema: _
+    leftSeparator: ;
+    condition2: BinaryOperatorInvocation
+      leftOperand: UnqualifiedNameExpression
+        name: a
+        resolution: VariableReadResolution
+          element: a@35
+          type: int
+        staticType: int
+      operator: <=
+      rightOperand: IntegerLiteral
+        literal: 2
+        correspondingParameter: dart:core::@class::num::@method::<=::@formalParameter::other
+        staticType: int
+      binaryOperator: lessThanOrEqual
+      element: dart:core::@class::num::@method::<=
+      staticType: bool
+    condition(v1): BinaryExpression
+      leftOperand: SimpleIdentifier
+        token: a
+        element: a@35
+        staticType: int
+      operator: <=
+      rightOperand: IntegerLiteral
+        literal: 2
+        correspondingParameter: dart:core::@class::num::@method::<=::@formalParameter::other
+        staticType: int
+      element: dart:core::@class::num::@method::<=
+      staticInvokeType: bool Function(num)
+      staticType: bool
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        target: UnqualifiedNameAssignmentTarget
+          name: a
+          read: VariableReadResolution
+            element: a@35
+            type: int
+          write: VariableWriteResolution
+            element: a@35
+            acceptedType: int
+        operator: ++
+        operation: increment
+        position: postfix
+        element: dart:core::@class::num::@method::+
+        operatorResultType: int
+        staticType: int
+    updaters(v1)
+      PostfixExpression
+        operand: SimpleIdentifier
+          token: a
+          element: a@35
+          staticType: null
+        operator: ++
+        readElement: a@35
+        readType: int
+        writeElement: a@35
+        writeType: int
+        element: dart:core::@class::num::@method::+
+        staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@35
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@35
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_metadata_shadowing() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+const a = 42;
+void f() {
+  for (@a var (a) = (0); a <= 2; a++) {
+//     ^^
+// [diag.invalidAnnotation] Annotation must be either a const variable reference or const constructor invocation.
+    a;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithPattern
+    variables: PatternVariableDeclaration
+      metadata
+        Annotation
+          atSign: @
+          expression: UnqualifiedNameExpression
+            name: a
+            resolution: VariableReadResolution
+              element: a@40
+              type: InvalidType
+            staticType: InvalidType
+          name: SimpleIdentifier
+            token: a
+            element: a@40
+            staticType: null
+          element: a@40
+      keyword: var
+      pattern: ParenthesizedPattern
+        leftParenthesis: (
+        pattern: DeclaredVariablePattern
+          name: a
+          declaredFragment: isPublic a@40
+            element: hasImplicitType isPublic
+              type: int
+          matchedValueType: int
+        rightParenthesis: )
+        matchedValueType: int
+      equals: =
+      expression2: ParenthesizedExpression
+        leftParenthesis: (
+        expression2: IntegerLiteral
+          literal: 0
+          staticType: int
+        rightParenthesis: )
+        staticType: int
+      patternTypeSchema: _
+    leftSeparator: ;
+    condition2: BinaryOperatorInvocation
+      leftOperand: UnqualifiedNameExpression
+        name: a
+        resolution: VariableReadResolution
+          element: a@40
+          type: int
+        staticType: int
+      operator: <=
+      rightOperand: IntegerLiteral
+        literal: 2
+        correspondingParameter: dart:core::@class::num::@method::<=::@formalParameter::other
+        staticType: int
+      binaryOperator: lessThanOrEqual
+      element: dart:core::@class::num::@method::<=
+      staticType: bool
+    condition(v1): BinaryExpression
+      leftOperand: SimpleIdentifier
+        token: a
+        element: a@40
+        staticType: int
+      operator: <=
+      rightOperand: IntegerLiteral
+        literal: 2
+        correspondingParameter: dart:core::@class::num::@method::<=::@formalParameter::other
+        staticType: int
+      element: dart:core::@class::num::@method::<=
+      staticInvokeType: bool Function(num)
+      staticType: bool
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        target: UnqualifiedNameAssignmentTarget
+          name: a
+          read: VariableReadResolution
+            element: a@40
+            type: int
+          write: VariableWriteResolution
+            element: a@40
+            acceptedType: int
+        operator: ++
+        operation: increment
+        position: postfix
+        element: dart:core::@class::num::@method::+
+        operatorResultType: int
+        staticType: int
+    updaters(v1)
+      PostfixExpression
+        operand: SimpleIdentifier
+          token: a
+          element: a@40
+          staticType: null
+        operator: ++
+        readElement: a@40
+        readType: int
+        writeElement: a@40
+        writeType: int
+        element: dart:core::@class::num::@method::+
+        staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@40
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@40
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_scope_afterLoop_uses_outer_despite_patternVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f((int, bool) x, int a) {
+  for (var (a, b) = x; b; a--) {}
+  a;
+}
+''');
+
+    var node = result.findNode.singleBlockFunctionBody;
+    assertResolvedNodeText(node, r'''
+BlockFunctionBody
+  block: Block
+    leftBracket: {
+    statements2
+      ForStatement
+        forKeyword: for
+        leftParenthesis: (
+        forLoopParts: ForPartsWithPattern
+          variables: PatternVariableDeclaration
+            keyword: var
+            pattern: RecordPattern
+              leftParenthesis: (
+              fields
+                PatternField
+                  pattern: DeclaredVariablePattern
+                    name: a
+                    declaredFragment: isPublic a@43
+                      element: hasImplicitType isPublic
+                        type: int
+                    matchedValueType: int
+                  element: <null>
+                PatternField
+                  pattern: DeclaredVariablePattern
+                    name: b
+                    declaredFragment: isPublic b@46
+                      element: hasImplicitType isPublic
+                        type: bool
+                    matchedValueType: bool
+                  element: <null>
+              rightParenthesis: )
+              matchedValueType: (int, bool)
+            equals: =
+            expression2: UnqualifiedNameExpression
+              name: x
+              resolution: VariableReadResolution
+                element: <testLibrary>::@function::f::@formalParameter::x
+                type: (int, bool)
+              staticType: (int, bool)
+            expression(v1): SimpleIdentifier
+              token: x
+              element: <testLibrary>::@function::f::@formalParameter::x
+              staticType: (int, bool)
+            patternTypeSchema: (_, _)
+          leftSeparator: ;
+          condition2: UnqualifiedNameExpression
+            name: b
+            resolution: VariableReadResolution
+              element: b@46
+              type: bool
+            staticType: bool
+          condition(v1): SimpleIdentifier
+            token: b
+            element: b@46
+            staticType: bool
+          rightSeparator: ;
+          updaters2
+            IncrementOrDecrementExpression
+              target: UnqualifiedNameAssignmentTarget
+                name: a
+                read: VariableReadResolution
+                  element: a@43
+                  type: int
+                write: VariableWriteResolution
+                  element: a@43
+                  acceptedType: int
+              operator: --
+              operation: decrement
+              position: postfix
+              element: dart:core::@class::num::@method::-
+              operatorResultType: int
+              staticType: int
+          updaters(v1)
+            PostfixExpression
+              operand: SimpleIdentifier
+                token: a
+                element: a@43
+                staticType: null
+              operator: --
+              readElement: a@43
+              readType: int
+              writeElement: a@43
+              writeType: int
+              element: dart:core::@class::num::@method::-
+              staticType: int
+        rightParenthesis: )
+        body2: Block
+          leftBracket: {
+          rightBracket: }
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: <testLibrary>::@function::f::@formalParameter::a
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: <testLibrary>::@function::f::@formalParameter::a
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_scope_body_shadows_patternVariable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f((int, bool) i) {
+  for (var (a, b) = i; b; a--) {
+    var a = 'a';
+    a;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithPattern
+    variables: PatternVariableDeclaration
+      keyword: var
+      pattern: RecordPattern
+        leftParenthesis: (
+        fields
+          PatternField
+            pattern: DeclaredVariablePattern
+              name: a
+              declaredFragment: isPublic a@36
+                element: hasImplicitType isPublic
+                  type: int
+              matchedValueType: int
+            element: <null>
+          PatternField
+            pattern: DeclaredVariablePattern
+              name: b
+              declaredFragment: isPublic b@39
+                element: hasImplicitType isPublic
+                  type: bool
+              matchedValueType: bool
+            element: <null>
+        rightParenthesis: )
+        matchedValueType: (int, bool)
+      equals: =
+      expression2: UnqualifiedNameExpression
+        name: i
+        resolution: VariableReadResolution
+          element: <testLibrary>::@function::f::@formalParameter::i
+          type: (int, bool)
+        staticType: (int, bool)
+      expression(v1): SimpleIdentifier
+        token: i
+        element: <testLibrary>::@function::f::@formalParameter::i
+        staticType: (int, bool)
+      patternTypeSchema: (_, _)
+    leftSeparator: ;
+    condition2: UnqualifiedNameExpression
+      name: b
+      resolution: VariableReadResolution
+        element: b@39
+        type: bool
+      staticType: bool
+    condition(v1): SimpleIdentifier
+      token: b
+      element: b@39
+      staticType: bool
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        target: UnqualifiedNameAssignmentTarget
+          name: a
+          read: VariableReadResolution
+            element: a@36
+            type: int
+          write: VariableWriteResolution
+            element: a@36
+            acceptedType: int
+        operator: --
+        operation: decrement
+        position: postfix
+        element: dart:core::@class::num::@method::-
+        operatorResultType: int
+        staticType: int
+    updaters(v1)
+      PostfixExpression
+        operand: SimpleIdentifier
+          token: a
+          element: a@36
+          staticType: null
+        operator: --
+        readElement: a@36
+        readType: int
+        writeElement: a@36
+        writeType: int
+        element: dart:core::@class::num::@method::-
+        staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      LocalVariablesDeclarationStatement
+        declaration: LocalVariablesDeclaration
+          constFinalOrVarKeyword: var
+          variables
+            LocalVariable
+              name: a
+              equals: =
+              initializer: SimpleStringLiteral
+                literal: 'a'
+              declaredFragment: isPublic a@65
+                element: hasImplicitType isPublic
+                  type: String
+        semicolon: ;
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@65
+            type: String
+          staticType: String
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@65
+          staticType: String
+        semicolon: ;
+    statements(v1)
+      VariableDeclarationStatement
+        variables: VariableDeclarationList
+          keyword: var
+          variables
+            VariableDeclaration
+              name: a
+              equals: =
+              initializer: SimpleStringLiteral
+                literal: 'a'
+              declaredFragment: isPublic a@65
+                element: hasImplicitType isPublic
+                  type: String
+        semicolon: ;
+      ExpressionStatement
+        expression: SimpleIdentifier
+          token: a
+          element: a@65
+          staticType: String
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_scope_body_uses_outer() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f((int, bool) x) {
+  for (var (a, b) = x; b; a--) {
+    x;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithPattern
+    variables: PatternVariableDeclaration
+      keyword: var
+      pattern: RecordPattern
+        leftParenthesis: (
+        fields
+          PatternField
+            pattern: DeclaredVariablePattern
+              name: a
+              declaredFragment: isPublic a@36
+                element: hasImplicitType isPublic
+                  type: int
+              matchedValueType: int
+            element: <null>
+          PatternField
+            pattern: DeclaredVariablePattern
+              name: b
+              declaredFragment: isPublic b@39
+                element: hasImplicitType isPublic
+                  type: bool
+              matchedValueType: bool
+            element: <null>
+        rightParenthesis: )
+        matchedValueType: (int, bool)
+      equals: =
+      expression2: UnqualifiedNameExpression
+        name: x
+        resolution: VariableReadResolution
+          element: <testLibrary>::@function::f::@formalParameter::x
+          type: (int, bool)
+        staticType: (int, bool)
+      expression(v1): SimpleIdentifier
+        token: x
+        element: <testLibrary>::@function::f::@formalParameter::x
+        staticType: (int, bool)
+      patternTypeSchema: (_, _)
+    leftSeparator: ;
+    condition2: UnqualifiedNameExpression
+      name: b
+      resolution: VariableReadResolution
+        element: b@39
+        type: bool
+      staticType: bool
+    condition(v1): SimpleIdentifier
+      token: b
+      element: b@39
+      staticType: bool
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        target: UnqualifiedNameAssignmentTarget
+          name: a
+          read: VariableReadResolution
+            element: a@36
+            type: int
+          write: VariableWriteResolution
+            element: a@36
+            acceptedType: int
+        operator: --
+        operation: decrement
+        position: postfix
+        element: dart:core::@class::num::@method::-
+        operatorResultType: int
+        staticType: int
+    updaters(v1)
+      PostfixExpression
+        operand: SimpleIdentifier
+          token: a
+          element: a@36
+          staticType: null
+        operator: --
+        readElement: a@36
+        readType: int
+        writeElement: a@36
+        writeType: int
+        element: dart:core::@class::num::@method::-
+        staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: x
+          resolution: VariableReadResolution
+            element: <testLibrary>::@function::f::@formalParameter::x
+            type: (int, bool)
+          staticType: (int, bool)
+        expression(v1): SimpleIdentifier
+          token: x
+          element: <testLibrary>::@function::f::@formalParameter::x
+          staticType: (int, bool)
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_scope_patternVariables() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f((int, bool) x) {
+  for (var (a, b) = x; b; a--) {
+    a;
+    b;
+  }
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithPattern
+    variables: PatternVariableDeclaration
+      keyword: var
+      pattern: RecordPattern
+        leftParenthesis: (
+        fields
+          PatternField
+            pattern: DeclaredVariablePattern
+              name: a
+              declaredFragment: isPublic a@36
+                element: hasImplicitType isPublic
+                  type: int
+              matchedValueType: int
+            element: <null>
+          PatternField
+            pattern: DeclaredVariablePattern
+              name: b
+              declaredFragment: isPublic b@39
+                element: hasImplicitType isPublic
+                  type: bool
+              matchedValueType: bool
+            element: <null>
+        rightParenthesis: )
+        matchedValueType: (int, bool)
+      equals: =
+      expression2: UnqualifiedNameExpression
+        name: x
+        resolution: VariableReadResolution
+          element: <testLibrary>::@function::f::@formalParameter::x
+          type: (int, bool)
+        staticType: (int, bool)
+      expression(v1): SimpleIdentifier
+        token: x
+        element: <testLibrary>::@function::f::@formalParameter::x
+        staticType: (int, bool)
+      patternTypeSchema: (_, _)
+    leftSeparator: ;
+    condition2: UnqualifiedNameExpression
+      name: b
+      resolution: VariableReadResolution
+        element: b@39
+        type: bool
+      staticType: bool
+    condition(v1): SimpleIdentifier
+      token: b
+      element: b@39
+      staticType: bool
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        target: UnqualifiedNameAssignmentTarget
+          name: a
+          read: VariableReadResolution
+            element: a@36
+            type: int
+          write: VariableWriteResolution
+            element: a@36
+            acceptedType: int
+        operator: --
+        operation: decrement
+        position: postfix
+        element: dart:core::@class::num::@method::-
+        operatorResultType: int
+        staticType: int
+    updaters(v1)
+      PostfixExpression
+        operand: SimpleIdentifier
+          token: a
+          element: a@36
+          staticType: null
+        operator: --
+        readElement: a@36
+        readType: int
+        writeElement: a@36
+        writeType: int
+        element: dart:core::@class::num::@method::-
+        staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@36
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@36
+          staticType: int
+        semicolon: ;
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: b
+          resolution: VariableReadResolution
+            element: b@39
+            type: bool
+          staticType: bool
+        expression(v1): SimpleIdentifier
+          token: b
+          element: b@39
+          staticType: bool
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+
+  test_scope_patternVariables_shadows_outer_in_expression() async {
+    // TODO(scheglov): should report an error
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f((int, bool) a) {
+  for (var (a, b) = a; b; a--) {}
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithPattern
+    variables: PatternVariableDeclaration
+      keyword: var
+      pattern: RecordPattern
+        leftParenthesis: (
+        fields
+          PatternField
+            pattern: DeclaredVariablePattern
+              name: a
+              declaredFragment: isPublic a@36
+                element: hasImplicitType isPublic
+                  type: InvalidType
+              matchedValueType: InvalidType
+            element: <null>
+          PatternField
+            pattern: DeclaredVariablePattern
+              name: b
+              declaredFragment: isPublic b@39
+                element: hasImplicitType isPublic
+                  type: InvalidType
+              matchedValueType: InvalidType
+            element: <null>
+        rightParenthesis: )
+        matchedValueType: InvalidType
+      equals: =
+      expression2: UnqualifiedNameExpression
+        name: a
+        resolution: VariableReadResolution
+          element: a@36
+          type: InvalidType
+        staticType: InvalidType
+      expression(v1): SimpleIdentifier
+        token: a
+        element: a@36
+        staticType: InvalidType
+      patternTypeSchema: (_, _)
+    leftSeparator: ;
+    condition2: UnqualifiedNameExpression
+      name: b
+      resolution: VariableReadResolution
+        element: b@39
+        type: InvalidType
+      staticType: InvalidType
+    condition(v1): SimpleIdentifier
+      token: b
+      element: b@39
+      staticType: InvalidType
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        target: UnqualifiedNameAssignmentTarget
+          name: a
+          read: VariableReadResolution
+            element: a@36
+            type: InvalidType
+          write: VariableWriteResolution
+            element: a@36
+            acceptedType: InvalidType
+        operator: --
+        operation: decrement
+        position: postfix
+        element: <null>
+        operatorResultType: dynamic
+        staticType: InvalidType
+    updaters(v1)
+      PostfixExpression
+        operand: SimpleIdentifier
+          token: a
+          element: a@36
+          staticType: null
+        operator: --
+        readElement: a@36
+        readType: InvalidType
+        writeElement: a@36
+        writeType: InvalidType
+        element: <null>
+        staticType: InvalidType
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_scope_patternVariables_visibleIn_condition_updaters() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() {
+  for (var (a) = (0); a <= 2; a++) {
+    a;
+  }
+}
+''');
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForPartsWithPattern
+    variables: PatternVariableDeclaration
+      keyword: var
+      pattern: ParenthesizedPattern
+        leftParenthesis: (
+        pattern: DeclaredVariablePattern
+          name: a
+          declaredFragment: isPublic a@23
+            element: hasImplicitType isPublic
+              type: int
+          matchedValueType: int
+        rightParenthesis: )
+        matchedValueType: int
+      equals: =
+      expression2: ParenthesizedExpression
+        leftParenthesis: (
+        expression2: IntegerLiteral
+          literal: 0
+          staticType: int
+        rightParenthesis: )
+        staticType: int
+      patternTypeSchema: _
+    leftSeparator: ;
+    condition2: BinaryOperatorInvocation
+      leftOperand: UnqualifiedNameExpression
+        name: a
+        resolution: VariableReadResolution
+          element: a@23
+          type: int
+        staticType: int
+      operator: <=
+      rightOperand: IntegerLiteral
+        literal: 2
+        correspondingParameter: dart:core::@class::num::@method::<=::@formalParameter::other
+        staticType: int
+      binaryOperator: lessThanOrEqual
+      element: dart:core::@class::num::@method::<=
+      staticType: bool
+    condition(v1): BinaryExpression
+      leftOperand: SimpleIdentifier
+        token: a
+        element: a@23
+        staticType: int
+      operator: <=
+      rightOperand: IntegerLiteral
+        literal: 2
+        correspondingParameter: dart:core::@class::num::@method::<=::@formalParameter::other
+        staticType: int
+      element: dart:core::@class::num::@method::<=
+      staticInvokeType: bool Function(num)
+      staticType: bool
+    rightSeparator: ;
+    updaters2
+      IncrementOrDecrementExpression
+        target: UnqualifiedNameAssignmentTarget
+          name: a
+          read: VariableReadResolution
+            element: a@23
+            type: int
+          write: VariableWriteResolution
+            element: a@23
+            acceptedType: int
+        operator: ++
+        operation: increment
+        position: postfix
+        element: dart:core::@class::num::@method::+
+        operatorResultType: int
+        staticType: int
+    updaters(v1)
+      PostfixExpression
+        operand: SimpleIdentifier
+          token: a
+          element: a@23
+          staticType: null
+        operator: ++
+        readElement: a@23
+        readType: int
+        writeElement: a@23
+        writeType: int
+        element: dart:core::@class::num::@method::+
+        staticType: int
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    statements2
+      ExpressionStatement
+        expression2: UnqualifiedNameExpression
+          name: a
+          resolution: VariableReadResolution
+            element: a@23
+            type: int
+          staticType: int
+        expression(v1): SimpleIdentifier
+          token: a
+          element: a@23
+          staticType: int
+        semicolon: ;
+    rightBracket: }
+''');
+  }
+}

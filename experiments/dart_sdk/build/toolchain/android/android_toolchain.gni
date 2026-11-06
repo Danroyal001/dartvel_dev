@@ -1,0 +1,51 @@
+import("//build/config/sysroot.gni")  # Imports android/config.gni.
+import("//build/toolchain/ccache.gni")
+import("//build/toolchain/gcc_toolchain.gni")
+import("//build/toolchain/rbe.gni")
+
+# The Android GCC toolchains share most of the same parameters, so we have this
+# wrapper around gcc_toolchain to avoid duplication of logic.
+#
+# Parameters:
+#  - android_ndk_lib_dir
+#      Libraries for this architecture
+#  - tool_prefix
+#      Prefix to be added to the tool names.
+#  - toolchain_cpu
+#      Same as gcc_toolchain
+template("android_toolchain") {
+  gcc_toolchain(target_name) {
+    if (use_ccache) {
+      assembler_prefix = "ccache "
+      compiler_prefix = "ccache "
+      link_prefix = "ccache "
+    } else {
+      assembler_prefix = ""
+      compiler_prefix = ""
+      link_prefix = ""
+    }
+
+    is_clang = true
+    prefix = rebase_path(
+            "${android_ndk_root}/toolchains/llvm/prebuilt/${android_host_os}-${android_host_arch}/bin",
+            root_build_dir)
+
+    cc = "${compiler_prefix}${prefix}/clang"
+    cxx = "${compiler_prefix}${prefix}/clang++"
+    asm = "${assembler_prefix}${prefix}/clang"
+    ar = prefix + "/llvm-ar"
+    ld = "${link_prefix}${prefix}/clang++"
+    readelf = prefix + "/llvm-readelf"
+    nm = prefix + "/llvm-nm"
+    strip = prefix + "/llvm-strip"
+
+    toolchain_os = "android"
+    toolchain_cpu = invoker.toolchain_cpu
+
+    toolchain_args = {
+      if (defined(invoker.toolchain_args)) {
+        forward_variables_from(invoker.toolchain_args, "*")
+      }
+    }
+  }
+}
