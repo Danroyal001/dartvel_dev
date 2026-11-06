@@ -39,3 +39,7 @@ path = "tests/element_oracle.rs"
 [[test]]
 name = "element_builder_test"
 path = "tests/element_builder_test.rs"
+
+[[bin]]
+name = "body_dump"
+path = "src/bin/body_dump.rs"

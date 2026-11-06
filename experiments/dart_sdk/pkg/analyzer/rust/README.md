@@ -563,3 +563,99 @@ In the order linking needs them:
   library is parsed at the latest version unless it has a `// @dart`
   comment; doc imports, documentation comments, code ranges and the
   reference tree and summaries (`bundle_writer.dart`, `bundle_reader.dart`).
+
+## Body resolution (in progress)
+
+`oracle/body_dump.dart` asks the real upstream analyzer for
+`getResolvedUnit`, then records every V1 expression's static type and every
+identifier's resolved element (kind, library URI, declaration offset and
+name). `--literals` selects seven context-independent literal kinds:
+boolean, double, null, simple strings, adjacent strings, interpolated strings
+and symbols. Integers need downward inference (an integer literal may have
+static type `double`) and are outside this first slice.
+
+`src/dart/resolver/type_analyzer.rs` currently records only those literal
+types, using the linked SDK classes through the narrow
+`src/dart/element/type_provider.rs`. It does not resolve identifiers, infer
+locals or calls, perform flow analysis, report diagnostics or rewrite the
+AST. `body_dump` requires `--literals` and refuses full mode rather than
+presenting missing resolution as a full result. The full upstream dump is
+available as a reference for the next slices.
+
+From the SDK root, using the same setup and environment variables as the
+element oracle:
+
+```sh
+DART=/path/to/dart cargo test --release -p analyzer --test body_oracle -- --nocapture
+ELEMENT_CORPUS=pkg/analyzer/rust/tests/body_corpus \
+  DART=/path/to/dart cargo test --release -p analyzer --test body_oracle -- --nocapture
+```
+
+The test requires nonempty expression output, compares every byte and keeps
+mismatches under `ELEMENT_WORK/body-literals` (default
+`target/element_oracle/body-literals`). Before implementation the fixture
+produced 37 upstream rows and all 3 files differed from Rust's empty output.
+The expanded fixture matches all 43 rows across 4 files, including directive
+URIs, parts, annotations, defaults, unreachable literals and conditional
+imports/exports. Conditional-directive children deliberately remain untyped,
+matching upstream's `visitConfiguration`; the default corpus exposed two
+differences before that fix. The default corpus now matches 41,283 rows across
+589 files (265.66 seconds, 2026-11-06). The held-out roots `tests/language`,
+`sdk/lib`, `pkg/front_end/lib`, `pkg/linter/lib` and `pkg/kernel/lib` also
+match: 146,712 rows across 5,730 files, zero differences (548.06 seconds).
+This is not body-resolution parity or a completed performance gate.
+
+`tests/oracle_comparison.rs` checks that missing empty dumps count as
+differences, extra dumps fail, and identical empty/nonempty dumps match. Its
+missing-empty case failed before the shared comparator was fixed. Missing
+output must never be mistaken for an empty expression selection.
+
+### Literal output-pipeline measurements
+
+Measured 2026-11-06 on a shared AMD EPYC host, Dart 3.13.4 AOT and rustc
+1.99.0 release, using the existing
+`../../_fe_analyzer_shared/rust/tool/measure.sh`: 11 alternating processes
+per side on the four-file fixture, 43 output rows. Each process loads the
+SDK, parses, analyzes and writes its dumps. Both output directories match
+byte for byte, as does output from the separately stripped Rust executable.
+[Raw runs](measurements/body-literals-2026-11-06.runs) retain all samples.
+
+| Fixture output pipeline | Dart AOT | Rust |
+|---|---:|---:|
+| Fastest process | 822.97 ms | 170.86 ms |
+| Median process | 964.09 ms | 197.01 ms |
+| Median peak RSS | 102,452 KiB | 33,656 KiB |
+| Maximum peak RSS | 103,744 KiB | 33,716 KiB |
+| Executable bytes | 17,931,560 | 3,510,552 |
+| Stripped executable bytes | unmeasured | 2,936,992 |
+
+The upstream entry point also resolves everything beyond the selected
+literals, so the comparison favors Rust. These are output-pipeline
+measurements, not isolated visitor timings or proof of full resolver
+performance. Wall-time CV was 46.1% for Dart and 17.4% for Rust. Instruction
+counts were unavailable (`perf_event_paranoid=4`); the empty `ins=` fields
+in the raw log mean unmeasured, not zero. Comparable clean compile times
+and full-resolver cold start remain unmeasured. The upstream AOT compile
+alone took 78.73 seconds and 574,136 KiB peak RSS; the Rust rebuild was
+incremental and included multiple binaries, so it is not comparable.
+
+Reproduce after the oracle has created its SDK and package configuration,
+from the SDK root (`DART` names the installed Dart executable):
+
+```sh
+body_work="$PWD/target/element_oracle/body-literals"
+body_fixture="$PWD/pkg/analyzer/rust/tests/body_corpus"
+"$DART" compile exe --packages="$body_work/package_config.json" \
+  pkg/analyzer/rust/oracle/body_dump.dart -o target/body-oracle-aot
+OUT=target/measure/body-literals bash pkg/_fe_analyzer_shared/rust/tool/measure.sh \
+  11 body-literals \
+  "target/body-oracle-aot --sdk $body_work/sdk --packages $body_work/package_config.json --literals --out target/body-bench-dart $body_fixture" \
+  "target/release/body_dump --sdk $body_work/sdk --packages $body_work/package_config.json --literals --out target/body-bench-rust $body_fixture"
+diff -qr target/body-bench-dart target/body-bench-rust
+```
+
+The analyzer crate and body dump forbid unsafe code. The three comparator
+tests pass under Miri (`MIRIFLAGS=-Zmiri-disable-isolation cargo +nightly
+miri test -p analyzer --test oracle_comparison`); that run covers the
+comparator, not body-resolution paths. Body-resolution coverage and Miri
+evidence remain incomplete.

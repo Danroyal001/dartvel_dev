@@ -80,6 +80,7 @@ pub mod src {
             pub mod r#type;
             pub mod scope;
             pub mod type_algebra;
+            pub mod type_provider;
             pub mod type_system;
             pub mod normalize;
             pub mod top_merge;
@@ -93,6 +94,7 @@ pub mod src {
             pub mod generic_inferrer;
         }
         pub mod resolver {
+            pub mod type_analyzer;
             pub mod scope;
         }
         pub mod scanner {
