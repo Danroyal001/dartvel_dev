@@ -353,10 +353,14 @@ to the end with `-Zmiri-deterministic-floats`:
 `arc_iterations_various_tiny_arcs_near_quadrant_axis` passed in 137 s and
 `arc_iterations_various_start_angles_near_quadrant_axis` in 643 s;
 `arc_iterations_various_end_angles_near_quadrant_axis` (36,000 arcs, ten
-times the others) is still running. The `matrix` module with the SSE2 code,
+times the others) in 10,743 s; Miri reported no undefined behaviour in any. The `matrix` module with the SSE2 code,
 under Miri's default flags: `determinant_is_upstreams_bit_for_bit` (40,000
-matrices through the SSE2 lanes) passed; `invert_is_upstreams_bit_for_bit`
-is still running.
+matrices through the SSE2 lanes) passed, and the 22
+other tests, which call `invert` and `get_determinant` through the SSE2 code,
+pass (the three listed above need `-Zmiri-deterministic-floats` here too);
+`invert_is_upstreams_bit_for_bit` was stopped after it had run for more than an
+hour in the interpreter (it runs three inversions of each of 40,000 matrices, and passes
+natively).
 
 
 Coverage of the library by the unit tests and the oracle (4 seeds; measured
