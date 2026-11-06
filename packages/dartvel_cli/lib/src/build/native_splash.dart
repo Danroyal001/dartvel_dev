@@ -304,9 +304,9 @@ String dvWebSplashRemove(String html) => html
 /// The colour is a stylesheet in the head, so it paints in the first frame
 /// the browser draws with nothing fetched. The element goes first in the
 /// body, before anything else, because the engine appends `<flutter-view>`
-/// to the end of the body: positioned after the splash, the application
-/// covers it the moment it paints. The first-frame listener then removes it,
-/// but nothing depends on that script being allowed to run -- a
+/// to the end of the body. The working listener raises the splash above a
+/// pending view until the engine confirms rasterization. Without that script,
+/// document order still lets the application cover the splash -- a
 /// Content-Security-Policy without 'unsafe-inline' leaves the splash
 /// underneath an application that has painted over it.
 ///
@@ -342,10 +342,8 @@ String dvWebSplashApply(
     }
   }
   if (splash.progress) {
-    // After the splash in the document and with no z-index, so it paints
-    // over the splash and under the Flutter view the engine appends: a page
-    // whose inline script is blocked is covered by the app, not by a bar
-    // stuck at eight percent.
+    // Low stacking unless its script runs and can remove it on readiness:
+    // blocked inline scripts cannot trap a rendered app beneath the bar.
     style.write('#dartvel-progress{position:fixed;top:0;left:0;right:0;'
         'height:3px;pointer-events:none}'
         '#dartvel-progress>div{height:100%;background:${splash.progressColor};'
@@ -385,10 +383,12 @@ String dvWebSplashApply(
           'aria-label="Loading" aria-valuemin="0" aria-valuemax="100" '
           'aria-valuenow="8"><div></div></div>\n'
           '<script>$_progressScript</script>\n' : ''}'
-      '<script>addEventListener("flutter-first-frame",function(){'
+      '<script>(function(){var p=document.getElementById("dartvel-splash");'
+      'if(p)p.style.zIndex="2147483644";'
+      'addEventListener("dartvel-first-frame",function(){'
       'var s=document.getElementById("dartvel-splash");if(s)s.remove();'
       'var t=document.getElementById("dartvel-splash-style");if(t)t.remove()'
-      '},{once:true})</script>\n'
+      '},{once:true})})()</script>\n'
       '$_bodyClose';
 
   return '${clean.substring(0, head)}$headBlock'
@@ -1035,7 +1035,7 @@ DVSplashResult dvWriteNativeSplash(
 /// motion it steps and does not creep.
 const String _progressScript = '(function(){'
     'var d=document,h=d.documentElement,b=d.getElementById("dartvel-progress");'
-    'if(!b)return;var f=b.firstChild,v=0,cap=15,'
+    'if(!b)return;b.style.zIndex="2147483645";var f=b.firstChild,v=0,cap=15,'
     'rm=matchMedia("(prefers-reduced-motion: reduce)").matches;'
     'h.setAttribute("aria-busy","true");'
     'function set(n){n=Math.min(n,100);if(n<=v)return;v=n;'
@@ -1052,7 +1052,7 @@ const String _progressScript = '(function(){'
     'catch(e){}'
     'var t=rm?0:setInterval(function(){'
     'var n=cap<45?45:cap<75?75:cap<85?85:95;set(v+(n-v)*0.06)},250);'
-    'addEventListener("flutter-first-frame",function(){'
+    'addEventListener("dartvel-first-frame",function(){'
     'if(t)clearInterval(t);set(100);h.removeAttribute("aria-busy");'
     'setTimeout(function(){b.remove()},rm?0:350)},{once:true})'
     '})()';

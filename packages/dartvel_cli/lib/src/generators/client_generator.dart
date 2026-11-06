@@ -1204,6 +1204,7 @@ ${_moduleBackendSource(dv)}    // A web-server build is served by the binary tha
     final bool autoRoute = _dependsOn(root, 'auto_route');
     final imports = <String>{
       "import 'dart:async';",
+      "import 'package:flutter/foundation.dart' show SynchronousFuture;",
       if (autoRoute) "import 'package:auto_route/auto_route.dart' as auto_route;",
       // The models' names hidden, so Route.publicPage is the model's and not
       // ambiguous with Flutter's Route.
@@ -1927,6 +1928,7 @@ class ${e.generatedWidget} extends DartvelPage {
   const ${e.generatedWidget}({super.key});
 
   static Future<void>? _libraryFuture;
+  static bool _libraryLoaded = false;
 
   /// Registered so a test can drop the cache.
   ///
@@ -1936,14 +1938,19 @@ class ${e.generatedWidget} extends DartvelPage {
   /// -- every later test then waits on a future that never delivers and the
   /// page sits on its loading state. Call dvResetDeferredPages() in setUp.
   static final void Function() _resetRegistration =
-      dvRegisterDeferredPageReset(() => _libraryFuture = null);
+      dvRegisterDeferredPageReset(() {
+        _libraryFuture = null;
+        _libraryLoaded = false;
+      });
 
   static Future<void> loadLibrary() {
     // Touched so the static is initialised: a lazy static in Dart is not
     // evaluated until it is read, and a registration nothing reads never
     // happens.
     _resetRegistration;
-    return _libraryFuture ??= p${e.importIndex}.loadLibrary();
+    return _libraryFuture ??= p${e.importIndex}.loadLibrary().then((_) {
+      _libraryLoaded = true;
+    });
   }
 
   @override
@@ -1963,9 +1970,9 @@ ${e.isFunctional ? '''  @override
   Future<Object?> loadData(
     Map<String, String> params,
     Map<String, String> query,
-  ) async {
-    await loadLibrary();
-    return null;
+  ) {
+    if (_libraryLoaded) return SynchronousFuture<Object?>(null);
+    return loadLibrary().then((_) => null);
   }
 ''' : '''  @override
   Future<Object?> loadData(
@@ -1981,6 +1988,11 @@ ${e.isFunctional ? '''  @override
 '''}
   @override
   Widget build(BuildContext context) {
+    // FutureBuilder waits for a frame even for an already completed future.
+    // The route loader already loaded this library before revealing the page.
+    if (_libraryLoaded) {
+$buildReturn
+    }
     return FutureBuilder<void>(
       future: loadLibrary(),
       builder: (context, snapshot) {

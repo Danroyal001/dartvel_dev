@@ -126,6 +126,12 @@ void main() {
         '() => window.dispatchEvent(new Event("flutter-first-frame"))');
     await Future<void>.delayed(const Duration(milliseconds: 100));
     expect(await page.evaluate<bool>(
+        '() => document.getElementById("dartvel-progress") !== null'), isTrue,
+        reason: 'progress stays while the engine frame is deferred');
+    await page.evaluate<void>(
+        '() => window.dispatchEvent(new Event("dartvel-first-frame"))');
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(await page.evaluate<bool>(
         '() => document.getElementById("dartvel-progress") === null'), isTrue);
     expect(await page.evaluate<String?>(
         '() => document.documentElement.getAttribute("aria-busy")'), isNull);

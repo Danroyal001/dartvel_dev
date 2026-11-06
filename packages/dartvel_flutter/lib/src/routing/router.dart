@@ -20,6 +20,7 @@ import '../../dartvel_flutter.dart'
     show DVPageStore, DVStudioPageRoute, DartvelRouteState, DvDefaultLoading;
 import 'client_hosts.dart'
     show dvHostsMapLocations, dvLocationFromPlatform, dvLocationToPlatform;
+import 'first_frame_gate.dart' show dvHoldWebFirstFrame, dvWatchWebFirstFrame;
 
 class DVRouter extends GoRouter {
   DVRouter({
@@ -167,11 +168,47 @@ class _DVPendingDelegate extends GoRouterDelegate {
 
   final WidgetBuilder pending;
 
+  bool _firstBuild = true;
+  bool _holdingFirstFrame = false;
+  bool _releaseScheduled = false;
+
+  void _releaseFirstFrame() {
+    if (!_holdingFirstFrame) return;
+    _holdingFirstFrame = false;
+    WidgetsBinding.instance.allowFirstFrame();
+  }
+
+  @override
+  void dispose() {
+    _releaseFirstFrame();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_firstBuild) {
+      _firstBuild = false;
+      final binding = WidgetsBinding.instance;
+      if (dvHoldWebFirstFrame && !binding.firstFrameRasterized) {
+        dvWatchWebFirstFrame();
+        binding.deferFirstFrame();
+        _holdingFirstFrame = true;
+      }
+    }
     final RouteMatchList current = currentConfiguration;
     if (current.isEmpty && !current.isError) return pending(context);
-    return super.build(context);
+    final Widget page = super.build(context);
+    // The route's loader takes its own hold while the resolved page builds.
+    // Release this one only after that build, so an async initial redirect
+    // cannot send an empty engine frame before a loader even exists.
+    if (_holdingFirstFrame && !_releaseScheduled) {
+      _releaseScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _releaseScheduled = false;
+        _releaseFirstFrame();
+      });
+    }
+    return page;
   }
 }
 

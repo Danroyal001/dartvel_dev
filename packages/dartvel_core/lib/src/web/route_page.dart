@@ -11,9 +11,10 @@ library;
 
 import 'dart:convert';
 
+import 'first_frame.dart';
 import 'minify.dart';
-import 'page_text.dart';
 import 'page_data.dart' show dvApplyFavicon;
+import 'page_text.dart';
 import 'seo_head.dart';
 import 'structured_data.dart';
 
@@ -145,6 +146,7 @@ class DVRoutePage {
     this.content,
     this.html,
     this.text = const <String>[],
+    this.firstFrames = const <DVFirstFrame>[],
   });
 
   factory DVRoutePage.fromJson(Map<String, Object?> json) => DVRoutePage(
@@ -168,6 +170,10 @@ class DVRoutePage {
         text: <String>[
           for (final Object? line in (json['text'] as List?) ?? const <Object?>[])
             '$line',
+        ],
+        firstFrames: <DVFirstFrame>[
+          for (final Object? frame in (json['firstFrames'] as List?) ?? const <Object?>[])
+            DVFirstFrame.fromJson((frame as Map).cast<String, Object?>()),
         ],
       );
 
@@ -200,6 +206,11 @@ class DVRoutePage {
 
   /// Plain lines from the page's source, used only when nothing was captured.
   final List<String> text;
+
+  /// The app's first frame at the widths the build captured, shown before the
+  /// app loads. Empty for a page rendered at a path other than its route: a
+  /// pattern's page shows a different record than any capture did.
+  final List<DVFirstFrame> firstFrames;
 
   /// The same page at [path], for a route matched by a pattern, and on the
   /// site at [siteUrl] when one is given: a host of `dartvel.hosts` shows a
@@ -238,6 +249,8 @@ class DVRoutePage {
         if (robots != null) 'robots': robots,
         if (content != null) 'content': content,
         if (html != null) 'html': html,
+        if (firstFrames.isNotEmpty)
+          'firstFrames': <Object?>[for (final DVFirstFrame frame in firstFrames) frame.toJson()],
         if (text.isNotEmpty) 'text': text,
       };
 }
@@ -278,5 +291,15 @@ String dvRenderRoutePage(
     if (page.text.isNotEmpty) onUncaptured?.call(page.route);
     body = dvApplyPageText(head, page.text, path: page.route);
   }
-  return dvMinifyHtml(body);
+  return dvMinifyHtml(_withFirstFrame(body, page.firstFrames));
+}
+
+/// [html] with the first-frame block right after the body opens, so the
+/// picture is there before anything below it is parsed.
+String _withFirstFrame(String html, List<DVFirstFrame> frames) {
+  final String block = dvFirstFrameHtml(frames);
+  if (block.isEmpty) return html;
+  final Match? body = RegExp(r'<body[^>]*>').firstMatch(html);
+  if (body == null) return html;
+  return '${html.substring(0, body.end)}$block${html.substring(body.end)}';
 }

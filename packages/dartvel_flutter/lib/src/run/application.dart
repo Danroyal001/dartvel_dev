@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../dartvel_flutter.dart';
+import '../routing/first_frame_gate.dart' show dvWatchWebFirstFrame;
 
 /// The generated router and Flutter configuration an existing host keeps.
 class const DVAppParts({
@@ -59,6 +60,7 @@ Future<void> dvRunApplication(
           previousFlutterError?.call(details);
         };
         dvStartAppLifecycleBridge();
+        dvWatchWebFirstFrame();
         runApp(root());
         WidgetsBinding.instance.addPostFrameCallback((_) {
           DV.lifecycle.setApp(.ready);
@@ -71,6 +73,7 @@ Future<void> dvRunApplication(
           error: error,
           stackTrace: stack,
         );
+        dvWatchWebFirstFrame();
         runApp(
           MaterialApp(
             theme: dartvelDefaultTheme(.light),

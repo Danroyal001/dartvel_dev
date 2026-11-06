@@ -45,7 +45,7 @@ List<int> _centre(List<int> png) {
   return image.get(image.width ~/ 2, image.height ~/ 2).sublist(0, 3);
 }
 
-Future<Page> _open({bool javascript = true, String scheme = 'light'}) async {
+Future<Page> _open({bool javascript = true, String scheme = 'light', bool inlineBlocked = false}) async {
   final Page page = await browser.newPage();
   await page.setViewport(const DeviceViewport(width: 200, height: 200));
   await page.setJavaScriptEnabled(javascript);
@@ -56,7 +56,7 @@ Future<Page> _open({bool javascript = true, String scheme = 'light'}) async {
   await page.devTools.emulation.setEmulatedMedia(features: <cdp.MediaFeature>[
     cdp.MediaFeature(name: 'prefers-color-scheme', value: scheme),
   ]);
-  await page.goto('http://127.0.0.1:${server.port}/', wait: Until.load);
+  await page.goto('http://127.0.0.1:${server.port}/${inlineBlocked ? '?block-inline=1' : ''}', wait: Until.load);
   return page;
 }
 
@@ -65,6 +65,10 @@ void main() {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((HttpRequest request) {
       request.response.headers.contentType = ContentType.html;
+      if (request.uri.queryParameters['block-inline'] == '1') {
+        request.response.headers.set('Content-Security-Policy',
+            "script-src 'none'; style-src 'unsafe-inline'");
+      }
       request.response
         ..write(html)
         ..close();
@@ -116,12 +120,7 @@ void main() {
     await page.close();
   });
 
-  test('the Flutter view lands on top of it', () async {
-    // What the engine does: the body becomes position:fixed and the view is
-    // appended, absolutely positioned, at its end. Painted, the application
-    // covers the splash without any script having removed it -- which is
-    // what keeps a Content-Security-Policy that blocks inline scripts from
-    // leaving a splash over the app.
+  test('a pending Flutter view waits below the splash until raster ready', () async {
     final Page page = await _open();
     await page.evaluate<void>('''() => {
       document.body.style.position = 'fixed';
@@ -130,6 +129,9 @@ void main() {
       view.style.cssText = 'position:absolute;inset:0;display:block;background:#FFFF00';
       document.body.append(view);
     }''');
+    expect(_centre(await page.screenshot()), <int>[255, 0, 0]);
+    await page.evaluate<void>(
+        '() => window.dispatchEvent(new Event("dartvel-first-frame"))');
     expect(_centre(await page.screenshot()), <int>[255, 255, 0]);
     await page.close();
   });
@@ -141,9 +143,27 @@ void main() {
     await page.evaluate<void>(
         '() => window.dispatchEvent(new Event("flutter-first-frame"))');
     expect(await page.evaluate<bool>(
+        '() => document.getElementById("dartvel-splash") !== null'), isTrue,
+        reason: 'a deferred engine frame must keep the fallback splash');
+    await page.evaluate<void>(
+        '() => window.dispatchEvent(new Event("dartvel-first-frame"))');
+    expect(await page.evaluate<bool>(
         '() => document.getElementById("dartvel-splash") === null'), isTrue);
     // And the page's own background is its own again.
     expect(_centre(await page.screenshot()), <int>[255, 255, 255]);
+    await page.close();
+  });
+
+  test('blocked inline scripts cannot trap the rendered app under a splash', () async {
+    final page = await _open(inlineBlocked: true);
+    expect(_centre(await page.screenshot()), <int>[255, 0, 0]);
+    await page.evaluate<void>('''()=>{
+      document.body.style.position='fixed'; document.body.style.inset='0';
+      const view=document.createElement('flutter-view');
+      view.style.cssText='position:absolute;inset:0;display:block;background:#FFFF00';
+      document.body.append(view);
+    }''');
+    expect(_centre(await page.screenshot()), <int>[255, 255, 0]);
     await page.close();
   });
 }

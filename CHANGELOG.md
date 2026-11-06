@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Web: clicking or tapping a button no longer draws the browser's blue focus ring or tap highlight around its text. Dartvel builds the semantics tree on every page, which made its elements focusable DOM that Chrome decorated; plain Flutter builds it only for a screen reader. The browser ring now shows only while the user navigates with the keyboard.
+- Before the app loads, a web page is the app's own first screen. The build captures each public route in Chrome at `dartvel.web.firstFrame.widths` (default 390, 1366, 1920), light and dark; a visitor at that width sees the picture from the first byte, with the words laid over it to select, find (Ctrl+F) and follow, and Flutter's first frame replaces it with the same pixels (under 0.1% changed in the browser test). Other widths keep the splash. `dartvel.web.firstFrame: false` turns it off.
 - `dartvel --version | head -1` (or any command piped into a reader that stops early) ends quietly instead of printing an unhandled broken-pipe exception and exiting 255.
 
 ## 0.13.16 — 2026-10-22

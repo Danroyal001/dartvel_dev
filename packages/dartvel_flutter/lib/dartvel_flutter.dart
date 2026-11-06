@@ -75,6 +75,8 @@ import 'src/platform/storage/device_storage_stub.dart'
 import 'src/progress/top_progress.dart';
 import 'src/purchases/purchases_runtime.dart' show dvInstallPurchaseRuntime;
 import 'src/pwa/install_prompt.dart';
+import 'src/routing/first_frame_gate.dart'
+    show dvHoldWebFirstFrame, dvWatchWebFirstFrame;
 import 'src/routing/link_menu.dart' show DVLinkMenuScope, dvLinkMenuItems;
 import 'src/routing/mount.dart' show dvMountedLocation;
 import 'src/routing/nav_link.dart' show DVLinkOpener, DVPressedLinkTarget;
@@ -11006,11 +11008,23 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     super.dispose();
   }
 
+  MediaQueryData? _mediaQuery;
+
   @override
-  Widget build(BuildContext context) => Theme(
-        data: dvWithPageScrollbars(Theme.of(context)),
-        child: DVHostFrame(child: Builder(builder: _buildPage)),
-      );
+  Widget build(BuildContext context) {
+    final MediaQueryData? current = MediaQuery.maybeOf(context);
+    if (current != null && !current.size.isEmpty) {
+      _mediaQuery = current;
+    }
+    final Widget page = Theme(
+      data: dvWithPageScrollbars(Theme.of(context)),
+      child: DVHostFrame(child: Builder(builder: _buildPage)),
+    );
+    if (current != null && current.size.isEmpty && _mediaQuery != null) {
+      return MediaQuery(data: _mediaQuery!, child: page);
+    }
+    return page;
+  }
 
   Widget _buildPage(BuildContext context) {
     // The module this page belongs to may have replaced its chrome or taken
@@ -11244,31 +11258,74 @@ class DvDataScope extends InheritedWidget {
   bool updateShouldNotify(DvDataScope oldWidget) => data != oldWidget.data;
 }
 
-class DvDataLoader extends StatelessWidget {
-  final Future<Object?> Function() load;
-  final Widget child;
-  final Widget? loading;
-  final Widget? error;
+class const DvDataLoader({
+  super.key,
+  required final Future<Object?> Function() load,
+  required final Widget child,
+  final Widget? loading,
+  final Widget? error,
+}) extends StatefulWidget {
+  @override
+  State<DvDataLoader> createState() => _DvDataLoaderState();
+}
 
-  const DvDataLoader(
-      {super.key,
-      required this.load,
-      required this.child,
-      this.loading,
-      this.error});
+class _DvDataLoaderState extends State<DvDataLoader> {
+  late Future<Object?> _future;
+  bool _holdingFirstFrame = false;
+  bool _releaseScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final binding = WidgetsBinding.instance;
+    if (dvHoldWebFirstFrame && !binding.firstFrameRasterized) {
+      dvWatchWebFirstFrame();
+      binding.deferFirstFrame();
+      _holdingFirstFrame = true;
+    }
+    _future = widget.load();
+  }
+
+  @override
+  void didUpdateWidget(DvDataLoader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.load != oldWidget.load) _future = widget.load();
+  }
+
+  void _releaseFirstFrame() {
+    if (!_holdingFirstFrame) return;
+    _holdingFirstFrame = false;
+    WidgetsBinding.instance.allowFirstFrame();
+  }
+
+  @override
+  void dispose() {
+    _releaseFirstFrame();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Object?>(
-      future: load(),
+      future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return loading ?? const DvDefaultLoading();
+          return widget.loading ?? const DvDefaultLoading();
+        }
+        // The engine's first-frame event removes the server's picture. A
+        // loading shell is not that picture: wait until the page (including
+        // its deferred code) has laid out, or its error page is ready.
+        if (_holdingFirstFrame && !_releaseScheduled) {
+          _releaseScheduled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _releaseScheduled = false;
+            if (mounted) _releaseFirstFrame();
+          });
         }
         if (snapshot.hasError) {
-          return error ?? const DvDefaultError();
+          return widget.error ?? const DvDefaultError();
         }
-        return DvDataScope(data: snapshot.data, child: child);
+        return DvDataScope(data: snapshot.data, child: widget.child);
       },
     );
   }

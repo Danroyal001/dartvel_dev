@@ -193,7 +193,9 @@ Widget _heroTerminal(BuildContext context) {
           padding: .fromLTRB(16, 14, 16, 18),
           // Coloured the way the terminal actually is: the prompt, what you
           // type and what it answers are three different things.
-          child: Typewriter(
+          // Keep the terminal complete at takeover: replaying a typewriter
+          // here turns the captured finished screen back into partial text.
+          child: SelectableText.rich(TextSpan(
             style: TextStyle(
               fontFamily: 'JetBrainsMono',
               fontFamilyFallback: <String>['Menlo', 'Consolas', 'monospace'],
@@ -201,7 +203,7 @@ Widget _heroTerminal(BuildContext context) {
               height: 1.75,
               color: Color(0xFFD7E1F5),
             ),
-            <TextSpan>[
+            children: <TextSpan>[
               TextSpan(
                 text: '\$ ',
                 style: TextStyle(color: Color(0xFF9ECE6A)),
@@ -234,7 +236,7 @@ Widget _heroTerminal(BuildContext context) {
                 ),
               ),
             ],
-          ),
+          )),
         ),
       ],
     ),
