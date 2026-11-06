@@ -1204,6 +1204,7 @@ ${_moduleBackendSource(dv)}    // A web-server build is served by the binary tha
     final bool autoRoute = _dependsOn(root, 'auto_route');
     final imports = <String>{
       "import 'dart:async';",
+      "import 'package:flutter/foundation.dart' show SynchronousFuture;",
       if (autoRoute) "import 'package:auto_route/auto_route.dart' as auto_route;",
       // The models' names hidden, so Route.publicPage is the model's and not
       // ambiguous with Flutter's Route.
@@ -1969,9 +1970,9 @@ ${e.isFunctional ? '''  @override
   Future<Object?> loadData(
     Map<String, String> params,
     Map<String, String> query,
-  ) async {
-    await loadLibrary();
-    return null;
+  ) {
+    if (_libraryLoaded) return SynchronousFuture<Object?>(null);
+    return loadLibrary().then((_) => null);
   }
 ''' : '''  @override
   Future<Object?> loadData(

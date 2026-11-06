@@ -19,4 +19,23 @@ void main() {
     );
     expect(find.byType(DocsArticle), findsOneWidget);
   });
+
+  testWidgets('a preloaded route loader never inserts a waiting frame', (
+    tester,
+  ) async {
+    await tester.runAsync(DocsRoutingPageGeneratedPage.loadLibrary);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DvDataLoader(
+            load: () => const DocsRoutingPageGeneratedPage().loadData({}, {}),
+            child: const DocsRoutingPageGeneratedPage(),
+          ),
+        ),
+      ),
+    );
+    expect(find.byType(DvDefaultLoading), findsNothing,
+        reason: 'preloaded UI-only route data is already ready');
+    expect(find.byType(DocsArticle), findsOneWidget);
+  });
 }

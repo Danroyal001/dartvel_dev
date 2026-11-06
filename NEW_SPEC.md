@@ -489,6 +489,8 @@ The table is the contract. Each row says which entries a target has, what
   A generated page whose deferred library is already loaded draws its body
   synchronously, without inserting another loading frame for a completed
   future. Resetting deferred pages clears that readiness along with the cache.
+  Its UI-only route data completes synchronously too, so the outer route loader
+  cannot replace an already-loaded page with a waiting frame on rebuild.
   The picture, fallback splash and progress stay above a pending Flutter view
   until raster readiness. Their working scripts raise them; when inline scripts
   are blocked, base stacking still lets the rendered app cover them, and the
