@@ -42,7 +42,8 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
               <String>['<route>/index.html', 'One page per route, so a deep '
                   'link and a crawler get real HTML'],
               <String>['dv-first-frame/', 'A lossless PNG of each page\'s first '
-                  'screen, shown until the app has loaded'],
+                  'screen, shown until the page data and deferred code '
+                  'are ready for the first app frame'],
               <String>['manifest.json, icons/', 'The installable PWA'],
               <String>['flutter_service_worker.js', 'Offline caching, '
                   'replaced by Dartvel\'s worker'],

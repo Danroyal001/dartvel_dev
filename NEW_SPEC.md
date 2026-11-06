@@ -478,6 +478,9 @@ The table is the contract. Each row says which entries a target has, what
   width and scheme, with the text laid over it -- transparent, selectable,
   findable with Ctrl+F, links followable -- and hides the splash there. Flutter's
   first frame removes it, and the two are the same pixels, so nothing moves.
+  The page loader defers that engine frame until its data and deferred code
+  have loaded and the content (or error page) has laid out; disposal releases
+  the hold too, so a replaced pending page cannot block the application.
   Any other width keeps the splash; a browser with no script gets the page's
   document; screen readers read the document, never the picture's text layer.
   A route rendered at another path than its own (a pattern's record) and a

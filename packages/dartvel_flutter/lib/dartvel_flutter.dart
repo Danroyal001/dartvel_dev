@@ -11244,31 +11244,73 @@ class DvDataScope extends InheritedWidget {
   bool updateShouldNotify(DvDataScope oldWidget) => data != oldWidget.data;
 }
 
-class DvDataLoader extends StatelessWidget {
-  final Future<Object?> Function() load;
-  final Widget child;
-  final Widget? loading;
-  final Widget? error;
+class const DvDataLoader({
+  super.key,
+  required final Future<Object?> Function() load,
+  required final Widget child,
+  final Widget? loading,
+  final Widget? error,
+}) extends StatefulWidget {
+  @override
+  State<DvDataLoader> createState() => _DvDataLoaderState();
+}
 
-  const DvDataLoader(
-      {super.key,
-      required this.load,
-      required this.child,
-      this.loading,
-      this.error});
+class _DvDataLoaderState extends State<DvDataLoader> {
+  late Future<Object?> _future;
+  bool _holdingFirstFrame = false;
+  bool _releaseScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final binding = WidgetsBinding.instance;
+    if (!binding.firstFrameRasterized) {
+      binding.deferFirstFrame();
+      _holdingFirstFrame = true;
+    }
+    _future = widget.load();
+  }
+
+  @override
+  void didUpdateWidget(DvDataLoader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.load != oldWidget.load) _future = widget.load();
+  }
+
+  void _releaseFirstFrame() {
+    if (!_holdingFirstFrame) return;
+    _holdingFirstFrame = false;
+    WidgetsBinding.instance.allowFirstFrame();
+  }
+
+  @override
+  void dispose() {
+    _releaseFirstFrame();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Object?>(
-      future: load(),
+      future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return loading ?? const DvDefaultLoading();
+          return widget.loading ?? const DvDefaultLoading();
+        }
+        // The engine's first-frame event removes the server's picture. A
+        // loading shell is not that picture: wait until the page (including
+        // its deferred code) has laid out, or its error page is ready.
+        if (_holdingFirstFrame && !_releaseScheduled) {
+          _releaseScheduled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _releaseScheduled = false;
+            if (mounted) _releaseFirstFrame();
+          });
         }
         if (snapshot.hasError) {
-          return error ?? const DvDefaultError();
+          return widget.error ?? const DvDefaultError();
         }
-        return DvDataScope(data: snapshot.data, child: child);
+        return DvDataScope(data: snapshot.data, child: widget.child);
       },
     );
   }
