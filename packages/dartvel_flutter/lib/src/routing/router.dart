@@ -20,7 +20,7 @@ import '../../dartvel_flutter.dart'
     show DVPageStore, DVStudioPageRoute, DartvelRouteState, DvDefaultLoading;
 import 'client_hosts.dart'
     show dvHostsMapLocations, dvLocationFromPlatform, dvLocationToPlatform;
-import 'first_frame_gate.dart' show dvHoldWebFirstFrame;
+import 'first_frame_gate.dart' show dvHoldWebFirstFrame, dvWatchWebFirstFrame;
 
 class DVRouter extends GoRouter {
   DVRouter({
@@ -190,6 +190,7 @@ class _DVPendingDelegate extends GoRouterDelegate {
       _firstBuild = false;
       final binding = WidgetsBinding.instance;
       if (dvHoldWebFirstFrame && !binding.firstFrameRasterized) {
+        dvWatchWebFirstFrame();
         binding.deferFirstFrame();
         _holdingFirstFrame = true;
       }

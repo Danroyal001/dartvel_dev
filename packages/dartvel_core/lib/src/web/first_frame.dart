@@ -137,7 +137,7 @@ String dvFirstFrameHtml(List<DVFirstFrame> frames) {
   return '<style id="dv-first-frame-style">$style</style>'
       '<noscript><style>#dv-first-frame{display:none!important}</style></noscript>'
       '<div id="dv-first-frame" aria-hidden="true">$layers</div>'
-      '<script>addEventListener("flutter-first-frame",function(){requestAnimationFrame(function(){'
+      '<script>addEventListener("dartvel-first-frame",function(){requestAnimationFrame(function(){'
       'var f=document.getElementById("dv-first-frame");if(f)f.remove();'
       'var s=document.getElementById("dv-first-frame-style");if(s)s.remove()})},{once:true})</script>';
 }

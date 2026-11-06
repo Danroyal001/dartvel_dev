@@ -49,7 +49,7 @@ Future<void> main(List<String> args) async {
                 }
               });
               await page.evaluateOnNewDocument(
-                'addEventListener("flutter-first-frame",()=>{window.dvVerifyFrame=true})',
+                'addEventListener("dartvel-first-frame",()=>{window.dvVerifyFrame=true})',
               );
               final Response response = await page.goto(
                 'http://127.0.0.1:$port$route',

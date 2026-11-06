@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/first_frame_capture.dart';
-import 'package:dartvel_core/dartvel.dart' show DVFirstFrame;
+import 'package:dartvel_core/dartvel.dart' show DVFirstFrame, dvFirstFrameHtml;
 import 'package:path/path.dart' as p;
 import 'package:dartvel_cli/src/build/chrome_launch.dart';
 import 'package:image/image.dart' as img;
@@ -10,6 +10,31 @@ import 'package:puppeteer/puppeteer.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('a premature Flutter callback cannot remove the unrendered picture', () async {
+    final browser = await puppeteer.launch(
+      executablePath: await dvChromeExecutable(), args: dvChromeLaunchArgs);
+    try {
+      final page = await browser.newPage();
+      await page.setContent(dvFirstFrameHtml(const [
+        DVFirstFrame(width: 390, dark: false, src: 'picture.png'),
+      ]));
+      await page.evaluate<Object?>('''async()=>{
+        dispatchEvent(new Event('flutter-first-frame'));
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+      }''');
+      expect(await page.evaluate<bool>(
+        '()=>document.getElementById("dv-first-frame")!==null'), isTrue,
+        reason: 'Flutter emits its callback even while engine rendering is deferred');
+      await page.evaluate<Object?>(
+        '()=>dispatchEvent(new Event("dartvel-first-frame"))');
+      await page.waitForFunction(
+        '()=>document.getElementById("dv-first-frame")===null');
+    } finally {
+      await browser.close();
+    }
+  });
+
   test('captured pixels survive encoding without changing the app', () async {
     final Browser browser = await puppeteer.launch(
       executablePath: await dvChromeExecutable(), args: dvChromeLaunchArgs);

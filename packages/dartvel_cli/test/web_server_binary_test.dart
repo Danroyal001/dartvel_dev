@@ -362,7 +362,7 @@ Widget _notesPage(BuildContext context) {
       final Page page = await browser.newPage();
       await page.setViewport(const DeviceViewport(width: 1024, height: 768));
       await page.evaluateOnNewDocument(
-          'addEventListener("flutter-first-frame", () => { window.dvFirstFrame = true })');
+          'addEventListener("dartvel-first-frame", () => { window.dvFirstFrame = true })');
       await page.goto('http://127.0.0.1:${run.port}/notes', wait: Until.load);
       await page.waitForFunction('() => window.dvFirstFrame === true',
           timeout: const Duration(minutes: 1));
@@ -417,7 +417,7 @@ Widget _notesPage(BuildContext context) {
         }
       });
       await page.evaluateOnNewDocument(
-          'addEventListener("flutter-first-frame", () => { window.dvFirstFrame = true })');
+          'addEventListener("dartvel-first-frame", () => { window.dvFirstFrame = true })');
       await page.goto('http://127.0.0.1:${run.port}/notes', wait: Until.networkIdle);
       return page;
     }

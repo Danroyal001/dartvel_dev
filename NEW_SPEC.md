@@ -482,6 +482,10 @@ The table is the contract. Each row says which entries a target has, what
   resolves; the page loader retains the hold until its data and deferred code
   have loaded and the content (or error page) has laid out. Disposal releases
   the hold too, so a replaced pending page cannot block the application.
+  Picture removal uses the framework's internal `dartvel-first-frame` DOM
+  event after Flutter's `waitUntilFirstFrameRasterized` completes. Flutter's
+  own `flutter-first-frame` callback is insufficient: it also fires for a
+  deferred frame, before anything has reached the screen.
   Any other width keeps the splash; a browser with no script gets the page's
   document; screen readers read the document, never the picture's text layer.
   A route rendered at another path than its own (a pattern's record) and a

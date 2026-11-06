@@ -72,7 +72,7 @@ void main() {
     });
 
     test('goes when Flutter draws its first frame, and never shows without script', () {
-      expect(html, contains('flutter-first-frame'));
+      expect(html, contains('dartvel-first-frame'));
       expect(html, contains('<noscript><style>#dv-first-frame{display:none!important}</style></noscript>'));
     });
 
