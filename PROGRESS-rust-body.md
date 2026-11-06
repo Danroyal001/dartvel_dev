@@ -77,3 +77,49 @@
 - **146,712 expression rows, 5,730 files, 0 differences**, 548.06s with the hardened comparator. Roots: `tests/language`, `sdk/lib`, `pkg/front_end/lib`, `pkg/linter/lib`, `pkg/kernel/lib` together.
 - Literal slice compatibility gate now passes fixture (43 rows/4 files), default (41,283/589) and held-out (146,712/5,730). This is only seven literal kinds, not full body-resolution parity.
 - Next: Miri on oracle completeness tests and AOT-vs-Rust fixture-output measurements using the existing interleaved harness. Instruction counts blocked by perf policy. No invocation/generic/flow slice started yet.
+
+## Step 13 — Comparator Miri GREEN
+- `MIRIFLAGS=-Zmiri-disable-isolation CARGO_BUILD_JOBS=1 timeout 900 ~/heavy.sh ~/.cargo/bin/cargo +nightly miri test -p analyzer --test oracle_comparison -- --nocapture`: all **3 tests pass**, no undefined behavior reported (49.13s compile, 4.12s tests).
+- This Miri run covers comparator completeness only, not all body-resolution paths. The analyzer library and body dump both forbid unsafe code; no new unsafe introduced.
+- Next: compile the real upstream body dump to AOT and measure fixture-output pipelines with the existing interleaved harness; full resolver performance and inference are not certified by that measurement.
+- Upstream AOT compilation printed the SDK workspace's `^3.15.0-0` auto-pub diagnostic under installed Dart 3.13.4, but continued into `gen_kernel_aot` using the explicit oracle package config. Waiting for its actual exit status; no SDK constraint or source changed.
+
+## Step 14 — AOT measurement started
+- Upstream AOT compilation succeeded despite the earlier auto-pub diagnostic: **78.73s**, compile peak RSS **574,136 KiB**; executable **17,931,560 bytes**. Rust release body dump **3,510,552 bytes** before further stripping.
+- Running existing `pkg/_fe_analyzer_shared/rust/tool/measure.sh`, 11 interleaved processes per side, fixture corpus (43 output rows), through heavy.sh. Raw log: `experiments/dart_sdk/target/measure/body-literals/body-literals.runs`.
+- Measurement scope is the complete selected-output pipelines, including SDK setup/parsing/output. Upstream resolves bodies beyond the selected literals; Rust does not. This favors Rust and cannot establish full resolver speed, memory, compile-time or cold-start parity.
+- Next: inspect benchmark exit/output equivalence, save raw data and table, finalize review handoff. Broader brief remains incomplete.
+
+## Step 15 — Literal output-pipeline measurements
+- Existing interleaved harness completed 11 processes per side on a shared AMD EPYC host, Dart 3.13.4 AOT / rustc 1.99.0 release. Raw data retained at `experiments/dart_sdk/pkg/analyzer/rust/measurements/body-literals-2026-11-06.runs`.
+- Both measured output directories match byte for byte (`diff -qr`, no differences). A separately stripped Rust executable also runs successfully and matches the upstream output.
+
+| Fixture dump pipeline (43 rows / 4 files) | Dart AOT | Rust |
+|---|---:|---:|
+| Fastest process wall time | 822.97 ms | 170.86 ms |
+| Median process wall time | 964.09 ms | 197.01 ms |
+| Median peak RSS | 102,452 KiB | 33,656 KiB |
+| Maximum peak RSS | 103,744 KiB | 33,716 KiB |
+| Executable bytes before further stripping | 17,931,560 | 3,510,552 |
+| Stripped Rust executable bytes | — | 2,936,992 |
+| User-space instruction counts | blocked | blocked |
+| Comparable clean compilation | not measured | not measured |
+
+- Wall-time CV: Dart 46.1%, Rust 17.4%; shared-host noise is substantial. No in-process visitor timings or full-resolver cold-start result inferred. The upstream pipeline resolves more than the selected literals, so these numbers favor Rust and are not proof of the owner's full component performance bar.
+- AOT compile observed separately: 78.73s / 574,136 KiB; earlier Rust 4m47s was an incremental multi-binary rebuild, so those compile times are not comparable. Stripped AOT size was not measured.
+- Next: run comparator tests under normal Cargo, finish README and review handoff, commit all remaining task changes. Full body resolution/inference remains incomplete.
+
+## Step 16 — Final checks and review handoff
+- Standard Cargo release comparator tests: **3 passed**, 14.91s rebuild; Miri: **3 passed**. Targeted `rustfmt --check` and `git diff --check` pass.
+- README records corpus counts, measurement scope, raw data, reproduction commands and safety/performance limitations. Raw AOT compile metadata is saved alongside the run log.
+- Removed this worktree's generated `experiments/dart_sdk/target` (341 MiB) and temporary standalone executable. Forced cleanup was rejected by the tool; ordinary non-forced deletion succeeded. The oracle recreates package configuration/SDK layout and executables on the next run. Tracked measurement evidence remains.
+- No push, PR, merge, publish, deploy or messages. Owner identity used for commits. No Python, production dependency or unsafe code added.
+
+## Final report — PARTIAL, broader brief remains open
+- Delivered: real upstream resolved-AST oracle (all expression types and identifier elements in upstream full mode), explicit literal subset on both sides, seven literal types backed by linked SDK classes, conditional-directive no-visit behavior, and a hardened missing-output comparator.
+- Compatibility: fixture **43 rows / 4 files**, default **41,283 / 589**, held-out **146,712 / 5,730**; **0 differences in every comparison**. Held-out roots are exactly the five in the brief.
+- Safety: library and dump forbid unsafe code; comparator native and Miri tests pass. Body-resolution Miri/coverage is not established.
+- Measured fixture pipeline: Dart/Rust fastest **822.97/170.86 ms**, median **964.09/197.01 ms**, median peak RSS **102,452/33,656 KiB**. Upstream resolves more than literals; this does not establish the complete component performance bar. Instructions blocked by `perf_event_paranoid=4`; comparable clean compilation, full-resolver cold start and stripped AOT size remain unmeasured.
+- Local branch: `agent/rust-body`, based on `6d52539f1`. Oracle/implementation commits: `bc1e80f4a`, `dc2e3ff83`, `6a0d2016d`, `98541525a`; corpus evidence: `b5bc7011e`, `db0b97c1d`; final evidence/report in the last commit. Lead reviews and lands; do not merge or push from this task.
+- **Still required to finish the brief:** simple expressions beyond literals, identifier binding and Rust resolved-element output, invocations, contextual integers, local/generic inference, flow analysis, their failing-first oracle slices and all-root comparisons, and complete safety/performance measurements. Rust deliberately refuses full dump mode while these are absent. Do not mark the queue item done or advertise body-resolution parity.
+- **Next action:** add the next simple-expression oracle selection/fixture, observe semantic RED, then port the corresponding upstream visitors before invocation/inference machinery. Keep existing literal selection and all-root comparisons intact.
