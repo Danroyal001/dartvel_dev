@@ -11,6 +11,7 @@ Future<void> dvWaitForWebRaster(
   required String ready,
   required Duration timeout,
 }) async {
+  if (await page.evaluate<bool>(ready)) return;
   bool waiting = true;
   Future<void> present() async {
     while (waiting) {

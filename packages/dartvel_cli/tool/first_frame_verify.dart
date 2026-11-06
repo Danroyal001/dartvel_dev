@@ -31,6 +31,7 @@ Future<void> main(List<String> args) async {
           final String name =
               '${route == '/' ? 'index' : route.substring(1).replaceAll('/', '_')}-$width-$scheme';
           bool picture = false, find = false, removed = false;
+          num? afterFrameMs;
           int? status;
           for (final bool app in <bool>[false, true]) {
             final Page page = await browser.newPage();
@@ -50,11 +51,11 @@ Future<void> main(List<String> args) async {
                 }
               });
               await page.evaluateOnNewDocument(
-                'addEventListener("dartvel-first-frame",()=>{window.dvVerifyFrame=true})',
+                'addEventListener("dartvel-first-frame",()=>{window.dvVerifyFrame=true;window.dvVerifyFrameAt=performance.now()})',
               );
               final Response response = await page.goto(
                 'http://127.0.0.1:$port$route',
-                wait: .networkIdle,
+                wait: app ? .domContentLoaded : .networkIdle,
                 timeout: const .new(minutes: 2),
               );
               status = response.status;
@@ -64,9 +65,18 @@ Future<void> main(List<String> args) async {
                   ready: '()=>window.dvVerifyFrame===true',
                   timeout: const Duration(minutes: 2),
                 );
-                await Future<void>.delayed(const .new(milliseconds: 2500));
+                final num elapsed = await page.evaluate<num>(
+                  '()=>performance.now()-window.dvVerifyFrameAt',
+                );
+                final int remaining = ((2500 - elapsed) * 1000).round();
+                if (remaining > 0) {
+                  await Future<void>.delayed(.new(microseconds: remaining));
+                }
                 removed = await page.evaluate<bool>(
                   '()=>document.getElementById("dv-first-frame")===null',
+                );
+                afterFrameMs = await page.evaluate<num>(
+                  '()=>performance.now()-window.dvVerifyFrameAt',
                 );
               } else {
                 picture = await page.evaluate<bool>(
@@ -108,6 +118,7 @@ Future<void> main(List<String> args) async {
             'picture': picture,
             'find': find,
             'removed': removed,
+            'afterFrameMs': afterFrameMs,
             'changed': changed,
             'percent': percent,
           };
