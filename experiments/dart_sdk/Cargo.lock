@@ -10,5 +10,9 @@ dependencies = [
 ]
 
 [[package]]
+name = "dart_style"
+version = "0.1.0"
+
+[[package]]
 name = "fe_analyzer_shared"
 version = "0.1.0"
