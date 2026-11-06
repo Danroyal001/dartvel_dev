@@ -1,3 +1,7 @@
+## 0.13.22 — 2026-11-07
+
+- The first-frame handover waits for a real raster after layout, keeps desktop scrollbars through it, and a preloaded route renders on its first frame instead of a loading frame, so the captured first screen and Flutter's first frame match pixel for pixel.
+
 ## 0.13.21 — 2026-11-05
 
 - Version aligned with dartvel_core 0.13.21.

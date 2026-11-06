@@ -1,3 +1,7 @@
+## 0.13.22 — 2026-11-07
+
+- Version aligned with dartvel_core 0.13.22.
+
 ## 0.13.21 — 2026-11-05
 
 - Projects with a raw handler typed `Future<Response>` build again: 0.13.20's file-download check did not compile on those routes.
