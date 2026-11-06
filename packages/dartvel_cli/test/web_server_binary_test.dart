@@ -36,6 +36,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVSessions,
         DVTenants;
 import 'package:dartvel_cli/src/build/chrome_launch.dart';
+import 'package:dartvel_cli/src/build/chrome_frame.dart';
 import 'package:dartvel_cli/src/build/first_frame_capture.dart' show dvEmulateColourScheme;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
@@ -364,7 +365,7 @@ Widget _notesPage(BuildContext context) {
       await page.evaluateOnNewDocument(
           'addEventListener("dartvel-first-frame", () => { window.dvFirstFrame = true })');
       await page.goto('http://127.0.0.1:${run.port}/notes', wait: Until.load);
-      await page.waitForFunction('() => window.dvFirstFrame === true',
+      await dvWaitForWebRaster(page, ready: '() => window.dvFirstFrame === true',
           timeout: const Duration(minutes: 1));
 
       // The semantics tree is on by default: the button is a real element a
@@ -435,7 +436,7 @@ Widget _notesPage(BuildContext context) {
       final img.Image before = img.decodePng(await server.screenshot())!;
 
       final Page app = await open(app: true);
-      await app.waitForFunction('() => window.dvFirstFrame === true', timeout: const Duration(minutes: 1));
+      await dvWaitForWebRaster(app, ready: '() => window.dvFirstFrame === true', timeout: const Duration(minutes: 1));
       await Future<void>.delayed(const Duration(seconds: 2));
       expect(await app.evaluate<bool>('() => document.getElementById("dv-first-frame") === null'), isTrue,
           reason: 'the first frame of the app takes the picture away');

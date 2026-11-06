@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/chrome_launch.dart';
+import 'package:dartvel_cli/src/build/chrome_frame.dart';
 import 'package:dartvel_cli/src/build/first_frame_capture.dart';
 import 'package:puppeteer/puppeteer.dart';
 
@@ -58,8 +59,9 @@ Future<void> main(List<String> args) async {
               );
               status = response.status;
               if (app) {
-                await page.waitForFunction(
-                  '()=>window.dvVerifyFrame===true',
+                await dvWaitForWebRaster(
+                  page,
+                  ready: '()=>window.dvVerifyFrame===true',
                   timeout: const Duration(minutes: 2),
                 );
                 await Future<void>.delayed(const .new(milliseconds: 2500));
