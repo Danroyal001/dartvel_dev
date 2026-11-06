@@ -61,3 +61,9 @@
 - Unchanged literal oracle: **43 expression rows, 4 files, 0 differences**, 70.39s after release compilation. Includes the new conditional import/export fixture; the original default-corpus RED was 2 differences.
 - Comparator hardening committed locally as `6a0d2016d`; no remote action.
 - Next: default corpus with hardened comparator, then held-out roots; full inference/resolution and measurements still pending.
+- Conditional-directive fix committed locally as `98541525a`. Hardened default oracle started; rebuild completed in 20.85s, upstream resolution in progress. No uncommitted implementation changes.
+
+## Step 10 — Default corpus GREEN
+- Hardened body literal oracle passes: **41,283 expression rows, 589 files, 0 differences**, 265.66s (plus 20.85s release rebuild), using Dart 3.13.4 and the SDK checkout's libraries/packages.
+- Command from `experiments/dart_sdk`: `DART=/home/sigmadev/snap/flutter/common/flutter/bin/cache/dart-sdk/bin/dart CARGO_BUILD_JOBS=1 timeout 1200 ~/heavy.sh ~/.cargo/bin/cargo test --release -p analyzer --test body_oracle -- --nocapture`.
+- Next: all requested held-out roots in one comparison; no new resolution slice started before that gate. `perf_event_paranoid=4` still blocks instruction counts.

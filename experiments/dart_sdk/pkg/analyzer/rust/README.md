@@ -594,8 +594,17 @@ ELEMENT_CORPUS=pkg/analyzer/rust/tests/body_corpus \
 The test requires nonempty expression output, compares every byte and keeps
 mismatches under `ELEMENT_WORK/body-literals` (default
 `target/element_oracle/body-literals`). Before implementation the fixture
-produced 37 upstream rows and all 3 files differed from Rust's empty output;
-with literal typing it matches all 37 rows, including directive URIs, parts,
-annotations, defaults and unreachable literals. Default and held-out corpus
-validation and measurements are still pending. This is not body-resolution
-parity or a completed performance gate.
+produced 37 upstream rows and all 3 files differed from Rust's empty output.
+The expanded fixture matches all 43 rows across 4 files, including directive
+URIs, parts, annotations, defaults, unreachable literals and conditional
+imports/exports. Conditional-directive children deliberately remain untyped,
+matching upstream's `visitConfiguration`; the default corpus exposed two
+differences before that fix. The default corpus now matches 41,283 rows across
+589 files (265.66 seconds, 2026-11-06). Held-out corpus validation and
+measurements are still pending. This is not body-resolution parity or a
+completed performance gate.
+
+`tests/oracle_comparison.rs` checks that missing empty dumps count as
+differences, extra dumps fail, and identical empty/nonempty dumps match. Its
+missing-empty case failed before the shared comparator was fixed. Missing
+output must never be mistaken for an empty expression selection.
