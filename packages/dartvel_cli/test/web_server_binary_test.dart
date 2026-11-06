@@ -433,14 +433,18 @@ Widget _notesPage(BuildContext context) {
           isTrue, reason: 'no splash where the picture is');
       expect(await server.evaluate<bool>('() => window.find("Save a note")'), isTrue,
           reason: 'find reaches the words on the picture');
-      final img.Image before = img.decodePng(await server.screenshot())!;
+      final img.Image before = img.decodePng(
+        await server.screenshot(captureBeyondViewport: false),
+      )!;
 
       final Page app = await open(app: true);
       await dvWaitForWebRaster(app, ready: '() => window.dvFirstFrame === true', timeout: const Duration(minutes: 1));
       await Future<void>.delayed(const Duration(seconds: 2));
       expect(await app.evaluate<bool>('() => document.getElementById("dv-first-frame") === null'), isTrue,
           reason: 'the first frame of the app takes the picture away');
-      final img.Image after = img.decodePng(await app.screenshot())!;
+      final img.Image after = img.decodePng(
+        await app.screenshot(captureBeyondViewport: false),
+      )!;
 
       int changed = 0;
       for (int y = 0; y < before.height; y++) {

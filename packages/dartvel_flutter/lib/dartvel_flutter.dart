@@ -11008,11 +11008,23 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     super.dispose();
   }
 
+  MediaQueryData? _mediaQuery;
+
   @override
-  Widget build(BuildContext context) => Theme(
-        data: dvWithPageScrollbars(Theme.of(context)),
-        child: DVHostFrame(child: Builder(builder: _buildPage)),
-      );
+  Widget build(BuildContext context) {
+    final MediaQueryData? current = MediaQuery.maybeOf(context);
+    if (current != null && !current.size.isEmpty) {
+      _mediaQuery = current;
+    }
+    final Widget page = Theme(
+      data: dvWithPageScrollbars(Theme.of(context)),
+      child: DVHostFrame(child: Builder(builder: _buildPage)),
+    );
+    if (current != null && current.size.isEmpty && _mediaQuery != null) {
+      return MediaQuery(data: _mediaQuery!, child: page);
+    }
+    return page;
+  }
 
   Widget _buildPage(BuildContext context) {
     // The module this page belongs to may have replaced its chrome or taken

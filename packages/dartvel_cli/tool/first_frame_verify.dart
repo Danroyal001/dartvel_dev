@@ -87,8 +87,9 @@ Future<void> main(List<String> args) async {
                   '()=>{getSelection().removeAllRanges();window.scrollTo(0,0)}',
                 );
               }
-              File('${output.path}/$name-$app.png')
-                  .writeAsBytesSync(await page.screenshot());
+              File('${output.path}/$name-$app.png').writeAsBytesSync(
+                await page.screenshot(captureBeyondViewport: false),
+              );
             } finally {
               await page.close();
             }

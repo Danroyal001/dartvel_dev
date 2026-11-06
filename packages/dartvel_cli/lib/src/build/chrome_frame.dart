@@ -15,7 +15,7 @@ Future<void> dvWaitForWebRaster(
   bool waiting = true;
   Future<void> present() async {
     while (waiting) {
-      await page.screenshot();
+      await page.screenshot(captureBeyondViewport: false);
       if (waiting) {
         await Future<void>.delayed(const .new(milliseconds: 100));
       }

@@ -39,4 +39,41 @@ void main() {
     expect(seen.thumbColor?.resolve(<WidgetState>{}), const Color(0xFF00FF00));
     expect(seen.thumbVisibility?.resolve(<WidgetState>{}), isTrue);
   });
+
+  testWidgets('a transient zero-size MediaQuery does not tear down desktop scrollbars', (
+    WidgetTester tester,
+  ) async {
+    ScrollbarPainter painter() => tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .map((paint) => paint.foregroundPainter)
+        .whereType<ScrollbarPainter>()
+        .single;
+
+    Widget frame(Size size) => MaterialApp(
+      theme: dartvelDefaultTheme(.light),
+      home: MediaQuery(
+        data: .new(size: size),
+        child: DVPageShell(
+          spec: const .new(scaffold: false),
+          child: Builder(
+            builder: (context) => context.screen.width >= 960
+                ? const Scrollbar(
+                    child: SingleChildScrollView(
+                      child: SizedBox(width: 1366, height: 2400),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(frame(const .new(1366, 900)));
+    await tester.pumpAndSettle();
+    expect(painter().fadeoutOpacityAnimation.value, 1.0);
+
+    await tester.pumpWidget(frame(.zero));
+    await tester.pumpWidget(frame(const .new(1366, 900)));
+    expect(painter().fadeoutOpacityAnimation.value, 1.0);
+  });
 }

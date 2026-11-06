@@ -63,4 +63,75 @@ void main() {
       }
     },
   );
+
+  testWidgets(
+    'handover waits for a visible scrollbar thumb to finish fading in',
+    (tester) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: .ltr,
+          child: MediaQuery(
+            data: const .new(size: .new(400, 300)),
+            child: RawScrollbar(
+              controller: controller,
+              thumbVisibility: true,
+              fadeDuration: const .new(milliseconds: 300),
+              child: SingleChildScrollView(
+                controller: controller,
+                child: const SizedBox(width: 400, height: 1200),
+              ),
+            ),
+          ),
+        ),
+      );
+      ScrollbarPainter painter() => tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((paint) => paint.foregroundPainter)
+          .whereType<ScrollbarPainter>()
+          .single;
+      final start = tester.binding.currentSystemFrameTimeStamp.inMicroseconds;
+      bool complete = false;
+      final waiting = dvWaitForPostLayoutRaster(tester.binding);
+      unawaited(
+        waiting.then((_) {
+          complete = true;
+        }),
+      );
+      try {
+        await tester.pump(const .new(milliseconds: 16));
+        tester.binding.platformDispatcher.onReportTimings?.call([
+          timing(start + 16667),
+        ]);
+        await tester.pump();
+        expect(
+          painter().fadeoutOpacityAnimation.value,
+          lessThan(1.0),
+        );
+        expect(
+          complete,
+          isFalse,
+          reason: 'the first frame after layout still has a fading thumb',
+        );
+        await tester.pump(const .new(milliseconds: 350));
+        final settled =
+            tester.binding.currentSystemFrameTimeStamp.inMicroseconds;
+        expect(painter().fadeoutOpacityAnimation.value, 1.0);
+        tester.binding.platformDispatcher.onReportTimings?.call([
+          timing(settled + 1000),
+        ]);
+        await tester.pump();
+        expect(complete, isTrue);
+      } finally {
+        await tester.pump(const .new(milliseconds: 400));
+        final end = tester.binding.currentSystemFrameTimeStamp.inMicroseconds;
+        tester.binding.platformDispatcher.onReportTimings?.call([
+          timing(end + 100000),
+        ]);
+        await tester.pump();
+        await waiting;
+      }
+    },
+  );
 }
