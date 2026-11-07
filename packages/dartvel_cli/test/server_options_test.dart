@@ -449,6 +449,43 @@ dartvel:
       );
     });
 
+    test('dartvel.web.crossOriginIsolated sends COOP and COEP on every response',
+        () async {
+      // skwasm renders on a worker only on a cross-origin isolated page.
+      // credentialless rather than require-corp: a cross-origin image or
+      // font without a CORP header still loads, without cookies, instead of
+      // being blocked.
+      final String routes = await routesFor('''
+name: server_options_app
+dartvel:
+  web:
+    crossOriginIsolated: true
+''');
+      expect(routes, contains("'cross-origin-opener-policy': 'same-origin'"));
+      expect(routes,
+          contains("'cross-origin-embedder-policy': 'credentialless'"));
+      expect(routes, contains('...core.dvDefaultSecurityHeaders'));
+      expect(routes, contains('securityHeaders: dartvelSecurityHeaders'));
+    });
+
+    test('and no application gets them without asking', () async {
+      // COOP same-origin cuts a sign-in or payment popup off from the page
+      // that opened it; that is the application's decision.
+      final String routes = await routesFor('name: server_options_app\n');
+      expect(routes, isNot(contains('cross-origin-opener-policy')));
+      expect(routes, isNot(contains('cross-origin-embedder-policy')));
+      expect(routes, contains('securityHeaders: dartvelSecurityHeaders'));
+    });
+
+    test('crossOriginIsolated takes true or false, nothing else', () {
+      expect(
+        () => DVServerOptions.parse(YamlMap.wrap(<String, Object?>{
+          'web': <String, Object?>{'crossOriginIsolated': 'yes'},
+        })),
+        throwsFormatException,
+      );
+    });
+
     test('a project that configured nothing sends no CORS headers', () async {
       final String routes = await routesFor('name: server_options_app\n');
 

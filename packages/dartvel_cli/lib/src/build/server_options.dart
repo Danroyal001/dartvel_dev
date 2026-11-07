@@ -50,9 +50,26 @@ class DVServerOptions {
     this.forwardedHeader,
     this.ipv6SourcePrefix = DVClientAddress.defaultIpv6SourcePrefix,
     this.maxBodyBytes = dvDefaultMaxBodyBytes,
+    this.crossOriginIsolated = false,
   });
 
   final int maxBodyBytes;
+
+  /// `dartvel.web.crossOriginIsolated`: every response carries
+  /// `Cross-Origin-Opener-Policy: same-origin` and
+  /// `Cross-Origin-Embedder-Policy: credentialless`, which is what lets
+  /// skwasm (`dartvel.web.renderer: wasm`) render on a worker thread. Off
+  /// unless asked: COOP cuts a popup a page opens (a sign-in, a payment) off
+  /// from it, and COEP changes how cross-origin files load.
+  final bool crossOriginIsolated;
+
+  /// The `dartvelSecurityHeaders` literal for the generated backend: the
+  /// runtime's defaults, plus cross-origin isolation when asked for.
+  String get securityHeadersSource => crossOriginIsolated
+      ? "<String, String>{...core.dvDefaultSecurityHeaders, "
+          "'cross-origin-opener-policy': 'same-origin', "
+          "'cross-origin-embedder-policy': 'credentialless'}"
+      : 'core.dvDefaultSecurityHeaders';
 
   /// The configured policy, or null when the project said nothing.
   ///
@@ -122,8 +139,19 @@ class DVServerOptions {
   /// somebody wrote down deliberately. A misspelling that silently leaves
   /// the default in place is the failure mode worth refusing.
   static DVServerOptions parse(Object? dv) {
+    final Object? isolated = _value(_value(dv, 'web'), 'crossOriginIsolated');
+    if (isolated != null && isolated is! bool) {
+      throw FormatException(
+        'dartvel.web.crossOriginIsolated must be true or false, not '
+        '"$isolated". It sends the COOP and COEP headers that let skwasm '
+        'render on a worker thread.',
+      );
+    }
+    final bool crossOriginIsolated = isolated == true;
     final Object? server = _value(dv, 'server');
-    if (server == null) return const DVServerOptions();
+    if (server == null) {
+      return DVServerOptions(crossOriginIsolated: crossOriginIsolated);
+    }
 
     final Object? compression = _value(server, 'compression');
     if (compression != null && compression is! bool) {
@@ -142,6 +170,7 @@ class DVServerOptions {
       forwardedHeader: _forwardedHeader(_value(server, 'forwardedHeader')),
       ipv6SourcePrefix: _ipv6SourcePrefix(_value(server, 'ipv6SourcePrefix')),
       maxBodyBytes: _maxBodyBytes(_value(server, 'maxBodyBytes')),
+      crossOriginIsolated: crossOriginIsolated,
     );
   }
 
