@@ -3289,7 +3289,10 @@ class DVBox<T> extends StatelessWidget {
     if (!_scrollable || _layout == _DVBoxLayout.horizontalScrollable) {
       return child;
     }
-    return SingleChildScrollView(child: child);
+    // A layer of its own, so a scroll moves the content instead of
+    // re-recording all of it: SingleChildScrollView paints its child inside
+    // its own paint, and a page is usually one long scrollable column.
+    return SingleChildScrollView(child: RepaintBoundary(child: child));
   }
 
   List<Widget> _spaced(List<Widget> children) {
