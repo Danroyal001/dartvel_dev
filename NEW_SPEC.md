@@ -504,6 +504,23 @@ The table is the contract. Each row says which entries a target has, what
   guarded route have no picture. `dartvel.web.firstFrame: false` turns it off.
   Pictures are lossless PNG, named by their content, and a dark one identical to the
   light one is not kept.
+- **Renderer.** `dartvel.web.renderer` is `canvaskit` (default: dart2js and
+  CanvasKit everywhere) or `wasm` (`flutter build web --wasm`: dart2wasm and
+  skwasm where flutter.js allows it, which by default is Chromium with WasmGC,
+  and the dart2js/CanvasKit app elsewhere, from one build). Any other value
+  fails the build before generation. With `wasm` the shell preloads
+  `main.dart.mjs` and `main.dart.wasm` on a browser that passes the loader's
+  own WasmGC test and `main.dart.js` everywhere else, so no browser downloads
+  an app it will not run. A build that serves Studio refuses `wasm` before
+  compiling: dart2wasm on Flutter 3.47 does not split deferred libraries, so
+  Studio's screens would be in the public `main.dart.wasm`. skwasm runs
+  single-threaded unless the page is cross-origin isolated.
+  `dartvel.web.crossOriginIsolated: true` makes the web-server binary send
+  `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: credentialless` on every response, so skwasm
+  renders on a worker; it is off by default because COOP cuts a popup the page
+  opens (sign-in, payment) off from it. Static hosts (`.htaccess`, `_headers`)
+  and the preview server do not send them yet.
 - **Service worker** registration is phase 7. The service worker is generated
   JavaScript (`push`, `notificationclick`, precache), not a Dart entry; a push
   that must run Dart while no tab is open is out of reach on the web and
