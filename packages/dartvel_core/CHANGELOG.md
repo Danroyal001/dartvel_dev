@@ -1,3 +1,7 @@
+## 0.13.26 — 2026-11-07
+
+- Version aligned with dartvel_core 0.13.26.
+
 ## 0.13.25 — 2026-11-07
 
 - Removed the first-frame picture from the framework. Since 0.13.22 a web build captured each public route in Chrome and the page showed that picture, with an invisible text layer, until the app loaded. It looked finished but did nothing when pressed, so visitors took the site for broken. Now the page shows the splash (logo, pulsing "Loading…" line, loading bar) at every window width until the real app has drawn its first frame, then the app. The build no longer captures pictures (no `dv-first-frame/` files, no picture styles or script in the page, no `firstFrames` in the server manifest), and a web-server binary built earlier renders its pages without the picture. A pubspec that still sets `dartvel.web.firstFrame` (true, false or a map) builds, with one warning that the key is ignored and can be deleted. Removed from the public API: `DVFirstFrame`, `DVFirstFrameText`, `dvFirstFrameHtml` and `DVRoutePage.firstFrames`.

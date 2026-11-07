@@ -1,3 +1,7 @@
+## 0.13.26 — 2026-11-07
+
+- Web builds are much faster: the semantics read runs on a pool of browser windows with the app booted once per window (35 routes: 387 s to 23 s), the deferred dart2wasm compile runs beside Flutter's own, the web-server backend compiles beside Flutter and is reused when unchanged, image variants are made on isolates and kept by content, and Flutter's engine files are compressed while Flutter compiles. A 30-page sample builds cold in 277 s instead of 951 s, and in 20 s when nothing changed. `--capture-jobs` sets the window count; `--no-capture-in-app` reads every route with a fresh load.
+
 ## 0.13.25 — 2026-11-07
 
 - Version aligned with dartvel_core 0.13.25.
