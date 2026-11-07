@@ -192,11 +192,71 @@ shelf.Handler dvCaptureHandler(String webRoot) {
   };
 }
 
+/// How many routes the semantics read keeps open at once.
+///
+/// Most of a route's read is waiting -- for the app to boot, for its deferred
+/// page to arrive, for the tree to hold still -- so one page at a time leaves
+/// the machine idle; a site of two hundred routes took most of an hour. Each
+/// open page is a Flutter app drawing in software, so the count follows the
+/// cores, leaves a quarter of them for the browser and everything else, and
+/// stops at eight,
+/// past which pages only slow each other down. [requested] (the build's
+/// `--capture-jobs`) overrides it.
+int dvCaptureConcurrency({required int processors, String? requested}) {
+  if (requested != null) {
+    final int? count = int.tryParse(requested.trim());
+    if (count == null || count < 1) {
+      throw FormatException(
+          '--capture-jobs is a number of pages to read at once, such as 4; '
+          'got "$requested".');
+    }
+    return count;
+  }
+  return (processors * 3 ~/ 4).clamp(1, 8);
+}
+
+/// Runs [read] on each of [items], up to [concurrency] at once, and counts
+/// the items it returned true for.
+///
+/// Each item's work writes its own files, so the order the pages finish in
+/// changes nothing that is written. The first error stops new items from
+/// starting, waits for the ones under way, and is rethrown: the same build
+/// failure the one-at-a-time loop gave.
+Future<int> dvReadEach<T>(
+  List<T> items,
+  Future<bool> Function(T item) read, {
+  required int concurrency,
+}) async {
+  int next = 0;
+  int counted = 0;
+  Object? failure;
+  StackTrace? failureTrace;
+  Future<void> worker() async {
+    while (failure == null && next < items.length) {
+      final T item = items[next++];
+      try {
+        if (await read(item)) counted++;
+      } on Object catch (error, trace) {
+        failure ??= error;
+        failureTrace ??= trace;
+      }
+    }
+  }
+
+  await Future.wait(<Future<void>>[
+    for (int slot = 0; slot < concurrency.clamp(1, items.isEmpty ? 1 : items.length); slot++)
+      worker(),
+  ]);
+  if (failure != null) Error.throwWithStackTrace(failure!, failureTrace!);
+  return counted;
+}
+
 Future<DVCaptureRun> dvCaptureSemantics({
   required String projectRoot,
   required String webRoot,
   required List<String> routes,
   Duration settle = const Duration(seconds: 20),
+  int? concurrency,
 }) async {
   if (routes.isEmpty) {
     return const DVCaptureRun(captured: 0, browserAvailable: true);
@@ -237,8 +297,11 @@ Future<DVCaptureRun> dvCaptureSemantics({
     Directory(p.join(projectRoot, '.dart_tool', 'dartvel_semantics'))
         .createSync(recursive: true);
 
-    for (final String route in routes) {
-      final Page page = await browser.newPage();
+    final Browser chrome = browser;
+    /// Reads one route in a page of its own, and says whether it drew a tree.
+    Future<bool> readRoute(String route) async {
+      bool drew = false;
+      final Page page = await chrome.newPage();
       // The images the page asks for while it renders, for its own head and
       // for the links that point at it to fetch early. Listened to before the
       // navigation, because the first frame's images are requested during it.
@@ -329,7 +392,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
           ]),
         );
         final int nodes = (jsonDecode(tree) as List<Object?>).length;
-        if (nodes > 0) captured++;
+        drew = nodes > 0;
       } finally {
         await watching.cancel();
         for (final StreamSubscription<Object?> subscription in counting) {
@@ -337,7 +400,12 @@ Future<DVCaptureRun> dvCaptureSemantics({
         }
         await page.close();
       }
+      return drew;
     }
+
+    captured = await dvReadEach<String>(routes, readRoute,
+        concurrency: concurrency ??
+            dvCaptureConcurrency(processors: Platform.numberOfProcessors));
   } finally {
     await server.close(force: true);
     await browser.close();
