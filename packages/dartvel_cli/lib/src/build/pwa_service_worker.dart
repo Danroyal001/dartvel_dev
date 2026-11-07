@@ -388,6 +388,8 @@ function readClients() {
   return clientsRead;
 }
 function writeClients() {
+  // Every page load is a new client; the oldest are long closed.
+  while (clientBuilds.size > 100) clientBuilds.delete(clientBuilds.keys().next().value);
   const body = JSON.stringify(Object.fromEntries(clientBuilds));
   return caches.open(META)
     .then((cache) => cache.put(CLIENTS_KEY, new Response(body, { headers: { 'content-type': 'application/json' } })))
@@ -738,11 +740,19 @@ String dvBootstrapRegisteringServiceWorker(String bootstrap, {String? build}) {
           'r.active.postMessage({type:"dartvel:warm",build:${jsonEncode(build)},'
           'urls:performance.getEntriesByType("resource").map((e)=>e.name)});})'
           '.catch(()=>{});w();setTimeout(w,15000);';
+  // After the load event AND the app's first frame (or thirty seconds after
+  // load, for a page whose app never draws): the worker's install downloads
+  // the page parts, and on a slow connection that download would otherwise
+  // share the line with the renderer the first frame is waiting for.
   return '$bootstrap$separator$dvServiceWorkerRegistrationMarker\n'
       '(()=>{if(!("serviceWorker"in navigator))return;'
-      'addEventListener("load",()=>{'
+      'let f=false,l=false,d=false;'
+      'const go=()=>{if(d||!f||!l)return;d=true;'
       'navigator.serviceWorker.register(new URL("$url",document.baseURI).href)'
-      '.catch(()=>{});$warm});})();\n';
+      '.catch(()=>{});$warm};'
+      'addEventListener("flutter-first-frame",()=>{f=true;go();},{once:true});'
+      'addEventListener("load",()=>{l=true;setTimeout(()=>{f=true;go();},30000);go();});'
+      '})();\n';
 }
 
 /// What a page needs before its first frame, as the URLs a worker precaches:

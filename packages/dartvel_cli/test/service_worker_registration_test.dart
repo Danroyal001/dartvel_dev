@@ -120,6 +120,44 @@ console.log(JSON.stringify(posted));
     });
   });
 
+  test('registers only once the app has drawn, so the install never shares '
+      'the line with the renderer', () {
+    // The install downloads every page part. Registered on `load` it ran
+    // while CanvasKit was still arriving, which on a slow connection is the
+    // first frame arriving later.
+    final Directory dir = Directory.systemTemp.createTempSync('dv_sw_after_frame');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final File script = File('${dir.path}/page.mjs')
+      ..writeAsStringSync('''
+const registered = [];
+const handlers = {};
+globalThis._flutter = { loader: { load: () => {} } };
+globalThis.document = { baseURI: 'https://app.test/' };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn); };
+globalThis.setTimeout = () => {}; // the thirty-second fallback never comes
+Object.defineProperty(globalThis, 'navigator', { value: { serviceWorker: {
+  register: async (url) => { registered.push(url); return {}; },
+  ready: new Promise(() => {}),
+} } });
+${dvBootstrapRegisteringServiceWorker(bootstrap)}
+const fire = (type) => (handlers[type] || []).forEach((fn) => fn());
+fire('load');
+const afterLoad = registered.length;
+fire('flutter-first-frame');
+console.log(JSON.stringify({ afterLoad, afterFrame: registered.length }));
+''');
+    ProcessResult result;
+    try {
+      result = Process.runSync('node', <String>[script.path]);
+    } on ProcessException {
+      markTestSkipped('node is not on PATH');
+      return;
+    }
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(jsonDecode('${result.stdout}'.trim()),
+        <String, Object?>{'afterLoad': 0, 'afterFrame': 1});
+  });
+
   test('the registered text is valid JavaScript', () {
     // Parsed by node rather than eyeballed: an unbalanced paren here is a
     // bootstrap that throws before the app starts.
