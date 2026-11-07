@@ -16,6 +16,29 @@ void main() {
   group('the Apache configuration', () {
     final String config = dvApacheConfig();
 
+    test('a file whose name carries its content hash is kept for a year', () {
+      // Apache matches FilesMatch against the file's name alone, never its
+      // directory. Each block whose header is "immutable" is read back as the
+      // pattern Apache applies, and tried on names as Apache sees them.
+      final List<RegExp> immutable = <RegExp>[
+        for (final RegExpMatch block in RegExp(
+                r'<FilesMatch "([^"]+)">\s*Header set Cache-Control "[^"]*immutable[^"]*"')
+            .allMatches(config))
+          RegExp(block.group(1)!.replaceAll(r'\\', r'\')),
+      ];
+      bool kept(String name) => immutable.any((RegExp r) => r.hasMatch(name));
+      // The fonts the build writes (web_fonts.dart).
+      expect(kept('InterVariable.414601dc2daa140e.woff2'), isTrue);
+      expect(kept('Roboto-Regular.00a243c78e16acad.woff2'), isTrue);
+      // Flutter's own names, which every build reuses.
+      for (final String name in <String>[
+        'main.dart.js', 'main.dart.js_12.part.js', 'FontManifest.json',
+        'AssetManifest.bin.json', 'Inter-Bold.ttf', 'flutter_bootstrap.js',
+      ]) {
+        expect(kept(name), isFalse, reason: name);
+      }
+    });
+
     test('apple-app-site-association is served as JSON', () {
       // It has no extension, so AddType cannot reach it, and iOS refuses the
       // document as anything but JSON: every Universal Link opens Safari.
