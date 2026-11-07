@@ -418,10 +418,15 @@ async function install() {
   await Promise.all(PRECACHE.map(async (path) => {
     const url = new URL(path, self.location.origin).href;
     if (await cache.match(url)) return;
+    // A boot file is asked for at ?v=<build>, the URL the page itself used a
+    // moment ago, so the HTTP cache answers rather than the network: as plain
+    // main.dart.js it was another cache key and downloaded twice.
+    const asked = new URL(url);
+    if (bootName(asked)) asked.searchParams.set('v', BUILD);
     try {
       // no-cache: revalidated, so a copy the HTTP cache kept from the last
       // build is never filed under this one.
-      const response = await fetch(new Request(url, { cache: 'no-cache' }));
+      const response = await fetch(new Request(asked.href, { cache: 'no-cache' }));
       if (response.ok && response.status === 200) await cache.put(url, response);
     } catch (_) {
       // Fetched when first asked for instead.

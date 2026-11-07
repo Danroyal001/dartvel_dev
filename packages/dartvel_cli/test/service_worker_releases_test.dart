@@ -88,6 +88,24 @@ void main() {
       expect(out['cached'], isNot(contains('https://app.test/gone.js')));
     });
 
+    test('asks for the boot files at the URL the page used, so the HTTP cache '
+        'answers instead of the network', () async {
+      // The page loaded main.dart.js?v=A a moment before the worker
+      // installed. Precached as plain /main.dart.js it is another cache key,
+      // and the 790 KB file downloaded twice on every first visit.
+      final Map<String, Object?> out = await _scenario(<String, Object?>{
+        'steps': <Object?>[
+          <String, Object?>{'do': 'install', 'build': 'A'},
+        ],
+      });
+      final List<Object?> fetched = out['fetched']! as List<Object?>;
+      expect(fetched, containsAll(<String>['/main.dart.js?v=A', '/flutter_bootstrap.js?v=A']));
+      expect(fetched, isNot(contains('/main.dart.js')));
+      expect(fetched, isNot(contains('/flutter_bootstrap.js')));
+      // And kept under the one key every page of this build asks by.
+      expect(out['cached'], contains('https://app.test/main.dart.js'));
+    });
+
     test('a release fetches only what changed', () async {
       // canvaskit.wasm and the font are the same bytes in both builds; only
       // main.dart.js changed. The renderer came into the cache at run time
@@ -121,7 +139,8 @@ void main() {
         ],
       });
       final List<Object?> fetched = out['fetched']! as List<Object?>;
-      expect(fetched, contains('/main.dart.js'));
+      // At the build's own URL: the copy the page itself just downloaded.
+      expect(fetched, contains('/main.dart.js?v=B'));
       expect(fetched, isNot(contains('/canvaskit/canvaskit.wasm')));
       expect(fetched, isNot(contains('/assets/f.0123456789abcdef.woff2')));
       expect(out['answers'], <String>[
@@ -470,7 +489,7 @@ globalThis.fetch = async (input, init) => {
   const url = new URL(request.url);
   const mode = (init && init.cache) || request.cache;
   if (mode === 'force-cache') state.forceCache.push(url.origin === ORIGIN ? url.pathname : url.href);
-  else state.fetched.push(url.origin === ORIGIN ? url.pathname : url.href);
+  else state.fetched.push(url.origin === ORIGIN ? url.pathname + url.search : url.href);
   if (!state.online) throw new TypeError('Failed to fetch');
   const path = url.origin === ORIGIN ? url.pathname : url.href;
   if (state.missing.has(path)) return new Response('missing', { status: 404 });
