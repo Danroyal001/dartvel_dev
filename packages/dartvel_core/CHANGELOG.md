@@ -1,3 +1,7 @@
+## 0.13.24 — 2026-11-07
+
+- Web splash: a small pulsing "Loading…" line under the logo, in the splash's colours for light and dark, still under reduced motion (`dartvel.splash.loadingText` sets the words, `false` removes it); Studio's splash shows it too. The splash stays until the first-frame picture has fully downloaded and decoded instead of showing a white page that paints in from the top, the head preloads the splash logo before the app, and the loading bar stays above the picture until the app has loaded.
+
 ## 0.13.23 — 2026-11-07
 
 - Web builds are WebAssembly by default: `flutter build web --wasm`, so Chromium browsers with WasmGC run skwasm and every other browser gets the dart2js and CanvasKit app. Pages are code-split (dart2wasm deferred loading), Studio's modules stay out of the public files, and a web-server build sends `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: credentialless` so skwasm draws on a worker thread, unless the build finds something those headers would break (it says what). On a throttled phone viewport, main-thread time while scrolling fell about 3x and the first Flutter frame on 4G came about 4 s sooner. `dartvel.web.wasm: false` and `dartvel.web.crossOriginIsolated` opt out.

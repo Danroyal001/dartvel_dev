@@ -1,3 +1,8 @@
+## 0.13.24 — 2026-11-07
+
+- Studio's splash shows the pulsing Loading line under its picture, like the web splash.
+- Version aligned with dartvel_core 0.13.24.
+
 ## 0.13.23 — 2026-11-07
 
 - Under multi-threaded skwasm the first-frame picture and splash no longer stay over the running app: frames keep coming until the engine reports the first one rasterized.
