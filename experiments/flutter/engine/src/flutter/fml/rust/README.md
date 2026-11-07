@@ -393,61 +393,57 @@ change was restored.
 
 ## Benchmarks
 
-Measured 2026-11-05 with `tool/measure_rows.sh` on a shared 4-core AMD EPYC
-whose load average stood at 8–12 from other work throughout, clang 21.1.8
-against libc++ 21 headers (libc++ 22 runtime, the one the host's packages
-ship) at `-O2 -DNDEBUG`, rustc 1.99.0 with the workspace's release profile.
-The harness runs the C++ and the Rust driver alternately, 15 runs a side
-(C++ first on odd runs, Rust on even), each run the rounds below, and every
-run's check value agreed between the sides. Per row: **instructions** are
-the user-space instructions retired under the stopwatch in a median round,
-in every thread (`FML_BENCH_INS=1`, a separate execution of the same run);
-*fastest* is the fastest round of all runs, *median* the median of the
-runs' medians; peak RSS is the whole process (`VmHWM`), the largest of the
-runs. Instruction counts vary by less than 0.1% between runs on the
-single-threaded rows and 0.2–2.3% on the threaded ones, so they are the
-steady figure; the times' coefficient of variation between runs was 3–9%
-on the kernels and 6–46% on the rows that wait on the kernel or the
-scheduler (`merger`, `file`, `mapping`, `loop`, `thread`, `concurrent`,
-`queues`).
+Times measured 2026-11-08 with `tool/measure_rows.sh` on a shared 8-core AMD
+EPYC whose load average stood at 6–12 from other work throughout, both
+drivers pinned to the same four cores (`taskset -c 4-7`), 31 runs a side
+(`file`: 61), clang 21.1.8 against libc++ 21 headers (libc++ 22 runtime, the
+one the host's packages ship) at `-O2 -DNDEBUG`, rustc 1.99.0 with the
+workspace's release profile. The harness runs the C++ and the Rust driver
+alternately (C++ first on odd runs, Rust on even), each run the rounds below,
+and every run's check value agreed between the sides. Per row:
+**instructions** are the user-space instructions retired under the stopwatch
+in a median round, in every thread (`FML_BENCH_INS=1`, a separate execution
+of the same run; measured 2026-11-05 on the same code, since this host's
+`perf_event_paranoid` is now 4); *fastest* is the fastest round of all runs,
+*median* the median of the runs' medians; peak RSS is the whole process
+(`VmHWM`), the largest of the runs. Instruction counts vary by less than 0.1%
+between runs on the single-threaded rows and 0.2–2.3% on the threaded ones,
+so they are the steady figure; the times' coefficient of variation between
+runs was 3–10% on the kernels and 8–35% on the rows that wait on the kernel
+or the scheduler (`merger`, `file`, `mapping`, `loop`, `thread`,
+`concurrent`, `queues`).
 
 | Benchmark (rounds per run) | C++ instructions | Rust instructions | C++ fastest | Rust fastest | C++ median | Rust median | C++ RSS | Rust RSS |
 |---|---|---|---|---|---|---|---|---|
-| `queues` (300) | 2.68 M | **1.80 M** | 1038 µs | **600 µs** | 5272 µs | **4105 µs** | 5.1 MiB | **3.9 MiB** |
-| `dispatch` (20) | 75.06 M | **48.93 M** | 29.5 ms | **20.2 ms** | 41.8 ms | **30.4 ms** | 4.0 MiB | **2.8 MiB** |
-| `time` (300) | 2.60 M | **2.51 M** | 236 µs | **222 µs** | 392 µs | **367 µs** | 3.7 MiB | **2.7 MiB** |
-| `strings` (20) | 469.5 M | **20.0 M** | 84.1 ms | **5.1 ms** | 103.6 ms | **6.3 ms** | 4.0 MiB | **3.2 MiB** |
-| `hash` (100) | 7.72 M | **6.83 M** | 1077 µs | **898 µs** | 1480 µs | **1250 µs** | 4.0 MiB | **2.9 MiB** |
-| `loop` (10) | 36.87 M | **15.28 M** | 167 ms | **137 ms** | 252 ms | **208 ms** | 4.9 MiB | **3.5 MiB** |
-| `thread` (10) | 34.50 M | **15.61 M** | 181 ms | **171 ms** | 288 ms | **233 ms** | 4.3 MiB | **3.6 MiB** |
-| `concurrent` (200) | 5.68 M | **2.56 M** | 1.65 ms | **0.77 ms** | 7.82 ms | **4.21 ms** | 4.7 MiB | **3.4 MiB** |
-| `merger` (3) | 8.29 M | **6.78 M** | 54.2 ms | **49.3 ms** | **68.9 ms** | 72.6 ms | 4.3 MiB | **3.1 MiB** |
-| `file` (20) | 0.240 M | **0.218 M** | 308.5 µs | **308.3 µs** | 1474 µs | **1473 µs** | 4.1 MiB | **3.0 MiB** |
-| `mapping` (5) | 3.37 M | **3.18 M** | 27.1 ms | **24.8 ms** | 41.6 ms | **40.9 ms** | 4.1 MiB | **3.0 MiB** |
-| `paths` (50) | 11.96 M | **8.49 M** | **15.5 ms** | 16.0 ms | 22.1 ms | **21.1 ms** | 4.0 MiB | **3.0 MiB** |
-| `cmdline` (50) | 187.1 M | **96.4 M** | 36.7 ms | **19.4 ms** | 45.5 ms | **26.3 ms** | 4.1 MiB | **3.1 MiB** |
-| `trace` (50) | 19.70 M | **12.41 M** | 5.49 ms | **3.50 ms** | 7.41 ms | **5.29 ms** | 4.1 MiB | **2.9 MiB** |
+| `queues` (300) | 2.68 M | **1.80 M** | 1235 µs | **570 µs** | 3440 µs | **2233 µs** | 5.1 MiB | **3.9 MiB** |
+| `dispatch` (20) | 75.06 M | **48.93 M** | 29.6 ms | **21.7 ms** | 44.5 ms | **31.8 ms** | 4.0 MiB | **2.8 MiB** |
+| `time` (300) | 2.60 M | **2.51 M** | 228 µs | **220 µs** | 376 µs | **357 µs** | 3.8 MiB | **2.7 MiB** |
+| `strings` (20) | 469.5 M | **20.0 M** | 78.8 ms | **4.9 ms** | 94.8 ms | **6.0 ms** | 4.0 MiB | **3.1 MiB** |
+| `hash` (100) | 7.72 M | **6.83 M** | 1002 µs | **839 µs** | 1327 µs | **1158 µs** | 4.0 MiB | **2.9 MiB** |
+| `loop` (10) | 36.87 M | **15.28 M** | 169 ms | **118 ms** | 205 ms | **164 ms** | 4.8 MiB | **3.5 MiB** |
+| `thread` (10) | 34.50 M | **15.61 M** | 184 ms | **139 ms** | 257 ms | **204 ms** | 4.6 MiB | **3.6 MiB** |
+| `concurrent` (200) | 5.68 M | **2.56 M** | 1.81 ms | **0.99 ms** | 6.63 ms | **3.31 ms** | 4.7 MiB | **3.3 MiB** |
+| `merger` (3) | 8.29 M | **6.78 M** | 47.4 ms | **43.8 ms** | 60.7 ms | **54.6 ms** | 4.3 MiB | **3.0 MiB** |
+| `file` (20) | 0.240 M | **0.218 M** | 274 µs | **265 µs** | 1449 µs | **1444 µs** | 4.1 MiB | **3.0 MiB** |
+| `mapping` (5) | 3.37 M | **3.18 M** | 24.6 ms | **24.0 ms** | 38.1 ms | **36.5 ms** | 4.1 MiB | **2.9 MiB** |
+| `paths` (50) | 11.96 M | **8.49 M** | 14.7 ms | **14.2 ms** | 21.3 ms | **20.1 ms** | 4.0 MiB | **2.9 MiB** |
+| `cmdline` (50) | 187.1 M | **96.4 M** | 33.3 ms | **18.5 ms** | 43.0 ms | **24.8 ms** | 4.1 MiB | **3.0 MiB** |
+| `trace` (50) | 19.70 M | **12.41 M** | 5.08 ms | **3.48 ms** | 7.19 ms | **5.02 ms** | 4.1 MiB | **2.8 MiB** |
 
-Bold where a side is ahead. Rust retires fewer instructions and uses less
-memory on every row, and is ahead on time everywhere but three cells, all on
-rows whose time is the kernel's and the scheduler's rather than the code's:
-`paths` (both drivers make exactly 32 994 `readlink` and 10 710 `getcwd`
-calls per five rounds; user code is 29% fewer instructions in Rust),
-`merger` median (identical `timerfd_settime`, `epoll_ctl` and
-`rt_sigprocmask` counts and fewer futex calls in Rust, 3 035 against 3 432)
-and `file`, a tie (the same file calls, which the oracle checks one by one
-with `errno` after each; user code is 0.22 M instructions of a round that
-takes 0.3–1.5 ms). Those
-cells change sides from one measurement to the next. A second measurement
-of the four rows with 31 runs a side, straight after, had Rust ahead on
-`paths` (15.0/21.0 ms against 16.5/22.3) and on the `merger`, `file` and
-`mapping` medians (83.4 ms against 85.7, 1521 µs against 1692, 40.0 ms
-against 40.6), and behind on their fastest rounds (47.5 ms against 42.6,
-308 µs against 280, 28.6 ms against 24.7), each the single quickest of 31
-rounds on a machine whose load moved them by 20–40%; the medians of the
-runs' fastest rounds were 62.2 against 72.4 ms, 414 against 411 µs and
-34.6 against 35.2 ms. On this host those cells cannot be called either
-way; the instruction counts and system-call counts can, and favour Rust.
+Bold where a side is ahead. Rust is ahead on every cell. Pinning both drivers
+to the same cores settled the three cells the 5 November table could not call
+on this host, all on rows whose time is the kernel's and the scheduler's
+rather than the code's: `paths` (both drivers make exactly 32 994 `readlink`
+and 10 710 `getcwd` calls per five rounds; user code is 29% fewer
+instructions in Rust), `merger` (identical `timerfd_settime`, `epoll_ctl`
+and `rt_sigprocmask` counts and fewer futex calls in Rust, 3 035 against
+3 432) and `file`. `file` is still close to a tie (the same file calls, which
+the oracle checks one by one with `errno` after each; user code is 0.22 M
+instructions of a round that takes 0.3–1.5 ms): at 31 runs its median went
+the other way (1438 µs against 1411), at 61 runs it is Rust's by 0.3%. The
+`merger` fastest round, 36.3 ms against 42.1 ms in one earlier 31-run
+measurement on two cores, was Rust's on two cores (38.2 against 38.3) and on
+four (43.1 against 50.7) when re-measured.
 
 What changed since the 30 October table (measured then with clang 18,
 libc++ 18 and rustc 1.97, without instruction counts):
