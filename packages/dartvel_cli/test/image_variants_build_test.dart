@@ -187,5 +187,72 @@ void main() {
       expect(second.written, 0);
       expect(second.images, first.images);
     });
+
+    // Each image was decoded, resized and encoded one after another, and
+    // again on every build, because build/web starts empty each time. Now
+    // the images are made on several isolates, and each variant is kept by
+    // the content of its source, so the next build copies it.
+    group('in parallel, from a store', () {
+      Map<String, List<int>> written(Directory root) => <String, List<int>>{
+            for (final FileSystemEntity entity
+                in Directory(p.join(root.path, dvStaticImageVariantDir))
+                    .listSync(recursive: true))
+              if (entity is File)
+                p.relative(entity.path, from: root.path): entity.readAsBytesSync(),
+          };
+
+      test('writes the same bytes as one image at a time', () async {
+        dvWriteStaticImageVariants(
+            projectRoot: project.path, webRoot: web.path, variants: variants());
+        final Map<String, List<int>> serial = written(web);
+        final Directory other = Directory(p.join(project.path, 'build', 'other'))
+          ..createSync(recursive: true);
+        final DVStaticVariantSummary summary = await dvWriteStaticImageVariantsInParallel(
+            projectRoot: project.path,
+            webRoot: other.path,
+            variants: variants(),
+            store: Directory(p.join(project.path, 'store')),
+            workers: 3);
+        expect(written(other), serial);
+        expect(summary.written, serial.length);
+      });
+
+      test('a build from an empty web output copies what the store has', () async {
+        final Directory store = Directory(p.join(project.path, 'store'));
+        final DVStaticVariantSummary first = await dvWriteStaticImageVariantsInParallel(
+            projectRoot: project.path, webRoot: web.path, variants: variants(),
+            store: store, workers: 2);
+        final Map<String, List<int>> made = written(web);
+        web.deleteSync(recursive: true);
+        web.createSync(recursive: true);
+        final DVStaticVariantSummary second = await dvWriteStaticImageVariantsInParallel(
+            projectRoot: project.path, webRoot: web.path, variants: variants(),
+            store: store, workers: 2);
+        expect(written(web), made);
+        expect(first.reused, 0);
+        expect(second.reused, made.length);
+        expect(second.written, made.length);
+      });
+
+      test('an edited image is made again, not taken from the store', () async {
+        final Directory store = Directory(p.join(project.path, 'store'));
+        await dvWriteStaticImageVariantsInParallel(
+            projectRoot: project.path, webRoot: web.path, variants: variants(),
+            store: store, workers: 2);
+        put('assets/hero.png', img.encodePng(img.fill(img.Image(width: 1600, height: 800),
+            color: img.ColorRgb8(10, 200, 10))));
+        web.deleteSync(recursive: true);
+        web.createSync(recursive: true);
+        final DVStaticVariantSummary again = await dvWriteStaticImageVariantsInParallel(
+            projectRoot: project.path, webRoot: web.path, variants: variants(),
+            store: store, workers: 2);
+        expect(again.reused, lessThan(again.written));
+        final List<int> hero320 = File(p.join(web.path, dvStaticImageVariantDir,
+                '320', 'assets/assets/hero.png'))
+            .readAsBytesSync();
+        expect(img.decodePng(Uint8List.fromList(hero320))!.getPixel(0, 0).g, 200,
+            reason: 'made from the new source');
+      });
+    });
   });
 }

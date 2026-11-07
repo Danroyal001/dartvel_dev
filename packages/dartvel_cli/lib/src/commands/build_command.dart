@@ -1559,7 +1559,7 @@ class BuildCommand extends Command<void> {
         }
         // Before the capture loads a page: the variants DVImageView asks for
         // have to be there, or the capture records a 404 for every image.
-        _writeStaticImageVariants(root, platform);
+        await _writeStaticImageVariants(root, platform);
         for (final String warning
             in dvRemovedWebOptionWarnings(_dartvelSection(root))) {
           Logger.log('   ⚠ $warning');
@@ -5226,7 +5226,7 @@ class BuildCommand extends Command<void> {
   }
 
   /// Every variant DVImageView can ask for, written into build/web.
-  void _writeStaticImageVariants(String root, String platform) {
+  Future<void> _writeStaticImageVariants(String root, String platform) async {
     // Said once per build, here, rather than every time the list is read.
     for (final String problem
         in DVImageVariants.parse(_dartvelSection(root)['images']).problems) {
@@ -5234,13 +5234,20 @@ class BuildCommand extends Command<void> {
     }
     final DVImageVariants variants = _imageVariants(root, platform);
     if (variants.assetWidths.isEmpty) return;
-    final DVStaticVariantSummary written = dvWriteStaticImageVariants(
+    final DVStaticVariantSummary written =
+        await dvWriteStaticImageVariantsInParallel(
       projectRoot: root,
       webRoot: p.join(root, 'build', 'web'),
       variants: variants,
+      // Kept by the content of each source: build/web starts empty on every
+      // build, and an unchanged image is copied rather than made again.
+      store: _buildCache.enabled
+          ? Directory(p.join(root, '.dart_tool', 'dartvel_image_variants'))
+          : null,
     );
     Logger.log('   Image variants: ${written.images} image(s), '
-        '${written.written} file(s) written.');
+        '${written.written} file(s) written'
+        '${written.reused == 0 ? '' : ' (${written.reused} unchanged, reused)'}.');
   }
 
   /// The fonts the page downloads before its first frame, made as small as
