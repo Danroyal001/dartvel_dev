@@ -1919,6 +1919,11 @@ const dv.CorsOptions? dartvelConfiguredCors = $corsConstant;
 
 /// Whether responses are compressed, from `dartvel.server.compression`.
 const bool dartvelCompression = $compressionLiteral;
+
+/// The headers every response carries unless its handler set its own: the
+/// runtime's defaults, plus COOP and COEP when `dartvel.web.crossOriginIsolated`
+/// asks for them.
+const Map<String, String> dartvelSecurityHeaders = ${server.securityHeadersSource};
 /// Whether Studio is compiled into this backend. A build that does not serve
 /// it passes -Ddartvel.studio=false, and AOT drops every branch behind this.
 const bool dartvelStudio = ${studioOff ? 'false' : "bool.fromEnvironment('dartvel.studio', defaultValue: true)"};
@@ -2217,7 +2222,7 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   final Future<dv.Response> Function(dv.Request) siteHandler = docsServer == null
       ? handler
       : (dv.Request request) async => await docsServer.respond(request) ?? await handler(request);
-  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
+  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, securityHeaders: dartvelSecurityHeaders, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
     // A patch is larger than a request body usually is.
     if (patchPrefix != null) dv.DVRouteBodyLimit('POST', '\$patchPrefix/_dartvel/publish', $dvPatchPublishMaxBytes),
     ...router.bodyLimits,
