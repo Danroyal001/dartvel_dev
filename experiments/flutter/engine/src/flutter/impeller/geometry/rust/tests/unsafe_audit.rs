@@ -2,11 +2,12 @@
 // sound, after flutter/fml/rust/tests/unsafe_audit.rs.
 //
 // The crate denies `unsafe_code` (lib.rs); the only sites are the calls into
-// SSE2 code in matrix.rs, listed in the README's "Unsafe code". Each unsafe
-// block, unsafe fn, unsafe impl, unsafe trait and extern block under src/ must
-// have a `SAFETY:` comment (or a `# Safety` doc section) within the 14 lines
-// above it, so that a new one cannot arrive without its reason, and the number
-// of lines with `unsafe` is pinned so that one cannot arrive unlisted.
+// SSE2 code in matrix.rs and the driver's C `main` export, listed in the
+// README's "Unsafe code". Each unsafe block, unsafe fn, unsafe impl, unsafe
+// trait and extern block under src/ must have a `SAFETY:` comment (or a
+// `# Safety` doc section) within the 14 lines above it, so that a new one
+// cannot arrive without its reason, and the number of lines with `unsafe` is
+// pinned so that one cannot arrive unlisted.
 
 use std::path::{Path, PathBuf};
 
@@ -74,7 +75,8 @@ fn every_unsafe_in_the_port_says_why() {
     }
     assert!(failures.is_empty(), "unsafe without a SAFETY comment:\n{}", failures.join("\n"));
     // lib.rs's `#![deny(unsafe_code)]`, and in matrix.rs `#[allow(unsafe_code)]`
-    // and `unsafe { … }` on `invert` and on `get_determinant`.
-    assert_eq!(sites, 5, "the README's Unsafe code table lists 5 lines with unsafe");
+    // and `unsafe { … }` on `invert` and on `get_determinant`, and the driver's
+    // `#[unsafe(no_mangle)]` on its C `main`.
+    assert_eq!(sites, 6, "the README's Unsafe code table lists 6 lines with unsafe");
     eprintln!("unsafe audit: {sites} lines with unsafe in {} files, all explained", files.len());
 }

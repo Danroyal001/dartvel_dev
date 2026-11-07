@@ -5,6 +5,9 @@
 //   geometry_dump bench <suite> <rounds>
 
 #![allow(non_snake_case)]
+// The driver enters through a C `main` (below) so that std's runtime set-up
+// does not run; tests/cold_start.rs says why.
+#![no_main]
 
 use std::io::Write;
 
@@ -2934,7 +2937,26 @@ const SUITES: &[(&str, Suite)] =
         ("round", suite_round),
     ];
 
-fn main() {
+/// The process entry point: C's `main`, which the C runtime calls once.
+///
+/// std's own `fn main` would first read /proc/self/maps, install signal
+/// handlers on an alternate stack, ignore SIGPIPE and poll fds 0-2, none of
+/// which a driver that prints and exits needs (tests/cold_start.rs). std still
+/// works without it: glibc hands std the arguments through `.init_array`, so
+/// `std::env::args` is unchanged, and the output is flushed here because std's
+/// exit-time flush belongs to the runtime this skips.
+// SAFETY: exporting the symbol `main` is the only claim `no_mangle` makes, and
+// this crate is a binary with `#![no_main]`, so nothing else defines `main`
+// and the C runtime calls it with the `int main(int, char **)` signature it is
+// declared with.
+#[unsafe(no_mangle)]
+pub extern "C" fn main(_argc: std::ffi::c_int, _argv: *const *const std::ffi::c_char) -> std::ffi::c_int {
+    run();
+    std::io::stdout().flush().unwrap();
+    0
+}
+
+fn run() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 4 {
         eprintln!("usage: geometry_dump <suite> <seed> <cases> | bench <suite> <rounds>");
