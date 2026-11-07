@@ -46,15 +46,20 @@ Written into every page's HTML by `dartvel build web`, before any Dart runs:
   the first frame. `role="progressbar"`, `aria-busy` on the document, still
   under reduced motion. On by default (`dartvel.splash.progress: false` turns
   it off; `splash.progressColor` colours it).
-  It stays above the first-frame picture until the app has loaded, since the
-  picture looks finished but does not respond yet.
+  It stays above the splash until the app has loaded.
 - **A pulsing "Loading…" line under the splash logo**, in the splash's own
   colours (dark text on a light splash, light on a dark one), still under
   reduced motion, so a slow load never looks hung. Studio's splash shows the
   same line. `dartvel.splash.loadingText` sets the words; `false` removes it.
-- **The splash stays until the first-frame picture has downloaded and
-  decoded**, and the head preloads the splash logo first, so a slow phone
-  never sees a blank splash or a picture painting in from the top.
+- **The splash stays until the app's first frame**, at every window width,
+  and the head preloads the splash logo first, so a slow phone never sees a
+  blank splash.
+- **No first-frame picture (removed 7 Nov 2026).** 0.13.22 to 0.13.24 showed a
+  picture of each page, captured at build time, before the app loaded. It
+  looked finished but did nothing when pressed, and visitors took the site
+  for broken. The splash, its loading line and its loading bar replace it
+  until the real app has drawn; `dartvel.web.firstFrame` is ignored with a
+  warning.
 - **`main.dart.js` is preloaded from the head**, so the largest download
   starts while the HTML is parsed rather than after `flutter_bootstrap.js`
   has run and asked for it.
@@ -70,7 +75,7 @@ Measured after the 0.9.1 deploy; see the rows added below.
 ## Fonts and repeat visits (after 0.13.22)
 
 Measured on a copy of the sigmadev.digital site (branch `site/release-1107`,
-`firstFrame.widths: [390]`), built as a web-server binary on the same host,
+`firstFrame.widths: [390]`, a setting since removed), built as a web-server binary on the same host,
 and loaded in headless Chromium as a 393 px phone through a proxy that
 applies Lighthouse's slow 4G (150 ms round trip, 1.6 Mbit/s down, 750 kbit/s
 up) to every byte, the service worker's own fetches included, with a 2x CPU
