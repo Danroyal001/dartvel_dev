@@ -20,6 +20,7 @@ import '../build/dev_studio.dart';
 import '../build/studio_parts.dart'
     show dvReadStudioParts, dvStudioDataDirectory, dvStudioPartsDirectory;
 import '../build/web_server.dart';
+import '../generators/backend_generator.dart' show dvServerOptions;
 
 import '../utils/logger.dart';
 
@@ -84,6 +85,8 @@ Future<void> dvServeRelease({
         dvWebServerHandler(
           webRoot: buildDir.path,
           admin: admin,
+          // The headers the binary sends, cross-origin isolation included.
+          securityHeaders: dvServerOptions(root).securityHeaders,
           // Studio as the binary serves it: pages of the application
           // rendered from its shell, its data from what the build kept
           // for it, and its code handed out from memory.

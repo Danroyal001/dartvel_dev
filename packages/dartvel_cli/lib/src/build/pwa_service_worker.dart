@@ -448,7 +448,21 @@ List<String> dvDeferredPartFiles(Directory web) {
   }
   // Numerically: _10 sorts before _2 as a string.
   found.sort(((int, String) a, (int, String) b) => a.$1.compareTo(b.$1));
-  return <String>[for (final (int, String) f in found) '/${f.$2}'];
+  // The wasm app's page modules, for the same reason: a Chromium visitor
+  // runs main.dart.wasm and never fetches a part.
+  final RegExp module = RegExp(r'^main\.dart_module(\d+)\.wasm$');
+  final List<(int, String)> modules = <(int, String)>[];
+  for (final FileSystemEntity entity in web.listSync()) {
+    if (entity is! File) continue;
+    final String name = entity.uri.pathSegments.last;
+    final RegExpMatch? m = module.firstMatch(name);
+    if (m != null) modules.add((int.parse(m.group(1)!), name));
+  }
+  modules.sort(((int, String) a, (int, String) b) => a.$1.compareTo(b.$1));
+  return <String>[
+    for (final (int, String) f in found) '/${f.$2}',
+    for (final (int, String) f in modules) '/${f.$2}',
+  ];
 }
 
 List<String> dvPrecacheRoutes(Iterable<String> routes) {

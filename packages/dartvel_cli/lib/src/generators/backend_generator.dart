@@ -44,6 +44,9 @@ import 'package:yaml/yaml.dart';
 import '../build/graphql_options.dart';
 import '../build/runtime_packages.dart';
 import '../build/server_options.dart';
+import '../build/cross_origin_isolation.dart' show dvCrossOriginIsolationBlockers;
+
+export '../build/cross_origin_isolation.dart' show dvCrossOriginIsolationBlockers;
 import '../updates/shorebird_config.dart';
 import '../graph/module_mounts.dart';
 import 'module_rpc_routes.dart';
@@ -5305,7 +5308,13 @@ DVServerOptions dvServerOptions(String root) {
   if (!pubspec.existsSync()) return const DVServerOptions();
   final Object? parsed = loadYaml(pubspec.readAsStringSync());
   if (parsed is! YamlMap) return const DVServerOptions();
-  return DVServerOptions.parse(parsed['dartvel']);
+  final DVServerOptions options = DVServerOptions.parse(parsed['dartvel']);
+  // A wasm build that did not say: isolated unless the project embeds or
+  // runs something from another site that the headers would break.
+  return options.crossOriginIsolationDecided
+      ? options
+      : options.withCrossOriginIsolation(
+          dvCrossOriginIsolationBlockers(root).isEmpty);
 }
 
 /// `dartvel.seo.favicon` from pubspec.yaml, or null.
