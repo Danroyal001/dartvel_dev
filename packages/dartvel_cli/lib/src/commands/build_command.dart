@@ -466,6 +466,9 @@ class BuildCommand extends Command<void> {
               'ships with an empty body to anything that does not run '
               'scripts. For a build nobody serves: a screenshot, a smoke '
               'test, a local run.')
+      ..addOption('capture-jobs',
+          help: 'How many pages the semantics read keeps open at once. '
+              'Defaults to three quarters of the cores, at most eight.')
       ..addFlag('minify',
           defaultsTo: true,
           help: 'Take the whitespace and the comments out of the HTML, CSS '
@@ -4220,6 +4223,10 @@ class BuildCommand extends Command<void> {
         projectRoot: root,
         webRoot: web.path,
         routes: toCapture,
+        concurrency: dvCaptureConcurrency(
+          processors: Platform.numberOfProcessors,
+          requested: argResults?['capture-jobs'] as String?,
+        ),
       );
       captured = fresh.captured;
       browserAvailable = fresh.browserAvailable;
