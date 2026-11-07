@@ -504,18 +504,19 @@ itself on the first run, with a table per model, and reuses it after that.
 the head, structured data and crawler-visible text generated from each page's
 data.
 
-Before the app has loaded, a visitor at a captured window width (390, 1366
-and 1920 by default, light and dark; `dartvel.web.firstFrame`) sees the page
-itself: a lossless PNG of its first screen taken at build time, with the words laid
-over it to select, find and follow. Flutter's first frame replaces it with the
-same pixels. On the web, the router and page loader hold that frame until the
-initial route, its data and deferred code are ready, so a loading shell cannot
-remove the picture. It stays above the pending canvas until Flutter confirms
-that frame and a fresh post-layout frame were rendered, including the initial
-scrollbar thumbs.
-Keep the initial viewport deterministic: replaying a reveal or
-typewriter over completed captured content changes that screen at takeover.
-Other widths, and pages rendered per record, keep the splash.
+Until the app has loaded, a visitor sees the splash: the logo, a pulsing
+"Loading…" line and a loading bar across the top that follows the real
+downloads. They stay until the app's own first frame is on screen, then go. On
+the web, the router and page loader hold that frame until the initial route,
+its data and deferred code are ready, so the splash gives way to the finished
+page, never to a loading shell. A browser with no script gets the page's
+document instead.
+
+Earlier releases (0.13.22 to 0.13.24) showed a picture of each page, captured
+at build time, before the app loaded. It was removed: it looked finished but
+did nothing when pressed, and visitors took the site for broken. A project
+that still sets `dartvel.web.firstFrame` builds as before, with one warning
+that the key can be deleted.
 
 Both web targets build WebAssembly by default (`flutter build web --wasm`):
 Chromium browsers with WasmGC, Chrome for Android included, run the dart2wasm
@@ -525,8 +526,7 @@ alone. The wasm app is code-split like the dart2js one: the build reruns
 Flutter's own dart2wasm command with `--enable-deferred-loading`, so each page
 is a module of its own that loads when the page is first shown, and Studio's
 modules are kept out of the public files exactly as its dart2js parts are.
-The prerendered HTML, first-frame pictures, splash and progress bar are
-unchanged; the page preloads whichever app and renderer the loader will pick.
+The prerendered HTML, splash and progress bar are unchanged; the page preloads whichever app and renderer the loader will pick.
 
 skwasm draws on a worker thread only on a cross-origin isolated page. A
 web-server build of a wasm app sends COOP `same-origin` and COEP

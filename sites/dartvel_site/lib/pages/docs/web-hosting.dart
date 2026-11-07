@@ -41,9 +41,6 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
                   'description, Open Graph tags and splash'],
               <String>['<route>/index.html', 'One page per route, so a deep '
                   'link and a crawler get real HTML'],
-              <String>['dv-first-frame/', 'A lossless PNG of each page\'s first '
-                  'screen, shown until the page data and deferred code '
-                  'are ready and post-layout scrollbars have rendered'],
               <String>['manifest.json, icons/', 'The installable PWA'],
               <String>['flutter_service_worker.js', 'Offline caching, '
                   'replaced by Dartvel\'s worker'],
@@ -68,23 +65,18 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
               'Routes with parameters get pages for the paths your models list.',
               'Set pwa.enabled: false to leave out the manifest and worker.',
             ]),
-            DocsText('Before the app has loaded, a visitor sees the page '
-                'itself: the build takes a picture of each page\'s first screen '
-                'at common window widths, light and dark, with its words laid '
-                'over it to select, find and follow. The app then replaces it '
-                'with the same pixels. Other widths see the splash.'),
-            DocsShell(<String>[
-              '# pubspec.yaml',
-              'dartvel:',
-              '  web:',
-              '    firstFrame:',
-              '      widths: [390, 1366, 1920]   # or firstFrame: false',
-            ]),
+            DocsText('Until the app has loaded, a visitor sees the splash: '
+                'your logo, a pulsing Loading line and a loading bar that '
+                'follows the real downloads. They go when the app has drawn '
+                'its first screen. Earlier versions showed a picture of each '
+                'page instead; it was removed because it looked finished but '
+                'did nothing when tapped. If your pubspec still has '
+                'web.firstFrame, the build ignores it and says so: delete it.'),
             DocsText('Every web build is compiled twice: Chrome, Edge and '
                 'Chrome for Android run the WebAssembly version, other '
                 'browsers the JavaScript one. Each page loads its own code '
-                'when it is first shown. The page, its pictures and the '
-                'splash are the same either way.'),
+                'when it is first shown. The page and the splash are the '
+                'same either way.'),
             DocsText('On the web-server build, the WebAssembly version draws on '
                 'a second thread, which keeps scrolling smooth on slow phones. '
                 'That needs two headers the build turns on by itself unless '

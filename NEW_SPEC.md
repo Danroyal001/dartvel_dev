@@ -470,40 +470,40 @@ The table is the contract. Each row says which entries a target has, what
   the same page with the same data and the route's data is not fetched twice.
   `ready` is when Flutter has taken over; the fallback and the splash are
   removed then, not before.
-- **The first frame before the app loads.** The build opens each public route
-  in Chrome at the widths `dartvel.web.firstFrame.widths` names (default 390,
-  1366 and 1920), light and dark, and keeps a picture of the first screen with
-  the place of every piece of text and every link the semantics tree reports.
-  The page shows that picture from its first byte to a window of exactly that
-  width and scheme, with the text laid over it -- transparent, selectable,
-  findable with Ctrl+F, links followable -- and hides the splash there. Flutter's
-  first frame removes it, and the two are the same pixels, so nothing moves.
+- **The splash until the app's first frame.** Until the app has loaded, a
+  page shows the splash: the logo, a pulsing "Loading…" line
+  (`dartvel.splash.loadingText`) and a loading bar that follows the real
+  downloads (`dartvel.splash.progress`), at every window width, with nothing
+  laid over them. They are removed by the framework's internal
+  `dartvel-first-frame` DOM event, which fires after Flutter's
+  `waitUntilFirstFrameRasterized` completes and a fresh post-layout frame has
+  rasterized, so the app is on screen before the splash goes and there is no
+  blank gap; scroll metrics listeners have painted their initial scrollbar
+  thumbs by then. Earlier batched timings do not release it. Flutter's own
+  `flutter-first-frame` callback is insufficient: it also fires for a
+  deferred frame, before anything has reached the screen.
   On the web, the router holds that engine frame while the initial route
   resolves; the page loader retains the hold until its data and deferred code
-  have loaded and the content (or error page) has laid out. Disposal releases
-  the hold too, so a replaced pending page cannot block the application.
-  Picture removal uses the framework's internal `dartvel-first-frame` DOM
-  event after Flutter's `waitUntilFirstFrameRasterized` completes and a fresh
-  post-layout frame has rasterized, so scroll metrics listeners can paint
-  their initial scrollbar thumbs. Earlier batched timings do not release it.
-  Flutter's
-  own `flutter-first-frame` callback is insufficient: it also fires for a
-  deferred frame, before anything has reached the screen.
+  have loaded and the content (or error page) has laid out, so the splash gives
+  way to the finished page, never to a loading shell. Disposal releases the
+  hold too, so a replaced pending page cannot block the application.
   A generated page whose deferred library is already loaded draws its body
   synchronously, without inserting another loading frame for a completed
   future. Resetting deferred pages clears that readiness along with the cache.
   Its UI-only route data completes synchronously too, so the outer route loader
   cannot replace an already-loaded page with a waiting frame on rebuild.
-  The picture, fallback splash and progress stay above a pending Flutter view
-  until raster readiness. Their working scripts raise them; when inline scripts
-  are blocked, base stacking still lets the rendered app cover them, and the
-  no-script browser retains its readable document.
-  Any other width keeps the splash; a browser with no script gets the page's
-  document; screen readers read the document, never the picture's text layer.
-  A route rendered at another path than its own (a pattern's record) and a
-  guarded route have no picture. `dartvel.web.firstFrame: false` turns it off.
-  Pictures are lossless PNG, named by their content, and a dark one identical to the
-  light one is not kept.
+  The splash and loading bar stay above a pending Flutter view until raster
+  readiness, the bar above the splash. Their working scripts raise them; when
+  inline scripts are blocked, base stacking still lets the rendered app cover
+  them, and the no-script browser retains its readable document.
+  A browser with no script gets the page's document; screen readers read the
+  document.
+  *Removed:* 0.13.22 to 0.13.24 captured a picture of each public route at
+  `dartvel.web.firstFrame.widths` and showed it, with an invisible text layer,
+  before the app loaded. It looked finished but did nothing when pressed, and
+  visitors took the site for broken, so it was removed from the framework. A
+  pubspec that still sets `dartvel.web.firstFrame` (true, false or a map)
+  builds, with one warning that the key is ignored and can be deleted.
 - **WebAssembly.** Web builds are `flutter build web --wasm` unless
   `dartvel.web.wasm: false`: dart2wasm and skwasm where flutter.js allows it
   (by default Chromium with WasmGC) and the dart2js/CanvasKit app elsewhere,
