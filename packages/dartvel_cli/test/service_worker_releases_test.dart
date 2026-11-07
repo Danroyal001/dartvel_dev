@@ -297,6 +297,27 @@ void main() {
     });
   });
 
+  group('the pages precached on a first visit', () {
+    // sigmadev.digital has 221 routes at about 7 KB each: 1.5 MB of a
+    // reader's data, on their first visit, for pages they may never open.
+    // Pages a reader does open are kept as they are opened.
+    final List<String> many = <String>['/', for (int i = 0; i < 221; i++) '/p$i'];
+
+    test('are the first 25 by default, the home page always among them', () {
+      final List<String> kept = dvPrecacheRouteBudget(many, null);
+      expect(kept.length, 25);
+      expect(kept.first, '/');
+    });
+
+    test('are all of them, or a number, when the project says so', () {
+      expect(dvPrecacheRouteBudget(many, true).length, 222);
+      expect(dvPrecacheRouteBudget(many, 'all').length, 222);
+      expect(dvPrecacheRouteBudget(many, 3), <String>['/', '/p0', '/p1']);
+      expect(dvPrecacheRouteBudget(many, 0), <String>['/']);
+      expect(dvPrecacheRouteBudget(<String>['/a', '/'], 1), <String>['/']);
+    });
+  });
+
   group('the boot files carry the build', () {
     test('index.html asks for flutter_bootstrap.js at this build', () {
       expect(
@@ -306,6 +327,20 @@ void main() {
       expect(
           dvVersionIndexHtml('<script src="flutter_bootstrap.js?v=b6" async></script>', 'b7'),
           '<script src="flutter_bootstrap.js?v=b7" async></script>');
+    });
+
+    test('a preload of the app asks for the same URL the loader will', () {
+      // A preload of main.dart.js and a loader asking for main.dart.js?v=b7
+      // are two downloads of the largest file on the page.
+      expect(
+          dvVersionIndexHtml(
+              '<link rel="preload" href="main.dart.js" as="script">'
+              '<link rel="modulepreload" href="main.dart.mjs">'
+              '<link rel="preload" href="main.dart.js_3.part.js" as="script">',
+              'b7'),
+          '<link rel="preload" href="main.dart.js?v=b7" as="script">'
+          '<link rel="modulepreload" href="main.dart.mjs?v=b7">'
+          '<link rel="preload" href="main.dart.js_3.part.js" as="script">');
     });
 
     test('the bootstrap asks for the app at this build, dart2js and wasm alike', () {

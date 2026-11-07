@@ -822,6 +822,24 @@ Map<String, String> dvServiceWorkerAssets(Directory web) {
   return out;
 }
 
+/// How many of [routes] a worker precaches on the first visit:
+/// `dartvel.pwa.precacheRoutes`, a number, or `true`/`'all'` for every one;
+/// 25 when nothing is declared. The home page is always first.
+///
+/// Precaching every route is a download the reader pays for on their first
+/// visit, for pages they may never open -- 1.5 MB for sigmadev.digital's 221
+/// -- while a page they do open is kept as they open it.
+List<String> dvPrecacheRouteBudget(List<String> routes, Object? declared) {
+  final List<String> ordered = <String>[
+    if (routes.contains('/')) '/',
+    for (final String route in routes)
+      if (route != '/') route,
+  ];
+  if (declared == true || declared == 'all') return ordered;
+  final int budget = declared is num && declared >= 0 ? declared.toInt() : 25;
+  return ordered.take(budget < 1 ? 1 : budget).toList();
+}
+
 /// The file [dvServiceWorkerAssets] is written to, beside the worker.
 const String dvServiceWorkerAssetsFile = 'dartvel_sw_assets.json';
 
@@ -831,9 +849,14 @@ const String dvServiceWorkerAssetsFile = 'dartvel_sw_assets.json';
 /// `no-cache` from every Dartvel server), so the build it names is the build
 /// the server is on now. The worker reads it from the `?v=` to tell which
 /// build the page is running.
+///
+/// A preload of the app's code (`main.dart.js`, `.mjs`, `.wasm`) is
+/// versioned the same way, or it and the loader's request would be two
+/// downloads of the largest file on the page. Deferred parts are not: the
+/// compiled app asks for them by their plain name.
 String dvVersionIndexHtml(String html, String build) => html.replaceAllMapped(
-      RegExp(r'''(src=["'](?:\./)?)flutter_bootstrap\.js(?:\?v=[^"']*)?(["'])'''),
-      (Match m) => '${m[1]}flutter_bootstrap.js?v=${Uri.encodeQueryComponent(build)}${m[2]}',
+      RegExp(r'''((?:src|href)=["'](?:\./)?)(flutter_bootstrap\.js|main\.dart\.(?:js|mjs|wasm))(?:\?v=[^"']*)?(["'])'''),
+      (Match m) => '${m[1]}${m[2]}?v=${Uri.encodeQueryComponent(build)}${m[3]}',
     );
 
 /// [bootstrap] (`flutter_bootstrap.js`) asking for the app's code at
