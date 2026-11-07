@@ -85,4 +85,30 @@ void main() {
         html);
     expect(dvRenderRoutePage(_shell, page), isNot(contains('name="robots"')));
   });
+
+  // The first-frame picture was removed (7 Nov 2026): a picture of the page
+  // that did nothing when pressed made visitors think the site was broken. A
+  // web-server binary built before then still carries `firstFrames` in its
+  // manifest; the page it renders now shows the splash, never the picture.
+  test('a manifest from before the first-frame picture was removed renders no picture', () {
+    final Map<String, Object?> old = <String, Object?>{
+      ...page.toJson(),
+      'firstFrames': <Object?>[
+        <String, Object?>{
+          'width': 1366,
+          'dark': false,
+          'src': 'dv-first-frame/docs_ai-1366-light-0123456789.png',
+          'texts': <Object?>[
+            <String, Object?>{'text': 'AI', 'left': 10, 'top': 10, 'width': 40, 'height': 20},
+          ],
+        },
+      ],
+    };
+    final DVRoutePage read = DVRoutePage.fromJson(old);
+    final String html = dvRenderRoutePage(_shell, read);
+    expect(html, isNot(contains('dv-first-frame')));
+    expect(html, isNot(contains('dv-ff-')));
+    expect(html, dvRenderRoutePage(_shell, page));
+    expect(read.toJson(), isNot(contains('firstFrames')));
+  });
 }
