@@ -101,7 +101,7 @@ import '../build/favicon_derivative.dart';
 import '../build/seo_head.dart';
 import '../build/page_text.dart';
 import '../build/semantic_html.dart';
-import '../build/first_frame_capture.dart';
+import '../build/removed_web_options.dart';
 import '../build/semantics_capture.dart';
 import '../build/server_config.dart';
 import '../build/supervisor_unit.dart';
@@ -1527,7 +1527,11 @@ class BuildCommand extends Command<void> {
         // Before the capture loads a page: the variants DVImageView asks for
         // have to be there, or the capture records a 404 for every image.
         _writeStaticImageVariants(root, platform);
-        // Before the capture too: the first-frame pictures are drawn with the
+        for (final String warning
+            in dvRemovedWebOptionWarnings(_dartvelSection(root))) {
+          Logger.log('   ⚠ $warning');
+        }
+        // Before the capture too: the capture lays the page out with the
         // fonts the page will download.
         await _optimizeWebFonts(root);
         // Before anything reads it. The crawler-visible HTML on every page
@@ -1679,13 +1683,6 @@ class BuildCommand extends Command<void> {
       return DVBuildTargetResult.failed;
     }
     return DVBuildTargetResult.succeeded;
-  }
-
-  /// `dartvel.web.firstFrame`: the window widths each page's first screen is
-  /// captured at, shown before the app loads.
-  List<int> _firstFrameWidths(String root) {
-    final Object? web = _dartvelSection(root)['web'];
-    return dvFirstFrameWidths(web is Map ? web['firstFrame'] : null);
   }
 
   /// `dartvel.web.server`, or nothing.
@@ -4142,17 +4139,6 @@ class BuildCommand extends Command<void> {
     if (tree.existsSync()) tree.copySync(p.join(outputs.path, 'tree.json'));
     if (images.existsSync())
       images.copySync(p.join(outputs.path, 'images.json'));
-    final File firstFrame = File(dvFirstFramePathFor(root, route));
-    if (firstFrame.existsSync()) {
-      firstFrame.copySync(p.join(outputs.path, 'first-frame.json'));
-      final Directory pictures = Directory(p.join(outputs.path, 'first-frame'))..createSync();
-      for (final FileSystemEntity picture
-          in Directory(dvFirstFrameDirFor(root, route)).listSync()) {
-        if (picture is File) {
-          picture.copySync(p.join(pictures.path, p.basename(picture.path)));
-        }
-      }
-    }
     return outputs;
   }
 
@@ -4165,21 +4151,6 @@ class BuildCommand extends Command<void> {
     if (tree.existsSync()) tree.copySync(treeTarget.path);
     if (images.existsSync())
       images.copySync(dvCapturedImagesPathFor(root, route));
-    dvForgetFirstFrames(root, route);
-    final File firstFrame = File(p.join(outputs.path, 'first-frame.json'));
-    if (firstFrame.existsSync()) {
-      firstFrame.copySync(dvFirstFramePathFor(root, route));
-      final Directory pictures = Directory(dvFirstFrameDirFor(root, route))
-        ..createSync(recursive: true);
-      final Directory kept = Directory(p.join(outputs.path, 'first-frame'));
-      if (kept.existsSync()) {
-        for (final FileSystemEntity picture in kept.listSync()) {
-          if (picture is File) {
-            picture.copySync(p.join(pictures.path, p.basename(picture.path)));
-          }
-        }
-      }
-    }
   }
 
   Future<void> _captureSemantics(String root) async {
@@ -4214,7 +4185,6 @@ class BuildCommand extends Command<void> {
       ..addText('web', webHash)
       ..addText('route', route)
       ..addText('capture', '$dvSemanticsCaptureVersion')
-      ..addText('firstFrame', _firstFrameWidths(root).join(','))
       ..addText('dartvel', dartvelCliVersion);
     // One stage per web output: every route's capture of one build is a
     // group, and the newest three groups are kept.
@@ -4250,7 +4220,6 @@ class BuildCommand extends Command<void> {
         projectRoot: root,
         webRoot: web.path,
         routes: toCapture,
-        firstFrameWidths: _firstFrameWidths(root),
       );
       captured = fresh.captured;
       browserAvailable = fresh.browserAvailable;
@@ -4464,7 +4433,6 @@ class BuildCommand extends Command<void> {
         // no links at all.
         html: _semanticHtmlFor(root, route),
         text: routeText[route] ?? const <String>[],
-        firstFrames: dvPublishFirstFrames(root: root, route: route, webRoot: web.path),
       );
     }
     return pages;
@@ -5166,8 +5134,8 @@ class BuildCommand extends Command<void> {
   /// faces for redundant static ones, families nothing names dropped, text
   /// fonts subset, all of it WOFF2 under hashed names, Roboto from the SDK.
   ///
-  /// Before the capture, so every first-frame picture is drawn with the
-  /// fonts the page will really have.
+  /// Before the capture, so it lays each page out with the fonts the page
+  /// will really have.
   Future<void> _optimizeWebFonts(String root) async {
     final Object? web = _dartvelSection(root)['web'];
     final DVWebFontsOptions options =
