@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi' show DynamicLibrary;
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:args/command_runner.dart';
+import 'package:dartvel_core/binary_payload.dart' show DVAssetEncoding;
+import 'package:dartvel_shelf/native_codec.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../build/node_runtime_bundle.dart';
+import '../build/web_fonts.dart';
 import '../analysis/conventions_check.dart';
 import '../analysis/tooltip_lint.dart';
 import '../build/accessibility_audit.dart';
@@ -1522,6 +1527,9 @@ class BuildCommand extends Command<void> {
         // Before the capture loads a page: the variants DVImageView asks for
         // have to be there, or the capture records a 404 for every image.
         _writeStaticImageVariants(root, platform);
+        // Before the capture too: the first-frame pictures are drawn with the
+        // fonts the page will download.
+        await _optimizeWebFonts(root);
         // Before anything reads it. The crawler-visible HTML on every page
         // comes from these trees, and a build that skipped the capture would
         // publish whatever the last one produced -- including for a route
@@ -5089,6 +5097,67 @@ class BuildCommand extends Command<void> {
     );
     Logger.log('   Image variants: ${written.images} image(s), '
         '${written.written} file(s) written.');
+  }
+
+  /// The fonts the page downloads before its first frame, made as small as
+  /// they can be without changing what it draws (web_fonts.dart): variable
+  /// faces for redundant static ones, families nothing names dropped, text
+  /// fonts subset, all of it WOFF2 under hashed names, Roboto from the SDK.
+  ///
+  /// Before the capture, so every first-frame picture is drawn with the
+  /// fonts the page will really have.
+  Future<void> _optimizeWebFonts(String root) async {
+    final Object? web = _dartvelSection(root)['web'];
+    final DVWebFontsOptions options =
+        DVWebFontsOptions.parse(web is Map ? web['fonts'] : null);
+    if (!options.enabled) {
+      Logger.log('   fonts: left as Flutter wrote them (dartvel.web.fonts: false).');
+      return;
+    }
+    if (!File(p.join(root, 'build', 'web', 'assets', 'FontManifest.json')).existsSync()) {
+      return;
+    }
+    final String? flutterRoot = dvFlutterRootSync();
+    final String? subsetTool =
+        flutterRoot == null ? null : dvFontSubsetTool(flutterRoot);
+    String? library = dvCliCodecLibrary();
+    if (library == null) {
+      final host = dvHostServerLibrary();
+      library = dvLocateServerLibrary(root, subdir: host.subdir, name: host.name)
+          .file
+          ?.path;
+    }
+    final DVNativeCodec? codec =
+        library == null ? null : DVNativeCodec.of(DynamicLibrary.open(library));
+    final Set<int> project = dvProjectCharacters(root);
+    // Studio's pages name fonts as data; they are read wherever they live.
+    final Directory studio = Directory(p.join(root, dvStudioDataDirectory));
+    final DVWebFontsReport report = await dvOptimizeWebFonts(
+      web: Directory(p.join(root, 'build', 'web')),
+      characters: dvFontSubsetCharacters(project: project, extra: options.characters),
+      required: dvFontSubsetCharacters(
+          project: project, extra: options.characters, base: dvFontCoreRanges),
+      options: options,
+      subsetTool: subsetTool,
+      roboto: flutterRoot == null ? null : dvRobotoSource(flutterRoot),
+      brotli: codec == null
+          ? null
+          : (Uint8List bytes) => codec.encode(DVAssetEncoding.br, bytes) ?? bytes,
+      texts: <String>[
+        if (studio.existsSync())
+          for (final FileSystemEntity f in studio.listSync(recursive: true))
+            if (f is File && f.path.endsWith('.json'))
+              utf8.decode(f.readAsBytesSync(), allowMalformed: true),
+      ],
+      cache: Directory(p.join(root, '.dart_tool', 'dartvel', 'web_fonts')),
+    );
+    for (final String line in report.lines) {
+      Logger.log('   $line');
+    }
+    if (subsetTool == null && report.lines.isNotEmpty) {
+      Logger.log('   ⚠ Flutter\'s font-subset was not found, so fonts were not '
+          'subset. Run `flutter precache --web` and build again.');
+    }
   }
 
   /// `dartvel.redirects`, with every problem in it reported and left out.

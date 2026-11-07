@@ -40,11 +40,13 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:path/path.dart' as p;
 
+import 'server_binary.dart' show dvHostServerLibrary;
 import 'woff2.dart';
 
 /// One font file in a FontManifest family.
@@ -404,6 +406,20 @@ String? dvFontSubsetTool(String flutterRoot) {
     if (tool.existsSync()) return tool.path;
   }
   return null;
+}
+
+/// The native library with the brotli encoder, from the dartvel_shelf this
+/// CLI resolves -- not the project's, because a static `dartvel build web`
+/// project need not depend on dartvel_shelf at all. Null when there is none
+/// for this host.
+String? dvCliCodecLibrary() {
+  final Uri? codec = Isolate.resolvePackageUriSync(
+      Uri.parse('package:dartvel_shelf/native_codec.dart'));
+  if (codec == null || codec.scheme != 'file') return null;
+  final host = dvHostServerLibrary();
+  final File library = File(p.join(
+      p.dirname(codec.toFilePath()), 'native', host.subdir, host.name));
+  return library.existsSync() ? library.path : null;
 }
 
 /// The Roboto the Flutter SDK carries for its test and desktop runs: the

@@ -77,6 +77,17 @@ Map<String, DVFontFacts> siteFacts({DVFontFacts? bold}) => <String, DVFontFacts>
     };
 
 void main() {
+  group('the brotli encoder', () {
+    test('comes from the dartvel_shelf the CLI itself resolves, for any project',
+        () {
+      // A static `dartvel build web` project need not depend on dartvel_shelf,
+      // so the encoder cannot be looked up through the project.
+      final String? library = dvCliCodecLibrary();
+      expect(library, isNotNull);
+      expect(DVNativeCodec.of(DynamicLibrary.open(library!)), isNotNull);
+    });
+  });
+
   group('the manifest', () {
     test('reads and writes back the way Flutter wrote it', () {
       final List<DVManifestFamily> manifest = siteManifest();
