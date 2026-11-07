@@ -1,3 +1,10 @@
+## 0.13.23 — 2026-11-07
+
+- Under multi-threaded skwasm the first-frame picture and splash no longer stay over the running app: frames keep coming until the engine reports the first one rasterized.
+- The page head (title, description, canonical) updates on navigation in WebAssembly builds too.
+- A scrollable `DVBox` list no longer repaints all of its content on every scroll frame.
+- Version aligned with dartvel_core 0.13.23.
+
 ## 0.13.22 — 2026-11-07
 
 - The first-frame handover waits for a real raster after layout, keeps desktop scrollbars through it, and a preloaded route renders on its first frame instead of a loading frame, so the captured first screen and Flutter's first frame match pixel for pixel.
