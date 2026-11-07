@@ -68,8 +68,8 @@ Future<void> dvWaitForPostLayoutRaster(WidgetsBinding binding) async {
 /// finishes more than 100 ms after the previous batch; the first-frame
 /// future completes from those timings. An app whose first frames all finish
 /// inside one such window and then go idle -- multi-threaded skwasm, which
-/// rasterizes on a worker -- would never be told, and the first-frame
-/// picture and splash would stay over it. A frame every 100 ms until then
+/// rasterizes on a worker -- would never be told, and the splash would
+/// stay over it. A frame every 100 ms until then
 /// releases the batch; it stops the moment the first frame is reported.
 ///
 /// [rasterized] is the first-frame future, [WidgetsBinding.waitUntilFirstFrameRasterized]
