@@ -362,6 +362,13 @@ dartvel:
           contains('<link rel="preload" href="dartvel-splash.png" as="image">'));
     });
 
+    test('the loading bar draws above the first-frame picture', () {
+      final String html = dvWebSplashApply(_webIndex, DVSplash(color: '#112233', darkColor: '#445566', progress: true));
+      final RegExpMatch z = RegExp(r'getElementById\("dartvel-progress"\);if\(!b\)return;b\.style\.zIndex="(\d+)"').firstMatch(html)!;
+      // The picture is 2147483646 (dartvel_core first_frame.dart).
+      expect(int.parse(z.group(1)!), greaterThan(2147483646));
+    });
+
     test('is removed on the first frame', () {
       expect(dvWebSplashApply(_webIndex, splash), contains('dartvel-first-frame'));
     });
