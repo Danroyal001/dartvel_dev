@@ -2950,7 +2950,13 @@ const SUITES: &[(&str, Suite)] =
 // and the C runtime calls it with the `int main(int, char **)` signature it is
 // declared with.
 #[unsafe(no_mangle)]
-pub extern "C" fn main(_argc: std::ffi::c_int, _argv: *const *const std::ffi::c_char) -> std::ffi::c_int {
+pub extern "C" fn main(argc: std::ffi::c_int, _argv: *const *const std::ffi::c_char) -> std::ffi::c_int {
+    // Counted from argc, so that the usage error allocates nothing: std::env::args
+    // copies the arguments onto the heap.
+    if argc != 4 {
+        eprintln!("usage: geometry_dump <suite> <seed> <cases> | bench <suite> <rounds>");
+        return 2;
+    }
     run();
     std::io::stdout().flush().unwrap();
     0
@@ -2958,10 +2964,6 @@ pub extern "C" fn main(_argc: std::ffi::c_int, _argv: *const *const std::ffi::c_
 
 fn run() {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 4 {
-        eprintln!("usage: geometry_dump <suite> <seed> <cases> | bench <suite> <rounds>");
-        std::process::exit(2);
-    }
     let mut o = Out { line: String::new(), sink: std::io::BufWriter::new(std::io::stdout()), discard: false };
     if args[1] == "bench" {
         bench(&args[2], args[3].parse().unwrap());

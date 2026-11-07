@@ -19,7 +19,7 @@ fn the_driver_starts_without_std_runtime_setup() {
     assert!(probe.status.success(), "strace -V failed");
     let log = std::env::temp_dir().join(format!("geometry_cold_start_{}.txt", std::process::id()));
     let status = Command::new("strace")
-        .args(["-f", "-e", "trace=openat,sigaltstack,poll", "-o"])
+        .args(["-f", "-e", "trace=openat,sigaltstack,poll,brk", "-o"])
         .arg(&log)
         .arg(env!("CARGO_BIN_EXE_geometry_dump"))
         .output()
@@ -32,6 +32,10 @@ fn the_driver_starts_without_std_runtime_setup() {
     for call in ["/proc/self/maps", "sigaltstack(", "poll("] {
         assert!(!trace.contains(call), "the driver's start-up made `{call}`:\n{trace}");
     }
+    // The loader asks for the break once (`brk(NULL)`); a second `brk` is the
+    // heap being set up, which printing the usage error does not need.
+    let breaks = trace.matches("brk(").count();
+    assert!(breaks <= 1, "the driver set up a heap before printing its usage ({breaks} brk calls):\n{trace}");
 }
 
 #[test]
