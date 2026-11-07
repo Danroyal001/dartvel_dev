@@ -359,7 +359,16 @@ String dvWebSplashApply(
   // splash is what a visitor sees until the first frame. (0.9.2 showed that
   // text as the page during boot; the owner rejected it.)
 
+  // The logo first: until it arrives the splash is a blank page, and its
+  // <img> sits in the body behind the page's own text.
+  final String logoPreload = imageUrl == null
+      ? ''
+      : darkImageUrl == null
+          ? '<link rel="preload" href="$imageUrl" as="image">\n'
+          : '<link rel="preload" href="$imageUrl" as="image" media="(prefers-color-scheme: light)">\n'
+              '<link rel="preload" href="$darkImageUrl" as="image" media="(prefers-color-scheme: dark)">\n';
   final String headBlock = '$_headOpen\n'
+      '$logoPreload'
       // The compiled app, fetched while the page is parsed rather than once
       // flutter_bootstrap.js has run and asked for it.
       // A --wasm build has two: the page asks for the one the loader will

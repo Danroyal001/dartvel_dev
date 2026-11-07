@@ -109,14 +109,21 @@ String dvFirstFrameHtml(List<DVFirstFrame> frames) {
       '#dv-first-frame ::selection{background:rgba(47,107,255,.35)}');
   final StringBuffer layers = StringBuffer();
   final Set<int> layered = <int>{};
+  // Each picture's media query and address, for the script that loads the
+  // one this window shows before anything changes on screen.
+  final List<List<String>> pictures = <List<String>>[];
   for (final DVFirstFrame frame in frames) {
     final String scheme = hasDark ? ' and (prefers-color-scheme:${frame.dark ? 'dark' : 'light'})' : '';
     final String url = frame.src.replaceAll("'", '%27');
+    pictures.add(<String>['(width:${frame.width}px)$scheme', frame.src]);
+    // Until the picture has arrived and decoded (html.dv-ff-ready) the splash
+    // stays: shown sooner, a picture on a slow connection is a white page
+    // that paints in from the top.
     style.write('@media (width:${frame.width}px)$scheme{'
-        "#dv-first-frame{display:block;background-image:url('$url');"
+        "html.dv-ff-ready #dv-first-frame{display:block;background-image:url('$url');"
         'background-size:${frame.width}px auto}'
         '#dv-first-frame>.dv-ff-${frame.width}{display:block}'
-        '#dartvel-splash,#dartvel-progress{display:none}}');
+        'html.dv-ff-ready #dartvel-splash,html.dv-ff-ready #dartvel-progress{display:none}}');
     // One text layer per width: the words sit in the same place in either
     // scheme.
     if (!layered.add(frame.width)) continue;
@@ -136,6 +143,15 @@ String dvFirstFrameHtml(List<DVFirstFrame> frames) {
   }
   return '<style id="dv-first-frame-style">$style</style>'
       '<noscript><style>#dv-first-frame{display:none!important}</style></noscript>'
+      // The picture for this window, decoded before it replaces the splash:
+      // asked for before the text layers, so the download starts at once.
+      '<script>(function(){'
+      'var F=${jsonEncode(pictures).replaceAll('</', r'<\/')};'
+      'for(var k=0;k<F.length;k++){if(!matchMedia(F[k][0]).matches)continue;'
+      'var i=new Image();i.src=F[k][1];'
+      '(i.decode?i.decode():new Promise(function(r,j){i.onload=r;i.onerror=j}))'
+      '.then(function(){document.documentElement.classList.add("dv-ff-ready")},function(){});break}'
+      '})()</script>'
       '<div id="dv-first-frame" aria-hidden="true">$layers</div>'
       '<script>(function(){var p=document.getElementById("dv-first-frame");'
       'if(p)p.style.zIndex="2147483646";'

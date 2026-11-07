@@ -345,6 +345,23 @@ dartvel:
           lessThan(html.indexOf('flutter_bootstrap.js')));
     });
 
+    // The logo is the splash: until it arrives a slow phone shows a blank
+    // page. Asked for by the head, it comes before the app and the page's
+    // own text, not when the parser reaches the splash further down.
+    test('asks for its logo first, in the scheme the visitor uses', () {
+      final String html = dvWebSplashApply(_webIndex, splash,
+          imageUrl: 'dartvel-splash.png', darkImageUrl: 'dartvel-splash-dark.png', wasm: true);
+      final String head = html.substring(0, html.indexOf('</head>'));
+      final int light = head.indexOf('<link rel="preload" href="dartvel-splash.png" as="image" media="(prefers-color-scheme: light)">');
+      final int dark = head.indexOf('<link rel="preload" href="dartvel-splash-dark.png" as="image" media="(prefers-color-scheme: dark)">');
+      expect(light, greaterThanOrEqualTo(0));
+      expect(dark, greaterThanOrEqualTo(0));
+      expect(light, lessThan(head.indexOf('WebAssembly')));
+      // One logo: no scheme split.
+      expect(dvWebSplashApply(_webIndex, splash, imageUrl: 'dartvel-splash.png'),
+          contains('<link rel="preload" href="dartvel-splash.png" as="image">'));
+    });
+
     test('is removed on the first frame', () {
       expect(dvWebSplashApply(_webIndex, splash), contains('dartvel-first-frame'));
     });
