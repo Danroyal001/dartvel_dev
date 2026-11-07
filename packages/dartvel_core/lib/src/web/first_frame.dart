@@ -119,11 +119,13 @@ String dvFirstFrameHtml(List<DVFirstFrame> frames) {
     // Until the picture has arrived and decoded (html.dv-ff-ready) the splash
     // stays: shown sooner, a picture on a slow connection is a white page
     // that paints in from the top.
+    // The loading bar stays over the picture: it looks like the finished page
+    // but does nothing until the app has loaded.
     style.write('@media (width:${frame.width}px)$scheme{'
         "html.dv-ff-ready #dv-first-frame{display:block;background-image:url('$url');"
         'background-size:${frame.width}px auto}'
         '#dv-first-frame>.dv-ff-${frame.width}{display:block}'
-        'html.dv-ff-ready #dartvel-splash,html.dv-ff-ready #dartvel-progress{display:none}}');
+        'html.dv-ff-ready #dartvel-splash{display:none}}');
     // One text layer per width: the words sit in the same place in either
     // scheme.
     if (!layered.add(frame.width)) continue;

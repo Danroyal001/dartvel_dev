@@ -64,6 +64,14 @@ void main() {
       }
     });
 
+    // The picture looks like the finished page but does nothing until the app
+    // arrives; the loading bar over it says so.
+    test('leaves the loading bar showing over the picture', () {
+      expect(html, isNot(contains('#dartvel-progress{display:none}')));
+      expect(html, isNot(contains('#dartvel-progress{display:none}}')));
+      expect(html, isNot(contains(',html.dv-ff-ready #dartvel-progress')));
+    });
+
     test('marks the picture ready only once the browser has it decoded', () {
       // Before the text layers, so the download starts as the page arrives.
       final String script = html.substring(0, html.indexOf('id="dv-first-frame"'));

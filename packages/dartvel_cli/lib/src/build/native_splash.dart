@@ -1074,7 +1074,7 @@ const String _wasmPreloadScript = '(function(){'
 
 const String _progressScript = '(function(){'
     'var d=document,h=d.documentElement,b=d.getElementById("dartvel-progress");'
-    'if(!b)return;b.style.zIndex="2147483645";var f=b.firstChild,v=0,cap=15,'
+    'if(!b)return;b.style.zIndex="2147483647";var f=b.firstChild,v=0,cap=15,'
     'rm=matchMedia("(prefers-reduced-motion: reduce)").matches;'
     'h.setAttribute("aria-busy","true");'
     'function set(n){n=Math.min(n,100);if(n<=v)return;v=n;'
