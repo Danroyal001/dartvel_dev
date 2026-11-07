@@ -75,6 +75,8 @@ import 'src/platform/storage/device_storage_stub.dart'
 import 'src/progress/top_progress.dart';
 import 'src/purchases/purchases_runtime.dart' show dvInstallPurchaseRuntime;
 import 'src/pwa/install_prompt.dart';
+import 'src/routing/capture_hook_stub.dart'
+    if (dart.library.js_interop) 'src/routing/capture_hook_web.dart';
 import 'src/routing/first_frame_gate.dart'
     show dvHoldWebFirstFrame, dvWatchWebFirstFrame;
 import 'src/routing/link_menu.dart' show DVLinkMenuScope, dvLinkMenuItems;
@@ -10455,6 +10457,9 @@ class DVNavigation {
     GoRouter.optionURLReflectsImperativeAPIs = true;
     _router = router;
     DVPlatformHosts.attachRouter(router);
+    // The build's semantics read moves the running app between routes
+    // through this, in a browser under automation only.
+    dvInstallCaptureHook(router);
   }
 
   /// Forgets the attached router. Tests that build their own router should
