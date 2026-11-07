@@ -5,9 +5,8 @@
 /// 119+) runs dart2wasm with the skwasm renderer; Firefox and Safari, which
 /// flutter.js leaves off its default wasm allow list, and every older browser
 /// get the dart2js and CanvasKit app. flutter.js chooses per browser, at load.
-/// Nothing about the page around it changes: the same prerendered HTML,
-/// first-frame pictures and splash come first, and the app takes over in
-/// place.
+/// Nothing about the page around it changes: the same prerendered HTML
+/// and splash come first, and the app takes over in place.
 ///
 /// `dartvel.web.wasm: false` builds the dart2js and CanvasKit app alone.
 library;

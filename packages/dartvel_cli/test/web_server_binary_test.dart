@@ -37,8 +37,6 @@ import 'package:dartvel_core/dartvel.dart'
         DVTenants;
 import 'package:dartvel_cli/src/build/chrome_launch.dart';
 import 'package:dartvel_cli/src/build/chrome_frame.dart';
-import 'package:dartvel_cli/src/build/first_frame_capture.dart' show dvEmulateColourScheme;
-import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:puppeteer/puppeteer.dart';
 import 'package:test/test.dart';
@@ -194,7 +192,11 @@ Widget _notesPage(BuildContext context) {
     final String declared = pubspec.readAsStringSync();
     expect(declared, contains('\ndartvel:\n'));
     pubspec.writeAsStringSync(declared.replaceFirst(
-        '\ndartvel:\n', '\ndartvel:\n  admin:\n    enabled: true\n'));
+        '\ndartvel:\n',
+        '\ndartvel:\n  admin:\n    enabled: true\n'
+        // The first-frame picture was removed: the key still builds, with a
+        // warning.
+        '  web:\n    firstFrame:\n      widths: [1366]\n'));
 
     final ProcessResult resolved = await Process.run(
       'flutter',
@@ -412,18 +414,28 @@ Widget _notesPage(BuildContext context) {
     }
   }, skip: skip, timeout: const Timeout(Duration(minutes: 5)));
 
-  test('before the app loads the page is the app\'s own first screen, and the '
-      'app takes over with nothing on screen changing', () async {
+  // The first-frame picture is gone (7 Nov 2026): a picture of the page that
+  // did nothing when pressed made visitors think the site was broken. Until
+  // the app has drawn its first frame the page shows the splash, its loading
+  // line and its loading bar, at every width; the app's first frame takes
+  // them away, and never before the app is on screen.
+  test('before the app loads only the splash shows, at every width, and the '
+      'app\'s first frame takes it away', () async {
+    expect(buildOutput, contains('dartvel.web.firstFrame is ignored'),
+        reason: 'the project still names the removed key; the build says so');
     final run = await start();
     final Browser browser = await puppeteer.launch(
       executablePath: await dvChromeExecutable(),
       args: dvChromeLaunchArgs,
     );
-    /// The page at 1366 wide, with the app's code blocked or let through.
-    Future<Page> open({required bool app}) async {
+    final List<String> pictureRequests = <String>[];
+    /// The page at [width], with the app's code blocked or let through.
+    Future<Page> open({required int width, required bool app}) async {
       final Page page = await browser.newPage();
-      await page.setViewport(const DeviceViewport(width: 1366, height: 900));
-      await dvEmulateColourScheme(page, 'light');
+      await page.setViewport(DeviceViewport(width: width, height: width < 700 ? 844 : 900));
+      page.onRequest.listen((Request request) {
+        if (request.url.contains('dv-first-frame')) pictureRequests.add(request.url);
+      });
       // Only the page without the app intercepts: with interception on, Chrome
       // pauses the requests of the worker that multi-threaded skwasm draws on,
       // and puppeteer never lets them through, so the app would never start.
@@ -437,44 +449,69 @@ Widget _notesPage(BuildContext context) {
           }
         });
       }
-      await page.evaluateOnNewDocument(
-          'addEventListener("dartvel-first-frame", () => { window.dvFirstFrame = true })');
+      // Registered before the page's own scripts, so it runs before the
+      // splash's listener removes it: what was on screen as the app arrived.
+      await page.evaluateOnNewDocument('addEventListener("dartvel-first-frame", () => {'
+          'window.dvAtFirstFrame = {'
+          'splash: !!document.getElementById("dartvel-splash"),'
+          'view: !!document.querySelector("flutter-view")};'
+          'window.dvFirstFrame = true })');
       await page.goto('http://127.0.0.1:${run.port}/notes', wait: Until.networkIdle);
       return page;
     }
 
     try {
-      final Page server = await open(app: false);
-      expect(await server.evaluate<String>(
-              '() => getComputedStyle(document.getElementById("dv-first-frame")).display'),
-          'block', reason: 'the picture shows at a captured width');
-      expect(await server.evaluate<bool>(
-              '() => !document.getElementById("dartvel-splash") || getComputedStyle(document.getElementById("dartvel-splash")).display === "none"'),
-          isTrue, reason: 'no splash where the picture is');
-      expect(await server.evaluate<bool>('() => window.find("Save a note")'), isTrue,
-          reason: 'find reaches the words on the picture');
-      final img.Image before = img.decodePng(
-        await server.screenshot(captureBeyondViewport: false),
-      )!;
+      final served = await request(run.port, 'GET', '/notes');
+      expect(served.status, 200, reason: served.body);
+      expect(served.body, isNot(contains('dv-first-frame')),
+          reason: 'no picture, no picture styles, no picture script');
+      expect(served.body, isNot(contains('dv-ff-')));
 
-      final Page app = await open(app: true);
-      await dvWaitForWebRaster(app, ready: '() => window.dvFirstFrame === true', timeout: const Duration(minutes: 1));
-      await Future<void>.delayed(const Duration(seconds: 2));
-      expect(await app.evaluate<bool>('() => document.getElementById("dv-first-frame") === null'), isTrue,
-          reason: 'the first frame of the app takes the picture away');
-      final img.Image after = img.decodePng(
-        await app.screenshot(captureBeyondViewport: false),
-      )!;
-
-      int changed = 0;
-      for (int y = 0; y < before.height; y++) {
-        for (int x = 0; x < before.width; x++) {
-          final img.Pixel a = before.getPixel(x, y), b = after.getPixel(x, y);
-          if ((a.r - b.r).abs() > 24 || (a.g - b.g).abs() > 24 || (a.b - b.b).abs() > 24) changed++;
-        }
+      for (final int width in <int>[390, 1366, 1920]) {
+        final Page server = await open(width: width, app: false);
+        expect(await server.evaluate<bool>('() => document.getElementById("dv-first-frame") === null'),
+            isTrue, reason: 'no picture at $width');
+        expect(await server.evaluate<int>(
+                '() => [...document.images].filter((i) => i.src.includes("dv-first-frame")).length'),
+            0, reason: 'no picture at $width');
+        final Map<dynamic, dynamic> splash = await server.evaluate<Map<dynamic, dynamic>>('''() => {
+          const s = document.getElementById("dartvel-splash");
+          const line = s && s.querySelector(".dv-loading");
+          const bar = document.getElementById("dartvel-progress");
+          const r = s ? s.getBoundingClientRect() : null;
+          return {
+            shown: !!s && getComputedStyle(s).display !== "none" && getComputedStyle(s).visibility !== "hidden",
+            covers: !!r && r.left <= 0 && r.top <= 0 && r.right >= innerWidth && r.bottom >= innerHeight,
+            line: !!line && getComputedStyle(line).display !== "none" && line.textContent.trim(),
+            bar: !!bar && getComputedStyle(bar).display !== "none",
+            barAbove: !!bar && !!s && Number(bar.style.zIndex) > Number(s.style.zIndex),
+            top: (() => { const e = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+                          return !!e && !!s && (e === s || s.contains(e)); })(),
+          };
+        }''');
+        expect(splash['shown'], isTrue, reason: 'the splash shows at $width');
+        expect(splash['covers'], isTrue, reason: 'the splash covers the window at $width');
+        expect(splash['top'], isTrue, reason: 'nothing lies over the splash at $width');
+        expect(splash['line'], 'Loading…', reason: 'the loading line shows at $width');
+        expect(splash['bar'], isTrue, reason: 'the loading bar shows at $width');
+        expect(splash['barAbove'], isTrue, reason: 'the bar stacks above the splash at $width');
+        await server.close();
       }
-      expect(changed / (before.width * before.height), lessThan(0.001),
-          reason: '$changed pixels changed when the app took over');
+
+      final Page app = await open(width: 1366, app: true);
+      await dvWaitForWebRaster(app, ready: '() => window.dvFirstFrame === true', timeout: const Duration(minutes: 1));
+      final Map<dynamic, dynamic> arrived =
+          await app.evaluate<Map<dynamic, dynamic>>('() => window.dvAtFirstFrame');
+      expect(arrived['splash'], isTrue,
+          reason: 'the splash stayed until the app\'s first frame: no blank gap');
+      expect(arrived['view'], isTrue, reason: 'the app was on the page when the splash went');
+      await Future<void>.delayed(const Duration(seconds: 1));
+      expect(await app.evaluate<bool>('() => document.getElementById("dartvel-splash") === null'), isTrue,
+          reason: 'the app\'s first frame takes the splash away');
+      expect(await app.evaluate<bool>('() => document.getElementById("dartvel-progress") === null'), isTrue,
+          reason: 'and the loading bar');
+      expect(await app.evaluate<bool>('() => document.getElementById("dv-first-frame") === null'), isTrue);
+      expect(pictureRequests, isEmpty, reason: 'nothing asked for a picture');
     } finally {
       await browser.close();
       run.process.kill();
