@@ -1,14 +1,18 @@
 // The renderer is the largest thing a Flutter web page downloads -- CanvasKit
-// is 7 MB -- and nothing asked for it until flutter_bootstrap.js had arrived
-// and run. The page's HTML now opens the connection to where it lives and
-// starts the download itself, during the parse.
+// is 7 MB, skwasm 3.5 MB -- and nothing asked for it until
+// flutter_bootstrap.js had arrived and run. The page's HTML now opens the
+// connection to where it lives and starts the download itself, during the
+// parse.
 //
-// A guess here is not cheap. Preloading the variant the loader will not use
-// is a 7 MB download for nothing, so the page chooses exactly as the loader
-// does, and the build writes no hint at all when the application's loader
-// configuration could make it choose differently.
+// A guess here is not cheap. Preloading the renderer the loader will not use
+// is megabytes for nothing, so the page chooses exactly as the loader does --
+// skwasm or CanvasKit, and which build of each -- and the build writes no
+// hint at all when the application's loader configuration could make it
+// choose differently.
 import 'package:dartvel_cli/src/build/renderer_hints.dart';
 import 'package:test/test.dart';
+
+const String revision = '83675ed27633283e7fc296c8bca22e841224c096';
 
 /// The tail of the flutter_bootstrap.js `flutter build web` writes.
 const String defaultBootstrap = '''
@@ -16,7 +20,7 @@ const String defaultBootstrap = '''
 if (!window._flutter) {
   window._flutter = {};
 }
-_flutter.buildConfig = {"engineRevision":"83675ed27633283e7fc296c8bca22e841224c096","builds":[{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"},{}]};
+_flutter.buildConfig = {"engineRevision":"$revision","builds":[{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"},{}]};
 
 _flutter.loader.load({
   serviceWorkerSettings: {
@@ -25,7 +29,13 @@ _flutter.loader.load({
 });
 ''';
 
-String withLoad(String config) => defaultBootstrap.replaceFirst(
+/// The same from `flutter build web --wasm`.
+final String wasmBootstrap = defaultBootstrap.replaceFirst(
+    '"builds":[{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"},{}]',
+    '"builds":[{"compileTarget":"dart2wasm","renderer":"skwasm","mainWasmPath":"main.dart.wasm","jsSupportRuntimePath":"main.dart.mjs"},'
+        '{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"}]');
+
+String withLoad(String bootstrap, String config) => bootstrap.replaceFirst(
       RegExp(r'_flutter\.loader\.load\(\{[\s\S]*\}\);'),
       '_flutter.loader.load({$config});',
     );
@@ -35,37 +45,45 @@ const String shell = '<!DOCTYPE html>\n<html>\n<head>\n'
     '</head>\n<body></body>\n</html>';
 
 void main() {
-  group('which renderer the build can name', () {
-    test('the engine revision of a default CanvasKit build', () {
-      expect(dvCanvasKitRevision(defaultBootstrap),
-          '83675ed27633283e7fc296c8bca22e841224c096');
+  group('where the renderer comes from', () {
+    test('a default CanvasKit build loads it from gstatic, by revision', () {
+      final DVRendererSource? source = dvRendererSource(defaultBootstrap);
+      expect(source?.base,
+          'https://www.gstatic.com/flutter-canvaskit/$revision/');
+      expect(source?.wasm, isFalse);
     });
 
-    test('none for a build that is not CanvasKit on dart2js', () {
-      // A --wasm build loads skwasm, from other files.
-      expect(
-        dvCanvasKitRevision(defaultBootstrap.replaceFirst(
-            '"compileTarget":"dart2js","renderer":"canvaskit"',
-            '"compileTarget":"dart2wasm","renderer":"skwasm"')),
-        isNull,
-      );
+    test('a --wasm build has skwasm to name as well', () {
+      final DVRendererSource? source = dvRendererSource(wasmBootstrap);
+      expect(source?.base,
+          'https://www.gstatic.com/flutter-canvaskit/$revision/');
+      expect(source?.wasm, isTrue);
+    });
+
+    test('a site serving the renderer itself is named where it serves it', () {
+      // canvasKitBaseUrl is where both the loader and the hint look.
+      final DVRendererSource? source = dvRendererSource(
+          withLoad(wasmBootstrap, 'config: { canvasKitBaseUrl: "canvaskit/" }'));
+      expect(source?.base, 'canvaskit/');
+      expect(source?.wasm, isTrue);
     });
 
     test('none without a build configuration to read', () {
-      expect(dvCanvasKitRevision('_flutter.loader.load({});'), isNull);
+      expect(dvRendererSource('_flutter.loader.load({});'), isNull);
     });
 
-    test('none when the loader is told where CanvasKit lives or which kind',
-        () {
+    test('none when the loader is told which kind or a place it cannot read', () {
       // Each of these moves the file the loader fetches away from the one a
       // hint would name.
       for (final String config in <String>[
-        'canvasKitBaseUrl: "/ck/"',
+        'config: { canvasKitBaseUrl: base }',
         'config: { canvasKitVariant: "full" }',
         'config: { useLocalCanvasKit: true }',
         'config: { renderer: "skwasm" }',
+        'config: { wasmAllowList: { gecko: true } }',
       ]) {
-        expect(dvCanvasKitRevision(withLoad(config)), isNull, reason: config);
+        expect(dvRendererSource(withLoad(wasmBootstrap, config)), isNull,
+            reason: config);
       }
     });
 
@@ -73,13 +91,14 @@ void main() {
       // flutter.js itself reads useLocalCanvasKit; only the application's
       // call to load() can set it.
       expect(defaultBootstrap, contains('useLocalCanvasKit'));
-      expect(dvCanvasKitRevision(defaultBootstrap), isNotNull);
+      expect(dvRendererSource(defaultBootstrap), isNotNull);
     });
   });
 
-  group('the hints', () {
-    final String block =
-        dvRendererHints('83675ed27633283e7fc296c8bca22e841224c096');
+  group('the hints for CanvasKit', () {
+    final String block = dvRendererHints(const DVRendererSource(
+        base: 'https://www.gstatic.com/flutter-canvaskit/$revision/',
+        wasm: false));
 
     test('open the connection to where CanvasKit is served', () {
       expect(block,
@@ -88,10 +107,8 @@ void main() {
     });
 
     test('name this build\'s revision', () {
-      expect(
-          block,
-          contains('https://www.gstatic.com/flutter-canvaskit/'
-              '83675ed27633283e7fc296c8bca22e841224c096/'));
+      expect(block,
+          contains('https://www.gstatic.com/flutter-canvaskit/$revision/'));
     });
 
     test('choose the variant with the loader\'s own test', () {
@@ -118,6 +135,35 @@ void main() {
       expect(block, contains('"fetch"'));
       expect(block, contains('canvaskit.wasm'));
       expect(block, contains('crossOrigin="anonymous"'));
+    });
+
+    test('a CanvasKit-only build never names skwasm', () {
+      expect(block, isNot(contains('skwasm')));
+    });
+  });
+
+  group('the hints for a --wasm build', () {
+    final String block = dvRendererHints(
+        const DVRendererSource(base: 'canvaskit/', wasm: true));
+
+    test('name skwasm where the loader will run it, CanvasKit elsewhere', () {
+      // Blink with WasmGC runs skwasm (the loader's default allow list and
+      // its own detector bytes); every other browser falls back to CanvasKit.
+      expect(block, contains('WebAssembly.validate'));
+      expect(block, contains('skwasm'));
+      expect(block, contains('canvaskit.wasm'));
+    });
+
+    test('choose skwasm or skwasm_heavy by the same test as the loader', () {
+      // skwasm_heavy carries its own codecs and break iterators, for a
+      // browser that lacks ImageDecoder or the ICU iterators.
+      expect(block, contains('skwasm_heavy'));
+      expect(block, contains('ImageDecoder'));
+    });
+
+    test('a site serving the renderer itself opens no other connection', () {
+      expect(block, isNot(contains('preconnect')));
+      expect(block, contains('"canvaskit/"'));
     });
   });
 
