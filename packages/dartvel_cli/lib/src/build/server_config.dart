@@ -98,6 +98,12 @@ ${_apacheSecurityHeaders()}
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 
+  # A name carrying a hash of the contents (the fonts the build writes):
+  # a new body is a new name. FilesMatch sees the file name alone.
+  <FilesMatch "\\.[0-9a-f]{16}\\.(woff2|ttf|otf)\$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
   # These do carry a version in their path, and they are the large ones.
   <FilesMatch "^(canvaskit/|assets/).*\\.(js|wasm|woff2|otf|ttf|png|jpg|svg|json)\$">
     Header set Cache-Control "public, max-age=31536000, immutable"
