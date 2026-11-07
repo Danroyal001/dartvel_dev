@@ -19,7 +19,12 @@ void main() {
       await page.setContent(dvFirstFrameHtml(const [
         DVFirstFrame(width: 390, dark: false, src: 'picture.png'),
       ]));
+      // The picture shows only once the browser has it decoded; this one is
+      // never served, so it stays hidden until it is marked as decoded.
+      expect(await page.evaluate<String>('''()=>getComputedStyle(document.getElementById('dv-first-frame')).display'''),
+          'none', reason: 'no picture before it has loaded');
       await page.evaluate<Object?>('''()=>{
+        document.documentElement.classList.add('dv-ff-ready');
         document.getElementById('dv-first-frame').style.backgroundColor='blue';
         const view=document.createElement('flutter-view');
         view.style.cssText='position:absolute;inset:0;background:white';
