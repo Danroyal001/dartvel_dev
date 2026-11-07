@@ -2480,18 +2480,18 @@ class BuildCommand extends Command<void> {
     final File index = File(p.join(web.path, 'index.html'));
     if (!index.existsSync()) return;
     final File bootstrap = File(p.join(web.path, 'flutter_bootstrap.js'));
-    final String? revision = bootstrap.existsSync()
-        ? dvCanvasKitRevision(bootstrap.readAsStringSync())
+    final DVRendererSource? source = bootstrap.existsSync()
+        ? dvRendererSource(bootstrap.readAsStringSync())
         : null;
     final String before = index.readAsStringSync();
     final String after = dvApplyRendererHints(
-        before, revision == null ? null : dvRendererHints(revision));
+        before, source == null ? null : dvRendererHints(source));
     if (after != before) index.writeAsStringSync(after);
-    Logger.log(revision == null
-        ? '   Renderer hints: none; this build does not load the default '
-            'CanvasKit, so there is nothing safe to name.'
-        : '   Renderer hints: CanvasKit ${revision.substring(0, 8)} is '
-            'preconnected and preloaded from index.html.');
+    Logger.log(source == null
+        ? '   Renderer hints: none; the loader is configured to fetch '
+            'something this build cannot name safely.'
+        : '   Renderer hints: ${source.wasm ? 'skwasm or CanvasKit' : 'CanvasKit'} '
+            'from ${source.base} is preloaded from index.html.');
   }
 
   void _logSplash(DVSplash splash, DVSplashResult result) {
