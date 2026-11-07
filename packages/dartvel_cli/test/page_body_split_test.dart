@@ -209,6 +209,29 @@ void main() {
       ]);
     });
 
+    test("and the wasm app's deferred modules, which are its pages' code too",
+        () async {
+      // A Chromium visitor runs main.dart.wasm and never fetches a part; a
+      // page module it never fetched online is a load error offline.
+      final Directory web =
+          await Directory.systemTemp.createTemp('dartvel_parts_');
+      addTearDown(() => web.deleteSync(recursive: true));
+      for (final String name in <String>[
+        'main.dart.wasm',
+        'main.dart.mjs',
+        'main.dart.js_1.part.js',
+        'main.dart_module10.wasm',
+        'main.dart_module2.wasm',
+      ]) {
+        File(p.join(web.path, name)).writeAsStringSync('');
+      }
+      expect(dvDeferredPartFiles(web), <String>[
+        '/main.dart.js_1.part.js',
+        '/main.dart_module2.wasm',
+        '/main.dart_module10.wasm',
+      ]);
+    });
+
     test('a build without deferred code has none', () async {
       final Directory web =
           await Directory.systemTemp.createTemp('dartvel_parts_');

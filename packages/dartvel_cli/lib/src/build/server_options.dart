@@ -14,7 +14,14 @@
 library;
 
 import 'package:dartvel_core/dartvel.dart'
-    show DVCidr, DVClientAddress, DVForwardedHeader, dvDefaultMaxBodyBytes;
+    show
+        DVCidr,
+        DVClientAddress,
+        DVForwardedHeader,
+        dvDefaultMaxBodyBytes,
+        dvDefaultSecurityHeaders;
+
+import 'web_renderer.dart' show dvWebWasm;
 
 /// A CORS policy, as configured.
 class DVCorsSettings {
@@ -51,17 +58,42 @@ class DVServerOptions {
     this.ipv6SourcePrefix = DVClientAddress.defaultIpv6SourcePrefix,
     this.maxBodyBytes = dvDefaultMaxBodyBytes,
     this.crossOriginIsolated = false,
+    this.crossOriginIsolationDecided = true,
   });
 
   final int maxBodyBytes;
 
-  /// `dartvel.web.crossOriginIsolated`: every response carries
-  /// `Cross-Origin-Opener-Policy: same-origin` and
-  /// `Cross-Origin-Embedder-Policy: credentialless`, which is what lets
-  /// skwasm (`dartvel.web.renderer: wasm`) render on a worker thread. Off
-  /// unless asked: COOP cuts a popup a page opens (a sign-in, a payment) off
-  /// from it, and COEP changes how cross-origin files load.
+  /// Whether every response carries `Cross-Origin-Opener-Policy:
+  /// same-origin` and `Cross-Origin-Embedder-Policy: credentialless`, which
+  /// is what lets skwasm render on a worker thread. See
+  /// cross_origin_isolation.dart for what the headers break.
   final bool crossOriginIsolated;
+
+  /// False when the pubspec left `dartvel.web.crossOriginIsolated` unset on a
+  /// wasm build: then the project's files decide ([withCrossOriginIsolation]).
+  final bool crossOriginIsolationDecided;
+
+  /// These options with cross-origin isolation [on] or off, decided.
+  DVServerOptions withCrossOriginIsolation(bool on) => DVServerOptions(
+        cors: cors,
+        compression: compression,
+        trustedProxies: trustedProxies,
+        forwardedHeader: forwardedHeader,
+        ipv6SourcePrefix: ipv6SourcePrefix,
+        maxBodyBytes: maxBodyBytes,
+        crossOriginIsolated: on,
+      );
+
+  /// The headers every response gets: the runtime's defaults, plus
+  /// cross-origin isolation when on. What the preview server sends, and what
+  /// [securityHeadersSource] writes into the generated backend.
+  Map<String, String> get securityHeaders => <String, String>{
+        ...dvDefaultSecurityHeaders,
+        if (crossOriginIsolated) ...<String, String>{
+          'cross-origin-opener-policy': 'same-origin',
+          'cross-origin-embedder-policy': 'credentialless',
+        },
+      };
 
   /// The `dartvelSecurityHeaders` literal for the generated backend: the
   /// runtime's defaults, plus cross-origin isolation when asked for.
@@ -148,9 +180,15 @@ class DVServerOptions {
       );
     }
     final bool crossOriginIsolated = isolated == true;
+    // Unset on a wasm build: the project's files decide, in dvServerOptions.
+    // Without wasm there is nothing to isolate for.
+    final bool decided =
+        isolated != null || !dvWebWasm(_value(_value(dv, 'web'), 'wasm'));
     final Object? server = _value(dv, 'server');
     if (server == null) {
-      return DVServerOptions(crossOriginIsolated: crossOriginIsolated);
+      return DVServerOptions(
+          crossOriginIsolated: crossOriginIsolated,
+          crossOriginIsolationDecided: decided);
     }
 
     final Object? compression = _value(server, 'compression');
@@ -171,6 +209,7 @@ class DVServerOptions {
       ipv6SourcePrefix: _ipv6SourcePrefix(_value(server, 'ipv6SourcePrefix')),
       maxBodyBytes: _maxBodyBytes(_value(server, 'maxBodyBytes')),
       crossOriginIsolated: crossOriginIsolated,
+      crossOriginIsolationDecided: decided,
     );
   }
 

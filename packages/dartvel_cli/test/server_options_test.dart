@@ -229,11 +229,17 @@ void main() {
   });
 
   group('what the generated backend actually serves with', () {
-    Future<String> routesFor(String pubspec) async {
+    Future<String> routesFor(String pubspec,
+        {Map<String, String> files = const <String, String>{}}) async {
       final Directory root = await Directory.systemTemp.createTemp(
         'dartvel_server_options_',
       );
       addTearDown(() => root.deleteSync(recursive: true));
+      files.forEach((String path, String content) {
+        File(p.join(root.path, path))
+          ..createSync(recursive: true)
+          ..writeAsStringSync(content);
+      });
       Directory(p.join(root.path, '.dart_tool')).createSync();
       Directory(
         p.join(root.path, 'lib', 'dartvel_client'),
@@ -468,13 +474,88 @@ dartvel:
       expect(routes, contains('securityHeaders: dartvelSecurityHeaders'));
     });
 
-    test('and no application gets them without asking', () async {
-      // COOP same-origin cuts a sign-in or payment popup off from the page
-      // that opened it; that is the application's decision.
+    test('a wasm app that embeds nothing from another site gets them by default',
+        () async {
+      // WebAssembly is the default web build, and skwasm draws on a worker
+      // only on a cross-origin isolated page.
       final String routes = await routesFor('name: server_options_app\n');
-      expect(routes, isNot(contains('cross-origin-opener-policy')));
-      expect(routes, isNot(contains('cross-origin-embedder-policy')));
-      expect(routes, contains('securityHeaders: dartvelSecurityHeaders'));
+      expect(routes, contains("'cross-origin-opener-policy': 'same-origin'"));
+      expect(routes,
+          contains("'cross-origin-embedder-policy': 'credentialless'"));
+    });
+
+    test('but not when the app turns them off, or turns wasm off', () async {
+      for (final String web in <String>[
+        '    crossOriginIsolated: false\n',
+        '    wasm: false\n',
+      ]) {
+        final String routes = await routesFor(
+            'name: server_options_app\ndartvel:\n  web:\n$web');
+        expect(routes, isNot(contains('cross-origin-opener-policy')),
+            reason: web);
+        expect(routes, contains('securityHeaders: dartvelSecurityHeaders'));
+      }
+    });
+
+    test('nor when the app embeds or runs something from another site',
+        () async {
+      // A third-party script (a payment or sign-in SDK) usually opens a
+      // popup or an iframe; COOP same-origin cuts the popup off from the
+      // page, and COEP blocks an iframe that does not opt in. An iframe or
+      // a platform view in the app's own code, or a package known to embed
+      // one, is the same. None of these is guessed safe.
+      final Map<String, Map<String, String>> blockers =
+          <String, Map<String, String>>{
+        'a script from another site': <String, String>{
+          'web/index.html': '<html><head><script src="https://js.paystack.co/v1/inline.js"></script></head></html>',
+        },
+        'an iframe in the page': <String, String>{
+          'web/index.html': '<html><body><iframe src="https://maps.example.com"></iframe></body></html>',
+        },
+        'a platform view in the app': <String, String>{
+          'lib/pages/map.dart': "Widget build() => HtmlElementView(viewType: 'map');",
+        },
+      };
+      for (final MapEntry<String, Map<String, String>> blocker
+          in blockers.entries) {
+        final String routes =
+            await routesFor('name: server_options_app\n', files: blocker.value);
+        expect(routes, isNot(contains('cross-origin-opener-policy')),
+            reason: blocker.key);
+      }
+      final String routes = await routesFor('''
+name: server_options_app
+dependencies:
+  google_sign_in_web: ^1.0.0
+''');
+      expect(routes, isNot(contains('cross-origin-opener-policy')),
+          reason: 'a package that opens a sign-in popup');
+    });
+
+    test('the app can still insist, whatever it embeds', () async {
+      final String routes = await routesFor('''
+name: server_options_app
+dartvel:
+  web:
+    crossOriginIsolated: true
+''', files: <String, String>{
+        'web/index.html': '<script src="https://js.paystack.co/v1/inline.js"></script>',
+      });
+      expect(routes, contains("'cross-origin-opener-policy': 'same-origin'"));
+    });
+
+    test('the build says why a wasm app is not isolated', () {
+      final Directory root =
+          Directory.systemTemp.createTempSync('dartvel_coi_reasons_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      File(p.join(root.path, 'pubspec.yaml'))
+          .writeAsStringSync('name: app\n');
+      File(p.join(root.path, 'web', 'index.html'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('<script src="https://js.paystack.co/v1/inline.js"></script>');
+      final List<String> reasons = dvCrossOriginIsolationBlockers(root.path);
+      expect(reasons.single, contains('https://js.paystack.co'));
+      expect(reasons.single, contains('web/index.html'));
     });
 
     test('crossOriginIsolated takes true or false, nothing else', () {

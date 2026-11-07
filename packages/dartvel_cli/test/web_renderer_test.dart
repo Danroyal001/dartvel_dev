@@ -1,9 +1,10 @@
-// `dartvel.web.renderer: wasm` builds the web app twice: dart2wasm with the
-// skwasm renderer for browsers that have WasmGC, and dart2js with CanvasKit
-// for the rest, and flutter.js picks one per browser. What goes wrong
-// silently is the page around it: a preload for the wrong file is megabytes
-// downloaded for nothing, and code a static build must not carry could end up
-// in a module nobody checks.
+// A Dartvel web build is WebAssembly by default: dart2wasm with the skwasm
+// renderer for browsers that have WasmGC, and dart2js with CanvasKit for the
+// rest, from one build, and flutter.js picks one per browser.
+// `dartvel.web.wasm: false` builds dart2js alone. What goes wrong silently is
+// the page around it: a preload for the wrong file is megabytes downloaded
+// for nothing, and code a static build must not carry could end up in a
+// module nobody checks.
 import 'package:dartvel_cli/src/build/web_renderer.dart';
 import 'package:dartvel_cli/src/commands/build_command.dart';
 import 'package:test/test.dart';
@@ -23,20 +24,19 @@ _flutter.loader.load({});
 ''';
 
 void main() {
-  group('dartvel.web.renderer', () {
-    test('is CanvasKit unless the application asks for wasm', () {
-      expect(dvWebRenderer(null), DVWebRenderer.canvasKit);
-      expect(dvWebRenderer('canvaskit'), DVWebRenderer.canvasKit);
-      expect(dvWebRenderer('wasm'), DVWebRenderer.wasm);
-      expect(dvWebRenderer('WASM'), DVWebRenderer.wasm);
+  group('dartvel.web.wasm', () {
+    test('is on unless the application turns it off', () {
+      expect(dvWebWasm(null), isTrue);
+      expect(dvWebWasm(true), isTrue);
+      expect(dvWebWasm(false), isFalse);
     });
 
-    test('a value it does not know stops the build instead of being ignored', () {
-      // "skwasm" or a typo quietly building CanvasKit would look like wasm
+    test('a value that is not true or false stops the build', () {
+      // "no" or "off" quietly building wasm would look like the opt-out
       // made no difference.
-      expect(() => dvWebRenderer('skwasm'), throwsFormatException);
-      expect(() => dvWebRenderer('html'), throwsFormatException);
-      expect(() => dvWebRenderer(true), throwsFormatException);
+      expect(() => dvWebWasm('no'), throwsFormatException);
+      expect(() => dvWebWasm('false'), throwsFormatException);
+      expect(() => dvWebWasm(0), throwsFormatException);
     });
   });
 
@@ -72,18 +72,6 @@ void main() {
       expect(dvBuildCompilesToWasm(''), isFalse);
       expect(dvBuildCompilesToWasm('_flutter.buildConfig = {not json};'),
           isFalse);
-    });
-  });
-
-  group('what wasm cannot carry yet', () {
-    test('a build that serves Studio is refused before anything compiles', () {
-      // Studio's screens are kept out of the public web root by moving the
-      // dart2js parts only Studio loads. dart2wasm writes one module, so
-      // Studio's code would be in main.dart.wasm, served to every visitor.
-      final String? refusal = dvWasmRefusal(servesStudio: true);
-      expect(refusal, isNotNull);
-      expect(refusal, contains('Studio'));
-      expect(dvWasmRefusal(servesStudio: false), isNull);
     });
   });
 }

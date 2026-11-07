@@ -1,6 +1,6 @@
-// `dartvel build web` with `dartvel.web.renderer` set, end to end with
-// Flutter faked: the pubspec value reaches `flutter build web` as --wasm, and
-// a value the build does not know stops it before anything is generated.
+// `dartvel build web` end to end with Flutter faked: a project that says
+// nothing builds WebAssembly (--wasm), `dartvel.web.wasm: false` does not, and
+// a value the build cannot read stops it before anything is generated.
 import 'dart:async';
 import 'dart:io';
 
@@ -9,7 +9,8 @@ import 'package:dartvel_cli/src/commands/build_command.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-Directory _project(String renderer) {
+/// A project whose `dartvel.web.wasm` is [wasm], or that has none.
+Directory _project(String? wasm) {
   final Directory temp = Directory.systemTemp.createTempSync('dv_web_renderer_');
   File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
 name: renderer_app
@@ -19,9 +20,8 @@ dependencies:
   flutter:
     sdk: flutter
 dartvel:
-  web:
-    renderer: $renderer
-''');
+  org: com.example
+${wasm == null ? '' : '  web:\n    wasm: $wasm\n'}''');
   Directory(p.join(temp.path, 'lib')).createSync(recursive: true);
   File(p.join(temp.path, 'lib', 'main.dart')).writeAsStringSync('void main() {}');
   Directory(p.join(temp.path, 'web')).createSync();
@@ -68,8 +68,8 @@ Future<List<List<String>>> _build(Directory root) async {
 }
 
 void main() {
-  test('dartvel.web.renderer: wasm builds with --wasm', () async {
-    final Directory root = _project('wasm');
+  test('a project that says nothing builds with --wasm', () async {
+    final Directory root = _project(null);
     addTearDown(() => root.deleteSync(recursive: true));
     final List<List<String>> started = await _build(root);
     final List<String> build = started.singleWhere(
@@ -77,8 +77,8 @@ void main() {
     expect(build, contains('--wasm'));
   });
 
-  test('the default renderer builds without it', () async {
-    final Directory root = _project('canvaskit');
+  test('dartvel.web.wasm: false builds without it', () async {
+    final Directory root = _project('false');
     addTearDown(() => root.deleteSync(recursive: true));
     final List<List<String>> started = await _build(root);
     final List<String> build = started.singleWhere(
@@ -86,8 +86,8 @@ void main() {
     expect(build, isNot(contains('--wasm')));
   });
 
-  test('a renderer it does not know is refused before anything is generated', () async {
-    final Directory root = _project('skwasm');
+  test('a value it cannot read is refused before anything is generated', () async {
+    final Directory root = _project('"off"');
     addTearDown(() => root.deleteSync(recursive: true));
     final List<List<String>> started = await _build(root);
     expect(started, isEmpty);

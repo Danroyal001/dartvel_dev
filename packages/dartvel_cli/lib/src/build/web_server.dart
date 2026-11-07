@@ -247,6 +247,9 @@ Handler dvWebServerHandler({
   core.DVPublishedPages? publishedPages,
   // The data API of the models designed in Studio, at /_dartvel/data.
   core.DVModelDataApi? modelData,
+  // What every response carries unless it set its own: the binary's set, so
+  // the preview answers as production does (cross-origin isolation included).
+  Map<String, String> securityHeaders = core.dvDefaultSecurityHeaders,
 }) {
   final manifestFile = File(p.join(webRoot, 'dartvel_routes.json'));
   final shellFile = File(p.join(webRoot, 'index.html'));
@@ -731,8 +734,7 @@ Handler dvWebServerHandler({
   return (Request request) async {
     final Response response = await answer(request);
     final Map<String, String> missing = <String, String>{
-      for (final MapEntry<String, String> header
-          in core.dvDefaultSecurityHeaders.entries)
+      for (final MapEntry<String, String> header in securityHeaders.entries)
         if (!response.headers.containsKey(header.key)) header.key: header.value,
     };
     return missing.isEmpty ? response : response.change(headers: missing);

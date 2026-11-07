@@ -84,6 +84,10 @@ import '../build/pwa_manifest.dart';
 import '../secrets/secrets_analysis.dart';
 import '../build/pwa_service_worker.dart';
 import '../build/renderer_hints.dart';
+import '../build/cross_origin_isolation.dart'
+    show dvCrossOriginIsolationBlockers;
+import '../build/wasm_deferred.dart';
+import '../generators/backend_generator.dart' show dvServerOptions;
 import '../build/web_renderer.dart';
 import '../build/route_prefetch.dart';
 import '../build/sdk_floor.dart';
@@ -1120,18 +1124,34 @@ class BuildCommand extends Command<void> {
             '${signing.signing!.source}.');
       }
     }
-    // dartvel.web.renderer. A misspelt value or a combination wasm cannot
-    // carry was refused before generation; checked again here for a target
-    // reached some other way.
+    // dartvel.web.wasm. A value it cannot read was refused before
+    // generation; checked again here for a target reached some other way.
     final String? rendererProblem = _webRendererProblem(_projectRoot, platform);
     if (rendererProblem != null) {
       Logger.log('❌ $rendererProblem');
       return DVBuildTargetResult.failed;
     }
-    final DVWebRenderer webRenderer = _webRenderer(_projectRoot, platform);
-    if (webRenderer == DVWebRenderer.wasm) {
-      Logger.log('   Renderer: wasm (skwasm on Chromium browsers with WasmGC, '
-          'CanvasKit and dart2js elsewhere).');
+    final bool webWasm = _webWasm(_projectRoot, platform);
+    if (webWasm) {
+      Logger.log('   WebAssembly: skwasm on Chromium browsers with WasmGC, '
+          'CanvasKit and dart2js elsewhere (dartvel.web.wasm: false to turn '
+          'it off).');
+      if (platform == 'web-server') {
+        if (dvServerOptions(_projectRoot).crossOriginIsolated) {
+          Logger.log('   Cross-origin isolated (COOP same-origin, COEP '
+              'credentialless): skwasm draws on a worker thread.');
+        } else {
+          final List<String> blockers =
+              dvCrossOriginIsolationBlockers(_projectRoot);
+          Logger.log(blockers.isEmpty
+              ? '   Not cross-origin isolated (dartvel.web.crossOriginIsolated: '
+                  'false): skwasm draws on the main thread.'
+              : '   Not cross-origin isolated, so skwasm draws on the main '
+                  'thread: ${blockers.join(' ')} Set '
+                  'dartvel.web.crossOriginIsolated: true if none of that '
+                  'needs it.');
+        }
+      }
     }
     final bool scaffoldOk = await dvEnsurePlatformScaffold(
       root: _projectRoot,
@@ -1315,7 +1335,7 @@ class BuildCommand extends Command<void> {
         // Studio's routes, compiled into the application where this build's
         // server will guard them.
         studio: platform == 'web-server' && _servesStudio(_projectRoot) != null,
-        wasm: webRenderer == DVWebRenderer.wasm,
+        wasm: webWasm,
       ),
       ...?variant?.flutterArguments,
     ];
@@ -1387,11 +1407,21 @@ class BuildCommand extends Command<void> {
       }
       Logger.log('   flutter ${args.join(' ')}');
 
+      // A wasm build runs verbose, quietly: the dart2wasm command Flutter
+      // ran is read from the log and rerun with deferred loading, which
+      // `flutter build web` has no option for. The log goes to a file and
+      // only Flutter's own progress lines reach the console.
+      final bool splitWasm = webWasm &&
+          (platform == 'web' || platform == 'web-server');
+      final StringBuffer verboseLog = StringBuffer();
       final Map<String, String>? signingEnvironment =
           _androidSigningEnvironment;
       final proc = await (_processStart ?? Process.start)(
         'flutter',
-        args,
+        // -v straight after `build web`, leaving every argument as it was.
+        splitWasm
+            ? <String>[...args.take(2), '-v', ...args.skip(2)]
+            : args,
         workingDirectory: _projectRoot,
         runInShell: true,
         // The release key reaches Gradle through the environment only: never
@@ -1404,8 +1434,30 @@ class BuildCommand extends Command<void> {
               },
       );
 
-      proc.stdout.listen((data) => stdout.add(data));
-      proc.stderr.listen((data) => stderr.add(data));
+      if (splitWasm) {
+        void keep(String line) {
+          verboseLog.writeln(line);
+          final String shown =
+              line.replaceFirst(RegExp(r'^\[\s*\+?\d+\s*ms\]\s?'), '');
+          if (RegExp(r'^(Compiling |✓ |Font asset|Expected to find|'
+                  r'Error|error|Warning|warning|Target )')
+              .hasMatch(shown)) {
+            stdout.writeln(shown);
+          }
+        }
+
+        proc.stdout
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .listen(keep);
+        proc.stderr
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .listen(keep);
+      } else {
+        proc.stdout.listen((data) => stdout.add(data));
+        proc.stderr.listen((data) => stderr.add(data));
+      }
 
       exitCode = await _awaitBuild(
         proc,
@@ -1413,6 +1465,37 @@ class BuildCommand extends Command<void> {
         description: 'flutter build $platform',
       );
       if (exitCode == null) return DVBuildTargetResult.failed;
+
+      if (splitWasm) {
+        final File logFile =
+            File(p.join(_projectRoot, 'build', 'flutter_web_build.log'));
+        logFile.parent.createSync(recursive: true);
+        logFile.writeAsStringSync(verboseLog.toString());
+        if (exitCode != 0) {
+          final List<String> lines = const LineSplitter()
+              .convert(verboseLog.toString());
+          for (final String line
+              in lines.skip(lines.length > 80 ? lines.length - 80 : 0)) {
+            stderr.writeln(line);
+          }
+          Logger.log('   The whole Flutter log: ${logFile.path}');
+        } else {
+          final DVWasmSplit split = await dvSplitWasmModules(
+            webRoot: webOutput.path,
+            workRoot: p.join(_projectRoot, '.dart_tool', 'dartvel_wasm'),
+            verboseLog: verboseLog.toString(),
+            run: (String executable, List<String> arguments) async =>
+                (await _processRun(executable, arguments,
+                        workingDirectory: _projectRoot))
+                    .exitCode,
+          );
+          Logger.log(split.problem == null
+              ? '   WebAssembly: split into main.dart.wasm and '
+                  '${split.modules} deferred module(s); each page loads its '
+                  'own.'
+              : '⚠️  WebAssembly kept as one module: ${split.problem}');
+        }
+      }
 
       if (exitCode == 0 && webKey != null)
         cache.store('flutter-web', webKey, webOutput);
@@ -2164,25 +2247,22 @@ class BuildCommand extends Command<void> {
     }
   }
 
-  /// `dartvel.web.renderer` for a web build of [root]: the canvaskit default
-  /// for anything that is not one.
-  DVWebRenderer _webRenderer(String root, String platform) {
-    if (platform != 'web' && platform != 'web-server') {
-      return DVWebRenderer.canvasKit;
-    }
+  /// Whether a build of [platform] compiles to WebAssembly: `dartvel.web.wasm`,
+  /// on by default, for the two web targets only.
+  bool _webWasm(String root, String platform) {
+    if (platform != 'web' && platform != 'web-server') return false;
     final Object? web = _dartvelSection(root)['web'];
-    return dvWebRenderer(web is Map ? web['renderer'] : null);
+    return dvWebWasm(web is Map ? web['wasm'] : null);
   }
 
-  /// Why `dartvel.web.renderer` stops a build of [platform], or null.
+  /// Why `dartvel.web.wasm` stops a build of [platform], or null.
   String? _webRendererProblem(String root, String platform) {
     try {
-      if (_webRenderer(root, platform) != DVWebRenderer.wasm) return null;
+      _webWasm(root, platform);
     } on FormatException catch (error) {
       return error.message;
     }
-    return dvWasmRefusal(
-        servesStudio: platform == 'web-server' && _servesStudio(root) != null);
+    return null;
   }
 
   /// Why a release build of [platform] cannot be signed, or null when it can
@@ -4497,6 +4577,19 @@ class BuildCommand extends Command<void> {
     final File main = File(p.join(web, 'main.dart.js'));
     final bool compiledIn =
         main.existsSync() && dvStudioCompiledIn(main.readAsStringSync());
+    // The wasm app's deferred map, which only this step reads: it names the
+    // application's libraries and is no file to publish.
+    final File mapFile = File(p.join(web, dvWasmDeferredMapFile));
+    Map<String, Object?>? wasmMap;
+    if (mapFile.existsSync()) {
+      try {
+        final Object? decoded = jsonDecode(mapFile.readAsStringSync());
+        if (decoded is Map<String, Object?>) wasmMap = decoded;
+      } on FormatException {
+        wasmMap = null;
+      }
+      mapFile.deleteSync();
+    }
     if (platform != 'web-server' || _servesStudio(root) == null) {
       if (compiledIn) {
         Logger.log("❌ Studio's code is in this build, which has no server to "
@@ -4516,6 +4609,29 @@ class BuildCommand extends Command<void> {
     Logger.log("   Studio's code: ${parts.parts.length} part(s), carried apart "
         'from the web files and served only to a session with the Studio '
         'grant.');
+    // The wasm app carries Studio too. Its own modules go where its dart2js
+    // parts went; when nobody can tell which they are, the wasm app is not
+    // shipped and every browser runs dart2js.
+    final File bootstrap = File(p.join(web, 'flutter_bootstrap.js'));
+    if (bootstrap.existsSync() &&
+        dvBuildCompilesToWasm(bootstrap.readAsStringSync())) {
+      final List<String>? modules =
+          wasmMap == null ? null : dvStudioWasmModules(wasmMap);
+      if (modules == null) {
+        dvDropWasmApp(web);
+        Logger.log("⚠️  WebAssembly left out of this build: Studio's code "
+            'could not be told apart from public code in the wasm app, so '
+            'every browser runs dart2js, whose Studio parts are kept back.');
+      } else {
+        dvMoveStudioWasmModules(
+          webRoot: web,
+          partsRoot: p.join(root, dvStudioPartsDirectory),
+          modules: modules,
+        );
+        Logger.log("   Studio's wasm code: ${modules.length} module(s), kept "
+            'with its parts.');
+      }
+    }
     return true;
   }
 
