@@ -3686,7 +3686,9 @@ class BuildCommand extends Command<void> {
     final String build = dvServiceWorkerBuildId();
     final File bootstrap = File(p.join(web.path, 'flutter_bootstrap.js'));
     final String? engine =
-        bootstrap.existsSync() ? dvCanvasKitRevision(bootstrap.readAsStringSync()) : null;
+        bootstrap.existsSync()
+        ? dvRendererSource(bootstrap.readAsStringSync())?.gstaticRevision
+        : null;
     File(p.join(web.path, 'flutter_service_worker.js')).writeAsStringSync(
       dvServiceWorker(
         buildId: build,
