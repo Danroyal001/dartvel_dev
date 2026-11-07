@@ -29,6 +29,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import 'pwa_icons.dart';
+import 'web_renderer.dart' show dvBuildCompilesToWasm;
 
 /// The light colour when a project declares none anywhere.
 const String dvSplashDefaultColor = '#FFFFFF';
@@ -319,6 +320,7 @@ String dvWebSplashApply(
   String? imageUrl,
   String? darkImageUrl,
   int? imageWidth,
+  bool wasm = false,
 }) {
   final String clean = dvWebSplashRemove(html);
   final int head = clean.indexOf('</head>');
@@ -360,7 +362,9 @@ String dvWebSplashApply(
   final String headBlock = '$_headOpen\n'
       // The compiled app, fetched while the page is parsed rather than once
       // flutter_bootstrap.js has run and asked for it.
-      '<link rel="preload" href="main.dart.js" as="script">\n'
+      // A --wasm build has two: the page asks for the one the loader will
+      // run, by the loader's own WasmGC test.
+      '${wasm ? '<script>$_wasmPreloadScript</script>' : '<link rel="preload" href="main.dart.js" as="script">'}\n'
       '<style id="dartvel-splash-style">$style</style>\n'
       '<noscript><style>${<String>[
         if (splash.enabled) '#dartvel-splash',
@@ -430,8 +434,16 @@ DVSplashResult dvWriteWebSplash(Directory web, DVSplash splash) {
   }
 
   final String before = index.readAsStringSync();
+  // What the build compiled, from the config flutter.js chooses by: a --wasm
+  // build preloads the app the browser will run, not always main.dart.js.
+  final File bootstrap = File(p.join(web.path, 'flutter_bootstrap.js'));
+  final bool wasm = bootstrap.existsSync() &&
+      dvBuildCompilesToWasm(bootstrap.readAsStringSync());
   final String after = dvWebSplashApply(before, splash,
-      imageUrl: imageUrl, darkImageUrl: darkUrl, imageWidth: width);
+      imageUrl: imageUrl,
+      darkImageUrl: darkUrl,
+      imageWidth: width,
+      wasm: wasm);
   _record(result, root, index, _put(index, after));
   return result;
 }
@@ -1033,6 +1045,24 @@ DVSplashResult dvWriteNativeSplash(
 /// milestones it creeps toward the next one and never reaches it, which is
 /// what keeps a slow connection from looking like a dead page. With reduced
 /// motion it steps and does not creep.
+/// The compiled app of a `--wasm` build, preloaded the way flutter.js will
+/// load it: on Blink with WasmGC (the loader's default allow list, and its
+/// own detector bytes) the `.mjs` runtime as a module and `main.dart.wasm`
+/// through fetch(), anonymous CORS; everywhere else `main.dart.js`.
+const String _wasmPreloadScript = '(function(){'
+    'var n=navigator,d=document,w=false;'
+    'try{w=(n.vendor==="Google Inc."||n.userAgent.indexOf("Edg/")>=0)'
+    '&&WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0]))}'
+    'catch(e){}'
+    'function hint(rel,href,as){var l=d.createElement("link");l.rel=rel;'
+    'l.href=href;if(as){l.as=as;l.crossOrigin="anonymous";}'
+    'd.head.appendChild(l)}'
+    'if(w){hint("modulepreload","main.dart.mjs");'
+    'hint("preload","main.dart.wasm","fetch")}'
+    'else{var l=d.createElement("link");l.rel="preload";l.as="script";'
+    'l.href="main.dart.js";d.head.appendChild(l)}'
+    '})();';
+
 const String _progressScript = '(function(){'
     'var d=document,h=d.documentElement,b=d.getElementById("dartvel-progress");'
     'if(!b)return;b.style.zIndex="2147483645";var f=b.firstChild,v=0,cap=15,'
