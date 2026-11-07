@@ -3,8 +3,8 @@
 // completes from those timings, so an application whose first frames all
 // finish inside one 100 ms window and then goes idle never hears that its
 // first frame was rasterized. Multi-threaded skwasm does exactly that, and the
-// handover from the first-frame picture never happened: the picture and the
-// splash stayed over a running app until something else drew a frame.
+// handover from the splash never happened: the splash and its loading bar
+// stayed over a running app until something else drew a frame.
 //
 // The test binding draws frames its own way and never completes the
 // first-frame future from timings, so the future is supplied here.

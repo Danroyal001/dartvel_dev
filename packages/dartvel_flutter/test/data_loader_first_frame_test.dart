@@ -57,7 +57,7 @@ void main() {
     expect(
       tester.binding.sendFramesToEngine,
       isFalse,
-      reason: 'the loading shell must not remove the first-frame picture',
+      reason: 'the loading shell must not remove the splash',
     );
     ready.complete(null);
     await tester.pump();
