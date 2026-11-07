@@ -198,6 +198,9 @@ List<String> _readmeDisagreements(String root, Map<String, Object?> decoded) {
     'Semantic Search': 'Semantic Search and Embeddings',
     'AI Integration': 'AI',
     'PWA': 'PWA',
+    // The font step is specified in the PWA section, with the worker: both
+    // are what a web page costs to load.
+    'Web fonts': 'PWA',
     'SEO': 'SEO',
     'Feature Flags': 'Feature Flags and Staged Rollout',
     'OTA Updates': 'OTA Updates',
