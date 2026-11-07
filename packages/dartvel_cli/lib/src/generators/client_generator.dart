@@ -5263,6 +5263,7 @@ String _studioSplashArg(Map<Object?, Object?> dv, String root) {
   if (!splash.enabled) return '';
   String colour(String hex) =>
       'Color(0xFF${hex.replaceFirst('#', '').toUpperCase()})';
+  String quoted(String text) => "'${text.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll(r'$', r'\$').replaceAll('\n', r'\n')}'";
   final List<String> args = <String>[
     'color: ${colour(splash.color)}',
     'darkColor: ${colour(splash.darkColor)}',
@@ -5271,6 +5272,7 @@ String _studioSplashArg(Map<Object?, Object?> dv, String root) {
     if (splash.darkImage != null) "darkImage: 'dartvel-splash-dark.png'",
     'imageWidth: ${_number(splash.imageWidth ?? 96)}',
     if (splash.progress) 'progressColor: ${colour(splash.progressColor)}',
+    if (splash.loadingText case final String text) 'loadingText: ${quoted(text)}',
   ];
   return ', splash: const DVStudioSplash(${args.join(', ')})';
 }

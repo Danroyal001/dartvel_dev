@@ -26,6 +26,20 @@ Color? _painted(WidgetTester tester) => tester
     .color;
 
 void main() {
+  // The same pulsing line the web splash shows under the logo, so a slow
+  // load never looks hung.
+  testWidgets('says it is loading under the picture, or not when told', (WidgetTester tester) async {
+    await tester.pumpWidget(const MaterialApp(home: DVStudioSplashView(DVStudioSplash(
+      color: Color(0xFFFFFFFF), darkColor: Color(0xFF0A0A0A), loadingText: 'Loading…'))));
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(find.text('Loading…'), findsOneWidget);
+    // Dark text on the light splash.
+    expect(tester.widget<Text>(find.text('Loading…')).style!.color!.computeLuminance(), lessThan(0.2));
+    await tester.pumpWidget(const MaterialApp(home: DVStudioSplashView(DVStudioSplash(
+      color: Color(0xFFFFFFFF), darkColor: Color(0xFF0A0A0A)))));
+    expect(find.byType(Text), findsNothing);
+  });
+
   testWidgets('while Studio\'s code loads, the application\'s splash is on '
       'screen', (WidgetTester tester) async {
     final Completer<void> loading = Completer<void>();
