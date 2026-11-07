@@ -46,6 +46,15 @@ Written into every page's HTML by `dartvel build web`, before any Dart runs:
   the first frame. `role="progressbar"`, `aria-busy` on the document, still
   under reduced motion. On by default (`dartvel.splash.progress: false` turns
   it off; `splash.progressColor` colours it).
+  It stays above the first-frame picture until the app has loaded, since the
+  picture looks finished but does not respond yet.
+- **A pulsing "Loading…" line under the splash logo**, in the splash's own
+  colours (dark text on a light splash, light on a dark one), still under
+  reduced motion, so a slow load never looks hung. Studio's splash shows the
+  same line. `dartvel.splash.loadingText` sets the words; `false` removes it.
+- **The splash stays until the first-frame picture has downloaded and
+  decoded**, and the head preloads the splash logo first, so a slow phone
+  never sees a blank splash or a picture painting in from the top.
 - **`main.dart.js` is preloaded from the head**, so the largest download
   starts while the HTML is parsed rather than after `flutter_bootstrap.js`
   has run and asked for it.

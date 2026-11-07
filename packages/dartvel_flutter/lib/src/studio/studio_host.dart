@@ -159,7 +159,12 @@ class DVStudioSplash {
     this.darkImage,
     this.imageWidth = 96,
     this.progressColor,
+    this.loadingText,
   });
+
+  /// The pulsing line under the picture (`splash.loadingText`), as the web
+  /// splash shows it; none when null.
+  final String? loadingText;
 
   /// The page's colour, and in dark mode.
   final Color color;
@@ -197,16 +202,31 @@ class DVStudioSplashView extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
-            if (image != null)
-              Center(
-                child: SizedBox(
-                  width: splash.imageWidth,
-                  child: Image.network(
-                    image,
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                  ),
-                ),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (image != null)
+                    SizedBox(
+                      width: splash.imageWidth,
+                      child: Image.network(
+                        image,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  if (splash.loadingText case final String text) ...<Widget>[
+                    const SizedBox(height: 20),
+                    _DVPulsingLine(
+                      text,
+                      // Dark text on a light splash, light on a dark one.
+                      color: dark
+                          ? const Color(0xA6FFFFFF)
+                          : const Color(0x990A0A0A),
+                    ),
+                  ],
+                ],
               ),
+            ),
             if (bar != null)
               Positioned(
                 top: 0,
@@ -222,5 +242,46 @@ class DVStudioSplashView extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// [text] fading in and out, still when the device asks for less motion.
+class _DVPulsingLine extends StatefulWidget {
+  const _DVPulsingLine(this.text, {required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  State<_DVPulsingLine> createState() => _DVPulsingLineState();
+}
+
+class _DVPulsingLineState extends State<_DVPulsingLine>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+    lowerBound: 0.35,
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget line = Text(
+      widget.text,
+      style: TextStyle(
+        color: widget.color,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.5,
+      ),
+    );
+    if (MediaQuery.disableAnimationsOf(context)) return line;
+    return FadeTransition(opacity: _pulse, child: line);
   }
 }

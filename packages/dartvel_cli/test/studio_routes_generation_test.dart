@@ -152,7 +152,8 @@ void main() {
         router,
         contains('splash: const DVStudioSplash(color: Color(0xFFFFF4E0), '
             'darkColor: Color(0xFF0A0D13), imageWidth: 96, '
-            'progressColor: Color(0xFF2F6BFF))'));
+            'progressColor: Color(0xFF2F6BFF), loadingText: \'Loading…\')'));
+    expect(await routerSource('splash:\n  loadingText: false\n'), isNot(contains('loadingText')));
     final String off = await routerSource('splash:\n  enabled: false\n');
     expect(off, isNot(contains('DVStudioSplash')));
   });

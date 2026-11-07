@@ -38,6 +38,9 @@ const String dvSplashDefaultColor = '#FFFFFF';
 /// surface, so a phone in dark mode does not open on a white page.
 const String dvSplashDefaultDarkColor = '#121212';
 
+/// The web splash's loading line when a project names none.
+const String dvSplashDefaultLoadingText = 'Loading…';
+
 /// The loading bar's colour when a project names none: a blue that reads on
 /// a light splash and a dark one.
 const String dvProgressDefaultColor = '#2F6BFF';
@@ -57,7 +60,13 @@ class DVSplash {
     this.problems = const <String>[],
     this.progress = true,
     this.progressColor = dvProgressDefaultColor,
+    this.loadingText = dvSplashDefaultLoadingText,
   });
+
+  /// The line under the logo on the web splash, pulsing, so a slow load does
+  /// not look hung: `splash.loadingText`, [dvSplashDefaultLoadingText] when
+  /// unset, none when it is `false`.
+  final String? loadingText;
 
   /// Whether the web page shows a loading bar across the top until its
   /// first frame. On unless `splash.progress: false`.
@@ -138,6 +147,11 @@ class DVSplash {
       progress: splash['progress'] != false,
       progressColor: colour(splash['progressColor'], 'splash.progressColor') ??
           dvProgressDefaultColor,
+      loadingText: switch (splash['loadingText']) {
+        false => null,
+        final String text when text.trim().isNotEmpty => text.trim(),
+        _ => dvSplashDefaultLoadingText,
+      },
     );
   }
 
@@ -342,6 +356,23 @@ String dvWebSplashApply(
       style.write('@media (prefers-color-scheme:dark){'
           '#dartvel-splash{background:${splash.darkColor}}}');
     }
+    if (splash.loadingText != null) {
+      // Under the logo, in the splash's own colours: dark text on a light
+      // splash, light on a dark one. Pulsing, unless the visitor asked for
+      // less motion. The app's fonts are not loaded yet, so the system's.
+      style.write('#dartvel-splash{flex-direction:column}'
+          '#dartvel-splash .dv-loading{margin:20px 0 0;'
+          'font:500 13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;'
+          'letter-spacing:.04em;color:${_loadingInk(splash.color)};'
+          'animation:dv-pulse 1.4s ease-in-out infinite}'
+          '@keyframes dv-pulse{0%,100%{opacity:.35}50%{opacity:1}}');
+      if (splash.darkColor != splash.color) {
+        style.write('@media (prefers-color-scheme:dark){'
+            '#dartvel-splash .dv-loading{color:${_loadingInk(splash.darkColor)}}}');
+      }
+      style.write('@media (prefers-reduced-motion:reduce){'
+          '#dartvel-splash .dv-loading{animation:none;opacity:.8}}');
+    }
   }
   if (splash.progress) {
     // Low stacking unless its script runs and can remove it on readiness:
@@ -391,7 +422,7 @@ String dvWebSplashApply(
     picture.write('<img src="$imageUrl" alt=""></picture>');
   }
   final String bodyBlock = '\n$_bodyOpen\n'
-      '${splash.enabled ? '<div id="dartvel-splash" aria-hidden="true">$picture</div>\n' : ''}'
+      '${splash.enabled ? '<div id="dartvel-splash" aria-hidden="true">$picture${splash.loadingText == null ? '' : '<p class="dv-loading">${const HtmlEscape(HtmlEscapeMode.element).convert(splash.loadingText!)}</p>'}</div>\n' : ''}'
       '${splash.progress ? '<div id="dartvel-progress" role="progressbar" '
           'aria-label="Loading" aria-valuemin="0" aria-valuemax="100" '
           'aria-valuenow="8"><div></div></div>\n'
@@ -1095,3 +1126,16 @@ const String _progressScript = '(function(){'
     'if(t)clearInterval(t);set(100);h.removeAttribute("aria-busy");'
     'setTimeout(function(){b.remove()},rm?0:350)},{once:true})'
     '})()';
+
+/// Text that reads on a splash of [background] (#RRGGBB): near-black on a
+/// light one, white on a dark one, both softened.
+String _loadingInk(String background) {
+  final String hex = background.replaceFirst('#', '');
+  if (hex.length != 6) return 'rgba(10,10,10,.6)';
+  final int value = int.parse(hex, radix: 16);
+  final double luminance = (0.299 * ((value >> 16) & 0xFF) +
+          0.587 * ((value >> 8) & 0xFF) +
+          0.114 * (value & 0xFF)) /
+      255;
+  return luminance > 0.5 ? 'rgba(10,10,10,.6)' : 'rgba(255,255,255,.65)';
+}

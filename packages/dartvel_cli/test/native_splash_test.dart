@@ -309,6 +309,16 @@ void main() {
       }).enabled, isFalse);
     });
 
+    test('says Loading… under the logo unless told otherwise', () {
+      expect(_splash(const <String, Object?>{}).loadingText, 'Loading…');
+      expect(_splash(const <String, Object?>{
+        'splash': <String, Object?>{'loadingText': 'Please wait'},
+      }).loadingText, 'Please wait');
+      expect(_splash(const <String, Object?>{
+        'splash': <String, Object?>{'loadingText': false},
+      }).loadingText, isNull);
+    });
+
     test('reads pubspec.yaml', () {
       _write('pubspec.yaml', '''
 name: app
@@ -367,6 +377,33 @@ dartvel:
       final RegExpMatch z = RegExp(r'getElementById\("dartvel-progress"\);if\(!b\)return;b\.style\.zIndex="(\d+)"').firstMatch(html)!;
       // The picture is 2147483646 (dartvel_core first_frame.dart).
       expect(int.parse(z.group(1)!), greaterThan(2147483646));
+    });
+
+    // A splash that never changes looks hung on a slow phone: a small line
+    // under the logo, pulsing, says the page is on its way.
+    test('shows a pulsing loading line under the logo, readable in either scheme', () {
+      final String html = dvWebSplashApply(
+          _webIndex, DVSplash(color: '#FFFFFF', darkColor: '#0A0A0A'),
+          imageUrl: 'dartvel-splash.png');
+      final int splashAt = html.indexOf('id="dartvel-splash"');
+      final int line = html.indexOf('<p class="dv-loading">Loading…</p>');
+      expect(line, greaterThan(html.indexOf('<img src="dartvel-splash.png"', splashAt)));
+      expect(html, contains('#dartvel-splash{position:fixed'));
+      expect(html, contains('flex-direction:column'));
+      expect(html, contains('@keyframes dv-pulse'));
+      // Dark text on the light splash, light text on the dark one.
+      expect(html, contains('#dartvel-splash .dv-loading{'));
+      expect(RegExp(r'#dartvel-splash \.dv-loading\{[^}]*color:rgba\(10,10,10,').hasMatch(html), isTrue);
+      expect(RegExp(r'prefers-color-scheme:dark\)\{[^@]*#dartvel-splash \.dv-loading\{color:rgba\(255,255,255,').hasMatch(html), isTrue);
+      // Still for a visitor who asked for less motion.
+      expect(RegExp(r'prefers-reduced-motion:reduce\)\{[^@]*\.dv-loading\{animation:none').hasMatch(html), isTrue);
+    });
+
+    test('the loading line is the project\'s own words, escaped, or none', () {
+      expect(dvWebSplashApply(_webIndex, DVSplash(color: '#112233', darkColor: '#445566', loadingText: '<b>Wait</b>')),
+          contains('<p class="dv-loading">&lt;b&gt;Wait&lt;/b&gt;</p>'));
+      expect(dvWebSplashApply(_webIndex, DVSplash(color: '#112233', darkColor: '#445566', loadingText: null)),
+          isNot(contains('dv-loading')));
     });
 
     test('is removed on the first frame', () {
