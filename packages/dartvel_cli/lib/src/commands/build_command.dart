@@ -1422,6 +1422,13 @@ class BuildCommand extends Command<void> {
       final bool splitWasm = webWasm &&
           (platform == 'web' || platform == 'web-server');
       final StringBuffer verboseLog = StringBuffer();
+      final String wasmWork =
+          p.join(_projectRoot, '.dart_tool', 'dartvel_wasm');
+      Future<int> runCompiler(String executable, List<String> arguments) async =>
+          (await _processRun(executable, arguments,
+                  workingDirectory: _projectRoot))
+              .exitCode;
+      Future<int>? earlyWasm;
       final Map<String, String>? signingEnvironment =
           _androidSigningEnvironment;
       final proc = await (_processStart ?? Process.start)(
@@ -1445,6 +1452,18 @@ class BuildCommand extends Command<void> {
       if (splitWasm) {
         void keep(String line) {
           verboseLog.writeln(line);
+          // The deferred dart2wasm starts the moment Flutter starts its own,
+          // with the same command, and runs beside it.
+          if (earlyWasm == null) {
+            final List<String>? command = dvDart2WasmCommand(line);
+            if (command != null) {
+              earlyWasm = dvCompileDeferredWasm(
+                command: command,
+                workRoot: wasmWork,
+                run: runCompiler,
+              );
+            }
+          }
           final String shown =
               line.replaceFirst(RegExp(r'^\[\s*\+?\d+\s*ms\]\s?'), '');
           if (RegExp(r'^(Compiling |✓ |Font asset|Expected to find|'
@@ -1487,15 +1506,15 @@ class BuildCommand extends Command<void> {
             stderr.writeln(line);
           }
           Logger.log('   The whole Flutter log: ${logFile.path}');
+          // Not left running after a failed build.
+          await earlyWasm;
         } else {
           final DVWasmSplit split = await dvSplitWasmModules(
             webRoot: webOutput.path,
-            workRoot: p.join(_projectRoot, '.dart_tool', 'dartvel_wasm'),
+            workRoot: wasmWork,
             verboseLog: verboseLog.toString(),
-            run: (String executable, List<String> arguments) async =>
-                (await _processRun(executable, arguments,
-                        workingDirectory: _projectRoot))
-                    .exitCode,
+            run: runCompiler,
+            compiling: earlyWasm,
           );
           Logger.log(split.problem == null
               ? '   WebAssembly: split into main.dart.wasm and '

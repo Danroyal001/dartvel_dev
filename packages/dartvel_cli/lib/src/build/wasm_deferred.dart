@@ -169,11 +169,35 @@ typedef DVWasmCompilerRun = Future<int> Function(
 /// [dvWasmDeferredMapFile] for the build to read. On any failure the site is
 /// left exactly as Flutter wrote it, one module, and the reason is returned:
 /// a site that works without splitting beats one that is half replaced.
+/// Starts dart2wasm on Flutter's [command] with deferred loading on, writing
+/// into a fresh [workRoot], and completes with its exit code.
+///
+/// The build calls this the moment Flutter logs its dart2wasm command, so the
+/// deferred compile runs beside Flutter's own instead of after the whole
+/// `flutter build web`: the two compiles cost one compile's wall time. The
+/// run has started by the time this returns.
+Future<int> dvCompileDeferredWasm({
+  required List<String> command,
+  required String workRoot,
+  required DVWasmCompilerRun run,
+}) {
+  final Directory work = Directory(workRoot);
+  if (work.existsSync()) work.deleteSync(recursive: true);
+  work.createSync(recursive: true);
+  final List<String> deferred = dvDeferredWasmCommand(command,
+      outputDirectory: work.path,
+      deferredMap: p.join(work.path, 'deferred_map.json'));
+  return run(deferred.first, deferred.sublist(1));
+}
+
+/// [compiling] is the deferred compile the build began while Flutter was
+/// still running ([dvCompileDeferredWasm]); without one it is run here.
 Future<DVWasmSplit> dvSplitWasmModules({
   required String webRoot,
   required String workRoot,
   required String verboseLog,
   required DVWasmCompilerRun run,
+  Future<int>? compiling,
 }) async {
   final Directory work = Directory(workRoot);
   final File flutterWasm = File(p.join(webRoot, 'main.dart.wasm'));
@@ -195,12 +219,10 @@ Future<DVWasmSplit> dvSplitWasmModules({
         problem: "Flutter's log names no dart2wasm command to rerun with "
             'deferred loading.');
   }
-  if (work.existsSync()) work.deleteSync(recursive: true);
-  work.createSync(recursive: true);
-  final String map = p.join(work.path, 'deferred_map.json');
-  final List<String> deferred = dvDeferredWasmCommand(command,
-      outputDirectory: work.path, deferredMap: map);
-  final int exit = await run(deferred.first, deferred.sublist(1));
+  // Begun while Flutter was still building, when the build saw the command;
+  // otherwise now.
+  final int exit = await (compiling ??
+      dvCompileDeferredWasm(command: command, workRoot: workRoot, run: run));
   if (exit != 0) {
     return DVWasmSplit(
         problem: 'dart2wasm with --enable-deferred-loading exited $exit.');
