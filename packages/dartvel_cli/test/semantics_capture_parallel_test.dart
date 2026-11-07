@@ -15,10 +15,13 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 /// A stand-in for a built app: each route draws a semantics tree naming its
-/// own path, after a delay, the way a Flutter page draws once its code is in.
+/// own path, after a delay, the way a Flutter page draws once its code is in
+/// -- and, like Flutter, in an animation frame, which a browser runs only for
+/// a page that is visible. Several tabs of one window are one visible page
+/// and the rest hidden: on a real app that read was empty for most routes.
 const String _app = '''<!DOCTYPE html><html><head><title>app</title></head><body>
 <script>
-setTimeout(() => {
+setTimeout(() => requestAnimationFrame(() => {
   const host = document.createElement('flt-semantics-host');
   const heading = document.createElement('h1');
   heading.textContent = 'Page ' + location.pathname;
@@ -28,7 +31,7 @@ setTimeout(() => {
   link.textContent = 'Next after ' + location.pathname;
   host.append(link);
   document.body.append(host);
-}, 1500);
+}), 1500);
 </script></body></html>''';
 
 void main() {
@@ -125,6 +128,7 @@ async function render() {
   if (old) old.remove();
   const path = location.pathname;
   await new Promise((done) => setTimeout(done, booted ? 200 : 3000));
+  await new Promise((done) => requestAnimationFrame(done));
   booted = true;
   for (const name of ['shared', path === '/' ? 'home' : path.slice(1)]) {
     if (!decoded.has(name)) { decoded.add(name); await fetch('/img/' + name + '.png'); }

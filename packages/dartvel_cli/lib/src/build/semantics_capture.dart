@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:puppeteer/protocol/target.dart' show TargetID;
 import 'package:puppeteer/puppeteer.dart';
 // Prefixed: puppeteer exports its own Request and Response, and importing
 // both unprefixed makes every use of either ambiguous.
@@ -423,8 +424,17 @@ class _CaptureTab {
 
   /// A new page, listening before any navigation, because the first frame's
   /// images are requested during it.
+  ///
+  /// In a window of its own. Flutter draws in animation frames, and a browser
+  /// runs those only for the page a window shows: every other tab of the
+  /// window is hidden and never draws, so with several tabs in one window
+  /// most routes of a real app were read as empty.
   static Future<_CaptureTab> open(Browser browser, String base) async {
-    final _CaptureTab tab = _CaptureTab._(await browser.newPage(), base);
+    final TargetID id = await browser.connection.targetApi
+        .createTarget('about:blank', newWindow: true);
+    final Target target =
+        await browser.waitForTarget((Target candidate) => candidate.targetID == id);
+    final _CaptureTab tab = _CaptureTab._(await target.page, base);
     tab._listening.addAll(<StreamSubscription<Object?>>[
       tab.page.onResponse.listen((Response response) {
         final DVCapturedImage? image = dvPageImage(
