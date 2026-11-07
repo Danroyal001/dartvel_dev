@@ -383,6 +383,43 @@ class DVServerBinaryResult {
   final File? binary;
 }
 
+/// Writes the entry point and compiles the backend, without the web files.
+///
+/// The compile reads only the generated backend and the application's Dart,
+/// none of the web output, so a web-server build starts it beside Flutter's
+/// own build and hands the result to [dvBuildServerBinary] as `compiling`.
+Future<DVCompiledServer> dvStartServerCompile({
+  required String root,
+  required File library,
+  required DVServerBinaryRun run,
+  String dart = 'dart',
+  bool units = false,
+  Map<String, String> defines = const <String, String>{},
+}) async {
+  final File routes =
+      File(p.join(root, '.dart_tool', 'dartvel_backend_routes.g.dart'));
+  if (!routes.existsSync()) {
+    return const DVCompiledServer(ok: false, lines: <String>[
+      'No generated backend at .dart_tool/dartvel_backend_routes.g.dart. Run '
+          '`dartvel routes` first.',
+    ]);
+  }
+  final File entry =
+      File(p.join(root, '.dart_tool', 'dartvel_server_binary.dart'))
+        ..writeAsStringSync(dvServerBinaryEntrypoint);
+  // In loading units where the host and the native library can load them:
+  // what a request never needs is never mapped.
+  final bool split = units && dvServerLibraryLoadsUnits(library.path);
+  return dvCompileServer(
+    root: root,
+    entry: entry.path,
+    run: run,
+    dart: dart,
+    units: split,
+    defines: defines,
+  );
+}
+
 /// Writes the entry point, compiles it, and carries [library] and the files
 /// of [webRoot] inside the result at build/server. Generation has already
 /// run: `.dart_tool/dartvel_backend_routes.g.dart` is what this compiles.
@@ -400,29 +437,17 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
   DVAssetCompression compression = DVAssetCompression.brotli,
   bool units = false,
   Map<String, String> defines = const <String, String>{},
+  Future<DVCompiledServer>? compiling,
 }) async {
-  final File routes =
-      File(p.join(root, '.dart_tool', 'dartvel_backend_routes.g.dart'));
-  if (!routes.existsSync()) {
-    return const DVServerBinaryResult(ok: false, lines: <String>[
-      'No generated backend at .dart_tool/dartvel_backend_routes.g.dart. Run '
-          '`dartvel routes` first.',
-    ]);
-  }
-  final File entry =
-      File(p.join(root, '.dart_tool', 'dartvel_server_binary.dart'))
-        ..writeAsStringSync(dvServerBinaryEntrypoint);
-  // In loading units where the host and the native library can load them:
-  // what a request never needs is never mapped.
-  final bool split = units && dvServerLibraryLoadsUnits(library.path);
-  final DVCompiledServer compiled = await dvCompileServer(
-    root: root,
-    entry: entry.path,
-    run: run,
-    dart: dart,
-    units: split,
-    defines: defines,
-  );
+  // Begun by the build beside Flutter's own compile, or begun now.
+  final DVCompiledServer compiled = await (compiling ??
+      dvStartServerCompile(
+          root: root,
+          library: library,
+          run: run,
+          dart: dart,
+          units: units,
+          defines: defines));
   if (!compiled.ok) {
     return DVServerBinaryResult(ok: false, lines: compiled.lines);
   }

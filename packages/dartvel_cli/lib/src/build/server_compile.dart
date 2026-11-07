@@ -31,7 +31,8 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
-import 'server_binary.dart' show DVServerBinaryRun;
+import 'server_binary.dart' show DVServerBinaryRun, dvServerBinaryEntrypoint;
+import 'build_cache.dart' show DVContentHash, dvPathDependencies;
 
 /// The magic number `dart compile exe` ends an executable with.
 const int _snapshotMagic = 0xf6f6dcdc;
@@ -222,3 +223,75 @@ DVCompiledServer _failed(String step, ProcessResult result) => DVCompiledServer(
         ...'${result.stdout}\n${result.stderr}'.split('\n').where((String l) => l.trim().isNotEmpty),
       ],
     );
+
+/// The build-cache key of the backend compile in [root]: everything the
+/// compiled program can depend on, and nothing it cannot.
+///
+/// The program is the generated server entry and the generated backend
+/// (every `.dart` file at the top of `.dart_tool`), the application's `lib/`,
+/// every package it depends on by path (whose lock entry does not change
+/// when its code does), the lock and package configuration for the rest, the
+/// defines, whether it is split into loading units, and the Dart SDK that
+/// compiles it. The web output is not among them: the web files are packed
+/// in beside the program afterwards, so a page edit keeps the compile.
+String dvServerCompileKey({
+  required String root,
+  required Map<String, String> defines,
+  required bool units,
+  required String dartVersion,
+}) {
+  final DVContentHash hash = DVContentHash()
+    ..addText('stage', 'server-compile')
+    ..addText('dart', dartVersion)
+    ..addText('units', '$units')
+    ..addText('entry', dvServerBinaryEntrypoint)
+    ..addText('defines', (defines.entries.map((MapEntry<String, String> d) => '${d.key}=${d.value}').toList()..sort()).join('\u0001'))
+    ..addFile('pubspec.yaml', File(p.join(root, 'pubspec.yaml')))
+    ..addFile('pubspec.lock', File(p.join(root, 'pubspec.lock')))
+    ..addFile('package_config', File(p.join(root, '.dart_tool', 'package_config.json')));
+  final Directory tool = Directory(p.join(root, '.dart_tool'));
+  if (tool.existsSync()) {
+    final List<File> generated = <File>[
+      for (final FileSystemEntity entity in tool.listSync())
+        // The entry is written by the compile itself; its text is constant.
+        if (entity is File &&
+            entity.path.endsWith('.dart') &&
+            p.basename(entity.path) != 'dartvel_server_binary.dart')
+          entity,
+    ]..sort((File a, File b) => a.path.compareTo(b.path));
+    for (final File file in generated) {
+      hash.addFile('.dart_tool/${p.basename(file.path)}', file);
+    }
+  }
+  hash.addDirectory('lib', Directory(p.join(root, 'lib')), relativeTo: root);
+  for (final ({String name, String root}) package in dvPathDependencies(root)) {
+    hash
+      ..addDirectory('package:${package.name}', Directory(p.join(package.root, 'lib')), relativeTo: package.root)
+      ..addFile('package:${package.name}/pubspec.yaml', File(p.join(package.root, 'pubspec.yaml')));
+  }
+  return hash.digest;
+}
+
+/// Keeps [compiled] in [directory]: the executable and each loading unit, one
+/// file each, for the build cache.
+void dvWriteCompiledServer(DVCompiledServer compiled, Directory directory) {
+  if (directory.existsSync()) directory.deleteSync(recursive: true);
+  directory.createSync(recursive: true);
+  File(p.join(directory.path, 'server.exe')).writeAsBytesSync(compiled.executable!);
+  for (final MapEntry<int, Uint8List> unit in compiled.units.entries) {
+    File(p.join(directory.path, 'unit.${unit.key}')).writeAsBytesSync(unit.value);
+  }
+}
+
+/// The compiled backend [dvWriteCompiledServer] kept in [directory], or null
+/// when there is none.
+DVCompiledServer? dvReadCompiledServer(Directory directory) {
+  final File executable = File(p.join(directory.path, 'server.exe'));
+  if (!executable.existsSync()) return null;
+  final Map<int, Uint8List> units = <int, Uint8List>{};
+  for (final FileSystemEntity entity in directory.listSync()) {
+    final RegExpMatch? unit = RegExp(r'^unit\.(\d+)$').firstMatch(p.basename(entity.path));
+    if (entity is File && unit != null) units[int.parse(unit.group(1)!)] = entity.readAsBytesSync();
+  }
+  return DVCompiledServer(ok: true, lines: const <String>[], executable: executable.readAsBytesSync(), units: units);
+}
