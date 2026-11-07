@@ -516,18 +516,26 @@ Keep the initial viewport deterministic: replaying a reveal or
 typewriter over completed captured content changes that screen at takeover.
 Other widths, and pages rendered per record, keep the splash.
 
-`dartvel.web.renderer: wasm` (both web targets; default `canvaskit`) builds
-with `flutter build web --wasm`: Chromium browsers with WasmGC, Chrome for
-Android included, run the dart2wasm app on the skwasm renderer, and every other
-browser gets the dart2js and CanvasKit app from the same build. The
-prerendered HTML, first-frame pictures, splash and progress bar are unchanged;
-the page preloads whichever app the loader will pick. Not yet available to a
-build that serves Studio: on Flutter 3.47 dart2wasm compiles deferred
-libraries into the main module, so Studio's screens would reach every visitor,
-and the build refuses before compiling. `dartvel.web.crossOriginIsolated: true`
-makes the web-server binary send COOP `same-origin` and COEP `credentialless`,
-so skwasm renders on a worker thread; it is opt-in because COOP cuts a
-sign-in or payment popup off from the page that opened it.
+Both web targets build WebAssembly by default (`flutter build web --wasm`):
+Chromium browsers with WasmGC, Chrome for Android included, run the dart2wasm
+app on the skwasm renderer, and every other browser gets the dart2js and
+CanvasKit app from the same build. `dartvel.web.wasm: false` builds dart2js
+alone. The wasm app is code-split like the dart2js one: the build reruns
+Flutter's own dart2wasm command with `--enable-deferred-loading`, so each page
+is a module of its own that loads when the page is first shown, and Studio's
+modules are kept out of the public files exactly as its dart2js parts are.
+The prerendered HTML, first-frame pictures, splash and progress bar are
+unchanged; the page preloads whichever app and renderer the loader will pick.
+
+skwasm draws on a worker thread only on a cross-origin isolated page. A
+web-server build of a wasm app sends COOP `same-origin` and COEP
+`credentialless` unless the build finds something they would break: a script
+or iframe from another site in `web/index.html`, a platform view
+(`HtmlElementView`) in the app, or a package known to open a popup or embed
+another site (Google sign-in, Firebase Auth, webviews, maps, Stripe, Paystack).
+COOP cuts a popup on another site off from the page that opened it; COEP loads
+other sites' files without cookies and refuses their iframes unless they opt in.
+`dartvel.web.crossOriginIsolated: true` or `false` decides outright.
 
 Studio’s inspector edits uniform or per-side padding and margin. Named edges
 override the uniform value; saved documents and exported Dart preserve those

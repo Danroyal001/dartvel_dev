@@ -80,21 +80,24 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
               '    firstFrame:',
               '      widths: [390, 1366, 1920]   # or firstFrame: false',
             ]),
-            DocsText('renderer: wasm compiles the app twice in one build. '
-                'Chrome, Edge and Chrome for Android run the WebAssembly '
-                'version; other browsers get the usual one. The page, its '
-                'pictures and the splash are the same either way. A site '
-                'that serves Studio cannot use it yet.'),
+            DocsText('Every web build is compiled twice: Chrome, Edge and '
+                'Chrome for Android run the WebAssembly version, other '
+                'browsers the JavaScript one. Each page loads its own code '
+                'when it is first shown. The page, its pictures and the '
+                'splash are the same either way.'),
+            DocsText('On the web-server build, the WebAssembly version draws on '
+                'a second thread, which keeps scrolling smooth on slow phones. '
+                'That needs two headers the build turns on by itself unless '
+                'your site loads scripts or frames from another site, or '
+                'opens sign-in or payment popups there; the build says when '
+                'it leaves them off.'),
             DocsShell(<String>[
               '# pubspec.yaml',
               'dartvel:',
               '  web:',
-              '    renderer: wasm   # default: canvaskit',
-              '    crossOriginIsolated: true   # web-server: draw on a worker',
+              '    wasm: false                 # JavaScript only',
+              '    crossOriginIsolated: false  # never send the two headers',
             ]),
-            DocsText('crossOriginIsolated lets the WebAssembly version draw '
-                'on a second thread, which keeps scrolling smoother. Leave it '
-                'off if your pages open sign-in or payment popups.'),
           ],
         ),
         DocsSection(
