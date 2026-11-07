@@ -52,6 +52,29 @@ void main() {
       expect(html, isNot(contains('#dartvel-splash{display:none}\n')));
     });
 
+    // On a slow connection a picture shown before it has arrived is a white
+    // page that paints in from the top: worse than the splash it replaced.
+    test('keeps the splash, and the picture hidden, until the picture has loaded', () {
+      final String style = RegExp(r'<style id="dv-first-frame-style">(.*?)</style>').firstMatch(html)!.group(1)!;
+      for (final RegExpMatch rule in RegExp(r'([^{}]*)\{[^{}]*display:(?:block|none)[^{}]*\}').allMatches(style)) {
+        final String selector = rule.group(1)!;
+        if (selector.contains('#dartvel-splash') || (selector.contains('#dv-first-frame') && rule.group(0)!.contains('display:block') && !selector.contains('>'))) {
+          expect(selector, contains('.dv-ff-ready'), reason: rule.group(0));
+        }
+      }
+    });
+
+    test('marks the picture ready only once the browser has it decoded', () {
+      // Before the text layers, so the download starts as the page arrives.
+      final String script = html.substring(0, html.indexOf('id="dv-first-frame"'));
+      expect(script, contains('decode'));
+      expect(script, contains('dv-ff-ready'));
+      // Every picture the block can show, to choose from by width and scheme.
+      for (final DVFirstFrame frame in <DVFirstFrame>[light390, dark390, light1366]) {
+        expect(script, contains(frame.src));
+      }
+    });
+
     test('lays the text over the picture where it is drawn, selectable and findable', () {
       expect(html, contains('left:24px;top:80px;width:200px;height:36px'));
       expect(html, contains('>Getting started<'));
