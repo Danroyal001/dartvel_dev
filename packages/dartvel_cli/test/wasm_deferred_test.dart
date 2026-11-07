@@ -167,6 +167,47 @@ void main() {
       expect(File(p.join(web, dvWasmDeferredMapFile)).existsSync(), isFalse);
     });
 
+    test('a dart2wasm Flutter skipped as up to date reuses the last split',
+        () async {
+      // Flutter's own build cache skips dart2wasm when nothing changed, and
+      // then logs no command. The app is the one split last time, so the
+      // split is reused; any other app is not.
+      final DVWasmSplit first = await dvSplitWasmModules(
+          webRoot: web, workRoot: work, verboseLog: verboseLog, run: fakeCompiler);
+      expect(first.problem, isNull);
+
+      // The next build: Flutter writes the same one-module app again.
+      File(p.join(web, 'main.dart.wasm')).writeAsStringSync('one module');
+      File(p.join(web, 'main.dart.mjs')).writeAsStringSync(mjs);
+      File(p.join(web, 'main.dart_module1.wasm')).deleteSync();
+      bool ran = false;
+      final DVWasmSplit again = await dvSplitWasmModules(
+          webRoot: web,
+          workRoot: work,
+          verboseLog: 'no executing line',
+          run: (String executable, List<String> arguments) async {
+            ran = true;
+            return 0;
+          });
+      expect(ran, isFalse);
+      expect(again.problem, isNull);
+      expect(again.modules, 2);
+      expect(File(p.join(web, 'main.dart.wasm')).readAsStringSync(),
+          'main module');
+      expect(File(p.join(web, 'main.dart_module1.wasm')).existsSync(), isTrue);
+
+      // A different app is not given the old split.
+      File(p.join(web, 'main.dart.wasm')).writeAsStringSync('another app');
+      final DVWasmSplit other = await dvSplitWasmModules(
+          webRoot: web,
+          workRoot: work,
+          verboseLog: 'no executing line',
+          run: (String executable, List<String> arguments) async => 0);
+      expect(other.problem, isNotNull);
+      expect(File(p.join(web, 'main.dart.wasm')).readAsStringSync(),
+          'another app');
+    });
+
     test('no dart2wasm command in the log is said, not run blind', () async {
       bool ran = false;
       final DVWasmSplit split = await dvSplitWasmModules(
