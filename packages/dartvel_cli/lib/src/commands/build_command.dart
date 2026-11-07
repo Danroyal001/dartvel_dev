@@ -472,6 +472,11 @@ class BuildCommand extends Command<void> {
       ..addOption('capture-jobs',
           help: 'How many pages the semantics read keeps open at once. '
               'Defaults to three quarters of the cores, at most eight.')
+      ..addFlag('capture-in-app',
+          defaultsTo: true,
+          help: 'Boot the app once in each page of the semantics read and '
+              'move it between routes, rather than loading every route '
+              'afresh. A route that redirects is still loaded afresh.')
       ..addFlag('minify',
           defaultsTo: true,
           help: 'Take the whitespace and the comments out of the HTML, CSS '
@@ -4328,6 +4333,7 @@ class BuildCommand extends Command<void> {
           processors: Platform.numberOfProcessors,
           requested: argResults?['capture-jobs'] as String?,
         ),
+        inApp: argResults?['capture-in-app'] as bool? ?? true,
       );
       captured = fresh.captured;
       browserAvailable = fresh.browserAvailable;
