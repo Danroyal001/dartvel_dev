@@ -504,23 +504,34 @@ The table is the contract. Each row says which entries a target has, what
   guarded route have no picture. `dartvel.web.firstFrame: false` turns it off.
   Pictures are lossless PNG, named by their content, and a dark one identical to the
   light one is not kept.
-- **Renderer.** `dartvel.web.renderer` is `canvaskit` (default: dart2js and
-  CanvasKit everywhere) or `wasm` (`flutter build web --wasm`: dart2wasm and
-  skwasm where flutter.js allows it, which by default is Chromium with WasmGC,
-  and the dart2js/CanvasKit app elsewhere, from one build). Any other value
-  fails the build before generation. With `wasm` the shell preloads
-  `main.dart.mjs` and `main.dart.wasm` on a browser that passes the loader's
-  own WasmGC test and `main.dart.js` everywhere else, so no browser downloads
-  an app it will not run. A build that serves Studio refuses `wasm` before
-  compiling: dart2wasm on Flutter 3.47 does not split deferred libraries, so
-  Studio's screens would be in the public `main.dart.wasm`. skwasm runs
-  single-threaded unless the page is cross-origin isolated.
-  `dartvel.web.crossOriginIsolated: true` makes the web-server binary send
-  `Cross-Origin-Opener-Policy: same-origin` and
-  `Cross-Origin-Embedder-Policy: credentialless` on every response, so skwasm
-  renders on a worker; it is off by default because COOP cuts a popup the page
-  opens (sign-in, payment) off from it. Static hosts (`.htaccess`, `_headers`)
-  and the preview server do not send them yet.
+- **WebAssembly.** Web builds are `flutter build web --wasm` unless
+  `dartvel.web.wasm: false`: dart2wasm and skwasm where flutter.js allows it
+  (by default Chromium with WasmGC) and the dart2js/CanvasKit app elsewhere,
+  from one build. A value other than true or false fails the build before
+  generation. Flutter 3.47's `build web` cannot pass dart2wasm's
+  `--enable-deferred-loading`, so the build runs Flutter verbose (log in
+  `build/flutter_web_build.log`), reruns the exact dart2wasm command it logged
+  with deferred loading and a deferred map, writes the modules beside
+  `main.dart.wasm`, and gives `main.dart.mjs` a default module loader (flutter.js
+  passes none). If that fails the one-module app is kept and the build says so;
+  a build that serves Studio then fails rather than ship Studio's code. Studio's
+  modules are moved out of the web root like its dart2js parts and served only
+  with the grant. The shell preloads `main.dart.mjs` and `main.dart.wasm` where
+  the loader's own Blink and WasmGC test passes and `main.dart.js` elsewhere;
+  dart2js part preloads are not written for a wasm build. The renderer hints
+  preload skwasm (or `skwasm_heavy`) or CanvasKit by the loader's tests, from
+  gstatic or the application's `canvasKitBaseUrl`.
+- **Cross-origin isolation.** skwasm renders on a worker only on a
+  cross-origin isolated page. For a wasm build the web-server binary and the
+  release preview send `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: credentialless` unless the build finds what
+  they break: a script or iframe from another site in `web/index.html`, a
+  platform view in `lib/`, or a dependency known to open a popup on, or embed,
+  another site. COOP severs `window.opener` between the page and a popup on
+  another site; COEP loads other sites' subresources without credentials and
+  refuses their iframes unless they opt in. `dartvel.web.crossOriginIsolated`
+  set to true or false decides outright. Static hosts (`.htaccess`, `_headers`)
+  do not send them yet.
 - **Service worker** registration is phase 7. The service worker is generated
   JavaScript (`push`, `notificationclick`, precache), not a Dart entry; a push
   that must run Dart while no tab is open is out of reach on the web and
