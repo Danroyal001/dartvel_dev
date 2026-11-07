@@ -372,11 +372,26 @@ dartvel:
           contains('<link rel="preload" href="dartvel-splash.png" as="image">'));
     });
 
-    test('the loading bar draws above the first-frame picture', () {
+    test('the loading bar draws above the splash', () {
       final String html = dvWebSplashApply(_webIndex, DVSplash(color: '#112233', darkColor: '#445566', progress: true));
-      final RegExpMatch z = RegExp(r'getElementById\("dartvel-progress"\);if\(!b\)return;b\.style\.zIndex="(\d+)"').firstMatch(html)!;
-      // The picture is 2147483646 (dartvel_core first_frame.dart).
-      expect(int.parse(z.group(1)!), greaterThan(2147483646));
+      final RegExpMatch bar = RegExp(r'getElementById\("dartvel-progress"\);if\(!b\)return;b\.style\.zIndex="(\d+)"').firstMatch(html)!;
+      final RegExpMatch logo = RegExp(r'getElementById\("dartvel-splash"\);if\(p\)p\.style\.zIndex="(\d+)"').firstMatch(html)!;
+      expect(int.parse(bar.group(1)!), greaterThan(int.parse(logo.group(1)!)));
+    });
+
+    // The first-frame picture (removed 7 Nov 2026) hid the splash at the
+    // widths it had a picture for. Nothing may: the splash, its loading line
+    // and its bar show at every width until the app's first frame.
+    test('nothing in the page hides the splash at any width', () {
+      final String html = dvWebSplashApply(_webIndex,
+          DVSplash(color: '#FFFFFF', darkColor: '#0A0A0A', progress: true),
+          imageUrl: 'dartvel-splash.png', darkImageUrl: 'dartvel-splash-dark.png');
+      final String style = RegExp(r'<style id="dartvel-splash-style">(.*?)</style>').firstMatch(html)!.group(1)!;
+      expect(RegExp(r'@media[^{]*width').hasMatch(style), isFalse, reason: 'no rule keyed on the window width');
+      expect(RegExp(r'#dartvel-(splash|progress)[^{]*\{[^}]*(display:none|visibility:hidden|opacity:0[;}])').hasMatch(style),
+          isFalse);
+      expect(html, isNot(contains('dv-first-frame')));
+      expect(html, isNot(contains('dv-ff-')));
     });
 
     // A splash that never changes looks hung on a slow phone: a small line
