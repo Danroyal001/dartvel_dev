@@ -72,8 +72,17 @@ a Playwright run against the proxy, two visits in one browser profile.
 |---|---|---|---|---|---|
 | 0.13.22, PWA off (as deployed) | first | 3730 KB | 74 | 2.3 s | 23.8 s |
 | 0.13.22, PWA off | second | 14 KB (73 revalidations) | 73 | 1.9 s | 7.9 s |
-| this change, PWA on | first | 2987 KB | 71 | 2.3 s | 18.8 s |
-| this change, PWA on | second | 0.8 KB | 0 (all 95 from the worker) | 0.5 s | 4.1 s |
+| this change, PWA on | first | 2997 KB | 89 | 2.6 s | 18.7 s |
+| this change, PWA on | second | 0.8 KB | 0 (all from the worker) | 0.5 s | 4.4 s |
+| next release, same browser | first after the deploy | 932 KB | 0 | 2.6 s | 10.4 s |
+| next release, same browser | second | 0.8 KB | 0 | 0.4 s | 4.4 s |
+
+The release changed one string on the home page: 9 of the build's 957 files
+changed, main.dart.js (787 KB) among them. The first visit after the deploy
+ran the new build -- its HTML and the app's code both carried the new text --
+and downloaded the changed files only; the worker's install that followed
+cost 58 KB more, because every unchanged file was copied from the previous
+build's cache, which was then deleted.
 
 Fonts on that first visit went from 1336 KB in 12 files (one of them Roboto
 from fonts.gstatic.com) to 437 KB in 8, none third-party. The build prints
@@ -81,7 +90,8 @@ its own estimate: `fonts: 1.3 MB -> 387 KB on the wire, 12 files -> 8`.
 
 After the first frame the worker installs and downloads what a later visit
 needs and the first one did not: every deferred part and up to 25 pages,
-1.8 MB for this site. `dartvel.pwa.precacheRoutes` bounds the pages.
+940 KB for this site (3.9 MB for the whole first visit). The pages are
+bounded by `dartvel.pwa.precacheRoutes`.
 
 What changed:
 
