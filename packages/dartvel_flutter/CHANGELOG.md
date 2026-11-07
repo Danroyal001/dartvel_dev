@@ -1,3 +1,7 @@
+## 0.13.25 — 2026-11-07
+
+- Version aligned with dartvel_core 0.13.25.
+
 ## 0.13.24 — 2026-11-07
 
 - Studio's splash shows the pulsing Loading line under its picture, like the web splash.
