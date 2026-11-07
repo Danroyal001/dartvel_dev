@@ -198,4 +198,17 @@ void main() {
       expect(html.indexOf('<x>'), lessThan(html.indexOf('<title>')));
     });
   });
+
+  group('the engine revision a service worker keys the renderer cache on', () {
+    test('is the gstatic revision the loader fetches from', () {
+      expect(dvRendererSource(defaultBootstrap)!.gstaticRevision, revision);
+    });
+
+    test('is null for an application that serves its own renderer', () {
+      expect(
+          const DVRendererSource(base: 'canvaskit/', wasm: true)
+              .gstaticRevision,
+          isNull);
+    });
+  });
 }

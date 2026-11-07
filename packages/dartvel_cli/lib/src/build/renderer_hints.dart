@@ -28,6 +28,13 @@ class DVRendererSource {
 
   /// Whether the build has a dart2wasm/skwasm app the loader may choose.
   final bool wasm;
+
+  /// The engine revision when the renderer comes from gstatic's copy, null
+  /// when the application serves its own: what a service worker keys its
+  /// cache of the renderer on, so a release on a new engine drops the old one.
+  String? get gstaticRevision => RegExp(
+        r'^https://www\.gstatic\.com/flutter-canvaskit/([0-9a-f]{7,64})/$',
+      ).firstMatch(base)?.group(1);
 }
 
 /// Where the build whose flutter_bootstrap.js is [bootstrapJs] loads its
