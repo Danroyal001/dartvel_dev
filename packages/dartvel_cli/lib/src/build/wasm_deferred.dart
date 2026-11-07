@@ -17,6 +17,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:path/path.dart' as p;
 
 /// The deferred-loading map the build asks dart2wasm for, kept in the web
@@ -174,13 +175,26 @@ Future<DVWasmSplit> dvSplitWasmModules({
   required String verboseLog,
   required DVWasmCompilerRun run,
 }) async {
+  final Directory work = Directory(workRoot);
+  final File flutterWasm = File(p.join(webRoot, 'main.dart.wasm'));
+  if (!flutterWasm.existsSync()) {
+    return const DVWasmSplit(problem: 'The build wrote no main.dart.wasm.');
+  }
+  // Which one-module app the split in [work] was made from: Flutter's own
+  // build cache skips dart2wasm when nothing changed and logs no command,
+  // and then the last split is this app's split.
+  final String flutterHash =
+      sha256.convert(flutterWasm.readAsBytesSync()).toString();
+  final File source = File(p.join(work.path, 'flutter-main.dart.wasm.sha256'));
   final List<String>? command = dvDart2WasmCommand(verboseLog);
   if (command == null) {
+    if (source.existsSync() && source.readAsStringSync() == flutterHash) {
+      return _installSplit(webRoot, work);
+    }
     return const DVWasmSplit(
         problem: "Flutter's log names no dart2wasm command to rerun with "
             'deferred loading.');
   }
-  final Directory work = Directory(workRoot);
   if (work.existsSync()) work.deleteSync(recursive: true);
   work.createSync(recursive: true);
   final String map = p.join(work.path, 'deferred_map.json');
@@ -191,6 +205,14 @@ Future<DVWasmSplit> dvSplitWasmModules({
     return DVWasmSplit(
         problem: 'dart2wasm with --enable-deferred-loading exited $exit.');
   }
+  final DVWasmSplit split = _installSplit(webRoot, work);
+  if (split.problem == null) source.writeAsStringSync(flutterHash);
+  return split;
+}
+
+/// Copies the split in [work] over the one-module app in [webRoot].
+DVWasmSplit _installSplit(String webRoot, Directory work) {
+  final String map = p.join(work.path, 'deferred_map.json');
   final File wasm = File(p.join(work.path, 'main.dart.wasm'));
   final File mjs = File(p.join(work.path, 'main.dart.mjs'));
   if (!wasm.existsSync() || !mjs.existsSync() || !File(map).existsSync()) {
