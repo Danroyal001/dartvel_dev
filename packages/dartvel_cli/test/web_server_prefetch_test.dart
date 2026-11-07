@@ -117,4 +117,22 @@ void main() {
   test('says how many routes name something', () {
     expect(write(), 2);
   });
+
+  test('a --wasm build names no dart2js parts, and keeps the images', () {
+    // A browser running main.dart.wasm never loads a .part.js: preloading
+    // one is a download for nothing on exactly the browsers wasm is for.
+    File(p.join(web.path, 'flutter_bootstrap.js')).writeAsStringSync(
+        '_flutter.buildConfig = {"engineRevision":"af7e796e16","builds":['
+        '{"compileTarget":"dart2wasm","renderer":"skwasm","mainWasmPath":"main.dart.wasm","jsSupportRuntimePath":"main.dart.mjs"},'
+        '{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"}]};\n');
+    write();
+    expect(routes()['/docs'], <String, Object?>{
+      'scripts': <String>[],
+      'images': <Object?>[
+        <String, Object?>{'url': 'assets/assets/hero.png', 'as': 'fetch'},
+      ],
+    });
+    expect((routes()['/products/:id']! as Map<String, Object?>)['scripts'],
+        isEmpty);
+  });
 }

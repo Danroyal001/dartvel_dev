@@ -407,6 +407,24 @@ void main() {
       ]);
     });
 
+    test('a --wasm build names no dart2js parts, for the page or for links', () {
+      // main.dart.wasm has no parts; a browser running it never asks for a
+      // .part.js, so naming one is a download for nothing.
+      File(p.join(web.path, 'flutter_bootstrap.js')).writeAsStringSync(
+          '_flutter.buildConfig = {"engineRevision":"af7e796e16","builds":['
+          '{"compileTarget":"dart2wasm","renderer":"skwasm","mainWasmPath":"main.dart.wasm","jsSupportRuntimePath":"main.dart.mjs"},'
+          '{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"}]};\n');
+      write();
+      final String docs =
+          File(p.join(web.path, 'docs', 'index.html')).readAsStringSync();
+      expect(docs, isNot(contains('part.js')));
+      expect(docs, contains('assets/assets/hero.png'));
+      final Map<String, Object?> routes = (jsonDecode(
+        File(p.join(web.path, dvPrefetchManifestFile)).readAsStringSync(),
+      ) as Map<String, Object?>)['routes']! as Map<String, Object?>;
+      expect((routes['/docs']! as Map<String, Object?>)['scripts'], isEmpty);
+    });
+
     test('without a main.dart.js the images are still named', () {
       File(p.join(web.path, 'main.dart.js')).deleteSync();
       write();
