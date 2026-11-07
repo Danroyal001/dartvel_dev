@@ -424,14 +424,19 @@ Widget _notesPage(BuildContext context) {
       final Page page = await browser.newPage();
       await page.setViewport(const DeviceViewport(width: 1366, height: 900));
       await dvEmulateColourScheme(page, 'light');
-      await page.setRequestInterception(true);
-      page.onRequest.listen((Request request) {
-        if (!app && RegExp(r'main\.dart|flutter_bootstrap|canvaskit|\.wasm').hasMatch(request.url)) {
-          request.abort();
-        } else {
-          request.continueRequest();
-        }
-      });
+      // Only the page without the app intercepts: with interception on, Chrome
+      // pauses the requests of the worker that multi-threaded skwasm draws on,
+      // and puppeteer never lets them through, so the app would never start.
+      if (!app) {
+        await page.setRequestInterception(true);
+        page.onRequest.listen((Request request) {
+          if (RegExp(r'main\.dart|flutter_bootstrap|canvaskit|\.wasm').hasMatch(request.url)) {
+            request.abort();
+          } else {
+            request.continueRequest();
+          }
+        });
+      }
       await page.evaluateOnNewDocument(
           'addEventListener("dartvel-first-frame", () => { window.dvFirstFrame = true })');
       await page.goto('http://127.0.0.1:${run.port}/notes', wait: Until.networkIdle);
