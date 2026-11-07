@@ -41,10 +41,19 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
       id: 'build-cache',
       title: 'Repeat web builds',
       children: <Widget>[
-        DocsText('Web and web-server builds reuse raw Flutter web output and '
-            'route captures when their source inputs are unchanged. Captures '
-            'are retained together per web build in .dartvel/cache. '
-            'Backend binaries and native builds still run.'),
+        DocsText('Web and web-server builds reuse raw Flutter web output, '
+            'route captures and the web-server backend compile when their '
+            'inputs are unchanged, all kept in .dartvel/cache. The brotli '
+            'encodings of the web files are kept by content in '
+            '~/.dartvel/cache, shared by every project on the machine. '
+            'Native builds still run.'),
+        DocsText('The steps that do run overlap: the backend compile and '
+            'the encoding of Flutter\'s engine files run while Flutter '
+            'compiles, and the semantics read boots the app once in each of '
+            'several browser windows and moves it from route to route. '
+            '--capture-jobs sets how many windows; --no-capture-in-app loads '
+            'every route afresh instead.'),
+        DocsShell(<String>['dartvel build web-server --capture-jobs 4']),
         DocsShell(<String>['dartvel build web --no-cache']),
         DocsText('Use --no-cache to bypass cache reads and writes, especially '
             'when prerendered pages read changing external data or the clock. '
