@@ -84,6 +84,7 @@ import '../build/pwa_manifest.dart';
 import '../secrets/secrets_analysis.dart';
 import '../build/pwa_service_worker.dart';
 import '../build/renderer_hints.dart';
+import '../build/web_renderer.dart';
 import '../build/route_prefetch.dart';
 import '../build/sdk_floor.dart';
 import '../build/build_lifecycle.dart';
@@ -820,6 +821,14 @@ class BuildCommand extends Command<void> {
           refused += 1;
           continue;
         }
+        // dartvel.web.renderer misspelt, or wasm where it cannot be used.
+        final String? rendererProblem = _webRendererProblem(
+            root, DVBuildTargets.lookup(platform)?.basePlatform ?? platform);
+        if (rendererProblem != null) {
+          Logger.log('❌ $rendererProblem');
+          refused += 1;
+          continue;
+        }
         buildablePlatforms.add(platform);
       } else {
         skipped += 1;
@@ -1111,6 +1120,19 @@ class BuildCommand extends Command<void> {
             '${signing.signing!.source}.');
       }
     }
+    // dartvel.web.renderer. A misspelt value or a combination wasm cannot
+    // carry was refused before generation; checked again here for a target
+    // reached some other way.
+    final String? rendererProblem = _webRendererProblem(_projectRoot, platform);
+    if (rendererProblem != null) {
+      Logger.log('❌ $rendererProblem');
+      return DVBuildTargetResult.failed;
+    }
+    final DVWebRenderer webRenderer = _webRenderer(_projectRoot, platform);
+    if (webRenderer == DVWebRenderer.wasm) {
+      Logger.log('   Renderer: wasm (skwasm on Chromium browsers with WasmGC, '
+          'CanvasKit and dart2js elsewhere).');
+    }
     final bool scaffoldOk = await dvEnsurePlatformScaffold(
       root: _projectRoot,
       platform: project,
@@ -1293,6 +1315,7 @@ class BuildCommand extends Command<void> {
         // Studio's routes, compiled into the application where this build's
         // server will guard them.
         studio: platform == 'web-server' && _servesStudio(_projectRoot) != null,
+        wasm: webRenderer == DVWebRenderer.wasm,
       ),
       ...?variant?.flutterArguments,
     ];
@@ -2139,6 +2162,27 @@ class BuildCommand extends Command<void> {
       Logger.log('⚠️  dartvel.purchases is declared and there is no '
           'android/app/build.gradle to add Play Billing to.');
     }
+  }
+
+  /// `dartvel.web.renderer` for a web build of [root]: the canvaskit default
+  /// for anything that is not one.
+  DVWebRenderer _webRenderer(String root, String platform) {
+    if (platform != 'web' && platform != 'web-server') {
+      return DVWebRenderer.canvasKit;
+    }
+    final Object? web = _dartvelSection(root)['web'];
+    return dvWebRenderer(web is Map ? web['renderer'] : null);
+  }
+
+  /// Why `dartvel.web.renderer` stops a build of [platform], or null.
+  String? _webRendererProblem(String root, String platform) {
+    try {
+      if (_webRenderer(root, platform) != DVWebRenderer.wasm) return null;
+    } on FormatException catch (error) {
+      return error.message;
+    }
+    return dvWasmRefusal(
+        servesStudio: platform == 'web-server' && _servesStudio(root) != null);
   }
 
   /// Why a release build of [platform] cannot be signed, or null when it can
@@ -5537,6 +5581,7 @@ List<String> resolveFlutterBuildArguments({
   bool codesign = true,
   String? exportOptionsPlist,
   bool studio = false,
+  bool wasm = false,
 }) {
   final bool bundle = platform == 'android' && format == 'aab';
   final bool ipa = platform == 'ios' && format == 'ipa';
@@ -5600,6 +5645,12 @@ List<String> resolveFlutterBuildArguments({
   // so it never carries Studio, whatever it is asked.
   if (platform == 'web-server' && studio) {
     args.add('--dart-define=$dvStudioDefine=true');
+  }
+
+  // dartvel.web.renderer: wasm. Flutter writes the dart2wasm and skwasm app
+  // beside the dart2js and CanvasKit one, and flutter.js picks per browser.
+  if (command == 'web' && wasm) {
+    args.add('--wasm');
   }
 
   if (platform == 'android' && splitPerAbi && !bundle) {
