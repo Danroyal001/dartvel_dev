@@ -438,6 +438,7 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
   bool units = false,
   Map<String, String> defines = const <String, String>{},
   Future<DVCompiledServer>? compiling,
+  Directory? encodingCache,
 }) async {
   // Begun by the build beside Flutter's own compile, or begun now.
   final DVCompiledServer compiled = await (compiling ??
@@ -465,6 +466,7 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
     docsRoot: docsRoot,
     compression: compression,
     codecLibrary: library.path,
+    encodingCache: encodingCache,
   );
   final Map<String, List<int>> sections = <String, List<int>>{
     'native': library.readAsBytesSync(),

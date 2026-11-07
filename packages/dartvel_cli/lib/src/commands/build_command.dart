@@ -110,6 +110,7 @@ import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
 import '../build/server_binary.dart';
+import '../build/server_assets.dart' show dvPreEncodeAssets, dvSharedAssetEncodings;
 import '../build/server_compile.dart'
     show DVCompiledServer, dvReadCompiledServer, dvServerCompileKey, dvWriteCompiledServer;
 import '../build/web_server.dart';
@@ -1671,6 +1672,11 @@ class BuildCommand extends Command<void> {
   /// compiled with Studio.
   ({bool studio, Future<DVCompiledServer> compiled})? _earlyServer;
 
+  /// The encoding cache the binary's pack reads, and the encoding of
+  /// Flutter's engine files into it begun beside Flutter's build.
+  Directory? _assetEncodings;
+  Future<int>? _preEncoding;
+
   Map<String, String> _serverDefines({required bool studio}) =>
       <String, String>{'dartvel.studio': studio ? 'true' : 'false'};
 
@@ -1693,6 +1699,23 @@ class BuildCommand extends Command<void> {
     final bool studio = _servesStudio(root) != null;
     final Future<DVCompiledServer> compiled =
         _compileServer(root, lookup.file!, studio: studio);
+    // Flutter's engine files (canvaskit, skwasm) are most of the web output
+    // and the same bytes in every project on this Flutter: encoded now, from
+    // Flutter's own copy, into the cache the binary's pack reads, while
+    // Flutter compiles. Shared by every project on the machine.
+    final Directory? shared = _buildCache.enabled ? dvSharedAssetEncodings() : null;
+    final String? flutterRoot = dvFlutterRootSync();
+    final DVAssetCompression compression =
+        dvAssetCompression(_webServerSection(root)['compression']);
+    if (shared != null && flutterRoot != null && compression != DVAssetCompression.none) {
+      _assetEncodings = shared;
+      _preEncoding = dvPreEncodeAssets(
+        source: Directory(p.join(flutterRoot, 'bin', 'cache', 'flutter_web_sdk', 'canvaskit')),
+        cache: shared,
+        compression: compression,
+        codecLibrary: lookup.file!.path,
+      )..ignore();
+    }
     // Awaited where the binary is built; an error is reported there.
     compiled.ignore();
     _earlyServer = (studio: studio, compiled: compiled);
@@ -1755,6 +1778,13 @@ class BuildCommand extends Command<void> {
       Logger.log('⚠️  build/server not written: ${lookup.problem}');
       return DVBuildTargetResult.skipped;
     }
+    // Finished before the pack reads the cache it writes into.
+    try {
+      await _preEncoding;
+    } on Object catch (error) {
+      Logger.log('   ⚠ Encoding Flutter\'s engine files ahead failed ($error); '
+          'the pack encodes them.');
+    }
     final DVServerBinaryResult result = await dvBuildServerBinary(
       root: root,
       library: lookup.file!,
@@ -1779,6 +1809,7 @@ class BuildCommand extends Command<void> {
       // the generated backend makes is behind this.
       defines: _serverDefines(studio: admin != null),
       run: _serverRun,
+      encodingCache: _assetEncodings,
       // Started beside Flutter's build when the Studio it was started for is
       // the Studio this build serves; otherwise compiled now.
       compiling: _earlyServer != null && _earlyServer!.studio == (admin != null)

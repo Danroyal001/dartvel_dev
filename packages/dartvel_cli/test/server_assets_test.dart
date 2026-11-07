@@ -5,6 +5,7 @@
 // it is about to embed, gzip where that library has no codec, nothing for a
 // format that is compressed already. Encoding at brotli's highest level is
 // slow, so the build keeps each encoding and a rebuild reuses it.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -120,6 +121,77 @@ void main() {
     expect(second.reused, first.encoded);
     expect(again['web/main.dart.js']!.encoding, DVAssetEncoding.br);
   });
+
+  // Most of a web-server build's files are Flutter's engine (canvaskit,
+  // skwasm: 30 of the sample's 36 MB), the same bytes in every project on the
+  // same Flutter, and encoding them at brotli 11 was most of a cold build's
+  // last two minutes. They can be encoded while Flutter compiles, from
+  // Flutter's own copy, into a cache every project on the machine shares.
+  group('encoding ahead, into a shared cache', () {
+    late Directory shared;
+    late Directory engine;
+    setUp(() {
+      shared = Directory(p.join(project.path, 'shared'));
+      engine = Directory(p.join(project.path, 'engine'))..createSync();
+      File(p.join(engine.path, 'canvaskit.js')).writeAsBytesSync(js);
+      File(p.join(engine.path, 'logo.png')).writeAsBytesSync(png);
+    });
+
+    test('a file encoded ahead is not encoded again by the pack', () async {
+      final int ahead = await dvPreEncodeAssets(
+          source: engine, cache: shared, codecLibrary: library.path);
+      expect(ahead, 1, reason: 'the script; a PNG is compressed already');
+      final DVServerAssetsResult result = await dvServerAssetPack(
+        projectRoot: project.path,
+        webRoot: web,
+        codecLibrary: library.path,
+        encodingCache: shared,
+      );
+      // main.dart.js has canvaskit.js's bytes: encoded ahead.
+      expect(result.reused, greaterThanOrEqualTo(1));
+      expect(await dvPreEncodeAssets(source: engine, cache: shared, codecLibrary: library.path), 0,
+          reason: 'already in the cache');
+    });
+
+    test('the pack is the same bytes whether the encoding was made ahead or now',
+        () async {
+      final DVServerAssetsResult now = await dvServerAssetPack(
+          projectRoot: project.path, webRoot: web, codecLibrary: library.path,
+          encodingCache: Directory(p.join(project.path, 'fresh')));
+      await dvPreEncodeAssets(source: engine, cache: shared, codecLibrary: library.path);
+      final DVServerAssetsResult ahead = await dvServerAssetPack(
+          projectRoot: project.path, webRoot: web, codecLibrary: library.path,
+          encodingCache: shared);
+      expect(ahead.pack, now.pack);
+    });
+
+    // Brotli 11 on a few megabytes takes seconds in one native call. Made as
+    // a leaf call, it kept every isolate of the build from reaching a
+    // safepoint: the build's own isolate stood still while its helpers
+    // encoded, and encoding Flutter's engine files beside Flutter's compile
+    // held up the compile's start by two and a half minutes.
+    test('the build keeps running while the encoding isolates work', () async {
+      final Random words = Random(3);
+      final String text = List<String>.generate(400000,
+          (int i) => 'w${words.nextInt(50000)}').join(' ');
+      File(p.join(engine.path, 'big.js')).writeAsStringSync(text);
+      int ticks = 0;
+      final Timer ticking = Timer.periodic(const Duration(milliseconds: 50), (_) => ticks++);
+      final Stopwatch took = Stopwatch()..start();
+      await dvPreEncodeAssets(source: engine, cache: shared, codecLibrary: library.path);
+      took.stop();
+      ticking.cancel();
+      expect(ticks, greaterThan(took.elapsedMilliseconds ~/ 50 ~/ 2),
+          reason: '$ticks ticks in ${took.elapsedMilliseconds} ms');
+    });
+
+    test('the shared cache is under the home directory', () {
+      expect(dvSharedAssetEncodings(environment: <String, String>{'HOME': '/home/someone'})!.path,
+          p.join('/home/someone', '.dartvel', 'cache', 'asset_encodings'));
+      expect(dvSharedAssetEncodings(environment: const <String, String>{}), isNull);
+    });
+  });
+
 
   test('keeps gzip when the library has no codec, and nothing when asked for none', () async {
     final (DVAssetPack gzipped, DVServerAssetsResult said) =

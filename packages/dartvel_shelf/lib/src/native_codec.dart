@@ -49,7 +49,11 @@ final class DVNativeCodec {
       return null;
     }
     return DVNativeCodec._(
-      library.lookupFunction<_EncodeN, _EncodeD>('aw_codec_encode', isLeaf: true),
+      // Not a leaf call: brotli 11 on a few megabytes runs for seconds, and a
+      // leaf call keeps every isolate of the group from reaching a safepoint
+      // until it returns -- the build's main isolate stood still for minutes
+      // while its helper isolates encoded. Decoding is short and stays one.
+      library.lookupFunction<_EncodeN, _EncodeD>('aw_codec_encode'),
       library.lookupFunction<_DecodeN, _DecodeD>('aw_codec_decode', isLeaf: true),
     );
   }
