@@ -406,10 +406,24 @@ semantics capture in `.dartvel/cache`, keyed by the contents of everything that
 can change them (sources, assets, path dependencies, flags, Flutter and Dartvel
 versions). An unchanged rebuild reuses both; an edit that leaves the compiled
 app the same (a backend function) recompiles Flutter but reuses the captures.
-`--no-cache` neither reads nor writes the cache; use it when a prerendered page
-reads changing external data or the clock. Native targets and the server binary
-are always built. Set `SOURCE_DATE_EPOCH` to make two builds of the same
-sources byte-identical (it fixes the service worker's build id).
+The web-server backend compile is kept the same way, under its own inputs
+(the generated backend, `lib/`, path dependencies, the lock, the defines and
+the Dart SDK) and not the web output, so a page edit reuses it; it also
+starts beside Flutter's compile rather than after it. Image variants are kept
+by the content of their source in `.dart_tool/dartvel_image_variants`, and
+the brotli encodings of the web files by content in
+`~/.dartvel/cache/asset_encodings`, shared by every project on the machine;
+Flutter's engine files are encoded there while Flutter compiles.
+`--no-cache` neither reads nor writes any of these; use it when a prerendered
+page reads changing external data or the clock. Native targets are always
+built. Set `SOURCE_DATE_EPOCH` to make two builds of the same sources
+byte-identical (it fixes the service worker's build id).
+
+The semantics read keeps several browser windows open (three quarters of the
+cores, at most eight; `--capture-jobs N`), boots the app once in each and
+moves it from route to route through a hook the app installs only in a
+browser under automation. A route that redirects, and an app without the
+hook, are loaded afresh; `--no-capture-in-app` loads every route afresh.
 
 ### File types the app opens
 

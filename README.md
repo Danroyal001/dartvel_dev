@@ -1417,9 +1417,14 @@ device; an installed PWA's OS launch has not been exercised; Tizen delivery is
 not wired, so use the picker there. Desktop registration takes effect once the
 generated files are installed, and no MSIX is produced.
 
-Repeat `dartvel build web` and `web-server` runs reuse Flutter's web build and
-each route's capture while their inputs are unchanged (`.dartvel/cache`,
-`--no-cache` to bypass); see the CLI README.
+Repeat `dartvel build web` and `web-server` runs reuse Flutter's web build,
+each route's capture and the backend compile while their inputs are
+unchanged (`.dartvel/cache`, `--no-cache` to bypass). The steps that run
+overlap: the backend compile beside Flutter's, and a semantics read that
+boots the app once per browser window and moves it between routes (35
+routes: 387 s before, 24 s now). Measured build times are in
+[docs/web-performance.md](docs/web-performance.md#build-time-after-01324);
+see the CLI README.
 
 **How this compares to Expo.** People looking for "Expo for Flutter" usually
 want some of these:

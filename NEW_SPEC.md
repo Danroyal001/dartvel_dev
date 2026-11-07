@@ -12627,6 +12627,29 @@ unchanged code, `serviceWorkerVersion` in `flutter_bootstrap.js`, which only
 names Flutter's deprecated worker; so an edit that leaves the compiled app the
 same (a backend function) recompiles Flutter but reuses every capture.
 
+The web-server backend compile is cached under its own inputs (generated
+`.dart_tool` sources, `lib/`, path dependencies, lock, package config,
+defines, unit split, Dart SDK), never the web output, and starts beside
+Flutter's compile. The deferred dart2wasm rerun starts the moment Flutter logs
+its dart2wasm command. Image variants are made on an isolate pool and kept by
+source content. Asset encodings are kept by content in
+`~/.dartvel/cache/asset_encodings`, shared across projects, and Flutter's
+engine files are encoded there during Flutter's compile; the native encoder is
+an ordinary (non-leaf) FFI call so encoding isolates run in parallel.
+
+The semantics read runs over a pool of browser windows (three quarters of the
+cores, at most eight, `--capture-jobs`), one window per page because Flutter
+draws only in a visible page's animation frames. Each window boots the app once
+and moves it between routes through `globalThis.__dartvelCapture`
+(`go(path)`, `location()`), installed by `DVNavigation.attach` only when
+`navigator.webdriver` is true; `go` clears the image cache and the recorded
+image slots first, so each route's image list matches a fresh load. A route
+whose location after `go` is not the route (a redirect) and an app without
+the hook use fresh loads;
+`--no-capture-in-app` forces them. Results are identical to the serial fresh
+read and are written per route, so their order does not depend on which
+window finishes first.
+
 `SOURCE_DATE_EPOCH` (seconds, the reproducible-builds convention) fixes the
 build id in Dartvel's service worker; without it the id is the build time.
 

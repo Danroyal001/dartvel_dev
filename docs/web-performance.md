@@ -131,6 +131,78 @@ What changed:
   first, uncontrolled visit downloaded, and the worker keeps that from the
   HTTP cache. Registration waits for the app's first frame.
 
+## Build time (after 0.13.24)
+
+Measured on a fresh `dartvel create` web-server app with 30 generated pages
+(35 routes read, measured before the first-frame picture was removed, with
+it turned off), on the same 8-core host
+while other builds ran (load 8 to 11), so compare rows rather than reading
+any one as a ceiling: Flutter's own compile of the same app varied from
+169 s to 245 s between runs. Times run from `Building Dartvel project` to
+`Build complete`, leaving out the CLI's own start (`dart run` from source).
+
+| Step | Before, cold | After, cold | After, one page edited | After, nothing changed |
+|---|---|---|---|---|
+| Code generation | 26 s | 7 s | 7 s | 6 s |
+| `flutter build web --wasm` | 191 s | 213 s | 203 s | reused |
+| Deferred dart2wasm, rerun | 149 s after Flutter | beside Flutter (0.4 s after it) | beside Flutter | reused |
+| Semantics read | 387 s (35 fresh loads, one at a time) | 23 s | 22 s | reused |
+| Backend compile | about 45 s, after everything else | beside Flutter | beside Flutter | reused |
+| Pack and brotli of the web files | the rest of 179 s | 14 s | 13 s | 2 s |
+| **Total** | **951 s** | **277 s** | **262 s** | **20 s** |
+
+The "before" warm builds were not measured. Plain `flutter build web --release --wasm` on the same app: 169 s cold,
+11.6 s with nothing changed.
+
+What changed:
+
+- **Semantics read: one boot per window, several windows.** Every route was
+  a fresh page load, and each load booted the whole app (code, renderer,
+  first frame) for most of the 11 s a route took. The read now opens a pool
+  of windows (three quarters of the cores, at most eight; `--capture-jobs`),
+  boots the app once in each and moves it between routes through a hook the
+  app installs only under automation (`globalThis.__dartvelCapture`). The
+  hook forgets decoded images before each move, so a route's image list is
+  what a fresh load records; a route the router does not arrive at (a
+  redirect) and an app without the hook get fresh loads. Each page needs a
+  window of its own: Flutter draws in animation frames, which a browser runs
+  only for the page its window shows, and with tabs most routes came back
+  empty. On the sample, every tree and image list equals a fresh load's
+  (the home page differs only in the clock it prints). 35 routes: 387 s
+  before, 66 s with one window, 24 s with six. `--no-capture-in-app` turns
+  the moving off.
+- **The deferred dart2wasm starts when Flutter starts its own**, with the
+  same command, instead of after `flutter build web` ends.
+- **The backend compile starts beside Flutter** (it reads none of the web
+  output) and is kept in `.dartvel/cache` under its own inputs, so a page
+  edit or an unchanged rebuild reuses it.
+- **Flutter's engine files are encoded while Flutter compiles**, into
+  `~/.dartvel/cache/asset_encodings`, shared by every project on the
+  machine, and the native brotli encoder is no longer a leaf FFI call: as
+  one, a multi-second encode kept every isolate of the build from reaching a
+  safepoint, so the encoding isolates ran one at a time and the main isolate
+  stood still (3 timer ticks in 12 s).
+- **Image variants** are made on a pool of isolates and kept by the content
+  of their source, so an unchanged image is copied on the next build (the
+  sample has none; not in the table).
+
+Where the time still goes, cold: Flutter's compile is most of it, and the
+read can only start once the finished app exists, so a cold Dartvel build
+is Flutter's compile plus about a minute (generation, the read, the pack).
+It is not faster than a plain `flutter build web` cold, and with nothing
+changed Flutter's own build skips its compile too, so neither is it faster
+there. What Dartvel no longer repeats on a warm build is its own work: the
+read, the backend compile and the encoding.
+
+Not done: Flutter's own one-module dart2wasm still runs beside the deferred
+one (removing it means writing what `--wasm` adds to the output by hand);
+generation still runs as a `dart run` subprocess (7 s); font subsetting is
+one font after another (3 s on the sample).
+
+For 221 routes (sigmadev.digital) the read at the sample's rate, six
+windows and one boot each, would be about two minutes; its pages are
+heavier than the sample's, so that is an estimate, not a measurement.
+
 ## Still to do
 
 Ranked by what they would save:
