@@ -1543,6 +1543,9 @@ class BuildCommand extends Command<void> {
         // Also into index.html first, for the same reason: every page,
         // served or prerendered, starts fetching the renderer while it parses.
         _writeRendererHints(root);
+        // Last of the writes into index.html: every page made from it asks
+        // for this build's code.
+        _versionIndexHtml(root);
         if (platform == 'web-server') {
           _writeWebServerManifest(root);
           final ({bool ok, DVAdminMount? admin}) dashboard =
@@ -1564,6 +1567,7 @@ class BuildCommand extends Command<void> {
           // Before the executable packs build/web into itself: what is not
           // minified by now ships inside the binary as it was written.
           _minifyWebOutput(root);
+          _writeServiceWorkerAssets(root);
           // The backend that serves all of it, as one executable file.
           if (await _buildServerBinary(root,
                   admin: admin, docs: documentation.docs) ==
@@ -1593,6 +1597,9 @@ class BuildCommand extends Command<void> {
         // The App Links and Universal Links documents, served from the site
         // the links point at, whichever way the site is served.
         _writeDeepLinkDocuments(root, deepLinks);
+        // A static build's files are final here; a web-server build listed
+        // its own before the binary packed them.
+        if (platform == 'web') _writeServiceWorkerAssets(root);
         // Last, after everything above has written into it: a host serves
         // the upload with the modes it carries, and a directory others cannot
         // enter turns every asset under it into index.html.
@@ -3644,7 +3651,11 @@ class BuildCommand extends Command<void> {
     // first found last time's directories and reported four. CI builds clean
     // every time and shipped the broken worker every time; nobody building
     // locally ever saw it.
-    final routes = dvPrecacheRoutes(await _pagesToGenerate(root));
+    //
+    // Up to dartvel.pwa.precacheRoutes of them (25 by default): every route
+    // is a download the reader pays for on the first visit.
+    final routes = dvPrecacheRouteBudget(
+        dvPrecacheRoutes(await _pagesToGenerate(root)), settings['precacheRoutes']);
 
     // The two pages the build used to write here are not written here. They
     // are routes now -- declared by the generator, drawn by
@@ -3669,10 +3680,20 @@ class BuildCommand extends Command<void> {
     // With each page's deferred part, because a page's code is only in its
     // part: one never opened while online is otherwise a load error offline.
     final List<String> parts = dvDeferredPartFiles(web);
+    // With what the first frame waits for: the loader, the app's code, the
+    // manifests and every font.
+    final List<String> boot = dvServiceWorkerBootFiles(web);
+    final String build = dvServiceWorkerBuildId();
+    final File bootstrap = File(p.join(web.path, 'flutter_bootstrap.js'));
+    final String? engine =
+        bootstrap.existsSync() ? dvCanvasKitRevision(bootstrap.readAsStringSync()) : null;
     File(p.join(web.path, 'flutter_service_worker.js')).writeAsStringSync(
       dvServiceWorker(
-        buildId: dvServiceWorkerBuildId(),
-        precache: <String>[...routes, ...parts],
+        buildId: build,
+        precache: <String>[...routes, ...boot, ...parts],
+        // The engine whose CanvasKit comes from gstatic, so a release that
+        // changes it drops the old revision's renderer from the cache.
+        engineRevision: engine,
         // On unless the project says otherwise: a backend call made offline
         // is queued and replayed, which is the behaviour a PWA promises.
         backgroundSync: settings['backgroundSync'] != false,
@@ -3689,15 +3710,54 @@ class BuildCommand extends Command<void> {
 
     // And registered. Flutter's bootstrap only updates a registration that
     // already exists; without this the worker above is never installed.
-    final File bootstrap = File(p.join(web.path, 'flutter_bootstrap.js'));
+    //
+    // The page and the bootstrap ask for the app's code at ?v=<build>, which
+    // is how the worker tells a page of this build from a page of the next
+    // one: fresh HTML is never paired with this build's cached code.
     if (bootstrap.existsSync()) {
-      bootstrap.writeAsStringSync(
-          dvBootstrapRegisteringServiceWorker(bootstrap.readAsStringSync()));
+      bootstrap.writeAsStringSync(dvBootstrapRegisteringServiceWorker(
+          dvVersionBootstrap(bootstrap.readAsStringSync(), build),
+          build: build));
     }
+    // index.html is versioned once the splash (which preloads main.dart.js)
+    // has been written into it: _versionIndexHtml.
+    _serviceWorkerBuild = build;
 
     Logger.log('   Service worker written: '
-        '${routes.length} route(s) and ${parts.length} page part(s) '
-        'precached; a failed navigation goes to $dvOfflineRoute/.');
+        '${routes.length} route(s), ${boot.length} boot file(s) and '
+        '${parts.length} page part(s) precached; a failed navigation goes to '
+        '$dvOfflineRoute/.');
+  }
+
+  /// The build id this run's service worker was written with, or null when
+  /// it wrote none.
+  String? _serviceWorkerBuild;
+
+  /// index.html asking for the bootstrap and the app's code at
+  /// ?v=<build>, after the splash and renderer hints are in it and before
+  /// any page is made from it.
+  void _versionIndexHtml(String root) {
+    final String? build = _serviceWorkerBuild;
+    if (build == null) return;
+    final File index = File(p.join(root, 'build', 'web', 'index.html'));
+    if (index.existsSync()) {
+      index.writeAsStringSync(dvVersionIndexHtml(index.readAsStringSync(), build));
+    }
+  }
+
+  /// `dartvel_sw_assets.json`: every file of the finished web build by
+  /// content hash, so the next release's worker copies what did not change
+  /// instead of downloading it. Written last, after minifying, so the hashes
+  /// are of the bytes that ship.
+  void _writeServiceWorkerAssets(String root) {
+    final pwa = _dartvelSection(root)['pwa'];
+    final settings = pwa is Map ? pwa : const <Object?, Object?>{};
+    if (settings['enabled'] == false || settings['serviceWorker'] == false) return;
+    final Directory web = Directory(p.join(root, 'build', 'web'));
+    if (!File(p.join(web.path, 'flutter_service_worker.js')).existsSync()) return;
+    final Map<String, String> assets = dvServiceWorkerAssets(web);
+    File(p.join(web.path, dvServiceWorkerAssetsFile)).writeAsStringSync(jsonEncode(assets));
+    Logger.log('   Service worker asset list: ${assets.length} file(s) by content hash.');
   }
 
   /// Asks Gradle for the native debug symbols zip, when the project declares
