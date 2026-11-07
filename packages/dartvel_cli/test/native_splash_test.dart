@@ -357,6 +357,31 @@ dartvel:
       expect(dvWebSplashApply(html, splash).split('rel="preload"').length, 2);
     });
 
+    test('a wasm build preloads the module the loader will pick, not main.dart.js', () {
+      // A --wasm build has two apps. A browser with WasmGC runs
+      // main.dart.wasm and never asks for main.dart.js, so a fixed preload of
+      // main.dart.js is megabytes for nothing on exactly the phones wasm is
+      // for. The page runs the loader's own WasmGC test and asks for one.
+      final String html = dvWebSplashApply(_webIndex, splash, wasm: true);
+      expect(html, isNot(contains('<link rel="preload" href="main.dart.js"')));
+      expect(html, contains('main.dart.wasm'));
+      expect(html, contains('main.dart.mjs'));
+      expect(html, contains('main.dart.js'));
+      expect(html, contains('WebAssembly.validate'));
+      // The loader fetches the module CORS-mode; a preload asked for any
+      // other way is not reused and the file downloads twice.
+      expect(html, contains('crossOrigin="anonymous"'));
+      // Applying it again leaves one, not two.
+      final String again = dvWebSplashApply(html, splash, wasm: true);
+      expect(again.split('main.dart.wasm').length,
+          html.split('main.dart.wasm').length);
+      // And a later dart2js build of the same page goes back to the plain
+      // preload.
+      expect(dvWebSplashApply(html, splash),
+          contains('<link rel="preload" href="main.dart.js" as="script">'));
+      expect(dvWebSplashApply(html, splash), isNot(contains('main.dart.wasm')));
+    });
+
     test('never covers the page a reader without scripting gets', () {
       // The prerendered text is a noscript block. Without scripting the
       // first-frame event never comes, so a splash left in place would sit
@@ -404,6 +429,27 @@ dartvel:
       // is, and written at 3x for the densest screens a browser has.
       expect(_size('build/web/dartvel-splash.png'), (300, 150));
       expect(_read('build/web/index.html'), contains('width:100px'));
+    });
+
+    test('the writer preloads by what the build compiled, read from its config', () {
+      _write('build/web/index.html', _webIndex);
+      _write(
+          'build/web/flutter_bootstrap.js',
+          '_flutter.buildConfig = {"engineRevision":"af7e796e16","builds":['
+              '{"compileTarget":"dart2wasm","renderer":"skwasm","mainWasmPath":"main.dart.wasm","jsSupportRuntimePath":"main.dart.mjs"},'
+              '{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"}]};\n'
+              '_flutter.loader.load({});\n');
+      dvWriteWebSplash(Directory(p.join(root.path, 'build', 'web')), splash);
+      expect(_read('build/web/index.html'), contains('main.dart.wasm'));
+
+      _write('build/web/index.html', _webIndex);
+      _write(
+          'build/web/flutter_bootstrap.js',
+          '_flutter.buildConfig = {"engineRevision":"af7e796e16","builds":['
+              '{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"},{}]};\n'
+              '_flutter.loader.load({});\n');
+      dvWriteWebSplash(Directory(p.join(root.path, 'build', 'web')), splash);
+      expect(_read('build/web/index.html'), isNot(contains('main.dart.wasm')));
     });
 
     test('disabled, with the loading bar off too, leaves the page alone', () {
