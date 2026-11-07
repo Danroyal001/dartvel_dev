@@ -208,6 +208,47 @@ void main() {
           'another app');
     });
 
+    // The deferred compile used to start only once `flutter build web` had
+    // finished, so a wasm build paid for dart2wasm twice, one after the
+    // other. It now starts the moment Flutter logs its dart2wasm command and
+    // runs beside Flutter's own; the split then uses that compile.
+    test('a compile begun while Flutter was still building is used, not run '
+        'again', () async {
+      int runs = 0;
+      Future<int> counted(String executable, List<String> arguments) {
+        runs++;
+        return fakeCompiler(executable, arguments);
+      }
+
+      final Future<int> early = dvCompileDeferredWasm(
+          command: dvDart2WasmCommand(verboseLog)!, workRoot: work, run: counted);
+      expect(runs, 1, reason: 'started at once, not when awaited');
+      final DVWasmSplit split = await dvSplitWasmModules(
+          webRoot: web,
+          workRoot: work,
+          verboseLog: verboseLog,
+          run: counted,
+          compiling: early);
+      expect(runs, 1);
+      expect(split.problem, isNull);
+      expect(split.modules, 2);
+      expect(File(p.join(web, 'main.dart.wasm')).readAsStringSync(),
+          'main module');
+    });
+
+    test('an early compile that failed leaves the one-module build as it was',
+        () async {
+      final DVWasmSplit split = await dvSplitWasmModules(
+          webRoot: web,
+          workRoot: work,
+          verboseLog: verboseLog,
+          run: fakeCompiler,
+          compiling: Future<int>.value(1));
+      expect(split.problem, isNotNull);
+      expect(File(p.join(web, 'main.dart.wasm')).readAsStringSync(),
+          'one module');
+    });
+
     test('no dart2wasm command in the log is said, not run blind', () async {
       bool ran = false;
       final DVWasmSplit split = await dvSplitWasmModules(
