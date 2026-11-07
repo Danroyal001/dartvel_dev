@@ -161,7 +161,13 @@ globalThis.self = {
   clients: { claim: () => Promise.resolve() },
 };
 globalThis.caches = {
-  open: async () => ({ put: async (req) => { puts.push(new URL(req.url).pathname); }, addAll: async () => {} }),
+  // Cache.put and Cache.match take a Request or a URL string, as they do in
+  // a browser; this cache holds nothing, so every lookup misses.
+  open: async () => ({
+    put: async (req) => { puts.push(new URL(typeof req === 'string' ? req : req.url).pathname); },
+    match: async () => undefined,
+    addAll: async () => {},
+  }),
   match: async () => undefined,
   keys: async () => [],
 };
