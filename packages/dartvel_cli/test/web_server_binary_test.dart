@@ -95,7 +95,12 @@ void main() {
   late File binary;
   late String buildOutput;
 
-  setUpAll(() async {
+  // The project, built once. Not in setUpAll: package:test gives setUpAll a
+  // fixed 12 minutes, and a web-server build compiles the app three times
+  // now (dart2js, dart2wasm, and dart2wasm again with deferred loading). It
+  // runs as the first test, with that test's own timeout, and every later
+  // test waits for the same build.
+  Future<void> prepare() async {
     if (skip != false) return;
     work = Directory.systemTemp.createTempSync('dv_web_server_binary_');
     final ProcessResult created = await Process.run(
@@ -225,10 +230,20 @@ Widget _notesPage(BuildContext context) {
     if (!Platform.isWindows) {
       await Process.run('chmod', <String>['755', binary.path]);
     }
+  }
+
+  Future<void>? preparing;
+  Future<void> ready() => preparing ??= prepare();
+  bool prepareStarted() => preparing != null;
+
+  setUp(() async {
+    if (skip == false) await ready();
   });
+  test('the project builds into one binary', ready,
+      skip: skip, timeout: const Timeout(Duration(minutes: 30)));
 
   tearDownAll(() {
-    if (skip == false) work.deleteSync(recursive: true);
+    if (skip == false && prepareStarted()) work.deleteSync(recursive: true);
   });
 
   /// Starts the binary with nothing configured, and returns once it answers.
