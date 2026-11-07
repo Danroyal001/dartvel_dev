@@ -731,6 +731,11 @@
       "status": "Shipped",
       "evidence": [
         "packages/dartvel_cli/lib/src/build/pwa_service_worker.dart",
+        "packages/dartvel_cli/test/service_worker_releases_test.dart",
+        "packages/dartvel_cli/lib/src/build/web_fonts.dart",
+        "packages/dartvel_cli/lib/src/build/woff2.dart",
+        "packages/dartvel_cli/test/web_fonts_test.dart",
+        "packages/dartvel_cli/test/woff2_test.dart",
         "packages/dartvel_cli/lib/src/build/seo_head.dart",
         "packages/dartvel_cli/test/pwa_manifest_test.dart",
         "packages/dartvel_cli/test/pwa_service_worker_test.dart",

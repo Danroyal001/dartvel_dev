@@ -58,6 +58,55 @@ application's own work.
 
 Measured after the 0.9.1 deploy; see the rows added below.
 
+## Fonts and repeat visits (after 0.13.22)
+
+Measured on a copy of the sigmadev.digital site (branch `site/release-1107`,
+`firstFrame.widths: [390]`), built as a web-server binary on the same host,
+and loaded in headless Chromium as a 393 px phone through a proxy that
+applies Lighthouse's slow 4G (150 ms round trip, 1.6 Mbit/s down, 750 kbit/s
+up) to every byte, the service worker's own fetches included, with a 2x CPU
+slowdown. "First frame" is Flutter's `flutter-first-frame` event. Script:
+a Playwright run against the proxy, two visits in one browser profile.
+
+| Build | Visit | Bytes to first frame | Network requests | FCP | First frame |
+|---|---|---|---|---|---|
+| 0.13.22, PWA off (as deployed) | first | 3730 KB | 74 | 2.3 s | 23.8 s |
+| 0.13.22, PWA off | second | 14 KB (73 revalidations) | 73 | 1.9 s | 7.9 s |
+| this change, PWA on | first | 2987 KB | 71 | 2.3 s | 18.8 s |
+| this change, PWA on | second | 0.8 KB | 0 (all 95 from the worker) | 0.5 s | 4.1 s |
+
+Fonts on that first visit went from 1336 KB in 12 files (one of them Roboto
+from fonts.gstatic.com) to 437 KB in 8, none third-party. The build prints
+its own estimate: `fonts: 1.3 MB -> 387 KB on the wire, 12 files -> 8`.
+
+After the first frame the worker installs and downloads what a later visit
+needs and the first one did not: every deferred part and up to 25 pages,
+1.8 MB for this site. `dartvel.pwa.precacheRoutes` bounds the pages.
+
+What changed:
+
+- **Fonts** (`web_fonts.dart`, every `web` and `web-server` build): static
+  faces a variable font of the same design draws are served by it (the
+  engine sets `wght` from every TextStyle's FontWeight, CanvasKit and skwasm
+  alike); families no compiled code and no data names are dropped; text
+  fonts are subset with Flutter's own `font-subset` to Latin, common symbols
+  and every character the project's sources and content contain; everything
+  is WOFF2 (pure Dart, null transform, brotli from the native library) under
+  a content-hashed name, sent as immutable; and Roboto comes from the Flutter
+  SDK's copy, because the engine fetches it from fonts.gstatic.com whenever
+  the manifest has no family by that name. A character the subset lacks is
+  drawn by the engine's Noto fallback, fetched when it is needed.
+- **The service worker** (`pwa_service_worker.dart`): the page asks for its
+  boot files at `?v=<build>`; a page of a newer build than the worker's is
+  served from the network and the worker replaces itself, an open tab of the
+  previous build keeps its own cache, and a page of the worker's build is
+  served from the cache with no network. Precaching is per file and never
+  fails the install. A release copies every unchanged file (by content hash,
+  `dartvel_sw_assets.json`) from the cache it replaces. Google's renderer and
+  fallback fonts are kept by their versioned URL. The page reports what its
+  first, uncontrolled visit downloaded, and the worker keeps that from the
+  HTTP cache. Registration waits for the app's first frame.
+
 ## Still to do
 
 Ranked by what they would save:
@@ -66,11 +115,11 @@ Ranked by what they would save:
    (`docs/web-roadmap.md` item 15): smaller and faster to start than
    CanvasKit plus dart2js, once every Dartvel web binding is
    `dart:js_interop`-clean.
-2. **Brotli.** Everything is gzip; brotli is 15-20% smaller for JavaScript
-   and WebAssembly. `dart:io` has no brotli encoder, so the build needs one
-   (or the server to compress once and cache).
-3. **Content-hashed file names**, so `main.dart.js` can be cached as
-   immutable instead of revalidated on every visit. Flutter names its output
-   without hashes; the deferred parts are loaded by name, which is what makes
-   renaming more than a string replace.
-4. **Font subsetting** to the glyphs the site uses.
+2. **Content-hashed file names for the app's code**, so `main.dart.js` can
+   be cached as immutable by a browser with no service worker. Flutter names
+   its output without hashes and the deferred parts are loaded by name; the
+   worker's `?v=<build>` covers repeat visits in the meantime.
+3. **The WOFF2 glyf transform**, a few per cent more off every font.
+
+(Brotli is done: the web-server binary keeps and sends its files as brotli.
+Font subsetting is done, above.)

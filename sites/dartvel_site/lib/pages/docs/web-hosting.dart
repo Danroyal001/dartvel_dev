@@ -138,8 +138,51 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
                   'every push.',
               'The install prompt reports what the visitor chose, and can be '
                   'offered again after a No.',
+              'A second visit loads from the phone: the worker keeps the app, '
+                  'its fonts, the renderer and every page part, and the page '
+                  'hands it what the first visit downloaded. Pages themselves '
+                  'always come from the network first, so they stay fresh.',
+              'A release reaches people on their next visit. The page asks for '
+                  'the app at its build (main.dart.js?v=<build>), so new HTML '
+                  'is never paired with the old code, and only files whose '
+                  'contents changed are downloaded again.',
+              'On by default. `dartvel.pwa.enabled: false` turns it off; '
+                  '`dartvel.pwa.precacheRoutes` sets how many pages are saved '
+                  'on the first visit (25 by default, or `true` for all).',
             ]),
             DocsStatus('PWA'),
+          ],
+        ),
+        DocsSection(
+          id: 'fonts',
+          title: 'Fonts that download fast',
+          children: <Widget>[
+            DocsText('The engine waits for every font before it draws, so the '
+                'build makes them as small as it can without changing what '
+                'your pages show.'),
+            Bullets(<String>[
+              'Fonts go out as WOFF2, under a name that changes with their '
+                  'contents, so a browser keeps them for a year.',
+              'Text fonts keep Latin (Yoruba, Igbo and Hausa letters '
+                  'included), common symbols and every character your own '
+                  'code and content use. Anything else someone types is drawn '
+                  'with a Noto font the engine fetches for it.',
+              'Static weights are dropped when a variable font of the same '
+                  'design draws them, and a font family nothing names is not '
+                  'downloaded.',
+              'Roboto, which Flutter otherwise fetches from fonts.gstatic.com, '
+                  'comes from your own site.',
+              'The build prints what it saved: fonts: 1.3 MB -> 387 KB.',
+            ]),
+            DocsShell(<String>[
+              '# pubspec.yaml',
+              'dartvel:',
+              '  web:',
+              '    fonts:',
+              "      characters: ['U+0400-04FF']   # also keep Cyrillic",
+              '      # subset: false, useVariable: false, dropUnused: false,',
+              '      # roboto: false -- or fonts: false for none of it',
+            ]),
           ],
         ),
         DocsSection(

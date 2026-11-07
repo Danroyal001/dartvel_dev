@@ -5150,6 +5150,28 @@ Automatic:
 * Permission handling
 * Web capabilities where supported, exposed through `DV.Platform`
 
+Repeat visits load from the device, and a release always applies:
+
+* The worker keeps the app's code, every deferred part, the fonts, the
+  renderer (also when it comes from gstatic, kept by its versioned URL) and
+  whatever the first, uncontrolled visit downloaded, which the page reports
+  to it. Pages are network first, with the offline route as the fallback.
+* The page asks for its boot files with `?v=<build>`. A page of a newer build
+  than the worker's is answered from the network and the worker replaces
+  itself; an open tab of the previous build keeps its own cache; a page of
+  the worker's build is answered from the cache with no network.
+* Precaching never fails an install, and a release copies every file whose
+  content hash did not change instead of downloading it again.
+* `dartvel.pwa.enabled: false` opts out; `dartvel.pwa.precacheRoutes` (25 by
+  default, `true` for all) bounds what a first visit saves.
+
+Web fonts are part of the same budget. `dartvel build web` and `web-server`
+serve static faces from a variable font of the same design when it covers
+them, drop families nothing names, subset text fonts to Latin, common symbols
+and the app's own text, write WOFF2 under content-hashed names, and serve
+Roboto from the site so the engine fetches nothing from fonts.gstatic.com
+unless a reader types a character the fonts lack (`dartvel.web.fonts`).
+
 ---
 
 # Feature Flags and Staged Rollout
