@@ -14,8 +14,9 @@ that file in its first line. Files that are not ports (`lib.rs`, `cxx.rs`,
 
 The crate is a member of the Cargo workspace at `experiments/flutter` and
 uses the `fml` port for `FML_DCHECK`/`FML_UNREACHABLE`. `lib.rs` denies
-`unsafe_code`; the only `unsafe` is the two calls into the SSE2 code of
-`Matrix::invert` and `get_determinant` (see *Unsafe code*).
+`unsafe_code`; the only `unsafe` in the library is the two calls into the SSE2
+code of `Matrix::invert` and `get_determinant`, and the driver exports a C
+`main` (see *Unsafe code*).
 
 ## What is ported
 
@@ -301,10 +302,10 @@ Size, unstripped and stripped (`llvm-strip --strip-unneeded`):
 | library, archive of the objects | 113,762 B | **87,640 B** |
 | library, stripped | 111,786 B | **87,336 B** |
 | library, code and data (`size`) | 41,578 B | **37,033 B** |
-| `geometry_dump` driver, libc++ shared | **269,568 B** (+ 1,347,432 B of `libc++.so.1` and `libc++abi.so.1` it loads) | 772,704 B (std linked in) |
-| `geometry_dump` driver, libc++ shared, stripped | **244,552 B** (+ the same) | 681,768 B |
-| `geometry_dump` driver, libc++ linked in | 1,360,544 B | **772,704 B** |
-| `geometry_dump` driver, libc++ linked in, stripped | 1,040,408 B | **681,768 B** |
+| `geometry_dump` driver, libc++ shared | **269,568 B** (+ 1,347,432 B of `libc++.so.1` and `libc++abi.so.1` it loads) | 761,920 B (std linked in) |
+| `geometry_dump` driver, libc++ shared, stripped | **244,552 B** (+ the same) | 673,192 B |
+| `geometry_dump` driver, libc++ linked in | 1,360,544 B | **761,920 B** |
+| `geometry_dump` driver, libc++ linked in, stripped | 1,040,408 B | **673,192 B** |
 
 The library is the 26 upstream geometry `.cc` files compiled with the
 engine's flags against the Rust crate's object code in a release build
@@ -317,26 +318,41 @@ runtime.
 Compile time, the library alone, one process at a time on the same loaded
 host (3 builds each): the 26 C++ files took 92.9–98.5 s (each pulls in
 libc++'s headers), the Rust crate in a release build (`-j1`, `fml`
-already built) 2.0–9.5 s. Cold start, the driver started and exiting at once
-(its usage error), timed over 9 interleaved blocks of 200 executions: Rust
-4.31 ms fastest block, 5.24 ms median; C++ with libc++ shared 5.16 and 5.76 ms;
-C++ with libc++ linked in 4.32 and 5.64 ms, level with Rust's fastest block
-within this host's noise.
+already built) 2.0–9.5 s.
+
+Cold start, the driver started and exiting at once (its usage error), timed
+over 15 interleaved blocks of 200 executions pinned to one core, twice on
+8 Nov: Rust 1.70 and 1.54 ms fastest block, 1.96 and 2.03 ms median; C++ with
+libc++ linked in 1.86 and 1.60 ms, 2.08 and 1.97 ms; C++ with libc++ shared
+2.32 ms fastest block and 2.92 ms median (one run of 9 blocks). Rust is ahead on the fastest block both times;
+the medians change sides within 3%, this host's noise. The two drivers now make
+the same 49 system calls to start, one for one. Until 8 Nov the Rust driver
+made 73: std's `fn main` reads /proc/self/maps, installs SIGSEGV and SIGBUS
+handlers on an alternate stack, ignores SIGPIPE and polls fds 0–2 before
+`main` runs, and `std::env::args` set up the heap for the usage error. With
+that start-up it was 1.95–2.13 ms fastest and 2.23–2.31 ms median in two
+runs of the same blocks, behind the linked-in C++. The driver now enters through C's
+`main` and counts its arguments from `argc` (`tests/cold_start.rs` fails if
+either comes back), which also took 10.8 KB off the binary.
 
 ### Unsafe code
 
 `lib.rs` denies `unsafe_code`. Calling a `#[target_feature]` function takes
 `unsafe` even on a target that has the feature, so the SSE2 lanes are
-entered through two `unsafe` blocks, the only ones in the crate; inside
-them the intrinsics are safe calls. `tests/unsafe_audit.rs` (after fml's)
-fails when an `unsafe` has no `SAFETY:` comment above it, tests its checker
-on a failing sample, and pins the number of lines with `unsafe` at 5 (the
-`deny`, and an `allow` and a block on each function).
+entered through two `unsafe` blocks, the only ones in the library; inside
+them the intrinsics are safe calls. The driver (`src/bin/geometry_dump.rs`,
+not part of the library) is `#![no_main]` and exports C's `main` with
+`#[unsafe(no_mangle)]`, so that std's runtime set-up does not run before it
+(see *Baseline*, cold start). `tests/unsafe_audit.rs` (after
+fml's) fails when an `unsafe` has no `SAFETY:` comment above it, tests its
+checker on a failing sample, and pins the number of lines with `unsafe` at 6
+(the `deny`, an `allow` and a block on each function, and the export).
 
 | File | What | Why it is sound | Verified by |
 |---|---|---|---|
 | `matrix.rs`, `Matrix::invert` | `unsafe { self.invert_sse2() }` | compiled only under `cfg(all(target_arch = "x86_64", target_feature = "sse2"))`, so the CPU running it has the SSE2 that `#[target_feature(enable = "sse2")]` asks for; no pointers, the matrix goes in and out by value | `invert_is_upstreams_bit_for_bit`, the `matrix` tests and oracle `matrix`; under Miri |
 | `matrix.rs`, `Matrix::get_determinant` | `unsafe { self.get_determinant_sse2() }` | as above | `determinant_is_upstreams_bit_for_bit`, oracle `matrix`; under Miri |
+| `bin/geometry_dump.rs`, `main` | `#[unsafe(no_mangle)]` | the binary is `#![no_main]`, so nothing else defines `main`, and the function has the `int main(int, char **)` signature the C runtime calls it with | `tests/cold_start.rs`, the oracle (every suite runs through it) |
 
 Safety: under Miri (`cargo +nightly miri test -p impeller_geometry --lib`,
 one module or test at a time; rustc 1.101 nightly, Miri of 2026-11-04 since
