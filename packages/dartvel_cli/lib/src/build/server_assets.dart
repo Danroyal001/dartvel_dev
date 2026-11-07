@@ -88,6 +88,7 @@ Future<DVServerAssetsResult> dvServerAssetPack({
   String? docsRoot,
   DVAssetCompression compression = DVAssetCompression.brotli,
   String? codecLibrary,
+  Directory? encodingCache,
 }) async {
   final List<(String, Uint8List, bool)> files = <(String, Uint8List, bool)>[
     if (webRoot != null && Directory(webRoot).existsSync())
@@ -106,18 +107,11 @@ Future<DVServerAssetsResult> dvServerAssetPack({
   ];
 
   final List<String> lines = <String>[];
-  DVAssetEncoding? encoding = switch (compression) {
-    DVAssetCompression.brotli => DVAssetEncoding.br,
-    DVAssetCompression.zstd => DVAssetEncoding.zstd,
-    DVAssetCompression.gzip => DVAssetEncoding.gzip,
-    DVAssetCompression.none => null,
-  };
-  if (encoding == DVAssetEncoding.br || encoding == DVAssetEncoding.zstd) {
-    if (!_hasCodec(codecLibrary)) {
-      lines.add('The native server library has no ${encoding!.token} encoder; '
-          'the web files are kept in gzip. Rebuild it from dartvel_shelf/rust.');
-      encoding = DVAssetEncoding.gzip;
-    }
+  final DVAssetEncoding? declared = _declaredEncoding(compression);
+  final DVAssetEncoding? encoding = _usableEncoding(declared, codecLibrary);
+  if (encoding != declared) {
+    lines.add('The native server library has no ${declared!.token} encoder; '
+        'the web files are kept in gzip. Rebuild it from dartvel_shelf/rust.');
   }
 
   // What each distinct file encodes to, by its hash: the same file carried
@@ -134,8 +128,8 @@ Future<DVServerAssetsResult> dvServerAssetPack({
 
   final Map<String, Uint8List?> encoded = <String, Uint8List?>{};
   int reused = 0;
-  final Directory cache = Directory(
-      p.join(projectRoot, '.dart_tool', 'dartvel', 'asset_encodings'));
+  final Directory cache = encodingCache ??
+      Directory(p.join(projectRoot, '.dart_tool', 'dartvel', 'asset_encodings'));
   final List<String> missing = <String>[];
   if (encoding != null) {
     for (final String hash in byHash.keys) {
@@ -154,39 +148,12 @@ Future<DVServerAssetsResult> dvServerAssetPack({
   }
 
   if (missing.isNotEmpty && encoding != null) {
-    // Largest first, so one big file does not end up alone on the last
-    // isolate after the others have finished.
-    missing.sort((String a, String b) => byHash[b]!.length - byHash[a]!.length);
-    final int workers = max(1, min(missing.length, min(4, Platform.numberOfProcessors)));
-    final List<List<String>> shares = <List<String>>[for (int i = 0; i < workers; i++) <String>[]];
-    final List<int> load = List<int>.filled(workers, 0);
-    for (final String hash in missing) {
-      int least = 0;
-      for (int i = 1; i < workers; i++) {
-        if (load[i] < load[least]) least = i;
-      }
-      shares[least].add(hash);
-      load[least] += byHash[hash]!.length;
-    }
-    final DVAssetEncoding chosen = encoding;
-    final String? library = codecLibrary;
-    final List<Map<String, Uint8List?>> results = await Future.wait(<Future<Map<String, Uint8List?>>>[
-      for (final List<String> share in shares)
-        Isolate.run(() => _encodeAll(<String, Uint8List>{for (final String h in share) h: byHash[h]!},
-            chosen, library)),
-    ]);
-    cache.createSync(recursive: true);
-    for (final Map<String, Uint8List?> result in results) {
-      for (final MapEntry<String, Uint8List?> e in result.entries) {
-        encoded[e.key] = e.value;
-        final File kept = File(p.join(cache.path, '${e.key}.${chosen.token}'));
-        if (e.value == null) {
-          File('${kept.path}.none').writeAsBytesSync(const <int>[]);
-        } else {
-          kept.writeAsBytesSync(e.value!);
-        }
-      }
-    }
+    encoded.addAll(await _encodeIntoCache(
+      <String, Uint8List>{for (final String hash in missing) hash: byHash[hash]!},
+      encoding,
+      codecLibrary,
+      cache,
+    ));
   }
 
   final List<DVAssetPackEntry> entries = <DVAssetPackEntry>[
@@ -225,6 +192,111 @@ Future<DVServerAssetsResult> dvServerAssetPack({
     rawBytes: raw,
     lines: lines,
   );
+}
+
+DVAssetEncoding? _declaredEncoding(DVAssetCompression compression) =>
+    switch (compression) {
+      DVAssetCompression.brotli => DVAssetEncoding.br,
+      DVAssetCompression.zstd => DVAssetEncoding.zstd,
+      DVAssetCompression.gzip => DVAssetEncoding.gzip,
+      DVAssetCompression.none => null,
+    };
+
+/// [declared], or gzip when it needs the native codec and [library] has none.
+DVAssetEncoding? _usableEncoding(DVAssetEncoding? declared, String? library) =>
+    (declared == DVAssetEncoding.br || declared == DVAssetEncoding.zstd) &&
+            !_hasCodec(library)
+        ? DVAssetEncoding.gzip
+        : declared;
+
+/// Encodes [byHash] with [encoding] on several isolates and keeps each result
+/// in [cache] under its hash (a `.none` marker for one that did not come out
+/// smaller). Each file is written beside its name and renamed into place, so
+/// a build reading the cache never reads half an encoding.
+Future<Map<String, Uint8List?>> _encodeIntoCache(
+  Map<String, Uint8List> byHash,
+  DVAssetEncoding encoding,
+  String? library,
+  Directory cache,
+) async {
+  final List<String> missing = byHash.keys.toList()
+    // Largest first, so one big file does not end up alone on the last
+    // isolate after the others have finished.
+    ..sort((String a, String b) => byHash[b]!.length - byHash[a]!.length);
+  final int workers = max(1, min(missing.length, min(8, Platform.numberOfProcessors * 3 ~/ 4)));
+  final List<List<String>> shares = <List<String>>[for (int i = 0; i < workers; i++) <String>[]];
+  final List<int> load = List<int>.filled(workers, 0);
+  for (final String hash in missing) {
+    int least = 0;
+    for (int i = 1; i < workers; i++) {
+      if (load[i] < load[least]) least = i;
+    }
+    shares[least].add(hash);
+    load[least] += byHash[hash]!.length;
+  }
+  final List<Map<String, Uint8List?>> results = await Future.wait(<Future<Map<String, Uint8List?>>>[
+    for (final List<String> share in shares)
+      Isolate.run(() => _encodeAll(<String, Uint8List>{for (final String h in share) h: byHash[h]!},
+          encoding, library)),
+  ]);
+  cache.createSync(recursive: true);
+  final Map<String, Uint8List?> encoded = <String, Uint8List?>{};
+  int written = 0;
+  for (final Map<String, Uint8List?> result in results) {
+    for (final MapEntry<String, Uint8List?> e in result.entries) {
+      encoded[e.key] = e.value;
+      final File kept = File(p.join(cache.path, '${e.key}.${encoding.token}'));
+      final File target = e.value == null ? File('${kept.path}.none') : kept;
+      final File partial = File('${target.path}.partial-$pid-${written++}')
+        ..writeAsBytesSync(e.value ?? const <int>[]);
+      partial.renameSync(target.path);
+    }
+  }
+  return encoded;
+}
+
+/// The encoding cache every project on this machine shares, under the home
+/// directory, or null when there is no home directory to put it in.
+///
+/// An encoding is kept by the hash of the bytes it encodes, so a cache shared
+/// between projects is never wrong for any of them; Flutter's engine files,
+/// most of a web-server build, are the same bytes in all of them.
+Directory? dvSharedAssetEncodings({Map<String, String>? environment}) {
+  final Map<String, String> env = environment ?? Platform.environment;
+  final String? home = env['HOME'] ?? env['USERPROFILE'];
+  if (home == null || home.isEmpty) return null;
+  return Directory(p.join(home, '.dartvel', 'cache', 'asset_encodings'));
+}
+
+/// Encodes every file under [source] that the pack would encode and [cache]
+/// does not have yet, and returns how many it encoded.
+///
+/// A web-server build runs this on Flutter's own copy of its engine files
+/// while Flutter compiles, so the pack finds them encoded.
+Future<int> dvPreEncodeAssets({
+  required Directory source,
+  required Directory cache,
+  DVAssetCompression compression = DVAssetCompression.brotli,
+  String? codecLibrary,
+}) async {
+  final DVAssetEncoding? encoding =
+      _usableEncoding(_declaredEncoding(compression), codecLibrary);
+  if (encoding == null || !source.existsSync()) return 0;
+  final Map<String, Uint8List> byHash = <String, Uint8List>{};
+  for (final FileSystemEntity entity in source.listSync(recursive: true)) {
+    if (entity is! File) continue;
+    final String path = p.relative(entity.path, from: source.path).replaceAll(r'\', '/');
+    if (!dvAssetWorthEncoding(path)) continue;
+    final Uint8List bytes = entity.readAsBytesSync();
+    if (bytes.length < 64) continue;
+    final String hash = sha256.convert(bytes).toString();
+    final File kept = File(p.join(cache.path, '$hash.${encoding.token}'));
+    if (kept.existsSync() || File('${kept.path}.none').existsSync()) continue;
+    byHash[hash] = bytes;
+  }
+  if (byHash.isEmpty) return 0;
+  await _encodeIntoCache(byHash, encoding, codecLibrary, cache);
+  return byHash.length;
 }
 
 Uint8List _bytes(List<int> bytes) => bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
