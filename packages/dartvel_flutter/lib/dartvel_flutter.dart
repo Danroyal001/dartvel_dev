@@ -85,7 +85,7 @@ import 'src/routing/page_mfa.dart' show DVPageMfa;
 import 'src/routing/url_strategy.dart' show dvOpenUrl;
 import 'src/scene3d/scene_viewport.dart';
 import 'src/seo_platform_memory.dart'
-    if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
+    if (dart.library.js_interop) 'src/seo_platform_web.dart' as seo_platform;
 import 'src/studio/page_document.dart';
 import 'src/studio/studio_app_shortcuts.dart' show DVStudioAppShortcuts;
 import 'src/studio/studio_host.dart' show DVPagePreviewScope;
