@@ -218,24 +218,27 @@ int dvCaptureConcurrency({required int processors, String? requested}) {
 /// Runs [read] on each of [items], up to [concurrency] at once, and counts
 /// the items it returned true for.
 ///
+/// Each call is told which of the [concurrency] slots it runs in, so a slot
+/// can keep what it set up (a booted app) for its next item.
+///
 /// Each item's work writes its own files, so the order the pages finish in
 /// changes nothing that is written. The first error stops new items from
 /// starting, waits for the ones under way, and is rethrown: the same build
 /// failure the one-at-a-time loop gave.
 Future<int> dvReadEach<T>(
   List<T> items,
-  Future<bool> Function(T item) read, {
+  Future<bool> Function(T item, int slot) read, {
   required int concurrency,
 }) async {
   int next = 0;
   int counted = 0;
   Object? failure;
   StackTrace? failureTrace;
-  Future<void> worker() async {
+  Future<void> worker(int slot) async {
     while (failure == null && next < items.length) {
       final T item = items[next++];
       try {
-        if (await read(item)) counted++;
+        if (await read(item, slot)) counted++;
       } on Object catch (error, trace) {
         failure ??= error;
         failureTrace ??= trace;
@@ -245,7 +248,7 @@ Future<int> dvReadEach<T>(
 
   await Future.wait(<Future<void>>[
     for (int slot = 0; slot < concurrency.clamp(1, items.isEmpty ? 1 : items.length); slot++)
-      worker(),
+      worker(slot),
   ]);
   if (failure != null) Error.throwWithStackTrace(failure!, failureTrace!);
   return counted;
@@ -257,6 +260,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
   required List<String> routes,
   Duration settle = const Duration(seconds: 20),
   int? concurrency,
+  bool inApp = true,
 }) async {
   if (routes.isEmpty) {
     return const DVCaptureRun(captured: 0, browserAvailable: true);
@@ -298,60 +302,30 @@ Future<DVCaptureRun> dvCaptureSemantics({
         .createSync(recursive: true);
 
     final Browser chrome = browser;
-    /// Reads one route in a page of its own, and says whether it drew a tree.
-    Future<bool> readRoute(String route) async {
-      bool drew = false;
-      final Page page = await chrome.newPage();
-      // The images the page asks for while it renders, for its own head and
-      // for the links that point at it to fetch early. Listened to before the
-      // navigation, because the first frame's images are requested during it.
-      final List<DVCapturedImage> images = <DVCapturedImage>[];
-      final StreamSubscription<Response> watching =
-          page.onResponse.listen((Response response) {
-        final DVCapturedImage? image = dvPageImage(
-          url: response.url,
-          base: base,
-          contentType: _header(response.headers, 'content-type'),
-          resourceType: response.request.resourceType?.value ?? '',
-        );
-        if (image != null &&
-            !images.any((DVCapturedImage seen) => seen.url == image.url)) {
-          images.add(image);
-        }
-      });
-      final DVInFlight flight = DVInFlight();
-      final List<StreamSubscription<Object?>> counting =
-          <StreamSubscription<Object?>>[
-        page.onRequest.listen((Object? _) => flight.started()),
-        page.onRequestFinished.listen((Object? _) => flight.ended()),
-        page.onRequestFailed.listen((Object? _) => flight.ended()),
-      ];
-      try {
-        // A generous timeout, and a second try: on a machine under load the
-        // default 30 seconds failed whole builds on one slow first paint.
-        for (int attempt = 1; ; attempt++) {
-          try {
-            await page.goto('$base$route',
-                wait: Until.networkIdle, timeout: const Duration(seconds: 120));
-            break;
-          } on TimeoutException {
-            if (attempt >= 3) rethrow;
-          }
-        }
+    // A route is moved to inside an app a tab has already booted, when the
+    // app has the capture hook.
+    final bool reuse = inApp;
+    final int slots = concurrency ??
+        dvCaptureConcurrency(processors: Platform.numberOfProcessors);
+    final List<_CaptureTab?> tabs = List<_CaptureTab?>.filled(slots, null);
 
-        // Flutter web builds no semantics tree until something asks for one.
-        // It renders a hidden placeholder labelled "Enable accessibility" and
-        // waits for a screen reader to click it, so a capture that skips this
-        // reads a host holding almost nothing -- which is why every page on
-        // the site shipped its scroll button and none of its prose to a
-        // crawler. The studio capture has always clicked it; this one never
-        // did.
-        final DateTime enableBy =
-            DateTime.now().add(const Duration(seconds: 5));
-        while (DateTime.now().isBefore(enableBy)) {
-          if (await page.evaluate<bool>(_enableSemantics)) break;
-          await Future<void>.delayed(const Duration(milliseconds: 300));
-        }
+    /// Reads one route, in the app [slot]'s tab is running when it can move
+    /// there and in a fresh load otherwise, and says whether it drew a tree.
+    Future<bool> readRoute(String route, int slot) async {
+      _CaptureTab? tab = reuse ? tabs[slot] : null;
+      if (tab != null && !await tab.moveTo(route)) {
+        // No hook, or the router went somewhere else: a redirect, which a
+        // fresh load reads as a visitor arriving there would see it.
+        await tab.close();
+        tab = null;
+      }
+      final bool fresh = tab == null;
+      tab ??= await _CaptureTab.open(chrome, base);
+      if (reuse) tabs[slot] = tab;
+      final Page page = tab.page;
+      bool drew = false;
+      try {
+        if (fresh) await tab.load(route);
 
         // Polled rather than slept: a page that is ready early should not
         // cost the whole budget, and one that never builds a tree has to be
@@ -370,7 +344,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
           await Future<void>.delayed(const Duration(milliseconds: 400));
           tree = await page.evaluate<String>(_extract);
           final int resources = await page.evaluate<int>(_resourceCount);
-          if (!flight.busy &&
+          if (!tab.flight.busy &&
               settled.add(tree == '[]' ? 0 : tree.length, resources)) {
             break;
           }
@@ -381,31 +355,32 @@ Future<DVCaptureRun> dvCaptureSemantics({
         // laid out. A request for the 384-wide file says only that the slot
         // was somewhere under 384; a link choosing the file for a denser
         // screen needs the slot itself.
-        final Map<String, double> slots = dvImageSlotsFrom(
+        final Map<String, double> imageSlots = dvImageSlotsFrom(
           await page.evaluate<String>(
               '() => JSON.stringify(globalThis.__dartvelImages || {})'),
         );
         File(dvCapturedImagesPathFor(projectRoot, route)).writeAsStringSync(
           jsonEncode(<Object?>[
-            for (final DVCapturedImage image in dvAttachImageSlots(images, slots))
+            for (final DVCapturedImage image
+                in dvAttachImageSlots(tab.images, imageSlots))
               image.toJson(),
           ]),
         );
         final int nodes = (jsonDecode(tree) as List<Object?>).length;
         drew = nodes > 0;
       } finally {
-        await watching.cancel();
-        for (final StreamSubscription<Object?> subscription in counting) {
-          await subscription.cancel();
-        }
-        await page.close();
+        if (!reuse) await tab.close();
       }
       return drew;
     }
 
-    captured = await dvReadEach<String>(routes, readRoute,
-        concurrency: concurrency ??
-            dvCaptureConcurrency(processors: Platform.numberOfProcessors));
+    try {
+      captured = await dvReadEach<String>(routes, readRoute, concurrency: slots);
+    } finally {
+      for (final _CaptureTab? tab in tabs) {
+        await tab?.close();
+      }
+    }
   } finally {
     await server.close(force: true);
     await browser.close();
@@ -427,6 +402,114 @@ Future<DVCaptureRun> dvCaptureSemantics({
   }
 
   return DVCaptureRun(captured: captured, browserAvailable: true);
+}
+
+/// One browser tab the semantics read works in: its page, the images the
+/// page has asked for since the route it is on began, and its requests in
+/// flight.
+class _CaptureTab {
+  _CaptureTab._(this.page, this.base);
+
+  final Page page;
+  final String base;
+
+  /// The images the page asked for while it rendered the current route, for
+  /// its own head and for the links that point at it to fetch early.
+  final List<DVCapturedImage> images = <DVCapturedImage>[];
+  final DVInFlight flight = DVInFlight();
+  final List<StreamSubscription<Object?>> _listening =
+      <StreamSubscription<Object?>>[];
+  bool _closed = false;
+
+  /// A new page, listening before any navigation, because the first frame's
+  /// images are requested during it.
+  static Future<_CaptureTab> open(Browser browser, String base) async {
+    final _CaptureTab tab = _CaptureTab._(await browser.newPage(), base);
+    tab._listening.addAll(<StreamSubscription<Object?>>[
+      tab.page.onResponse.listen((Response response) {
+        final DVCapturedImage? image = dvPageImage(
+          url: response.url,
+          base: base,
+          contentType: _header(response.headers, 'content-type'),
+          resourceType: response.request.resourceType?.value ?? '',
+        );
+        if (image != null &&
+            !tab.images.any((DVCapturedImage seen) => seen.url == image.url)) {
+          tab.images.add(image);
+        }
+      }),
+      tab.page.onRequest.listen((Object? _) => tab.flight.started()),
+      tab.page.onRequestFinished.listen((Object? _) => tab.flight.ended()),
+      tab.page.onRequestFailed.listen((Object? _) => tab.flight.ended()),
+    ]);
+    return tab;
+  }
+
+  /// Loads [route] afresh: the app boots.
+  Future<void> load(String route) async {
+    images.clear();
+    // A generous timeout, and a second try: on a machine under load the
+    // default 30 seconds failed whole builds on one slow first paint.
+    for (int attempt = 1; ; attempt++) {
+      try {
+        await page.goto('$base$route',
+            wait: Until.networkIdle, timeout: const Duration(seconds: 120));
+        break;
+      } on TimeoutException {
+        if (attempt >= 3) rethrow;
+      }
+    }
+
+    // Flutter web builds no semantics tree until something asks for one.
+    // It renders a hidden placeholder labelled "Enable accessibility" and
+    // waits for a screen reader to click it, so a capture that skips this
+    // reads a host holding almost nothing -- which is why every page on
+    // the site shipped its scroll button and none of its prose to a
+    // crawler. The studio capture has always clicked it; this one never
+    // did.
+    final DateTime enableBy = DateTime.now().add(const Duration(seconds: 5));
+    while (DateTime.now().isBefore(enableBy)) {
+      if (await page.evaluate<bool>(_enableSemantics)) break;
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+  }
+
+  /// Moves the app already running here to [route] through its capture hook
+  /// (dartvel_flutter's `dvInstallCaptureHook`), the way a link does: no
+  /// second boot. The hook forgets the images the app decoded, so the route
+  /// asks for its own and they are recorded as a fresh load records them.
+  ///
+  /// False when the app has no hook, or the router did not arrive at
+  /// [route] -- a redirect -- and the route is to be loaded afresh.
+  Future<bool> moveTo(String route) async {
+    if (!await page.evaluate<bool>(
+        '() => typeof globalThis.__dartvelCapture === "object"')) {
+      return false;
+    }
+    final String from =
+        await page.evaluate<String>('() => globalThis.__dartvelCapture.location()');
+    images.clear();
+    await page.evaluate<Object?>(
+        '(path) => { globalThis.__dartvelCapture.go(path); }',
+        args: <Object?>[route]);
+    final DateTime giveUp = DateTime.now().add(const Duration(seconds: 10));
+    while (DateTime.now().isBefore(giveUp)) {
+      final String at = await page
+          .evaluate<String>('() => globalThis.__dartvelCapture.location()');
+      if (at != from) return at == route;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    return false;
+  }
+
+  Future<void> close() async {
+    if (_closed) return;
+    _closed = true;
+    for (final StreamSubscription<Object?> subscription in _listening) {
+      await subscription.cancel();
+    }
+    await page.close();
+  }
 }
 
 /// A response header by name, whatever case the server wrote it in.
