@@ -110,6 +110,8 @@ import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
 import '../build/server_binary.dart';
+import '../build/server_compile.dart'
+    show DVCompiledServer, dvReadCompiledServer, dvServerCompileKey, dvWriteCompiledServer;
 import '../build/web_server.dart';
 import '../build/web_server_prefetch.dart';
 import '../graph/module_mounts.dart';
@@ -445,7 +447,8 @@ class BuildCommand extends Command<void> {
       ..addFlag('cache',
           defaultsTo: true,
           help: 'Reuse a step whose inputs are byte-for-byte unchanged '
-              '(the Flutter web build, each route\'s semantics capture). '
+              '(the Flutter web build, each route\'s semantics capture, the '
+              'web-server backend compile). '
               'Kept in .dartvel/cache; --no-cache builds everything afresh.')
       ..addOption('build-number', help: 'Build number')
       ..addOption('build-name', help: 'Build name/version')
@@ -1383,6 +1386,9 @@ class BuildCommand extends Command<void> {
     // Printed before starting, so a log that ends here says exactly what was
     // invoked. A macOS build once stopped at this point and produced nothing
     // for 41 minutes; the log could not even show the command.
+    // The backend compile needs none of the web output: it runs beside
+    // Flutter's build instead of after everything else.
+    if (platform == 'web-server') _startServerCompile(_projectRoot);
     final cache = _buildCache;
     final webOutput = Directory(p.join(_projectRoot, 'build', 'web'));
     final webKey =
@@ -1656,6 +1662,80 @@ class BuildCommand extends Command<void> {
     }
   }
 
+  /// The backend compile started beside Flutter's build, and whether it was
+  /// compiled with Studio.
+  ({bool studio, Future<DVCompiledServer> compiled})? _earlyServer;
+
+  Map<String, String> _serverDefines({required bool studio}) =>
+      <String, String>{'dartvel.studio': studio ? 'true' : 'false'};
+
+  Future<ProcessResult> _serverRun(String executable, List<String> arguments,
+          {String? workingDirectory}) =>
+      _processRun(executable, arguments,
+          workingDirectory: workingDirectory, runInShell: true);
+
+  /// Starts the web-server build's backend compile, to run beside Flutter's.
+  ///
+  /// It reads the generated backend and the application's Dart and none of
+  /// the web output, so nothing it needs is still to be written; it was the
+  /// last step of the build, three minutes on a cold sample build, run after
+  /// everything else had finished.
+  void _startServerCompile(String root) {
+    final host = dvHostServerLibrary();
+    final DVServerLibraryLookup lookup =
+        dvLocateServerLibrary(root, subdir: host.subdir, name: host.name);
+    if (lookup.file == null) return;
+    final bool studio = _servesStudio(root) != null;
+    final Future<DVCompiledServer> compiled =
+        _compileServer(root, lookup.file!, studio: studio);
+    // Awaited where the binary is built; an error is reported there.
+    compiled.ignore();
+    _earlyServer = (studio: studio, compiled: compiled);
+  }
+
+  /// The backend compiled for [library], from the build cache when the
+  /// compile's inputs are unchanged (see [dvServerCompileKey]).
+  Future<DVCompiledServer> _compileServer(String root, File library,
+      {required bool studio}) async {
+    final Map<String, String> defines = _serverDefines(studio: studio);
+    final DVBuildCache cache = _buildCache;
+    String? key;
+    final Directory kept =
+        Directory(p.join(root, '.dart_tool', 'dartvel', 'server_compile_cache'));
+    if (cache.enabled) {
+      final ProcessResult version =
+          await Process.run('dart', <String>['--version'], runInShell: true);
+      key = dvServerCompileKey(
+        root: root,
+        defines: defines,
+        units: dvServerLibraryLoadsUnits(library.path),
+        dartVersion: '${version.stdout}${version.stderr}',
+      );
+      if (cache.restore('server-compile', key, kept)) {
+        final DVCompiledServer? reused = dvReadCompiledServer(kept);
+        kept.deleteSync(recursive: true);
+        if (reused != null) {
+          Logger.log('   Backend compile: inputs unchanged, reused cached '
+              'output.');
+          return reused;
+        }
+      }
+    }
+    final DVCompiledServer compiled = await dvStartServerCompile(
+      root: root,
+      library: library,
+      units: true,
+      defines: defines,
+      run: _serverRun,
+    );
+    if (key != null && compiled.ok && compiled.executable != null) {
+      dvWriteCompiledServer(compiled, kept);
+      cache.store('server-compile', key, kept);
+      kept.deleteSync(recursive: true);
+    }
+    return compiled;
+  }
+
   /// Compiles the generated backend into build/server with its native
   /// server library inside: the web-server build's executable, at the path
   /// `dartvel deploy`'s image runs as /app/server and `dartvel infra`'s units
@@ -1692,11 +1772,13 @@ class BuildCommand extends Command<void> {
       units: true,
       // A build that serves no Studio compiles none of it: every reference
       // the generated backend makes is behind this.
-      defines: <String, String>{'dartvel.studio': admin == null ? 'false' : 'true'},
-      run: (String executable, List<String> arguments,
-              {String? workingDirectory}) =>
-          _processRun(executable, arguments,
-              workingDirectory: workingDirectory, runInShell: true),
+      defines: _serverDefines(studio: admin != null),
+      run: _serverRun,
+      // Started beside Flutter's build when the Studio it was started for is
+      // the Studio this build serves; otherwise compiled now.
+      compiling: _earlyServer != null && _earlyServer!.studio == (admin != null)
+          ? _earlyServer!.compiled
+          : _compileServer(root, lookup.file!, studio: admin != null),
     );
     for (final String line in result.lines) {
       Logger.log('   $line');
