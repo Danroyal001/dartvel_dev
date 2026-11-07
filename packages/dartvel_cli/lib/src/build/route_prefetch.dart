@@ -22,6 +22,7 @@ import 'package:path/path.dart' as p;
 
 import 'semantics_capture.dart' show dvSemanticsPathFor;
 import 'static_seo.dart' show dvStaticRoutePath;
+import 'web_renderer.dart' show dvBuildCompilesToWasm;
 
 /// What a link can fetch for each route, next to index.html. Read by
 /// `DVRoutePrefetch` in dartvel_flutter; the shape is
@@ -351,16 +352,29 @@ List<DVCapturedImage> dvAttachImageSlots(
 /// page's parts for nothing; they are the parts most likely to be needed
 /// next, and the alternative is the home page itself -- the most visited page
 /// on most sites -- going without.
+/// The dart2js parts of the build in [webRoot] worth naming in a page, by
+/// deferred import: none for a `--wasm` build, whose main.dart.wasm has no
+/// parts, so a browser running it would download every named part for
+/// nothing.
+Map<String, List<String>> dvPreloadableParts(String webRoot) {
+  final File bootstrap = File(p.join(webRoot, 'flutter_bootstrap.js'));
+  if (bootstrap.existsSync() &&
+      dvBuildCompilesToWasm(bootstrap.readAsStringSync())) {
+    return const <String, List<String>>{};
+  }
+  final File mainJs = File(p.join(webRoot, 'main.dart.js'));
+  return mainJs.existsSync()
+      ? dvDeferredParts(mainJs.readAsStringSync())
+      : const <String, List<String>>{};
+}
+
 DVPrefetchSummary dvWriteRoutePrefetch({
   required String projectRoot,
   required String webRoot,
   required String routerSource,
   required List<String> routes,
 }) {
-  final File mainJs = File(p.join(webRoot, 'main.dart.js'));
-  final Map<String, List<String>> parts = mainJs.existsSync()
-      ? dvDeferredParts(mainJs.readAsStringSync())
-      : const <String, List<String>>{};
+  final Map<String, List<String>> parts = dvPreloadableParts(webRoot);
   final Map<String, String> prefixes = dvDeferredPrefixes(routerSource);
   final File shell = File(p.join(webRoot, 'index.html'));
   final Set<String> namedByShell = shell.existsSync()

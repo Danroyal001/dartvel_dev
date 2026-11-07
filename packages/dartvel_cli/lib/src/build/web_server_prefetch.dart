@@ -18,7 +18,7 @@ import 'package:path/path.dart' as p;
 import 'route_prefetch.dart'
     show
         DVCapturedImage,
-        dvDeferredParts,
+        dvPreloadableParts,
         dvDeferredPrefixes,
         dvNamedByPage,
         dvPrefetchManifestFile,
@@ -37,10 +37,7 @@ int dvWriteWebServerPrefetch({
   required String routerSource,
   required List<String> routes,
 }) {
-  final File mainJs = File(p.join(webRoot, 'main.dart.js'));
-  final Map<String, List<String>> parts = mainJs.existsSync()
-      ? dvDeferredParts(mainJs.readAsStringSync())
-      : const <String, List<String>>{};
+  final Map<String, List<String>> parts = dvPreloadableParts(webRoot);
   final Map<String, String> prefixes = dvDeferredPrefixes(routerSource);
   // What the shell asks for itself -- the splash, the icons -- is requested
   // on every route, so the capture saw it on every route. It is none of
