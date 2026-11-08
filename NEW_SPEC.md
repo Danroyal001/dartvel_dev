@@ -6290,7 +6290,8 @@ inside a span (named for the operation and table, recording the statement's
 shape with every literal reduced to `?` and no parameter), the OTLP/HTTP
 exporter (the JSON encoding, batched on
 a bounded queue, never blocking, dropping with a count under `DV-TRACE-002`
-and `DV-TRACE-003`), an AI feature run as a client span under the
+and `DV-TRACE-003`), a span for each outermost `DV.transaction` with its outcome and the
+compensations that ran, an AI feature run as a client span under the
 request carrying the model and estimated token counts and never the prompt,
 a limit of 128 attributes per span by default
 (`DV-TRACE-010`, the error attribute exempt), spans left open past `maxSpanDuration`
@@ -6307,7 +6308,7 @@ Not built: the protobuf encoding of OTLP; a request span on every request
 rather than on routes that declare the `tracing` middleware; a span for a
 query a component sends to an adapter it holds directly rather than through
 `DV.Database`; spans for
-queue publish and consume, and transactions; measured rather than estimated
+queue publish and consume; measured rather than estimated
 AI token counts, and a span for an AI adapter called directly rather than
 through a feature; trace context
 in the job envelope and the links that follow from it; client spans and their

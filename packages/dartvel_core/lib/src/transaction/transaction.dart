@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import '../auth/api_scopes.dart' show DVApiPrincipal;
 import '../auth/session_authentication.dart' show DVSessionPrincipal;
 import '../lifecycle/lifecycle.dart';
+import '../observability/observability.dart';
 
 /// Lifecycle signals scoped to a single context.
 class DVContextLifecycle {
@@ -247,6 +248,34 @@ class DVTransactionRunner {
       return await body(child);
     }
 
+    // A span for the unit of work when there is a trace to hang it in: the
+    // request's span says a POST took 300ms, this one says whether it
+    // committed and which compensations ran. The body, its after-commit work
+    // and its compensations all run under it, so their queries are its
+    // children. Outside a trace, or under an unsampled one, nothing.
+    final DVSpan? ambient = dvCurrentSpan;
+    if (ambient == null || !ambient.sampled) return _run(body, null);
+    final DVSpan span =
+        DVObservability.tracer.startSpan('transaction', parent: ambient);
+    return dvInSpan(span, () async {
+      try {
+        return await _run(body, span);
+      } on Object catch (error) {
+        // The type, not the message: a payment failure names the card.
+        span
+          ..status = DVSpanStatus.error
+          ..setAttribute('error.type', '${error.runtimeType}');
+        rethrow;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  Future<T> _run<T>(
+    FutureOr<T> Function(DVContext context) body,
+    DVSpan? span,
+  ) async {
     final signal = DVMutableLifecycleSignal<DVTransactionLifecycle>(
       DVTransactionLifecycle.created,
     );
@@ -273,6 +302,7 @@ class DVTransactionRunner {
       signal.set(DVTransactionLifecycle.preparing);
       signal.set(DVTransactionLifecycle.committing);
       signal.set(DVTransactionLifecycle.committed);
+      span?.setAttribute('transaction.outcome', 'committed');
 
       // After-commit effects run outside the transaction. A failure here
       // cannot roll back an already-committed transaction, so it surfaces
@@ -290,6 +320,8 @@ class DVTransactionRunner {
 
       if (compensations.isNotEmpty) {
         signal.set(DVTransactionLifecycle.compensating);
+        span?.setAttribute(
+            'transaction.compensations', '${compensations.length}');
         for (final compensate in compensations) {
           try {
             await compensate();
@@ -302,6 +334,7 @@ class DVTransactionRunner {
 
       if (failures.isNotEmpty) {
         signal.set(DVTransactionLifecycle.failed);
+        span?.setAttribute('transaction.outcome', 'failed');
         throw DVCompensationException(
           cause: error,
           compensationErrors: failures,
@@ -313,6 +346,8 @@ class DVTransactionRunner {
             ? DVTransactionLifecycle.rolledBack
             : DVTransactionLifecycle.compensated,
       );
+      span?.setAttribute('transaction.outcome',
+          compensations.isEmpty ? 'rolled_back' : 'compensated');
       rethrow;
     }
   }
