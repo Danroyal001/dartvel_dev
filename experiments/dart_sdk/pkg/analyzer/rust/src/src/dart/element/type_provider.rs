@@ -1,12 +1,13 @@
 // Port of lib/src/dart/element/type_provider.dart: TypeProviderImpl's
-// non-generic core types used by body resolution so far (literals and
-// operator-typed expressions), and `bottomType`.
+// non-generic core types used by body resolution so far (literals,
+// operator-typed expressions and integer literals), and `bottomType`.
 use crate::dart::element::nullability_suffix::NullabilitySuffix;
 use crate::src::dart::element::element::{ElementStore, LibraryId};
 use crate::src::dart::element::r#type::TypeImpl;
 
 pub struct TypeProviderImpl {
     pub bool_type: TypeImpl,
+    pub int_type: TypeImpl,
     /// `bottomType`: `NeverTypeImpl.instance`, the non-nullable `Never`.
     pub bottom_type: TypeImpl,
     pub double_type: TypeImpl,
@@ -28,6 +29,7 @@ impl TypeProviderImpl {
         };
         Self {
             bool_type: core_type("bool"),
+            int_type: core_type("int"),
             bottom_type: TypeImpl::Never(NullabilitySuffix::none),
             double_type: core_type("double"),
             null_type: core_type("Null"),
