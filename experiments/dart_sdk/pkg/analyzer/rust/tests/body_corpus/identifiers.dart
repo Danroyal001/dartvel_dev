@@ -168,3 +168,44 @@ void initialized([int? defaulted = 1, int? plain]) {
     element;
   }
 }
+
+typedef Contravariant<X> = Function(X);
+class Bounded<X extends Contravariant<Y>, Y> {}
+class One<T> {}
+
+extension Ext on int {
+  int get twice => this * 2;
+}
+
+void heldOut(int? viaIdentical, String? viaElement, int? viaOverride) {
+  // Raw types instantiate to bounds: a contravariant occurrence becomes
+  // Never. A wrong number of type arguments is InvalidType for each.
+  void local(Bounded raw, One<int, int> wrong) {
+    raw;
+    wrong;
+  }
+  if (!identical(viaIdentical, null)) viaIdentical;
+  <String, String>{?viaElement: viaElement};
+  Ext(viaOverride)?.twice;
+  viaOverride;
+  const int annotation = 0;
+  @annotation
+  int annotated = 1;
+  annotated;
+}
+
+class Point(int x, int y) {
+  int sum = x + y;
+  this : assert(x >= 0) {
+    y;
+  }
+}
+
+// A declaring parameter is a parameter in initializers and the field in the
+// body (`PrimaryParameterScope` leaves it out).
+class Declaring(final int z) {
+  int doubled = z * 2;
+  this {
+    z;
+  }
+}

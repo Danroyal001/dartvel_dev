@@ -78,7 +78,9 @@ Future<void> main(List<String> args) async {
             ..collect(result.unit as AstNodeImpl))
         : null;
     void visit(AstNodeImpl node) {
-      Element? read = reads != null && node is SimpleIdentifierImpl
+      Element? read = reads != null &&
+              node is SimpleIdentifierImpl &&
+              reads.selectedLength[node.offset] == node.length
           ? reads.selected[node.offset]
           : null;
       bool selected = literals ? isLiteral(node)
@@ -235,15 +237,18 @@ bool _hasExplicitElementType(AstNode element, AstNode? parent) {
 /// annotation, a for-in loop variable with one, or a regular formal parameter
 /// with a type annotation or a function-typed suffix (not a field or super
 /// formal parameter). A read is an [UnqualifiedNameExpressionImpl] whose scope
-/// lookup finds a declared variable, outside documentation comments.
+/// lookup finds a declared variable, outside documentation comments and not the
+/// name of an annotation (whose identifier has no static type).
 ///
 /// Flow analysis may promote a variable, so a variable is left out entirely
 /// when any read of it is in a position that can promote it, or when it is
 /// written and its declared type is not non-nullable (an assignment of a
 /// non-nullable value promotes such a variable). A position that can promote
 /// is decided by tokens, past enclosing parentheses: the token after is `!`,
-/// `?.`, `?..`, `is`, `as`, `==` or `!=`, or `?` followed by `[`; or the token
-/// before is `==` or `!=`; or the read is the scrutinee of a switch statement
+/// `?.`, `?..`, `is`, `as`, `==` or `!=`, or `?` followed by `[`, or `)` followed by
+/// `?.` or `?..` (an extension override); or the token before is `==`, `!=` or
+/// `?` (a null-aware element); or the read is an argument of `identical`; or
+/// the read is the scrutinee of a switch statement
 /// or expression, of an `if`-`case`, or the initializer of a pattern variable
 /// declaration or pattern assignment. Writes are
 /// [UnqualifiedNameAssignmentTargetImpl]s (assignments, compound assignments,
@@ -258,6 +263,9 @@ class DeclaredVariableReads extends UnifyingAstVisitor2<void> {
 
   /// The selected reads by offset, with the variables they read.
   final Map<int, Element> selected = {};
+
+  /// The length of each selected read, by offset.
+  final Map<int, int> selectedLength = {};
 
   new(this.typeSystem);
 
@@ -280,7 +288,10 @@ class DeclaredVariableReads extends UnifyingAstVisitor2<void> {
       }
     }
     for (var (node, element) in reads) {
-      if (!excluded.contains(element)) selected[node.offset] = element;
+      if (!excluded.contains(element)) {
+        selected[node.offset] = element;
+        selectedLength[node.offset] = node.length;
+      }
     }
   }
 
@@ -301,7 +312,8 @@ class DeclaredVariableReads extends UnifyingAstVisitor2<void> {
       case RegularFormalParameterImpl(:var declaredFragment?)
           when node.type != null || node.functionTypedSuffix != null:
         declared.add(declaredFragment.element);
-      case UnqualifiedNameExpressionImpl(:var scopeLookupResult?):
+      case UnqualifiedNameExpressionImpl(:var scopeLookupResult?)
+          when node.parent2 is! AnnotationImpl:
         if (scopeLookupResult.getter case var element?) {
           reads.add((node, element));
         }
@@ -325,7 +337,19 @@ bool _canPromote(AstNode read) {
       (after.lexeme == '?' && after.next!.lexeme == '[')) {
     return true;
   }
-  if (const ['==', '!='].contains(node.beginToken.previous!.lexeme)) {
+  // `E(x)?.m`: an extension override's argument is promoted by the
+  // null-aware access on it.
+  if (after.lexeme == ')' &&
+      const ['?.', '?..'].contains(after.next!.lexeme)) {
+    return true;
+  }
+  // `?x` as a null-aware collection element or map key.
+  if (const ['==', '!=', '?'].contains(node.beginToken.previous!.lexeme)) {
+    return true;
+  }
+  // `identical(x, null)` is treated as `x == null`.
+  if (node.parent2 case ArgumentListImpl arguments
+      when arguments.beginToken.previous!.lexeme == 'identical') {
     return true;
   }
   return switch (node.parent2) {

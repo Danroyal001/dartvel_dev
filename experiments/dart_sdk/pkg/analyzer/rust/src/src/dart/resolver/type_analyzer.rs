@@ -362,6 +362,30 @@ impl<'a> TypeAnalyzer<'a> {
                 }
                 false
             }
+            // `visitFieldsDeclaration`: an instance field that is not late is
+            // initialized in the primary constructor's initializer scope.
+            AstNodeImpl::FieldsDeclarationImpl(f) => {
+                if f.static_keyword == NO_TOKEN && f.late_keyword == NO_TOKEN && f.fields.iter().any(|&v| v == child) {
+                    if let Some(primary) = enclosing_primary_constructor(ast, parent) {
+                        let layer = self.parameter_bindings(ast, primary, true, features);
+                        self.locals.push(layer);
+                    }
+                }
+                false
+            }
+            // `visitPrimaryConstructorBody2`: its initializers in the
+            // `ConstructorInitializerScope`, its body in the
+            // `PrimaryParameterScope` (no field or super formal parameters).
+            AstNodeImpl::PrimaryConstructorBody2Impl(b) => {
+                let initializer = b.initializers.iter().any(|&i| i == child);
+                if initializer || child == b.body {
+                    if let Some(primary) = enclosing_primary_constructor(ast, parent) {
+                        let layer = self.parameter_bindings(ast, primary, initializer, features);
+                        self.locals.push(layer);
+                    }
+                }
+                false
+            }
             AstNodeImpl::IfStatementImpl(s) => {
                 if s.case_clause != NO_NODE && (child == s.case_clause || child == s.then_statement2) {
                     let layer = case_clause_bindings(ast, s.case_clause);
@@ -536,6 +560,9 @@ impl<'a> TypeAnalyzer<'a> {
     /// the enclosing loop's scope gets once the iterable is visited.
     fn resolve_names(&mut self, ast: Ast<'_>, node: NodeId, features: ScopeFeatures) {
         match ast.node(node) {
+            // An annotation's name has no static type upstream.
+            AstNodeImpl::ParsedUnqualifiedNameImpl(_)
+                if matches!(ast.node(ast.parent2(node)), AstNodeImpl::AnnotationImpl(_)) => {}
             AstNodeImpl::ParsedUnqualifiedNameImpl(n) => {
                 if let Some(BindingKind::Variable(id)) = self.lookup_binding(&ast.tokens.lexeme_string(n.name)) {
                     self.reads.push((node, id));
@@ -722,6 +749,7 @@ impl<'a> TypeAnalyzer<'a> {
             AstNodeImpl::TopLevelSetterDeclarationImpl(d) => d.formal_parameters,
             AstNodeImpl::OperatorDeclarationImpl(d) => d.formal_parameters,
             AstNodeImpl::ConstructorDeclaration2Impl(d) => d.formal_parameters,
+            AstNodeImpl::PrimaryConstructorDeclarationImpl(d) => d.formal_parameters,
             _ => NO_NODE,
         };
         // Linking typed the formal parameters of declarations.
@@ -733,11 +761,20 @@ impl<'a> TypeAnalyzer<'a> {
                 | AstNodeImpl::TopLevelSetterDeclarationImpl(_)
                 | AstNodeImpl::OperatorDeclarationImpl(_)
                 | AstNodeImpl::ConstructorDeclaration2Impl(_)
+                | AstNodeImpl::PrimaryConstructorDeclarationImpl(_)
         );
         let mut layer = Vec::new();
         for parameter in all_formal_parameters(ast, list) {
             match ast.node(parameter) {
                 AstNodeImpl::RegularFormalParameterImpl(p) => {
+                    // A declaring parameter of a primary constructor is the field in
+                    // its body.
+                    if !initializers
+                        && p.const_final_or_var_keyword != NO_TOKEN
+                        && matches!(ast.node(node), AstNodeImpl::PrimaryConstructorDeclarationImpl(_))
+                    {
+                        continue;
+                    }
                     let declared = if p.type_ == NO_NODE && p.function_typed_suffix == NO_NODE {
                         Declared::Untyped
                     } else if let Some(element) = self.linked_element(parameter).filter(|_| linked) {
@@ -877,8 +914,8 @@ impl<'a> TypeAnalyzer<'a> {
 
     /// `TypeAnnotation.type` of [node], whose children have their types:
     /// `NamedTypeResolver` (an interface type with its type arguments, or
-    /// the defaults of its type parameters when there are none, or `dynamic`
-    /// for each when their number is wrong; an alias instantiated; a type
+    /// the defaults of its type parameters when there are none, or
+    /// `InvalidType` for each when their number is wrong; an alias instantiated; a type
     /// parameter, `dynamic`, `Never` or `void`; else `InvalidType`), and the
     /// function and record types their annotations describe.
     fn annotation_type(&mut self, ast: Ast<'_>, node: NodeId) -> TypeImpl {
@@ -891,16 +928,14 @@ impl<'a> TypeAnalyzer<'a> {
                 let Some(ScopeElement::Element(element)) = self.named_type_element(ast, node) else {
                     return TypeImpl::Invalid;
                 };
-                let arguments: Vec<TypeImpl> = if n.type_arguments != NO_NODE {
+                let arguments: Option<Vec<TypeImpl>> = (n.type_arguments != NO_NODE).then(|| {
                     ast.node(n.type_arguments)
                         .as_type_argument_list_impl()
                         .arguments
                         .iter()
                         .map(|argument| self.annotation_types.get(argument).cloned().unwrap_or(TypeImpl::Dynamic))
                         .collect()
-                } else {
-                    Vec::new()
-                };
+                });
                 let store = &mut *self.declarations.as_mut().unwrap().store;
                 named_element_type(store, element, arguments, suffix)
             }
@@ -973,6 +1008,23 @@ impl<'a> TypeAnalyzer<'a> {
     }
 }
 
+/// The primary constructor of the class, enum or extension type that
+/// declares the member [member], if it has one
+/// (`enclosingPrimaryConstructor`).
+fn enclosing_primary_constructor(ast: Ast<'_>, member: NodeId) -> Option<NodeId> {
+    let declaration = ast.parent2(ast.parent2(member));
+    if declaration == NO_NODE {
+        return None;
+    }
+    let name_part = match ast.node(declaration) {
+        AstNodeImpl::ClassDeclaration2Impl(d) => d.name_part,
+        AstNodeImpl::EnumDeclaration2Impl(d) => d.name_part,
+        AstNodeImpl::ExtensionTypeDeclaration2Impl(d) => d.name_part,
+        _ => return None,
+    };
+    matches!(ast.node(name_part), AstNodeImpl::PrimaryConstructorDeclarationImpl(_)).then_some(name_part)
+}
+
 /// Adds [binding] unless [layer] already binds its name (`??=`).
 fn add_first(layer: &mut Vec<Binding>, binding: Binding) {
     if !layer.iter().any(|b| b.name == binding.name) {
@@ -998,9 +1050,16 @@ fn built(store: &ElementStore, type_: &TypeImpl) -> TypeImpl {
     }
 }
 
-/// The type the element [element] names with [arguments] and [suffix]
-/// (`NamedTypeBuilder.build` on linked elements).
-fn named_element_type(store: &mut ElementStore, element: ElementId, arguments: Vec<TypeImpl>, suffix: NullabilitySuffix) -> TypeImpl {
+/// The type the element [element] names with the written type arguments
+/// [arguments] (`None` when there are none) and [suffix]
+/// (`NamedTypeResolver._instantiateElement`: raw types instantiate to bounds
+/// through the default types of the type parameters).
+fn named_element_type(
+    store: &mut ElementStore,
+    element: ElementId,
+    arguments: Option<Vec<TypeImpl>>,
+    suffix: NullabilitySuffix,
+) -> TypeImpl {
     let kind = store.element(element).kind;
     let parameters: Vec<ElementId> = {
         let first = store.element(element).first_fragment;
@@ -1011,13 +1070,13 @@ fn named_element_type(store: &mut ElementStore, element: ElementId, arguments: V
         }
     };
     let arguments_for = |store: &mut ElementStore| -> Vec<TypeImpl> {
-        if parameters.is_empty() {
-            Vec::new()
-        } else if !arguments.is_empty() {
+        if let Some(arguments) = &arguments {
+            // `_buildTypeArguments`: `InvalidType` for each when the number is
+            // wrong.
             if arguments.len() == parameters.len() {
                 arguments.clone()
             } else {
-                vec![TypeImpl::Dynamic; parameters.len()]
+                vec![TypeImpl::Invalid; parameters.len()]
             }
         } else {
             parameters
@@ -1053,6 +1112,7 @@ fn named_element_type(store: &mut ElementStore, element: ElementId, arguments: V
             type_.with_nullability(store, result)
         }
         ElementKind::NEVER => TypeImpl::Never(suffix),
+        ElementKind::TYPE_PARAMETER if arguments.is_some() => TypeImpl::Invalid,
         ElementKind::TYPE_PARAMETER => TypeImpl::type_parameter(element, suffix),
         ElementKind::DYNAMIC => TypeImpl::Dynamic,
         _ => TypeImpl::Invalid,
@@ -1147,8 +1207,9 @@ fn switch_group(ast: Ast<'_>, switch: NodeId, member: NodeId) -> Vec<NodeId> {
 /// Whether flow analysis may promote the variable the read [read] reads at
 /// it, decided as the oracle's `_canPromote` does: past enclosing
 /// parentheses, the token after is `!`, `?.`, `?..`, `is`, `as`, `==` or
-/// `!=`, or `?` followed by `[`; or the token before is `==` or `!=`; or the
-/// read is the scrutinee of a switch statement or expression, of an
+/// `!=`, or `?` followed by `[`, or `)` followed by `?.` or `?..` (an extension
+/// override); or the token before is `==`, `!=` or `?` (a null-aware element);
+/// or the read is an argument of `identical`; or the read is the scrutinee of a switch statement or expression, of an
 /// `if`-`case`, or the initializer of a pattern variable declaration or
 /// pattern assignment.
 fn can_promote(ast: Ast<'_>, read: NodeId) -> bool {
@@ -1164,9 +1225,21 @@ fn can_promote(ast: Ast<'_>, read: NodeId) -> bool {
     {
         return true;
     }
-    let before = ast.tokens.previous(ast.begin_token(node));
-    if ["==", "!="].contains(&lexeme(before).as_str()) {
+    // `E(x)?.m`: an extension override's argument.
+    if after_lexeme == ")" && ["?.", "?.."].contains(&lexeme(ast.tokens.next(after)).as_str()) {
         return true;
+    }
+    // `?x` as a null-aware collection element or map key.
+    let before = ast.tokens.previous(ast.begin_token(node));
+    if ["==", "!=", "?"].contains(&lexeme(before).as_str()) {
+        return true;
+    }
+    // `identical(x, null)` is treated as `x == null`.
+    let parent = ast.parent2(node);
+    if let AstNodeImpl::ArgumentListImpl(_) = ast.node(parent) {
+        if lexeme(ast.tokens.previous(ast.begin_token(parent))) == "identical" {
+            return true;
+        }
     }
     match ast.node(ast.parent2(node)) {
         AstNodeImpl::SwitchStatementImpl(s) => s.expression2 == node,
