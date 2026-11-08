@@ -6,6 +6,7 @@ import 'dart:convert';
 
 import '../database/adapter.dart';
 import '../database/framework_tables.dart';
+import '../database/records.dart';
 
 /// Storage behind `DV.Cache`. Expiry is the adapter's responsibility: a read
 /// of an expired key must behave exactly like a read of a missing key.
@@ -151,8 +152,25 @@ class DVDatabaseCacheAdapter implements DVCacheAdapter {
 
   /// Creates the backing table when it does not exist. Called automatically on
   /// first use; call it eagerly at boot to surface schema errors early.
+  ///
+  /// On a record engine, as a document database is, the collection is
+  /// ensured through it; on SQL the table is the framework's own DDL.
   Future<void> initialize() async {
     if (_initialized) return;
+    final DVRecordAdapter records = _records;
+    if (records is! DVSqlRecordAdapter) {
+      await records.ensure(DVRecordShape(
+        collection: tableName,
+        key: 'cache_key',
+        fields: const <String, DVFieldType>{
+          'cache_key': DVFieldType.text,
+          'value': DVFieldType.text,
+          'expires_at': DVFieldType.integer,
+        },
+      ));
+      _initialized = true;
+      return;
+    }
     await dvEnsureFrameworkTable(database, '''
       CREATE TABLE IF NOT EXISTS $tableName (
         cache_key VARCHAR(255) PRIMARY KEY,
@@ -163,12 +181,19 @@ class DVDatabaseCacheAdapter implements DVCacheAdapter {
     _initialized = true;
   }
 
+  /// Reads and writes go through the record operations, so the cache runs
+  /// on every engine the framework does.
+  DVRecordAdapter get _records => DVRecordAdapter.over(database);
+
+  DVFilter _key(String key) => DVFilter.equals('cache_key', key);
+
   @override
   Future<Object?> read(String key) async {
     await initialize();
-    final rows = await database.query(
-      'SELECT value, expires_at FROM $tableName WHERE cache_key = ?',
-      <Object?>[key],
+    final rows = await _records.find(
+      tableName,
+      where: _key(key),
+      fields: const <String>['value', 'expires_at'],
     );
     if (rows.isEmpty) return null;
 
@@ -192,41 +217,42 @@ class DVDatabaseCacheAdapter implements DVCacheAdapter {
     final expiresAt =
         ttl == null ? null : DateTime.now().add(ttl).millisecondsSinceEpoch;
 
-    await database.execute(
-      // Delete-then-insert rather than an upsert: ON CONFLICT is SQLite and
-      // Postgres syntax, ON DUPLICATE KEY is MySQL's, and the adapter has to
-      // run on all three.
-      'DELETE FROM $tableName WHERE cache_key = ?',
-      <Object?>[key],
-    );
-    await database.execute(
-      'INSERT INTO $tableName (cache_key, value, expires_at) '
-      'VALUES (?, ?, ?)',
-      <Object?>[key, encoded, expiresAt],
-    );
+    // Delete-then-insert rather than an upsert: ON CONFLICT is SQLite and
+    // Postgres syntax, ON DUPLICATE KEY is MySQL's, and the record
+    // operations have no upsert every engine shares.
+    await _records.delete(tableName, where: _key(key));
+    await _records.insert(tableName, <String, Object?>{
+      'cache_key': key,
+      'value': encoded,
+      'expires_at': expiresAt,
+    });
   }
 
   @override
   Future<void> delete(String key) async {
     await initialize();
-    await database.execute(
-      'DELETE FROM $tableName WHERE cache_key = ?',
-      <Object?>[key],
-    );
+    await _records.delete(tableName, where: _key(key));
   }
 
   @override
   Future<void> clear() async {
     await initialize();
-    await database.execute('DELETE FROM $tableName');
+    // Every entry has a key, so this picks them all; the record operations
+    // refuse a filter that names nothing.
+    await _records.delete(tableName,
+        where: DVFilter.isNotNull('cache_key'));
   }
 
   @override
   Future<int> purgeExpired() async {
     await initialize();
-    return database.execute(
-      'DELETE FROM $tableName WHERE expires_at IS NOT NULL AND expires_at <= ?',
-      <Object?>[DateTime.now().millisecondsSinceEpoch],
+    return _records.delete(
+      tableName,
+      where: DVFilter.all(<DVFilter>[
+        DVFilter.isNotNull('expires_at'),
+        DVFilter.compare('expires_at', DVCompare.lessOrEqual,
+            DateTime.now().millisecondsSinceEpoch),
+      ]),
     );
   }
 

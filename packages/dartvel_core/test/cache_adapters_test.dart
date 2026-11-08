@@ -110,6 +110,13 @@ void main() {
     'DVDatabaseCacheAdapter (MemoryDVDatabaseAdapter)',
     () => DVDatabaseCacheAdapter(MemoryDVDatabaseAdapter()),
   );
+  // And on a record engine, which refuses every SQL statement as a document
+  // database does: the database cache is one of the framework's stores
+  // Storage-Neutral Records moves off SQL.
+  sharedContract(
+    'DVDatabaseCacheAdapter (DVMemoryRecordEngine)',
+    () => DVDatabaseCacheAdapter(DVMemoryRecordEngine()),
+  );
 
   group('DVDatabaseCacheAdapter', () {
     test('survives a restart when backed by a database file', () async {
