@@ -31,6 +31,7 @@ use crate::src::summary2::default_types_builder::build_default_types;
 use crate::src::summary2::type_builder::BuildContext;
 use crate::src::summary2::types_builder::TypesBuilder;
 use crate::src::summary2::type_alias::TypeAliasSelfReferenceFinder;
+use crate::src::summary2::variance_builder::VarianceBuilder;
 use crate::src::dart::ast::ast_store::NodeId;
 use std::collections::HashSet;
 
@@ -77,23 +78,22 @@ impl Linker {
     /// Not upstream: the unit (library fragment) of [file], linking its
     /// library first if needed, as `getResolvedUnit` finds the library a file
     /// is analyzed in (`kind.library ?? kind.asLibrary`): the file itself, or
-    /// the library a `part of` URI names when it includes the file, or else,
-    /// for a part of a URI, the part as a library of its own. `None` for a
-    /// `part of` name directive, whose library is not looked for.
+    /// the library a `part of` URI names when it includes the file, or the
+    /// library that includes a `part of` name part (`PartOfNameFileKind.library`),
+    /// or else the part as a library of its own.
     pub fn unit_of_file(&mut self, file: FileId) -> Option<UnitId> {
         use crate::src::dart::analysis::file_state::FileKind;
-        let library_file = match &self.fs.file(file).kind {
+        let kind = self.fs.file(file).kind.clone();
+        let library_file = match kind {
             FileKind::Library { .. } => Some(file),
-            FileKind::PartOfUriKnown { uri_file } => Some(*uri_file),
-            FileKind::PartOfName { .. } | FileKind::PartOfUriUnknown => None,
+            FileKind::PartOfUriKnown { uri_file } => Some(uri_file),
+            FileKind::PartOfName { .. } => self.fs.part_of_name_library(file),
+            FileKind::PartOfUriUnknown => None,
         };
         if let Some(library_file) = library_file {
             if let Some(unit) = self.library_for(library_file).and_then(|library| self.unit_in(library, file)) {
                 return Some(unit);
             }
-        }
-        if matches!(self.fs.file(file).kind, FileKind::PartOfName { .. }) {
-            return None;
         }
         // `asLibrary`.
         if !self.library_of_file.contains_key(&file) {
@@ -257,6 +257,17 @@ impl Linker {
             .iter()
             .flat_map(|b| b.units.iter().map(|u| (u.fragment, u.parsed.as_ref().unwrap().unit)))
             .collect();
+        // `VarianceBuilder(this).perform()`.
+        VarianceBuilder {
+            store: &mut self.store,
+            asts: &asts,
+            node_types: &self.types.node_types,
+            fragment_of_node: &self.types.fragment_of_node,
+            linking_libraries: &linking_libraries,
+            pending: HashSet::new(),
+            visit: HashSet::new(),
+        }
+        .perform(&units);
         TypeAliasSelfReferenceFinder {
             store: &mut self.store,
             asts: &asts,

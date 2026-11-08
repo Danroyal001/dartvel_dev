@@ -321,6 +321,52 @@ impl FileSystemState {
         }
     }
 
+    /// `PartOfNameFileKind.library`: of the known libraries named as the
+    /// `part of` directive of [part] names (the files in its directory are
+    /// read first when none is known, `discoverLibraries`), the one with the
+    /// smallest path that includes [part], if any.
+    pub fn part_of_name_library(&mut self, part: FileId) -> Option<FileId> {
+        let FileKind::PartOfName { name } = self.file(part).kind.clone() else {
+            return None;
+        };
+        let named = |fs: &Self| -> Vec<FileId> {
+            (0..fs.files.len() as FileId)
+                .filter(|&f| matches!(&fs.file(f).kind, FileKind::Library { name: Some(n) } if *n == name))
+                .collect()
+        };
+        let mut libraries = named(self);
+        if libraries.is_empty() {
+            let siblings: Vec<PathBuf> = match self.file(part).path.parent().map(std::fs::read_dir) {
+                Some(Ok(entries)) => entries
+                    .filter_map(Result::ok)
+                    .map(|e| e.path())
+                    .filter(|p| p.extension().is_some_and(|e| e == "dart"))
+                    .collect(),
+                _ => Vec::new(),
+            };
+            for sibling in siblings {
+                self.get_file_for_path(&sibling);
+            }
+            libraries = named(self);
+        }
+        let mut result: Option<FileId> = None;
+        for library in libraries {
+            if self.has_part(library, part)
+                && result.is_none_or(|r| self.file(library).path < self.file(r).path)
+            {
+                result = Some(library);
+            }
+        }
+        result
+    }
+
+    /// `LibraryFileKind.hasPart`: whether a `part` directive of [library]
+    /// includes [part].
+    fn has_part(&mut self, library: FileId, part: FileId) -> bool {
+        let uris: Vec<Option<String>> = self.file(library).unlinked.parts.iter().map(|p| p.uri.clone()).collect();
+        uris.iter().any(|uri| matches!(self.build_directive_uri(library, uri.as_deref()), DirectiveUriState::WithFile { file, .. } if file == part))
+    }
+
     /// Whether [file] is a library (`kind is LibraryFileKind`).
     pub fn is_library(&self, file: FileId) -> bool {
         matches!(self.file(file).kind, FileKind::Library { .. })
