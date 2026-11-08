@@ -104,11 +104,10 @@ import 'package:collision_probe/dartvel_client/dartvel_client.dart';
 
 // Compiled, not run: the generated client functions return the models. Before
 // the fix firstPost returned dartvel_core's @Post annotation, which has no
-// slug -- a client that compiled and typed every result wrongly.
-Future<String?> postSlug() async =>
-    (await firstPost(slug: 's', fromJson: (Object? json) => null))?.slug;
-Future<String?> routeOrigin() async =>
-    (await firstRoute(id: 'r', fromJson: (Object? json) => null))?.origin;
+// slug -- a client that compiled and typed every result wrongly. A declared
+// model is decoded by the client itself, so no mapper is passed.
+Future<String?> postSlug() async => (await firstPost(slug: 's'))?.slug;
+Future<String?> routeOrigin() async => (await firstRoute(id: 'r'))?.origin;
 
 void main() {
   setUpAll(registerDartvelModels);
