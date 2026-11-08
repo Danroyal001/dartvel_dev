@@ -931,6 +931,22 @@ class ModelGenerator {
             // Every field of a person's row is theirs, the key included, and
             // a static page or a sitemap entry is published to everybody.
             sb.writeln('    return const <String>[];');
+          } else if (offlineStrategy == null) {
+            // Through the model's own records, as every other read: a SQL
+            // string here was the one read of a generated model a document
+            // database could not run, and it listed a soft-deleted record
+            // as a page anybody could still reach.
+            sb.writeln('    final records = await _dvRecords().all();');
+            sb.writeln('    final paths = <String>[];');
+            sb.writeln('    for (final record in records) {');
+            sb.writeln('      final model = _fromRow(record.values);');
+            if (publishedField != null) {
+              sb.writeln('      if (!model.$publishedField) continue;');
+            }
+            sb.writeln('      if (!await ${mayView('null', 'model')}) continue;');
+            sb.writeln('      paths.add(model.$publicPathField);');
+            sb.writeln('    }');
+            sb.writeln('    return paths;');
           } else {
             sb.writeln(
               // const DVDatabase(), which DV.Database returns on a device: a

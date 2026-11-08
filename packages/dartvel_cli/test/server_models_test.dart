@@ -146,4 +146,41 @@ Future<void> main() async {
     expect(run.exitCode, 0, reason: '${run.stdout}${run.stderr}');
     expect('${run.stdout}', contains('paths [n1]'));
   }, timeout: const Timeout(Duration(minutes: 5)));
+  test('a data model\'s pages are enumerated through its records, on a '
+      'document engine too', () async {
+    // Static paths read the table with a SQL string, which a document
+    // database cannot run, and which counted a soft-deleted record as a
+    // page anybody could still reach. They read through the data model's
+    // own records now: DVMemoryRecordEngine refuses every SQL statement.
+    final Directory root = await project(model: '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(softDelete: true)
+class const _Note({required final String id, required final String text});
+''');
+    File(p.join(root.path, 'bin', 'main.dart'))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+import 'package:server_models_app/dartvel_client/dartvel_server.dart';
+
+Future<void> main() async {
+  registerDartvelModels();
+  const DVDatabase().configure(DVMemoryRecordEngine());
+  await const Note(id: 'n1', text: 'kept').save();
+  await const Note(id: 'n2', text: 'gone').save();
+  await Note.destroy((await Note.find('n2'))!);
+  print('paths \${await Note.publicStaticPaths()}');
+}
+''');
+    final ProcessResult get = await Process.run(
+        Platform.resolvedExecutable, <String>['pub', 'get'],
+        workingDirectory: root.path);
+    expect(get.exitCode, 0, reason: '${get.stdout}${get.stderr}');
+    final ProcessResult run = await Process.run(
+        Platform.resolvedExecutable, <String>['run', 'bin/main.dart'],
+        workingDirectory: root.path);
+    expect(run.exitCode, 0, reason: '${run.stdout}${run.stderr}');
+    expect('${run.stdout}', contains('paths [n1]'));
+  }, timeout: const Timeout(Duration(minutes: 5)));
 }

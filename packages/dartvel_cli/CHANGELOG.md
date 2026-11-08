@@ -1,5 +1,6 @@
 ## Unreleased
 
+- A generated data model's `publicStaticPaths()` reads through the model's own records instead of `select * from <table>`, so it runs on a document engine and no longer lists a soft-deleted record as a page. Offline data models still read their table with SQL.
 - `dartvel meters list`: every declared meter with its kind, unit, limit, behaviour at the limit and declaring file.
 - `dartvel routes` generates `Meters` (`lib/dartvel_client/meters.g.dart`, exported by the barrel) from `@DVMeter` fields of private classes, and stops on DV-METER-005 (a limit with no `atLimit`), a meter declared twice or in a public class, and DV-METER-001: `Meters.<name>.record(...)` or `DVMeters.current.record(...)` in `lib/` outside the backend directory. A project that defines its own top-level `Meters` and imports the barrel now has two.
 - The generated backend runs every route, and the staged framework routes, inside `core.dvWithRequestMeterKey`, outside the middleware chain; the generated docs site lists it as the `meters` stage of the request lifecycle.

@@ -478,11 +478,10 @@ class _Product {
             content,
             contains('static Future<core.List<String>> '
                 'publicStaticPaths() async {'));
-        expect(
-          content,
-          contains("const DVDatabase().query('select * from "
-              "\${dvTenantTable('products')}')"),
-        );
+        // Read through the model's records, which every engine runs, rather
+        // than a SQL string over its table.
+        expect(content, contains('final records = await _dvRecords().all();'));
+        expect(content, isNot(contains("DVDatabase().query('select * from")));
         expect(content, contains('if (!model.published) continue;'));
         expect(content, contains('paths.add(model.slug);'));
         expect(
