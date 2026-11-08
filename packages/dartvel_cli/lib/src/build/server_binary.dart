@@ -223,6 +223,7 @@ import 'dart:typed_data';
 
 import 'package:dartvel_core/binary_payload.dart';
 import 'package:dartvel_core/dartvel.dart' as core;
+import 'package:dartvel_core/framework.dart' show DVBootFailure;
 import 'package:dartvel_shelf/asset_cache.dart';
 import 'package:dartvel_shelf/dartvel_shelf.dart' show embedNativeServerLibraryAt;
 import 'package:dartvel_shelf/loading_units.dart';
@@ -359,6 +360,11 @@ Future<void> main(List<String> arguments) async {
     // EX_CONFIG: a supervisor restarting this will not fix it.
     stderr.writeln('dartvel: $error');
     exit(78);
+  } on DVBootFailure catch (failure) {
+    // A boot phase threw (DV-RUN-004): exit non-zero naming the phase.
+    stderr.writeln('dartvel: $failure');
+    stderr.writeln(failure.stackTrace);
+    exit(70);
   }
 }
 ''';

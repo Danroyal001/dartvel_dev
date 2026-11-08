@@ -2002,6 +2002,10 @@ const String? dartvelPatchSourcePrefix = $patchSourceLiteral;
 /// at its mount: to anybody with `access: public`, and otherwise exactly as
 /// Studio is, behind [admin]'s sign-in and the Studio grant.
 Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, Map<String, Uint8List> studioParts = const <String, Uint8List>{}, core.DVDocsMount? docs, String? docsRoot, core.DVStudioDevGrant? studioDevGrant, String? studioSourceRoot, String? studioStructureRoot}) async {
+  // Phase 1 of the boot sequence (Application Entry): what a failure from
+  // here until the listener accepts is reported as (DV-RUN-004).
+  _dartvelBoot = framework.DVBootTracker(const core.DVEntry.server(role: core.DVServerRole.web));
+  _dartvelBoot.enter(1, 'initializing');
   // Branch deployments, before anything else runs. In a process deployed
   // as a preview this captures mail and notifications, puts every queue
   // under the preview's namespace and points DV.Database at the preview's
@@ -2040,6 +2044,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // them again when it is built; nothing that runs while the database is
   // made ready -- a job, a preview check -- may meet an empty registry.
   dartvelRegisterBackendPolicies();
+  _dartvelBoot.enter(3, 'providers and modules');
   // [defaultDatabase] when DATABASE_URL is not set: a web-server binary's
   // SQLite file, created here on its first run.
   final core.DVProcessStores stores = core.DVProcessStores.install(fallback: defaultDatabase);
@@ -2058,7 +2063,9 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   registerDartvelModules();$tenancyConfiguration$cspAssignment
   // The application's @DVBoot functions, after the providers and modules
   // and before anything is served.
-  await framework.dvRunBoot(boot.dartvelBootSteps, core.DVBoot(entry: const core.DVEntry.server(role: core.DVServerRole.web), args: _dartvelArguments));
+  _dartvelBoot.enter(4, 'boot functions');
+  await framework.dvRunBoot(boot.dartvelBootSteps, core.DVBoot(entry: const core.DVEntry.server(role: core.DVServerRole.web), args: _dartvelArguments), onStep: _dartvelBoot.step);
+  _dartvelBoot.enter(5, 'surface');
   // DV.Analytics and DV.Privacy over the application's database, when this
   // process has one. Analytics first, so its adapters are in the privacy
   // walk; DV.Privacy is configured only where DARTVEL_PRIVACY_KEY is set.
@@ -2232,11 +2239,14 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   final Future<dv.Response> Function(dv.Request) siteHandler = docsServer == null
       ? handler
       : (dv.Request request) async => await docsServer.respond(request) ?? await handler(request);
-  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, tracing: dartvelTracing, serviceName: '$pkgName', routeBodyLimits: <dv.DVRouteBodyLimit>[
+  final dv.ServerHandle served = await dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, tracing: dartvelTracing, serviceName: '$pkgName', routeBodyLimits: <dv.DVRouteBodyLimit>[
     // A patch is larger than a request body usually is.
     if (patchPrefix != null) dv.DVRouteBodyLimit('POST', '\$patchPrefix/_dartvel/publish', $dvPatchPublishMaxBytes),
     ...router.bodyLimits,
   ]);
+  // Phase 6: the listener accepts.
+  _dartvelBoot.ready();
+  return served;
 }
 
 /// The schedule timer this process started, so a stopped process stops it.
@@ -2328,10 +2338,14 @@ void _dartvelInstallServerCrashes(core.DVProcessRole role) {
 /// The arguments this process was started with, for the boot functions.
 List<String> _dartvelArguments = const <String>[];
 
+/// Where this process is in the boot sequence, so a failure names the phase.
+framework.DVBootTracker _dartvelBoot = framework.DVBootTracker(const core.DVEntry.server(role: core.DVServerRole.all));
+
 Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, Map<String, Uint8List> studioParts = const <String, Uint8List>{}, core.DVDocsMount? docs, String? docsRoot}) async {
   _dartvelArguments = arguments;
   final core.DVProcessConfiguration process = core.DVProcessConfiguration.resolve(environment: Platform.environment, arguments: arguments, generatedPort: cfg.backendPort);
   final Future<void> stopped = until ?? Completer<void>().future;
+  try {
   switch (process.role) {
     case core.DVProcessRole.web:
       final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick, spaRoot: webRoot, defaultDatabase: defaultDatabase, updatesRoot: updatesRoot, admin: admin, adminRoot: adminRoot, studioParts: studioParts, docs: docs, docsRoot: docsRoot);
@@ -2343,6 +2357,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       _dartvelCaptureTimer?.cancel();
       await handle.stop();
     case core.DVProcessRole.worker:
+      _dartvelBoot = framework.DVBootTracker(const core.DVEntry.server(role: core.DVServerRole.worker));
+      _dartvelBoot.enter(1, 'initializing');
       // The same start a web process makes, less what only serving needs: a
       // preview's worker must consume the preview's queues, and a module's
       // models resolve their tables the same way in a job as in a request.
@@ -2360,10 +2376,13 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       registerDartvelJobs();
       // The account erasure job, for a worker given its queue.
       configureDartvelBackendAccounts();
+      _dartvelBoot.enter(3, 'providers and modules');
       final core.DVProcessStores workerStores = core.DVProcessStores.install(fallback: defaultDatabase);
       await _dartvelPrepareDatabase(workerStores);
       await _dartvelInstallCache(workerStores.database);
-      await framework.dvRunBoot(boot.dartvelBootSteps, core.DVBoot(entry: const core.DVEntry.server(role: core.DVServerRole.worker), args: arguments));
+      _dartvelBoot.enter(4, 'boot functions');
+      await framework.dvRunBoot(boot.dartvelBootSteps, core.DVBoot(entry: const core.DVEntry.server(role: core.DVServerRole.worker), args: arguments), onStep: _dartvelBoot.step);
+      _dartvelBoot.enter(5, 'surface');
       // DV.Privacy, so an erasure or a retention sweep queued elsewhere runs
       // here -- the account erasure job included.
       // Change capture, so the delivery and backfill jobs the schedule
@@ -2381,6 +2400,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
         throw const core.DVProcessConfigurationError('DARTVEL_ROLE=worker and no @DVJob.handler this server can run is registered, so every job it reserved would be dead-lettered.');
       }
       final core.DVProcessHealth? workerHealth = await _dartvelServeHealth(process);
+      _dartvelBoot.ready();
       stdout.writeln('dartvel worker working \${process.queues.join(', ')}');
       try {
         final int done = await core.DVQueueWorker(queues: <String>[...process.queues, ...framework.DVCaptureRuntime.queues]).run(until: stopped, maxJobs: process.maxJobs);
@@ -2391,6 +2411,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
         await workerHealth?.close();
       }
     case core.DVProcessRole.cron:
+      _dartvelBoot = framework.DVBootTracker(const core.DVEntry.server(role: core.DVServerRole.cron));
+      _dartvelBoot.enter(1, 'initializing');
       core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
       // A schedule that throws is this cron process's crash.
       _dartvelInstallServerCrashes(process.role);
@@ -2403,10 +2425,13 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       registerDartvelJobs();
       // The account deletion sweep ticks where the schedules do.
       configureDartvelBackendAccounts();
+      _dartvelBoot.enter(3, 'providers and modules');
       final core.DVProcessStores stores = core.DVProcessStores.install(fallback: defaultDatabase);
       await _dartvelPrepareDatabase(stores);
       await _dartvelInstallCache(stores.database);
-      await framework.dvRunBoot(boot.dartvelBootSteps, core.DVBoot(entry: const core.DVEntry.server(role: core.DVServerRole.cron), args: arguments));
+      _dartvelBoot.enter(4, 'boot functions');
+      await framework.dvRunBoot(boot.dartvelBootSteps, core.DVBoot(entry: const core.DVEntry.server(role: core.DVServerRole.cron), args: arguments), onStep: _dartvelBoot.step);
+      _dartvelBoot.enter(5, 'surface');
       // Each occurrence claimed in the shared database, so a second cron
       // process fires nothing twice. With none shared this throws rather than
       // start, unless DARTVEL_SCHEDULE_LEASE=none says this one is alone.
@@ -2427,12 +2452,21 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       // Capture's pass, dispatching to the worker.
       final Timer? captureSchedules = framework.DVCaptureRuntime.startSchedules(every: scheduleTick);
       stdout.writeln(timer == null ? 'dartvel cron: this application declares no backend schedule' : 'dartvel cron ticking \${dartvelBackendCronEntries.length} backend schedule(s)');
+      _dartvelBoot.ready();
       await stopped;
       timer?.cancel();
       accountSweep?.cancel();
       privacySchedules?.cancel();
       captureSchedules?.cancel();
       await cronHealth?.close();
+  }
+  } on core.DVProcessConfigurationError {
+    rethrow;
+  } catch (error, stack) {
+    // A failure before the entry is up is a boot failure: DV-RUN-004, naming
+    // the phase, which the generated main exits non-zero with.
+    if (_dartvelBoot.booted) rethrow;
+    throw _dartvelBoot.fail(error, stack);
   }
 }
 
@@ -2475,6 +2509,7 @@ Future<core.DVProcessHealth?> _dartvelServeHealth(core.DVProcessConfiguration pr
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart' as core;
+import 'package:dartvel_core/framework.dart' show DVBootFailure;
 
 import 'dartvel_backend_routes.g.dart' as gen;
 
@@ -2485,6 +2520,12 @@ Future<void> main(List<String> arguments) async {
     // EX_CONFIG: a supervisor restarting this will not fix it.
     stderr.writeln('dartvel: \$error');
     exit(78);
+  } on DVBootFailure catch (failure) {
+    // A boot phase threw (DV-RUN-004): exit non-zero naming the phase, so
+    // a deploy that never became healthy says where start-up stopped.
+    stderr.writeln('dartvel: \$failure');
+    stderr.writeln(failure.stackTrace);
+    exit(70);
   }
 }
 ''');

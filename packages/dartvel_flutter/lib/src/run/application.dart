@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart' show DVBoot, DVEntry;
 import 'package:dartvel_core/framework.dart'
-    show DVBootStep, dvResetBoot, dvResetBootForTest, dvRunBoot;
+    show DVBootStep, DVBootTracker, dvResetBoot, dvResetBootForTest, dvRunBoot;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -47,27 +47,25 @@ Future<void> dvRunApplication(
   };
   final completed = Completer<void>();
   // Where boot is, so a failure names it (DV-RUN-004). Numbers and names
-  // follow the boot sequence table in NEW_SPEC.md, Application Entry.
-  var phase = (number: 1, name: 'initializing');
-  int? bootStep;
+  // follow the boot sequence table in NEW_SPEC.md, Application Entry; a
+  // server, a worker and a cron process boot through the same tracker.
+  final tracker = DVBootTracker(const DVEntry.app());
   runZonedGuarded(
     () async {
       try {
+        tracker.enter(1, 'initializing');
         WidgetsFlutterBinding.ensureInitialized();
-        DV.lifecycle.setApp(.initializing);
-        phase = (number: 2, name: 'surface selection');
+        tracker.enter(2, 'surface selection');
         if (launch != null) await launch(args);
-        DV.lifecycle.setApp(.booting);
-        phase = (number: 4, name: 'boot functions');
+        tracker.enter(4, 'boot functions');
         // The same runner a server, a worker or a command boots through;
         // only the entry differs.
         await dvRunBoot(
           boot,
           DVBoot(entry: const DVEntry.app(), args: _args),
-          onStep: (index) => bootStep = index,
+          onStep: tracker.step,
         );
-        bootStep = null;
-        phase = (number: 5, name: 'surface');
+        tracker.enter(5, 'surface');
         // Once per process: a retried boot must not log each error twice.
         if (!_flutterErrorsLogged) {
           _flutterErrorsLogged = true;
@@ -89,24 +87,12 @@ Future<void> dvRunApplication(
         // app shows a still page, nothing does, and the app stayed booting.
         WidgetsBinding.instance
           ..addPostFrameCallback((_) {
-            DV.lifecycle.setApp(.ready);
+            tracker.ready();
           })
           ..ensureVisualUpdate();
         completed.complete();
       } catch (error, stack) {
-        DV.lifecycle.setApp(.failed);
-        DV.log.error(
-          'Application boot failed in phase ${phase.number}, ${phase.name}'
-          '${bootStep == null ? '' : ' (@DVBoot function ${bootStep! + 1})'}.',
-          code: 'DV-RUN-004',
-          context: {
-            'phase': phase.number,
-            'phaseName': phase.name,
-            'bootStep': bootStep,
-          },
-          error: error,
-          stackTrace: stack,
-        );
+        tracker.fail(error, stack);
         runApp(
           MaterialApp(
             theme: dartvelDefaultTheme(.light),

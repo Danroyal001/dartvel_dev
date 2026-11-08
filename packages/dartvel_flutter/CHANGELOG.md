@@ -1,3 +1,7 @@
+## Unreleased
+
+- The app entry reports DV-RUN-004 through `DVBootTracker`, the same as the server: the message reads `Boot failed in phase N, name.` (was `Application boot failed in phase N, name.`) and the record's context also carries `entry: app`.
+
 ## 0.13.16 — 2026-10-22
 
 - Version aligned with dartvel_core 0.13.16.
@@ -92,6 +96,7 @@
 
 ## Unreleased
 
+- The app entry reports DV-RUN-004 through `DVBootTracker`, the same as the server: the message reads `Boot failed in phase N, name.` (was `Application boot failed in phase N, name.`) and the record's context also carries `entry: app`.
 - Android native media: generated Media3/CameraX bridges and JNI adapters against the current player/camera contracts, with device ids, event decoding and disposal tests. Hardware verification pending. Apple branch contributes event-schema tests only; no AVPlayer/AVFoundation implementation.
 
 - `dartvel.hosts` on the web: `dvUseHosts` installs the table for `Uri.base.host`. On a mounted host `DVRouter` maps the browser's location into the mount (so `foo.apps.example.com/` is the `/apps/foo` page on first load and reload) and shows routes under the mount without it. `DVNavLink`'s href is `dvPublicLocation`: the path without the mount on its own host, or an absolute URL on the host that owns the route, followed in the same tab. Client-side SEO writes the server's canonical. Nothing changes without hosts, on the primary host's routing, or off the web.

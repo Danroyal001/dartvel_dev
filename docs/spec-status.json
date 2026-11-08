@@ -38,9 +38,11 @@
       "evidence": [
         "packages/dartvel_cli/test/application_entry_generation_test.dart",
         "packages/dartvel_flutter/test/application_entry_test.dart",
-        "packages/dartvel_core/lib/src/run/entry.dart"
+        "packages/dartvel_core/lib/src/run/entry.dart",
+        "packages/dartvel_core/test/boot_tracker_test.dart",
+        "packages/dartvel_cli/test/server_entry_backend_test.dart"
       ],
-      "absent": "Flutter app entry is generated: DV.run accepts optional command-line arguments, a default themed root, private boot hooks in stable order, and an optional host root using DVAppParts.router. The current future completes after boot, not shutdown. A failed app boot reports DV-RUN-004 with the phase (2 surface selection, 4 boot functions, 5 surface) and the index of the @DVBoot function that threw, and the boot-failure page (DVBootFailurePage) retries the boot from the start; the server and headless entries do not report the phase. Still absent: backend and headless entry wiring, native single-instance check, full DVAppParts builder/locale/delegate configuration, boot budgets and DV-RUN-001, 003, 005 and 007, which nothing raises, migration rewrite, generated shutdown/drain, all proposal phases outside the Flutter app entry."
+      "absent": "Flutter app entry is generated: DV.run accepts optional command-line arguments, a default themed root, private boot hooks in stable order, and an optional host root using DVAppParts.router. The current future completes after boot, not shutdown. Every entry that boots walks the sequence through one DVBootTracker (dartvel_core framework.dart): phases 1-2 move DV.lifecycle.app to initializing, 3-5 to booting, 6 to ready, and a phase that throws moves it to failed and reports DV-RUN-004 naming the entry, the phase and, in phase 4, the @DVBoot function. The app entry renders the boot-failure page (DVBootFailurePage), which retries the boot from the start; the generated server entry (web, worker and cron processes, and the web-server binary) exits 70 printing the DV-RUN-004 line with the phase, and a DVProcessConfigurationError still exits 78. Still absent: headless entry wiring (home widget, background, push, worker isolate, embedded) and their failure records, native single-instance check, full DVAppParts builder/locale/delegate configuration, boot budgets and DV-RUN-001, 003, 005 and 007, which nothing raises, migration rewrite, generated shutdown/drain, the terminal entry, @DVCommand dispatch."
     },
     {
       "section": "Configuration",
