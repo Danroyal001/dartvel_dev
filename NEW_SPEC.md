@@ -6289,7 +6289,9 @@ inside a span (named for the operation and table, recording the statement's
 shape with every literal reduced to `?` and no parameter), the OTLP/HTTP
 exporter (the JSON encoding, batched on
 a bounded queue, never blocking, dropping with a count under `DV-TRACE-002`
-and `DV-TRACE-003`), the `dartvel.tracing` block above (`ratio`, `exporter`,
+and `DV-TRACE-003`), an AI feature run as a client span under the
+request carrying the model and estimated token counts and never the prompt,
+the `dartvel.tracing` block above (`ratio`, `exporter`,
 `endpoint`, `queue`) read strictly at build time and handed to the server,
 `DARTVEL_TRACING_EXPORTER`, `DARTVEL_TRACING_ENDPOINT`,
 `DARTVEL_TRACING_RATIO` and the OpenTelemetry `OTEL_EXPORTER_OTLP_*` and
@@ -6302,8 +6304,9 @@ Not built: the protobuf encoding of OTLP; a request span on every request
 rather than on routes that declare the `tracing` middleware; a span for a
 query a component sends to an adapter it holds directly rather than through
 `DV.Database`; spans for
-queue publish and consume, and transactions; an AI call's
-span as a child of the request rather than a trace of its own; trace context
+queue publish and consume, and transactions; measured rather than estimated
+AI token counts, and a span for an AI adapter called directly rather than
+through a feature; trace context
 in the job envelope and the links that follow from it; client spans and their
 ingest; span attribute and duration limits (`maxSpanDuration` is not read
 yet); and `dartvel traces` reading anything but the local buffer. The other

@@ -709,6 +709,31 @@ void main() {
     });
   });
 
+  group('in a trace', () {
+    test('a run inside a request is a span under it, with the model and token '
+        'counts and not the prompt', () async {
+      final DVAIFeatures f = features()
+        ..register(const DVAIFeature(prompt: 'ticket.summary'));
+      final DVSpan request = DVTracer(exporter: spans).startSpan('POST /tickets');
+      await dvInSpan(
+          request, () => f.run('ticket.summary', input: ticket42));
+      request.end();
+
+      final DVSpan run = spans.spans
+          .firstWhere((DVSpan s) => s.name == 'ai.feature ticket.summary');
+      expect(run.traceId, request.traceId,
+          reason: 'one request, one trace -- not a second trace per AI call');
+      expect(run.parentSpanId, request.spanId);
+      expect(run.kind, DVSpanKind.client);
+      expect(run.attributes['ai.model'], 'sonnet');
+      expect(int.parse(run.attributes['ai.tokens.input']!), greaterThan(0));
+      expect(int.parse(run.attributes['ai.tokens.output']!), greaterThan(0));
+      expect(run.attributes['ai.tokens.estimated'], 'true',
+          reason: 'the adapter reports no usage, and an estimate must say so');
+      expect(run.attributes.values.join(), isNot(contains('late again')));
+    });
+  });
+
   group('an outage report', () {
     test('carries the error type and status, never the provider\'s body',
         () async {

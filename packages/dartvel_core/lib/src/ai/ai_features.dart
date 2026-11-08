@@ -573,7 +573,10 @@ class DVAIFeatures {
       return record;
     }
 
-    final DVSpan span = _trace.startSpan('ai.feature $featureId');
+    // Under the ambient span, so a request that asks a model is one trace
+    // with the call in it rather than two traces nobody can join.
+    final DVSpan span = _trace.startSpan('ai.feature $featureId',
+        parent: dvCurrentSpan, kind: DVSpanKind.client);
     span
       ..setAttribute('ai.feature', featureId)
       ..setAttribute('ai.prompt.id', prompt.id)
@@ -727,6 +730,12 @@ class DVAIFeatures {
           );
         }
 
+        // Counts, never the text. Estimated, because the adapter reports no
+        // usage, and an estimate presented as a measurement is a wrong bill.
+        span
+          ..setAttribute('ai.tokens.input', '${estimateTokens(rendered)}')
+          ..setAttribute('ai.tokens.output', '${estimateTokens(outputText)}')
+          ..setAttribute('ai.tokens.estimated', 'true');
         span
           ..setAttribute('ai.model', stepModel)
           ..setAttribute('ai.cache', cache == null || bypassCache ? 'off' : 'miss')
