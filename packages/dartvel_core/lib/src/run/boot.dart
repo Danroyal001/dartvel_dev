@@ -17,12 +17,21 @@ bool _booted = false;
 /// command. Steps run in the order given (path order, then declaration
 /// order) and each is awaited; a step whose entries leave this entry out is
 /// skipped. A process boots once, however many times it is asked.
-Future<void> dvRunBoot(List<DVBootStep> steps, DVBoot boot) async {
+///
+/// [onStep] is told the index of each step before it runs, so an entry whose
+/// boot fails can name the function that threw (DV-RUN-004).
+Future<void> dvRunBoot(
+  List<DVBootStep> steps,
+  DVBoot boot, {
+  void Function(int index)? onStep,
+}) async {
   if (_booted) return;
   _booted = true;
   final DVEntryKind kind = boot.entry.kind;
-  for (final DVBootStep step in steps) {
+  for (int index = 0; index < steps.length; index++) {
+    final DVBootStep step = steps[index];
     if (step.entries.isEmpty || step.entries.contains(kind)) {
+      onStep?.call(index);
       await step.run(boot);
     }
   }

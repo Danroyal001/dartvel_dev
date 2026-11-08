@@ -39,16 +39,28 @@ Future<void> dvRunApplication(
   _running = true;
   _args = List.unmodifiable(args);
   final completed = Completer<void>();
+  // Where boot is, so a failure names it (DV-RUN-004). Numbers and names
+  // follow the boot sequence table in NEW_SPEC.md, Application Entry.
+  var phase = (number: 1, name: 'initializing');
+  int? bootStep;
   runZonedGuarded(
     () async {
       try {
         WidgetsFlutterBinding.ensureInitialized();
         DV.lifecycle.setApp(.initializing);
+        phase = (number: 2, name: 'surface selection');
         if (launch != null) await launch(args);
         DV.lifecycle.setApp(.booting);
+        phase = (number: 4, name: 'boot functions');
         // The same runner a server, a worker or a command boots through;
         // only the entry differs.
-        await dvRunBoot(boot, DVBoot(entry: const DVEntry.app(), args: _args));
+        await dvRunBoot(
+          boot,
+          DVBoot(entry: const DVEntry.app(), args: _args),
+          onStep: (index) => bootStep = index,
+        );
+        bootStep = null;
+        phase = (number: 5, name: 'surface');
         final previousFlutterError = FlutterError.onError;
         FlutterError.onError = (details) {
           DV.log.error(
@@ -73,7 +85,14 @@ Future<void> dvRunApplication(
       } catch (error, stack) {
         DV.lifecycle.setApp(.failed);
         DV.log.error(
-          'Application boot failed.',
+          'Application boot failed in phase ${phase.number}, ${phase.name}'
+          '${bootStep == null ? '' : ' (@DVBoot function ${bootStep! + 1})'}.',
+          code: 'DV-RUN-004',
+          context: {
+            'phase': phase.number,
+            'phaseName': phase.name,
+            'bootStep': bootStep,
+          },
           error: error,
           stackTrace: stack,
         );
