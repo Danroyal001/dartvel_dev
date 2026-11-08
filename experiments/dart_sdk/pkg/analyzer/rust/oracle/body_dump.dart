@@ -10,11 +10,17 @@
 // its default value, a function's return type, explicit collection type
 // arguments) or which have no context (an expression statement, an
 // interpolation); see [isDeclaredContextInteger].
+// --identifiers selects reads of local variables and formal parameters
+// declared with a type annotation that flow analysis cannot promote, and
+// writes their declarations' element kind and name offset after the type;
+// see [DeclaredVariableReads].
 import 'dart:io';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/token.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/src/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/type_system.dart';
 import 'element_dump.dart' as elements;
 
 Future<void> main(List<String> args) async {
@@ -24,6 +30,7 @@ Future<void> main(List<String> args) async {
   bool literals = false;
   bool operators = false;
   bool integers = false;
+  bool identifiers = false;
   List<String> roots = [];
   for (int i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -33,12 +40,13 @@ Future<void> main(List<String> args) async {
       case '--literals': literals = true;
       case '--operators': operators = true;
       case '--integers': integers = true;
+      case '--identifiers': identifiers = true;
       default: roots.add(args[i]);
     }
   }
   if (sdk == null || out == null || packages == null || roots.isEmpty ||
-      [literals, operators, integers].where((flag) => flag).length > 1) {
-    stderr.writeln('usage: body_dump.dart --sdk <dir> [--literals|--operators|--integers] --out <dir> <root>...');
+      [literals, operators, integers, identifiers].where((flag) => flag).length > 1) {
+    stderr.writeln('usage: body_dump.dart --sdk <dir> [--literals|--operators|--integers|--identifiers] --out <dir> <root>...');
     exit(64);
   }
   var collection = elements.newCollection(
@@ -65,16 +73,27 @@ Future<void> main(List<String> args) async {
         (node is ParenthesizedExpression &&
             (isOperatorTyped(node.unParenthesized) ||
                 isLiteral(node.unParenthesized)));
+    var reads = identifiers
+        ? (DeclaredVariableReads(result.libraryElement.typeSystem)
+            ..collect(result.unit as AstNodeImpl))
+        : null;
     void visit(AstNodeImpl node) {
+      Element? read = reads != null && node is SimpleIdentifierImpl
+          ? reads.selected[node.offset]
+          : null;
       bool selected = literals ? isLiteral(node)
           : operators ? isOperatorTyped(node)
           : integers ? node is IntegerLiteralImpl && isDeclaredContextInteger(node)
+          : identifiers ? read != null
           : true;
       if (node is Expression && selected) {
         buffer.writeln('${node.runtimeType} ${node.offset}+${node.length} '
-            'type=${(node as Expression).staticType?.getDisplayString() ?? '-'}');
+            'type=${(node as Expression).staticType?.getDisplayString() ?? '-'}'
+            '${read == null ? '' : ' element=${read.kind.name} '
+                '${read.firstFragment.nameOffset}'}');
       }
-      if (!literals && !operators && !integers && node is Identifier) {
+      if (!literals && !operators && !integers && !identifiers &&
+          node is Identifier) {
         Element? element = (node as Identifier).element;
         var fragment = element?.firstFragment;
         buffer.writeln('identifier ${node.offset}+${node.length} '
@@ -208,4 +227,115 @@ bool _hasExplicitElementType(AstNode element, AstNode? parent) {
     element = parent!;
     parent = element.parent2;
   }
+}
+
+/// What `--identifiers` selects, read on the resolved V2 tree.
+///
+/// A declared variable is a local variable of a declaration with a type
+/// annotation, a for-in loop variable with one, or a regular formal parameter
+/// with a type annotation or a function-typed suffix (not a field or super
+/// formal parameter). A read is an [UnqualifiedNameExpressionImpl] whose scope
+/// lookup finds a declared variable, outside documentation comments.
+///
+/// Flow analysis may promote a variable, so a variable is left out entirely
+/// when any read of it is in a position that can promote it, or when it is
+/// written and its declared type is not non-nullable (an assignment of a
+/// non-nullable value promotes such a variable). A position that can promote
+/// is decided by tokens, past enclosing parentheses: the token after is `!`,
+/// `?.`, `?..`, `is`, `as`, `==` or `!=`, or `?` followed by `[`; or the token
+/// before is `==` or `!=`; or the read is the scrutinee of a switch statement
+/// or expression, of an `if`-`case`, or the initializer of a pattern variable
+/// declaration or pattern assignment. Writes are
+/// [UnqualifiedNameAssignmentTargetImpl]s (assignments, compound assignments,
+/// `++`, `--`, for-in loops over an identifier), assigned variable patterns,
+/// initializers of local variables (upstream promotes `int? x = 1;` to `int`)
+/// and for-in loop variables; a default value does not promote.
+class DeclaredVariableReads extends UnifyingAstVisitor2<void> {
+  final TypeSystem typeSystem;
+  final Set<Element> declared = {};
+  final List<(AstNode, Element)> reads = [];
+  final List<Element> writes = [];
+
+  /// The selected reads by offset, with the variables they read.
+  final Map<int, Element> selected = {};
+
+  new(this.typeSystem);
+
+  void collect(AstNodeImpl unit) {
+    unit.accept2(this);
+    // A read may precede its declaration in the tree.
+    reads.removeWhere((read) => !declared.contains(read.$2));
+    writes.removeWhere((element) => !declared.contains(element));
+    var excluded = <Element>{};
+    for (var (node, element) in reads) {
+      if (_canPromote(node)) excluded.add(element);
+    }
+    for (var element in writes) {
+      var type = switch (element) {
+        VariableElement(:var type) => type,
+        _ => null,
+      };
+      if (type == null || !typeSystem.isNonNullable(type)) {
+        excluded.add(element);
+      }
+    }
+    for (var (node, element) in reads) {
+      if (!excluded.contains(element)) selected[node.offset] = element;
+    }
+  }
+
+  @override
+  void visitNode(AstNode node) {
+    switch (node) {
+      case CommentImpl():
+        return;
+      case LocalVariableImpl(:var declaredFragment?):
+        if ((node.parent2 as LocalVariablesDeclarationImpl).type != null) {
+          declared.add(declaredFragment.element);
+        }
+        // Initialization promotes as an assignment does.
+        if (node.initializer != null) writes.add(declaredFragment.element);
+      case DeclaredIdentifierImpl(:var declaredFragment?):
+        if (node.type != null) declared.add(declaredFragment.element);
+        writes.add(declaredFragment.element);
+      case RegularFormalParameterImpl(:var declaredFragment?)
+          when node.type != null || node.functionTypedSuffix != null:
+        declared.add(declaredFragment.element);
+      case UnqualifiedNameExpressionImpl(:var scopeLookupResult?):
+        if (scopeLookupResult.getter case var element?) {
+          reads.add((node, element));
+        }
+      case UnqualifiedNameAssignmentTargetImpl(:var scopeLookupResult?):
+        if (scopeLookupResult.getter case var element?) writes.add(element);
+      case AssignedVariablePatternImpl(:var element?):
+        writes.add(element);
+    }
+    node.visitChildren2(this);
+  }
+}
+
+bool _canPromote(AstNode read) {
+  var node = read;
+  while (node.parent2 is ParenthesizedExpressionImpl) {
+    node = node.parent2!;
+  }
+  var after = node.endToken.next!;
+  if (const ['!', '?.', '?..', 'is', 'as', '==', '!=']
+          .contains(after.lexeme) ||
+      (after.lexeme == '?' && after.next!.lexeme == '[')) {
+    return true;
+  }
+  if (const ['==', '!='].contains(node.beginToken.previous!.lexeme)) {
+    return true;
+  }
+  return switch (node.parent2) {
+    SwitchStatementImpl(:var expression2) ||
+    SwitchExpressionImpl(:var expression2) ||
+    PatternVariableDeclarationImpl(:var expression2) ||
+    PatternAssignmentImpl(:var expression2) => identical(expression2, node),
+    IfStatementImpl(:var expression2, :var caseClause?) ||
+    IfElementImpl(:var expression2, :var caseClause?) =>
+      identical(expression2, node),
+    _ => false,
+  };
 }

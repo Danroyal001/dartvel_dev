@@ -7,9 +7,10 @@ use analyzer::src::dart::ast::ast::AstNodeImpl;
 use analyzer::src::dart::ast::ast_store::{Ast, ChildValue1, NO_NODE, NodeId};
 use analyzer::src::dart::element::display_string_builder::display_string;
 use analyzer::src::dart::element::element::ElementStore;
+use analyzer::src::dart::element::r#type::TypeImpl;
 use analyzer::src::dart::element::type_provider::TypeProviderImpl;
 use analyzer::src::dart::resolver::type_analyzer::{
-    Declarations, TypeAnalyzer, is_context_independent_literal, is_declared_context_integer,
+    Declarations, TypeAnalyzer, VariableRead, is_context_independent_literal, is_declared_context_integer,
 };
 use analyzer::src::dart::sdk::sdk::FolderBasedDartSdk;
 use analyzer::src::summary2::link::Linker;
@@ -32,6 +33,10 @@ enum Selection {
     /// `--integers`: integer literals whose context comes from a declared
     /// type annotation or which have none (`is_declared_context_integer`).
     Integers,
+    /// `--identifiers`: reads of local variables and formal parameters
+    /// declared with a type that flow analysis cannot promote
+    /// (`TypeAnalyzer::variable_reads`), with their declarations.
+    Identifiers,
 }
 
 fn main() {
@@ -44,10 +49,11 @@ fn main() {
             "--out" => out = args.next(),
             "--sdk" => sdk = args.next(),
             "--packages" => packages = args.next(),
-            "--literals" | "--operators" | "--integers" if selection.is_some() => usage(),
+            "--literals" | "--operators" | "--integers" | "--identifiers" if selection.is_some() => usage(),
             "--literals" => selection = Some(Selection::Literals),
             "--operators" => selection = Some(Selection::Operators),
             "--integers" => selection = Some(Selection::Integers),
+            "--identifiers" => selection = Some(Selection::Identifiers),
             _ if arg.starts_with('-') => usage(),
             _ => roots.push(arg),
         }
@@ -89,7 +95,7 @@ fn main() {
 
 fn usage() -> ! {
     eprintln!(
-        "usage: body_dump --sdk <dir> --packages <file> (--literals|--operators|--integers) --out <dir> <root>..."
+        "usage: body_dump --sdk <dir> --packages <file> (--literals|--operators|--integers|--identifiers) --out <dir> <root>..."
     );
     std::process::exit(64)
 }
@@ -112,7 +118,7 @@ fn corpus_files(root: &Path, dir: &Path, out: &Path, files: &mut Vec<(PathBuf, P
 }
 
 /// Parses and analyzes the file at [path] and writes its dump to [target].
-/// With `--integers` the file's library is linked first, so that type
+/// With `--integers` and `--identifiers` the file's library is linked first, so that type
 /// annotations resolve against it.
 fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Selection, path: &Path, target: &Path) {
     let bytes = fs::read(path).unwrap();
@@ -121,7 +127,7 @@ fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Select
         .encode_utf16()
         .collect::<Vec<_>>()
         .into();
-    let unit = if selection == Selection::Integers {
+    let unit = if matches!(selection, Selection::Integers | Selection::Identifiers) {
         let uri = linker.fs.path_to_uri(path);
         let file = linker.fs.get_file_for_uri(&uri).expect("a corpus file has a URI");
         linker.unit_of_file(file)
@@ -135,7 +141,7 @@ fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Select
         Some(unit) => TypeAnalyzer::with_declarations(
             provider,
             Declarations {
-                store,
+                store: &mut *store,
                 scopes: &mut types.scopes,
                 fragment_of_node: &types.fragment_of_node,
                 unit,
@@ -144,8 +150,9 @@ fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Select
         None => TypeAnalyzer::new(provider),
     };
     analyzer.analyze(ast, parsed.unit);
+    let results = Results { static_types: analyzer.static_types, variable_reads: analyzer.variable_reads };
     let mut dump = String::new();
-    Dumper { store, selection }.dump_node(ast, parsed.unit, &analyzer, &mut dump);
+    Dumper { store, selection }.dump_node(ast, parsed.unit, &results, &mut dump);
     fs::create_dir_all(target.parent().unwrap()).unwrap();
     fs::write(target, dump).unwrap();
 }
@@ -173,6 +180,12 @@ fn is_operator_typed(ast: Ast<'_>, node: NodeId) -> bool {
     }
 }
 
+/// What the analyzer recorded for the file.
+struct Results {
+    static_types: HashMap<NodeId, TypeImpl>,
+    variable_reads: HashMap<NodeId, VariableRead>,
+}
+
 struct Dumper<'a> {
     store: &'a ElementStore,
     selection: Selection,
@@ -182,17 +195,22 @@ impl Dumper<'_> {
     /// Writes the selected expressions under the V1 node [node], in the
     /// oracle's order. Types are recorded on canonical nodes, so a V1
     /// projection is looked up by the node it projects.
-    fn dump_node(&self, ast: Ast<'_>, node: NodeId, analyzer: &TypeAnalyzer<'_>, out: &mut String) {
+    fn dump_node(&self, ast: Ast<'_>, node: NodeId, analyzer: &Results, out: &mut String) {
         let source = match ast.v1_projection_source(node) {
             NO_NODE => node,
             origin => origin,
         };
+        let source = if source == node { called_name_source(ast, node).unwrap_or(node) } else { source };
         let selected = match self.selection {
             Selection::Literals => is_context_independent_literal(ast.node(node)),
             Selection::Operators => is_operator_typed(ast, source),
             Selection::Integers => {
                 matches!(ast.node(source), AstNodeImpl::IntegerLiteralImpl(_))
                     && is_declared_context_integer(ast, source)
+            }
+            Selection::Identifiers => {
+                matches!(ast.node(node), AstNodeImpl::SimpleIdentifierImpl(_))
+                    && analyzer.variable_reads.contains_key(&source)
             }
         };
         if selected {
@@ -203,11 +221,17 @@ impl Dumper<'_> {
                 .unwrap_or_else(|| "-".into());
             writeln!(
                 out,
-                "{} {}+{} type={}",
+                "{} {}+{} type={}{}",
                 ast.node(node).runtime_type(),
                 ast.offset(node),
                 ast.length(node),
-                type_
+                type_,
+                match analyzer.variable_reads.get(&source) {
+                    Some(read) if self.selection == Selection::Identifiers => {
+                        format!(" element={} {}", read.kind, read.name_offset)
+                    }
+                    _ => String::new(),
+                }
             )
             .unwrap();
         }
@@ -222,5 +246,36 @@ impl Dumper<'_> {
                 _ => (),
             }
         }
+    }
+}
+
+/// The parsed name the `methodName` [node] of an unqualified call `f()` was
+/// projected from. Upstream's resolver rewrites the call of a variable into
+/// a `FunctionExpressionInvocation` whose function is that name's
+/// identifier; the parse-time projection here keeps a `MethodInvocation`
+/// whose `methodName` is a new identifier with no origin.
+fn called_name_source(ast: Ast<'_>, node: NodeId) -> Option<NodeId> {
+    let AstNodeImpl::SimpleIdentifierImpl(identifier) = ast.node(node) else {
+        return None;
+    };
+    let AstNodeImpl::MethodInvocationImpl(invocation) = ast.node(ast.parent1_now(node)) else {
+        return None;
+    };
+    if invocation.method_name != node || invocation.target2 != NO_NODE {
+        return None;
+    }
+    let mut operand = invocation.parsed_expression_origin;
+    loop {
+        operand = match ast.node(operand) {
+            AstNodeImpl::ParsedValueArgumentsImpl(n) => n.operand,
+            AstNodeImpl::ParsedTypeArgumentsImpl(n) => n.operand,
+            // The projection of `f().g()` gives the inner call the whole chain
+            // as its origin.
+            AstNodeImpl::ParsedNameAccessImpl(n) => n.operand,
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => {
+                return (n.name == identifier.token).then_some(operand);
+            }
+            _ => return None,
+        };
     }
 }

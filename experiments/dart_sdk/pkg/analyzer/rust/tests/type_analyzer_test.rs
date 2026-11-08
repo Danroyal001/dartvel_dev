@@ -15,7 +15,10 @@
 //   explicit `dart:core` import removes the implicit one), else `int`;
 //   untyped when the annotation cannot be resolved because the unit is
 //   analyzed without its library.
-// - Not in the slice, so no type: identifiers, `==` (its type is the
+// - Reads of local variables and formal parameters declared with a type: that
+//   type, the declaration the innermost scope gives, and no type when flow
+//   analysis may promote the variable.
+// - Not in the slice, so no type: unresolved identifiers, `==` (its type is the
 //   operator method's return type), unary minus, integer literals in other
 //   contexts (arguments) and parentheses around any of those.
 
@@ -372,5 +375,257 @@ fn an_explicit_dart_core_import_removes_the_implicit_one() {
     assert_eq!(
         types_in_library("prefixed_core", code, &integers(&["1", "2"])),
         ["double", "int"]
+    );
+}
+
+/// Links [code] as the library `test.dart` (as [types_in_library] does) and
+/// returns, for each `(context, name)` in [queries], what the analyzer
+/// records for the read `name` inside the first occurrence of `context`: its
+/// type, the declaration's element kind and the declared name found at the
+/// declaration's name offset, or `-` when the read is not selected.
+fn variable_reads(name: &str, code: &str, queries: &[(&str, &str)]) -> Vec<String> {
+    let dir: PathBuf =
+        std::env::temp_dir().join(format!("type_analyzer_test_{}_{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    write(
+        &dir.join("sdk/lib/_internal/sdk_library_metadata/lib/libraries.dart"),
+        "const Map<String, LibraryInfo> libraries = const {\n  'async': const LibraryInfo('async/async.dart'),\n  'core': const LibraryInfo('core/core.dart'),\n};\n",
+    );
+    write(
+        &dir.join("sdk/lib/core/core.dart"),
+        "library dart.core;\nclass Object {}\nclass Null {}\nclass bool {}\nclass num {}\n\
+         class int extends num {}\nclass double extends num {}\nclass String {}\nclass Symbol {}\n\
+         class Function {}\nclass Record {}\nclass List<E> {}\n",
+    );
+    write(
+        &dir.join("sdk/lib/async/async.dart"),
+        "library dart.async;\nclass Future<T> {}\nclass FutureOr<T> {}\n",
+    );
+    write(&dir.join("package_config.json"), "{\"configVersion\": 2, \"packages\": []}");
+    let path = dir.join("test.dart");
+    write(&path, code);
+    let fs = FileSystemState::new(
+        FolderBasedDartSdk::new(&dir.join("sdk")),
+        parse_package_config_json_file(&dir.join("package_config.json")),
+    );
+    let mut linker = Linker::new(fs);
+    let core_file = linker.fs.get_file_for_uri("dart:core").unwrap();
+    let core = linker.library_for(core_file).unwrap();
+    let file = linker.fs.get_file_for_path(&path);
+    let unit = linker.unit_of_file(file).expect("test.dart is a library");
+    let _ = std::fs::remove_dir_all(&dir);
+    let provider = TypeProviderImpl::new(&linker.store, core);
+    let units: Vec<u16> = code.encode_utf16().collect();
+    let parsed = parse_string(Rc::from(units), None, path.to_str());
+    let ast = Ast::new(&parsed.ast, &parsed.tokens);
+    let Linker { store, types, .. } = &mut linker;
+    let mut analyzer = TypeAnalyzer::with_declarations(
+        &provider,
+        Declarations {
+            store,
+            scopes: &mut types.scopes,
+            fragment_of_node: &types.fragment_of_node,
+            unit,
+        },
+    );
+    analyzer.analyze(ast, parsed.unit);
+    let (static_types, reads) = (analyzer.static_types, analyzer.variable_reads);
+    let mut all = Vec::new();
+    nodes(ast, parsed.unit, &mut all);
+    queries
+        .iter()
+        .map(|&(context, read)| {
+            let start = code.find(context).unwrap_or_else(|| panic!("no {context:?}"));
+            let offset = (start + context.find(read).unwrap_or_else(|| panic!("no {read:?}"))) as i32;
+            let node = all
+                .iter()
+                .copied()
+                .find(|&id| {
+                    ast.node(id).runtime_type() == "ParsedUnqualifiedNameImpl"
+                        && ast.offset(id) == offset
+                        && ast.length(id) == read.len() as i32
+                })
+                .unwrap_or_else(|| panic!("no read {read:?} in {context:?}"));
+            match (static_types.get(&node), reads.get(&node)) {
+                (Some(type_), Some(variable)) => {
+                    let declared: String = code[variable.name_offset as usize..]
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric() || *c == '_')
+                        .collect();
+                    format!("{} {} {declared}", display_string(&linker.store, type_), variable.kind)
+                }
+                (None, None) => "-".to_string(),
+                (type_, variable) => panic!("type {type_:?} without its variable {variable:?}, or the reverse"),
+            }
+        })
+        .collect()
+}
+
+#[test]
+fn reads_of_declared_variables_have_their_declared_types() {
+    let code = "import 'dart:async' as async;\n\
+        typedef Callback = int Function(String);\n\
+        typedef Pair<T> = (T, T);\n\
+        class Box<T> {\n\
+          T value;\n\
+          Box(T initial, {required int count}) : value = initial { count; }\n\
+          S pick<S extends num>(S s, List<T> ts, Pair<S> pair, int g(String x)?) {\n\
+            s; ts; pair; g;\n\
+            List<T> local = ts;\n\
+            local;\n\
+            S Function<R>(R) generic = <R>(R r) => s;\n\
+            generic;\n\
+            return s;\n\
+          }\n\
+        }\n\
+        void f(int a, [double? b, async.Future<int>? c]) {\n\
+          a; b; c;\n\
+          Callback callback = (s) => 1;\n\
+          callback;\n\
+          callback('x');\n\
+          (int, {String name}) record = (1, name: 'n');\n\
+          record;\n\
+          Unknown unknown;\n\
+          unknown;\n\
+          dynamic d;\n\
+          d;\n\
+          for (int i = 0; i < 1; i++) { i; }\n\
+          void local<U>(U u, Object? o) { u; o; a; }\n\
+          var closure = (num n) => n;\n\
+        }\n";
+    assert_eq!(
+        variable_reads(
+            "declared_reads",
+            code,
+            &[
+                ("{ count; }", "count"),
+                ("s; ts;", "s"),
+                ("ts; pair;", "ts"),
+                ("pair; g;", "pair"),
+                ("g;\n", "g"),
+                ("\nlocal;", "local"),
+                ("\ngeneric;", "generic"),
+                ("a; b; c;", "a"),
+                ("b; c;", "b"),
+                ("b; c;", "c"),
+                ("\ncallback;", "callback"),
+                ("callback('x')", "callback"),
+                ("\nrecord;", "record"),
+                ("\nunknown;", "unknown"),
+                ("\nd;", "d"),
+                ("{ i; }", "i"),
+                ("{ u; o; a; }", "u"),
+                ("o; a; }", "o"),
+                ("a; }", "a"),
+                ("=> n;", "n"),
+            ],
+        ),
+        [
+            "int PARAMETER count",
+            "S PARAMETER s",
+            "List<T> PARAMETER ts",
+            "(S, S) PARAMETER pair",
+            "int Function(String)? PARAMETER g",
+            "List<T> LOCAL_VARIABLE local",
+            "S Function<R>(R) LOCAL_VARIABLE generic",
+            "int PARAMETER a",
+            "double? PARAMETER b",
+            "Future<int>? PARAMETER c",
+            "int Function(String) LOCAL_VARIABLE callback",
+            "int Function(String) LOCAL_VARIABLE callback",
+            "(int, {String name}) LOCAL_VARIABLE record",
+            "InvalidType LOCAL_VARIABLE unknown",
+            "dynamic LOCAL_VARIABLE d",
+            "int LOCAL_VARIABLE i",
+            "U PARAMETER u",
+            "Object? PARAMETER o",
+            "int PARAMETER a",
+            "num PARAMETER n",
+        ]
+    );
+}
+
+/// A name finds the innermost declaration of it: a block declares all of its
+/// locals for the whole block, and untyped variables, local functions, type
+/// parameters, catch and pattern variables hide what they shadow.
+#[test]
+fn reads_find_the_innermost_declaration() {
+    let code = "void f(int p, String q, int r, int s, int t, int u, int v) {\n\
+          { String p = 'x'; p; }\n\
+          { var q = 1; q; }\n\
+          { void r() {} r; }\n\
+          void g<s>() { s; }\n\
+          try {} catch (t) { t; }\n\
+          if (v case int u) { u; }\n\
+          { v; int v = 2; }\n\
+          q;\n\
+        }\n\
+        void w(int _, int __) { _; __; }\n";
+    assert_eq!(
+        variable_reads(
+            "innermost",
+            code,
+            &[
+                ("p; }", "p"),
+                ("q; }", "q"),
+                ("r; }", "r"),
+                ("s; }", "s"),
+                ("t; }", "t"),
+                ("u; }", "u"),
+                ("v; int v", "v"),
+                ("q;\n}", "q"),
+                ("_; __;", "_"),
+                ("__; }", "__"),
+            ],
+        ),
+        [
+            "String LOCAL_VARIABLE p",
+            "-",
+            "-",
+            "-",
+            "-",
+            "-",
+            "int LOCAL_VARIABLE v",
+            "String PARAMETER q",
+            "-",
+            "int PARAMETER __",
+        ]
+    );
+}
+
+/// The silent failure: the declared type where flow analysis promotes the
+/// variable. Such variables are left out entirely.
+#[test]
+fn variables_flow_analysis_may_promote_are_left_out() {
+    let code = "void f(int? n, num q, Object o, int? w, int? z, int k, int? y, int? x) {\n\
+          if (n != null) { n; }\n\
+          if (q is int) { q; }\n\
+          o as int; o;\n\
+          w = 1; w;\n\
+          z!; z;\n\
+          k = 2; k;\n\
+          y;\n\
+          x?.toString(); x;\n\
+          int? initialized = 1; initialized;\n\
+          int? uninitialized; uninitialized;\n\
+        }\n";
+    assert_eq!(
+        variable_reads(
+            "promoted",
+            code,
+            &[
+                ("{ n; }", "n"),
+                ("{ q; }", "q"),
+                ("o;\n", "o"),
+                ("w;\n", "w"),
+                ("z;\n", "z"),
+                ("k;\n", "k"),
+                ("y;\n", "y"),
+                ("x;\n", "x"),
+                ("initialized;", "initialized"),
+                ("; uninitialized;", "uninitialized"),
+            ],
+        ),
+        ["-", "-", "-", "-", "-", "int PARAMETER k", "int? PARAMETER y", "-", "-", "int? LOCAL_VARIABLE uninitialized"]
     );
 }

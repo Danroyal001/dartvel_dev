@@ -20,6 +20,11 @@ fn declared_context_integers_match_upstream() {
     compare_selection("integers");
 }
 
+#[test]
+fn declared_variable_reads_match_upstream() {
+    compare_selection("identifiers");
+}
+
 /// Runs `oracle/body_dump.dart` and `body_dump` with `--<selection>` on the
 /// corpus and fails unless they wrote nonempty, byte-identical dumps.
 fn compare_selection(selection: &str) {
