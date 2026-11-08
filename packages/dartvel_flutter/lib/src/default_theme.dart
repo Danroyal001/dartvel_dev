@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
 
+import 'theme/tokens.dart';
+
 /// The default application theme, shared by new projects and standalone Studio.
+///
+/// Built from [tokens], the active token set unless one is given: the page
+/// ground is `surface`, the colour scheme is seeded from the light `accent`
+/// with `danger` as its error, the scrollbar groove is edged in `outline`,
+/// and the face is the `body` role's family when it names one. With
+/// dartvel.dev's tokens that is exactly the theme this always was.
 ThemeData dartvelDefaultTheme(
   Brightness brightness, {
   String? fontPackage = 'dartvel_flutter',
+  DVThemeTokens? tokens,
 }) {
   final dark = brightness == Brightness.dark;
+  final DVThemeTokens set = tokens ?? dvThemeTokens;
+  final String? bodyFamily = set.text['body']?.family;
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
@@ -19,17 +30,21 @@ ThemeData dartvelDefaultTheme(
     // an installed font (`DV.Platform.fonts`) asked for
     // "packages/dartvel_flutter/<that font>", which does not exist, and was
     // drawn in Manrope instead.
-    fontFamily: fontPackage == null ? 'Manrope' : 'packages/$fontPackage/Manrope',
-    scaffoldBackgroundColor: dark
-        ? const Color(0xFF0A0D13)
-        : const Color(0xFFFFFFFF),
+    fontFamily: bodyFamily ??
+        (fontPackage == null ? 'Manrope' : 'packages/$fontPackage/Manrope'),
+    scaffoldBackgroundColor: set.color['surface']!.resolve(brightness),
     colorScheme: ColorScheme.fromSeed(
       // Seeded from the site's own accent, so Material's generated roles
       // land in the same family as the palette the pages actually use.
       // It used to be seeded from a blue nobody picked, which is where
       // every cool grey on the site came from.
-      seedColor: const Color(0xFF2F6BFF),
+      //
+      // The light accent, in both modes: the seed is a hue, and Material
+      // derives each mode's tones from it.
+      seedColor: set.color['accent']!.light,
       brightness: brightness,
+      error: set.color['danger']!.resolve(brightness),
+      onError: set.color['onDanger']!.resolve(brightness),
     ),
     // Always drawn, never faded. thumbVisibility keeps the thumb on screen
     // after the scroll stops; trackVisibility keeps the groove behind it, so
@@ -61,7 +76,7 @@ ThemeData dartvelDefaultTheme(
         dark ? const Color(0xFF161B25) : const Color(0xFFF1F3F8),
       ),
       trackBorderColor: WidgetStateProperty.all(
-        dark ? const Color(0xFF222A38) : const Color(0xFFE3E7EF),
+        set.color['outline']!.resolve(brightness),
       ),
     ),
   );
