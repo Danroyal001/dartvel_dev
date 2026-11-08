@@ -162,13 +162,29 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'theme',
-          title: 'Switch light and dark mode',
+          title: 'Theme: tokens and light and dark mode',
           children: <Widget>[
+            DocsText('Style with tokens instead of numbers. DVColor, DVText '
+                'roles, DVSpace, DVRadius, DVElevation and DVMotion name '
+                'values from the theme, and modifiers take them like any '
+                'other value. Each colour has a light value, a dark value '
+                'and, if you give one, a high-contrast value, and boxes and '
+                'text pick the right one as they are drawn. New projects '
+                'start with dartvel.dev\'s own tokens.'),
+            DocsCode('ui-tokens'),
+            DocsText('Change the values in pubspec.yaml. A colour without a '
+                'light or a dark value stops the build (DV-THEME-001), and so '
+                'does a body font that pubspec.yaml does not bundle '
+                '(DV-THEME-002).'),
+            DocsYaml('yaml-theme'),
+            DocsText('Switching the mode rebuilds the app straight away.'),
             DocsCode('ui-theme'),
             DocsStatus('Theme', missing: <String>[
-              'Only the light, dark and system mode switch is built.',
-              'Design tokens, fonts, per-tenant themes and icon generation are '
-                  'not built yet.',
+              'Per-tenant tokens, theme import and drift checks against '
+                  'Figma, and icon and splash generation are not built yet.',
+              'Only the built-in token names can be set: custom names, and '
+                  'type roles, elevation and motion in pubspec.yaml, are not '
+                  'built yet.',
             ]),
           ],
         ),

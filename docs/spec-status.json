@@ -354,9 +354,18 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_flutter/test/dartvel_flutter_test.dart"
+        "packages/dartvel_flutter/test/dartvel_flutter_test.dart",
+        "packages/dartvel_flutter/lib/src/theme/tokens.dart",
+        "packages/dartvel_flutter/lib/src/default_theme.dart",
+        "packages/dartvel_flutter/test/theme_tokens_test.dart",
+        "packages/dartvel_flutter/test/theme_tokens_widgets_test.dart",
+        "packages/dartvel_flutter/test/theme_type_roles_test.dart",
+        "packages/dartvel_flutter/test/default_theme_tokens_test.dart",
+        "packages/dartvel_flutter/test/theme_mode_test.dart",
+        "packages/dartvel_cli/lib/src/generators/theme_tokens_source.dart",
+        "packages/dartvel_cli/test/theme_tokens_config_test.dart"
       ],
-      "absent": "Built: DV.Theme.mode and setMode, which is light/dark/system switching and the whole of what DVTheme is -- a mode holder. Designed: the token vocabulary (colour, type, spacing, radius, elevation, motion) that modifiers name, per-mode token resolution including high contrast, fonts declared in configuration and bundled per target with fallback chains, per-tenant token overrides as a model, icon and splash generation from one master, and Figma variable import with two-way drift reporting. The section was labelled Contract/Shipped against a class with one field, which is why the stability drops to Draft: a surface this far from finished cannot promise that a breaking change takes the migration path rather than a spec edit."
+      "absent": "Built: the token vocabulary. DVColor (surface, raised, onSurface, muted, outline, accent, onAccent, danger, onDanger) are DVColorTokens with a light and a dark value and an optional highContrast value; DVBox resolves them on its background, border and shadows and DVText on its colour, against the theme's brightness and the platform's high-contrast setting, and of(context) resolves one anywhere else. DVText.display, heading1-3, body, small, caption and label are type roles, each a modifier from the theme's text tokens; DVSpace (xs-xl), DVRadius (sm, md, lg, full), DVElevation (flat, raised, overlay, with shadow colours per mode) and DVMotion (quick, standard, slow, each carrying its curve into animate()) read the active set. The defaults are dartvel.dev's palette, type scale and radii, and dartvelDefaultTheme is built from the set (surface, the light accent as seed, danger as error, outline, the body font and its fallback chain) with a pin test holding the default theme unchanged. DV.Theme.tokens and useTokens read and replace the set, refusing an unknown token name. dartvel.theme.tokens in pubspec.yaml (color with light, dark and optional highContrast; space; radius) and dartvel.theme.fonts.body (family and fallback) are installed by the generated application before any theme is built; a colour missing light or dark, an unknown token or a value that is not a colour is DV-THEME-001 at generation, and a body family no flutter.fonts entry bundles is DV-THEME-002. DV.Theme is a Listenable and the generated application takes themeMode from it, so setMode switches the running application. Absent: custom token names (a token the vocabulary does not name has no member to reach it by, and would need generated ones); type roles, elevation, motion and a mono face in pubspec.yaml; DV-THEME-002 per target (it checks that the family is bundled at all, not per target build); dynamicColor; light as the fallback where the platform reports no preference; per-tenant token overrides as a model (DV-THEME-003); icon and splash generation from one master; Figma variable and DTCG/Tailwind import and export, and dartvel theme check with DV-THEME-004; Styling's analyzer info for a raw value where a token exists; gradients and DVModifier.card() still take raw colours, card() a white ground in either mode."
     },
     {
       "section": "Platform",

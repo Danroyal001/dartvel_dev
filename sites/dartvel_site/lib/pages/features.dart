@@ -277,9 +277,10 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Theme',
-    'DV.Theme.mode',
-    'Present: light, dark and system switching. Absent: design tokens, fonts '
-        'from config and Figma variable import.',
+    'DVColor, DVSpace, DV.Theme',
+    'Present: colour, type, spacing, radius, elevation and motion tokens, per '
+        'mode with high contrast, and mode switching. Absent: per-tenant tokens '
+        'and Figma variable import.',
   ),
   (
     'Platform',

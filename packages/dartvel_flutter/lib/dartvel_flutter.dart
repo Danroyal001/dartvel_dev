@@ -37,6 +37,8 @@ import 'src/auth/session_client.dart';
 // conditional SEO implementation
 import 'src/crashes/crashes.dart';
 import 'src/default_theme.dart' show dvWithPageScrollbars;
+import 'src/theme/tokens.dart'
+    show DVThemeTokens, dvThemeTokens, dvUseThemeTokens, dvResolveColor, DVColorToken, DVMotionToken, DVTextRole;
 import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
@@ -912,6 +914,7 @@ export 'src/studio/studio_sign_in.dart'
 export 'src/studio/studio_site_pages.dart';
 export 'src/studio/studio_style.dart';
 export 'src/table/table.dart';
+export 'src/theme/tokens.dart' hide dvThemeTokens, dvUseThemeTokens, dvResolveColor;
 export 'src/updates/shorebird_updates.dart'
     show DVShorebirdNative, DVShorebirdUpdates;
 export 'src/widgets/browser_menu.dart' show DVBrowserMenu;
@@ -1729,9 +1732,14 @@ class DVModifier {
   /// nicety to keep.
   DVModifier animate(
     Duration duration, {
-    Curve curve = Curves.easeOut,
+    Curve? curve,
   }) =>
-      _copyWith(animateDuration: duration, animateCurve: curve);
+      _copyWith(
+        animateDuration: duration,
+        // A motion token carries its own curve; anything else eases out.
+        animateCurve: curve ??
+            (duration is DVMotionToken ? duration.curve : Curves.easeOut),
+      );
 
   /// What this box looks like while the pointer is over it.
   ///
@@ -2695,11 +2703,30 @@ class DVBox<T> extends StatelessWidget {
     final decoration = BoxDecoration(
       // Null when a gradient is set: Flutter asserts if a BoxDecoration
       // carries both, and the gradient is the more specific instruction.
-      color: m?.gradientValue != null ? null : m?.boxColor,
+      //
+      // Colour tokens resolve here, against the mode this box is drawn in,
+      // so DVColor.surface is the dark ground in dark and the high-contrast
+      // one when the reader asks for it.
+      color: m?.gradientValue != null || m?.boxColor == null
+          ? null
+          : dvResolveColor(context, m!.boxColor!),
       gradient: m?.gradientValue,
       borderRadius: m?.borderRadius,
-      border: m?.borderValue,
-      boxShadow: m?.shadows,
+      border: _dvResolveBorder(context, m?.borderValue),
+      boxShadow: m?.shadows == null
+          ? null
+          : <BoxShadow>[
+              for (final BoxShadow shadow in m!.shadows!)
+                shadow.color is DVColorToken
+                    ? BoxShadow(
+                        color: dvResolveColor(context, shadow.color),
+                        offset: shadow.offset,
+                        blurRadius: shadow.blurRadius,
+                        spreadRadius: shadow.spreadRadius,
+                        blurStyle: shadow.blurStyle,
+                      )
+                    : shadow,
+            ],
       image: m?.bgImage,
     );
 
@@ -4010,6 +4037,30 @@ class DVText extends StatelessWidget {
 
   const DVText(this.text, [DVModifier? modifier]) : _modifier = modifier;
 
+  /// Type roles: what a piece of text is, not how big it is.
+  /// `DVText('Orders', DVText.heading1)`, and a role chains like any
+  /// modifier: `DVText.caption.color(DVColor.muted)`. The sizes come from the
+  /// theme's tokens, so changing a role changes every text that names it.
+  static DVModifier get display => _role('display');
+  static DVModifier get heading1 => _role('heading1');
+  static DVModifier get heading2 => _role('heading2');
+  static DVModifier get heading3 => _role('heading3');
+  static DVModifier get body => _role('body');
+  static DVModifier get small => _role('small');
+  static DVModifier get caption => _role('caption');
+  static DVModifier get label => _role('label');
+
+  static DVModifier _role(String name) {
+    final DVTextRole role = dvThemeTokens.text[name]!;
+    return DVModifier(
+      fontSizeValue: role.size,
+      fontWeightValue: role.weight,
+      lineHeightValue: role.lineHeight,
+      letterSpacingValue: role.letterSpacing,
+      fontFamilyValue: role.family,
+    );
+  }
+
   DVText modifier(DVModifier mod) => DVText(text, mod);
   DVText styleModifier(DVModifier mod) => DVText(text, mod);
 
@@ -4026,7 +4077,9 @@ class DVText extends StatelessWidget {
       result = Text(
         text,
         style: TextStyle(
-          color: modifier?.textColor,
+          color: modifier?.textColor == null
+              ? null
+              : dvResolveColor(context, modifier!.textColor!),
           fontSize: modifier?.fontSizeValue,
           fontWeight: modifier?.fontWeightValue,
           letterSpacing: modifier?.letterSpacingValue,
@@ -9783,13 +9836,34 @@ class _ProviderAuthPage extends StatelessWidget {
       );
 }
 
-class DVTheme {
+/// `DV.Theme`: the mode and the token set.
+///
+/// A [Listenable], so the generated application rebuilds with the new mode
+/// when [setMode] changes it; before, the mode was stored and nothing read it.
+class DVTheme implements Listenable {
   const DVTheme();
   static ThemeMode _mode = ThemeMode.system;
+  static final _DVThemeChanges _changes = _DVThemeChanges();
   ThemeMode get mode => _mode;
   void setMode(ThemeMode mode) {
+    if (mode == _mode) return;
     _mode = mode;
+    _changes.changed();
   }
+
+  @override
+  void addListener(VoidCallback listener) => _changes.addListener(listener);
+
+  @override
+  void removeListener(VoidCallback listener) => _changes.removeListener(listener);
+
+  /// The token set `DVColor`, `DVSpace`, `DVRadius`, `DVElevation`,
+  /// `DVMotion` and the `DVText` roles read: dartvel.dev's until the
+  /// application's `dartvel.theme.tokens` or [useTokens] says otherwise.
+  DVThemeTokens get tokens => dvThemeTokens;
+
+  /// Replaces the token set. Widgets built afterwards read the new values.
+  void useTokens(DVThemeTokens tokens) => dvUseThemeTokens(tokens);
 }
 
 class DVBilling {
@@ -13075,4 +13149,23 @@ String dvGlobalName(Type type) {
   final String name = type.toString().split('<').first.trim();
   if (name.isEmpty) return name;
   return name[0].toLowerCase() + name.substring(1);
+}
+
+/// [border] with any colour token on its sides resolved where [context] is
+/// drawn. Borders of other kinds pass through unchanged.
+BoxBorder? _dvResolveBorder(BuildContext context, BoxBorder? border) {
+  BorderSide side(BorderSide value) => value.color is DVColorToken
+      ? value.copyWith(color: dvResolveColor(context, value.color))
+      : value;
+  if (border is Border) {
+    return Border(top: side(border.top), right: side(border.right), bottom: side(border.bottom), left: side(border.left));
+  }
+  if (border is BorderDirectional) {
+    return BorderDirectional(top: side(border.top), start: side(border.start), end: side(border.end), bottom: side(border.bottom));
+  }
+  return border;
+}
+
+class _DVThemeChanges extends ChangeNotifier {
+  void changed() => notifyListeners();
 }

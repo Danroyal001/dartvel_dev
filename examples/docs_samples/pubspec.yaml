@@ -73,6 +73,15 @@ dartvel:
       role: viewer
   # docs:end
 
+  # docs:start yaml-theme
+  theme:
+    tokens:
+      color:
+        surface: { light: '#FFFFFF', dark: '#101114', highContrast: '#000000' }
+        accent: { light: '#2C6BED', dark: '#5C8DFF' }
+      space: { xs: 4, sm: 8, md: 16, lg: 24 }
+  # docs:end
+
   # docs:start yaml-http
   http:
     hosts:

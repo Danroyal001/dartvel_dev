@@ -904,20 +904,20 @@ currently costs a `StatefulWidget` and a `WidgetStateProperty` every time:
 
 ```dart
 const DVModifier()
-    .padding(DVSpace.s4)
-    .color(DVColor.primary)
-    .onHovered((m) => m.color(DVColor.primaryStrong))
-    .onDark((m) => m.color(DVColor.primaryDark))
-    .onBreakpoint(DVBreakpoint.md, (m) => m.padding(DVSpace.s6));
+    .padding(DVSpace.md)
+    .color(DVColor.muted)
+    .onHovered((m) => m.color(DVColor.accent))
+    .onBreakpoint(DVBreakpoint.md, (m) => m.padding(DVSpace.lg));
 ```
 
 ## A scale is an API, a number is a suggestion
 
 `padding(12)` takes a raw number, and a design system nothing enforces is a
-suggestion. The scale-valued forms — `.padding(DVSpace.s4)`,
-`.color(DVColor.primary)` — resolve from the theme, raw values keep working,
-and the analyzer reports a raw value where a scale value exists, at `info`.
-That is the whole of what makes a utility CSS framework a design system rather
+suggestion. The token forms — `.padding(DVSpace.md)`, `.color(DVColor.accent)`
+— resolve from the theme (Theme), raw values keep working, and a colour token
+needs no `onDark`, because it already has a value per mode. The analyzer
+reports a raw value where a scale value exists, at `info` (designed, not
+built). That is the whole of what makes a utility CSS framework a design system rather
 than shorthand: the token is the call.
 
 ## Behaviour and appearance are separate layers
@@ -3110,16 +3110,19 @@ Styling has `DVModifier` and no vocabulary for it to name, which is why every
 padding in an application ends up a number, and why the number is different on
 the fourth screen.
 
-## Modes, which is what ships today
+## Modes
 
 ```dart
 DV.Theme.mode;                    // ThemeMode: light | dark | system
 DV.Theme.setMode(ThemeMode.dark);
 ```
 
-Light is the fallback where the platform reports no system preference — an
-embedded panel, a kiosk — and system is the default everywhere else. This much
-is built; everything below is designed.
+`DV.Theme` is a `Listenable`, and the generated application builds its
+`MaterialApp` on it with `themeMode: DV.Theme.mode`, so `setMode` switches the
+running application rather than storing a value nothing reads. System is the
+default. Light is meant to be the fallback where the platform reports no
+system preference — an embedded panel, a kiosk — and that fallback is not
+built: such a platform gets whatever Flutter reports.
 
 ## Tokens
 
@@ -3131,8 +3134,33 @@ DVText.body; DVText.heading1; DVText.caption;      // type roles, not sizes
 DVSpace.xs; DVSpace.sm; DVSpace.md; DVSpace.lg;
 DVRadius.sm; DVElevation.raised; DVMotion.standard;
 
-DVBox.list([...]).padding(DVSpace.md).background(DVColor.surface)
+DVBox.list([...], modifier: const DVModifier()
+    .padding(DVSpace.md)
+    .backgroundColor(DVColor.surface))
+DVText('Orders', DVText.heading1.color(DVColor.onSurface))
 ```
+
+Built, with these names:
+
+| Kind | Tokens | Type |
+|---|---|---|
+| Colour | `surface`, `raised`, `onSurface`, `muted`, `outline`, `accent`, `onAccent`, `danger`, `onDanger` | `DVColorToken`, a `Color` |
+| Type | `DVText.display`, `heading1`–`heading3`, `body`, `small`, `caption`, `label` | a `DVModifier` |
+| Space | `xs` 4, `sm` 8, `md` 16, `lg` 24, `xl` 32 | `double` |
+| Radius | `sm` 6, `md` 10, `lg` 12, `full` 999 | `double` |
+| Elevation | `flat`, `raised`, `overlay` | `List<BoxShadow>`, shadow colours per mode |
+| Motion | `quick` 140 ms, `standard` 180 ms, `slow` 420 ms | `DVMotionToken`, a `Duration` carrying its curve |
+
+The defaults are dartvel.dev's own palette, type scale and radii, so a new
+project starts with the site's theme, and `dartvelDefaultTheme` is built from
+the set: the page ground is `surface`, the colour scheme is seeded from the
+light `accent` with `danger` as its error, and the face is `fonts.body`.
+
+`DVBox` resolves a colour token on its background, border and shadows, and
+`DVText` on its colour, against the theme's brightness and the platform's
+high-contrast setting; `DVColor.surface.of(context)` resolves one anywhere
+else. A token handed unresolved to a plain Flutter widget is its light value.
+Gradients and `DVModifier.card()` still take raw colours.
 
 Modifiers take tokens, and still take raw values — a one-off inset is a real
 thing and a framework that forbids it produces a token named `space13`. What
@@ -3159,13 +3187,25 @@ dartvel:
 ```
 
 A missing token is a build error naming the token and the mode it is missing
-in, not a transparent pixel at runtime.
+in, not a transparent pixel at runtime. Light and dark are required of every
+colour; `highContrast` is optional, and a token without it keeps its
+brightness value when the reader asks for more contrast.
+
+Built from this block: `tokens.color`, `tokens.space`, `tokens.radius` and
+`fonts.body` (family and fallback), installed by the generated application
+before any theme is built. A colour missing light or dark, a value that is not
+`#RRGGBB` or `#RRGGBBAA`, or a token name the vocabulary does not have stops
+generation with `DV-THEME-001`. Not built: custom token names, which would
+need generated members to be named by; type roles, elevation and motion in
+configuration; the `mono` face; `variable`; and `dynamicColor`.
 
 **Fonts are bundled per target with a fallback chain**, and the chain is not
 decoration: Flutter web cannot resolve the generic `monospace` family, so a
 developer-facing site that names it renders every code sample in proportional
 text. Declaring the family and its fallbacks is what makes that a build-time
-concern instead of a bug report with a screenshot.
+concern instead of a bug report with a screenshot. Today `DV-THEME-002` checks
+that a `fonts.body` family is bundled by a `flutter.fonts` entry at all; the
+per-target check is not built.
 
 ## Per-tenant branding
 
@@ -3178,6 +3218,7 @@ back the way any bundle does.
 A tenant overrides tokens, never structure. Overriding a colour is branding;
 overriding a layout is a fork of the application with a customer's name on it,
 and the first support request proves it.
+Per-tenant tokens are designed and not built.
 
 ## Icons and splash
 
@@ -3188,6 +3229,7 @@ until it is the wrong one in a store listing.
 
 The splash this generates is the one the launch screen shows before the first
 frame, so an application does not open on white.
+Icon and splash generation are designed and not built.
 
 ## Design-token import
 
