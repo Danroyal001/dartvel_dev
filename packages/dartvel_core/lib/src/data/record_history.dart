@@ -12,6 +12,7 @@ import 'dart:math' as math;
 
 import '../database/adapter.dart';
 import '../database/framework_tables.dart' show dvIsSqlType;
+import '../database/records.dart';
 import '../observability/logging.dart' show DVLogLevel;
 import '../observability/observability.dart' show DVObservability;
 import '../transaction/transaction.dart';
@@ -430,11 +431,17 @@ class DVRecordTable {
   /// The rows this table may see, or null for the whole table.
   final DVRecordScope? scope;
 
-  /// ` AND column = ?` for the scope, or nothing.
-  String get _scopeAnd => scope == null ? '' : ' AND ${scope!.column} = ?';
+  /// [conditions] and the scope's own, as one filter.
+  DVFilter _scoped(List<DVFilter> conditions) => DVFilter.all(<DVFilter>[
+        ...conditions,
+        if (scope != null) DVFilter.equals(scope!.column, scope!.value),
+      ]);
 
-  List<Object?> get _scopeParams =>
-      scope == null ? const <Object?>[] : <Object?>[scope!.value];
+  /// The row with [id] at [version], in this table's scope.
+  DVFilter _at(Object id, int version) => _scoped(<DVFilter>[
+        DVFilter.equals(key, id),
+        DVFilter.equals(versionColumn, version),
+      ]);
 
   /// The tenant a history entry and a captured change are recorded under:
   /// the one given, else the scope's.
@@ -445,6 +452,17 @@ class DVRecordTable {
 
   /// Where the rows live: the adapter given, or the configured database.
   DVDatabaseAdapter get database => _database ?? const _ConfiguredDatabase();
+
+  /// The record operations every read and write goes through: the engine
+  /// itself when it is a record engine, as a document database is, and
+  /// otherwise compiled to SQL for it -- through `DV.Database`, tenant checks
+  /// and all, when no adapter was given.
+  DVRecordAdapter get _records {
+    final DVDatabaseAdapter? given = _database;
+    return given == null
+        ? const DVDatabase().records
+        : DVRecordAdapter.over(given);
+  }
 
   /// Where the change log lives.
   String get historyTable => '${table}__history';
@@ -459,7 +477,17 @@ class DVRecordTable {
   /// is declared, which SQLite and the in-memory adapter accept and
   /// PostgreSQL and MySQL refuse. The history table is the framework's own
   /// shape, and is always typed as the migration types it.
+  ///
+  /// On a record engine the collections are ensured through it instead,
+  /// with each declared type read as the nearest [DVFieldType] and an
+  /// undeclared one as text.
   Future<void> ensureSchema() async {
+    final DVRecordAdapter records = _records;
+    if (records is! DVSqlRecordAdapter) {
+      await records.ensure(_shape);
+      if (historyPolicy != null) await records.ensure(_historyShape);
+      return;
+    }
     final Map<String, String>? declared = types;
     final List<String> definitions = declared == null
         ? _storedColumns
@@ -481,12 +509,57 @@ class DVRecordTable {
     }
   }
 
+  /// The collection as a record engine is asked for it. A key shared by two
+  /// scopes is not unique across the collection, so a scoped table names
+  /// none.
+  DVRecordShape get _shape => DVRecordShape(
+        collection: table,
+        key: scope == null ? key : null,
+        fields: <String, DVFieldType>{
+          for (final String column in columns)
+            column: _fieldType(types?[column]),
+          versionColumn: DVFieldType.integer,
+          deletedColumn: DVFieldType.text,
+        },
+      );
+
+  DVRecordShape get _historyShape => DVRecordShape(
+        collection: historyTable,
+        key: 'entry_id',
+        fields: const <String, DVFieldType>{
+          'entry_id': DVFieldType.text,
+          'record_key': DVFieldType.text,
+          'record_version': DVFieldType.integer,
+          'actor': DVFieldType.text,
+          'tenant': DVFieldType.text,
+          'transaction_id': DVFieldType.text,
+          'occurred_at': DVFieldType.text,
+          'changes': DVFieldType.text,
+          'deleted': DVFieldType.integer,
+          'restored': DVFieldType.integer,
+        },
+      );
+
+  static DVFieldType _fieldType(String? sql) {
+    final String type = (sql ?? '').toUpperCase();
+    if (type.contains('INT')) return DVFieldType.integer;
+    if (type.contains('BOOL')) return DVFieldType.boolean;
+    if (type.contains('REAL') ||
+        type.contains('DOUBLE') ||
+        type.contains('FLOAT') ||
+        type.contains('NUMERIC') ||
+        type.contains('DECIMAL')) {
+      return DVFieldType.real;
+    }
+    return DVFieldType.text;
+  }
+
   /// The record with [id], or null. A soft-deleted record is null unless
   /// [withDeleted].
   Future<DVRecord?> read(Object id, {bool withDeleted = false}) async {
-    final List<Map<String, Object?>> rows = await database.query(
-      'SELECT * FROM $table WHERE $key = ?$_scopeAnd',
-      <Object?>[id, ..._scopeParams],
+    final List<Map<String, Object?>> rows = await _records.find(
+      table,
+      where: _scoped(<DVFilter>[DVFilter.equals(key, id)]),
     );
     if (rows.isEmpty) return null;
     final DVRecord record = _fromRow(rows.first);
@@ -496,15 +569,11 @@ class DVRecordTable {
 
   /// Every record, excluding soft-deleted ones unless [withDeleted].
   Future<List<DVRecord>> all({bool withDeleted = false}) async {
-    final List<String> where = <String>[
-      if (scope != null) '${scope!.column} = ?',
-      if (!withDeleted && softDelete) '$deletedColumn IS NULL',
-    ];
-    final List<Map<String, Object?>> rows = await database.query(
-      where.isEmpty
-          ? 'SELECT * FROM $table'
-          : 'SELECT * FROM $table WHERE ${where.join(' AND ')}',
-      _scopeParams,
+    final List<Map<String, Object?>> rows = await _records.find(
+      table,
+      where: _scoped(<DVFilter>[
+        if (!withDeleted && softDelete) const DVFilter.isNull(deletedColumn),
+      ]),
     );
     return <DVRecord>[
       for (final Map<String, Object?> row in rows)
@@ -623,10 +692,8 @@ class DVRecordTable {
       return;
     }
 
-    final int affected = await database.execute(
-      'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?$_scopeAnd',
-      <Object?>[id, current.version, ..._scopeParams],
-    );
+    final int affected =
+        await _records.delete(table, where: _at(id, current.version));
     if (affected != 1) {
       // Another write moved the row after it was read. Logging and capturing
       // a deletion now would record one that did not happen.
@@ -691,10 +758,13 @@ class DVRecordTable {
     for (final String field in unique) {
       final Object? value = current.values[field];
       if (value == null) continue;
-      final List<Map<String, Object?>> holders = await database.query(
-        'SELECT $key FROM $table WHERE $field = ? AND $deletedColumn IS NULL'
-        '$_scopeAnd',
-        <Object?>[value, ..._scopeParams],
+      final List<Map<String, Object?>> holders = await _records.find(
+        table,
+        where: _scoped(<DVFilter>[
+          DVFilter.equals(field, value),
+          const DVFilter.isNull(deletedColumn),
+        ]),
+        fields: <String>[key],
       );
       if (holders.any((Map<String, Object?> row) => !_same(row[key], id))) {
         taken.add(field);
@@ -713,11 +783,13 @@ class DVRecordTable {
     if (historyPolicy == null) return const <DVHistoryEntry>[];
     // Scoped by the tenant each entry was written under, which is the
     // scope's: another tenant's record with the same key is another record.
-    final List<Map<String, Object?>> rows = await database.query(
-      'SELECT * FROM $historyTable WHERE record_key = ? '
-      '${scope == null ? '' : 'AND tenant = ? '}'
-      'ORDER BY record_version ASC',
-      <Object?>[id, if (scope != null) _tenant(null)],
+    final List<Map<String, Object?>> rows = await _records.find(
+      historyTable,
+      where: DVFilter.all(<DVFilter>[
+        DVFilter.equals('record_key', id),
+        if (scope != null) DVFilter.equals('tenant', _tenant(null)),
+      ]),
+      orderBy: const <DVSort>[DVSort('record_version')],
     );
     return rows.map(_entryFromRow).toList(growable: false);
   }
@@ -780,9 +852,9 @@ class DVRecordTable {
     final Duration? keep = historyPolicy?.keep;
     if (keep == null) return 0;
     final String cutoff = _stamp((now ?? DateTime.now()).subtract(keep));
-    final int removed = await database.execute(
-      'DELETE FROM $historyTable WHERE occurred_at < ?',
-      <Object?>[cutoff],
+    final int removed = await _records.delete(
+      historyTable,
+      where: DVFilter.compare('occurred_at', DVCompare.less, cutoff),
     );
     if (removed > 0) {
       // A change log that shrinks is evidence leaving the system, so it
@@ -823,10 +895,7 @@ class DVRecordTable {
         tenant: tenant,
       );
     } catch (error) {
-      await database.execute(
-        'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?$_scopeAnd',
-        <Object?>[id, 1, ..._scopeParams],
-      );
+      await _records.delete(table, where: _at(id, 1));
       throw DVHistoryWriteError(table: table, key: id, cause: error);
     }
     try {
@@ -839,32 +908,27 @@ class DVRecordTable {
         tenant: tenant,
       );
     } catch (error) {
-      await database.execute(
-        'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?$_scopeAnd',
-        <Object?>[id, 1, ..._scopeParams],
-      );
+      await _records.delete(table, where: _at(id, 1));
       await _unlog(entry);
       throw DVCaptureWriteError(table: table, key: id, cause: error);
     }
     DVTransactionRunner.activeContext?.compensate(() async {
-      await database.execute(
-        'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?$_scopeAnd',
-        <Object?>[id, 1, ..._scopeParams],
-      );
+      await _records.delete(table, where: _at(id, 1));
       await _unlog(entry);
     });
     return record;
   }
 
-  Future<void> _insertRow(DVRecord record) => database.execute(
-        'INSERT INTO $table (${_storedColumns.join(', ')}) '
-        'VALUES (${List<String>.filled(_storedColumns.length, '?').join(', ')})',
-        <Object?>[
-          for (final String column in columns) record.values[column],
-          record.version,
-          record.deletedAt == null ? null : _stamp(record.deletedAt!),
-        ],
-      );
+  Future<void> _insertRow(DVRecord record) =>
+      _records.insert(table, _row(record));
+
+  /// [record] as stored: its fields and the bookkeeping columns.
+  Map<String, Object?> _row(DVRecord record) => <String, Object?>{
+        for (final String column in columns) column: record.values[column],
+        versionColumn: record.version,
+        deletedColumn:
+            record.deletedAt == null ? null : _stamp(record.deletedAt!),
+      };
 
   /// Moves [current] to [values] at the next version, conditional on the row
   /// still being at [current]'s version, with its history entry.
@@ -937,22 +1001,9 @@ class DVRecordTable {
   }
 
   /// Writes [record] over the row, if the row is at version [expected].
-  Future<int> _setRow(DVRecord record, {required int expected}) {
-    final String assignments =
-        _storedColumns.map((String column) => '$column = ?').join(', ');
-    return database.execute(
-      'UPDATE $table SET $assignments '
-      'WHERE $key = ? AND $versionColumn = ?$_scopeAnd',
-      <Object?>[
-        for (final String column in columns) record.values[column],
-        record.version,
-        record.deletedAt == null ? null : _stamp(record.deletedAt!),
-        record.key,
-        expected,
-        ..._scopeParams,
-      ],
-    );
-  }
+  Future<int> _setRow(DVRecord record, {required int expected}) =>
+      _records.update(table, _row(record),
+          where: _at(record.key, expected));
 
   // --- history --------------------------------------------------------------
 
@@ -967,35 +1018,28 @@ class DVRecordTable {
   }) async {
     if (historyPolicy == null) return null;
     final String entry = _newEntryId();
-    await database.execute(
-      'INSERT INTO $historyTable (entry_id, record_key, record_version, actor, '
-      'tenant, transaction_id, occurred_at, changes, deleted, restored) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      <Object?>[
-        entry,
-        id,
-        version,
-        actor,
-        tenant,
-        DVTransactionRunner.activeContext?.transactionId,
-        _stamp(_now()),
-        jsonEncode(<String, Object?>{
-          for (final MapEntry<String, DVFieldChange> change in changes.entries)
-            change.key: change.value.toJson(),
-        }),
-        deleted ? 1 : 0,
-        restored ? 1 : 0,
-      ],
-    );
+    await _records.insert(historyTable, <String, Object?>{
+      'entry_id': entry,
+      'record_key': id,
+      'record_version': version,
+      'actor': actor,
+      'tenant': tenant,
+      'transaction_id': DVTransactionRunner.activeContext?.transactionId,
+      'occurred_at': _stamp(_now()),
+      'changes': jsonEncode(<String, Object?>{
+        for (final MapEntry<String, DVFieldChange> change in changes.entries)
+          change.key: change.value.toJson(),
+      }),
+      'deleted': deleted ? 1 : 0,
+      'restored': restored ? 1 : 0,
+    });
     return entry;
   }
 
   Future<void> _unlog(String? entry) async {
     if (entry == null) return;
-    await database.execute(
-      'DELETE FROM $historyTable WHERE entry_id = ?',
-      <Object?>[entry],
-    );
+    await _records.delete(historyTable,
+        where: DVFilter.equals('entry_id', entry));
   }
 
   /// What changed from [before] to [after], with sensitive fields recorded as
