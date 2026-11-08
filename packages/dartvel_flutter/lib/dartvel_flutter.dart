@@ -8510,7 +8510,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
   void initState() {
     super.initState();
   // What was typed into the server-rendered form before the app painted.
-    dvTakeOverServerField('Email', _email);
+    dvTakeOverServerField(DV.I18n.t(DVFrameworkStrings.authEmail), _email);
   }
 
   /// Whether the password was accepted and the account's second factor is
@@ -8888,7 +8888,9 @@ Widget _dvAccountKeyed(String key, Widget child) =>
           ? Semantics(liveRegion: true, child: child) : child);
 
 Widget _dvAuthSwitch(BuildContext context, {required bool signUp, String? from}) {
-  final label = signUp ? 'Create an account' : 'Already have an account? Sign in';
+  final label = DV.I18n.t(signUp
+      ? DVFrameworkStrings.accountSwitchToSignUp
+      : DVFrameworkStrings.accountSwitchToSignIn);
   final target = signUp ? DVAuth._signUpTarget : DVAuth._signInTarget;
   if (target == null && DVAuth._pageRoutesConfigured) return const SizedBox.shrink();
   if (target != null) {
@@ -8906,13 +8908,13 @@ Widget _dvAuthSwitch(BuildContext context, {required bool signUp, String? from})
 /// Fixed text for a refused code or password. Nothing a server said is shown.
 String _dvAccountRefusal(Object error, {required String fallback}) {
   if (error is DVSecondFactorRefused) return error.message;
-  if (error is DVVelocityRefusal) return 'Too many attempts. Try again later.';
+  if (error is DVVelocityRefusal) return DV.I18n.t(DVFrameworkStrings.accountTooManyAttempts);
   if (error is AuthException &&
       error.failure == AuthFailure.invalidCredentials) {
-    return 'That password is not right.';
+    return DV.I18n.t(DVFrameworkStrings.accountWrongPassword);
   }
   if (error is DVSessionRequestFailed && error.statusCode == 401) {
-    return 'Your session has ended. Sign in again.';
+    return DV.I18n.t(DVFrameworkStrings.accountSessionEnded);
   }
   return fallback;
 }
@@ -8982,7 +8984,7 @@ class _SecurityPageState extends State<_SecurityPage> {
     } on Object catch (error) {
       if (mounted) {
         setState(() => _error = _dvAccountRefusal(error,
-            fallback: 'Your security settings could not be loaded.'));
+            fallback: DV.I18n.t(DVFrameworkStrings.accountSecurityNotLoaded)));
       }
     }
   }
@@ -8997,9 +8999,9 @@ class _SecurityPageState extends State<_SecurityPage> {
       await action();
     } on DVMfaRequired {
       _needsStepUp = true;
-      _error = 'Enter a code from your authenticator app to continue.';
+      _error = DV.I18n.t(DVFrameworkStrings.accountCodeToContinue);
     } on Object catch (error) {
-      _error = _dvAccountRefusal(error, fallback: 'That did not work. Try again.');
+      _error = _dvAccountRefusal(error, fallback: DV.I18n.t(DVFrameworkStrings.accountDidNotWork));
     }
     if (!mounted) return;
     setState(() => _busy = false);
@@ -9034,7 +9036,7 @@ class _SecurityPageState extends State<_SecurityPage> {
     final String presented = _removeCode.text.trim();
     if (presented.isEmpty) {
       setState(() => _error =
-          'Enter a code from your authenticator app or a recovery code.');
+          DV.I18n.t(DVFrameworkStrings.accountEnterCodeOrRecovery));
       return;
     }
     await _run(() async {
@@ -9055,7 +9057,7 @@ class _SecurityPageState extends State<_SecurityPage> {
     if (current.isEmpty || next.isEmpty) {
       setState(() {
         _passwordDone = null;
-        _passwordError = 'Enter your current password and a new one.';
+        _passwordError = DV.I18n.t(DVFrameworkStrings.accountPasswordsNeeded);
       });
       return;
     }
@@ -9080,22 +9082,23 @@ class _SecurityPageState extends State<_SecurityPage> {
       _newPassword.clear();
       _passwordCode.clear();
       done = switch (revoked) {
-        0 => 'Your password was changed.',
-        1 => 'Your password was changed, and 1 other device was signed out.',
-        _ => 'Your password was changed, and $revoked other devices were signed out.',
+        0 => DV.I18n.t(DVFrameworkStrings.accountPasswordChanged),
+        1 => DV.I18n.t(DVFrameworkStrings.accountPasswordChangedOne),
+        _ => DV.I18n.t(DVFrameworkStrings.accountPasswordChangedMany,
+            args: <String, String>{'count': '$revoked'}),
       };
     } on DVMfaRequired {
-      error = 'Enter a code from your authenticator app to change your password.';
+      error = DV.I18n.t(DVFrameworkStrings.accountCodeToChangePassword);
     } on DVBreachedPasswordRefusal catch (refusal) {
       error = refusal.message;
     } on AuthException catch (refusal) {
       error = refusal.failure == AuthFailure.weakPassword
-          ? 'That new password is too weak. Choose a longer one.'
+          ? DV.I18n.t(DVFrameworkStrings.accountNewPasswordWeak)
           : _dvAccountRefusal(refusal,
-              fallback: 'Your password was not changed. Try again.');
+              fallback: DV.I18n.t(DVFrameworkStrings.accountPasswordNotChanged));
     } on Object catch (failure) {
       error = _dvAccountRefusal(failure,
-          fallback: 'Your password was not changed. Check both passwords and try again.');
+          fallback: DV.I18n.t(DVFrameworkStrings.accountPasswordNotChangedCheck));
     }
     if (!mounted) return;
     setState(() {
@@ -9112,7 +9115,7 @@ class _SecurityPageState extends State<_SecurityPage> {
     final List<String>? codes = _codes;
     final String? error = _error;
     return _dvAccountFrame(<Widget>[
-      _dvAccountHeading('Security'),
+      _dvAccountHeading(DV.I18n.t(DVFrameworkStrings.accountSecurity)),
       DVText(DV.I18n.t(DVFrameworkStrings.accountAuthenticatorApp)),
       if (status == null && error == null) DVText(DV.I18n.t(DVFrameworkStrings.loadingEllipsis)),
       if (status != null)
@@ -9120,7 +9123,7 @@ class _SecurityPageState extends State<_SecurityPage> {
             ? _dvAccountKeyed('dv-security-totp-on', DVText(DV.I18n.t(DVFrameworkStrings.accountOn)))
             : _dvAccountKeyed('dv-security-totp-off', DVText(DV.I18n.t(DVFrameworkStrings.accountOff))),
       if (status != null && !status.totp && enrollment == null)
-        _dvAccountButton('dv-security-enroll', 'Set up an authenticator app',
+        _dvAccountButton('dv-security-enroll', DV.I18n.t(DVFrameworkStrings.accountSetUpAuthenticator),
             () => unawaited(_enroll()), busy: _busy),
       if (enrollment != null) ...<Widget>[
         DVText(DV.I18n.t(DVFrameworkStrings.accountScanCode)),
@@ -9133,7 +9136,7 @@ class _SecurityPageState extends State<_SecurityPage> {
           keyboardType: TextInputType.number,
           autofillHints: const <String>[AutofillHints.oneTimeCode],
         ),
-        _dvAccountButton('dv-security-confirm', 'Turn on', () => unawaited(_confirm()), busy: _busy),
+        _dvAccountButton('dv-security-confirm', DV.I18n.t(DVFrameworkStrings.accountTurnOn), () => unawaited(_confirm()), busy: _busy),
       ],
       if (status != null && status.totp) ...<Widget>[
         DVText(DV.I18n.t(DVFrameworkStrings.accountRecoveryCodes)),
@@ -9141,7 +9144,7 @@ class _SecurityPageState extends State<_SecurityPage> {
             DVText(DV.I18n.t(DVFrameworkStrings.accountUnusedRecoveryCodes, args: <String, String>{'count': '${status.recoveryCodes}'}))),
         if (codes == null)
           _dvAccountButton('dv-security-recovery-generate',
-              'Generate new recovery codes', () => unawaited(_generate()), busy: _busy),
+              DV.I18n.t(DVFrameworkStrings.accountNewRecoveryCodes), () => unawaited(_generate()), busy: _busy),
         if (_needsStepUp) ...<Widget>[
           TextField(
             key: const ValueKey<String>('dv-security-stepup-code'),
@@ -9150,12 +9153,12 @@ class _SecurityPageState extends State<_SecurityPage> {
             keyboardType: TextInputType.number,
           ),
           _dvAccountButton(
-              'dv-security-stepup', 'Continue', () => unawaited(_stepUp()), busy: _busy),
+              'dv-security-stepup', DV.I18n.t(DVFrameworkStrings.accountContinue), () => unawaited(_stepUp()), busy: _busy),
         ],
         if (codes != null) ...<Widget>[
           DVText(DV.I18n.t(DVFrameworkStrings.accountSaveRecoveryCodes)),
           for (final String code in codes) DVText(code),
-          _dvAccountButton('dv-security-recovery-copy', 'Copy', () {
+          _dvAccountButton('dv-security-recovery-copy', DV.I18n.t(DVFrameworkStrings.accountCopy), () {
             // Through the platform binding, as every clipboard use is. A copy
             // that failed says so, rather than leaving the person believing
             // the codes are somewhere they are not.
@@ -9164,12 +9167,12 @@ class _SecurityPageState extends State<_SecurityPage> {
               onError: (Object _) {
                 if (mounted) {
                   setState(() => _error =
-                      'The codes could not be copied. Write them down instead.');
+                      DV.I18n.t(DVFrameworkStrings.accountCopyFailed));
                 }
               },
             ));
           }, busy: _busy),
-          _dvAccountButton('dv-security-recovery-done', 'I have saved them', () {
+          _dvAccountButton('dv-security-recovery-done', DV.I18n.t(DVFrameworkStrings.accountSavedThem), () {
             setState(() => _codes = null);
             unawaited(_load());
           }, busy: _busy),
@@ -9183,7 +9186,7 @@ class _SecurityPageState extends State<_SecurityPage> {
           autocorrect: false,
         ),
         _dvAccountButton(
-            'dv-security-remove', 'Remove', () => unawaited(_remove()), busy: _busy),
+            'dv-security-remove', DV.I18n.t(DVFrameworkStrings.accountRemove), () => unawaited(_remove()), busy: _busy),
       ],
       DVText(DV.I18n.t(DVFrameworkStrings.authPassword)),
       _DVPasswordField(
@@ -9218,7 +9221,7 @@ class _SecurityPageState extends State<_SecurityPage> {
           onSubmitted: (_) => unawaited(_changePassword()),
         ),
       DVText(DV.I18n.t(DVFrameworkStrings.accountPasswordSignsOut)),
-      _dvAccountButton('dv-security-password-submit', 'Change password',
+      _dvAccountButton('dv-security-password-submit', DV.I18n.t(DVFrameworkStrings.accountChangePassword),
           () => unawaited(_changePassword()), busy: _busy),
       if (_passwordDone != null)
         _dvAccountKeyed('dv-security-password-done', DVText(_passwordDone!)),
@@ -9258,7 +9261,7 @@ class _SessionsPageState extends State<_SessionsPage> {
     } on Object catch (error) {
       if (mounted) {
         setState(() => _error = _dvAccountRefusal(error,
-            fallback: 'Your devices could not be loaded.'));
+            fallback: DV.I18n.t(DVFrameworkStrings.accountDevicesNotLoaded)));
       }
     }
   }
@@ -9272,7 +9275,7 @@ class _SessionsPageState extends State<_SessionsPage> {
     try {
       await action();
     } on Object catch (error) {
-      _error = _dvAccountRefusal(error, fallback: 'That did not work. Try again.');
+      _error = _dvAccountRefusal(error, fallback: DV.I18n.t(DVFrameworkStrings.accountDidNotWork));
     }
     if (!mounted) return;
     setState(() => _busy = false);
@@ -9284,23 +9287,23 @@ class _SessionsPageState extends State<_SessionsPage> {
     final List<DVSession>? sessions = _sessions;
     final String? error = _error;
     return _dvAccountFrame(<Widget>[
-      _dvAccountHeading('Devices'),
+      _dvAccountHeading(DV.I18n.t(DVFrameworkStrings.accountDevices)),
       DVText(DV.I18n.t(DVFrameworkStrings.accountSignedInWhere)),
       if (sessions == null && error == null) DVText(DV.I18n.t(DVFrameworkStrings.loadingEllipsis)),
       if (sessions != null)
         for (final DVSession session in sessions)
           DVBox.list(<Widget>[
-            DVText(session.device ?? 'Unknown device'),
+            DVText(session.device ?? DV.I18n.t(DVFrameworkStrings.accountUnknownDevice)),
             DVText(DV.I18n.t(DVFrameworkStrings.accountLastActive, args: <String, String>{'time': _dvAccountTime(session.lastSeenAt)})),
             if (session.isCurrent)
               _dvAccountKeyed(
                   'dv-sessions-current-${session.id}', DVText(DV.I18n.t(DVFrameworkStrings.accountThisDevice)))
             else
-              _dvAccountButton('dv-sessions-revoke-${session.id}', 'Sign out',
+              _dvAccountButton('dv-sessions-revoke-${session.id}', DV.I18n.t(DVFrameworkStrings.accountSignOut),
                   () => unawaited(_run(() => widget.auth.revoke(session.id))), busy: _busy),
           ]),
       if (sessions != null && sessions.length > 1)
-        _dvAccountButton('dv-sessions-revoke-others', 'Sign out everywhere else',
+        _dvAccountButton('dv-sessions-revoke-others', DV.I18n.t(DVFrameworkStrings.accountSignOutOthers),
             () => unawaited(_run(() async {
                   await widget.auth.revokeOthers();
                 })), busy: _busy),
@@ -9310,6 +9313,9 @@ class _SessionsPageState extends State<_SessionsPage> {
 }
 
 // --- SignUpPage ---------------------------------------------------------------
+
+/// A field on the sign-up form a refusal can be about.
+enum _DVSignUpField { email, password }
 
 class _SignUpPage extends StatefulWidget {
   const _SignUpPage({required this.auth, this.from});
@@ -9331,19 +9337,21 @@ class _SignUpPageState extends State<_SignUpPage> {
   void initState() {
     super.initState();
   // What was typed into the server-rendered form before the app painted.
-    dvTakeOverServerField('Name (optional)', _name);
-    dvTakeOverServerField('Email', _email);
+    dvTakeOverServerField(DV.I18n.t(DVFrameworkStrings.accountNameOptional), _name);
+    dvTakeOverServerField(DV.I18n.t(DVFrameworkStrings.authEmail), _email);
   }
   bool _busy = false;
   bool _done = false;
   String? _error;
 
+  /// Which field [_error] is about, so it is shown under that field whatever
+  /// language it is in: null when it is about neither.
+  _DVSignUpField? _errorField;
+
   /// One text for an address that has an account and for every failure that
   /// is not about what was typed, so the page is not a way to find out
   /// which addresses have accounts.
-  static const String _unavailable =
-      'We could not create an account with those details. If you already '
-      'have one, sign in instead.';
+  static String get _unavailable => DV.I18n.t(DVFrameworkStrings.accountUnavailable);
 
   @override
   void dispose() {
@@ -9358,8 +9366,10 @@ class _SignUpPageState extends State<_SignUpPage> {
     setState(() {
       _busy = true;
       _error = null;
+      _errorField = null;
     });
     String? error;
+    _DVSignUpField? errorField;
     try {
       final String name = _name.text.trim();
       await widget.auth.signUp(
@@ -9375,15 +9385,22 @@ class _SignUpPageState extends State<_SignUpPage> {
         DVNavigation.goOrLoad(router, DVPageMfa.safeReturn(widget.from));
       }
     } on AuthException catch (refusal) {
-      error = switch (refusal.failure) {
-        AuthFailure.weakPassword => 'That password is too weak.',
-        AuthFailure.invalidEmail => 'That e-mail address is not valid.',
-        _ => _unavailable,
+      (error, errorField) = switch (refusal.failure) {
+        AuthFailure.weakPassword => (
+            DV.I18n.t(DVFrameworkStrings.accountWeakPassword),
+            _DVSignUpField.password,
+          ),
+        AuthFailure.invalidEmail => (
+            DV.I18n.t(DVFrameworkStrings.accountInvalidEmail),
+            _DVSignUpField.email,
+          ),
+        _ => (_unavailable, null),
       };
     } on DVBreachedPasswordRefusal {
-      error = 'That password has appeared in a data breach. Choose another.';
+      error = DV.I18n.t(DVFrameworkStrings.accountBreachedPassword);
+      errorField = _DVSignUpField.password;
     } on DVVelocityRefusal {
-      error = 'Too many attempts. Try again later.';
+      error = DV.I18n.t(DVFrameworkStrings.accountTooManyAttempts);
     } on Object {
       error = _unavailable;
     }
@@ -9391,12 +9408,14 @@ class _SignUpPageState extends State<_SignUpPage> {
     setState(() {
       _busy = false;
       _error = error;
+      _errorField = errorField;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final String? error = _error;
+    final _DVSignUpField? errorField = _errorField;
     if (_done) {
       return _dvAccountFrame(<Widget>[
         _dvAccountKeyed(
@@ -9423,7 +9442,12 @@ class _SignUpPageState extends State<_SignUpPage> {
         key: const ValueKey<String>('dv-signup-email'),
         controller: _email,
         decoration: InputDecoration(labelText: DV.I18n.t(DVFrameworkStrings.authEmail),
-          errorText: error?.contains('e-mail') == true ? 'Email: $error' : null),
+          errorText: error != null && errorField == _DVSignUpField.email
+              ? DV.I18n.t(DVFrameworkStrings.accountFieldError, args: <String, String>{
+                  'field': DV.I18n.t(DVFrameworkStrings.authEmail),
+                  'error': error,
+                })
+              : null),
         autocorrect: false,
         keyboardType: TextInputType.emailAddress,
         textInputAction: .next,
@@ -9436,7 +9460,12 @@ class _SignUpPageState extends State<_SignUpPage> {
         fieldKey: const ValueKey<String>('dv-signup-password'),
         controller: _password,
         label: DV.I18n.t(DVFrameworkStrings.authPassword),
-        errorText: error == null || error.contains('e-mail') ? null : 'Password: $error',
+        errorText: error == null || errorField == _DVSignUpField.email
+            ? null
+            : DV.I18n.t(DVFrameworkStrings.accountFieldError, args: <String, String>{
+                'field': DV.I18n.t(DVFrameworkStrings.authPassword),
+                'error': error,
+              }),
         autofillHints: const <String>[AutofillHints.newPassword],
         textInputAction: .done,
         onSubmitted: (_) => unawaited(_submit()),
@@ -9448,7 +9477,7 @@ class _SignUpPageState extends State<_SignUpPage> {
             ),
           _dvAccountButton(
             'dv-signup-submit',
-            'Create account',
+            DV.I18n.t(DVFrameworkStrings.accountCreate),
             () => unawaited(_submit()),
             busy: _busy,
           ),
@@ -9497,7 +9526,7 @@ class _ProfilePageState extends State<_ProfilePage> {
     } on Object catch (error) {
       if (mounted) {
         setState(() => _error = _dvAccountRefusal(error,
-            fallback: 'Your profile could not be loaded.'));
+            fallback: DV.I18n.t(DVFrameworkStrings.accountProfileNotLoaded)));
       }
     }
   }
@@ -9512,13 +9541,13 @@ class _ProfilePageState extends State<_ProfilePage> {
       await action();
     } on AuthException catch (refusal) {
       _error = switch (refusal.failure) {
-        AuthFailure.invalidEmail => 'That e-mail address is not valid.',
+        AuthFailure.invalidEmail => DV.I18n.t(DVFrameworkStrings.accountInvalidEmail),
         AuthFailure.accountExists =>
-          'That address cannot be used for this account.',
-        _ => 'That did not work. Try again.',
+          DV.I18n.t(DVFrameworkStrings.accountAddressUnusable),
+        _ => DV.I18n.t(DVFrameworkStrings.accountDidNotWork),
       };
     } on Object catch (error) {
-      _error = _dvAccountRefusal(error, fallback: 'That did not work. Try again.');
+      _error = _dvAccountRefusal(error, fallback: DV.I18n.t(DVFrameworkStrings.accountDidNotWork));
     }
     if (!mounted) return;
     setState(() => _busy = false);
@@ -9531,7 +9560,7 @@ class _ProfilePageState extends State<_ProfilePage> {
     final String? error = _error;
     final String? pending = account?.pendingEmail;
     return _dvAccountFrame(<Widget>[
-      _dvAccountHeading('Profile'),
+      _dvAccountHeading(DV.I18n.t(DVFrameworkStrings.accountProfile)),
       if (account == null && error == null) DVText(DV.I18n.t(DVFrameworkStrings.loadingEllipsis)),
       if (account != null) ...<Widget>[
         if (account.name != null) DVText(account.name!),
@@ -9554,7 +9583,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                 _code.clear();
               })),
         ),
-          _dvAccountButton('dv-profile-verify-email', 'Confirm new address',
+          _dvAccountButton('dv-profile-verify-email', DV.I18n.t(DVFrameworkStrings.accountConfirmNewAddress),
               () => unawaited(_run(() async {
                     await widget.auth.confirmEmailChange(_code.text.trim());
                     _code.clear();
@@ -9573,7 +9602,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                 _newEmail.clear();
               })),
         ),
-        _dvAccountButton('dv-profile-change-email', 'Change email',
+        _dvAccountButton('dv-profile-change-email', DV.I18n.t(DVFrameworkStrings.accountChangeEmail),
             () => unawaited(_run(() async {
                   await widget.auth.requestEmailChange(_newEmail.text.trim());
                   _newEmail.clear();
@@ -9640,11 +9669,12 @@ class _DeletePageState extends State<_DeletePage> {
     final String code = _code.text.trim();
     String? refusal;
     if (_confirm.text.trim() != _phrase) {
-      refusal = 'Type $_phrase to confirm.';
+      refusal = DV.I18n.t(DVFrameworkStrings.accountTypePhrase,
+          args: const <String, String>{'phrase': _phrase});
     } else if (password.isEmpty) {
-      refusal = 'Enter your password.';
+      refusal = DV.I18n.t(DVFrameworkStrings.accountEnterPassword);
     } else if (_hasFactor && code.isEmpty) {
-      refusal = 'Enter a code from your authenticator app or a recovery code.';
+      refusal = DV.I18n.t(DVFrameworkStrings.accountEnterCodeOrRecovery);
     }
     if (refusal != null) {
       setState(() => _error = refusal);
@@ -9666,10 +9696,10 @@ class _DeletePageState extends State<_DeletePage> {
       _done = true;
     } on DVMfaRequired {
       _hasFactor = true;
-      error = 'Enter a code from your authenticator app or a recovery code.';
+      error = DV.I18n.t(DVFrameworkStrings.accountEnterCodeOrRecovery);
     } on Object catch (failure) {
       error = _dvAccountRefusal(failure,
-          fallback: 'Your account could not be deleted. Try again.');
+          fallback: DV.I18n.t(DVFrameworkStrings.accountNotDeleted));
     }
     if (!mounted) return;
     setState(() {
@@ -9697,7 +9727,7 @@ class _DeletePageState extends State<_DeletePage> {
       ]);
     }
     return _dvAccountFrame(<Widget>[
-      _dvAccountHeading('Delete your account'),
+      _dvAccountHeading(DV.I18n.t(DVFrameworkStrings.accountDeleteHeading)),
       DVText(DV.I18n.t(DVFrameworkStrings.accountDeleteWarning)),
       TextField(
         key: const ValueKey<String>('dv-delete-confirm-text'),
@@ -9726,7 +9756,7 @@ class _DeletePageState extends State<_DeletePage> {
           onSubmitted: (_) => unawaited(_submit()),
         ),
       if (error != null) _dvAccountKeyed('dv-delete-error', DVText(error)),
-      _dvAccountButton('dv-delete-submit', _busy ? 'Deleting...' : 'Delete my account',
+      _dvAccountButton('dv-delete-submit', _busy ? DV.I18n.t(DVFrameworkStrings.accountDeleting) : DV.I18n.t(DVFrameworkStrings.accountDeleteMine),
           () => unawaited(_submit()), busy: _busy),
     ]);
   }
@@ -11864,6 +11894,222 @@ abstract final class DVFrameworkStrings {
   static const DVTranslationKey accountTypeToConfirm =
       DVTranslationKey('dv.account.typeToConfirm');
 
+  /// The name an account page shows when the application gave none.
+  static const DVTranslationKey authWelcome =
+      DVTranslationKey('dv.auth.welcome');
+
+  /// The line under that name when the application gave none.
+  static const DVTranslationKey authTagline =
+      DVTranslationKey('dv.auth.tagline');
+
+  /// The sign-in page's heading when the application gave none.
+  static const DVTranslationKey authSignInTitle =
+      DVTranslationKey('dv.auth.signInTitle');
+
+  /// The sign-up page's heading when the application gave none.
+  static const DVTranslationKey authSignUpTitle =
+      DVTranslationKey('dv.auth.signUpTitle');
+
+  /// The heading of the page that asks for a second factor.
+  static const DVTranslationKey authSecondFactorTitle =
+      DVTranslationKey('dv.auth.secondFactorTitle');
+
+  /// The link from sign-in to sign-up.
+  static const DVTranslationKey accountSwitchToSignUp =
+      DVTranslationKey('dv.account.switchToSignUp');
+
+  /// The link from sign-up to sign-in.
+  static const DVTranslationKey accountSwitchToSignIn =
+      DVTranslationKey('dv.account.switchToSignIn');
+
+  /// A refusal after too many attempts.
+  static const DVTranslationKey accountTooManyAttempts =
+      DVTranslationKey('dv.account.tooManyAttempts');
+
+  /// A refusal of a wrong password.
+  static const DVTranslationKey accountWrongPassword =
+      DVTranslationKey('dv.account.wrongPassword');
+
+  /// A refusal because the session ended.
+  static const DVTranslationKey accountSessionEnded =
+      DVTranslationKey('dv.account.sessionEnded');
+
+  /// A refusal that says no more than that it failed.
+  static const DVTranslationKey accountDidNotWork =
+      DVTranslationKey('dv.account.didNotWork');
+
+  /// The security page's settings failed to load.
+  static const DVTranslationKey accountSecurityNotLoaded =
+      DVTranslationKey('dv.account.securityNotLoaded');
+
+  /// A step-up that needs an authenticator code.
+  static const DVTranslationKey accountCodeToContinue =
+      DVTranslationKey('dv.account.codeToContinue');
+
+  /// A step-up that needs a code or a recovery code.
+  static const DVTranslationKey accountEnterCodeOrRecovery =
+      DVTranslationKey('dv.account.enterCodeOrRecovery');
+
+  /// A password change with a field left empty.
+  static const DVTranslationKey accountPasswordsNeeded =
+      DVTranslationKey('dv.account.passwordsNeeded');
+
+  /// A password change that signed out no other device.
+  static const DVTranslationKey accountPasswordChanged =
+      DVTranslationKey('dv.account.passwordChanged');
+
+  /// A password change that signed out one other device.
+  static const DVTranslationKey accountPasswordChangedOne =
+      DVTranslationKey('dv.account.passwordChangedOne');
+
+  /// A password change that signed out {count} other devices.
+  static const DVTranslationKey accountPasswordChangedMany =
+      DVTranslationKey('dv.account.passwordChangedMany');
+
+  /// A password change that needs an authenticator code.
+  static const DVTranslationKey accountCodeToChangePassword =
+      DVTranslationKey('dv.account.codeToChangePassword');
+
+  /// A new password refused as too weak.
+  static const DVTranslationKey accountNewPasswordWeak =
+      DVTranslationKey('dv.account.newPasswordWeak');
+
+  /// A password change that failed.
+  static const DVTranslationKey accountPasswordNotChanged =
+      DVTranslationKey('dv.account.passwordNotChanged');
+
+  /// A password change refused for what was typed.
+  static const DVTranslationKey accountPasswordNotChangedCheck =
+      DVTranslationKey('dv.account.passwordNotChangedCheck');
+
+  /// The security page's heading.
+  static const DVTranslationKey accountSecurity =
+      DVTranslationKey('dv.account.security');
+
+  /// The control that starts adding an authenticator.
+  static const DVTranslationKey accountSetUpAuthenticator =
+      DVTranslationKey('dv.account.setUpAuthenticator');
+
+  /// The control that confirms a new authenticator.
+  static const DVTranslationKey accountTurnOn =
+      DVTranslationKey('dv.account.turnOn');
+
+  /// The control that replaces the recovery codes.
+  static const DVTranslationKey accountNewRecoveryCodes =
+      DVTranslationKey('dv.account.newRecoveryCodes');
+
+  /// The control that sends a step-up code.
+  static const DVTranslationKey accountContinue =
+      DVTranslationKey('dv.account.continue');
+
+  /// The control that copies the recovery codes.
+  static const DVTranslationKey accountCopy =
+      DVTranslationKey('dv.account.copy');
+
+  /// The recovery codes could not be copied.
+  static const DVTranslationKey accountCopyFailed =
+      DVTranslationKey('dv.account.copyFailed');
+
+  /// The control that dismisses the recovery codes.
+  static const DVTranslationKey accountSavedThem =
+      DVTranslationKey('dv.account.savedThem');
+
+  /// The control that removes the authenticator.
+  static const DVTranslationKey accountRemove =
+      DVTranslationKey('dv.account.remove');
+
+  /// The control that changes the password.
+  static const DVTranslationKey accountChangePassword =
+      DVTranslationKey('dv.account.changePassword');
+
+  /// The devices page's list failed to load.
+  static const DVTranslationKey accountDevicesNotLoaded =
+      DVTranslationKey('dv.account.devicesNotLoaded');
+
+  /// The devices page's heading.
+  static const DVTranslationKey accountDevices =
+      DVTranslationKey('dv.account.devices');
+
+  /// A signed-in device that gave no name.
+  static const DVTranslationKey accountUnknownDevice =
+      DVTranslationKey('dv.account.unknownDevice');
+
+  /// The control that signs one device out.
+  static const DVTranslationKey accountSignOut =
+      DVTranslationKey('dv.account.signOut');
+
+  /// The control that signs every other device out.
+  static const DVTranslationKey accountSignOutOthers =
+      DVTranslationKey('dv.account.signOutOthers');
+
+  /// One refusal for an address that has an account and every failure not about what was typed.
+  static const DVTranslationKey accountUnavailable =
+      DVTranslationKey('dv.account.unavailable');
+
+  /// A password refused as too weak.
+  static const DVTranslationKey accountWeakPassword =
+      DVTranslationKey('dv.account.weakPassword');
+
+  /// An address refused as not valid.
+  static const DVTranslationKey accountInvalidEmail =
+      DVTranslationKey('dv.account.invalidEmail');
+
+  /// A password found in a breach.
+  static const DVTranslationKey accountBreachedPassword =
+      DVTranslationKey('dv.account.breachedPassword');
+
+  /// A refusal under a field; {field} is its label and {error} the refusal.
+  static const DVTranslationKey accountFieldError =
+      DVTranslationKey('dv.account.fieldError');
+
+  /// The control that creates the account.
+  static const DVTranslationKey accountCreate =
+      DVTranslationKey('dv.account.create');
+
+  /// The profile page failed to load.
+  static const DVTranslationKey accountProfileNotLoaded =
+      DVTranslationKey('dv.account.profileNotLoaded');
+
+  /// A new address the account cannot take.
+  static const DVTranslationKey accountAddressUnusable =
+      DVTranslationKey('dv.account.addressUnusable');
+
+  /// The profile page's heading.
+  static const DVTranslationKey accountProfile =
+      DVTranslationKey('dv.account.profile');
+
+  /// The control that confirms a new address with its code.
+  static const DVTranslationKey accountConfirmNewAddress =
+      DVTranslationKey('dv.account.confirmNewAddress');
+
+  /// The control that starts changing the address.
+  static const DVTranslationKey accountChangeEmail =
+      DVTranslationKey('dv.account.changeEmail');
+
+  /// A deletion whose confirmation was not typed; {phrase} is what to type.
+  static const DVTranslationKey accountTypePhrase =
+      DVTranslationKey('dv.account.typePhrase');
+
+  /// A deletion without the password.
+  static const DVTranslationKey accountEnterPassword =
+      DVTranslationKey('dv.account.enterPassword');
+
+  /// A deletion that failed.
+  static const DVTranslationKey accountNotDeleted =
+      DVTranslationKey('dv.account.notDeleted');
+
+  /// The deletion page's heading.
+  static const DVTranslationKey accountDeleteHeading =
+      DVTranslationKey('dv.account.deleteHeading');
+
+  /// The deletion control while it works.
+  static const DVTranslationKey accountDeleting =
+      DVTranslationKey('dv.account.deleting');
+
+  /// The control that deletes the account.
+  static const DVTranslationKey accountDeleteMine =
+      DVTranslationKey('dv.account.deleteMine');
+
   /// The heading of the status page for a 403.
   static const DVTranslationKey status403Title =
       DVTranslationKey('dv.status.403.title');
@@ -12014,6 +12260,60 @@ abstract final class DVFrameworkStrings {
     'dv.account.deleted': 'Your account has been deleted.',
     'dv.account.deleteWarning': 'This deletes your account and the data held about you, and signs you out everywhere. It cannot be undone.',
     'dv.account.typeToConfirm': 'Type {phrase} to confirm',
+    'dv.auth.welcome': 'Welcome',
+    'dv.auth.tagline': 'A place for what matters to you.',
+    'dv.auth.signInTitle': 'Sign in to your account',
+    'dv.auth.signUpTitle': 'Create an account',
+    'dv.auth.secondFactorTitle': 'Verify your identity',
+    'dv.account.switchToSignUp': 'Create an account',
+    'dv.account.switchToSignIn': 'Already have an account? Sign in',
+    'dv.account.tooManyAttempts': 'Too many attempts. Try again later.',
+    'dv.account.wrongPassword': 'That password is not right.',
+    'dv.account.sessionEnded': 'Your session has ended. Sign in again.',
+    'dv.account.didNotWork': 'That did not work. Try again.',
+    'dv.account.securityNotLoaded': 'Your security settings could not be loaded.',
+    'dv.account.codeToContinue': 'Enter a code from your authenticator app to continue.',
+    'dv.account.enterCodeOrRecovery': 'Enter a code from your authenticator app or a recovery code.',
+    'dv.account.passwordsNeeded': 'Enter your current password and a new one.',
+    'dv.account.passwordChanged': 'Your password was changed.',
+    'dv.account.passwordChangedOne': 'Your password was changed, and 1 other device was signed out.',
+    'dv.account.passwordChangedMany': 'Your password was changed, and {count} other devices were signed out.',
+    'dv.account.codeToChangePassword': 'Enter a code from your authenticator app to change your password.',
+    'dv.account.newPasswordWeak': 'That new password is too weak. Choose a longer one.',
+    'dv.account.passwordNotChanged': 'Your password was not changed. Try again.',
+    'dv.account.passwordNotChangedCheck': 'Your password was not changed. Check both passwords and try again.',
+    'dv.account.security': 'Security',
+    'dv.account.setUpAuthenticator': 'Set up an authenticator app',
+    'dv.account.turnOn': 'Turn on',
+    'dv.account.newRecoveryCodes': 'Generate new recovery codes',
+    'dv.account.continue': 'Continue',
+    'dv.account.copy': 'Copy',
+    'dv.account.copyFailed': 'The codes could not be copied. Write them down instead.',
+    'dv.account.savedThem': 'I have saved them',
+    'dv.account.remove': 'Remove',
+    'dv.account.changePassword': 'Change password',
+    'dv.account.devicesNotLoaded': 'Your devices could not be loaded.',
+    'dv.account.devices': 'Devices',
+    'dv.account.unknownDevice': 'Unknown device',
+    'dv.account.signOut': 'Sign out',
+    'dv.account.signOutOthers': 'Sign out everywhere else',
+    'dv.account.unavailable': 'We could not create an account with those details. If you already have one, sign in instead.',
+    'dv.account.weakPassword': 'That password is too weak.',
+    'dv.account.invalidEmail': 'That e-mail address is not valid.',
+    'dv.account.breachedPassword': 'That password has appeared in a data breach. Choose another.',
+    'dv.account.fieldError': '{field}: {error}',
+    'dv.account.create': 'Create account',
+    'dv.account.profileNotLoaded': 'Your profile could not be loaded.',
+    'dv.account.addressUnusable': 'That address cannot be used for this account.',
+    'dv.account.profile': 'Profile',
+    'dv.account.confirmNewAddress': 'Confirm new address',
+    'dv.account.changeEmail': 'Change email',
+    'dv.account.typePhrase': 'Type {phrase} to confirm.',
+    'dv.account.enterPassword': 'Enter your password.',
+    'dv.account.notDeleted': 'Your account could not be deleted. Try again.',
+    'dv.account.deleteHeading': 'Delete your account',
+    'dv.account.deleting': 'Deleting...',
+    'dv.account.deleteMine': 'Delete my account',
   };
 }
 

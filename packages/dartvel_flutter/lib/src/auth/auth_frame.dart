@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import '../../dartvel_flutter.dart' show DV, DVFrameworkStrings;
 import 'auth_image_source.dart';
 
 /// Which prebuilt account page a frame is drawn for.
@@ -16,9 +17,11 @@ typedef DVAuthFrameBuilder = Widget Function(
 /// [frameBuilder] replaces the default two-panel frame entirely, so an app's
 /// sign-in looks like that app rather than like every other Dartvel app.
 /// [signInTitle] and [signUpTitle] name the pages in the app's own words.
+/// [name] and [tagline] left out read framework strings, so an application
+/// that has not named itself is still not English in every language.
 class const DVAuthAppearance({
-  final String name = 'Welcome',
-  final String tagline = 'A place for what matters to you.',
+  String? name,
+  String? tagline,
   final String? icon,
   final String? heroImage,
   final Color? brandPanelColor,
@@ -27,11 +30,20 @@ class const DVAuthAppearance({
   final String? signInTitle,
   final String? signUpTitle,
 }) {
+  final String? _givenName = name;
+  final String? _givenTagline = tagline;
+
+  /// The name the frame shows: the application's, or a framework string.
+  String get name => _givenName ?? DV.I18n.t(DVFrameworkStrings.authWelcome);
+
+  /// The line under [name].
+  String get tagline => _givenTagline ?? DV.I18n.t(DVFrameworkStrings.authTagline);
+
   /// The heading an account page shows.
   String titleFor(DVAuthScreen screen) => switch (screen) {
-        DVAuthScreen.signIn => signInTitle ?? 'Sign in to your account',
-        DVAuthScreen.signUp => signUpTitle ?? 'Create an account',
-        DVAuthScreen.secondFactor => 'Verify your identity',
+        DVAuthScreen.signIn => signInTitle ?? DV.I18n.t(DVFrameworkStrings.authSignInTitle),
+        DVAuthScreen.signUp => signUpTitle ?? DV.I18n.t(DVFrameworkStrings.authSignUpTitle),
+        DVAuthScreen.secondFactor => DV.I18n.t(DVFrameworkStrings.authSecondFactorTitle),
         DVAuthScreen.account => name,
       };
 }
