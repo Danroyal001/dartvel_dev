@@ -18,18 +18,14 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Testing',
     '`dartvel test`',
-    'Fakes for auth, queues, mail, storage and AI, generated model '
-        'factories, --impacted for the tests a diff can reach, --evals for '
-        'scored AI evals, and each mounted module\'s generated tests run '
-        'under its id, skipped with the reason where the host cannot carry '
-        'them.',
+    'Fakes for auth, queues, mail, storage and AI, model factories, '
+        '--impacted, --evals and module tests.',
   ),
   (
     'The Golden Path',
     'create to upgrade',
-    'One path from dartvel create to production: dev, generate, db migrate, '
-        'test, build, deploy, and upgrade --plan to see what an upgrade '
-        'changes, then upgrade --apply to make those changes.',
+    'One path from a new project to production, with dartvel upgrade '
+        '--plan, then --apply, for each upgrade.',
   ),
   (
     'UI',
@@ -619,11 +615,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Error, Empty, and Loading States',
     'page.loading.dart',
-    'Present: loading and error companions, an error boundary, an offline '
-        'banner and a background-task tray on every page, status pages per '
-        'code, skeletons for generated tables, lists and grids, three kinds '
-        'of empty, and DV-STATE-003. Absent: progress from durable jobs in '
-        'the tray.',
+    'Present: loading and error companions, error boundary, offline '
+        'banner, task tray, status pages, skeletons, empty pages. '
+        'Absent: progress from durable jobs in the tray.',
   ),
   (
     'Sensitive Model Fields',
