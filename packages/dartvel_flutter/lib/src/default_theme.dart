@@ -16,7 +16,8 @@ ThemeData dartvelDefaultTheme(
 }) {
   final dark = brightness == Brightness.dark;
   final DVThemeTokens set = tokens ?? dvThemeTokens;
-  final String? bodyFamily = set.text['body']?.family;
+  final DVFontToken? bodyFont = set.fonts['body'];
+  final String? bodyFamily = bodyFont?.family ?? set.text['body']?.family;
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
@@ -32,6 +33,8 @@ ThemeData dartvelDefaultTheme(
     // drawn in Manrope instead.
     fontFamily: bodyFamily ??
         (fontPackage == null ? 'Manrope' : 'packages/$fontPackage/Manrope'),
+    fontFamilyFallback:
+        bodyFont == null || bodyFont.fallback.isEmpty ? null : bodyFont.fallback,
     scaffoldBackgroundColor: set.color['surface']!.resolve(brightness),
     colorScheme: ColorScheme.fromSeed(
       // Seeded from the site's own accent, so Material's generated roles

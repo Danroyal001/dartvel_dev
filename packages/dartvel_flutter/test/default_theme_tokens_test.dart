@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 Color? scrollbar(WidgetStateProperty<Color?>? property) => property?.resolve(<WidgetState>{});
 
 void main() {
+  group('fonts', fontTokens);
   tearDown(() => DV.Theme.useTokens(DVThemeTokens.dartvel));
 
   // What the default theme resolved to before tokens fed it, written out so a
@@ -39,5 +40,21 @@ void main() {
     expect(scrollbar(dark.scrollbarTheme.trackBorderColor)!.toARGB32(), 0xFF333333);
     expect(dark.textTheme.bodyMedium!.fontFamily, 'Inter');
     expect(dartvelDefaultTheme(.light).scaffoldBackgroundColor.toARGB32(), 0xFFFAFAF7);
+  });
+}
+
+void fontTokens() {
+  tearDown(() => DV.Theme.useTokens(DVThemeTokens.dartvel));
+
+  test('the body font token is the theme\'s face, with its fallback chain', () {
+    expect(DVThemeTokens.dartvel.fonts['body']!.family, isNull);
+    DV.Theme.useTokens(DVThemeTokens.dartvel.override(
+      fonts: const <String, DVFontToken>{
+        'body': DVFontToken(family: 'Inter', fallback: <String>['system-ui', 'sans-serif']),
+      },
+    ));
+    final ThemeData theme = dartvelDefaultTheme(.light);
+    expect(theme.textTheme.bodyMedium!.fontFamily, 'Inter');
+    expect(theme.textTheme.bodyMedium!.fontFamilyFallback, <String>['system-ui', 'sans-serif']);
   });
 }

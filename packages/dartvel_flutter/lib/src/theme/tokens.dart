@@ -128,8 +128,21 @@ class DVTextRole {
   final String? family;
 }
 
+/// A typeface by the family it is bundled under, and the families to try
+/// when a glyph is not in it.
+///
+/// A null family is the framework's own bundled face. The chain matters on
+/// the web, where a generic family such as `monospace` is not resolved as the
+/// first family and only a fallback reaches the browser's.
+class DVFontToken {
+  const DVFontToken({this.family, this.fallback = const <String>[]});
+
+  final String? family;
+  final List<String> fallback;
+}
+
 /// The whole vocabulary an application's styling names: colour, type,
-/// spacing, radius, elevation and motion.
+/// spacing, radius, elevation, motion and fonts.
 ///
 /// The names are fixed and the values are not. [dartvel] is the set every
 /// new project starts from, which is dartvel.dev's; the application's
@@ -143,6 +156,7 @@ class DVThemeTokens {
     required this.elevation,
     required this.motion,
     required this.text,
+    this.fonts = const <String, DVFontToken>{'body': DVFontToken()},
   });
 
   final Map<String, DVColorToken> color;
@@ -151,6 +165,9 @@ class DVThemeTokens {
   final Map<String, List<BoxShadow>> elevation;
   final Map<String, DVMotionToken> motion;
   final Map<String, DVTextRole> text;
+
+  /// The faces text is set in. `body` is the application's face.
+  final Map<String, DVFontToken> fonts;
 
   /// dartvel.dev's own palette, type scale, radii and motion, which every
   /// project has until it says otherwise.
@@ -220,6 +237,7 @@ class DVThemeTokens {
     Map<String, List<BoxShadow>>? elevation,
     Map<String, DVMotionToken>? motion,
     Map<String, DVTextRole>? text,
+    Map<String, DVFontToken>? fonts,
   }) =>
       DVThemeTokens(
         color: _merged('color', this.color, color),
@@ -228,6 +246,7 @@ class DVThemeTokens {
         elevation: _merged('elevation', this.elevation, elevation),
         motion: _merged('motion', this.motion, motion),
         text: _merged('text', this.text, text),
+        fonts: _merged('fonts', this.fonts, fonts),
       );
 
   static Map<String, V> _merged<V>(String kind, Map<String, V> base, Map<String, V>? changes) {
