@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
-  title: 'Dartvel import and export: CSV, NDJSON, Excel and reports',
+  title: 'Dartvel import and export: CSV, JSON, NDJSON, Excel and reports',
   description: 'Load a spreadsheet into a model and get back the rows that did '
       'not fit, with their row numbers. Export to CSV, JSON, NDJSON '
       'or Excel with sensitive fields left out.',
@@ -30,12 +30,21 @@ Widget _docsImportExportPage(BuildContext context) => const DocsArticle(
             ], rows: <List<String>>[
               <String>['Article.importCsv', 'CSV with a header row'],
               <String>['Article.importNdjson', 'One JSON object per line'],
-              <String>['Article.importExcel', 'Tab-separated rows copied from a '
+              <String>['Article.importJson', 'A JSON array of objects, as '
+                  'exportJson writes it'],
+              <String>['Article.importExcel', 'The Excel 2003 XML workbook '
+                  'exportExcel writes, or tab-separated rows copied from a '
                   'spreadsheet, with a header row'],
             ]),
             Bullets(<String>[
               'A row that does not parse becomes a DVImportRowError. The other '
                   'rows still import.',
+              'A row number is the line of the file the row starts on, '
+                  'counting blank lines and line breaks inside quotes. In JSON '
+                  'it is the position in the array.',
+              'A field the file leaves out takes its declared default, so an '
+                  'export without its sensitive fields imports back. A required '
+                  'field with no default is a row error that names the field.',
               'Import builds models and saves nothing. You decide what to save.',
               'CSV is read the way export writes it: a quoted value keeps its '
                   'commas, quotes and line breaks, so a file you exported '
@@ -53,8 +62,8 @@ Widget _docsImportExportPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsCode('import-resumable'),
             Bullets(<String>[
-              'resumableCsv and resumableNdjson queue one DVImportChunk job per '
-                  'chunk.',
+              'importResumableCsv and importResumableNdjson queue one '
+                  'DVImportChunk job per chunk.',
               'Each chunk carries its first row number and the header, so any '
                   'worker can take any chunk.',
               'Dartvel does not register the chunk handler. Register it as '
@@ -68,9 +77,10 @@ Widget _docsImportExportPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsCode('export-files'),
             Bullets(<String>[
-              'csv, json, ndjson and excel return a DVExportResult with a file '
-                  'name, content type and bytes.',
-              'excel writes an Excel 2003 XML workbook, named .xls.',
+              'exportCsv, exportJson, exportNdjson and exportExcel return a '
+                  'DVExportResult with a file name, content type and bytes.',
+              'exportExcel writes an Excel 2003 XML workbook, named .xls, '
+                  'which importExcel reads back.',
               'Sensitive fields are left out unless includeSensitiveFields: '
                   'true.',
             ]),
