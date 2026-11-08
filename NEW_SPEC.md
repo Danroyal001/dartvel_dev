@@ -4026,11 +4026,15 @@ carrier is built: one client on `dart:io` and on the browser's `WebSocket`,
 and a relay that fans a change out to the other connections of the same
 tenant. The relay stamps every change with the tenant the server accepted the
 connection under, never the one the client claims, and hands clients' changes
-to the server's own hubs. Nothing connects it yet -- the generated backend
-serves no sync endpoint and the generated client opens no socket -- so a
-change made on one server instance, or on one device, does not reach another
-yet. That wiring, a reconnect policy, backpressure, collaborative editing and
-fanout through Redis, NATS or Kafka are designed and not built.
+to the server's own hubs. A dropped connection is reopened on exponential
+backoff with jitter, so the clients of a restarted server do not all return
+in one wave, and what was written meanwhile is sent once it is back. Both ends
+heartbeat: the client replaces a link that stopped answering without closing,
+and the relay closes a connection that went silent. Nothing connects the
+carrier yet -- the generated backend serves no sync endpoint and the generated
+client opens no socket -- so a change made on one server instance, or on one
+device, does not reach another yet. That wiring, backpressure, collaborative
+editing and fanout through Redis, NATS or Kafka are designed and not built.
 
 ---
 
