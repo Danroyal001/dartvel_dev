@@ -4037,6 +4037,30 @@ class DVText extends StatelessWidget {
 
   const DVText(this.text, [DVModifier? modifier]) : _modifier = modifier;
 
+  /// Type roles: what a piece of text is, not how big it is.
+  /// `DVText('Orders', DVText.heading1)`, and a role chains like any
+  /// modifier: `DVText.caption.color(DVColor.muted)`. The sizes come from the
+  /// theme's tokens, so changing a role changes every text that names it.
+  static DVModifier get display => _role('display');
+  static DVModifier get heading1 => _role('heading1');
+  static DVModifier get heading2 => _role('heading2');
+  static DVModifier get heading3 => _role('heading3');
+  static DVModifier get body => _role('body');
+  static DVModifier get small => _role('small');
+  static DVModifier get caption => _role('caption');
+  static DVModifier get label => _role('label');
+
+  static DVModifier _role(String name) {
+    final DVTextRole role = dvThemeTokens.text[name]!;
+    return DVModifier(
+      fontSizeValue: role.size,
+      fontWeightValue: role.weight,
+      lineHeightValue: role.lineHeight,
+      letterSpacingValue: role.letterSpacing,
+      fontFamilyValue: role.family,
+    );
+  }
+
   DVText modifier(DVModifier mod) => DVText(text, mod);
   DVText styleModifier(DVModifier mod) => DVText(text, mod);
 
