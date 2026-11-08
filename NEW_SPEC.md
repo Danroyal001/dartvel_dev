@@ -7601,9 +7601,8 @@ happens when a tenant reaches a limit, and which number the invoice is made
 from.
 
 ```dart
-@DVMeters()
 abstract class _Meters {
-  @DVMeter(unit: 'call', limit: DVLimit.entitlement)
+  @DVMeter(unit: 'call', limit: DVLimit.entitlement, atLimit: DVQuota.block)
   static const apiCalls = DVMeter.counter;
 
   @DVMeter(unit: 'GB-month')
@@ -7621,11 +7620,24 @@ A meter is scoped to `DV.currentTenant` without being told to. A recording
 that reaches the store without a tenant is not a usage number, it is a number
 with nowhere to go.
 
+`dartvel routes` reads every `@DVMeter` field of a private class and generates
+`Meters` (`lib/dartvel_client/meters.g.dart`): one `DVMeterDefinition` per
+field, named after it, and `Meters.all`. The class needs no annotation of its
+own — `DVMeters` is already the runtime that records, and an annotation of the
+same name could not be a constant. The annotation's arguments are copied into
+the generated code, so they are written with Dartvel's own constants. A meter
+declared twice, in a public class, or with a limit and no `atLimit` stops the
+generation.
+
 ## Counting happens on the backend, and only there
 
 **A meter cannot be recorded from client-reachable code, and trying is a build
 error** (`DV-METER-001`) — the same shape of rule, for the same reason, as a
-backend-scoped secret reached from a client.
+backend-scoped secret reached from a client. The generator refuses
+`Meters.<name>.record(...)` and `DVMeters.current.record(...)` anywhere in
+`lib/` outside the backend directory, naming each file and line; a recording
+reached through an indirection it cannot follow is a false negative, as it is
+for secrets.
 
 A client-reported usage number is a number the customer controls. Every
 metering system that trusted one has the same story afterwards, and it is not

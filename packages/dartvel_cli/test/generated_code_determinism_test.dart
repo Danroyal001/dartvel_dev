@@ -170,6 +170,7 @@ const List<String> _expectedOutputs = <String>[
   'lib/dartvel_client/models.g.dart',
   'lib/dartvel_client/jobs.g.dart',
   'lib/dartvel_client/flags.g.dart',
+  'lib/dartvel_client/meters.g.dart',
   'lib/dartvel_client/functions.g.dart',
   '.dart_tool/dartvel_backend.g.dart',
   '.dart_tool/dartvel_backend_routes.g.dart',

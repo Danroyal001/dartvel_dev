@@ -688,6 +688,7 @@ export 'analytics.g.dart';
 export 'asyncapi.g.dart';
 export 'functions.g.dart';
 export 'flags.g.dart';
+export 'meters.g.dart';
 export 'http.g.dart';
 export 'jobs.g.dart';
 export 'client_jobs.g.dart';

@@ -18,6 +18,7 @@ import 'backend_generator.dart';
 import 'client_generator.dart';
 import 'config_routes.dart';
 import 'flag_generator.dart';
+import 'meter_generator.dart';
 import 'http_hosts_generator.dart';
 import 'job_generator.dart';
 import 'model_generator.dart';
@@ -371,6 +372,15 @@ Future<void> generate({
   for (final String warning in flagWarnings) {
     stderr.writeln(warning);
   }
+
+  // Typed meter accessors from @DVMeter declarations, and DV-METER-001: a
+  // meter recorded from client-reachable code stops the build, because a
+  // usage number the client reports is one the customer controls.
+  await MeterGenerator.generate(
+    root: root,
+    pkgName: pkgName,
+    backendDir: backendDir,
+  );
 
   // Generate static paths for parameterized routes. Static generation cannot
   // enumerate a parameterized route on its own, so @DVStaticPaths() providers
