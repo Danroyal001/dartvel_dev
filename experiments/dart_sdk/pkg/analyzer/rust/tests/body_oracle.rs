@@ -3,11 +3,22 @@
 #[allow(dead_code)]
 mod oracle;
 
-use std::{fs, process::Command};
+use std::{fs, path::Path, process::Command};
 
 #[test]
 fn context_independent_literals_match_upstream() {
-    let work = oracle::work_dir().join("body-literals");
+    compare_selection("literals");
+}
+
+#[test]
+fn operator_typed_expressions_match_upstream() {
+    compare_selection("operators");
+}
+
+/// Runs `oracle/body_dump.dart` and `body_dump` with `--<selection>` on the
+/// corpus and fails unless they wrote nonempty, byte-identical dumps.
+fn compare_selection(selection: &str) {
+    let work = oracle::work_dir().join(format!("body-{selection}"));
     fs::create_dir_all(&work).unwrap();
     let packages = oracle::write_package_config(&work);
     let sdk = oracle::write_sdk(&work);
@@ -19,6 +30,7 @@ fn context_independent_literals_match_upstream() {
             fs::remove_dir_all(dir).unwrap();
         }
     }
+    let flag = format!("--{selection}");
     oracle::run(
         Command::new(oracle::dart())
             .current_dir(oracle::sdk_root())
@@ -26,7 +38,7 @@ fn context_independent_literals_match_upstream() {
             .arg("pkg/analyzer/rust/oracle/body_dump.dart")
             .arg("--sdk")
             .arg(&sdk)
-            .arg("--literals")
+            .arg(&flag)
             .arg("--out")
             .arg(&expected)
             .args(&roots),
@@ -37,13 +49,13 @@ fn context_independent_literals_match_upstream() {
             .arg(&sdk)
             .arg("--packages")
             .arg(&packages)
-            .arg("--literals")
+            .arg(&flag)
             .arg("--out")
             .arg(&actual)
             .args(&roots),
     );
 
-    fn count_rows(path: &std::path::Path) -> usize {
+    fn count_rows(path: &Path) -> usize {
         fs::read_dir(path)
             .unwrap()
             .map(|e| {
@@ -58,9 +70,9 @@ fn context_independent_literals_match_upstream() {
     }
     let rows = count_rows(&expected);
     assert!(rows > 0, "oracle emitted no expression rows");
-    eprintln!("body-literals: {rows} expression rows");
+    eprintln!("body-{selection}: {rows} expression rows");
     let (files, differences, report) = oracle::compare(&expected, &actual);
-    eprintln!("body-literals: {files} files, {differences} differences");
+    eprintln!("body-{selection}: {files} files, {differences} differences");
     assert!(files > 0, "oracle wrote no files");
     assert_eq!(differences, 0, "{report}");
 }

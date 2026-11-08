@@ -2,8 +2,12 @@
 // Full mode records every V1 expression's static type and identifier element.
 // --literals selects context-independent literal kinds only; integers need
 // downward inference and are deliberately outside that first slice.
+// --operators selects expressions whose operator fixes their type (`is`,
+// `is!`, `!`, `&&`, `||`, `throw`, `rethrow`) and parentheses around those
+// or around --literals expressions.
 import 'dart:io';
 import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/src/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'element_dump.dart' as elements;
@@ -13,6 +17,7 @@ Future<void> main(List<String> args) async {
   String? out;
   String? packages = Platform.packageConfig;
   bool literals = false;
+  bool operators = false;
   List<String> roots = [];
   for (int i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -20,11 +25,13 @@ Future<void> main(List<String> args) async {
       case '--out': out = args[++i];
       case '--packages': packages = new File(args[++i]).absolute.uri.toString();
       case '--literals': literals = true;
+      case '--operators': operators = true;
       default: roots.add(args[i]);
     }
   }
-  if (sdk == null || out == null || packages == null || roots.isEmpty) {
-    stderr.writeln('usage: body_dump.dart --sdk <dir> [--literals] --out <dir> <root>...');
+  if (sdk == null || out == null || packages == null || roots.isEmpty ||
+      (literals && operators)) {
+    stderr.writeln('usage: body_dump.dart --sdk <dir> [--literals|--operators] --out <dir> <root>...');
     exit(64);
   }
   var collection = elements.newCollection(
@@ -38,16 +45,27 @@ Future<void> main(List<String> args) async {
       throw new StateError('Cannot resolve $path: ${result.runtimeType}');
     }
     var buffer = new StringBuffer();
+    bool isLiteral(AstNode node) => node is BooleanLiteral ||
+        node is DoubleLiteral || node is NullLiteral ||
+        node is SimpleStringLiteral || node is AdjacentStrings ||
+        node is StringInterpolation || node is SymbolLiteral;
+    bool isOperatorTyped(AstNode node) => node is IsExpression ||
+        node is ThrowExpression || node is RethrowExpression ||
+        (node is BinaryExpression &&
+            (node.operator.type == TokenType.AMPERSAND_AMPERSAND ||
+                node.operator.type == TokenType.BAR_BAR)) ||
+        (node is PrefixExpression && node.operator.type == TokenType.BANG) ||
+        (node is ParenthesizedExpression &&
+            (isOperatorTyped(node.unParenthesized) ||
+                isLiteral(node.unParenthesized)));
     void visit(AstNodeImpl node) {
-      bool selected = node is BooleanLiteral || node is DoubleLiteral ||
-          node is NullLiteral || node is SimpleStringLiteral ||
-          node is AdjacentStrings || node is StringInterpolation ||
-          node is SymbolLiteral;
-      if (node is Expression && (!literals || selected)) {
+      bool selected = literals ? isLiteral(node)
+          : operators ? isOperatorTyped(node) : true;
+      if (node is Expression && selected) {
         buffer.writeln('${node.runtimeType} ${node.offset}+${node.length} '
             'type=${(node as Expression).staticType?.getDisplayString() ?? '-'}');
       }
-      if (!literals && node is Identifier) {
+      if (!literals && !operators && node is Identifier) {
         Element? element = (node as Identifier).element;
         var fragment = element?.firstFragment;
         buffer.writeln('identifier ${node.offset}+${node.length} '
