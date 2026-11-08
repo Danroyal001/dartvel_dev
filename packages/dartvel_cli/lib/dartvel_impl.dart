@@ -18,6 +18,7 @@ import 'src/commands/webos_command.dart';
 import 'src/commands/explain_command.dart';
 import 'src/commands/docs_command.dart';
 import 'src/commands/flags_command.dart';
+import 'src/commands/meters_command.dart';
 import 'src/commands/spec_command.dart';
 import 'src/commands/engine_command.dart';
 import 'src/commands/ensure_path_command.dart';
@@ -99,6 +100,7 @@ DartvelCommandRunner dartvelCommandRunner() =>
       ..addCommand(WebosCommand())
       ..addCommand(SpecCommand())
       ..addCommand(FlagsCommand())
+      ..addCommand(MetersCommand())
       ..addCommand(ExplainCommand())
       ..addCommand(DocsCommand())
       ..addCommand(EngineCommand())

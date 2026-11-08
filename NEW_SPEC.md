@@ -7807,7 +7807,9 @@ dartvel meters usage --tenant acme --period current
 dartvel meters reconcile --period 2026-08
 ```
 
-There is no `dartvel meters` command yet.
+`dartvel meters list` prints every declared meter with its kind, unit, limit,
+behaviour at the limit and declaring file, read from the project. `usage` and
+`reconcile` read a deployment's records and its provider and are not built.
 
 ## Studio
 

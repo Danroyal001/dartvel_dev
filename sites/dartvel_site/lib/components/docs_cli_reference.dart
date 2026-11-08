@@ -666,6 +666,16 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     description: 'Serve Dartvel\'s project-graph inspectors to a coding agent over MCP.',
   ),
   DocsCliCommand(
+    name: 'meters',
+    description: 'List the declared usage meters.',
+    subcommands: <DocsCliCommand>[
+      DocsCliCommand(
+        name: 'list',
+        description: 'Every declared meter, with its kind, unit, limit and behaviour at it.',
+      ),
+    ],
+  ),
+  DocsCliCommand(
     name: 'metrics',
     description: 'Fetch the /metrics endpoint of a running Dartvel server.',
     options: <String>[

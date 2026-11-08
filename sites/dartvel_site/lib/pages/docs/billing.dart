@@ -136,21 +136,28 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
       title: 'Meter usage and cap it per tenant',
       children: <Widget>[
         Bullets(<String>[
-          'Count or gauge anything per tenant, in memory or in your '
-              'database. Each record needs an idempotency key, so a retry '
-              'is not counted twice.',
-          'Limits can block, throttle or allow and bill, with thresholds '
-              'announced once.',
-          'Each period\'s usage is reported to your billing provider, with '
-              'a retry queue and a reconcile that is safe to run again.',
+          'Declare a meter with @DVMeter and record it from a backend '
+              'function as Meters.apiCalls.record(1). Recording one from a '
+              'page fails the build, because the customer controls that '
+              'number.',
+          'Usage is counted per tenant, in memory or in your database. A '
+              'request or a job records under its own key, so a retry is not '
+              'counted twice.',
+          'Limits can block, slow down or allow and bill, and each warning '
+              'threshold is sent as a notification once.',
+          'Usage is counted in each tenant\'s billing period from Stripe or '
+              'Paddle, and reported once the period closes, with a retry '
+              'queue and a reconcile that is safe to run again.',
         ]),
         DocsStatus(
           'Usage Metering and Quotas',
           missing: <String>[
-            'No @DVMeter annotations, so meters are not generated or counted '
-                'for you.',
-            'No `dartvel meters` commands, no Studio view, and no scheduled '
-                'period close.',
+            'Function calls, storage, queue jobs and AI tokens are not '
+                'metered for you yet. Declare and record each meter yourself.',
+            '`dartvel meters list` is built; `usage` and `reconcile` are '
+                'not, and Studio has no usage view.',
+            'The period close is not scheduled for you yet, and a limit is '
+                'held per server, not across servers.',
           ],
         ),
       ],
