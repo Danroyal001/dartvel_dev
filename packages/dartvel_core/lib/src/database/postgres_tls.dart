@@ -85,3 +85,14 @@ bool dvPostgresRefusalIsFatal(DVSslMode mode) =>
 /// Only [DVSslMode.verifyFull]. `verify-ca` proves the certificate chains to
 /// a trusted root; it does not prove you reached the host you asked for.
 bool dvPostgresChecksHostname(DVSslMode mode) => mode == DVSslMode.verifyFull;
+
+/// Whether the certificate is checked at all.
+///
+/// [DVSslMode.verifyCa] and [DVSslMode.verifyFull]. Dart's TLS reports a bad
+/// chain and a wrong name through the same callback, so there is no telling
+/// them apart there: under verifyCa the certificate is held to the same
+/// standard as under verifyFull, name included. Stricter than libpq's
+/// verify-ca, never weaker -- a mode that promises a trusted chain must not
+/// accept a self-signed certificate.
+bool dvPostgresVerifiesCertificate(DVSslMode mode) =>
+    mode == DVSslMode.verifyCa || mode == DVSslMode.verifyFull;

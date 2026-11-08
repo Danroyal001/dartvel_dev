@@ -48,6 +48,15 @@ void main() {
   });
 
   group('what the mode decides', () {
+    test('verifyCa and verifyFull both check the certificate', () {
+      // verifyCa skips the name, not the certificate. Accepting any
+      // certificate under it would make it no stronger than require.
+      expect(dvPostgresVerifiesCertificate(DVSslMode.verifyFull), isTrue);
+      expect(dvPostgresVerifiesCertificate(DVSslMode.verifyCa), isTrue);
+      expect(dvPostgresVerifiesCertificate(DVSslMode.require), isFalse);
+      expect(dvPostgresVerifiesCertificate(DVSslMode.prefer), isFalse);
+    });
+
     test('disable never asks', () {
       expect(dvPostgresShouldRequestTls(DVSslMode.disable), isFalse);
     });

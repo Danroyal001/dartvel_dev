@@ -74,34 +74,35 @@ Future<DVPostgresConnection> dvConnectPostgres(
       reply = dvPostgresSslReply(await answer.future);
     } on Object {
       await waiting.cancel();
-      if (!relay.isClosed) await relay.close();
+      _closeUnheard(relay);
       rethrow;
     }
 
     switch (reply) {
       case DVPostgresSslReply.proceed:
-        // Cancelled before the socket is upgraded: a subscription left on the
-        // raw socket would swallow the first bytes of the encrypted stream.
-        // The relay goes with it — what follows arrives on the SecureSocket,
+        // Paused, not cancelled, before the socket is upgraded. Cancelling a
+        // socket's subscription shuts its read side, and the handshake then
+        // dies with "connection terminated"; SecureSocket.secure takes the
+        // reading over from a paused one, as its documentation asks. The
+        // relay goes with it -- what follows arrives on the SecureSocket,
         // which is a stream of its own and can be listened to.
-        await waiting.cancel();
-        if (!relay.isClosed) await relay.close();
+        waiting.pause();
+        _closeUnheard(relay);
         socket = await SecureSocket.secure(
           socket,
           host: host,
-          // verify-ca proves the certificate chains to a trusted root and
-          // does not prove you reached the host you asked for, so only
-          // verify-full checks the name. Below that, the certificate is not
-          // checked at all: encrypted against a passive listener, and not
-          // against an active one.
-          onBadCertificate: dvPostgresChecksHostname(sslMode)
+          // verify-ca and verify-full check the certificate (verify-ca as
+          // strictly as verify-full: see dvPostgresVerifiesCertificate).
+          // Below that it is not checked at all: encrypted against a passive
+          // listener, and not against an active one.
+          onBadCertificate: dvPostgresVerifiesCertificate(sslMode)
               ? null
               : (X509Certificate certificate) => true,
         );
       case DVPostgresSslReply.refused:
         if (dvPostgresRefusalIsFatal(sslMode)) {
           await waiting.cancel();
-          if (!relay.isClosed) await relay.close();
+          _closeUnheard(relay);
           await socket.close();
           throw DVPostgresException(
             'The server refused TLS and sslMode is '
@@ -117,7 +118,7 @@ Future<DVPostgresConnection> dvConnectPostgres(
         return _RelayedPostgresConnection(socket, relay, waiting);
       case DVPostgresSslReply.error:
         await waiting.cancel();
-        if (!relay.isClosed) await relay.close();
+        _closeUnheard(relay);
         await socket.close();
         throw const DVPostgresException(
           'The server answered the TLS request with an error rather than a '
@@ -150,7 +151,7 @@ class _RelayedPostgresConnection implements DVPostgresConnection {
   @override
   Future<void> close() async {
     await _subscription.cancel();
-    if (!_relay.isClosed) await _relay.close();
+    _closeUnheard(_relay);
     await _socket.close();
   }
 }
@@ -170,4 +171,15 @@ class _SocketPostgresConnection implements DVPostgresConnection {
   Future<void> close() async {
     await _socket.close();
   }
+}
+
+/// Closes [relay] without waiting for it.
+///
+/// The future `StreamController.close()` returns completes only when a
+/// listener has received the done event, and on every path that discards the
+/// relay nobody has listened to it, so awaiting it waits forever. That is how
+/// a server saying `S`, a refusal under `require` and an error answer all used
+/// to hang the caller instead of upgrading or failing.
+void _closeUnheard(StreamController<List<int>> relay) {
+  if (!relay.isClosed) unawaited(relay.close());
 }
