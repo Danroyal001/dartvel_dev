@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart' show DVBoot, DVEntry;
 import 'package:dartvel_core/framework.dart'
-    show DVBootStep, dvResetBootForTest, dvRunBoot;
+    show DVBootStep, dvResetBoot, dvResetBootForTest, dvRunBoot;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -19,6 +19,8 @@ class const DVAppParts({
 });
 
 bool _running = false;
+bool _flutterErrorsLogged = false;
+Future<void> Function()? _retry;
 List<String> _args = const [];
 List<String> get dvApplicationArguments => _args;
 
@@ -38,6 +40,11 @@ Future<void> dvRunApplication(
   }
   _running = true;
   _args = List.unmodifiable(args);
+  _retry = () {
+    _running = false;
+    dvResetBoot();
+    return dvRunApplication(args, root: root, boot: boot, launch: launch);
+  };
   final completed = Completer<void>();
   // Where boot is, so a failure names it (DV-RUN-004). Numbers and names
   // follow the boot sequence table in NEW_SPEC.md, Application Entry.
@@ -61,15 +68,19 @@ Future<void> dvRunApplication(
         );
         bootStep = null;
         phase = (number: 5, name: 'surface');
-        final previousFlutterError = FlutterError.onError;
-        FlutterError.onError = (details) {
-          DV.log.error(
-            'Flutter error.',
-            error: details.exception,
-            stackTrace: details.stack,
-          );
-          previousFlutterError?.call(details);
-        };
+        // Once per process: a retried boot must not log each error twice.
+        if (!_flutterErrorsLogged) {
+          _flutterErrorsLogged = true;
+          final previousFlutterError = FlutterError.onError;
+          FlutterError.onError = (details) {
+            DV.log.error(
+              'Flutter error.',
+              error: details.exception,
+              stackTrace: details.stack,
+            );
+            previousFlutterError?.call(details);
+          };
+        }
         dvStartAppLifecycleBridge();
         runApp(root());
         // Ready once a frame with the root in it has been drawn. A post-frame
@@ -100,7 +111,12 @@ Future<void> dvRunApplication(
           MaterialApp(
             theme: dartvelDefaultTheme(.light),
             darkTheme: dartvelDefaultTheme(.dark),
-            home: DVBox(DVText(DV.I18n.t(DVFrameworkStrings.startFailed))),
+            home: DVBootFailurePage(
+              // A second failure is logged and shown like the first.
+              onRetry: () => unawaited(
+                dvRetryApplication().then((_) {}, onError: (Object _) {}),
+              ),
+            ),
           ),
         );
         completed.completeError(error, stack);
@@ -118,9 +134,21 @@ Future<void> dvRunApplication(
   await completed.future;
 }
 
+/// Runs a failed boot again from the start, with the arguments, root and boot
+/// functions the first run was given: what the boot-failure page's retry
+/// does. Completes as [dvRunApplication] does; does nothing unless the last
+/// boot failed.
+Future<void> dvRetryApplication() async {
+  final retry = _retry;
+  if (retry == null || DV.lifecycle.app.value != DVAppLifecycle.failed) return;
+  await retry();
+}
+
 /// Resets only the entry guard for isolated framework tests.
 void dvResetApplicationEntryForTest() {
   _running = false;
+  _flutterErrorsLogged = false;
+  _retry = null;
   _args = const [];
   dvResetBootForTest();
 }

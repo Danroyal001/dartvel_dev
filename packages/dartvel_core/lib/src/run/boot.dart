@@ -37,5 +37,8 @@ Future<void> dvRunBoot(
   }
 }
 
+/// Lets the process boot again: the app entry's retry after a failed boot.
+void dvResetBoot() => _booted = false;
+
 /// Lets a test boot again in the same isolate.
-void dvResetBootForTest() => _booted = false;
+void dvResetBootForTest() => dvResetBoot();

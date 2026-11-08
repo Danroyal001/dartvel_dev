@@ -120,6 +120,34 @@ class DVStatusPage extends StatelessWidget {
   }
 }
 
+/// The page an app shows when its boot failed (Application Entry).
+///
+/// A sentence and a way to try again, never the error: what went wrong is in
+/// the log as DV-RUN-004 with the phase that failed. Retrying runs the boot
+/// again from the start, so a failure that was a moment's -- a locked file,
+/// a store still opening -- does not need the app killed.
+class DVBootFailurePage extends StatelessWidget {
+  const DVBootFailurePage({super.key, required this.onRetry});
+
+  /// Runs the boot again.
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final String label = DV.I18n.t(DVFrameworkStrings.retry);
+    return _DVErrorPage(
+      title: DV.I18n.t(DVFrameworkStrings.startFailed),
+      body: const <String>[],
+      children: <Widget>[
+        Tooltip(
+          message: label,
+          child: FilledButton(onPressed: onRetry, child: Text(label)),
+        ),
+      ],
+    );
+  }
+}
+
 /// The frame both pages share.
 ///
 /// A router's error page has no Scaffold above it, so bare text there takes

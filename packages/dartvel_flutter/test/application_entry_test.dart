@@ -3,7 +3,7 @@ import 'package:dartvel_core/framework.dart' show DVBootStep;
 import 'package:dartvel_core/src/observability/observability.dart'
     show DVLogSink, DVLogger, DVMemoryLogSink, DVObservability;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -110,6 +110,48 @@ void main() {
       expect(reports.single.message, contains(failure.phaseName));
     });
   }
+
+  testWidgets('the boot-failure page retries the boot and the app starts', (
+    tester,
+  ) async {
+    // Failure has a page with a retry (Application Entry): a boot that
+    // failed on a network blip or a locked file must be able to try again
+    // without the person killing the app.
+    var attempts = 0;
+    await expectLater(
+      dvRunApplication(
+        ['--again'],
+        root: () =>
+            const Directionality(textDirection: .ltr, child: DVText('Home')),
+        boot: [
+          DVBootStep(
+            run: (DVBoot boot) {
+              attempts++;
+              expect(boot.args, ['--again']);
+              if (attempts == 1) throw StateError('locked');
+            },
+          ),
+        ],
+      ),
+      throwsStateError,
+    );
+    await tester.pump();
+    expect(DV.lifecycle.app.value, DVAppLifecycle.failed);
+    expect(find.text('Try again'), findsOneWidget);
+    final button = tester.widget<FilledButton>(
+      find.ancestor(of: find.text('Try again'), matching: find.byType(FilledButton)),
+    );
+    expect(button.onPressed, isNotNull);
+    // The button runs dvRetryApplication. Awaited here rather than tapped:
+    // a tap starts the boot inside a test frame, and the test binding then
+    // draws runApp's warm-up frame inside runApp and finishes this body
+    // from there, before runApp returns. A real binding does not re-enter.
+    await dvRetryApplication();
+    await tester.pump();
+    expect(attempts, 2);
+    expect(find.text('Home'), findsOneWidget);
+    expect(DV.lifecycle.app.value, DVAppLifecycle.ready);
+  });
 }
 
 enum _FailAt { launch, boot, root }

@@ -881,7 +881,7 @@ export 'src/routing/page_policy.dart';
 export 'src/routing/route_prefetch.dart';
 export 'src/routing/router.dart';
 export 'src/routing/url_strategy.dart';
-export 'src/run/application.dart' show DVAppParts, dvRunApplication, dvResetApplicationEntryForTest;
+export 'src/run/application.dart' show DVAppParts, dvRetryApplication, dvRunApplication, dvResetApplicationEntryForTest;
 export 'src/scene3d/model_viewer.dart';
 export 'src/scene3d/scene_nodes.dart';
 export 'src/scene3d/scene_viewport.dart';
