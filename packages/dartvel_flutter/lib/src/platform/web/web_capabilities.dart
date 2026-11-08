@@ -34,6 +34,9 @@ const Set<String> dvWebImplementedBindings = <String>{
   // browser cannot go fullscreen while the kiosk path does exactly that.
   'display.enterFullscreen',
   'display.exitFullscreen',
+  // DVWindow.setFullscreen on the page's one window, through the same API;
+  // a request for a particular display is refused.
+  'window.setFullscreen',
 
   // navigator.clipboard, which needs a secure context and a user gesture for
   // reads — the failure is reported rather than swallowed.

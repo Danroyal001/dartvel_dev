@@ -471,6 +471,30 @@ class DVWebBindings {
       await web.document.exitFullscreen().toDart;
       return true;
     });
+
+    // DVWindow.setFullscreen on the one window a page has: the same API. A
+    // page cannot put itself on another screen without the Window Management
+    // permission and a fresh gesture per screen, so a request naming a display
+    // is refused rather than filled on whichever screen the tab is on.
+    register('window.setFullscreen', (Object? arguments) async {
+      final Map<Object?, Object?> args =
+          arguments is Map ? arguments : const <Object?, Object?>{};
+      if (args['displayId'] != null) {
+        throw DVWebPermissionDenied('window.setFullscreen',
+            'a page cannot choose the screen it goes fullscreen on');
+      }
+      if (args['fullscreen'] == false) {
+        if (web.document.fullscreenElement == null) return true;
+        await web.document.exitFullscreen().toDart;
+        return true;
+      }
+      try {
+        await root.requestFullscreen().toDart;
+        return true;
+      } on Object catch (error) {
+        dvJsRefused('window.setFullscreen', error);
+      }
+    });
   }
 
   /// WebAuthn with userVerification required: the browser's own platform

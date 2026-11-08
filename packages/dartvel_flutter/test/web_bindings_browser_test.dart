@@ -307,6 +307,29 @@ void main() {
       );
     });
 
+    test('a window asks for fullscreen the same way, and is refused the same '
+        'way', () async {
+      expect(DVNativeBridge.isRegistered('window.setFullscreen'), isTrue);
+      await expectLater(
+        DVNativeBridge.require<bool>(
+            'window.setFullscreen', <String, Object?>{'fullscreen': true}),
+        throwsA(isA<DVWebPermissionDenied>()),
+      );
+      expect(
+        await DVNativeBridge.require<bool>(
+            'window.setFullscreen', <String, Object?>{'fullscreen': false}),
+        isTrue,
+      );
+    });
+
+    test('a window cannot pick the screen it goes fullscreen on', () async {
+      await expectLater(
+        DVNativeBridge.require<bool>('window.setFullscreen',
+            <String, Object?>{'fullscreen': true, 'displayId': 'screen-2'}),
+        throwsA(isA<DVWebPermissionDenied>()),
+      );
+    });
+
     test('location answers with a fix or a refusal, never with 0,0', () async {
       expect(DVNativeBridge.isRegistered('location.current'), isTrue);
 
