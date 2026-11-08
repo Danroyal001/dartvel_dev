@@ -584,11 +584,12 @@ is one of those or a `--literals` literal (the enclosed type).
 `src/dart/resolver/type_analyzer.rs` records those slices' types, using
 the linked SDK classes through the narrow `src/dart/element/type_provider.rs`.
 It does not resolve identifiers other than the `--identifiers` reads, infer
-locals or calls, type integer literals outside the `--integers` sites, `==` (whose type is the `==` method's return type), unary or other
-binary operators, perform flow analysis, report diagnostics or rewrite the
-AST; those expressions get no type rather than a guessed one, including a
-parenthesized one. `body_dump` requires `--literals`, `--operators`, `--integers` or
-`--identifiers` and
+locals or calls, type integer literals outside the `--integers` sites and
+the operands of `--user-operators` invocations, type operator invocations
+outside that selection, perform flow analysis, report diagnostics or rewrite
+the AST; those expressions get no type rather than a guessed one, including a
+parenthesized one. `body_dump` requires `--literals`, `--operators`,
+`--integers`, `--identifiers` or `--user-operators` and
 refuses full mode rather than presenting missing resolution as a full result.
 The full upstream dump is available as a reference for the next slices.
 
@@ -792,6 +793,93 @@ files (337 seconds), zero differences. The literal, operator and integer
 tests still match on the default corpus (41,283, 13,036 and 1,096 rows), and
 the element oracle, with `VarianceBuilder` and `part of` name parts, still
 matches its default corpus (567 libraries, elements and declared types).
+
+`--user-operators` selects operator invocations: `==` and `!=`, the
+user-definable binary operators (`BinaryOperatorInvocation` with a
+`binaryOperator`), unary `-` and `~` (`UnaryOperatorInvocation`) and `[]`
+without `?` (`ReceiverIndexExpression`), whose receiver and argument are
+known and whose operator resolves as far as the port resolves it. Past
+parentheses, a known operand is a `--literals` literal, an `--operators`
+expression, an `--identifiers` read, a selected invocation, or an integer
+literal whose context type is known: as a receiver it has none; as an
+argument it has the operator's parameter type (`==` and `!=` give none),
+which `refineNumericInvocationContext` replaces for `+`, `-`, `*` and `%` on
+a receiver whose type is a subtype of `num?` by `int`, `double` or `num`
+from the invocation's own context, which must then be known in turn; an
+operand of unary minus has the minus's context; and the declared contexts
+of `--integers` (expression statements, interpolations, typed variables,
+typed defaults, returns of typed functions, explicitly typed collection
+elements) are known. The operator resolves when the interface of the
+receiver's static type has a method of that name with declared return and
+parameter types, or when the receiver is `dynamic`, invalid or `Never`
+(`dynamic`, `InvalidType` and `Never` results, by upstream's rules for each
+kind). A receiver that may be null (but for `==` and `!=`, which make it
+non-nullable for the lookup) and a member the interface does not have are
+left out: there upstream looks for an extension, which is not ported. The
+selection also writes the integer literals that are operands of a selected
+invocation (past parentheses) and parentheses around either. Both sides
+decide it the same way, the oracle's `OperatorInvocations` from the
+resolved tree, the port from what it types, so a lookup that finds a
+member upstream does not, or the reverse, shows as a row missing on one
+side.
+
+`src/dart/resolver/binary_expression_resolver.rs` types them after every
+other expression of the earlier slices (an operand may be a read):
+`_resolveEqual` (`==` is `bool`, or `Never` on a `Never` receiver; `!=` is
+the return type of the `==` method found on the receiver made non-nullable,
+`Object`'s when the interface has none), `_resolveUserDefinable` with
+`_resolveRightOperand` and `_resolveUserDefinableType` (the method's return
+type, refined by `refineBinaryExpressionType`: `int + int` is `int`, a
+`double` on either side makes `double`, otherwise `num`), unary operators
+(`UnaryOperatorInvocationResolver`: `dynamic`, invalid and `Never` operands
+are themselves, another receiver bounded by `dynamic` or `Never` finds no
+method and is `InvalidType`), and index expressions
+(`resolveReceiverIndexExpression`: the method's return type, `InvalidType`
+on `void` or when the method does not take one parameter). The integer
+literal operands get `_recordIntegerLiteralType` in their context (an
+`async` return's context is `FutureOr<futureValueType(R)>`). Members are
+found by `src/dart/element/inheritance_manager3.rs`, a port of what
+`getMember3` returns for a method: declared, else the class chain (the
+superclass with each mixin over it) and the other superinterfaces, merged
+into one member when their signatures agree and otherwise the most specific
+one, with the receiver's type arguments substituted. `type_system.rs` adds
+`resolveToBound`, `isDynamicBounded` and `isInvalidBounded`.
+
+Limits: extensions and extension overrides, `super` receivers, members whose
+types override inference would infer (an operator without a declared
+return or parameter type, which upstream infers from what it overrides),
+combined member signatures where no candidate is most specific, `?[]`,
+cascades, compound assignments and increments, implicit call tear-offs and
+generic function instantiation of an operator's value, integer literals in
+other contexts (call arguments, untyped variables, closures' inferred return
+types), and every invocation an operand of which is not typed. The
+identifiers slice leaves out every variable read next to `==` or `!=` (they
+can promote), so equality with a variable operand is not selected. The
+natural next slices reuse the lookup: method invocations and property reads
+on a typed receiver (with their arguments' contexts), and extension
+resolution, which would bring in the nullable receivers and the members an
+interface lacks.
+
+The fixture `tests/body_corpus/user_operators.dart` covers each operator on
+`int`, `double`, `num` and `String`, literal and parenthesized operands,
+chains, the numeric refinements of results and argument contexts (declared
+`double`, `num`, `int`, `Object`, `dynamic`, `FutureOr<double>` and nullable
+contexts, `async`, collection, default, getter and field sites, unknown
+contexts), user classes, generic classes and a subclass of an instantiation,
+an inherited member, a mixin's, the most specific of two interface members,
+enums, extension types (with and without `implements`), members with
+implicit types, `dynamic`, `Never`, `void`, nullable and type parameter
+receivers (bounded by `num`, a class, `dynamic`, `Never`, a nullable type,
+unbounded), function and record receivers, extension operators and
+`null` and `throw` operands: with the other fixtures, 416 upstream rows across 13 files, which match. Unit
+tests in `type_analyzer_test.rs` (on a hand-built `dart:core` with
+operators) failed before the port typed invocations (all `-`), but the one
+that checks what must stay untyped. Measured 2026-11-08: the default corpus
+matches 1,359 rows across 589 files (246 seconds), and the held-out roots
+13,605 rows across 5,730 files (429 seconds), zero differences. The
+literal, operator, integer and identifier tests still match on the default
+corpus (41,283, 13,036, 1,096 and 50,276 rows) and on the held-out roots
+(146,712, 52,170, 10,879 and 108,816 rows).
 
 `tests/type_analyzer_test.rs` runs the analyzer on a hand-built `dart:core`
 (so it can run under Miri, not yet done): the literal and operator types,
