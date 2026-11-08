@@ -11157,7 +11157,8 @@ await User.importCsv(file);
 await User.importResumableCsv(file, queue: 'imports', chunkSize: 500);
 await User.importNdjson(lines);
 await User.importResumableNdjson(lines, queue: 'imports', chunkSize: 500);
-await User.importExcel(tabSeparatedRows);
+await User.importJson(jsonArray);          // what exportJson writes
+await User.importExcel(workbookOrTabSeparatedRows);
 final export = User.exportNdjson(users);
 final spreadsheet = User.exportExcel(users);
 final document = await User.exportPdf(users);
@@ -11180,6 +11181,13 @@ await Order.Report.dispatchMonthly(
   queue: 'reports',
 );
 ```
+
+Every format a data model writes, it reads back: `importJson` takes the array
+`exportJson` writes and `importExcel` the workbook `exportExcel` writes, as well
+as tab-separated rows. A field the file leaves out, such as a sensitive field an
+export omitted, takes its declared default; a required field with none is a row
+error naming the field. A row error's number is the line of the file the row
+starts on (the array position for JSON), so it points at what to fix.
 
 Exports use storage providers and queued jobs for large datasets.
 Resumable imports dispatch typed `DVImportChunk` payloads through `DVQueues`, so

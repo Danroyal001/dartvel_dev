@@ -1600,6 +1600,9 @@ class ModelGenerator {
           '  static DVImportResult<$className> importNdjson(String content) => _${className}Import.ndjson(content);',
         );
         sb.writeln(
+          '  static DVImportResult<$className> importJson(String content) => _${className}Import.json(content);',
+        );
+        sb.writeln(
           '  static DVImportResult<$className> importExcel(String content) => _${className}Import.excel(content);',
         );
         sb.writeln();
@@ -1622,6 +1625,9 @@ class ModelGenerator {
         );
         sb.writeln(
           '  static DVExportResult exportNdjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) => _${className}Export.ndjson(items, fileName: fileName, options: options);',
+        );
+        sb.writeln(
+          '  static DVExportResult exportExcel(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.xls\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) => _${className}Export.excel(items, fileName: fileName, options: options);',
         );
         sb.writeln();
         sb.writeln('  /// The same write, a chunk at a time, so a large export');
@@ -2291,7 +2297,17 @@ class ModelGenerator {
         sb.writeln('    return $className(');
         for (final field in fields) {
           final name = field['name']!;
-          sb.writeln('      $name: ${_fromJsonValue(field, studioModelNames)},');
+          var read = _fromJsonValue(field, studioModelNames);
+          // A file need not carry every field: an export leaves a sensitive
+          // one out by default, and a hand-written import may leave out
+          // anything with a default. A missing value takes the declared
+          // default, as a stored row does. A required field with none is
+          // named by the importer (_dvRequire) before this runs.
+          final declaredDefault = field['default'];
+          if (declaredDefault != null) {
+            read = "json['$name'] == null ? ($declaredDefault) : ($read)";
+          }
+          sb.writeln('      $name: $read,');
         }
         sb.writeln('    );');
         sb.writeln('  }');
@@ -2756,10 +2772,34 @@ class ModelGenerator {
         sb.writeln();
         sb.writeln('/// How [$className] reads a file. Reached through the model.');
         sb.writeln('class _${className}Import {');
+        // A required field the file does not carry is a row error that
+        // names the field, rather than "type 'Null' is not a subtype of
+        // type 'String'" from the cast in the parser.
+        final requiredFieldNames = <String>[
+          for (final field in fields)
+            if (field['default'] == null && !field['type']!.endsWith('?'))
+              field['name']!,
+        ];
+        sb.writeln('  static void _dvRequire(Map<String, Object?> row) {');
+        sb.writeln(
+          '    for (final name in const <String>[${requiredFieldNames.map((String name) => "'$name'").join(', ')}]) {',
+        );
+        sb.writeln(
+          "      if (row[name] == null) throw FormatException('$className.\$name is missing or null.');",
+        );
+        sb.writeln('    }');
+        sb.writeln('  }');
+        sb.writeln();
         sb.writeln('  static DVImportResult<$className> csv(String content) {');
         // Records, not lines: a quoted value can hold a comma or a line
         // break, and the exporter writes exactly those (dvParseCsv).
+        // Each record's line in the file, so a row error names the line a
+        // person has to fix, after a blank line or a quoted line break too.
         sb.writeln('    final lines = dvParseCsv(content);');
+        sb.writeln('    final lineNumbers = <int>[];');
+        sb.writeln(
+          '    dvSplitCsvRecords(content, startLines: lineNumbers);',
+        );
         sb.writeln('    if (lines.isEmpty) {');
         sb.writeln(
           '      return const DVImportResult<$className>(items: <$className>[]);',
@@ -2779,10 +2819,11 @@ class ModelGenerator {
         );
         sb.writeln('      }');
         sb.writeln('      try {');
+        sb.writeln('        _dvRequire(row);');
         sb.writeln('        items.add(${className}Parser.fromJson(row));');
         sb.writeln('      } on Object catch (error) {');
         sb.writeln('        errors.add(DVImportRowError(');
-        sb.writeln('          row: index + 1,');
+        sb.writeln('          row: lineNumbers[index],');
         sb.writeln('          message: error.toString(),');
         sb.writeln('        ));');
         sb.writeln('      }');
@@ -2820,18 +2861,20 @@ class ModelGenerator {
         sb.writeln('    return jobs;');
         sb.writeln('  }');
         sb.writeln();
+        // Blank lines are skipped where they are, not filtered out first, so
+        // a row error's number is the line of the file it is on.
         sb.writeln(
           '  static DVImportResult<$className> ndjson(String content) {',
         );
-        sb.writeln('    final lines = const convert.LineSplitter()');
-        sb.writeln('        .convert(content)');
-        sb.writeln('        .where((line) => line.trim().isNotEmpty)');
-        sb.writeln('        .toList(growable: false);');
+        sb.writeln(
+          '    final lines = const convert.LineSplitter().convert(content);',
+        );
         sb.writeln('    final items = <$className>[];');
         sb.writeln('    final errors = <DVImportRowError>[];');
         sb.writeln(
           '    for (int index = 0; index < lines.length; index += 1) {',
         );
+        sb.writeln('      if (lines[index].trim().isEmpty) continue;');
         sb.writeln('      try {');
         sb.writeln('        final decoded = convert.jsonDecode(lines[index]);');
         sb.writeln('        if (decoded is! Map<Object?, Object?>) {');
@@ -2840,8 +2883,58 @@ class ModelGenerator {
         );
         sb.writeln('        }');
         sb.writeln(
-          '        items.add(${className}Parser.fromJson(Map<String, Object?>.from(decoded)));',
+          '        final row = Map<String, Object?>.from(decoded);',
         );
+        sb.writeln('        _dvRequire(row);');
+        sb.writeln('        items.add(${className}Parser.fromJson(row));');
+        sb.writeln('      } on Object catch (error) {');
+        sb.writeln('        errors.add(DVImportRowError(');
+        sb.writeln('          row: index + 1,');
+        sb.writeln('          message: error.toString(),');
+        sb.writeln('        ));');
+        sb.writeln('      }');
+        sb.writeln('    }');
+        sb.writeln(
+          '    return DVImportResult<$className>(items: items, errors: errors);',
+        );
+        sb.writeln('  }');
+        sb.writeln();
+        // A JSON export is an array of records; reading one back is the
+        // other half. A document that is not an array of objects is not a
+        // row problem, so it is refused whole, naming the model.
+        sb.writeln(
+          '  static DVImportResult<$className> json(String content) {',
+        );
+        sb.writeln('    final Object? decoded;');
+        sb.writeln('    try {');
+        sb.writeln('      decoded = convert.jsonDecode(content);');
+        sb.writeln('    } on FormatException catch (error) {');
+        sb.writeln(
+          "      throw FormatException('A $className JSON import is not JSON: \${error.message}');",
+        );
+        sb.writeln('    }');
+        sb.writeln('    if (decoded is! List<Object?>) {');
+        sb.writeln(
+          "      throw const FormatException('A $className JSON import must be an array of $className records, as exportJson writes.');",
+        );
+        sb.writeln('    }');
+        sb.writeln('    final items = <$className>[];');
+        sb.writeln('    final errors = <DVImportRowError>[];');
+        sb.writeln(
+          '    for (int index = 0; index < decoded.length; index += 1) {',
+        );
+        sb.writeln('      try {');
+        sb.writeln('        final element = decoded[index];');
+        sb.writeln('        if (element is! Map<Object?, Object?>) {');
+        sb.writeln(
+          "          throw const FormatException('JSON row must be a JSON object.');",
+        );
+        sb.writeln('        }');
+        sb.writeln(
+          '        final row = Map<String, Object?>.from(element);',
+        );
+        sb.writeln('        _dvRequire(row);');
+        sb.writeln('        items.add(${className}Parser.fromJson(row));');
         sb.writeln('      } on Object catch (error) {');
         sb.writeln('        errors.add(DVImportRowError(');
         sb.writeln('          row: index + 1,');
@@ -2882,25 +2975,35 @@ class ModelGenerator {
         sb.writeln('    return jobs;');
         sb.writeln('  }');
         sb.writeln();
+        // A workbook is what exportExcel writes; tab-separated rows are what
+        // a person pastes out of a spreadsheet. Both read the same way once
+        // they are rows of text.
         sb.writeln(
           '  static DVImportResult<$className> excel(String content) {',
         );
-        sb.writeln('    final lines = const convert.LineSplitter()');
-        sb.writeln('        .convert(content)');
-        sb.writeln('        .where((line) => line.trim().isNotEmpty)');
-        sb.writeln('        .toList(growable: false);');
+        sb.writeln("    final lines = content.trimLeft().startsWith('<')");
+        sb.writeln('        ? dvParseSpreadsheetMl(content)');
+        sb.writeln(
+          '            .where((cells) => cells.any((cell) => cell.trim().isNotEmpty))',
+        );
+        sb.writeln('            .toList(growable: false)');
+        sb.writeln('        : const convert.LineSplitter()');
+        sb.writeln('            .convert(content)');
+        sb.writeln('            .where((line) => line.trim().isNotEmpty)');
+        sb.writeln("            .map((line) => line.split('\\t'))");
+        sb.writeln('            .toList(growable: false);');
         sb.writeln('    if (lines.isEmpty) {');
         sb.writeln(
           '      return const DVImportResult<$className>(items: <$className>[]);',
         );
         sb.writeln('    }');
-        sb.writeln("    final headers = lines.first.split('\\t');");
+        sb.writeln('    final headers = lines.first;');
         sb.writeln('    final items = <$className>[];');
         sb.writeln('    final errors = <DVImportRowError>[];');
         sb.writeln(
           '    for (int index = 1; index < lines.length; index += 1) {',
         );
-        sb.writeln("      final values = lines[index].split('\\t');");
+        sb.writeln('      final values = lines[index];');
         sb.writeln('      final row = <String, Object?>{};');
         sb.writeln('      for (int i = 0; i < headers.length; i += 1) {');
         sb.writeln(
@@ -2908,6 +3011,7 @@ class ModelGenerator {
         );
         sb.writeln('      }');
         sb.writeln('      try {');
+        sb.writeln('        _dvRequire(row);');
         sb.writeln('        items.add(${className}Parser.fromJson(row));');
         sb.writeln('      } on Object catch (error) {');
         sb.writeln('        errors.add(DVImportRowError(');
