@@ -6282,7 +6282,8 @@ not something to discover later.
 Built: the W3C context type and its parsing, spans with kinds, attributes,
 errors and status, the sampler that decides from the trace id, the exporter
 interface with in-memory and ring-buffer implementations, the HTTP server
-middleware that starts a server span per request and propagates context, a
+middleware that starts a server span per request and propagates context
+(reporting a malformed inbound `traceparent` once as `DV-TRACE-001`), a
 client span for every outbound `DV.Http` call made inside a span with the
 `traceparent` naming it, a client span for every `DV.Database` query made
 inside a span (named for the operation and table, recording the statement's

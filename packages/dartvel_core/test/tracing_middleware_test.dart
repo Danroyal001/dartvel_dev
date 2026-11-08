@@ -7,6 +7,7 @@
 import 'dart:async';
 
 import 'package:dartvel_core/src/http/wintercg.dart';
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'package:dartvel_core/src/observability/tracing.dart';
 import 'package:dartvel_core/src/observability/tracing_middleware.dart';
 import 'package:test/test.dart';
@@ -23,6 +24,7 @@ Request get(String path, {Map<String, String> headers = const {}}) {
 }
 
 void main() {
+  malformedTraceparent();
   late DVMemoryTraceExporter exporter;
   late DVTracer tracer;
 
@@ -171,5 +173,38 @@ void main() {
 
   test('there is no ambient span outside a traced call', () async {
     expect(dvCurrentSpan, isNull);
+  });
+}
+
+// DV-TRACE-001: a malformed inbound traceparent starts a new trace, and says
+// so -- once, since a misconfigured client sends it on every request.
+void malformedTraceparent() {
+  test('a malformed traceparent starts a new trace and DV-TRACE-001 says so '
+      'once', () async {
+    DVObservability.resetLogging();
+    final DVMemoryTraceExporter exporter = DVMemoryTraceExporter();
+    final DVTracer tracer = DVTracer(exporter: exporter);
+    for (int i = 0; i < 3; i++) {
+      await dvTraced(
+        tracer,
+        get('/orders', headers: <String, String>{'traceparent': 'garbage'}),
+        (Request req) async => Response.text('ok'),
+      );
+    }
+    expect(exporter.spans.every((DVSpan s) => s.parentSpanId == null), isTrue);
+    expect(
+      DVObservability.recentLogs.where((r) => r.code == 'DV-TRACE-001'),
+      hasLength(1),
+    );
+  });
+
+  test('no traceparent at all is not malformed', () async {
+    DVObservability.resetLogging();
+    await dvTraced(DVTracer(), get('/orders'),
+        (Request req) async => Response.text('ok'));
+    expect(
+      DVObservability.recentLogs.where((r) => r.code == 'DV-TRACE-001'),
+      isEmpty,
+    );
   });
 }

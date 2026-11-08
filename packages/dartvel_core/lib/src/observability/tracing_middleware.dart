@@ -9,7 +9,12 @@ library dartvel.observability.tracing_middleware;
 import 'dart:async';
 
 import '../http/wintercg.dart';
-import 'tracing.dart';
+import 'observability.dart';
+
+// Tracers that have already reported a malformed traceparent. Once each: a
+// misconfigured client sends the same bad header on every request, and a
+// warning per request is a log flood about one fact.
+final Expando<bool> _malformedReported = Expando<bool>('DV-TRACE-001');
 
 /// Runs [handler] inside a span for the request.
 ///
@@ -20,9 +25,21 @@ Future<Response> dvTraced(
   Request request,
   Future<Response> Function(Request request) handler,
 ) async {
+  final String? header = request.headers.get('traceparent');
+  final DVTraceContext? incoming = DVTraceContext.parse(header);
+  if (header != null && incoming == null && _malformedReported[tracer] != true) {
+    _malformedReported[tracer] = true;
+    DVObservability.log(
+      'DV-TRACE-001: an inbound traceparent was malformed; a new trace was '
+      'started.',
+      level: DVLogLevel.warn,
+      code: 'DV-TRACE-001',
+      context: <String, Object?>{'path': request.url.path},
+    );
+  }
   final DVSpan span = tracer.startSpan(
     '${request.method} ${request.url.path}',
-    context: DVTraceContext.parse(request.headers.get('traceparent')),
+    context: incoming,
     kind: DVSpanKind.server,
   );
   span
