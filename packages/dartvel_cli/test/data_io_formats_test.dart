@@ -128,4 +128,27 @@ void main() {
     expect(out, contains('mixed 1 rows 2,3'));
     expect(out, contains('refused true'));
   }, timeout: const Timeout(Duration(minutes: 5)));
+  test('an Excel export reads back through importExcel', () async {
+    // The generated exporter wrote a workbook no member reached, and
+    // importExcel read only tab-separated text, so the one Excel file a data
+    // model could produce was not one it could read.
+    final Directory root = await project();
+    final String out = await run(root, r'''
+  final DVExportResult file = Note.exportExcel(notes);
+  print('type ${file.contentType} name ${file.fileName}');
+  final String workbook = utf8.decode(file.bytes);
+  print('owner written ${workbook.contains('alice')}');
+  final DVImportResult<Note> back = Note.importExcel(workbook);
+  print('items ${back.items.length} errors ${back.errors.length}');
+  print('first ${back.items.first.title} views ${back.items.first.views}');
+  // Tab-separated rows still read, as the section's sample passes them.
+  final DVImportResult<Note> tsv = Note.importExcel('id\ttitle\nt1\tTabbed');
+  print('tsv ${tsv.items.single.title}');
+''');
+    expect(out, contains('type application/vnd.ms-excel; charset=utf-8 name notes.xls'));
+    expect(out, contains('owner written false'));
+    expect(out, contains('items 2 errors 0'));
+    expect(out, contains('first Deploying, "quoted" views 3'));
+    expect(out, contains('tsv Tabbed'));
+  }, timeout: const Timeout(Duration(minutes: 5)));
 }

@@ -1626,6 +1626,9 @@ class ModelGenerator {
         sb.writeln(
           '  static DVExportResult exportNdjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) => _${className}Export.ndjson(items, fileName: fileName, options: options);',
         );
+        sb.writeln(
+          '  static DVExportResult exportExcel(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.xls\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) => _${className}Export.excel(items, fileName: fileName, options: options);',
+        );
         sb.writeln();
         sb.writeln('  /// The same write, a chunk at a time, so a large export');
         sb.writeln('  /// never holds every row in memory at once.');
@@ -2964,25 +2967,35 @@ class ModelGenerator {
         sb.writeln('    return jobs;');
         sb.writeln('  }');
         sb.writeln();
+        // A workbook is what exportExcel writes; tab-separated rows are what
+        // a person pastes out of a spreadsheet. Both read the same way once
+        // they are rows of text.
         sb.writeln(
           '  static DVImportResult<$className> excel(String content) {',
         );
-        sb.writeln('    final lines = const convert.LineSplitter()');
-        sb.writeln('        .convert(content)');
-        sb.writeln('        .where((line) => line.trim().isNotEmpty)');
-        sb.writeln('        .toList(growable: false);');
+        sb.writeln("    final lines = content.trimLeft().startsWith('<')");
+        sb.writeln('        ? dvParseSpreadsheetMl(content)');
+        sb.writeln(
+          '            .where((cells) => cells.any((cell) => cell.trim().isNotEmpty))',
+        );
+        sb.writeln('            .toList(growable: false)');
+        sb.writeln('        : const convert.LineSplitter()');
+        sb.writeln('            .convert(content)');
+        sb.writeln('            .where((line) => line.trim().isNotEmpty)');
+        sb.writeln("            .map((line) => line.split('\\t'))");
+        sb.writeln('            .toList(growable: false);');
         sb.writeln('    if (lines.isEmpty) {');
         sb.writeln(
           '      return const DVImportResult<$className>(items: <$className>[]);',
         );
         sb.writeln('    }');
-        sb.writeln("    final headers = lines.first.split('\\t');");
+        sb.writeln('    final headers = lines.first;');
         sb.writeln('    final items = <$className>[];');
         sb.writeln('    final errors = <DVImportRowError>[];');
         sb.writeln(
           '    for (int index = 1; index < lines.length; index += 1) {',
         );
-        sb.writeln("      final values = lines[index].split('\\t');");
+        sb.writeln('      final values = lines[index];');
         sb.writeln('      final row = <String, Object?>{};');
         sb.writeln('      for (int i = 0; i < headers.length; i += 1) {');
         sb.writeln(

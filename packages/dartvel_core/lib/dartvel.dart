@@ -191,6 +191,7 @@ export 'src/compute/tray_tasks.dart';
 export 'src/data/change_capture.dart' show DVCaptureWriteError;
 export 'src/data/csv.dart';
 export 'src/data/import_chunking.dart';
+export 'src/data/spreadsheet_ml.dart';
 // An offline data model is saved, deleted and read like any other, and the
 // runtime sends its queue. What an application sees of it is what a record
 // says about where it stands and the refusal a full queue gives a save; the
