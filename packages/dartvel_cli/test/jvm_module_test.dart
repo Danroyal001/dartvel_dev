@@ -58,8 +58,8 @@ void main() {
     expect(m['add']!.operation.parameterList, 'int a0, int a1');
     expect(m['greet']!.operation.returnType, 'String');
     expect(m['scale']!.paramJni, <String>['double', 'float']);
-    expect(surface.skipped['many'], contains('object other than a String'));
-    expect(surface.skipped['pick'], contains('overloaded'));
+    expect(surface.skipped['many'], allOf(contains('object other than a String'), contains('DV-BIND-001')));
+    expect(surface.skipped['pick'], allOf(contains('overloaded'), contains('DV-BIND-001')));
     expect(surface.skipped['count'], contains('instance method'));
     expect(surface.skipped.containsKey('hidden'), isFalse);
   });

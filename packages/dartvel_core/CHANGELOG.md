@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVBindingError`: what a foreign library throws through a generated module, carrying the module, the operation, the binding kind and the original error and stack trace. `dvBindingCall`, `dvBindingFuture` and `dvBindingStream` in `framework.dart` are what generated carriers run calls through.
+
 ## 0.13.16 — 2026-10-22
 
 - Version aligned with dartvel_core 0.13.16.

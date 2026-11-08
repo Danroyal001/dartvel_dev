@@ -28,8 +28,8 @@ void main() {
     // It moves when the shape moves and at no other time. It went to 2 when
     // the graph started carrying modules.
     final DartvelProjectGraph graph = await graphFor(<String, String>{});
-    expect(graph.graphVersion, 2);
-    expect(graph.toJson()['graphVersion'], 2);
+    expect(graph.graphVersion, 3);
+    expect(graph.toJson()['graphVersion'], 3);
   });
 
   group('models', () {

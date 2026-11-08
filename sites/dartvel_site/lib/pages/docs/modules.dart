@@ -167,6 +167,7 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
           'dartvel add swift:vendor/TextKit',
           'dartvel add pod:CalcKit@^1.0.0',
           'dartvel inspect modules',
+          'dartvel inspect bindings',
         ]),
         DocsCode('modules-dart-package'),
         DocsTable(
@@ -217,9 +218,20 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
               'pinned to a commit.',
           'The module exposes what can cross every environment it runs '
               'in: numbers, booleans, strings, lists and maps. What cannot '
-              'is listed in the module\'s README with the reason: a '
-              'callback, a generic, an instance method, or a pointer whose '
-              'owner nobody named (DV-BIND-003).',
+              'is listed in the module\'s README with the reason and its '
+              'code: a type the boundary cannot express (DV-BIND-001), a '
+              'pointer whose owner nobody named (DV-BIND-003), a callback '
+              'whose type does not say if it fires once or many times '
+              '(DV-BIND-004), or an instance method.',
+          'Whatever a foreign library throws reaches your code as a '
+              'DVBindingError carrying the module, the call, the binding it '
+              'crossed and the original error with its stack trace, from a '
+              'call, a Future or a Stream alike.',
+          '`dartvel add --dry-run` and `dartvel inspect bindings` show how '
+              'each environment\'s calls cross: the binding (FFI, JNI, web, '
+              'WebAssembly or Node.js) and what brings the code there. '
+              '`dartvel build` refuses a module that declares a call real '
+              'where nothing can carry it (DV-BIND-005, DV-BIND-007).',
           'Where a source cannot run but the backend can, an asynchronous '
               'call crosses to the backend, and the build asks who may make '
               'it: dartvel.modules.<id>.backendPolicy names a policy, or '
@@ -328,17 +340,16 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
         DocsStatus(
           'Native Binding Graph',
           missing: <String>[
-            'The binding graph itself: DVBindingGraph and its five binding '
-                'kinds. A module you write yourself around a crate or an '
-                'Android library still has a hand-written FFI or JNI '
-                'surface.',
-            'Typed errors naming the module, the operation and the '
-                'binding kind, and foreign callbacks turned into a Future '
-                'or a Stream at the boundary.',
-            'An ownership annotation on every pointer that crosses, with '
-                'an ambiguous one refused as DV-BIND-003.',
-            '`dartvel inspect bindings --json`, and DV-BIND-001 through '
-                'DV-BIND-008.',
+            'Foreign callbacks turned into a Future or a Stream: every '
+                'callback is left out with DV-BIND-004 until a source can '
+                'say how often it fires.',
+            'Ownership annotations (owned, borrowed, shared and the rest) '
+                'on pointers that cross. Today every pointer except a string '
+                'passed in is left out with DV-BIND-003.',
+            'Instance methods and the JNI reference tracking they need '
+                '(DV-BIND-006), and lifecycle management for web, '
+                'WebAssembly and Node.js beyond a Node process per call.',
+            'Native views owned by a module, and DV-BIND-008.',
           ],
         ),
       ],

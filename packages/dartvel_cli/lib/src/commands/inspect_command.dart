@@ -30,7 +30,7 @@ class InspectCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'dartvel inspect [routes|models|model <Name>|modules|functions|function <name>|jobs|windows|kiosk|adoption] [--json] [--device-profile <id>]';
+      'dartvel inspect [routes|models|model <Name>|modules|bindings|functions|function <name>|jobs|windows|kiosk|adoption] [--json] [--device-profile <id>]';
 
   /// [root] is the project; null reads the working directory when the command
   /// runs. A test passes its own, because that directory is one value shared
@@ -114,6 +114,15 @@ class InspectCommand extends Command<void> {
               '${m.operations.length} operations'
               '${m.wrapperIntact == false ? '  DV-MODULE-016' : ''}'),
           'This project mounts no modules.',
+        );
+      case 'bindings':
+        _emitList(
+          asJson,
+          graph.bindings.map((DVBindingNode b) => b.toJson()).toList(),
+          graph.bindings.map((DVBindingNode b) =>
+              '${b.module}  ${b.environment}${b.target == null ? '' : ' ${b.target}'}  '
+              '${b.kind ?? 'none real'}  ${b.carrier ?? b.problem ?? b.declared.values.toSet().join(', ')}'),
+          'No mounted module crosses a native boundary.',
         );
       case 'windows':
         _emitWindows(root, graph, asJson);

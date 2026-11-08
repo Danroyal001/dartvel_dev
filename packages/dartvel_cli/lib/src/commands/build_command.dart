@@ -77,6 +77,7 @@ import '../build/native_splash.dart';
 import '../build/capture_completeness.dart';
 import '../build/home_widget_check.dart';
 import '../build/declaration_check.dart';
+import '../build/binding_check.dart';
 import '../build/module_call_check.dart';
 import '../build/device_profile_check.dart';
 import '../build/pwa_icons.dart';
@@ -780,6 +781,17 @@ class BuildCommand extends Command<void> {
     if (!moduleCalls.ok) {
       Logger.log('❌ This build calls a module where it cannot run:');
       for (final String line in moduleCalls.lines) {
+        Logger.log(line);
+      }
+      exit(78); // EX_CONFIG
+    }
+
+    // A module declaring a real operation where nothing can carry it, on a
+    // platform this build produces.
+    final DVBindingCheck bindings = DVBindingCheck.run(root, platforms);
+    if (!bindings.ok) {
+      Logger.log('❌ A module declares an operation nothing can carry here:');
+      for (final String line in bindings.lines) {
         Logger.log(line);
       }
       exit(78); // EX_CONFIG

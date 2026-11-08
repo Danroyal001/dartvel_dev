@@ -95,6 +95,6 @@ Widget _home(BuildContext context) => const Text('notes');
     // A consumer that understood version 1 must be able to tell that this
     // file has a key it has never seen.
     final DartvelProjectGraph graph = await graphFor(<String, String>{});
-    expect(graph.graphVersion, 2);
+    expect(graph.graphVersion, 3);
   });
 }

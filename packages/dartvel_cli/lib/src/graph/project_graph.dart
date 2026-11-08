@@ -6,6 +6,9 @@ import '../modules/foreign/module_writer.dart' show dvWrapperHash;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import 'binding_graph.dart';
+export 'binding_graph.dart' show DVBindingNode;
+
 import '../generators/account_generator.dart';
 import '../generators/annotation_args.dart';
 import '../generators/route_utils.dart';
@@ -29,13 +32,16 @@ class DartvelProjectGraph {
     required this.functions,
     required this.jobs,
     this.modules = const <DVGraphModule>[],
+    this.bindings = const <DVBindingNode>[],
   });
 
   /// The shape version. See the class doc: this is a contract, not a stamp.
   ///
   /// Version 2 added the modules key. A consumer that understood version 1
   /// can tell that this file carries a key it has never seen.
-  int get graphVersion => 2;
+  ///
+  /// Version 3 added the bindings key, for the same reason.
+  int get graphVersion => 3;
 
   /// Application nodes only. The backend generator also registers framework
   /// built-ins -- `/health`, `/openapi.json`, `/graphql` and its two siblings
@@ -52,6 +58,10 @@ class DartvelProjectGraph {
   /// somewhere an operator looks; leaving it out is how an application ships
   /// without a section and nobody finds out until a customer does.
   final List<DVGraphModule> modules;
+
+  /// How each module's calls cross to where they run: binding kind,
+  /// environment, target and carrier. See [DVBindingGraph].
+  final List<DVBindingNode> bindings;
 
   /// Scans [root] and answers what it is made of.
   static Future<DartvelProjectGraph> build({
@@ -95,6 +105,7 @@ class DartvelProjectGraph {
       functions: functions,
       jobs: jobs,
       modules: modules,
+      bindings: DVBindingGraph.read(root).nodes,
     );
   }
 
@@ -105,6 +116,7 @@ class DartvelProjectGraph {
         'functions': functions.map((DVGraphFunction f) => f.toJson()).toList(),
         'jobs': jobs.map((DVGraphJob j) => j.toJson()).toList(),
         'modules': modules.map((DVGraphModule m) => m.toJson()).toList(),
+        'bindings': bindings.map((DVBindingNode b) => b.toJson()).toList(),
       };
 
   static List<File> _dartFiles(String root) {

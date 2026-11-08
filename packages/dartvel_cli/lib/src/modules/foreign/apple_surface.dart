@@ -22,6 +22,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'dart_surface.dart';
+import 'ffi_surface.dart' show dvCallbackArity;
 
 /// One function the shim exports.
 class DVAppleFunction {
@@ -146,12 +147,12 @@ DVAppleSurface dvScanSwiftSources(String dir, String name, List<String> files) {
       if (isStatic != (owner != null)) continue; // an instance method
       final String label = owner == null ? fn : '$owner.$fn';
       if (m.group(3) != null) {
-        skipped[label] = 'is generic';
+        skipped[label] = 'is generic (DV-BIND-001)';
         continue;
       }
       if (m.group(5)!.trim().isNotEmpty) {
         skipped[label] = 'is ${m.group(5)!.trim()}, and neither crosses the '
-            'C ABI';
+            'C ABI (DV-BIND-001)';
         continue;
       }
       final String returns = (m.group(6) ?? 'Void').trim();
@@ -168,14 +169,17 @@ DVAppleSurface dvScanSwiftSources(String dir, String name, List<String> files) {
         }
         final String type = pm.group(3)!.trim();
         if (!_swiftTypes.containsKey(type) || type == 'Void') {
-          why = 'takes $type, which does not cross the C ABI';
+          // A closure: the parameter pattern stops at its first parenthesis.
+          why = type.contains('->') || type.startsWith('(')
+              ? dvCallbackArity(pm.group(2)!)
+              : 'takes $type, which does not cross the C ABI (DV-BIND-001)';
           break;
         }
         final String? l = pm.group(1);
         params.add((l == '_' ? null : (l ?? pm.group(2)), pm.group(2)!, type));
       }
       if (why == null && !_swiftTypes.containsKey(returns)) {
-        why = 'returns $returns, which does not cross the C ABI';
+        why = 'returns $returns, which does not cross the C ABI (DV-BIND-001)';
       }
       if (why != null) {
         skipped[label] = why;
@@ -350,7 +354,7 @@ DVAppleSurface dvScanObjcHeaders(String dir, String name,
             .firstWhere((String? t) => !_objcTypes.containsKey(t) || (t == 'void' && t != ret),
                 orElse: () => null);
         if (bad != null) {
-          skipped[label] = 'uses $bad, which does not cross the C ABI';
+          skipped[label] = 'uses $bad, which does not cross the C ABI (DV-BIND-001)';
           continue;
         }
         final String op = '${cls[0].toLowerCase()}${cls.substring(1)}'

@@ -145,6 +145,25 @@ DVFfiSurface dvScanC(String dir) {
         .replaceAll(RegExp(r'//[^\n]*'), '')
         .replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '');
     final String flat = code.replaceAll(RegExp(r'\{[^{}]*\}'), ';');
+    final Set<String> callbackTypes = <String>{
+      for (final RegExpMatch t in RegExp(
+              r'typedef\s+[^;()]*\(\s*\*\s*([A-Za-z_]\w*)\s*\)\s*\([^()]*\)\s*;')
+          .allMatches(flat))
+        t.group(1)!,
+    };
+    // A prototype with a parenthesis inside its parameters takes a function
+    // pointer. The prototype pattern below cannot see it, and used to drop
+    // it without a word.
+    for (final RegExpMatch m in RegExp(
+            r'(?:^|;|\})\s*((?:extern\s+)?(?:const\s+)?[A-Za-z_][\w\s\*]*?)\b([A-Za-z_]\w*)\s*\(((?:[^()]|\([^()]*\))*\([^()]*\)(?:[^()]|\([^()]*\))*)\)\s*;',
+            multiLine: true)
+        .allMatches(';$flat')) {
+      if (m.group(1)!.contains('typedef')) continue;
+      final String? name = RegExp(r'\(\s*\*\s*([A-Za-z_]\w*)\s*\)')
+          .firstMatch(m.group(3)!)
+          ?.group(1);
+      skipped[m.group(2)!] = dvCallbackArity(name ?? 'a function pointer');
+    }
     final RegExp proto = RegExp(
         r'(?:/\*\*?([\s\S]*?)\*/\s*)?(?:^|;|\})\s*((?:extern\s+)?(?:static\s+)?(?:inline\s+)?(?:const\s+)?[A-Za-z_][\w\s\*]*?)\b([A-Za-z_]\w*)\s*\(([^()]*)\)\s*;',
         multiLine: true);
@@ -155,6 +174,18 @@ DVFfiSurface dvScanC(String dir) {
       if (functions.any((DVFfiFunction f) => f.name == fn)) continue;
       final String returns = head.replaceFirst(RegExp(r'^extern\s+'), '').trim();
       final String doc = (m.group(1) ?? '').replaceAll(RegExp(r'\s*\*\s*'), ' ').trim();
+      final String? callback = <String?>[
+        for (final String param in m.group(4)!.split(','))
+          if (callbackTypes.contains(param
+              .trim()
+              .replaceFirst(RegExp(r'\s*[A-Za-z_]\w*$'), '')
+              .replaceFirst(RegExp(r'^const\s+'), '')))
+            RegExp(r'([A-Za-z_]\w*)\s*$').firstMatch(param.trim())?.group(1),
+      ].firstOrNull;
+      if (callback != null) {
+        skipped[fn] = dvCallbackArity(callback);
+        continue;
+      }
       final Object result = _function(
         fn,
         returns,
@@ -235,8 +266,29 @@ DVFfiSurface dvScanRust(String dir) {
       }
     }
   }
+  // An exported function taking an `extern "C" fn` has a parenthesis in
+  // its parameters, which the pattern above cannot see past.
+  final RegExp callbackDecl = RegExp(
+      r'#\[(?:unsafe\()?no_mangle\)?\]\s*pub\s+(?:unsafe\s+)?extern\s+"C"\s+fn\s+([A-Za-z_]\w*)\s*\(((?:[^()]|\([^()]*\))*)\)');
+  final RegExp callbackParam = RegExp(
+      r'([A-Za-z_]\w*)\s*:\s*(?:Option\s*<\s*)?(?:unsafe\s+)?(?:extern\s+"C"\s+)?fn\s*\(');
+  for (final File file in files) {
+    for (final RegExpMatch m in callbackDecl.allMatches(file.readAsStringSync())) {
+      final String fn = m.group(1)!;
+      if (functions.any((DVFfiFunction f) => f.name == fn)) continue;
+      final RegExpMatch? param = callbackParam.firstMatch(m.group(2)!);
+      if (param != null) skipped[fn] = dvCallbackArity(param.group(1)!);
+    }
+  }
   return _finish('rust', name, version, dir, functions, skipped);
 }
+
+/// Why an operation taking a foreign callback is left out: whether it fires
+/// once (a Future) or many times (a Stream) is not something its type says,
+/// and a guess is wrong half the time in a way nothing reports.
+String dvCallbackArity(String param) =>
+    'takes a callback function, $param, and nothing in its type says '
+    'whether it fires once (a Future) or many times (a Stream) (DV-BIND-004)';
 
 DVFfiSurface _finish(
   String language,
@@ -314,7 +366,7 @@ Object _function(
   (String, String) Function(String) split,
 ) {
   final _Crossing? result = type(returns);
-  if (result == null) return 'returns $returns, which has no Dart type here';
+  if (result == null) return 'returns $returns, which has no Dart type here (DV-BIND-001)';
   if (result is _Unowned || result is _StringIn) {
     return 'returns ${result is _Unowned ? result.type : 'a char pointer'}, '
         'and nothing says who frees it (DV-BIND-003)';
@@ -328,7 +380,7 @@ Object _function(
     final (String t, String n) = split(raw);
     final String paramName = n == 'arg' ? 'arg${i++}' : n;
     final _Crossing? c = type(t);
-    if (c == null) return 'takes $t, which has no Dart type here';
+    if (c == null) return 'takes $t, which has no Dart type here (DV-BIND-001)';
     if (c is _Unowned) {
       return 'takes ${c.type}, and nothing says who owns it (DV-BIND-003)';
     }
