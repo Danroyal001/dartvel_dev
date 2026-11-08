@@ -398,7 +398,7 @@ names other roots and `ELEMENT_WORK` moves the scratch directory (default
 | `src/dart/element/type.dart`, `display_string_builder.dart`, `type_algebra.dart` (substitution) | `src/dart/element/type.rs`, `display_string_builder.rs`, `type_algebra.rs` |
 | `src/dart/element/scope.dart` | `src/dart/element/scope.rs` |
 | `src/summary2/reference_resolver.dart`, `type_builder.dart`, `named_type_builder.dart`, `function_type_builder.dart`, `record_type_builder.dart` | `src/summary2/reference_resolver.rs`, `type_builder.rs` |
-| `src/summary2/type_alias.dart`, `default_types_builder.dart`, `types_builder.dart`, `interface_cycles.dart` | `src/summary2/` (same names) |
+| `src/summary2/type_alias.dart`, `variance_builder.dart`, `default_types_builder.dart`, `types_builder.dart`, `interface_cycles.dart` | `src/summary2/` (same names) |
 | `src/summary2/top_level_inference.dart` (`TopLevelInference`, `_InitializerInference`; see above for what is not ported) | `src/summary2/top_level_inference.rs` |
 | `src/summary2/extension_type.dart` (`buildExtensionTypes`, but the erasure) | `src/summary2/extension_type.rs` |
 | `src/dart/element/subtype.dart`, `normalize.dart`, `top_merge.dart`, `class_hierarchy.dart`, `least_greatest_closure.dart`, `least_upper_bound.dart`, `greatest_lower_bound.dart`, `type_schema_elimination.dart`, `type_constraint_gatherer.dart`, `generic_inferrer.dart`, parts of `type_system.dart` | `src/dart/element/` (same names) |
@@ -542,8 +542,8 @@ that stops after the export scopes.
 
 In the order linking needs them:
 
-- Of `_resolveTypes`: `simply_bounded.dart` and `variance_builder.dart`
-  (no row of the oracle's corpora needs them yet), and the alias
+- Of `_resolveTypes`: `simply_bounded.dart` (no row of the oracle's
+  corpora needs it yet), and the alias
   information of types (`preferTypeAlias` display).
 - Of top-level inference: inference from initializers and default values
   (`AstResolver`, which is the resolver of expressions), dependency cycles
@@ -583,11 +583,12 @@ is one of those or a `--literals` literal (the enclosed type).
 
 `src/dart/resolver/type_analyzer.rs` records those slices' types, using
 the linked SDK classes through the narrow `src/dart/element/type_provider.rs`.
-It does not resolve identifiers, infer locals or calls, type integer
-literals outside the `--integers` sites, `==` (whose type is the `==` method's return type), unary or other
+It does not resolve identifiers other than the `--identifiers` reads, infer
+locals or calls, type integer literals outside the `--integers` sites, `==` (whose type is the `==` method's return type), unary or other
 binary operators, perform flow analysis, report diagnostics or rewrite the
 AST; those expressions get no type rather than a guessed one, including a
-parenthesized one. `body_dump` requires `--literals`, `--operators` or `--integers` and
+parenthesized one. `body_dump` requires `--literals`, `--operators`, `--integers` or
+`--identifiers` and
 refuses full mode rather than presenting missing resolution as a full result.
 The full upstream dump is available as a reference for the next slices.
 
@@ -664,11 +665,11 @@ rather than `int`.
 Limits: integer literals in every other context (arguments, operands,
 assignments, inferred or inherited declaration types, closures' inferred
 return types, untyped collection literals, record fields, switch
-expressions, ...) are not selected and get no type; pattern variables do not
-hide names; a local variable hides a name only from its declaration on, not
-in the earlier part of its block; a part with a `part of` name directive
-is not analyzed against any library (its annotated sites stay untyped; no
-corpus file needed one).
+expressions, ...) are not selected and get no type. A part with a `part of`
+name directive is analyzed against the library that includes it
+(`PartOfNameFileKind.library`, added with the `--identifiers` slice: of the
+known libraries of that name, after reading the part's directory when none
+is known, the one with the smallest path that includes the part).
 
 The fixtures `tests/body_corpus/integers.dart` (with a part),
 `integers_prefixed_core.dart` (which imports `dart:core` with a prefix) and
@@ -686,15 +687,127 @@ seconds), and the held-out roots above 10,879 rows across 5,730 files
 (380 seconds), zero differences. The literal and operator tests still match
 on the default corpus and on the enlarged fixture (72 and 53 rows, 9 files).
 
+`--identifiers` selects reads of declared variables: a local variable of a
+declaration with a type annotation, a for-in loop variable with one, or a
+regular formal parameter with a type annotation or a function-typed suffix
+(not a field or super formal parameter), read by an unqualified name outside
+documentation comments. Its row adds the declaration's element kind
+(`LOCAL_VARIABLE` or `PARAMETER`) and name offset after the type, so the
+selection checks name resolution as well as the type. Flow analysis may
+promote a variable, and is not ported, so a variable is left out entirely
+when any read of it can promote it, or when it is written or initialized and
+its declared type is not non-nullable (`int? x = 1;` promotes `x` to `int`
+upstream; a default value does not promote). A read can promote when, past
+enclosing parentheses, the token after it is `!`, `?.`, `?..`, `is`, `as`,
+`==` or `!=`, `?` followed by `[`, or `)` followed by `?.` or `?..` (the
+argument of an extension override); when the token before it is `==`, `!=` or
+`?` (a null-aware element); when it is an argument of `identical`; or when it
+is the scrutinee of a switch, an `if`-`case`, a pattern
+variable declaration or a pattern assignment. Writes are assignments,
+compound assignments, `++` and `--`, for-in loops over a name, assigned
+variable patterns, initializers and for-in loop variables. Both sides decide
+this the same way (the oracle's `DeclaredVariableReads` on the resolved V2
+tree, the port's `TypeAnalyzer` on the parsed one); it is deliberately
+conservative, a selection rather than flow analysis.
+
+For it the analyzer resolves names in the local scopes `ScopeAnalyzer` and
+`ScopeContext` build: a block declares all of its local variables, local
+functions and pattern variables for the whole block (`_defineLocalElements`),
+as does a branch or loop body that is not a block; a loop's declared
+variables are in scope in the whole loop, a for-in variable after its
+iterable; formal parameters are in scope in the body (`FormalParameterScope`,
+without field and super formal parameters) and, all of them, in a
+constructor's initializers (`ConstructorInitializerScope`); type parameters
+of executables and function types; catch parameters; the pattern variables
+of an `if`-`case` in its guard and then branch, of a switch expression case,
+of a switch statement case in its guard, and of a case group, joined, in the
+group's statements. With wildcard variables `_` declares nothing. The
+first declaration of a name in a scope wins, and untyped variables, local
+functions, type parameters and catch and pattern variables hide what they
+shadow. The integer slice's annotations now resolve in the same scopes,
+which corrects the two limits it had (pattern variables did not hide names;
+a local hid a name only from its declaration on); its oracle results did not
+change. A declared type is the linked element's type for the formal
+parameters of declarations, and otherwise built from the annotation where it
+is written (`NamedTypeResolver`: an interface type with its type arguments,
+the defaults of its type parameters when there are none, `InvalidType` for
+each when their number is wrong, or for a type parameter given arguments; an alias instantiated; a type parameter,
+`dynamic`, `Never`, `void`; else `InvalidType`; function, generic function
+and record types, and function-typed suffixes). Type parameters declared in
+bodies become elements of the linked store, so the analyzer now takes the
+store mutably. The parse-time V1 projection gives the called name of `f()` a
+`MethodInvocation` whose `methodName` has no origin, where upstream's
+resolver rewrites the call of a variable into a
+`FunctionExpressionInvocation`; `body_dump` maps that name to the parsed name
+it was projected from (`called_name_source`). The oracle selects a V1
+identifier only when its offset and length are the read's: upstream's
+projection of an anonymous method puts a synthetic identifier at a read's
+offset. Primary constructors' parameters are in the initializer scope in
+their initializers and in the initializers of instance fields that are not
+late, and in the `PrimaryParameterScope` in their body, which leaves out
+declaring (`var` or `final`) parameters: there the name is the field.
+
+The held-out roots found what the default corpus did not: the extension
+override, null-aware element and `identical` positions, annotations, the
+synthetic identifiers, primary constructors, `part of` name parts (6 files,
+which were not analyzed at all), `InvalidType` for a wrong number of type
+arguments, and raw types whose defaults need the variance of a typedef's
+type parameters. That variance was not computed by the linker, so a
+contravariant occurrence (`Function(X)` through `typedef F<X> =
+Function(X)`) stayed `dynamic` where `DefaultTypesBuilder` puts `Never`;
+`src/summary2/variance_builder.rs` now ports `VarianceBuilder`, which runs
+before the default types as upstream's does (and also gives class, enum and
+mixin type parameters the variance an `in`, `out` or `inout` keyword states).
+The fixture reproduces each of them.
+
+Limits: reads of untyped or inferred variables (`var`, `final x = ...`,
+untyped and initializing parameters), of pattern and catch variables, of
+fields and top-level variables, and every variable flow analysis might
+promote are not selected and get no type; class type parameters are not made
+`InvalidType` in static members; an annotation's name is not a selected read
+(upstream gives its identifier no static type).
+
+The fixture `tests/body_corpus/identifiers.dart` covers parameters of
+functions, methods, constructors (body and initializer list), setters,
+operators, local functions and function expressions, optional and named
+parameters, function-typed suffixes, generic methods and local functions,
+aliases, a prefixed import, records, `Function`, `dynamic`, unresolved types,
+loop variables, closures, calls of variables (also `f().g`), shadowing by
+blocks, untyped locals, local functions, type parameters, catch and pattern
+variables, wildcards, references before a declaration in an inner block, and
+each promoting position and write, and what the held-out roots found (a
+named library and its `part of` name part, a raw type through a
+contravariant typedef, a wrong number of type arguments, `identical`, a
+null-aware map key, an extension override, an annotation, a primary
+constructor with a declaring parameter): 73 upstream rows in 3 files. The
+first 64 matched once names were resolved; the held-out cases differed (the
+part's reads missing, `dynamic` for `Never` and for `InvalidType`, declared
+types where upstream promotes, the declaring parameter selected in the body)
+until fixed. The default corpus first differed in 4 files, all calls of a variable
+followed by a member (`keyOf1(a).compareTo(...)`), whose projection gives the
+inner call the whole chain as its origin; the fixture now has that shape.
+Measured 2026-11-08: the default corpus matches 50,276 rows across 589 files
+(141 seconds), and the held-out roots above 108,816 rows across 5,730
+files (337 seconds), zero differences. The literal, operator and integer
+tests still match on the default corpus (41,283, 13,036 and 1,096 rows), and
+the element oracle, with `VarianceBuilder` and `part of` name parts, still
+matches its default corpus (567 libraries, elements and declared types).
+
 `tests/type_analyzer_test.rs` runs the analyzer on a hand-built `dart:core`
 (so it can run under Miri, not yet done): the literal and operator types,
 integer literals with no context (`int`), with declared contexts (aliases,
 `FutureOr`, `async` returns, defaults, collection type arguments, shadowed
 names, a prefixed `dart:core`; these link the test code as a library with a
 hand-built `dart:async`), and untyped when analyzed without their library;
-and that `==`, unary minus, integer arguments, identifiers and parentheses
-around them stay untyped. The four integer tests with expected types failed
-before the analyzer typed integer literals. Typing an unknown parenthesized
+reads of declared variables (parameters and locals of each kind, generic,
+function, record and alias types, `InvalidType`, `dynamic`), the declaration
+a name finds (block-wide locals, untyped variables, local functions, type
+parameters, catch and pattern variables and wildcards), and that variables
+flow analysis may promote stay untyped (the silent failure: their declared
+type); and that `==`, unary minus, integer arguments, unresolved identifiers
+and parentheses around them stay untyped. The four integer tests with expected
+types failed before the analyzer typed integer literals; the three
+variable-read tests failed before it resolved names (all reads `-`). Typing an unknown parenthesized
 expression `bool` fails that last test.
 
 `tests/oracle_comparison.rs` checks that missing empty dumps count as
