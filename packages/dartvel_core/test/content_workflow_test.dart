@@ -23,6 +23,9 @@ typedef _Adapter = (String name, DVDatabaseAdapter Function() create);
 final List<_Adapter> _adapters = <_Adapter>[
   ('memory', MemoryDVDatabaseAdapter.new),
   ('sqlite', SqliteDVDatabaseAdapter.memory),
+  // Refuses every SQL statement, as a document database would: the whole
+  // workflow, review queue and schedules included, runs on records.
+  ('records engine', DVMemoryRecordEngine.new),
 ];
 
 class _User {

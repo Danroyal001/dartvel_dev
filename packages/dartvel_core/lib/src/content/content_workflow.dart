@@ -51,6 +51,7 @@ import '../../dartvel.dart'
         DVQueues;
 import '../data/record_history.dart';
 import '../database/adapter.dart';
+import '../database/records.dart' show DVFilter;
 import '../observability/observability.dart';
 import '../transaction/transaction.dart';
 import '../web/rendered_page_cache.dart';
@@ -1480,16 +1481,17 @@ class DVContentWorkflow<T> {
   ];
 
   Future<List<DVContentVersion<T>>> _select(String column, String value) async {
-    final List<Map<String, Object?>> rows = await database.query(
-      'SELECT id FROM $table WHERE kind = ? AND $column = ?',
-      <Object?>[kind, value],
+    // Through the record operations, so the review queue, the schedules and
+    // the public set read the same on a document engine as on SQL.
+    final List<DVRecord> records = await _table.where(
+      DVFilter.all(<DVFilter>[
+        DVFilter.equals('kind', kind),
+        DVFilter.equals(column, value),
+      ]),
     );
-    final List<DVContentVersion<T>> found = <DVContentVersion<T>>[];
-    for (final Map<String, Object?> row in rows) {
-      final DVContentVersion<T>? v = await version(row['id']! as String);
-      // Re-checked after the read: the row may have moved in between.
-      if (v != null && '${v._v[column]}' == value) found.add(v);
-    }
+    final List<DVContentVersion<T>> found = <DVContentVersion<T>>[
+      for (final DVRecord record in records) _fromRecord(record),
+    ];
     found.sort(
       (DVContentVersion<T> a, DVContentVersion<T> b) =>
           a.documentId == b.documentId

@@ -581,6 +581,24 @@ class DVRecordTable {
     ];
   }
 
+  /// The records [where] picks within this table's scope, excluding
+  /// soft-deleted ones unless [withDeleted]: how framework code reads by a
+  /// field other than the key, on every engine.
+  Future<List<DVRecord>> where(DVFilter where,
+      {bool withDeleted = false}) async {
+    final List<Map<String, Object?>> rows = await _records.find(
+      table,
+      where: _scoped(<DVFilter>[
+        where,
+        if (!withDeleted && softDelete) const DVFilter.isNull(deletedColumn),
+      ]),
+    );
+    return <DVRecord>[
+      for (final Map<String, Object?> row in rows)
+        if (withDeleted || _fromRow(row).deletedAt == null) _fromRow(row),
+    ];
+  }
+
   /// Stores [values]: inserts a new record, or updates an existing one
   /// checked against [base], the record as this writer read it.
   ///
