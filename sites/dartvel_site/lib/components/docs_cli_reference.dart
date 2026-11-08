@@ -76,9 +76,10 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
   ),
   DocsCliCommand(
     name: 'analyze',
-    description: 'Analyze a running application: performance measurements and findings.',
+    description: 'Analyze a running application\'s performance, or the words a package\'s widgets say.',
     options: <String>[
-      '    --json    Emit the published measurements as JSON.',
+      '    --json       Emit the published measurements as JSON.',
+      '    --exclude    strings: a directory under the package, relative to its root, not to read.',
     ],
   ),
   DocsCliCommand(
@@ -941,6 +942,8 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '    --total-shards           Total number of CI shards running this test suite.',
       '    --shard-index            Zero-based index of this CI shard.',
       '    --[no-]isolate           Run tests with per-file isolation by forcing single concurrency.',
+      '    --[no-]impacted          Run only the tests this diff can reach: what each test imports, and the data models, functions, routes and jobs the changed files declare. Refused on a stale generated tree (DV-GEN-001). A change it cannot place runs the whole suite.',
+      '    --[no-]evals             Run only the AI evals, under test/evals: golden transcripts scored and gated by DVAIEval. The whole suite runs them too.',
       '    --[no-]update-goldens    Update golden snapshot files for golden UI tests.',
       '    --reporter               Pass a reporter to the selected test runner.',
     ],
@@ -1043,9 +1046,10 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
   ),
   DocsCliCommand(
     name: 'upgrade',
-    description: 'Upgrade the CLI, or plan a project upgrade with --plan.',
+    description: 'Upgrade the CLI, or plan a project upgrade with --plan and apply it with --apply.',
     options: <String>[
-      '    --plan    Report what the upgrade changes across the toolchain, dependencies, source, generated code, protocol, database, modules, plugins and deployment. Writes nothing.',
+      '    --plan     Report what the upgrade changes across the toolchain, dependencies, source, generated code, protocol, database, modules, plugins and deployment. Writes nothing.',
+      '    --apply    Apply the project plan: raise the SDK constraint to the floor, move each Dartvel package to this release, rewrite deprecated names, then run pub upgrade and the generator. Refused, with nothing written, while anything in the plan is blocked. Does not upgrade the CLI.',
     ],
   ),
   DocsCliCommand(
@@ -1091,6 +1095,14 @@ const List<String> kApacheConfig = <String>[
   '# mod_rewrite, where this is what a visitor sees instead of the server\'s own',
   '# branding.',
   'ErrorDocument 404 /404/index.html',
+  '',
+  '# The application\'s own page for each status code that has one, so a refusal,',
+  '# a rate limit or a failure is a sentence in the site\'s theme rather than the',
+  '# server\'s default page. Each is a route the build prerendered.',
+  'ErrorDocument 403 /403/index.html',
+  'ErrorDocument 429 /429/index.html',
+  'ErrorDocument 500 /500/index.html',
+  'ErrorDocument 503 /503/index.html',
   '',
   '# The Universal Links document has no extension for AddType to match, and iOS',
   '# refuses it as anything but JSON.',
