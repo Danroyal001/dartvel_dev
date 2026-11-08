@@ -30,6 +30,11 @@ fn user_operator_invocations_match_upstream() {
     compare_selection("user-operators");
 }
 
+#[test]
+fn member_accesses_match_upstream() {
+    compare_selection("members");
+}
+
 /// Runs `oracle/body_dump.dart` and `body_dump` with `--<selection>` on the
 /// corpus and fails unless they wrote nonempty, byte-identical dumps.
 fn compare_selection(selection: &str) {

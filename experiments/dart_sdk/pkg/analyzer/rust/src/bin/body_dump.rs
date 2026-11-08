@@ -9,6 +9,7 @@ use analyzer::src::dart::element::display_string_builder::display_string;
 use analyzer::src::dart::element::element::ElementStore;
 use analyzer::src::dart::element::r#type::TypeImpl;
 use analyzer::src::dart::element::type_provider::TypeProviderImpl;
+use analyzer::src::dart::resolver::method_invocation_resolver::MemberAccessKind;
 use analyzer::src::dart::resolver::type_analyzer::{
     Declarations, TypeAnalyzer, VariableRead, is_context_independent_literal, is_declared_context_integer,
 };
@@ -42,6 +43,10 @@ enum Selection {
     /// (`TypeAnalyzer::operator_invocations`), the integer literals that are
     /// their operands, and parentheses around either.
     UserOperators,
+    /// `--members`: method invocations and property reads on a typed
+    /// receiver the analyzer typed (`TypeAnalyzer::member_accesses`), and the
+    /// integer literals that are arguments of those invocations.
+    Members,
 }
 
 fn main() {
@@ -54,12 +59,13 @@ fn main() {
             "--out" => out = args.next(),
             "--sdk" => sdk = args.next(),
             "--packages" => packages = args.next(),
-            "--literals" | "--operators" | "--integers" | "--identifiers" | "--user-operators" if selection.is_some() => usage(),
+            "--literals" | "--operators" | "--integers" | "--identifiers" | "--user-operators" | "--members" if selection.is_some() => usage(),
             "--literals" => selection = Some(Selection::Literals),
             "--operators" => selection = Some(Selection::Operators),
             "--integers" => selection = Some(Selection::Integers),
             "--identifiers" => selection = Some(Selection::Identifiers),
             "--user-operators" => selection = Some(Selection::UserOperators),
+            "--members" => selection = Some(Selection::Members),
             _ if arg.starts_with('-') => usage(),
             _ => roots.push(arg),
         }
@@ -101,7 +107,7 @@ fn main() {
 
 fn usage() -> ! {
     eprintln!(
-        "usage: body_dump --sdk <dir> --packages <file> (--literals|--operators|--integers|--identifiers|--user-operators) --out <dir> <root>..."
+        "usage: body_dump --sdk <dir> --packages <file> (--literals|--operators|--integers|--identifiers|--user-operators|--members) --out <dir> <root>..."
     );
     std::process::exit(64)
 }
@@ -133,7 +139,7 @@ fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Select
         .encode_utf16()
         .collect::<Vec<_>>()
         .into();
-    let unit = if matches!(selection, Selection::Integers | Selection::Identifiers | Selection::UserOperators) {
+    let unit = if matches!(selection, Selection::Integers | Selection::Identifiers | Selection::UserOperators | Selection::Members) {
         let uri = linker.fs.path_to_uri(path);
         let file = linker.fs.get_file_for_uri(&uri).expect("a corpus file has a URI");
         linker.unit_of_file(file)
@@ -160,6 +166,12 @@ fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Select
         static_types: analyzer.static_types,
         variable_reads: analyzer.variable_reads,
         operator_invocations: analyzer.operator_invocations,
+        member_spans: analyzer
+            .member_accesses
+            .iter()
+            .map(|(&node, &kind)| ((ast.offset(node), ast.length(node)), (kind, node)))
+            .collect(),
+        member_arguments: analyzer.member_arguments,
     };
     let mut dump = String::new();
     Dumper { store, selection }.dump_node(ast, parsed.unit, &results, &mut dump);
@@ -195,6 +207,11 @@ struct Results {
     static_types: HashMap<NodeId, TypeImpl>,
     variable_reads: HashMap<NodeId, VariableRead>,
     operator_invocations: HashSet<NodeId>,
+    /// The member accesses by offset and length, which is how the V1
+    /// projections find them: the projection of `a.f().g()` gives the inner
+    /// invocation the whole chain as its origin.
+    member_spans: HashMap<(i32, i32), (MemberAccessKind, NodeId)>,
+    member_arguments: HashSet<NodeId>,
 }
 
 struct Dumper<'a> {
@@ -203,6 +220,37 @@ struct Dumper<'a> {
 }
 
 impl Dumper<'_> {
+    /// Writes the read of a getter that the V1 node [node], a
+    /// `MethodInvocation` `r.g(...)`, invokes, when the analyzer typed it.
+    /// Upstream's resolver rewrites such an invocation into a
+    /// `FunctionExpressionInvocation` whose function is the read (a
+    /// `PrefixedIdentifier` on a name, else a `PropertyAccess`), which comes
+    /// first in pre-order; the parse-time projection here keeps the
+    /// `MethodInvocation`.
+    fn dump_invoked_getter(&self, ast: Ast<'_>, node: NodeId, analyzer: &Results, out: &mut String) {
+        let AstNodeImpl::MethodInvocationImpl(invocation) = ast.node(node) else {
+            return;
+        };
+        if invocation.target2 == NO_NODE {
+            return;
+        }
+        let offset = ast.offset(invocation.target2);
+        let length = ast.end(invocation.method_name) - offset;
+        let Some(&(MemberAccessKind::Property, access)) = analyzer.member_spans.get(&(offset, length)) else {
+            return;
+        };
+        let runtime_type = match ast.node(invocation.target2) {
+            AstNodeImpl::SimpleIdentifierImpl(_) => "PrefixedIdentifierImpl",
+            _ => "PropertyAccessImpl",
+        };
+        let type_ = analyzer
+            .static_types
+            .get(&access)
+            .map(|type_| display_string(self.store, type_))
+            .unwrap_or_else(|| "-".into());
+        writeln!(out, "{runtime_type} {offset}+{length} type={type_}").unwrap();
+    }
+
     /// Writes the selected expressions under the V1 node [node], in the
     /// oracle's order. Types are recorded on canonical nodes, so a V1
     /// projection is looked up by the node it projects.
@@ -212,6 +260,8 @@ impl Dumper<'_> {
             origin => origin,
         };
         let source = if source == node { called_name_source(ast, node).unwrap_or(node) } else { source };
+        // The canonical node whose type the row writes.
+        let mut typed = source;
         let selected = match self.selection {
             Selection::Literals => is_context_independent_literal(ast.node(node)),
             Selection::Operators => is_operator_typed(ast, source),
@@ -224,11 +274,36 @@ impl Dumper<'_> {
                     && analyzer.variable_reads.contains_key(&source)
             }
             Selection::UserOperators => is_selected_operator_node(ast, node, source, &analyzer.operator_invocations),
+            Selection::Members => {
+                let kind = match ast.node(node) {
+                    AstNodeImpl::MethodInvocationImpl(_) => Some(MemberAccessKind::Invocation),
+                    AstNodeImpl::PrefixedIdentifierImpl(_) | AstNodeImpl::PropertyAccessImpl(_) => {
+                        Some(MemberAccessKind::Property)
+                    }
+                    _ => None,
+                };
+                match kind {
+                    Some(kind) => match analyzer.member_spans.get(&(ast.offset(node), ast.length(node))) {
+                        Some(&(found, access)) if found == kind => {
+                            typed = access;
+                            true
+                        }
+                        _ => false,
+                    },
+                    None => {
+                        matches!(ast.node(node), AstNodeImpl::IntegerLiteralImpl(_))
+                            && analyzer.member_arguments.contains(&source)
+                    }
+                }
+            }
         };
+        if self.selection == Selection::Members {
+            self.dump_invoked_getter(ast, node, analyzer, out);
+        }
         if selected {
             let type_ = analyzer
                 .static_types
-                .get(&source)
+                .get(&typed)
                 .map(|type_| display_string(self.store, type_))
                 .unwrap_or_else(|| "-".into());
             writeln!(

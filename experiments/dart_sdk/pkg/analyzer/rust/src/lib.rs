@@ -97,6 +97,7 @@ pub mod src {
         pub mod resolver {
             pub mod type_analyzer;
             pub mod binary_expression_resolver;
+            pub mod method_invocation_resolver;
             pub mod scope;
         }
         pub mod scanner {

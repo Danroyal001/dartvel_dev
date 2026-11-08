@@ -17,9 +17,11 @@
 // part of `NamedTypeResolver` that builds a declared type. Operator
 // invocations (`==`, `!=`, user-definable binary, unary and index operators)
 // and the integer literals that are their operands are typed after those, by
-// binary_expression_resolver.rs.
+// binary_expression_resolver.rs. Member accesses on a typed receiver (method
+// invocations and property reads) and the integer literals that are their
+// arguments are typed after those, by method_invocation_resolver.rs.
 // Flow state, diagnostics, rewrites, integer literals in other contexts
-// (call arguments, inferred declarations), other identifiers,
+// (inferred declarations, untyped calls), other identifiers, other
 // invocations and all other expression visitors remain unported. Types are stored beside the
 // AST by NodeId, as linking's annotation types are, rather than changing
 // parsed nodes.
@@ -40,6 +42,7 @@ use crate::src::dart::element::scope::{ScopeElement, ScopeFeatures, ScopeId, Sco
 use crate::src::dart::element::type_provider::TypeProviderImpl;
 use crate::src::dart::element::class_hierarchy::ClassHierarchy;
 use crate::src::dart::resolver::binary_expression_resolver::OperatorResolver;
+use crate::src::dart::resolver::method_invocation_resolver::{MemberAccessKind, MemberResolver};
 use crate::dart::analysis::features::Feature;
 use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId};
 use std::collections::{HashMap, HashSet};
@@ -90,6 +93,12 @@ pub struct TypeAnalyzer<'a> {
     /// of their receiver (see [TypeAnalyzer::analyze]); each also has its
     /// type in [static_types].
     pub operator_invocations: HashSet<NodeId>,
+    /// The member accesses typed by member lookup on the static type of
+    /// their receiver (method_invocation_resolver.rs), with their kinds;
+    /// each also has its type in [static_types].
+    pub member_accesses: HashMap<NodeId, MemberAccessKind>,
+    /// The integer literals typed as arguments of those invocations.
+    pub member_arguments: HashSet<NodeId>,
     /// `None` when the unit is analyzed without its library: a context
     /// type that an annotation gives is then unknown, and an integer literal
     /// in it is left without a type; no read of a variable is typed.
@@ -214,6 +223,8 @@ impl<'a> TypeAnalyzer<'a> {
             static_types: HashMap::new(),
             variable_reads: HashMap::new(),
             operator_invocations: HashSet::new(),
+            member_accesses: HashMap::new(),
+            member_arguments: HashSet::new(),
             declarations: None,
             scope: ScopeId::LibraryFragment(0),
             locals: Vec::new(),
@@ -258,6 +269,7 @@ impl<'a> TypeAnalyzer<'a> {
         self.visit(ast, node, features);
         self.record_variable_reads();
         self.resolve_operator_invocations(ast, node);
+        self.resolve_member_accesses(ast, node);
     }
 
     fn visit(&mut self, ast: Ast<'_>, node: NodeId, features: ScopeFeatures) {
@@ -634,6 +646,25 @@ impl<'a> TypeAnalyzer<'a> {
             static_types: &mut self.static_types,
             annotation_types: &self.annotation_types,
             invocations: &mut self.operator_invocations,
+        }
+        .resolve(ast, node);
+    }
+
+    /// With the library, types the member accesses whose receivers are typed
+    /// (method_invocation_resolver.rs), after the operator invocations, since
+    /// a receiver may be one. The operator invocations do not see the member
+    /// accesses: their selection takes no member access as an operand.
+    fn resolve_member_accesses(&mut self, ast: Ast<'_>, node: NodeId) {
+        let Some(declarations) = self.declarations.as_mut() else {
+            return;
+        };
+        MemberResolver {
+            store: &mut *declarations.store,
+            hierarchy: ClassHierarchy::default(),
+            type_provider: self.type_provider,
+            static_types: &mut self.static_types,
+            accesses: &mut self.member_accesses,
+            arguments: &mut self.member_arguments,
         }
         .resolve(ast, node);
     }

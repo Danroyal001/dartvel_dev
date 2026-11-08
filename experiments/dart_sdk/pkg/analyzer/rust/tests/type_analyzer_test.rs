@@ -22,10 +22,18 @@
 //   operator method the receiver's interface has, substituted and refined for
 //   numbers; `==` is `bool`; integer literal operands get the operator's
 //   context; `dynamic`, `Never` and type parameter receivers.
+// - Member accesses, analyzed with the library: an invocation `r.m(...)` has
+//   the return type of the method the receiver's interface has, a read `r.p`
+//   the type of its getter or field, or of the method torn off, substituted;
+//   integer literal arguments get their parameter's type as the context; an
+//   invoked getter is read and its call is not typed.
 // - Not in the slice, so no type: unresolved identifiers, operator
 //   invocations without the library or whose resolution is not ported
 //   (nullable receivers, extensions, inferred member types), integer literals
-//   in other contexts (call arguments) and parentheses around any of those.
+//   in other contexts and parentheses around any of those; member accesses
+//   with null-aware or nullable receivers, extension members, private names,
+//   generic methods, implicit member types, `dynamic` receivers, numeric
+//   `remainder`, explicit type arguments and static members.
 
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -302,7 +310,14 @@ fn types_in_library_with_core(name: &str, core: &str, code: &str, queries: &[(&s
                         && ast.offset(id) == offset
                         && ast.length(id) == source.len() as i32
                 })
-                .unwrap_or_else(|| panic!("no {kind} at {source:?}"));
+                .unwrap_or_else(|| {
+                    let found: Vec<_> = all
+                        .iter()
+                        .filter(|&&id| ast.offset(id) == offset)
+                        .map(|&id| (ast.node(id).runtime_type(), ast.length(id)))
+                        .collect();
+                    panic!("no {kind} at {source:?}; there: {found:?}")
+                });
             match static_types.get(&node) {
                 Some(type_) => display_string(&linker.store, type_),
                 None => "-".to_string(),
@@ -879,4 +894,202 @@ fn operators_resolution_does_not_reach_are_left_untyped() {
         ),
         ["-", "-", "-", "-", "-", "-", "-", "-", "-"]
     );
+}
+
+/// A `dart:core` whose classes declare the members the member access tests
+/// read and invoke.
+const MEMBER_CORE: &str = "library dart.core;\n\
+    class Object { bool operator ==(Object other) => true; external int get hashCode; }\n\
+    class Null {}\n\
+    class bool {}\n\
+    abstract class num { num remainder(num other); }\n\
+    abstract class int extends num { bool get isEven; int remainder(num other); }\n\
+    abstract class double extends num {}\n\
+    abstract class String { int get length; }\n\
+    class Symbol {}\n\
+    class Function {}\n\
+    class Record {}\n\
+    abstract class List<E> { E get first; }\n";
+
+fn member_types(name: &str, code: &str, queries: &[(&str, &str)]) -> Vec<String> {
+    types_in_library_with_core(name, MEMBER_CORE, code, queries)
+}
+
+/// A method invocation `r.m(...)`.
+fn call(source: &'static str) -> (&'static str, &'static str) {
+    ("ParsedValueArgumentsImpl", source)
+}
+
+/// A property read `r.p` (a getter, a field or a method tear-off).
+fn property(source: &'static str) -> (&'static str, &'static str) {
+    ("ParsedNameAccessImpl", source)
+}
+
+/// A property read whose receiver is a literal, parenthesized, an index
+/// expression, `this` or such a read (`ReceiverPropertyExtraction`).
+fn extraction(source: &'static str) -> (&'static str, &'static str) {
+    ("ReceiverPropertyExtractionImpl", source)
+}
+
+/// A method invocation has the return type of the method the interface of
+/// its receiver's static type has, and a property read the type of the getter
+/// (or field) it finds, or the function type of the method it tears off; both
+/// substituted with the receiver's type arguments, through superclasses, and
+/// on receivers that are literals, parenthesized or member accesses
+/// themselves.
+#[test]
+fn member_accesses_have_the_types_of_their_members() {
+    let code = "class A { int m(int x) => x; String get g => ''; final double f; A(this.f); bool n({required int k}) => true; }\n\
+        class Box<T> { T get value => throw 0; T take(T t) => t; List<T> all() => throw 0; }\n\
+        class Sub extends Box<String> {}\n\
+        f(A a, Box<int> b, Sub s, String str, int i) {\n\
+          a.m; a.m(1); a.g; a.f; a.n(k: 2); b.value; b.take(3); b.all(); s.value; s.take('x');\n\
+          str.length; i.isEven; 'lit'.length; (a).g; a.g.length; b.all().first; a.hashCode;\n\
+        }";
+    assert_eq!(
+        member_types(
+            "member_types",
+            code,
+            &[
+                property("a.m"),
+                call("a.m(1)"),
+                property("a.g"),
+                property("a.f"),
+                call("a.n(k: 2)"),
+                property("b.value"),
+                call("b.take(3)"),
+                call("b.all()"),
+                property("s.value"),
+                call("s.take('x')"),
+                property("str.length"),
+                property("i.isEven"),
+                extraction("'lit'.length"),
+                extraction("(a).g"),
+                property("a.g.length"),
+                property("b.all().first"),
+                property("a.hashCode"),
+            ],
+        ),
+        [
+            "int Function(int)", "int", "String", "double", "bool", "int", "int", "List<int>", "String", "String",
+            "int", "bool", "int", "String", "int", "int", "int"
+        ]
+    );
+}
+
+/// An integer literal argument has the type of the parameter it is passed
+/// to as its context; one that matches no parameter is not typed.
+#[test]
+fn integer_arguments_get_their_context_from_the_parameter() {
+    let code = "class C { void d(double x, [num y = 0, double z = 0]) {} void n({double? k, int j = 0}) {} }\n\
+        f(C c) { c.d(11, 22, 33); c.n(k: 44, j: 55); c.d((66)); c.d(77, 88, 99, 100); }";
+    assert_eq!(
+        member_types(
+            "member_arguments",
+            code,
+            &[
+                integer("11"),
+                integer("22"),
+                integer("33"),
+                integer("44"),
+                integer("55"),
+                integer("66"),
+                integer("100"),
+                call("c.d(11, 22, 33)"),
+            ],
+        ),
+        ["double", "int", "double", "double", "int", "double", "-", "void"]
+    );
+}
+
+/// The silent failure: a plausible type where upstream's comes from what is
+/// not ported. Null-aware and nullable receivers, members an extension
+/// supplies, private names (whose fields flow analysis may promote), generic
+/// methods, members with implicit types, `dynamic` and unresolved receivers,
+/// numeric refinement of `remainder`, calls of function-typed getters,
+/// explicit type arguments and static members are left untyped, as are the
+/// integer arguments of untyped invocations.
+#[test]
+fn member_accesses_resolution_does_not_reach_are_left_untyped() {
+    let code = "extension on String { int get ext => 0; }\n\
+        class A { String get g => ''; int _p = 0; T gen<T>(T t) => t; get imp => 1; var inferred = 1;\n\
+          int Function() fn = f0; int m(int x) => x; static int st() => 0; }\n\
+        int f0() => 0;\n\
+        f(A a, A other, A? maybe, String s, dynamic d, int i) {\n\
+          other?.g; maybe.g; s.ext; a._p; a.gen(11); a.imp; a.inferred; d.g; foo.g; i.remainder(22); a.fn();\n\
+          a.m<int>(33); A.st();\n\
+        }";
+    assert_eq!(
+        member_types(
+            "untyped_members",
+            code,
+            &[
+                property("other?.g"),
+                property("maybe.g"),
+                property("s.ext"),
+                property("a._p"),
+                call("a.gen(11)"),
+                integer("11"),
+                property("a.imp"),
+                property("a.inferred"),
+                property("d.g"),
+                property("foo.g"),
+                call("i.remainder(22)"),
+                call("a.fn()"),
+                call("a.m<int>(33)"),
+                call("A.st()"),
+            ],
+        ),
+        ["-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"]
+    );
+}
+
+/// `r.g()` of a getter reads the getter, whose type the read has, and calls
+/// its value, which is not typed (`FunctionExpressionInvocation`).
+#[test]
+fn invoked_getters_are_read() {
+    let code = "class A { int Function(int) adder = f0; Function get callback => f0; }\n\
+        int f0(int x) => x;\n\
+        f(A a) { a.adder(11); a.callback(); }";
+    assert_eq!(
+        member_types(
+            "invoked_getters",
+            code,
+            &[property("a.adder"), call("a.adder(11)"), integer("11"), property("a.callback"), call("a.callback()")],
+        ),
+        ["int Function(int)", "-", "-", "Function", "-"]
+    );
+}
+
+/// A mixin replaces a member only with one it declares itself; a member its
+/// interface inherits from its superclass constraint is merged with the
+/// superclass's, the most specific winning (`_getInterfaceClass`).
+#[test]
+fn mixins_replace_only_the_members_they_declare() {
+    let code = "abstract class Shape { num get size; }\n\
+        class Square implements Shape { int get size => 0; }\n\
+        mixin Named on Shape { String get label => ''; }\n\
+        mixin Sized on Shape { double get size => 0; }\n\
+        class NamedSquare extends Square with Named {}\n\
+        class SizedSquare extends Square with Sized {}\n\
+        f(NamedSquare n, SizedSquare s) { n.size; n.label; s.size; }";
+    assert_eq!(
+        member_types(
+            "mixin_members",
+            code,
+            &[property("n.size"), property("n.label"), property("s.size")],
+        ),
+        ["int", "String", "double"]
+    );
+}
+
+/// Valid overrides of different types combine into the top merge of their
+/// types (`_topMerge`).
+#[test]
+fn valid_overrides_combine_into_their_top_merge() {
+    let code = "abstract class A { (Object?, dynamic) m(); }\n\
+        abstract class B { (dynamic, Object?) m(); }\n\
+        abstract class C implements A, B {}\n\
+        f(C c) { c.m(); }";
+    assert_eq!(member_types("top_merge", code, &[call("c.m()")]), ["(Object?, Object?)"]);
 }

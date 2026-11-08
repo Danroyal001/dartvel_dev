@@ -19,6 +19,10 @@
 // earlier selections or this one type, resolved through the interface of the
 // receiver's static type, with the integer literals that are their operands
 // and the parentheses around either; see [OperatorInvocations].
+// --members selects method invocations `r.m(...)` and property reads `r.p`
+// (getters, fields, method tear-offs) on a known receiver whose static type is
+// a non-nullable interface type, resolved through that interface, with the
+// integer literals that are their arguments; see [MemberAccesses].
 import 'dart:io';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/token.dart';
@@ -42,6 +46,7 @@ Future<void> main(List<String> args) async {
   bool integers = false;
   bool identifiers = false;
   bool userOperators = false;
+  bool members = false;
   List<String> roots = [];
   for (int i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -53,12 +58,13 @@ Future<void> main(List<String> args) async {
       case '--integers': integers = true;
       case '--identifiers': identifiers = true;
       case '--user-operators': userOperators = true;
+      case '--members': members = true;
       default: roots.add(args[i]);
     }
   }
   if (sdk == null || out == null || packages == null || roots.isEmpty ||
-      [literals, operators, integers, identifiers, userOperators].where((flag) => flag).length > 1) {
-    stderr.writeln('usage: body_dump.dart --sdk <dir> [--literals|--operators|--integers|--identifiers|--user-operators] --out <dir> <root>...');
+      [literals, operators, integers, identifiers, userOperators, members].where((flag) => flag).length > 1) {
+    stderr.writeln('usage: body_dump.dart --sdk <dir> [--literals|--operators|--integers|--identifiers|--user-operators|--members] --out <dir> <root>...');
     exit(64);
   }
   var collection = elements.newCollection(
@@ -85,13 +91,18 @@ Future<void> main(List<String> args) async {
         (node is ParenthesizedExpression &&
             (isOperatorTyped(node.unParenthesized) ||
                 isLiteral(node.unParenthesized)));
-    var reads = identifiers || userOperators
+    var reads = identifiers || userOperators || members
         ? (DeclaredVariableReads(result.libraryElement.typeSystem)
             ..collect(result.unit as AstNodeImpl))
         : null;
-    var invocations = userOperators
+    var invocations = userOperators || members
         ? (OperatorInvocations(
             result.libraryElement.typeSystem as TypeSystemImpl, reads!)
+            ..collect(result.unit as AstNodeImpl))
+        : null;
+    var memberAccesses = members
+        ? (MemberAccesses(
+            result.libraryElement.typeSystem as TypeSystemImpl, invocations!)
             ..collect(result.unit as AstNodeImpl))
         : null;
     void visit(AstNodeImpl node) {
@@ -106,6 +117,7 @@ Future<void> main(List<String> args) async {
           : integers ? node is IntegerLiteralImpl && isDeclaredContextInteger(node)
           : identifiers ? read != null
           : userOperators ? invocations!.selects(node)
+          : members ? memberAccesses!.selects(node)
           : true;
       if (node is Expression && selected) {
         buffer.writeln('${node.runtimeType} ${node.offset}+${node.length} '
@@ -114,7 +126,7 @@ Future<void> main(List<String> args) async {
                 '${read.firstFragment.nameOffset}'}');
       }
       if (!literals && !operators && !integers && !identifiers &&
-          !userOperators && node is Identifier) {
+          !userOperators && !members && node is Identifier) {
         Element? element = (node as Identifier).element;
         var fragment = element?.firstFragment;
         buffer.writeln('identifier ${node.offset}+${node.length} '
@@ -616,4 +628,195 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
       element.enclosingElement is InterfaceElement &&
       !element.hasImplicitReturnType &&
       !element.formalParameters.any((parameter) => parameter.hasImplicitType);
+}
+
+/// What `--members` selects, read on the resolved V2 tree.
+///
+/// A member access is a [ReceiverMethodInvocationImpl] (`r.m(...)`, without
+/// type arguments) or a [ReceiverPropertyExtractionImpl] (`r.p`) whose
+/// operator is `.` and whose name is not private (a private field may be
+/// promoted by flow analysis, and private names are looked up per library).
+/// It is selected when its receiver is known ([_isKnown]), the receiver's
+/// static type is not nullable (`_mayBeNull` of [OperatorInvocations]) and
+/// its bound is an interface type, and it resolves through that interface:
+/// - an invocation to a non-generic method with declared return and
+///   parameter types, other than `remainder` and `clamp` on a subtype of
+///   `num?`, whose type `refineNumericInvocationType` refines from the
+///   arguments;
+///   (an invalid return type makes the resolution invalid, with that method
+///   in the recovery);
+/// - a property read to a getter with a declared return type (a field's
+///   getter: a field with a declared type), or to such a method, torn off.
+///
+/// Past parentheses, a known receiver is what [OperatorInvocations] knows, a
+/// selected member access, or an integer literal (no context: `int`).
+///
+/// Also selected: the integer literals that are arguments of a selected
+/// invocation (past parentheses, positional or named) and that match a
+/// parameter, whose type is their context.
+class MemberAccesses extends UnifyingAstVisitor2<void> {
+  final TypeSystemImpl typeSystem;
+  final OperatorInvocations operators;
+
+  /// `'$kind $offset+$length'` of each selected node; the kind is
+  /// `invocation`, `property` or `integer`.
+  final Set<String> selected = {};
+
+  final Map<AstNode, bool> _selectedAccesses = {};
+
+  new(this.typeSystem, this.operators);
+
+  void collect(AstNodeImpl unit) => unit.accept2(this);
+
+  /// Whether the V1 node [node] projects a selected node.
+  bool selects(AstNode node) {
+    var kind = switch (node) {
+      MethodInvocation() => 'invocation',
+      PrefixedIdentifier() || PropertyAccess() => 'property',
+      IntegerLiteral() => 'integer',
+      _ => null,
+    };
+    return kind != null &&
+        selected.contains('$kind ${node.offset}+${node.length}');
+  }
+
+  @override
+  void visitNode(AstNode node) {
+    if (node is CommentImpl) return;
+    if (node is ReceiverMethodInvocationImpl && _isSelected(node)) {
+      selected.add('invocation ${node.offset}+${node.length}');
+    }
+    if (node is ReceiverPropertyExtractionImpl && _isSelected(node)) {
+      selected.add('property ${node.offset}+${node.length}');
+    }
+    if (node is IntegerLiteralImpl && _isSelectedArgument(node)) {
+      selected.add('integer ${node.offset}+${node.length}');
+    }
+    node.visitChildren2(this);
+  }
+
+  bool _isKnown(AstNode node) {
+    node = OperatorInvocations._unParenthesized(node);
+    if (node is IntegerLiteralImpl) {
+      AstNode? parent = node.parent2;
+      while (parent is ParenthesizedExpressionImpl) {
+        parent = parent.parent2;
+      }
+      if (parent is ReceiverMethodInvocationImpl ||
+          parent is ReceiverPropertyExtractionImpl) {
+        return true;
+      }
+    }
+    if (node is ReceiverMethodInvocationImpl ||
+        node is ReceiverPropertyExtractionImpl) {
+      return _isSelected(node);
+    }
+    return operators._isKnown(node);
+  }
+
+  bool _isSelected(AstNode access) =>
+      _selectedAccesses[access] ??= _computeIsSelected(access);
+
+  bool _computeIsSelected(AstNode access) {
+    var (receiver, operator, name) = switch (access) {
+      ReceiverMethodInvocationImpl(:var receiver, :var operator, :var name) =>
+        (receiver, operator, name),
+      ReceiverPropertyExtractionImpl(:var receiver, :var operator, :var name) =>
+        (receiver, operator, name),
+      _ => throw StateError('not a member access'),
+    };
+    if (operator.type != TokenType.PERIOD || name.lexeme.startsWith('_')) {
+      return false;
+    }
+    if (receiver is! ExpressionImpl || !_isKnown(receiver)) return false;
+    var type = receiver.staticType as TypeImpl;
+    if (operators._mayBeNull(type) ||
+        typeSystem.resolveToBound(type) is! InterfaceType) {
+      return false;
+    }
+    switch (access) {
+      case ReceiverMethodInvocationImpl(:var typeArguments):
+        if (typeArguments != null) return false;
+        var element = _invokedMethod(access);
+        if (element == null) return false;
+        if (element is! MethodElement ||
+            !_isDeclaredMethod(element as MethodElement)) {
+          return false;
+        }
+        var numQuestion = typeSystem.typeProvider.numType
+            .withNullability(NullabilitySuffix.question);
+        return !(element.enclosingElement is! ExtensionTypeElement &&
+            const {'remainder', 'clamp'}.contains(element.name) &&
+            typeSystem.isSubtypeOf(type, numQuestion));
+      case ReceiverPropertyExtractionImpl(:var resolution):
+        return switch (resolution) {
+          GetterInvocationResolutionImpl(:var element) =>
+            element.enclosingElement is InterfaceElement &&
+                (element.isOriginVariable
+                    ? !element.variable.hasImplicitType
+                    : !element.hasImplicitReturnType),
+          ExecutableTearOffResolutionImpl(:var element) =>
+            element is MethodElement &&
+                _isDeclaredMethod(element as MethodElement),
+          _ => false,
+        };
+    }
+    return false;
+  }
+
+  /// The executable [invocation] invokes: the element of its resolution, or
+  /// of its recovery when the invocation's type is invalid (an invalid
+  /// return type makes the resolution invalid, with the valid resolution as
+  /// the recovery).
+  static ExecutableElement? _invokedMethod(
+      ReceiverMethodInvocationImpl invocation) {
+    return switch (invocation.resolution) {
+      ExecutableInvocationResolutionImpl(:var element) => element,
+      InvalidInvocationResolutionImpl(
+        recovery: ExecutableInvocationResolutionImpl(:var element),
+      ) =>
+        element,
+      _ => null,
+    };
+  }
+
+  /// Whether [element] is a non-generic method of an interface with a
+  /// declared return type and declared parameter types.
+  static bool _isDeclaredMethod(MethodElement element) =>
+      element.typeParameters.isEmpty &&
+      OperatorInvocations._isDeclared(element);
+
+  /// Whether the integer literal [literal] is an argument of a selected
+  /// invocation, past parentheses, that matches one of its parameters.
+  bool _isSelectedArgument(IntegerLiteralImpl literal) {
+    AstNode argument = literal;
+    while (argument.parent2 is ParenthesizedExpressionImpl) {
+      argument = argument.parent2!;
+    }
+    String? name;
+    var parent = argument.parent2;
+    if (parent is NamedArgumentImpl) {
+      name = parent.name.lexeme;
+      argument = parent;
+      parent = parent.parent2;
+    }
+    if (parent is! ArgumentListImpl) return false;
+    var invocation = parent.parent2;
+    if (invocation is! ReceiverMethodInvocationImpl ||
+        !_isSelected(invocation)) {
+      return false;
+    }
+    var element = _invokedMethod(invocation)!;
+    var parameters = element.formalParameters;
+    if (name != null) {
+      return parameters.any(
+          (parameter) => parameter.isNamed && parameter.name == name);
+    }
+    var index = parent.arguments2
+        .where((argument) => argument is! NamedArgumentImpl)
+        .toList()
+        .indexWhere((each) => identical(each, argument));
+    return index <
+        parameters.where((parameter) => parameter.isPositional).length;
+  }
 }
