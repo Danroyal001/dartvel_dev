@@ -119,6 +119,9 @@ class DVAmqpQueueAdapter implements DVQueueAdapter {
         'maxAttempts': maxAttempts,
         'tenant': ?tenant,
         'traceparent': ?traceparent,
+        // When it was dispatched, so the worker knows how old the job is rather
+        // than reading the time it was received.
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
       })),
       // Durable queue, transient message is the combination that looks
       // durable and loses everything on a restart.
@@ -191,7 +194,11 @@ class DVAmqpQueueAdapter implements DVQueueAdapter {
       backoff: const Duration(seconds: 30),
       attempts: message.redelivered ? 1 : 0,
       state: DVJobState.running,
-      createdAt: DateTime.now(),
+      createdAt: decoded['createdAt'] is num
+          ? DateTime.fromMillisecondsSinceEpoch(
+              (decoded['createdAt']! as num).toInt())
+          // A message from before the time was recorded.
+          : DateTime.now(),
       // The tenant the job was dispatched under, which the worker runs it as.
       tenant: decoded['tenant'] as String?,
       traceparent: decoded['traceparent'] as String?,

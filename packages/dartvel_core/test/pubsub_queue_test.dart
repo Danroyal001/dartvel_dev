@@ -198,9 +198,10 @@ void main() {
   });
   group('the tenant', () {
     Future<DVJobEnvelope<DVJobPayload>?> roundTrip(String? tenant,
-        {String? traceparent}) async {
+        {String? traceparent, Duration wait = Duration.zero}) async {
       await adapter.enqueue('mail', const _Ping('hello'),
           tenant: tenant, traceparent: traceparent);
+      await Future<void>.delayed(wait);
       final Map<Object?, Object?> sent = (pubsub.calls.last.body['messages']!
           as List<Object?>).single! as Map<Object?, Object?>;
       pubsub.replies.add(<String, Object?>{
@@ -220,6 +221,21 @@ void main() {
 
     test('a job with none comes back with none', () async {
       expect((await roundTrip(null))!.tenant, isNull);
+    });
+
+    test('the dispatch time travels in the message, not the time it was read',
+        () async {
+      // How old a job is decides whether its run joins the trace that
+      // dispatched it or links to it, and a reserve that stamps "now" makes
+      // every job look brand new.
+      final DateTime before = DateTime.now();
+      final DVJobEnvelope<DVJobPayload> reserved =
+          (await roundTrip(null, wait: const Duration(milliseconds: 80)))!;
+      expect(
+          reserved.createdAt
+              .isBefore(before.add(const Duration(milliseconds: 40))),
+          isTrue,
+          reason: 'created ${reserved.createdAt}, dispatched at $before');
     });
 
     test('the trace context travels in the message too', () async {

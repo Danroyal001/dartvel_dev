@@ -201,9 +201,10 @@ void main() {
     // The worker runs a job as the tenant it was dispatched under, so a
     // message that dropped it would run as no tenant at all.
     Future<DVJobEnvelope<DVJobPayload>?> roundTrip(String? tenant,
-        {String? traceparent}) async {
+        {String? traceparent, Duration wait = Duration.zero}) async {
       await adapter.enqueue('mail', const _Welcome('u1'),
           tenant: tenant, traceparent: traceparent);
+      await Future<void>.delayed(wait);
       sqs.replies.add(<String, Object?>{
         'Messages': <Object?>[
           <String, Object?>{
@@ -222,6 +223,21 @@ void main() {
 
     test('a job with none comes back with none', () async {
       expect((await roundTrip(null))!.tenant, isNull);
+    });
+
+    test('the dispatch time travels in the message, not the time it was read',
+        () async {
+      // How old a job is decides whether its run joins the trace that
+      // dispatched it or links to it, and a reserve that stamps "now" makes
+      // every job look brand new.
+      final DateTime before = DateTime.now();
+      final DVJobEnvelope<DVJobPayload> reserved =
+          (await roundTrip(null, wait: const Duration(milliseconds: 80)))!;
+      expect(
+          reserved.createdAt
+              .isBefore(before.add(const Duration(milliseconds: 40))),
+          isTrue,
+          reason: 'created ${reserved.createdAt}, dispatched at $before');
     });
 
     test('the trace context travels in the message too', () async {

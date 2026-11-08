@@ -195,6 +195,18 @@ void main() {
       expect(await adapter.reserve('mail'), isNull);
     });
   });
+  test('the dispatch time travels in the record, not the time it was read',
+      () async {
+    final DateTime before = DateTime.now();
+    await adapter.enqueue('mail', const _Ping('a'));
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    final reserved = (await adapter.reserve('mail'))!;
+    expect(
+        reserved.createdAt.isBefore(before.add(const Duration(milliseconds: 40))),
+        isTrue,
+        reason: 'created ${reserved.createdAt}, dispatched at $before');
+  });
+
   test('the trace context travels in the record', () async {
     await adapter.enqueue('mail', const _Ping('a'), traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');
     await adapter.enqueue('mail', const _Ping('b'));
