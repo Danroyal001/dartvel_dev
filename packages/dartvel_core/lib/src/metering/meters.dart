@@ -9,6 +9,8 @@ library dartvel_core.metering.meters;
 
 import 'dart:async';
 
+import '../../dartvel.dart'
+    show DVNotificationChannel, DVNotificationMessage, DVNotificationsService;
 import '../database/adapter.dart';
 import '../database/framework_tables.dart';
 import '../observability/observability.dart';
@@ -496,6 +498,9 @@ typedef DVMeterLimitResolver = FutureOr<num?> Function(
 typedef DVMeterThresholdHandler = FutureOr<void> Function(
     DVMeterThreshold threshold);
 
+/// The recipient ids told when [tenant] crosses a threshold.
+typedef DVMeterRecipients = FutureOr<Iterable<String>> Function(String tenant);
+
 /// Records usage, places it in its period, and applies limits.
 class DVMeters {
   DVMeters({
@@ -504,6 +509,10 @@ class DVMeters {
     this.periods,
     this.limits,
     this.onThreshold,
+    this.thresholdRecipients,
+    this.thresholdChannels = const <DVNotificationChannel>[
+      DVNotificationChannel.inApp,
+    ],
     this.grace = Duration.zero,
     this.throttleDelay = const Duration(seconds: 1),
     Future<void> Function(Duration delay)? sleep,
@@ -531,9 +540,17 @@ class DVMeters {
   final DVBillingPeriodResolver? periods;
   final DVMeterLimitResolver? limits;
 
-  /// Called for each notification threshold a recording crosses. This is the
-  /// seam Notifications sends through.
+  /// Called for each notification threshold a recording crosses, in place of
+  /// the default send through Notifications.
   final DVMeterThresholdHandler? onThreshold;
+
+  /// Who is told when a tenant crosses a threshold. Unset, the tenant id is
+  /// the recipient, and the Notifications route resolver decides where a
+  /// tenant is reached.
+  final DVMeterRecipients? thresholdRecipients;
+
+  /// The channels a threshold notification asks for.
+  final List<DVNotificationChannel> thresholdChannels;
 
   /// The deployment's grace for late records, when a meter declares none.
   final Duration grace;
@@ -761,18 +778,16 @@ class DVMeters {
     if (crossed.isNotEmpty) {
       _emit(codes, 'DV-METER-003', meter, tenant,
           extra: <String, Object?>{'thresholds': crossed});
-      final DVMeterThresholdHandler? handler = onThreshold;
-      if (handler != null) {
-        for (final double fraction in crossed) {
-          await handler(DVMeterThreshold(
-            meter: meter,
-            tenant: tenant,
-            fraction: fraction,
-            total: after,
-            limit: limit!,
-            period: placement,
-          ));
-        }
+      final DVMeterThresholdHandler handler = onThreshold ?? _notify;
+      for (final double fraction in crossed) {
+        await handler(DVMeterThreshold(
+          meter: meter,
+          tenant: tenant,
+          fraction: fraction,
+          total: after,
+          limit: limit!,
+          period: placement,
+        ));
       }
     }
 
@@ -787,6 +802,51 @@ class DVMeters {
       codes: codes.toList(),
       crossed: crossed,
     );
+  }
+
+  /// Sends [threshold] through Notifications to the tenant's recipients.
+  ///
+  /// A send that fails is logged and goes no further: the usage was recorded
+  /// and the call admitted, and a directory or provider being down is not a
+  /// reason to refuse it after the fact.
+  Future<void> _notify(DVMeterThreshold threshold) async {
+    final DVMeterDefinition meter = threshold.meter;
+    final String percent = (threshold.fraction * 100).round().toString();
+    final DVNotificationMessage message = DVNotificationMessage(
+      title: '${meter.name} at $percent% of its limit',
+      body: '${threshold.total} of ${threshold.limit} ${meter.unit} used '
+          'this period.',
+      channels: thresholdChannels,
+      data: <String, String>{
+        'code': 'DV-METER-003',
+        'meter': meter.name,
+        'tenant': threshold.tenant,
+        'threshold': '${threshold.fraction}',
+        'total': '${threshold.total}',
+        'limit': '${threshold.limit}',
+        'periodStart': threshold.period.start.toIso8601String(),
+        'periodEnd': threshold.period.end.toIso8601String(),
+      },
+    );
+    try {
+      final DVMeterRecipients? resolve = thresholdRecipients;
+      final Iterable<String> recipients = resolve == null
+          ? <String>[threshold.tenant]
+          : await resolve(threshold.tenant);
+      for (final String recipient in recipients) {
+        await const DVNotificationsService().send(recipient, message);
+      }
+    } on Object catch (error) {
+      _log.warn(
+        'DV-METER-003: the threshold notification for "${meter.name}" could '
+        'not be sent: $error',
+        context: <String, Object?>{
+          'code': 'DV-METER-003',
+          'meter': meter.name,
+          'tenant': threshold.tenant,
+        },
+      );
+    }
   }
 
   DVMeterOutcome _duplicate(Set<String> codes, DVMeterDefinition meter,

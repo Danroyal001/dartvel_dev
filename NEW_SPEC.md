@@ -7719,6 +7719,12 @@ duplicate does not wait a second time.
 at it (`DV-METER-003`). A quota reached with no warning is a support ticket; a
 quota approached with two is a renewal conversation.
 
+Each threshold is sent once per period, to the tenant id unless
+`DVMeters(thresholdRecipients: ...)` names who is told, on the channels in
+`thresholdChannels` (in-app by default), with the meter, threshold, total,
+limit and period in the message data. A send that fails is logged and the
+recording stands: the usage happened and the call was admitted.
+
 Reaching a limit reports `DV-METER-004` with the behaviour that was applied,
 so the log says what happened to the request rather than only that a number
 was exceeded.
