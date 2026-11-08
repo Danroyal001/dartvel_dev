@@ -18,6 +18,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'dart_surface.dart';
+import 'ffi_surface.dart' show dvCallbackArity;
 
 /// What an npm package offers, and where it can run.
 class DVNpmSurface {
@@ -197,9 +198,12 @@ String _clean(String path) => path.startsWith('./') ? path.substring(2) : path;
 
 /// Why a declaration cannot be a Dart operation, or null when it can.
 String? _whyNot(String params, String result) {
-  if (params.contains('=>') || result.contains('=>')) {
-    return 'takes or returns a function';
+  if (params.contains('=>')) {
+    final String? name =
+        RegExp(r'([A-Za-z_$][\w$]*)\??\s*:\s*\([^()]*\)\s*=>').firstMatch(params)?.group(1);
+    return dvCallbackArity(name ?? 'a function');
   }
+  if (result.contains('=>')) return 'returns a function';
   for (final String raw in <String>[..._splitTop(params), result]) {
     final String type = raw.contains(':') && raw != result
         ? raw.substring(raw.indexOf(':') + 1).trim()
