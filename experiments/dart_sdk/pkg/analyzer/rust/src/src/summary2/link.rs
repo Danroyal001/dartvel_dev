@@ -75,26 +75,53 @@ impl Linker {
     }
 
     /// Not upstream: the unit (library fragment) of [file], linking its
-    /// library first if needed, as `getResolvedUnit` finds a file's library:
-    /// the file itself, or the library a `part of` URI names. `None` when no
-    /// linked library includes the file.
+    /// library first if needed, as `getResolvedUnit` finds the library a file
+    /// is analyzed in (`kind.library ?? kind.asLibrary`): the file itself, or
+    /// the library a `part of` URI names when it includes the file, or else,
+    /// for a part of a URI, the part as a library of its own. `None` for a
+    /// `part of` name directive, whose library is not looked for.
     pub fn unit_of_file(&mut self, file: FileId) -> Option<UnitId> {
+        use crate::src::dart::analysis::file_state::FileKind;
         let library_file = match &self.fs.file(file).kind {
-            crate::src::dart::analysis::file_state::FileKind::PartOfUriKnown { uri_file } => *uri_file,
-            _ => file,
+            FileKind::Library { .. } => Some(file),
+            FileKind::PartOfUriKnown { uri_file } => Some(*uri_file),
+            FileKind::PartOfName { .. } | FileKind::PartOfUriUnknown => None,
         };
-        let library = self.library_for(library_file)?;
-        let uri = self.fs.file(file).uri.clone();
+        if let Some(library_file) = library_file {
+            if let Some(unit) = self.library_for(library_file).and_then(|library| self.unit_in(library, file)) {
+                return Some(unit);
+            }
+        }
+        if matches!(self.fs.file(file).kind, FileKind::PartOfName { .. }) {
+            return None;
+        }
+        // `asLibrary`.
+        if !self.library_of_file.contains_key(&file) {
+            self.link_files(&[file], Some(file));
+        }
+        let library = *self.library_of_file.get(&file)?;
+        self.unit_in(library, file)
+    }
+
+    /// The unit of [library] whose source is [file].
+    fn unit_in(&self, library: LibraryId, file: FileId) -> Option<UnitId> {
+        let uri = &self.fs.file(file).uri;
         self.store.libraries[library as usize]
             .fragments
             .iter()
             .copied()
-            .find(|&unit| self.store.units[unit as usize].source_uri == uri)
+            .find(|&unit| self.store.units[unit as usize].source_uri == *uri)
     }
 
     /// Links the libraries [inputs] and every library they import or
     /// export, transitively, that is not linked yet.
     pub fn link(&mut self, inputs: &[FileId]) {
+        self.link_files(inputs, None);
+    }
+
+    /// [link], with [recovered_part] (a part file among [inputs]) linked as
+    /// a library of its own (`PartFileKind.asLibrary`).
+    fn link_files(&mut self, inputs: &[FileId], recovered_part: Option<FileId>) {
         let first_new = self.builders.len();
 
         // `LibraryBuilder.build` for every library, discovering the
@@ -105,7 +132,8 @@ impl Linker {
         while index < queue.len() {
             let file = queue[index];
             index += 1;
-            if !self.fs.is_library(file) || self.library_of_file.contains_key(&file) {
+            let is_library = self.fs.is_library(file) || recovered_part == Some(file);
+            if !is_library || self.library_of_file.contains_key(&file) {
                 continue;
             }
             let builder = LibraryBuilder::build(&mut self.store, &mut self.fs, file);
