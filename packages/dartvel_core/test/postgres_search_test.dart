@@ -1,8 +1,8 @@
 // Runs against a real PostgreSQL, using its own full-text engine.
-import 'dart:io';
-
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
+
+import 'support/postgres_live.dart';
 
 class Article {
   final String slug;
@@ -13,21 +13,10 @@ class Article {
   const Article(this.slug, this.title, this.body, {this.published = true});
 }
 
-Future<bool> _reachable() async {
-  try {
-    final socket = await Socket.connect('127.0.0.1', 5432,
-        timeout: const Duration(seconds: 1));
-    await socket.close();
-    return true;
-  } on SocketException {
-    return false;
-  }
-}
-
 void main() async {
-  if (!await _reachable()) {
+  if (!await postgresTestServerReachable()) {
     test(
-      'postgres search (skipped: no PostgreSQL at localhost:5432)',
+      'postgres search (skipped: no PostgreSQL at $postgresTestAddress)',
       () {},
       skip: 'Start postgresql with a dartvel_test database to run these.',
     );
@@ -38,7 +27,7 @@ void main() async {
   late DVPostgresSearchProvider<Article, Map<String, Object?>> search;
 
   setUp(() async {
-    database = DVPostgresDatabaseAdapter(database: 'dartvel_test');
+    database = postgresTestAdapter();
     await database.execute('DROP TABLE IF EXISTS dv_articles');
     await database.execute(
       'CREATE TABLE dv_articles (slug TEXT PRIMARY KEY, title TEXT, '

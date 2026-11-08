@@ -1,28 +1,15 @@
-// Runs against a real PostgreSQL at localhost:5432 — no scripted server, no
-// fake. Skips visibly when none is reachable rather than passing silently.
-import 'dart:io';
-
+// Runs against a real PostgreSQL (DARTVEL_TEST_POSTGRES_*, else localhost:5432)
+// -- no scripted server, no fake. Skips visibly when none is reachable rather
+// than passing silently.
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
-Future<bool> _postgresReachable() async {
-  try {
-    final socket = await Socket.connect(
-      '127.0.0.1',
-      5432,
-      timeout: const Duration(seconds: 1),
-    );
-    await socket.close();
-    return true;
-  } on SocketException {
-    return false;
-  }
-}
+import 'support/postgres_live.dart';
 
 void main() async {
-  if (!await _postgresReachable()) {
+  if (!await postgresTestServerReachable()) {
     test(
-      'postgres adapter (skipped: no PostgreSQL at localhost:5432)',
+      'postgres adapter (skipped: no PostgreSQL at $postgresTestAddress)',
       () {},
       skip: 'Start a local postgresql with a dartvel_test database to run '
           'the Postgres adapter tests.',
@@ -33,7 +20,7 @@ void main() async {
   late DVPostgresDatabaseAdapter adapter;
 
   setUp(() async {
-    adapter = DVPostgresDatabaseAdapter(database: 'dartvel_test');
+    adapter = postgresTestAdapter();
     await adapter.execute('DROP TABLE IF EXISTS dv_people');
     await adapter.execute(
       'CREATE TABLE dv_people (slug TEXT PRIMARY KEY, name TEXT, '
