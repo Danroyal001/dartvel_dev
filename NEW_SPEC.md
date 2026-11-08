@@ -4021,10 +4021,16 @@ Carrying a change between processes and clients is the framework's own job and
 is not built. An application never writes that part and has no object to
 implement: a model opted into syncing is read and written like any other, and
 saving a record is what publishes the change. The carriers each hub uses
-internally are not in the surface an application imports. So a change made on
-one server instance, or on one device, does not reach another yet. A WebSocket
-carrier, a reconnect policy, backpressure, collaborative editing and fanout
-through Redis, NATS or Kafka are designed and not built.
+internally are not in the surface an application imports. The WebSocket
+carrier is built: one client on `dart:io` and on the browser's `WebSocket`,
+and a relay that fans a change out to the other connections of the same
+tenant. The relay stamps every change with the tenant the server accepted the
+connection under, never the one the client claims, and hands clients' changes
+to the server's own hubs. Nothing connects it yet -- the generated backend
+serves no sync endpoint and the generated client opens no socket -- so a
+change made on one server instance, or on one device, does not reach another
+yet. That wiring, a reconnect policy, backpressure, collaborative editing and
+fanout through Redis, NATS or Kafka are designed and not built.
 
 ---
 

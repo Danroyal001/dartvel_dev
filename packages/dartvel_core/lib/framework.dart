@@ -32,6 +32,11 @@ export 'src/privacy/privacy.dart' show DVOfflineStorePrivacyAdapter;
 export 'src/search/semantic_search.dart' show DVSemanticIndex, DVDeferredSearchProvider;
 export 'src/sync/model_sync.dart' show DVModelSync, DVModelSyncTransport;
 export 'src/sync/presence.dart' show DVPresenceTransport;
+// The WebSocket carrier and the relay behind it: how a change crosses
+// processes. A model opted into syncing is saved and watched; these carry it.
+export 'src/sync/sync_relay.dart';
+export 'src/sync/sync_socket.dart';
+export 'src/sync/sync_wire.dart';
 // Change capture: the log, its consumers, the store destination, the jobs,
 // dartvel.capture as the build and the generated server read it, and the
 // runtime that runs it all. An application writes @DVModel(capture: true)
