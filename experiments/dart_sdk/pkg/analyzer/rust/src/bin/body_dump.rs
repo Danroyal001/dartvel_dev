@@ -137,7 +137,7 @@ impl Dumper<'_> {
                 let parsed = parse_string(source, None, path.to_str());
                 let ast = Ast::new(&parsed.ast, &parsed.tokens);
                 let mut analyzer = TypeAnalyzer::new(self.provider);
-                analyzer.analyze_literals(ast, parsed.unit);
+                analyzer.analyze(ast, parsed.unit);
                 let mut dump = String::new();
                 self.dump_node(ast, parsed.unit, &analyzer, &mut dump);
                 let target = out.join(format!(

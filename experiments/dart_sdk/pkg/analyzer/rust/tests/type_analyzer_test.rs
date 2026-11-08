@@ -86,7 +86,7 @@ fn types_of(name: &str, code: &str, queries: &[(&str, &str)]) -> Vec<String> {
     let parsed = parse_string(Rc::from(units), None, None);
     let ast = Ast::new(&parsed.ast, &parsed.tokens);
     let mut analyzer = TypeAnalyzer::new(&provider);
-    analyzer.analyze_literals(ast, parsed.unit);
+    analyzer.analyze(ast, parsed.unit);
     let mut all = Vec::new();
     nodes(ast, parsed.unit, &mut all);
     queries
