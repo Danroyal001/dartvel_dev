@@ -554,10 +554,18 @@ void main() {
         temp.deleteSync(recursive: true);
       }
 
-      expect(processInvocations, <String>[
+      // The order is the point: generation first, then build_runner over what
+      // it wrote. What follows (the ephemeral native folder, the platform
+      // build) is other tests' business.
+      expect(processInvocations.take(2), <String>[
         'dart run dartvel_cli:dartvel routes --render gui',
         'dart run build_runner build --delete-conflicting-outputs',
       ]);
+      expect(
+          processInvocations.skip(2).where((String c) =>
+              c.contains('dartvel routes') || c.contains('build_runner')),
+          isEmpty,
+          reason: 'generation and build_runner each run once, in that order');
     });
 
   });
