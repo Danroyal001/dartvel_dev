@@ -7757,7 +7757,12 @@ a framework should quietly reopen.
 ## Reconciliation, and which number is the invoice
 
 Usage is reported to the billing provider at period close, and **the
-provider's invoice is the customer-facing truth**. Dartvel's own store is the
+provider's invoice is the customer-facing truth**. The close is
+`DVMeterReporter.closePeriods`, registered on the scheduler by
+`scheduleClose` (hourly by default): each tenant's last closed period of each
+meter is reported once its grace has passed, what an earlier close queued is
+sent again, and a period already settled is not sent twice by the same
+process — another process resending it uses the same idempotency key. Dartvel's own store is the
 evidence behind it: the same figures, per record, with the idempotency keys
 and the timestamps that produced them.
 

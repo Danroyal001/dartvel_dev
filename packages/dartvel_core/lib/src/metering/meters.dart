@@ -913,6 +913,11 @@ class DVMeters {
     });
   }
 
+  /// The period [tenant]'s usage at [at] (default now) is counted in: its
+  /// billing period, or the calendar month when it has none.
+  Future<DVMeterPeriod> periodOf(String tenant, {DateTime? at}) =>
+      _periodFor(tenant, (at ?? _clock()).toUtc(), <String>{});
+
   /// Usage of [meter] by [tenant] in [period], defaulting to the open one.
   Future<num> usage(
     DVMeterDefinition meter, {

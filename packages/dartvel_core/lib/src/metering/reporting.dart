@@ -11,6 +11,7 @@ import 'dart:async';
 import '../../dartvel.dart' show DVBillingProvider, DVUsageMeter;
 import '../billing/subscription_lifecycle.dart';
 import '../database/adapter.dart';
+import '../scheduling/scheduler.dart';
 import '../database/framework_tables.dart';
 import '../observability/observability.dart';
 import 'meters.dart';
@@ -355,8 +356,7 @@ class DVMeterReporter {
       meter: meter.name,
       period: period,
       quantity: usage.ceil(),
-      idempotencyKey:
-          'dv-meter:$tenant:${meter.name}:${period.start.toIso8601String()}',
+      idempotencyKey: _reportKey(tenant, meter, period),
       status: DVMeterReportStatus.queued,
     );
 
@@ -379,6 +379,84 @@ class DVMeterReporter {
     }
     return _send(draft);
   }
+
+  /// Report keys already settled by [closePeriods] in this process, oldest
+  /// first, so an hourly close does not resend a period every hour.
+  final Set<String> _closed = <String>{};
+  static const int _closedKept = 10000;
+
+  /// Reports each tenant's last closed period of each meter, once its grace
+  /// has passed, and sends again whatever an earlier close queued.
+  ///
+  /// Safe to run as often as wanted: a period reported, not billed or empty is
+  /// not sent again by this process, and a resend from another process
+  /// carries the same idempotency key, which the provider counts once. One
+  /// tenant or meter that fails is logged and the rest are still reported.
+  /// Returns the reports this run made, leaving out periods with nothing in
+  /// them.
+  Future<List<DVMeterReport>> closePeriods({
+    required Iterable<String> tenants,
+    required Iterable<DVMeterDefinition> meters,
+  }) async {
+    final List<DVMeterReport> made = <DVMeterReport>[];
+    for (final DVMeterReport sent in await retryPending()) {
+      _settle(sent.idempotencyKey);
+      made.add(sent);
+    }
+    final DateTime now = this.meters.now;
+    for (final String tenant in tenants) {
+      for (final DVMeterDefinition meter in meters) {
+        try {
+          final DVMeterPeriod open = await this.meters.periodOf(tenant);
+          final DVMeterPeriod last = await this.meters.periodOf(tenant,
+              at: open.start.subtract(const Duration(microseconds: 1)));
+          if (now.isBefore(last.end.add(meter.grace ?? this.meters.grace))) {
+            continue;
+          }
+          final String key = _reportKey(tenant, meter, last);
+          if (_closed.contains(key)) continue;
+          final DVMeterReport report =
+              await this.report(meter, tenant: tenant, period: last);
+          if (report.status != DVMeterReportStatus.queued) _settle(key);
+          // An empty period is settled and sent nothing, so it is not a
+          // report this run made.
+          if (report.status != DVMeterReportStatus.nothingToReport) {
+            made.add(report);
+          }
+        } on Object catch (error) {
+          DVObservability.logger.error(
+            'Closing ${meter.name} for tenant "$tenant" failed: $error',
+            context: <String, Object?>{'meter': meter.name, 'tenant': tenant},
+          );
+        }
+      }
+    }
+    return made;
+  }
+
+  /// Registers [closePeriods] on [scheduler] as [name], hourly by default, so
+  /// a period is reported within the hour its grace ends.
+  void scheduleClose(
+    DVScheduler scheduler, {
+    required FutureOr<Iterable<String>> Function() tenants,
+    required Iterable<DVMeterDefinition> meters,
+    String cron = '15 * * * *',
+    String name = 'dartvel.meters.close',
+  }) {
+    scheduler.register(name, cron, () async {
+      await closePeriods(tenants: await tenants(), meters: meters);
+    });
+  }
+
+  void _settle(String key) {
+    if (_closed.add(key) && _closed.length > _closedKept) {
+      _closed.remove(_closed.first);
+    }
+  }
+
+  static String _reportKey(
+          String tenant, DVMeterDefinition meter, DVMeterPeriod period) =>
+      'dv-meter:$tenant:${meter.name}:${period.start.toIso8601String()}';
 
   /// Sends every queued report again. Returns the ones that went through;
   /// the rest stay queued.

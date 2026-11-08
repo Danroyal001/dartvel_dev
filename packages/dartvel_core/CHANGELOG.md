@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Usage metering: `DVMeterReporter.closePeriods(tenants:, meters:)` reports each tenant's last closed period after its grace and retries queued reports; `scheduleClose(scheduler, ...)` registers it as `dartvel.meters.close`, hourly by default. `DVMeters.periodOf(tenant, at:)` names the period usage at an instant is counted in.
 - `DVSubscriptionStatus.currentPeriodStart`, filled in by Stripe (`current_period_start`) and Paddle (`current_billing_period.starts_at`).
 - `DVProviderBillingPeriods`: each tenant's billing period read from its subscription, for `DVMeters(periods: ...)`, remembered per tenant so recording costs no provider call. Usage used to be counted in calendar months unless the application wrote its own resolver.
 - Usage metering: a crossed `notifyAt` threshold is sent through `DV.Notifications` (to the tenant id, or to `DVMeters(thresholdRecipients: ...)`, on `thresholdChannels`, in-app by default). A failed send is logged, never refuses the call. An `onThreshold` handler still replaces the default send. Before, nothing was sent unless the application wired `onThreshold` itself.
