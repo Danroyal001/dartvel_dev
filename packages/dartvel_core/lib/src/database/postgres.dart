@@ -10,6 +10,7 @@ import 'package:crypto/crypto.dart' as crypto;
 
 import '../schema/schema_change.dart';
 import 'adapter.dart';
+import 'postgres_scram.dart';
 import 'postgres_socket_unsupported.dart'
     if (dart.library.io) 'postgres_socket_io.dart';
 import 'postgres_tls.dart';
@@ -83,8 +84,26 @@ class DVPostgresDatabaseAdapter
 
   // --- protocol plumbing ----------------------------------------------------
 
+  /// Whether the startup conversation reached its first ReadyForQuery.
+  ///
+  /// A socket that is open is not a connection that is ready: until the
+  /// server has authenticated the client, the only messages it accepts are
+  /// the ones authentication asks for, and a query written in the middle of
+  /// that is a protocol violation the server answers by hanging up.
+  bool _ready = false;
+
+  /// The startup conversation in progress, completed on its ReadyForQuery.
+  Completer<void>? _startup;
+
+  /// The SCRAM exchange in progress, once the server has asked for SASL.
+  DVScramSha256? _scram;
+
+  /// The first ErrorResponse of the startup, kept so that the server hanging
+  /// up afterwards reports the reason rather than the hang-up.
+  DVPostgresException? _startupError;
+
   Future<void> _ensureConnected() {
-    if (_connection != null) return Future<void>.value();
+    if (_ready && _connection != null) return Future<void>.value();
     return _connecting ??= _connect().whenComplete(() => _connecting = null);
   }
 
@@ -93,14 +112,33 @@ class DVPostgresDatabaseAdapter
         ? await _connector(host, port)
         : await dvConnectPostgres(host, port, sslMode: sslMode);
     _connection = connection;
+    _ready = false;
+    _buffer.clear();
+    _inFlight = null;
+    _scram = null;
+    _startupError = null;
+    final Completer<void> startup = _startup = Completer<void>();
     connection.input.listen(
       (List<int> chunk) {
+        if (!identical(_connection, connection)) return;
         _buffer.addAll(chunk);
         _drain();
       },
-      onError: (Object error) => _failAll('connection error: $error'),
+      onError: (Object error) {
+        if (!identical(_connection, connection)) return;
+        _failStartup(DVPostgresException('connection error: $error'));
+        _failAll('connection error: $error');
+      },
       onDone: () {
+        if (!identical(_connection, connection)) return;
         _connection = null;
+        _ready = false;
+        _failStartup(
+          _startupError ??
+              const DVPostgresException(
+                'The server closed the connection during startup.',
+              ),
+        );
         _failAll('connection closed');
       },
     );
@@ -113,12 +151,12 @@ class DVPostgresDatabaseAdapter
       ..add(_cstring('database'))
       ..add(_cstring(database))
       ..addByte(0);
-    final startup = BytesBuilder()
+    final startupMessage = BytesBuilder()
       ..add(_int32(body.length + 4))
       ..add(body.toBytes());
-    connection.write(startup.toBytes());
+    connection.write(startupMessage.toBytes());
 
-    await _awaitReady();
+    await startup.future;
   }
 
   void _failAll(String reason) {
@@ -130,16 +168,29 @@ class DVPostgresDatabaseAdapter
     _pending.clear();
   }
 
-  /// Completes the startup conversation through authentication to the first
-  /// ReadyForQuery.
-  Future<void> _awaitReady() {
-    final completer = Completer<_Reply>();
-    _pending.add(completer);
-    return completer.future.then((_Reply reply) {});
+  /// Ends a startup that cannot succeed: the caller gets [error], and the
+  /// half-authenticated socket is closed so nothing more is written to it.
+  void _failStartup(DVPostgresException error) {
+    final Completer<void>? startup = _startup;
+    if (startup == null || startup.isCompleted) return;
+    _startup = null;
+    _scram = null;
+    final DVPostgresConnection? connection = _connection;
+    _connection = null;
+    _ready = false;
+    startup.completeError(error);
+    if (connection != null) unawaited(connection.close());
   }
 
   void _drain() {
-    while (_pending.isNotEmpty) {
+    while (true) {
+      if (_startup != null) {
+        final message = _tryReadMessage();
+        if (message == null) return;
+        _handleStartup(message);
+        continue;
+      }
+      if (_pending.isEmpty) return;
       final message = _tryReadMessage();
       if (message == null) return;
       final handled = _handle(message);
@@ -154,27 +205,144 @@ class DVPostgresDatabaseAdapter
     }
   }
 
+  /// One backend message of the startup conversation: authentication, then
+  /// ParameterStatus and BackendKeyData, then ReadyForQuery.
+  void _handleStartup(({int type, Uint8List body}) message) {
+    final Completer<void>? startup = _startup;
+    final DVPostgresConnection? connection = _connection;
+    if (startup == null || connection == null) return;
+    switch (message.type) {
+      case 0x52: // 'R' Authentication
+        final DVPostgresException? problem =
+            _authenticate(connection, message.body);
+        if (problem != null) _failStartup(problem);
+      case 0x45: // 'E' ErrorResponse: the server refuses and will hang up.
+        final DVPostgresException error = _readError(message.body);
+        _startupError ??= error;
+        _failStartup(error);
+      case 0x5A: // 'Z' ReadyForQuery
+        if (_scram != null) {
+          // A server that skips the end of the SCRAM exchange has not proved
+          // it knows the password.
+          _failStartup(const DVPostgresException(
+            'The server ended authentication before proving it holds the '
+            "password's verifier.",
+          ));
+          return;
+        }
+        _startup = null;
+        _ready = true;
+        startup.complete();
+      default:
+        // ParameterStatus, BackendKeyData, NoticeResponse.
+        break;
+    }
+  }
+
+  /// Answers one Authentication request; returns why it cannot, if it can't.
+  DVPostgresException? _authenticate(
+    DVPostgresConnection connection,
+    Uint8List body,
+  ) {
+    final int code = _readInt32(body, 0);
+    switch (code) {
+      case 0: // AuthenticationOk
+        final DVScramSha256? scram = _scram;
+        if (scram != null && !scram.isVerified) {
+          return const DVPostgresException(
+            'The server accepted the login before proving it holds the '
+            "password's verifier.",
+          );
+        }
+        _scram = null;
+        return null;
+      case 3: // CleartextPassword
+        final String? secret = password;
+        if (secret == null) return _noPassword('a cleartext password');
+        connection.write(_password(secret));
+        return null;
+      case 5: // MD5Password
+        if (password == null) return _noPassword('an md5 password');
+        connection.write(_password(_md5Password(body.sublist(4, 8))));
+        return null;
+      case 10: // AuthenticationSASL: the mechanisms the server accepts.
+        final List<String> mechanisms = _readCStrings(body, 4);
+        if (!mechanisms.contains(DVScramSha256.mechanism)) {
+          return DVPostgresException(
+            'The server offers SASL mechanisms ${mechanisms.join(', ')}; '
+            'this client speaks ${DVScramSha256.mechanism} (without channel '
+            'binding).',
+          );
+        }
+        final String? secret = password;
+        if (secret == null) return _noPassword('SCRAM-SHA-256');
+        final DVScramSha256 scram = _scram = DVScramSha256(password: secret);
+        final List<int> first = utf8.encode(scram.clientFirstMessage());
+        connection.write(_typed(0x70, (BytesBuilder b) {
+          b
+            ..add(_cstring(DVScramSha256.mechanism))
+            ..add(_int32(first.length))
+            ..add(first);
+        }));
+        return null;
+      case 11: // AuthenticationSASLContinue: server-first.
+        final DVScramSha256? scram = _scram;
+        if (scram == null) {
+          return const DVPostgresException(
+            'The server continued a SASL exchange that never started.',
+          );
+        }
+        try {
+          final String clientFinal =
+              scram.clientFinalMessage(utf8.decode(body.sublist(4)));
+          connection.write(_typed(0x70, (BytesBuilder b) {
+            b.add(utf8.encode(clientFinal));
+          }));
+        } on DVScramException catch (error) {
+          return DVPostgresException('SCRAM-SHA-256: ${error.message}');
+        } on FormatException {
+          return const DVPostgresException(
+            'SCRAM-SHA-256: the server-first message is not UTF-8.',
+          );
+        }
+        return null;
+      case 12: // AuthenticationSASLFinal: server-final.
+        final DVScramSha256? scram = _scram;
+        if (scram == null) {
+          return const DVPostgresException(
+            'The server finished a SASL exchange that never started.',
+          );
+        }
+        try {
+          scram.verifyServerFinal(utf8.decode(body.sublist(4)));
+        } on DVScramException catch (error) {
+          return DVPostgresException('SCRAM-SHA-256: ${error.message}');
+        } on FormatException {
+          return const DVPostgresException(
+            'SCRAM-SHA-256: the server-final message is not UTF-8.',
+          );
+        }
+        return null;
+      default:
+        return DVPostgresException(
+          'Unsupported Postgres authentication method (code $code). '
+          'Supported: trust, password, md5, scram-sha-256. Configure pg_hba '
+          'accordingly or use a connection proxy.',
+        );
+    }
+  }
+
+  DVPostgresException _noPassword(String method) => DVPostgresException(
+        'The server asks for $method for user "$user" and no password is '
+        'configured.',
+      );
+
   _Reply? _inFlight;
 
   /// Routes one backend message; returns a finished reply on ReadyForQuery.
   _Reply? _handle(({int type, Uint8List body}) message) {
     final reply = _inFlight ??= _Reply();
     switch (message.type) {
-      case 0x52: // 'R' Authentication
-        final code = _readInt32(message.body, 0);
-        switch (code) {
-          case 0: // AuthenticationOk
-            break;
-          case 5: // MD5Password
-            final salt = message.body.sublist(4, 8);
-            _connection!.write(_password(_md5Password(salt)));
-          default:
-            reply.error = DVPostgresException(
-              'Unsupported Postgres authentication method (code $code). '
-              'Supported: trust, md5. Configure pg_hba accordingly or use a '
-              'connection proxy.',
-            );
-        }
       case 0x54: // 'T' RowDescription
         reply.columns = _readRowDescription(message.body);
       case 0x44: // 'D' DataRow
@@ -246,6 +414,7 @@ class DVPostgresDatabaseAdapter
   Future<void> close() async {
     final connection = _connection;
     _connection = null;
+    _ready = false;
     if (connection != null) {
       // Terminate message, then the socket.
       connection.write(<int>[0x58, 0, 0, 0, 4]);
@@ -368,6 +537,20 @@ class DVPostgresDatabaseAdapter
       ByteData.sublistView(bytes).getInt32(offset);
 
   // --- decoding helpers -----------------------------------------------------
+
+  /// NUL-terminated strings from [offset] up to the empty one that ends the
+  /// list.
+  static List<String> _readCStrings(Uint8List body, int offset) {
+    final List<String> strings = <String>[];
+    var at = offset;
+    while (at < body.length && body[at] != 0) {
+      var end = body.indexOf(0, at);
+      if (end < 0) end = body.length;
+      strings.add(utf8.decode(body.sublist(at, end), allowMalformed: true));
+      at = end + 1;
+    }
+    return strings;
+  }
 
   static List<({String name, int typeOid})> _readRowDescription(
     Uint8List body,
