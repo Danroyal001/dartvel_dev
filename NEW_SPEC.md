@@ -6290,7 +6290,11 @@ inside a span (named for the operation and table, recording the statement's
 shape with every literal reduced to `?` and no parameter), the OTLP/HTTP
 exporter (the JSON encoding, batched on
 a bounded queue, never blocking, dropping with a count under `DV-TRACE-002`
-and `DV-TRACE-003`), a span for each outermost `DV.transaction` with its outcome and the
+and `DV-TRACE-003`), a producer span for each job dispatched inside a trace with its context in
+the job envelope (every queue adapter carries it), a consumer span for each
+run that continues that trace within `DVQueues.traceWindow` (a minute by
+default) and otherwise starts its own trace linked back to it
+(`DV-TRACE-005`), a span for each outermost `DV.transaction` with its outcome and the
 compensations that ran, an AI feature run as a client span under the
 request carrying the model and estimated token counts and never the prompt,
 a limit of 128 attributes per span by default
@@ -6307,11 +6311,9 @@ buffer when diagnostics endpoints are on.
 Not built: the protobuf encoding of OTLP; a request span on every request
 rather than on routes that declare the `tracing` middleware; a span for a
 query a component sends to an adapter it holds directly rather than through
-`DV.Database`; spans for
-queue publish and consume; measured rather than estimated
+`DV.Database`; measured rather than estimated
 AI token counts, and a span for an AI adapter called directly rather than
-through a feature; trace context
-in the job envelope and the links that follow from it; client spans and their
+through a feature; client spans and their
 ingest; and `dartvel traces` reading anything but the local buffer. The other
 diagnostics above are registered meanings, not emitted signals: nothing raises
 one yet, and a code that is emitted for the wrong situation is worse than one

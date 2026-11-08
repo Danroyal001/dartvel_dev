@@ -2765,15 +2765,79 @@ class DVQueues {
     int priority = 0,
     int maxAttempts = 3,
     Duration backoff = const Duration(seconds: 30),
-  }) {
-    return _adapter.enqueue<TPayload>(
-      _queue(queue),
-      payload,
-      priority: priority,
-      maxAttempts: maxAttempts,
-      backoff: backoff,
-      tenant: _dispatchTenant(),
-    );
+  }) async {
+    final String qualified = _queue(queue);
+    // A producer span under the request when there is one, and its context in
+    // the envelope, so the run can be found from the request and the request
+    // from the run. An unsampled request still sends its context: the
+    // decision not to record travels like the decision to.
+    final DVSpan? ambient = dvCurrentSpan;
+    final DVSpan? span = ambient == null || !ambient.sampled
+        ? null
+        : (DVObservability.tracer.startSpan(
+            'queue publish $queue',
+            parent: ambient,
+            kind: DVSpanKind.producer,
+          )
+            ..setAttribute('queue.name', qualified)
+            ..setAttribute('job.type', '$TPayload'));
+    try {
+      return await _adapter.enqueue<TPayload>(
+        qualified,
+        payload,
+        priority: priority,
+        maxAttempts: maxAttempts,
+        backoff: backoff,
+        tenant: _dispatchTenant(),
+        traceparent: (span?.context ?? ambient?.context)?.toHeader(),
+      );
+    } on Object catch (error) {
+      span
+        ?..status = DVSpanStatus.error
+        ..setAttribute('error.type', '${error.runtimeType}');
+      rethrow;
+    } finally {
+      span?.end();
+    }
+  }
+
+  /// How long after its dispatch a job's run still belongs to the trace that
+  /// dispatched it. A job run later starts its own trace with a link back
+  /// (`DV-TRACE-005`): nesting a run four hours on would make a root span
+  /// four hours long, which no viewer renders and no p95 is computed from.
+  static Duration traceWindow = const Duration(minutes: 1);
+
+  static bool _linkReported = false;
+
+  /// The consumer span a job runs inside: a child of the dispatching span
+  /// within [traceWindow], its own trace linked to it after.
+  static DVSpan _consumeSpan(DVJobEnvelope<DVJobPayload> envelope, String queue) {
+    final DVTraceContext? origin = DVTraceContext.parse(envelope.traceparent);
+    final bool nested = origin != null &&
+        DateTime.now().difference(envelope.createdAt) <= traceWindow;
+    final DVSpan span = DVObservability.tracer.startSpan(
+      'queue consume $queue',
+      context: nested ? origin : null,
+      links: origin == null || nested
+          ? const <DVTraceContext>[]
+          : <DVTraceContext>[origin],
+      kind: DVSpanKind.consumer,
+    )
+      ..setAttribute('queue.name', envelope.queue)
+      ..setAttribute('job.type', '${envelope.payloadType}')
+      ..setAttribute('job.attempt', '${envelope.attempts + 1}');
+    if (origin != null && !nested && !_linkReported) {
+      // Once per process: a backlog drained after an outage is every job
+      // outside its window, and a line each says one thing many times.
+      _linkReported = true;
+      DVObservability.log(
+        'DV-TRACE-005: a job ran outside its originating trace\'s window '
+        '($traceWindow); its span is linked rather than nested.',
+        code: 'DV-TRACE-005',
+        context: <String, Object?>{'queue': envelope.queue},
+      );
+    }
+    return span;
   }
 
   /// The tenant a job dispatched now belongs to, or null for none.
@@ -2805,19 +2869,27 @@ class DVQueues {
         );
         continue;
       }
+      final DVSpan span = _consumeSpan(envelope, queue);
       try {
         // Inside the job's own tenant, always. A zone rather than setting
         // the process tenant: the handler awaits, and anything set
         // process-wide would reach whatever else runs in the isolate. A job
         // with none runs as the default tenant rather than as the worker's,
         // or the previous job's, or the scope work() was called from.
-        await const DVTenants().withTenant(
-          envelope.tenant ?? DVTenants.defaultTenant,
-          () => handler.invoke(envelope.payload),
+        await dvInSpan(
+          span,
+          () => const DVTenants().withTenant(
+            envelope.tenant ?? DVTenants.defaultTenant,
+            () => handler.invoke(envelope.payload),
+          ),
         );
         await _adapter.complete(envelope.id);
         completed++;
       } catch (error, stackTrace) {
+        // The type, not the message, as for every other span.
+        span
+          ..status = DVSpanStatus.error
+          ..setAttribute('error.type', '${error.runtimeType}');
         await _adapter.fail(envelope.id, error.toString(), stackTrace);
         // Only the attempt nothing will retry: an earlier failure is one the
         // queue still expects to recover from, and reporting each would turn
@@ -2829,6 +2901,8 @@ class DVQueues {
             // The job is dead-lettered whatever a listener does.
           }
         }
+      } finally {
+        span.end();
       }
     }
     return completed;

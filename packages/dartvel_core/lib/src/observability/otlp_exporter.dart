@@ -309,6 +309,14 @@ Map<String, Object?> _span(DVSpan span) {
     ],
     if (span.droppedAttributes > 0)
       'droppedAttributesCount': span.droppedAttributes,
+    if (span.links.isNotEmpty)
+      'links': <Object?>[
+        for (final DVTraceContext link in span.links)
+          <String, Object?>{
+            'traceId': link.traceId,
+            'spanId': link.parentSpanId,
+          },
+      ],
     'status': <String, Object?>{
       'code': switch (span.status) {
         DVSpanStatus.unset => 0,

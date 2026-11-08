@@ -149,7 +149,9 @@ class DVSpan {
     int attributeLimit = dvDefaultSpanAttributeLimit,
     void Function()? onAttributeLimit,
     void Function(DVSpan span)? onEnd,
+    List<DVTraceContext> links = const <DVTraceContext>[],
   })  : _exporter = exporter,
+        links = List<DVTraceContext>.unmodifiable(links),
         _onEnd = onEnd,
         _attributeLimit = attributeLimit,
         _onAttributeLimit = onAttributeLimit,
@@ -163,6 +165,11 @@ class DVSpan {
   final bool sampled;
   final DateTime startedAt;
   final DVSpanKind kind;
+
+  /// Other traces this span is connected to without being part of them -- a
+  /// job run long after the request that dispatched it links back to it
+  /// rather than nesting under it.
+  final List<DVTraceContext> links;
 
   final Map<String, String> attributes = <String, String>{};
   DVSpanStatus status = DVSpanStatus.unset;
@@ -480,6 +487,7 @@ class DVTracer {
     DVSpan? parent,
     DVTraceContext? context,
     DVSpanKind kind = DVSpanKind.internal,
+    List<DVTraceContext> links = const <DVTraceContext>[],
   }) {
     if (parent != null) {
       return _track(DVSpan._(
@@ -493,6 +501,7 @@ class DVTracer {
         attributeLimit: attributeLimit,
         onAttributeLimit: _reportAttributeLimit,
         onEnd: maxSpanDuration == null ? null : _closed,
+        links: links,
       ));
     }
 
@@ -511,6 +520,7 @@ class DVTracer {
         attributeLimit: attributeLimit,
         onAttributeLimit: _reportAttributeLimit,
         onEnd: maxSpanDuration == null ? null : _closed,
+        links: links,
       ));
     }
 
@@ -526,6 +536,7 @@ class DVTracer {
       attributeLimit: attributeLimit,
       onAttributeLimit: _reportAttributeLimit,
       onEnd: maxSpanDuration == null ? null : _closed,
+      links: links,
     ));
   }
 
