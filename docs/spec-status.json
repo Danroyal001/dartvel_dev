@@ -40,7 +40,7 @@
         "packages/dartvel_flutter/test/application_entry_test.dart",
         "packages/dartvel_core/lib/src/run/entry.dart"
       ],
-      "absent": "Flutter app entry is generated: DV.run accepts optional command-line arguments, a default themed root, private boot hooks in stable order, and an optional host root using DVAppParts.router. The current future completes after boot, not shutdown. Still absent: backend and headless entry wiring, native single-instance check, full DVAppParts builder/locale/delegate configuration, boot budgets and the remaining DV-RUN diagnostics, migration rewrite, generated shutdown/drain, all proposal phases outside the Flutter app entry."
+      "absent": "Flutter app entry is generated: DV.run accepts optional command-line arguments, a default themed root, private boot hooks in stable order, and an optional host root using DVAppParts.router. The current future completes after boot, not shutdown. A failed app boot reports DV-RUN-004 with the phase (2 surface selection, 4 boot functions, 5 surface) and the index of the @DVBoot function that threw; the boot-failure page has no retry yet, and the server and headless entries do not report the phase. Still absent: backend and headless entry wiring, native single-instance check, full DVAppParts builder/locale/delegate configuration, boot budgets and DV-RUN-001, 003, 005 and 007, which nothing raises, migration rewrite, generated shutdown/drain, all proposal phases outside the Flutter app entry."
     },
     {
       "section": "Configuration",
