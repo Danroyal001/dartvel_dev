@@ -181,8 +181,7 @@ jobs:
         env:
           POSTGRES_DB: dartvel_test
           POSTGRES_PASSWORD: dartvel
-          # The adapter speaks trust and md5, not SCRAM.
-          POSTGRES_HOST_AUTH_METHOD: trust
+          # Default authentication: SCRAM-SHA-256, what a real server asks for.
         ports:
           - 5432:5432
         options: >-
@@ -208,6 +207,7 @@ jobs:
         working-directory: packages/dartvel_core
         env:
           DARTVEL_TEST_POSTGRES_PORT: '5432'
+          DARTVEL_TEST_POSTGRES_PASSWORD: dartvel
         run: |
           set -eo pipefail
           dart test test/framework_tables_postgres_live_test.dart -j 1 \

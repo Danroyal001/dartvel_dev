@@ -10,7 +10,7 @@
 // DARTVEL_TEST_POSTGRES_HOST, _DATABASE, _USER, _PASSWORD). It skips loudly
 // without one and fails -- never skips -- when the variable names a server
 // that is not there, so a CI job that sets it cannot go green having checked
-// nothing. The server must accept trust or md5 authentication.
+// nothing. Trust, md5 and SCRAM-SHA-256 authentication all work.
 @Tags(<String>['live'])
 library;
 
@@ -207,8 +207,8 @@ void main() {
       'is not set)',
       () {},
       skip:
-          'Set DARTVEL_TEST_POSTGRES_PORT to a PostgreSQL with trust or md5 '
-          'authentication to run these.',
+          'Set DARTVEL_TEST_POSTGRES_PORT (and _PASSWORD) to a PostgreSQL to '
+          'run these.',
     );
     return;
   }
