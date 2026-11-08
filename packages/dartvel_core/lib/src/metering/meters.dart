@@ -65,6 +65,57 @@ class DVLimit {
       fromEntitlement ? 'DVLimit.entitlement' : 'DVLimit.fixed($value)';
 }
 
+/// Declares a meter on a `static const` field of a private class:
+///
+/// ```dart
+/// abstract class _Meters {
+///   @DVMeter(unit: 'call', limit: DVLimit.entitlement, atLimit: DVQuota.block)
+///   static const apiCalls = DVMeter.counter;
+/// }
+/// ```
+///
+/// `dartvel routes` generates `Meters.apiCalls` from it, a
+/// [DVMeterDefinition] named after the field, and recording is
+/// `Meters.apiCalls.record(1)`. The arguments are copied into the generated
+/// code, so they are written with Dartvel's own constants.
+class DVMeter {
+  const DVMeter({
+    required this.unit,
+    this.limit,
+    this.atLimit,
+    this.notifyAt = const <double>[],
+    this.grace,
+    this.gaugeBilling = DVGaugeBilling.average,
+  });
+
+  /// The field's value for a meter that accumulates.
+  static const DVMeterKind counter = DVMeterKind.counter;
+
+  /// The field's value for a meter that samples.
+  static const DVMeterKind gauge = DVMeterKind.gauge;
+
+  final String unit;
+  final DVLimit? limit;
+  final DVQuota? atLimit;
+  final List<double> notifyAt;
+  final Duration? grace;
+  final DVGaugeBilling gaugeBilling;
+
+  /// The meter this declares, under [name]. Refuses what
+  /// [DVMeterDefinition] refuses, `DV-METER-005` included.
+  DVMeterDefinition definition(String name, {required DVMeterKind kind}) =>
+      DVMeterDefinition(
+        name,
+        unit: unit,
+        kind: kind,
+        limit: limit,
+        atLimit: atLimit,
+        notifyAt: notifyAt,
+        grace: grace,
+        gaugeBilling: gaugeBilling,
+      );
+}
+
 /// A meter: the name usage is counted under, and what bounds it.
 ///
 /// Built once per meter, normally by the generated client from an

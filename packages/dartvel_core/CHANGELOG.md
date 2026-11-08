@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `@DVMeter(unit:, limit:, atLimit:, notifyAt:, grace:, gaugeBilling:)` declares a meter on a `static const` field whose value is `DVMeter.counter` or `DVMeter.gauge`; `DVMeter.definition(name, kind:)` is the `DVMeterDefinition` it describes.
 - Usage metering: `DVMeterReporter.closePeriods(tenants:, meters:)` reports each tenant's last closed period after its grace and retries queued reports; `scheduleClose(scheduler, ...)` registers it as `dartvel.meters.close`, hourly by default. `DVMeters.periodOf(tenant, at:)` names the period usage at an instant is counted in.
 - `DVSubscriptionStatus.currentPeriodStart`, filled in by Stripe (`current_period_start`) and Paddle (`current_billing_period.starts_at`).
 - `DVProviderBillingPeriods`: each tenant's billing period read from its subscription, for `DVMeters(periods: ...)`, remembered per tenant so recording costs no provider call. Usage used to be counted in calendar months unless the application wrote its own resolver.
