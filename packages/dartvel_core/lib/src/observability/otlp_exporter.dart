@@ -307,6 +307,8 @@ Map<String, Object?> _span(DVSpan span) {
       for (final MapEntry<String, String> entry in span.attributes.entries)
         _attribute(entry.key, entry.value),
     ],
+    if (span.droppedAttributes > 0)
+      'droppedAttributesCount': span.droppedAttributes,
     'status': <String, Object?>{
       'code': switch (span.status) {
         DVSpanStatus.unset => 0,

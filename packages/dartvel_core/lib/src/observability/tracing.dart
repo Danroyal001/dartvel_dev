@@ -12,6 +12,11 @@ import 'dart:async';
 import 'dart:math';
 
 import '../secrets/secrets.dart';
+import 'observability.dart';
+
+/// The most attributes a span holds unless its tracer says otherwise: 128, as
+/// OpenTelemetry's SDKs default to.
+const int dvDefaultSpanAttributeLimit = 128;
 
 /// The zone key the current span hangs on.
 ///
@@ -141,7 +146,11 @@ class DVSpan {
     required this.sampled,
     required DVTraceExporter? exporter,
     this.kind = DVSpanKind.internal,
+    int attributeLimit = dvDefaultSpanAttributeLimit,
+    void Function()? onAttributeLimit,
   })  : _exporter = exporter,
+        _attributeLimit = attributeLimit,
+        _onAttributeLimit = onAttributeLimit,
         startedAt = DateTime.now(),
         _stopwatch = Stopwatch()..start();
 
@@ -155,6 +164,12 @@ class DVSpan {
 
   final Map<String, String> attributes = <String, String>{};
   DVSpanStatus status = DVSpanStatus.unset;
+
+  final int _attributeLimit;
+  final void Function()? _onAttributeLimit;
+
+  /// Attributes refused because the span was at its limit (`DV-TRACE-010`).
+  int droppedAttributes = 0;
 
   final DVTraceExporter? _exporter;
   final Stopwatch _stopwatch;
@@ -179,8 +194,17 @@ class DVSpan {
   /// infrastructure the operator runs, while traces go to a hosted backend,
   /// so a database URL carrying its password into `db.url` is a credential
   /// handed to a third party and then to everyone who can read that account.
-  void setAttribute(String key, String value) =>
-      attributes[key] = dvRedactSecrets(value);
+  ///
+  /// A new key on a span already holding its limit of attributes is dropped
+  /// and counted (`DV-TRACE-010`); a key it already has can still change.
+  void setAttribute(String key, String value) {
+    if (attributes.length >= _attributeLimit && !attributes.containsKey(key)) {
+      droppedAttributes += 1;
+      _onAttributeLimit?.call();
+      return;
+    }
+    attributes[key] = dvRedactSecrets(value);
+  }
 
   /// The span as a trace view reads it.
   ///
@@ -204,8 +228,12 @@ class DVSpan {
     // Through setAttribute rather than straight into the map, because an
     // upstream client quoting the rejected key back at you is one of the
     // commonest ways a credential ends up in an error string.
-    setAttribute('error', '$error');
-    if (stackTrace != null) setAttribute('error.stack', '$stackTrace');
+    // Past the attribute limit too: the error is the attribute that matters
+    // most and the one most likely to arrive last.
+    attributes['error'] = dvRedactSecrets('$error');
+    if (stackTrace != null) {
+      attributes['error.stack'] = dvRedactSecrets('$stackTrace');
+    }
   }
 
   /// Finishes the span and exports it.
@@ -330,12 +358,37 @@ class DVFanoutTraceExporter implements DVTraceExporter {
 
 /// Starts spans.
 class DVTracer {
-  DVTracer({DVTraceExporter? exporter, DVTraceSampler? sampler})
-      : _exporter = exporter,
-        _sampler = sampler ?? DVTraceSampler.always();
+  DVTracer({
+    DVTraceExporter? exporter,
+    DVTraceSampler? sampler,
+    this.attributeLimit = dvDefaultSpanAttributeLimit,
+  })  : _exporter = exporter,
+        _sampler = sampler ?? DVTraceSampler.always() {
+    if (attributeLimit < 1) {
+      throw ArgumentError.value(attributeLimit, 'attributeLimit',
+          'a span that can hold no attribute records nothing about itself');
+    }
+  }
 
   final DVTraceExporter? _exporter;
   final DVTraceSampler _sampler;
+
+  /// The most attributes one span holds (`DV-TRACE-010`).
+  final int attributeLimit;
+  bool _limitReported = false;
+
+  /// Once per tracer, not once per dropped attribute: the loop that overflows
+  /// one span overflows every span, and a log line each is a second flood.
+  void _reportAttributeLimit() {
+    if (_limitReported) return;
+    _limitReported = true;
+    DVObservability.log(
+      'DV-TRACE-010: a span reached its limit of $attributeLimit attributes; '
+      'further attributes were dropped.',
+      level: DVLogLevel.warn,
+      code: 'DV-TRACE-010',
+    );
+  }
 
   /// Begins a span.
   ///
@@ -356,6 +409,8 @@ class DVTracer {
         sampled: parent.sampled,
         exporter: _exporter,
         kind: kind,
+        attributeLimit: attributeLimit,
+        onAttributeLimit: _reportAttributeLimit,
       );
     }
 
@@ -371,6 +426,8 @@ class DVTracer {
         sampled: context.sampled,
         exporter: _exporter,
         kind: kind,
+        attributeLimit: attributeLimit,
+        onAttributeLimit: _reportAttributeLimit,
       );
     }
 
@@ -383,6 +440,8 @@ class DVTracer {
       sampled: _sampler.shouldSample(traceId),
       exporter: _exporter,
       kind: kind,
+      attributeLimit: attributeLimit,
+      onAttributeLimit: _reportAttributeLimit,
     );
   }
 
