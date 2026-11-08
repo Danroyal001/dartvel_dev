@@ -109,6 +109,7 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
     if (held == null) return null;
     return <String, Object?>{
       'next': held._nextRowid,
+      if (held.uniqueKeys.isNotEmpty) 'unique': held.uniqueKeys,
       'rows': <Object?>[
         for (final _MemoryRow row in held.rows)
           <String, Object?>{
@@ -121,10 +122,21 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
 
   /// Puts back a table [exportTable] gave, replacing any of that name.
   void importTable(String table, Map<String, Object?> exported) {
-    final _MemoryTable held = _MemoryTable();
+    final Object? unique = exported['unique'];
+    final _MemoryTable held = _MemoryTable(
+      table,
+      unique is List<Object?>
+          ? <List<String>>[
+              for (final Object? key in unique)
+                <String>[for (final Object? c in key! as List<Object?>) '$c'],
+            ]
+          : _tables[table]?.uniqueKeys ?? const <List<String>>[],
+    );
     for (final Object? entry in exported['rows'] as List<Object?>? ?? const []) {
       final Map<Object?, Object?> row = entry! as Map<Object?, Object?>;
-      held.add(
+      // Put back as they were, unchecked: rows saved before the key was
+      // enforced are still the rows that database had.
+      held.restore(
         <String, Object?>{
           for (final MapEntry<Object?, Object?> value
               in (row['values']! as Map<Object?, Object?>).entries)
@@ -184,7 +196,10 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
       if (create.group(1) == null && _tables.containsKey(name)) {
         throw _unsupported(statement, 'Table $name already exists.');
       }
-      _tables.putIfAbsent(name, _MemoryTable.new);
+      _tables.putIfAbsent(
+        name,
+        () => _MemoryTable(name, _uniqueKeys(create.group(3)!)),
+      );
       return 0;
     }
 
@@ -222,8 +237,9 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
         values[columns[i]] = value;
       }
       binding.done();
+      final String table = insert.group(1)!;
       _tables
-          .putIfAbsent(insert.group(1)!, _MemoryTable.new)
+          .putIfAbsent(table, () => _MemoryTable(table, const <List<String>>[]))
           .add(values, rowid: rowid);
       return 1;
     }
@@ -239,14 +255,19 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
       }
       final conditions = _readConditions(update.group(3), binding, statement);
       binding.done();
-      var affected = 0;
-      final rows = _tables[update.group(1)!]?.rows ?? const <_MemoryRow>[];
-      for (final row in rows) {
-        if (!conditions.matches(row)) continue;
+      final table = _tables[update.group(1)!];
+      if (table == null) return 0;
+      final matched = <_MemoryRow>[
+        for (final row in table.rows)
+          if (conditions.matches(row)) row,
+      ];
+      // Checked for every row before any is changed, so a refused update
+      // leaves the table as it was, as a database's statement does.
+      table.checkUpdate(matched, assignments);
+      for (final row in matched) {
         row.values.addAll(assignments);
-        affected++;
       }
-      return affected;
+      return matched.length;
     }
 
     final delete = _delete.firstMatch(statement);
@@ -469,6 +490,34 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
     return statement;
   }
 
+  static final RegExp _tableKey = RegExp(
+    r'^(?:constraint\s+\w+\s+)?(?:primary\s+key|unique)\s*\((.*)\)$',
+    caseSensitive: false,
+  );
+  static final RegExp _columnKey =
+      RegExp(r'\b(?:primary\s+key|unique)\b', caseSensitive: false);
+
+  /// The unique keys a CREATE TABLE body declares: table-level
+  /// `UNIQUE (a, b)` and `PRIMARY KEY (a)`, and a column declared
+  /// `PRIMARY KEY` or `UNIQUE`.
+  static List<List<String>> _uniqueKeys(String body) {
+    final keys = <List<String>>[];
+    for (final part in _splitTopLevel(body)) {
+      final definition = part.trim();
+      final tableKey = _tableKey.firstMatch(definition);
+      if (tableKey != null) {
+        keys.add(<String>[
+          for (final column in tableKey.group(1)!.split(',')) column.trim(),
+        ]);
+        continue;
+      }
+      if (_columnKey.hasMatch(definition)) {
+        keys.add(<String>[definition.split(RegExp(r'\s+')).first]);
+      }
+    }
+    return keys;
+  }
+
   static ArgumentError _unsupported(String statement, [String? detail]) =>
       ArgumentError(
         'MemoryDVDatabaseAdapter cannot run this statement: $statement. '
@@ -520,10 +569,69 @@ class _MemoryRow {
 }
 
 class _MemoryTable {
+  _MemoryTable(this.name, this.uniqueKeys);
+
+  final String name;
+
+  /// The column sets no two rows may share, as declared by CREATE TABLE.
+  final List<List<String>> uniqueKeys;
+
   final List<_MemoryRow> rows = <_MemoryRow>[];
   int _nextRowid = 1;
 
+  static Object? _value(Map<String, Object?> values, String column) {
+    if (values.containsKey(column)) return values[column];
+    final lower = column.toLowerCase();
+    for (final entry in values.entries) {
+      if (entry.key.toLowerCase() == lower) return entry.value;
+    }
+    return null;
+  }
+
+  /// Throws when [values] would share a unique key with a row other than
+  /// those in [except]. NULL never equals NULL, as in SQL.
+  void _checkUnique(Map<String, Object?> values, Set<_MemoryRow> except) {
+    for (final key in uniqueKeys) {
+      final mine = <Object?>[for (final c in key) _value(values, c)];
+      if (mine.contains(null)) continue;
+      for (final row in rows) {
+        if (except.contains(row)) continue;
+        var same = true;
+        for (var i = 0; i < key.length && same; i++) {
+          same = _value(row.values, key[i]) == mine[i];
+        }
+        if (same) {
+          // Worded as SQLite words it, which is what callers that tell a
+          // duplicate from any other failure look for.
+          throw StateError(
+              'UNIQUE constraint failed: $name.${key.join(', $name.')}');
+        }
+      }
+    }
+  }
+
+  void checkUpdate(List<_MemoryRow> matched, Map<String, Object?> assignments) {
+    if (uniqueKeys.isEmpty) return;
+    final updated = <Map<String, Object?>>[
+      for (final row in matched) <String, Object?>{...row.values, ...assignments},
+    ];
+    for (var i = 0; i < updated.length; i++) {
+      _checkUnique(updated[i], matched.toSet());
+      for (var j = 0; j < i; j++) {
+        // Two matched rows set to the same key collide with each other.
+        final probe = _MemoryTable(name, uniqueKeys)
+          ..rows.add(_MemoryRow(0, updated[j]));
+        probe._checkUnique(updated[i], const <_MemoryRow>{});
+      }
+    }
+  }
+
   void add(Map<String, Object?> values, {int? rowid}) {
+    _checkUnique(values, const <_MemoryRow>{});
+    restore(values, rowid: rowid);
+  }
+
+  void restore(Map<String, Object?> values, {int? rowid}) {
     final assigned = rowid ?? _nextRowid;
     if (assigned >= _nextRowid) _nextRowid = assigned + 1;
     rows.add(_MemoryRow(assigned, values));
