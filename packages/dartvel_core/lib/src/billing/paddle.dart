@@ -536,10 +536,13 @@ class DVPaddleBillingProvider
     if (subscription == null) return const DVSubscriptionStatus(status: 'none');
     final Object? scheduled = subscription['scheduled_change'];
     final Object? period = subscription['current_billing_period'];
+    final Object? startsAt = period is Map ? period['starts_at'] : null;
     final Object? endsAt = period is Map ? period['ends_at'] : null;
     return DVSubscriptionStatus(
       status: '${subscription['status'] ?? ''}',
       cancelAtPeriodEnd: scheduled is Map && scheduled['action'] == 'cancel',
+      currentPeriodStart:
+          startsAt is String ? DateTime.tryParse(startsAt)?.toUtc() : null,
       currentPeriodEnd: endsAt is String ? DateTime.tryParse(endsAt)?.toUtc() : null,
     );
   }

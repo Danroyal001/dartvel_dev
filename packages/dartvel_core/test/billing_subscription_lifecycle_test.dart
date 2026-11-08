@@ -101,6 +101,17 @@ void main() {
       expect(status.status, 'none');
     });
 
+    test('status reads when the current period started, for metering',
+        () async {
+      // Usage is counted in the subscription's own period; without its
+      // start that period cannot be named and the calendar month is used.
+      final DVSubscriptionStatus status = await stripe(<Map<String, Object?>>[
+        <String, Object?>{...active, 'current_period_start': 1791158400},
+      ]).subscriptionStatus(customer: 'cus_1');
+      expect(status.currentPeriodStart,
+          DateTime.fromMillisecondsSinceEpoch(1791158400 * 1000, isUtc: true));
+    });
+
     test('the portal link comes back to the app', () async {
       final String url = await stripe(<Map<String, Object?>>[active]).customerPortalUrl(customer: 'cus 1');
       expect(url, 'https://billing.stripe.com/p/session_1');
@@ -186,6 +197,20 @@ void main() {
       ]).subscriptionStatus(customer: 'ctm_1');
       expect(status.status, 'active');
       expect(status.cancelAtPeriodEnd, isTrue);
+      expect(status.currentPeriodEnd, DateTime.utc(2026, 11, 2));
+    });
+
+    test('status reads when the current billing period started', () async {
+      final DVSubscriptionStatus status = await paddle(<Map<String, Object?>>[
+        <String, Object?>{
+          ...active,
+          'current_billing_period': <String, Object?>{
+            'starts_at': '2026-10-02T00:00:00Z',
+            'ends_at': '2026-11-02T00:00:00Z',
+          },
+        },
+      ]).subscriptionStatus(customer: 'ctm_1');
+      expect(status.currentPeriodStart, DateTime.utc(2026, 10, 2));
       expect(status.currentPeriodEnd, DateTime.utc(2026, 11, 2));
     });
 

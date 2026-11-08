@@ -12,6 +12,7 @@ class DVSubscriptionStatus {
   const DVSubscriptionStatus({
     required this.status,
     this.cancelAtPeriodEnd = false,
+    this.currentPeriodStart,
     this.currentPeriodEnd,
   });
 
@@ -21,12 +22,18 @@ class DVSubscriptionStatus {
   /// Whether cancellation is deferred to the end of the billing period.
   final bool cancelAtPeriodEnd;
 
+  /// When the current billing period started, in UTC, when the provider
+  /// says. Usage metering counts in the period this and [currentPeriodEnd]
+  /// bound.
+  final DateTime? currentPeriodStart;
+
   /// When the current billing period ends, in UTC.
   final DateTime? currentPeriodEnd;
 
   @override
   String toString() => 'DVSubscriptionStatus($status, '
       'cancelAtPeriodEnd=$cancelAtPeriodEnd, '
+      'currentPeriodStart=$currentPeriodStart, '
       'currentPeriodEnd=$currentPeriodEnd)';
 }
 

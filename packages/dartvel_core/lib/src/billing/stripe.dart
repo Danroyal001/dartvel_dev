@@ -640,11 +640,15 @@ class DVStripeBillingProvider
   }) async {
     final Map<Object?, Object?>? subscription = await _subscriptionFor(customer);
     if (subscription == null) return const DVSubscriptionStatus(status: 'none');
+    final Object? periodStart = subscription['current_period_start'];
     final Object? periodEnd = subscription['current_period_end'];
     final bool paused = subscription['pause_collection'] is Map;
     return DVSubscriptionStatus(
       status: paused ? 'paused' : '${subscription['status'] ?? ''}',
       cancelAtPeriodEnd: subscription['cancel_at_period_end'] == true,
+      currentPeriodStart: periodStart is int
+          ? DateTime.fromMillisecondsSinceEpoch(periodStart * 1000, isUtc: true)
+          : null,
       currentPeriodEnd: periodEnd is int
           ? DateTime.fromMillisecondsSinceEpoch(periodEnd * 1000, isUtc: true)
           : null,

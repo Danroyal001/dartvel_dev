@@ -7737,6 +7737,16 @@ first is a reconciliation argument every month. A tenant with no billing
 period falls back to the deployment's calendar period and says so
 (`DV-METER-010`).
 
+`DVMeters(periods: DVProviderBillingPeriods(provider, customerFor: ...).call)`
+reads the period from the tenant's subscription (`subscriptionStatus`, whose
+`currentPeriodStart` and `currentPeriodEnd` Stripe and Paddle fill in). A
+recording does not cost a provider call: each tenant's current period is
+remembered until it ends, with the few before it so a late record finds its
+own. No subscription, no period start, a provider still answering an ended
+period, or a provider that cannot be reached all mean no billing period, and
+that answer is remembered for a few minutes rather than asked again per
+request.
+
 A record can arrive after its period closed: a queued job draining, a device
 that was offline, a retry. Within a declared grace it is accepted into the
 period it belongs to (`DV-METER-007`). After the grace it counts in the open

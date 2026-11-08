@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `DVSubscriptionStatus.currentPeriodStart`, filled in by Stripe (`current_period_start`) and Paddle (`current_billing_period.starts_at`).
+- `DVProviderBillingPeriods`: each tenant's billing period read from its subscription, for `DVMeters(periods: ...)`, remembered per tenant so recording costs no provider call. Usage used to be counted in calendar months unless the application wrote its own resolver.
 - Usage metering: a crossed `notifyAt` threshold is sent through `DV.Notifications` (to the tenant id, or to `DVMeters(thresholdRecipients: ...)`, on `thresholdChannels`, in-app by default). A failed send is logged, never refuses the call. An `onThreshold` handler still replaces the default send. Before, nothing was sent unless the application wired `onThreshold` itself.
 - `MemoryDVDatabaseAdapter` enforces the `UNIQUE` and `PRIMARY KEY` constraints a `CREATE TABLE` declares (table-level and column-level) on INSERT and UPDATE, failing with `UNIQUE constraint failed: ...` as SQLite does; NULLs never collide. It used to ignore them, so the meter store's guard against a retry racing its original on another instance held on SQLite and not here. `exportTable` carries the keys; `importTable` restores rows unchecked.
 - `dvWithRequestMeterKey(request, body)`: the request's metering scope. The generated backend wraps every route in it, so a handler records usage with no key of its own; a request's `Idempotency-Key` header (scoped to method and path) makes a client retry count once.

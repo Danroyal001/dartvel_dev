@@ -9,6 +9,7 @@ library dartvel_core.metering.reporting;
 import 'dart:async';
 
 import '../../dartvel.dart' show DVBillingProvider, DVUsageMeter;
+import '../billing/subscription_lifecycle.dart';
 import '../database/adapter.dart';
 import '../database/framework_tables.dart';
 import '../observability/observability.dart';
@@ -225,6 +226,92 @@ typedef DVMeterPriceResolver = FutureOr<bool> Function(
 /// reconciled.
 typedef DVProviderFigure = FutureOr<num> Function(
     String tenant, DVMeterDefinition meter);
+
+/// Each tenant's billing period, read from its subscription at the provider.
+///
+/// Pass as `DVMeters(periods: DVProviderBillingPeriods(...).call)`.
+///
+/// A recording must not cost a provider call, so each tenant's periods are
+/// remembered: the current one until it ends, and the few before it so a
+/// late record finds the period it belongs to. A tenant with no subscription,
+/// a provider that names no period start, or a provider that cannot be
+/// reached answers null, which falls back to the calendar month with
+/// DV-METER-010; that answer is remembered for [retryAfter], so an outage is
+/// not a provider call per request either.
+class DVProviderBillingPeriods {
+  DVProviderBillingPeriods(
+    this.provider, {
+    required this.customerFor,
+    this.retryAfter = const Duration(minutes: 5),
+    this.remembered = 3,
+    DateTime Function()? clock,
+  }) : _clock = clock ?? (() => DateTime.now().toUtc());
+
+  final DVSubscriptionLifecycle provider;
+  final DVBillingCustomerResolver customerFor;
+
+  /// How long a tenant with no readable period is not asked about again.
+  final Duration retryAfter;
+
+  /// How many periods per tenant are kept, newest first.
+  final int remembered;
+
+  final DateTime Function() _clock;
+  final Map<String, List<DVMeterPeriod>> _periods =
+      <String, List<DVMeterPeriod>>{};
+  final Map<String, DateTime> _unknownUntil = <String, DateTime>{};
+
+  /// The billing period of [tenant] containing [at], or null.
+  Future<DVMeterPeriod?> call(String tenant, DateTime at) async {
+    final List<DVMeterPeriod> known = _periods[tenant] ?? <DVMeterPeriod>[];
+    for (final DVMeterPeriod period in known) {
+      if (period.contains(at)) return period;
+    }
+    // Only the provider's current period can be read. An instant before
+    // every remembered period is one this process never saw.
+    if (known.isNotEmpty && at.isBefore(known.first.end)) return null;
+    final DateTime now = _clock().toUtc();
+    final DateTime? wait = _unknownUntil[tenant];
+    if (wait != null && now.isBefore(wait)) return null;
+
+    final DVMeterPeriod? current = await _read(tenant);
+    if (current == null) {
+      _unknownUntil[tenant] = now.add(retryAfter);
+      return null;
+    }
+    _unknownUntil.remove(tenant);
+    if (!known.contains(current)) {
+      _periods[tenant] = <DVMeterPeriod>[current, ...known]
+          .take(remembered)
+          .toList();
+    }
+    if (current.contains(at)) return current;
+    // A period that has already ended is a provider that has not rolled the
+    // subscription over yet: remembered as unknown, like no period at all.
+    if (!at.isBefore(current.end)) _unknownUntil[tenant] = now.add(retryAfter);
+    return null;
+  }
+
+  Future<DVMeterPeriod?> _read(String tenant) async {
+    try {
+      final Object? customer = await customerFor(tenant);
+      if (customer == null) return null;
+      final DVSubscriptionStatus status =
+          await provider.subscriptionStatus(customer: customer);
+      final DateTime? start = status.currentPeriodStart;
+      final DateTime? end = status.currentPeriodEnd;
+      if (start == null || end == null || !start.isBefore(end)) return null;
+      return DVMeterPeriod(start.toUtc(), end.toUtc());
+    } on Object catch (error) {
+      DVObservability.logger.warn(
+        'The billing period for tenant "$tenant" could not be read from the '
+        'provider: $error',
+        context: <String, Object?>{'tenant': tenant},
+      );
+      return null;
+    }
+  }
+}
 
 /// Sends closed periods' usage to the billing provider.
 class DVMeterReporter {
