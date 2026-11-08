@@ -6131,9 +6131,9 @@ there; the client address is never forwarded.
 Stability: `Draft` · Status: `Partial`
 
 Monitoring and Observability lists traces. This is what a trace is here, what
-gets a span without anybody writing one, and where the spans go — the third of
-which is the part that is still missing, and is named as missing below rather
-than described as though it were there.
+gets a span without anybody writing one, and where the spans go. What is still
+missing is named as missing at the end rather than described as though it
+were there.
 
 ## The wire format is not Dartvel's
 
@@ -6279,45 +6279,46 @@ not something to discover later.
 
 ## What is built, and what is not
 
-Built: the W3C context type and its parsing, spans with kinds, attributes,
-errors and status, the sampler that decides from the trace id, the exporter
-interface with in-memory and ring-buffer implementations, the HTTP server
-middleware that starts a server span per request and propagates context
-(reporting a malformed inbound `traceparent` once as `DV-TRACE-001`), a
-client span for every outbound `DV.Http` call made inside a span with the
-`traceparent` naming it, a client span for every `DV.Database` query made
-inside a span (named for the operation and table, recording the statement's
-shape with every literal reduced to `?` and no parameter), the OTLP/HTTP
-exporter (the JSON encoding, batched on
-a bounded queue, never blocking, dropping with a count under `DV-TRACE-002`
-and `DV-TRACE-003`), a producer span for each job dispatched inside a trace with its context in
-the job envelope (every queue adapter carries it), a consumer span for each
-run that continues that trace within `DVQueues.traceWindow` (a minute by
-default) and otherwise starts its own trace linked back to it
-(`DV-TRACE-005`), a span for each outermost `DV.transaction` with its outcome and the
-compensations that ran, an AI feature run as a client span under the
-request carrying the model and estimated token counts and never the prompt,
-a limit of 128 attributes per span by default
-(`DV-TRACE-010`, the error attribute exempt), spans left open past `maxSpanDuration`
-closed as incomplete (`DV-TRACE-009`), the `dartvel.tracing` block above (`ratio`, `exporter`,
-`endpoint`, `queue`, `maxSpanDuration`) read strictly at build time and handed to the server,
-`DARTVEL_TRACING_EXPORTER`, `DARTVEL_TRACING_ENDPOINT`,
+Built: the W3C context type and its parsing; spans with kinds, attributes,
+links, errors and status; the sampler that decides from the trace id; the
+exporter interface with in-memory and ring-buffer implementations; the HTTP
+server middleware that starts a server span per request and propagates
+context, reporting a malformed inbound `traceparent` once as `DV-TRACE-001`;
+a client span for every outbound `DV.Http` call made inside a span, with the
+`traceparent` naming it; a client span for every `DV.Database` query made
+inside a span, named for the operation and table and recording the
+statement's shape with every literal reduced to `?` and no parameter; a span
+for each outermost `DV.transaction` with its outcome and the compensations
+that ran; a producer span for each job dispatched inside a trace, with its
+context in the job envelope (every queue adapter carries it), and a consumer
+span for each run that continues that trace within `DVQueues.traceWindow` (a
+minute by default) and otherwise starts its own trace linked back to it
+(`DV-TRACE-005`); an AI feature run as a client span under the request,
+carrying the model and estimated token counts and never the prompt; a limit
+of 128 attributes per span by default (`DV-TRACE-010`, the error attribute
+exempt); spans left open past `maxSpanDuration` closed as incomplete
+(`DV-TRACE-009`); the OTLP/HTTP exporter (the JSON encoding, batched on a
+bounded queue, never blocking, dropping with a count under `DV-TRACE-002` and
+`DV-TRACE-003`, links and dropped-attribute counts included); the
+`dartvel.tracing` block above read strictly at build time and handed to the
+server, with `DARTVEL_TRACING_EXPORTER`, `DARTVEL_TRACING_ENDPOINT`,
 `DARTVEL_TRACING_RATIO` and the OpenTelemetry `OTEL_EXPORTER_OTLP_*` and
-`OTEL_SERVICE_NAME` variables overriding it at startup, `DV-TRACE-006` and
-`DV-TRACE-007` reported when the server starts, the queue flushed when it
-stops, the trace id on every log line, and `/_dartvel/traces` serving the ring
-buffer when diagnostics endpoints are on.
+`OTEL_SERVICE_NAME` variables overriding it at startup; `DV-TRACE-006` and
+`DV-TRACE-007` reported when the server starts and the queue flushed when it
+stops; the trace id on every log line; and `/_dartvel/traces` serving the
+ring buffer when diagnostics endpoints are on.
 
 Not built: the protobuf encoding of OTLP; a request span on every request
 rather than on routes that declare the `tracing` middleware; a span for a
 query a component sends to an adapter it holds directly rather than through
-`DV.Database`; measured rather than estimated
-AI token counts, and a span for an AI adapter called directly rather than
-through a feature; client spans and their
-ingest; and `dartvel traces` reading anything but the local buffer. The other
-diagnostics above are registered meanings, not emitted signals: nothing raises
-one yet, and a code that is emitted for the wrong situation is worse than one
-that is not emitted at all.
+`DV.Database`; measured rather than estimated AI token counts, and a span for
+an AI adapter called directly rather than through a feature; outbound HTTP
+spans named for a path template rather than the host alone; client spans
+and their ingest (`DV-TRACE-008`); the build error for a span attribute
+naming a sensitive field (`DV-TRACE-004`); and `dartvel traces` reading
+anything but the local buffer. Those two diagnostics are registered meanings,
+not emitted signals: nothing raises them yet, and a code that is emitted for
+the wrong situation is worse than one that is not emitted at all.
 
 ## Deliberately absent
 

@@ -387,8 +387,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Distributed Tracing',
     'W3C Trace Context',
-    'Present: trace context across requests, with consistent sampling. '
-        'Absent: an OTLP exporter, so no span reaches a collector.',
+    'Present: spans for requests, queries, outbound calls, jobs and AI runs, '
+        'sent to any OTLP collector. Absent: spans from the device.',
   ),
   (
     'Crash Reporting and Release Health',

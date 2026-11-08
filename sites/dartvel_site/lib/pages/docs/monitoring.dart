@@ -105,16 +105,40 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
                   'starts one, and sends it back on the response.',
               'Sampling is decided from the trace id, so every service in a '
                   'trace makes the same choice without talking to the others.',
+              'Database queries, outbound DV.Http calls, transactions, jobs and '
+                  'AI feature runs inside a request are spans under it. A query '
+                  'span keeps the statement\'s shape, never its values.',
+              'A job run within a minute of being queued joins the request\'s '
+                  'trace. A later one starts its own, linked back to it.',
               'Recent spans are kept in memory and served at /_dartvel/traces '
                   'when diagnostics endpoints are on.',
             ]),
             DocsCode('monitoring-trace'),
             DocsCode('monitoring-server-trace'),
+            DocsShell(<String>[
+              '# pubspec.yaml',
+              'dartvel:',
+              '  tracing:',
+              '    ratio: 0.1',
+              '    exporter: otlp',
+              '    endpoint: https://collector.internal:4318',
+              '    queue: 2048',
+              '    maxSpanDuration: 5m',
+            ]),
+            Bullets(<String>[
+              'Spans go to any OTLP collector: Jaeger, Tempo, Honeycomb, '
+                  'Datadog and the rest. Sending never slows a request; a full '
+                  'queue drops spans and counts them.',
+              'At deploy time DARTVEL_TRACING_ENDPOINT, or the standard '
+                  'OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_EXPORTER_OTLP_HEADERS, '
+                  'override the file.',
+            ]),
             DocsStatus('Distributed Tracing', missing: <String>[
-              'No OTLP exporter, so spans do not reach a collector yet.',
-              'Only the request itself gets a span. Database queries, outbound '
-                  'HTTP, jobs and AI calls do not.',
-              'A job is not linked back to the request that queued it.',
+              'A request gets a span only on routes that use the tracing '
+                  'middleware.',
+              'No spans from the app on the device, and no way to receive '
+                  'them.',
+              'dartvel traces reads only the local buffer.',
             ]),
           ],
         ),
