@@ -219,6 +219,34 @@ void main() {
       expect(controller.selectedId, controller.document.root.children.last.id);
     });
 
+    testWidgets('a read-only editor\'s palette starts no drag',
+        (WidgetTester tester) async {
+      // Read-only means the page cannot change, so the palette must not
+      // offer a drag that looks like it would add something.
+      final controller = controllerWith(<String>['Existing'])..readOnly = true;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Row(
+            children: <Widget>[
+              SizedBox(width: 140, child: DVStudioPalette(controller: controller)),
+              Expanded(child: DVStudioCanvas(controller: controller)),
+            ],
+          ),
+        ),
+      ));
+      final Finder text = find.descendant(
+          of: find.byType(DVStudioPalette), matching: find.text('Text'));
+      final TestGesture gesture = await tester.startGesture(tester.getCenter(text));
+      await gesture.moveBy(const Offset(200, 0));
+      await tester.pump();
+      expect(find.byType(Opacity).evaluate().where((Element e) =>
+          (e.widget as Opacity).opacity == 0.5), isEmpty,
+          reason: 'a drag began from a read-only palette');
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(controller.document.root.children, hasLength(1));
+    });
+
     testWidgets('the canvas reflects controller changes without a rebuild',
         (WidgetTester tester) async {
       final controller = controllerWith(<String>['Before']);
