@@ -193,9 +193,9 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
         DocsStatus(
           'Package Structure',
           missing: <String>[
-            'The Rust bindings are DVRust and DVRustInt, one integer '
-                'type. They are types you construct, so there is no '
-                'DV.Rust to call.',
+            'The Rust bindings are one integer type, DV.Rust.Int, and it '
+                'does its arithmetic in Dart: there is no Rust behind it '
+                'yet.',
           ],
         ),
       ],

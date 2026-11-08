@@ -1826,9 +1826,10 @@
       "evidence": [
         "packages/dartvel_dev/lib/dartvel.dart",
         "packages/dartvel_dev/lib/dartvel_ui.dart",
-        "packages/dartvel_dev/lib/dartvel_rust_bindings.dart"
+        "packages/dartvel_dev/lib/dartvel_rust_bindings.dart",
+        "packages/dartvel_dev/test/rust_bindings_test.dart"
       ],
-      "absent": "Absent: most of DV.Rust. The barrels all exist under dartvel_dev and each re-exports its implementation package. The Rust bindings are one integer type: DVRust and DVRustInt in dartvel_flutter, reached by constructing DVRust and not through any DV.Rust member, and nothing further -- no float, no string, no struct, and no way to write a kernel in Rust and call it. Until this audit every import path in the section named package:dartvel/, a package that does not exist and cannot: the name was taken on pub.dev on 2026-08-06. Newly specified and unbuilt: the native/ tree as the one place a target-specific or runtime-specific implementation lives, including web/, wasm/ and nodejs/, and the rule against a top-level integration tree beside it."
+      "absent": "Absent: most of DV.Rust. The barrels all exist under dartvel_dev and each re-exports its implementation package. The Rust bindings are one integer type: DV.Rust.Int (DVRust and DVRustInt in dartvel_flutter), doing its arithmetic in Dart with no Rust behind it, and nothing further -- no float, no string, no struct, and no way to write a kernel in Rust and call it. Until this audit every import path in the section named package:dartvel/, a package that does not exist and cannot: the name was taken on pub.dev on 2026-08-06. Newly specified and unbuilt: the native/ tree as the one place a target-specific or runtime-specific implementation lives, including web/, wasm/ and nodejs/, and the rule against a top-level integration tree beside it."
     },
     {
       "section": "Server State (`initServerState`)",

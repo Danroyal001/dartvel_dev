@@ -10328,6 +10328,11 @@ class DV {
   /// The Platform Memory factory: every `DV.Memory.allocate(...)` is an
   /// independent arena with its own budget, segments and lifecycle.
   static DVMemory get Memory => const DVMemory();
+
+  /// Rust bindings: `DV.Rust.Int(1) + DV.Rust.Int(2)`. The values do their
+  /// arithmetic in Dart today; see *Package Structure* in NEW_SPEC.md.
+  static DVRust get Rust => const DVRust();
+
   static DVHttp get Http => const DVHttp();
 
   /// `DV.Webhooks`: the events this application sends to its customers'

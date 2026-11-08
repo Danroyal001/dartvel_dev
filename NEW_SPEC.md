@@ -12676,8 +12676,8 @@ var c = a + b;
 ```
 
 The design is FFI on native platforms and WebAssembly on the web, handled for
-the developer. What exists today is `DVRust` and `DVRustInt` in
-`dartvel_flutter`, and `DVRustInt` does its arithmetic in Dart. There is no
+the developer. What exists today is `DV.Rust.Int`, backed by `DVRust` and
+`DVRustInt` in `dartvel_flutter`, and `DVRustInt` does its arithmetic in Dart. There is no
 Rust behind it yet, and no float, string or struct type.
 
 ---
