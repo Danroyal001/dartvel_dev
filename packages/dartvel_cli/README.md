@@ -216,6 +216,7 @@ had.
 | `compatibility-check` | Check the build's protocol against the clients an environment still serves. |
 | `logs`, `traces`, `metrics` | Read a running server's recent logs, trace spans and `/metrics`. |
 | `analyze performance` | Performance measurements from a running application. |
+| `analyze boot` | DV-RUN-007: `@DVBoot` functions the app runs that await an HTTP request before the first frame. |
 
 ### Data and application services
 

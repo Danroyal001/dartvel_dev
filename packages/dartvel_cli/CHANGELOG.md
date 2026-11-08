@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `dartvel analyze boot`: DV-RUN-007 for each `@DVBoot` function the app entry runs that awaits an HTTP request (`DV.Http`, `DVHttp()`, `package:http`, `HttpClient`) before the first frame, with the file and line of the request.
 - The generated `DV.run` passes `dartvel.run.bootBudget` (default 800ms) to the app entry, so a slow boot reports DV-RUN-003. An unreadable `dartvel.run` value stops `dartvel routes`.
 - A stopping web process drains: new requests are answered 503, the ones being answered finish, and after `dartvel.run.shutdownGrace` (default 20s) any still running are answered 503. The generated server `main` exits 0 once stopped instead of waiting for leftover timers. `dartvel.run` is validated at generation: a misspelt key or an unreadable duration stops `dartvel routes`.
 - The generated server entry stops on SIGTERM or SIGINT: `DV.lifecycle.app` moves to `shuttingDown`, the listener, queue worker or schedules stop, then `stopped`, `dartvel backend stopped` is printed and the process exits 0. A second signal exits at once with 128 + the signal number. Before, a signal killed the process outright. `dartvelMain(until:)` is unchanged: given `until`, no signal is watched.

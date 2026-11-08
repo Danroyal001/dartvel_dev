@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../analysis/framework_strings_lint.dart';
+import '../analysis/boot_network.dart';
 import '../graph/live_windows.dart';
 
 /// `dartvel analyze performance` -- what the running application measured --
@@ -26,7 +27,7 @@ class AnalyzeCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'dartvel analyze performance [--json] | dartvel analyze strings [--exclude <dir>]';
+      'dartvel analyze performance [--json] | dartvel analyze strings [--exclude <dir>] | dartvel analyze boot';
 
   /// [root] is the project; null reads the working directory when the command
   /// runs. A test passes its own, because that directory is one value shared
@@ -44,6 +45,10 @@ class AnalyzeCommand extends Command<void> {
   Future<void> run() async {
     final bool asJson = argResults!['json'] as bool;
     final List<String> rest = argResults!.rest;
+    if (rest.isNotEmpty && rest.first == 'boot') {
+      _boot();
+      return;
+    }
     if (rest.isNotEmpty && rest.first == 'strings') {
       _strings(argResults!['exclude'] as List<String>);
       return;
@@ -182,6 +187,20 @@ class AnalyzeCommand extends Command<void> {
       _emit(finding.toString());
     }
     _emit('strings: ${found.length} framework string(s) written as a literal (DV-STATE-003).');
+  }
+
+  /// DV-RUN-007 over the project's @DVBoot functions.
+  void _boot() {
+    final List<DVBootNetworkFinding> found =
+        dvBootNetworkFindings(_root ?? Directory.current.path);
+    if (found.isEmpty) {
+      _emit('boot: no @DVBoot function awaits the network before the first frame.');
+      return;
+    }
+    for (final DVBootNetworkFinding finding in found) {
+      _emit(finding.toString());
+    }
+    _emit('boot: ${found.length} boot function(s) await the network before the first frame (DV-RUN-007).');
   }
 
   // ignore: avoid_print

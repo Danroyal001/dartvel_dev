@@ -4232,8 +4232,13 @@ void startDartvelKiosk() {
         final entriesArg = dvSplitArgs(args).where((a) => a.startsWith('entries:')).toList();
         final entries = entriesArg.isEmpty ? const <String>{} : RegExp(r'(?:DVEntryKind)?\.(\w+)').allMatches(entriesArg.first.substring(8)).map((m) => m.group(1)!).toSet();
         final entriesCode = entries.isEmpty ? '' : 'entries: <core.DVEntryKind>{${entries.map((e) => 'core.DVEntryKind.$e').join(', ')}}, ';
+        final String bodyText = body.isBlock ? body.statements! : body.expression!;
+        final int bodyAt = source.indexOf(bodyText, close);
         hooks.add(DVBootHook(
           rel: rel,
+          function: declaration.group(1)!,
+          body: bodyText,
+          bodyLine: '\n'.allMatches(source.substring(0, bodyAt < 0 ? close : bodyAt)).length + 1,
           imports: <String>{...sourceImports, "import 'package:$pkgName/${rel.substring(4)}' as $alias;"},
           step: 'framework.DVBootStep(${entriesCode}run: (core.DVBoot $name) async { $rendered })',
           entries: entries,
@@ -5329,7 +5334,13 @@ String _studioDocumentsSource(String root) {
 
 /// One `@DVBoot` function, lowered for an entry to run.
 class DVBootHook {
-  DVBootHook({required this.rel, required this.imports, required this.step, required this.entries, required this.uiBound});
+  DVBootHook({required this.rel, required this.imports, required this.step, required this.entries, required this.uiBound, this.function = '', this.body = '', this.bodyLine = 1});
+
+  /// The private function's name, its body as written, and the 1-based line
+  /// the body starts on: what an analysis of the function reports against.
+  final String function;
+  final String body;
+  final int bodyLine;
 
   /// The file it was declared in, relative to the project.
   final String rel;
