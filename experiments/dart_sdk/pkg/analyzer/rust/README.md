@@ -581,13 +581,13 @@ whatever their operands resolve to: `is` and `is!` (`IsExpression`), `!`,
 provider's `bottomType`), and parentheses whose `unParenthesized` expression
 is one of those or a `--literals` literal (the enclosed type).
 
-`src/dart/resolver/type_analyzer.rs` records those two slices' types, using
+`src/dart/resolver/type_analyzer.rs` records those slices' types, using
 the linked SDK classes through the narrow `src/dart/element/type_provider.rs`.
 It does not resolve identifiers, infer locals or calls, type integer
-literals, `==` (whose type is the `==` method's return type), unary or other
+literals outside the `--integers` sites, `==` (whose type is the `==` method's return type), unary or other
 binary operators, perform flow analysis, report diagnostics or rewrite the
 AST; those expressions get no type rather than a guessed one, including a
-parenthesized one. `body_dump` requires `--literals` or `--operators` and
+parenthesized one. `body_dump` requires `--literals`, `--operators` or `--integers` and
 refuses full mode rather than presenting missing resolution as a full result.
 The full upstream dump is available as a reference for the next slices.
 
@@ -624,11 +624,78 @@ the enlarged fixture (57 rows, 5 files). Measured 2026-11-08: the default
 corpus matches 13,036 rows across 589 files (145 seconds), and the held-out
 roots above 52,170 rows across 5,730 files (397 seconds), zero differences.
 
+`--integers` selects integer literals whose context type upstream takes from
+a declared type annotation, or which have none. Past a `-` whose operand the
+literal is (`UnaryOperatorInvocationResolver` passes its context on) and
+parentheses, the literal is an expression statement or an interpolation (no
+context: `int`); the initializer of a variable declared with a type; the
+default value of an optional, typed formal parameter (no function-typed
+suffix) of a function, method, constructor, local function or function
+expression; a returned expression (`return` or `=>`) of a function, method,
+getter, operator or local function declared with a return type, not a
+generator; or an element of a list or set literal with one type argument, or
+a key or value of a map literal with two, also inside `if` and `for`
+elements. Both sides read the selection on the V2 tree (`parent2`); the
+port's is `is_declared_context_integer`. `_recordIntegerLiteralType` makes
+the literal `double` when `int` is not assignable to the context and
+`double` is, which for these contexts is exactly `double`, or `FutureOr<S>`
+for such an `S`, at any nullability; in an `async` body the context is
+`FutureOr<futureValueType(R)>` (`BodyInferenceContext`), so `Future<double>`
+and `FutureOr<double>` return types give `double` and `double` itself gives
+`int`.
+
+With `--integers`, `body_dump` links each file's library (the file, the
+library its `part of` URI names when that library includes it, or else the
+part as a library of its own, as upstream's `kind.library ?? kind.asLibrary`:
+`Linker::unit_of_file`) and the analyzer
+resolves each annotation where it is written, as `TypeNameResolver` does:
+through the unit's `LibraryFragmentScope` (so an explicit `dart:core` import
+removes the implicit one, and prefixes work), the type parameter and instance
+scopes of the enclosing class, mixin, enum, extension or extension type (a
+member named like a type hides it, as upstream's `InstanceScope` does), and
+the type parameters, formal parameters, local variables, local functions and
+catch parameters of the enclosing executables, which name no type. An alias
+is expanded with its type arguments, or the defaults of its type parameters
+when it has none. The analyzer only classifies an annotation (`double`,
+`Future<S>`, `FutureOr<S>`, other, unknown); it does not build the type.
+Without the library (`TypeAnalyzer::new`) an annotated site stays untyped
+rather than `int`.
+
+Limits: integer literals in every other context (arguments, operands,
+assignments, inferred or inherited declaration types, closures' inferred
+return types, untyped collection literals, record fields, switch
+expressions, ...) are not selected and get no type; pattern variables do not
+hide names; a local variable hides a name only from its declaration on, not
+in the earlier part of its block; a part with a `part of` name directive
+is not analyzed against any library (its annotated sites stay untyped; no
+corpus file needed one).
+
+The fixtures `tests/body_corpus/integers.dart` (with a part),
+`integers_prefixed_core.dart` (which imports `dart:core` with a prefix) and
+`integers_orphan_part.dart` (a part its library does not include) cover each
+site, aliases (generic, bounded, raw, ignoring their argument),
+`FutureOr` and `Future` at both nullabilities, `async` and `sync*` bodies,
+shadowing by type parameters, members, parameters and locals, and sites
+outside the selection: 102 upstream rows, which all differed (`type=-`, same
+selection) before the analyzer typed them, and now match. The held-out
+`sdk/lib` found the orphan parts (104 of its files, `part of "dart:io"` and
+the like, which the SDK's own libraries include from elsewhere); the
+fixture's orphan part reproduced it before `asLibrary` was ported. Measured
+2026-11-08: the default corpus matches 1,096 rows across 589 files (141
+seconds), and the held-out roots above 10,879 rows across 5,730 files
+(380 seconds), zero differences. The literal and operator tests still match
+on the default corpus and on the enlarged fixture (72 and 53 rows, 9 files).
+
 `tests/type_analyzer_test.rs` runs the analyzer on a hand-built `dart:core`
-(so it can run under Miri, not yet done): the literal and operator types, and
-that `==`, unary minus, integer literals, identifiers and parentheses around
-them stay untyped. Typing an unknown parenthesized expression `bool` fails
-that last test.
+(so it can run under Miri, not yet done): the literal and operator types,
+integer literals with no context (`int`), with declared contexts (aliases,
+`FutureOr`, `async` returns, defaults, collection type arguments, shadowed
+names, a prefixed `dart:core`; these link the test code as a library with a
+hand-built `dart:async`), and untyped when analyzed without their library;
+and that `==`, unary minus, integer arguments, identifiers and parentheses
+around them stay untyped. The four integer tests with expected types failed
+before the analyzer typed integer literals. Typing an unknown parenthesized
+expression `bool` fails that last test.
 
 `tests/oracle_comparison.rs` checks that missing empty dumps count as
 differences, extra dumps fail, and identical empty/nonempty dumps match. Its
