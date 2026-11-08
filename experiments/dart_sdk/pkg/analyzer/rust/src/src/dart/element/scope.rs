@@ -1,9 +1,9 @@
 // Port of lib/src/dart/element/scope.dart: the scopes the linker resolves
 // type annotations in. `LibraryFragmentScope` (the library's declarations,
 // then the file's import prefixes, then its imports, then those of the file
-// that includes it), `PrefixScope` (the names an import or a group of
-// imports with one prefix provides, merged into `MultiplyDefinedElement`s
-// when they conflict), `LibraryDeclarations`, `EnclosedScope` with
+// that includes it; with `accessibleExtensions`), `PrefixScope` (the names an
+// import or a group of imports with one prefix provides, merged into
+// `MultiplyDefinedElement`s when they conflict, and its extensions), `LibraryDeclarations`, `EnclosedScope` with
 // `TypeParameterScope`, `InstanceScope` and `ExtensionScope`.
 //
 // The scopes live in a `Scopes` arena owned by the linker and are named by

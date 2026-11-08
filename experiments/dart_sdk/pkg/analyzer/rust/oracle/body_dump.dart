@@ -17,12 +17,14 @@
 // --user-operators selects invocations of `==`, `!=` and the user-definable
 // binary, unary (`-`, `~`) and index (`[]`) operators whose operands the
 // earlier selections or this one type, resolved through the interface of the
-// receiver's static type, with the integer literals that are their operands
+// receiver's static type or an applicable extension, or through the
+// extension an override `E(x)` names, with the integer literals that are their operands
 // and the parentheses around either; see [OperatorInvocations].
 // --members selects method invocations `r.m(...)` and property reads `r.p`
-// (getters, fields, method tear-offs) on a known receiver whose static type is
-// a non-nullable interface type, resolved through that interface, with the
-// integer literals that are their arguments; see [MemberAccesses].
+// (getters, fields, method tear-offs) on a known receiver, resolved through
+// the interface of its static type, `Object` (a receiver that may be null),
+// an applicable extension, or the extension an override `E(x)` names, with
+// the integer literals that are their arguments; see [MemberAccesses].
 import 'dart:io';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/token.dart';
@@ -677,9 +679,13 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
 /// type arguments) or a [ReceiverPropertyExtractionImpl] (`r.p`) whose
 /// operator is `.` and whose name is not private (a private field may be
 /// promoted by flow analysis, and private names are looked up per library).
-/// It is selected when its receiver is known ([_isKnown]), the receiver's
-/// static type is not nullable (`_mayBeNull` of [OperatorInvocations]) and
-/// its bound is an interface type, and it resolves through that interface:
+/// It is selected when its receiver is known ([_isKnown]) and its static type
+/// is not `dynamic`, invalid, `void` or `Never` (nor bounded by them), or is
+/// an extension override with one positional argument that is known, and the
+/// member it resolves to is one the port's lookup finds (`isFound`): of the
+/// overriding extension; of an applicable extension; of `Object` when the
+/// receiver may be null (`_mayBeNull` of [OperatorInvocations]) or its bound
+/// is not an interface type; else of the interface; and not static:
 /// - an invocation to a non-generic method with declared return and
 ///   parameter types, other than `remainder` and `clamp` on a subtype of
 ///   `num?`, whose type `refineNumericInvocationType` refines from the

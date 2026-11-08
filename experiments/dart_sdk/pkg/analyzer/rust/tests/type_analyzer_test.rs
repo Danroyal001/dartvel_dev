@@ -27,11 +27,20 @@
 //   the type of its getter or field, or of the method torn off, substituted;
 //   integer literal arguments get their parameter's type as the context; an
 //   invoked getter is read and its call is not typed.
+// - Extension members, analyzed with the library: a member the interface
+//   lacks (or any member but `Object`'s on a receiver that may be null) is
+//   found in the most specific accessible applicable extension, with its type
+//   parameters inferred and substituted; explicit overrides `E(x)` and
+//   `E<T>(x)` resolve in `E`; operators too (through an override, binary and
+//   unary operators unsubstituted, as upstream). Ambiguous, inapplicable and
+//   setter-only extensions, and interface setters of the name, leave the
+//   access untyped.
 // - Not in the slice, so no type: unresolved identifiers, operator
 //   invocations without the library or whose resolution is not ported
-//   (nullable receivers, extensions, inferred member types), integer literals
+//   (nullable receivers no extension serves, inferred member types), integer literals
 //   in other contexts and parentheses around any of those; member accesses
-//   with null-aware or nullable receivers, extension members, private names,
+//   with null-aware receivers, nullable receivers no extension serves,
+//   members of extensions that do not apply, private names,
 //   generic methods, implicit member types, `dynamic` receivers, numeric
 //   `remainder`, explicit type arguments and static members.
 

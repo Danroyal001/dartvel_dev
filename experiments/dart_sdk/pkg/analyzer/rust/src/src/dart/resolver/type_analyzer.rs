@@ -19,7 +19,11 @@
 // and the integer literals that are their operands are typed after those, by
 // binary_expression_resolver.rs. Member accesses on a typed receiver (method
 // invocations and property reads) and the integer literals that are their
-// arguments are typed after those, by method_invocation_resolver.rs.
+// arguments are typed after those, by method_invocation_resolver.rs. Both
+// find members through extensions too: the extensions accessible in the
+// file (scope.rs) and the explicit extension overrides `E(x)`, which this
+// file recognizes where `_visitScopeInvocation` does (a call whose name
+// finds an extension).
 // Flow state, diagnostics, rewrites, integer literals in other contexts
 // (inferred declarations, untyped calls), other identifiers, other
 // invocations and all other expression visitors remain unported. Types are stored beside the

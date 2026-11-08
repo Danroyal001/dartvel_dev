@@ -4,22 +4,22 @@
 // `TypeAnalyzer.visitReceiverIndexExpression` with
 // `PropertyElementResolver.resolveReceiverIndexExpression` that type an
 // operator invocation: `==`, `!=`, the user-definable binary operators, unary
-// `-` and `~`, and `[]` without `?`. With them, the part of
-// type_property_resolver.dart (`TypePropertyResolver.resolve`) that finds an
-// operator through the interface of the receiver's static type, and the
-// context the operator gives an integer literal operand
-// (`_recordIntegerLiteralType`).
+// `-` and `~`, and `[]` without `?`. The operator is found by
+// type_property_resolver.rs (the interface of the receiver's static type, or
+// the most specific applicable extension), or for an explicit extension
+// override operand in the extension it names: binary and unary operators as
+// `extension.getMethod` gives them, unsubstituted, and `[]` substituted
+// (`getOverrideMember`), as upstream reads them. With them, the context the
+// operator gives an integer literal operand (`_recordIntegerLiteralType`).
 //
-// An invocation is typed only when its operands are typed (by the earlier
-// slices of type_analyzer.rs, or by this one) and its operator resolves as far
-// as this port resolves it: through the interface (inheritance_manager3.rs) to
-// a method with declared types, or not at all because the receiver is
-// `dynamic`, invalid or `Never`. Not ported, so left untyped: extensions
-// (upstream looks for one when the interface has no such member, or the
-// receiver may be null), extension overrides, `super` receivers, members
-// with types override inference would infer, `?[]` and cascades, flow
-// analysis, implicit call tear-offs and generic function instantiation of
-// an index's value, and diagnostics.
+// An invocation is typed only when its operands (or an override's argument)
+// are typed (by the earlier slices of type_analyzer.rs, or by this one) and
+// its operator resolves as far as this port resolves it: to a method with
+// declared types, or not at all because the receiver is `dynamic`, invalid
+// or `Never`. Not ported, so left untyped: `super` receivers, `==` and `!=`
+// through an override, members with types override inference would infer,
+// `?[]` and cascades, flow analysis, implicit call tear-offs and generic
+// function instantiation of an index's value, and diagnostics.
 //
 // Contexts are `Option<TypeImpl>`: `None` when this port does not know the
 // context (the invocation is somewhere the earlier slices give no context

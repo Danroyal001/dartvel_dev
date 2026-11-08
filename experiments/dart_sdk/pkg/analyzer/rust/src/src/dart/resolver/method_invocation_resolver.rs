@@ -1,30 +1,33 @@
 // Port of the parts of lib/src/dart/resolver/method_invocation_resolver.dart
-// (an invocation `r.m(...)` of a method the receiver's interface has),
-// property_element_resolver.dart (`resolveReceiverPropertyExtraction`: a
-// read `r.p` of a getter or field, or a method torn off) and
-// type_property_resolver.dart (`TypePropertyResolver.resolve` through the
-// interface of the receiver's static type) that type a member access on a
-// typed receiver, with the context an invocation gives an integer literal
-// argument (`_recordIntegerLiteralType` with the parameter's type).
+// (an invocation `r.m(...)` of a method the receiver has, or of the
+// extension an override `E(x).m(...)` names), property_element_resolver.dart
+// (`resolveReceiverPropertyExtraction`: a read `r.p` of a getter or field, or
+// a method torn off) that type a member access on a typed receiver, with the
+// context an invocation gives an integer literal argument
+// (`_recordIntegerLiteralType` with the parameter's type). The member is
+// found by type_property_resolver.rs (the interface, `Object` for a receiver
+// that may be null, or the most specific applicable extension), or for an
+// explicit extension override by extension_member_resolver.rs
+// (`getOverrideMember`, with the override's type arguments written or
+// inferred from its argument).
 //
-// A member access is typed only when its receiver is typed (by the earlier
-// slices of type_analyzer.rs and binary_expression_resolver.rs, or by this
-// one) and it resolves as far as this port resolves it: the receiver's static
-// type may not be null and its bound is an interface type, the name is not
-// private, and the interface (inheritance_manager3.rs) has a member of that
-// name with declared types: for an invocation a method that is not generic,
-// for a read a getter (a field's getter) or such a method. Not ported, so
-// left untyped: `?.`, cascades, `super`, `this` and implicit `this`, static
-// members and import prefixes, extensions and extension overrides (upstream
-// looks for one when the interface has no such member or the receiver may be
-// null), `dynamic`, `Never`, invalid, function and record receivers, private
-// names (a private field may be promoted by flow analysis, and a private
-// name is looked up per library), generic methods and explicit type
-// arguments, members with types override or top-level inference would infer,
-// calls of getters (the getter read is typed, the call of its value is not),
-// `remainder` and `clamp` on numbers
-// (`refineNumericInvocationType` refines them from their arguments), implicit
-// call tear-offs, flow analysis and diagnostics.
+// A member access is typed only when its receiver (or the override's
+// argument) is typed (by the earlier slices of type_analyzer.rs and
+// binary_expression_resolver.rs, or by this one) and it resolves as far as
+// this port resolves it: the receiver's type is not `dynamic`, invalid,
+// `void` or `Never` (nor bounded by them), the name is not private, and the
+// member found has declared types: for an invocation a method that is not
+// generic, for a read a getter (a field's getter) or such a method; an
+// override's member is not static. Not ported, so left untyped: `?.`,
+// cascades, `super`, `this` and implicit `this`, static members and import
+// prefixes, `dynamic`, `Never`, invalid and void receivers, `call` of
+// functions, record fields, private names (a private field may be promoted
+// by flow analysis, and a private name is looked up per library), generic
+// methods and explicit type arguments, members with types override or
+// top-level inference would infer, calls of getters (the getter read is
+// typed, the call of its value is not), `remainder` and `clamp` on numbers
+// (`refineNumericInvocationType` refines them from their arguments),
+// implicit call tear-offs, flow analysis and diagnostics.
 
 use std::collections::{HashMap, HashSet};
 

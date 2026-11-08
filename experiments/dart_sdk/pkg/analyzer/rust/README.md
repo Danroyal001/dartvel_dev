@@ -846,8 +846,8 @@ into one member when their signatures agree and otherwise the most specific
 one, with the receiver's type arguments substituted. `type_system.rs` adds
 `resolveToBound`, `isDynamicBounded` and `isInvalidBounded`.
 
-Limits: extensions and extension overrides, `super` receivers, members whose
-types override inference would infer (an operator without a declared
+Limits (extensions were added by the extension slice below): `super`
+receivers, members whose types override inference would infer (an operator without a declared
 return or parameter type, which upstream infers from what it overrides),
 combined member signatures where no candidate is most specific, `?[]`,
 cascades, compound assignments and increments, implicit call tear-offs and
@@ -856,9 +856,8 @@ other contexts (call arguments, untyped variables, closures' inferred return
 types), and every invocation an operand of which is not typed. The
 identifiers slice leaves out every variable read next to `==` or `!=` (they
 can promote), so equality with a variable operand is not selected. The
-`--members` slice below reuses the lookup; extension resolution, which would
-bring in the nullable receivers and the members an interface lacks, does not
-yet.
+`--members` slice below reuses the lookup, and the extension slice extends
+both.
 
 The fixture `tests/body_corpus/user_operators.dart` covers each operator on
 `int`, `double`, `num` and `String`, literal and parenthesized operands,
@@ -931,11 +930,11 @@ row in its place), and the call is not typed. `body_dump` finds the member
 accesses of a V1 projection by offset and length, since the projection of
 `a.f().g()` gives the inner invocation the whole chain as its origin.
 
-Limits: `?.` and nullable receivers, cascades, `super`, `this` and implicit
-`this`, static members and import prefixes, extensions and extension
-overrides (upstream looks for one when the interface has no such member, or
-the receiver may be null), `dynamic`, `Never`, invalid, function and record
-receivers, private names (a private field may be promoted by flow analysis,
+Limits (as extended by the extension slice below): `?.`, nullable
+receivers that neither `Object` nor an extension serves, cascades, `super`,
+`this` and implicit `this`, static members and import prefixes, `dynamic`,
+`Never`, invalid and `void` receivers, `call` of functions and record
+fields, private names (a private field may be promoted by flow analysis,
 and a private name is looked up per library, which `get_member` does not
 port), generic methods and explicit type arguments, members whose types
 override or top-level inference would infer, the call of a getter's value,
@@ -967,6 +966,93 @@ signatures, 50 invocations whose return type does not resolve). The earlier test
 and 418 rows), the default corpus (41,283, 13,036, 1,096, 50,276 and 1,359
 rows) and the held-out roots (146,712, 52,170, 10,879, 108,816 and 13,605 rows).
 
+Extension members widen `--members` and `--user-operators` rather than
+adding a flag: an extension member is a member access or an operator
+invocation like any other. A member access is now selected on any known
+receiver whose static type is not `dynamic`, invalid, `void` or `Never` (nor
+bounded by them), or on an explicit extension override `E(x)`, `E<T>(x)` or
+`p.E(x)` with one positional argument that is known, when the member it
+resolves to is one the port's lookup finds: of the overriding extension; of
+an applicable extension; of `Object` when the receiver may be null or its
+bound is not an interface type; else of the interface; and not static. An
+operator invocation's receiver may now be nullable when the operator is an
+extension's, and may be an override with a known argument (not of `==` or
+`!=`). Upstream decides the member, so both sides still decide the selection
+independently: a lookup that differs shows as a missing or extra row.
+
+`src/dart/resolver/type_property_resolver.rs` ports `TypePropertyResolver.resolve`
+for a read: `dynamic` and invalid receivers have only `Object`'s members; a
+receiver that may be null finds `Object`'s member, else an extension's; any
+other finds its bound's interface member, stopping there when the interface
+has a setter of the name (`has_setter` in `inheritance_manager3.rs`, which
+is what `getMember3(Name('$name='))` answers, `[]=` for `[]`) or for `call`
+of `Function`, then, but for a function's `call`, `Never` and a record
+field, the most specific applicable extension, then `Object`.
+`src/dart/resolver/extension_member_resolver.rs` ports `findExtension`
+(`_chooseMostSpecific`, `_isMoreSpecific`: a non-platform extension beats a
+platform one, then the instantiated extended types, then the
+instantiate-to-bounds ones), `getOverrideMember` and the type arguments
+`resolveOverride` gives an override (written, `dynamic` for each when their
+number is wrong, or inferred by `chooseFinalTypes` from the argument);
+`src/dart/resolver/applicable_extensions.rs` ports `havingMemberWithBaseName`
+(an instance field's getter and setter, then a method, as two candidates;
+`[]` and `[]=` for `[]`) and `applicableTo` (fresh copies of the type
+parameters inferred from the receiver with `GenericInferrer.constrainArgument`,
+newly ported, then a subtype check). `Scopes::accessible_extensions` gives
+`LibraryFragmentScope.accessibleExtensions`: the library's extensions
+(unnamed and private too), those of the imports without a prefix, of each
+prefix, and of the enclosing file, with `PrefixScope` now keeping its
+extensions. `TypeAnalyzer` records an override where `_visitScopeInvocation`
+makes one: a call whose name (or prefixed name) finds an extension in scope.
+Through an override, a binary or unary operator has the extension's method
+unsubstituted (upstream's `extension.getMethod`, so `-BoxedList(ints)` is
+`T`), and `[]` the substituted one (`getOverrideMember`); extension members
+are never refined numerically. `body_dump` writes the read `r.p` of a
+record-typed receiver as a `PropertyAccess`, as `V1Projection` projects it
+(`_usesPrefixedIdentifier`), which record receivers now reach.
+
+Limits: static extension members, private names, `?.` and cascades through
+extensions, explicit type arguments that do not resolve, overrides with
+other than one positional argument, `==` through an override, generic
+extension methods, extension members with implicit types, the receiver
+context of an override (an integer literal argument stays untyped), and
+every access whose receiver or override argument is not typed.
+
+The fixture `tests/body_corpus/extensions.dart` (with
+`extensions_library.dart` and `extensions_part.dart`) covers extensions
+declared in the library, in a part, imported, imported with a prefix,
+hidden, unnamed in another library, private; generic extensions (on
+`List<T>`, `Map<A, B>`, bounded `N extends num`, `T extends Shape`), the
+SDK's (`EnumName`, `IterableExtensions`, `FutureExtensions`); the most
+specific of several (subclass, `int` over `num`, `List` over `Iterable`),
+ambiguity, a setter-only extension, an interface setter or member of the
+name; nullable receivers with `Object` members and extensions on nullable
+types; function and record receivers (a record field wins); operators a
+class lacks, on nullable receivers, generic ones; explicit overrides with
+inferred, written and wrong-count type arguments, prefixed, inapplicable,
+static, missing, null-aware, cascaded, with two arguments, shadowed by a
+local, and operators through them; and contexts of integer arguments.
+Before the port resolved extensions, the fixtures produced 389 upstream member
+rows (3 files differing) and 490 operator rows (2 files differing, the
+existing `user_operators.dart` among them); with the cases added they have
+409 member rows and 496 operator rows, which match. Unit tests in `type_analyzer_test.rs` (implicit
+application, overrides, operators, rejected lookups, accessible extensions
+with an import, a prefix, `hide`, unnamed and private extensions and a
+platform extension) failed before the port (all `-`, but the last's two
+extension-free reads). Measured 2026-11-09: the default corpus matches 19,879
+member rows (was 18,467) and 1,359 operator rows across 589 files (173
+seconds for both), and the held-out roots 30,615 member rows (was 29,691) and
+13,690 operator rows (was 13,605) across 5,730 files (470 seconds), zero
+differences. The literal, operator, integer and identifier tests still match
+on the fixture (180, 78, 147 and 623 rows), the default corpus (41,283,
+13,036, 1,096 and 50,276 rows) and the held-out roots (146,712, 52,170,
+10,879 and 108,816 rows).
+Two existing unit tests changed: `member_accesses_resolution_does_not_reach_are_left_untyped`
+read `s.ext` of `extension on String` and expected it untyped, and
+`operators_resolution_does_not_reach_are_left_untyped` did the same for
+`s - s`; both now resolve upstream's way, so the extensions in those tests
+are `on int` (inapplicable to `String`), keeping the tests' intent: an
+extension member upstream does not find stays untyped.
 `tests/type_analyzer_test.rs` runs the analyzer on a hand-built `dart:core`
 (so it can run under Miri, not yet done): the literal and operator types,
 integer literals with no context (`int`), with declared contexts (aliases,
