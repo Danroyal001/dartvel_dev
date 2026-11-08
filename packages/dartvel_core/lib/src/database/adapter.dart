@@ -5,6 +5,7 @@ import 'dart:async';
 
 import '../preview/preview_database_guard.dart';
 import '../tenancy/tenants.dart';
+import 'query_tracing.dart';
 import 'records.dart';
 
 abstract class DVDatabaseAdapter {
@@ -808,7 +809,9 @@ class DVDatabase {
     List<Object?>? params,
   ]) {
     _refuseUnscoped(sql);
-    return _configuredAdapter.query(sql, params);
+    final DVDatabaseAdapter adapter = _configuredAdapter;
+    // A span under the request, so a slow page shows which query.
+    return dvTraceDatabaseCall(sql, () => adapter.query(sql, params));
   }
 
   Future<int> execute(String sql, [List<Object?>? params]) {
@@ -816,7 +819,8 @@ class DVDatabase {
     // a row in the table belonging to nobody, which every tenant then cannot
     // see.
     _refuseUnscoped(sql);
-    return _configuredAdapter.execute(sql, params);
+    final DVDatabaseAdapter adapter = _configuredAdapter;
+    return dvTraceDatabaseCall(sql, () => adapter.execute(sql, params));
   }
 
   /// Runs [body] with the tenant check off.

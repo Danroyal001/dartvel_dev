@@ -6284,7 +6284,10 @@ errors and status, the sampler that decides from the trace id, the exporter
 interface with in-memory and ring-buffer implementations, the HTTP server
 middleware that starts a server span per request and propagates context, a
 client span for every outbound `DV.Http` call made inside a span with the
-`traceparent` naming it, the OTLP/HTTP exporter (the JSON encoding, batched on
+`traceparent` naming it, a client span for every `DV.Database` query made
+inside a span (named for the operation and table, recording the statement's
+shape with every literal reduced to `?` and no parameter), the OTLP/HTTP
+exporter (the JSON encoding, batched on
 a bounded queue, never blocking, dropping with a count under `DV-TRACE-002`
 and `DV-TRACE-003`), the `dartvel.tracing` block above (`ratio`, `exporter`,
 `endpoint`, `queue`) read strictly at build time and handed to the server,
@@ -6296,8 +6299,10 @@ stops, the trace id on every log line, and `/_dartvel/traces` serving the ring
 buffer when diagnostics endpoints are on.
 
 Not built: the protobuf encoding of OTLP; a request span on every request
-rather than on routes that declare the `tracing` middleware; spans for
-database queries, queue publish and consume, and transactions; an AI call's
+rather than on routes that declare the `tracing` middleware; a span for a
+query a component sends to an adapter it holds directly rather than through
+`DV.Database`; spans for
+queue publish and consume, and transactions; an AI call's
 span as a child of the request rather than a trace of its own; trace context
 in the job envelope and the links that follow from it; client spans and their
 ingest; span attribute and duration limits (`maxSpanDuration` is not read
