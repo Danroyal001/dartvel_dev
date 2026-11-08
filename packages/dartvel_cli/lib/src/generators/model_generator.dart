@@ -2793,7 +2793,13 @@ class ModelGenerator {
         sb.writeln('  static DVImportResult<$className> csv(String content) {');
         // Records, not lines: a quoted value can hold a comma or a line
         // break, and the exporter writes exactly those (dvParseCsv).
+        // Each record's line in the file, so a row error names the line a
+        // person has to fix, after a blank line or a quoted line break too.
         sb.writeln('    final lines = dvParseCsv(content);');
+        sb.writeln('    final lineNumbers = <int>[];');
+        sb.writeln(
+          '    dvSplitCsvRecords(content, startLines: lineNumbers);',
+        );
         sb.writeln('    if (lines.isEmpty) {');
         sb.writeln(
           '      return const DVImportResult<$className>(items: <$className>[]);',
@@ -2817,7 +2823,7 @@ class ModelGenerator {
         sb.writeln('        items.add(${className}Parser.fromJson(row));');
         sb.writeln('      } on Object catch (error) {');
         sb.writeln('        errors.add(DVImportRowError(');
-        sb.writeln('          row: index + 1,');
+        sb.writeln('          row: lineNumbers[index],');
         sb.writeln('          message: error.toString(),');
         sb.writeln('        ));');
         sb.writeln('      }');
@@ -2855,18 +2861,20 @@ class ModelGenerator {
         sb.writeln('    return jobs;');
         sb.writeln('  }');
         sb.writeln();
+        // Blank lines are skipped where they are, not filtered out first, so
+        // a row error's number is the line of the file it is on.
         sb.writeln(
           '  static DVImportResult<$className> ndjson(String content) {',
         );
-        sb.writeln('    final lines = const convert.LineSplitter()');
-        sb.writeln('        .convert(content)');
-        sb.writeln('        .where((line) => line.trim().isNotEmpty)');
-        sb.writeln('        .toList(growable: false);');
+        sb.writeln(
+          '    final lines = const convert.LineSplitter().convert(content);',
+        );
         sb.writeln('    final items = <$className>[];');
         sb.writeln('    final errors = <DVImportRowError>[];');
         sb.writeln(
           '    for (int index = 0; index < lines.length; index += 1) {',
         );
+        sb.writeln('      if (lines[index].trim().isEmpty) continue;');
         sb.writeln('      try {');
         sb.writeln('        final decoded = convert.jsonDecode(lines[index]);');
         sb.writeln('        if (decoded is! Map<Object?, Object?>) {');

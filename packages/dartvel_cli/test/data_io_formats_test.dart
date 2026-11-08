@@ -151,4 +151,21 @@ void main() {
     expect(out, contains('first Deploying, "quoted" views 3'));
     expect(out, contains('tsv Tabbed'));
   }, timeout: const Timeout(Duration(minutes: 5)));
+  test('a row error names the line of the file it is on', () async {
+    // The importers counted what they kept rather than the file's lines:
+    // NDJSON dropped blank lines before numbering, and CSV numbered records,
+    // so after a blank line or a quoted line break every error pointed at
+    // the wrong line of the file a person has to go and fix.
+    final Directory root = await project();
+    final String out = await run(root, r'''
+  final DVImportResult<Note> ndjson = Note.importNdjson(
+      '{"id":"a","title":"A"}\n\n{"id":"b","title":"B"}\nnot json\n');
+  print('ndjson ${ndjson.errors.map((DVImportRowError e) => e.row).join(',')}');
+  final DVImportResult<Note> csv = Note.importCsv(
+      'id,title,views\na,"two\nlines",1\n\nb,B,not-a-number\n');
+  print('csv ${csv.errors.map((DVImportRowError e) => e.row).join(',')}');
+''');
+    expect(out, contains('ndjson 4'));
+    expect(out, contains('csv 5'));
+  }, timeout: const Timeout(Duration(minutes: 5)));
 }
