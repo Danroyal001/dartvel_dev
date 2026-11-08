@@ -17,6 +17,7 @@ import 'package:yaml/yaml.dart';
 
 import '../doctor/kiosk_check.dart';
 import '../doctor/module_check.dart';
+import 'native_tree_check.dart';
 
 class DVDeclarationCheck {
   const DVDeclarationCheck({required this.ok, required this.lines});
@@ -70,6 +71,15 @@ class DVDeclarationCheck {
     final DVModuleCheck trust = DVModuleCheck.trust(root);
     if (!trust.ok) {
       lines.addAll(trust.lines);
+      ok = false;
+    }
+
+    // Target-specific code has one home, native/<target>/. A top-level
+    // wasm/ or nodejs/ tree, or a native/ directory named for no target,
+    // is work no build reads -- refused, not silently ignored.
+    final DVNativeTreeCheck nativeTree = DVNativeTreeCheck.run(root);
+    if (!nativeTree.ok) {
+      lines.addAll(nativeTree.lines);
       ok = false;
     }
 

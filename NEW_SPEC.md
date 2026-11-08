@@ -12659,7 +12659,11 @@ Only the targets a project uses are present. The rule is one sentence: **if an
 implementation belongs to a target or a runtime rather than to ordinary Dart
 application code, it belongs under `native/`.** There is no top-level `web/`,
 `wasm/` or `nodejs/` integration tree; a second location for the same kind of
-thing is how a convention stops being one.
+thing is how a convention stops being one. `dartvel build` checks this before it
+generates anything: a top-level `wasm/` or `nodejs/` tree that holds files, or a
+`native/` directory named for no target, stops the build with the name it
+should have. Top-level `web/` is the Flutter web scaffold the web build
+generates, not an integration tree, and is left where Flutter reads it.
 
 Integrations are generated FFI/ffigen, JNI/jnigen, web-interop, WASM or Node
 bindings — see *Native Binding Graph*. Never Flutter platform channels.

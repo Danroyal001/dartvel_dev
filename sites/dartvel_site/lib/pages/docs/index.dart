@@ -196,6 +196,9 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
             'The Rust bindings are one integer type, DV.Rust.Int, and it '
                 'does its arithmetic in Dart: there is no Rust behind it '
                 'yet.',
+            'The build checks the native/ layout but reads nothing '
+                'from native/<target>/: no build compiles or bundles what '
+                'is put there yet.',
           ],
         ),
       ],
