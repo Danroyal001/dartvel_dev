@@ -2291,7 +2291,17 @@ class ModelGenerator {
         sb.writeln('    return $className(');
         for (final field in fields) {
           final name = field['name']!;
-          sb.writeln('      $name: ${_fromJsonValue(field, studioModelNames)},');
+          var read = _fromJsonValue(field, studioModelNames);
+          // A file need not carry every field: an export leaves a sensitive
+          // one out by default, and a hand-written import may leave out
+          // anything with a default. A missing value takes the declared
+          // default, as a stored row does. A required field with none is
+          // named by the importer (_dvRequire) before this runs.
+          final declaredDefault = field['default'];
+          if (declaredDefault != null) {
+            read = "json['$name'] == null ? ($declaredDefault) : ($read)";
+          }
+          sb.writeln('      $name: $read,');
         }
         sb.writeln('    );');
         sb.writeln('  }');
@@ -2756,6 +2766,24 @@ class ModelGenerator {
         sb.writeln();
         sb.writeln('/// How [$className] reads a file. Reached through the model.');
         sb.writeln('class _${className}Import {');
+        // A required field the file does not carry is a row error that
+        // names the field, rather than "type 'Null' is not a subtype of
+        // type 'String'" from the cast in the parser.
+        final requiredFieldNames = <String>[
+          for (final field in fields)
+            if (field['default'] == null && !field['type']!.endsWith('?'))
+              field['name']!,
+        ];
+        sb.writeln('  static void _dvRequire(Map<String, Object?> row) {');
+        sb.writeln(
+          '    for (final name in const <String>[${requiredFieldNames.map((String name) => "'$name'").join(', ')}]) {',
+        );
+        sb.writeln(
+          "      if (row[name] == null) throw FormatException('$className.\$name is missing or null.');",
+        );
+        sb.writeln('    }');
+        sb.writeln('  }');
+        sb.writeln();
         sb.writeln('  static DVImportResult<$className> csv(String content) {');
         // Records, not lines: a quoted value can hold a comma or a line
         // break, and the exporter writes exactly those (dvParseCsv).
@@ -2779,6 +2807,7 @@ class ModelGenerator {
         );
         sb.writeln('      }');
         sb.writeln('      try {');
+        sb.writeln('        _dvRequire(row);');
         sb.writeln('        items.add(${className}Parser.fromJson(row));');
         sb.writeln('      } on Object catch (error) {');
         sb.writeln('        errors.add(DVImportRowError(');
@@ -2840,8 +2869,10 @@ class ModelGenerator {
         );
         sb.writeln('        }');
         sb.writeln(
-          '        items.add(${className}Parser.fromJson(Map<String, Object?>.from(decoded)));',
+          '        final row = Map<String, Object?>.from(decoded);',
         );
+        sb.writeln('        _dvRequire(row);');
+        sb.writeln('        items.add(${className}Parser.fromJson(row));');
         sb.writeln('      } on Object catch (error) {');
         sb.writeln('        errors.add(DVImportRowError(');
         sb.writeln('          row: index + 1,');
@@ -2908,6 +2939,7 @@ class ModelGenerator {
         );
         sb.writeln('      }');
         sb.writeln('      try {');
+        sb.writeln('        _dvRequire(row);');
         sb.writeln('        items.add(${className}Parser.fromJson(row));');
         sb.writeln('      } on Object catch (error) {');
         sb.writeln('        errors.add(DVImportRowError(');
