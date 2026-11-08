@@ -574,13 +574,22 @@ boolean, double, null, simple strings, adjacent strings, interpolated strings
 and symbols. Integers need downward inference (an integer literal may have
 static type `double`) and are outside this first slice.
 
-`src/dart/resolver/type_analyzer.rs` currently records only those literal
-types, using the linked SDK classes through the narrow
-`src/dart/element/type_provider.rs`. It does not resolve identifiers, infer
-locals or calls, perform flow analysis, report diagnostics or rewrite the
-AST. `body_dump` requires `--literals` and refuses full mode rather than
-presenting missing resolution as a full result. The full upstream dump is
-available as a reference for the next slices.
+`--operators` selects the expressions whose operator fixes their type
+whatever their operands resolve to: `is` and `is!` (`IsExpression`), `!`,
+`&&` and `||` (`bool`: upstream's `LogicalNotResolver` and
+`_resolveLogicalExpression`), `throw` and `rethrow` (`Never`, the type
+provider's `bottomType`), and parentheses whose `unParenthesized` expression
+is one of those or a `--literals` literal (the enclosed type).
+
+`src/dart/resolver/type_analyzer.rs` records those two slices' types, using
+the linked SDK classes through the narrow `src/dart/element/type_provider.rs`.
+It does not resolve identifiers, infer locals or calls, type integer
+literals, `==` (whose type is the `==` method's return type), unary or other
+binary operators, perform flow analysis, report diagnostics or rewrite the
+AST; those expressions get no type rather than a guessed one, including a
+parenthesized one. `body_dump` requires `--literals` or `--operators` and
+refuses full mode rather than presenting missing resolution as a full result.
+The full upstream dump is available as a reference for the next slices.
 
 From the SDK root, using the same setup and environment variables as the
 element oracle:
@@ -604,6 +613,22 @@ differences before that fix. The default corpus now matches 41,283 rows across
 `sdk/lib`, `pkg/front_end/lib`, `pkg/linter/lib` and `pkg/kernel/lib` also
 match: 146,712 rows across 5,730 files, zero differences (548.06 seconds).
 This is not body-resolution parity or a completed performance gate.
+
+`operator_typed_expressions_match_upstream` runs `--operators` the same way
+(mismatches under `ELEMENT_WORK/body-operators`). The fixture
+`tests/body_corpus/operators.dart` (operands resolved and unresolved,
+initializers, asserts, guards, collection elements, catch clauses, dead
+code) produced 52 upstream rows that all differed (`type=-`, same selection)
+before the analyzer typed them; it now matches, as does the literal test on
+the enlarged fixture (57 rows, 5 files). Measured 2026-11-08: the default
+corpus matches 13,036 rows across 589 files (145 seconds), and the held-out
+roots above 52,170 rows across 5,730 files (397 seconds), zero differences.
+
+`tests/type_analyzer_test.rs` runs the analyzer on a hand-built `dart:core`
+(so it can run under Miri, not yet done): the literal and operator types, and
+that `==`, unary minus, integer literals, identifiers and parentheses around
+them stay untyped. Typing an unknown parenthesized expression `bool` fails
+that last test.
 
 `tests/oracle_comparison.rs` checks that missing empty dumps count as
 differences, extra dumps fail, and identical empty/nonempty dumps match. Its
