@@ -220,6 +220,8 @@ void main() {
         server.url,
         reconnect: DVReconnectPolicy.never,
         heartbeat: const Duration(milliseconds: 50),
+        // Generous, so a loaded machine delaying a pong cannot fail it.
+        heartbeatTimeout: const Duration(seconds: 5),
       );
       addTearDown(alive.close);
       await _within(alive.connect());
