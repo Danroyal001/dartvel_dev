@@ -15147,7 +15147,8 @@ job reaches the tray only by running as a labelled worker run.
 `DV-STATE-003` is `dartvel analyze strings`: it reads a package's `lib/`
 lexically and reports each literal a widget shows where a framework string
 belongs. `emptyLabel` was its first finding; `dartvel_flutter`'s own widgets,
-outside its developer tools, now have none.
+outside its developer tools, now have none, and the prebuilt account pages
+and the sign-in frame read every word they show from framework strings.
 
 ## Deliberately absent
 

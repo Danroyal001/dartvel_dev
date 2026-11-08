@@ -237,8 +237,6 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             DocsStatus('Error, Empty, and Loading States', missing: <String>[
               'Durable jobs report no progress yet, so the tray shows worker '
                   'runs and not queued jobs.',
-              'The account pages still pass some English through helpers '
-                  'that DV-STATE-003 does not read.',
             ]),
           ],
         ),
