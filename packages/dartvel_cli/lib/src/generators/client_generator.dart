@@ -4281,6 +4281,7 @@ void startDartvelKiosk() {
   static DVObservabilityAndLogging get ObservabilityAndLogging => runtime.DV.ObservabilityAndLogging;
   static DVTenants get Tenants => runtime.DV.Tenants;
   static DVCrashes get Crashes => runtime.DV.Crashes;
+  static DVRust get Rust => runtime.DV.Rust;
   static String get currentTenant => runtime.DV.currentTenant;
   static set currentTenant(String tenant) => runtime.DV.currentTenant = tenant;
   static R withTenant<R>(String tenant, R Function() callback) => runtime.DV.withTenant<R>(tenant, callback);
