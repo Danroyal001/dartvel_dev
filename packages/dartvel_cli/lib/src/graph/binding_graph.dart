@@ -252,21 +252,29 @@ class DVBindingGraph {
       ..sort((DVModuleMount a, DVModuleMount b) => a.id.compareTo(b.id));
     for (final DVModuleMount mount in mounts) {
       final Map<Object?, Object?>? module = _moduleBlock(root, mount);
-      if (module == null) continue;
-      final String? moduleKind = module['kind'] as String?;
-      if (moduleKind == null || _dartKinds.contains(moduleKind)) continue;
-      final Map<String, Map<String, String>> ops = _operations(module);
-      final List<String> targets = module['targets'] is List
-          ? <String>[for (final Object? t in module['targets'] as List) '$t']
-          : dvBindingNativeTargets;
-      for (final String env in const <String>['native', 'web', 'backend']) {
-        for (final String? target
-            in env == 'native' ? targets : const <String?>[null]) {
-          nodes.add(_node(mount.id, moduleKind, env, target, ops));
-        }
-      }
+      if (module != null) nodes.addAll(ofModule(mount.id, module));
     }
     return DVBindingGraph(nodes);
+  }
+
+  /// The bindings of one module, from its `dartvel.module` block: what a
+  /// project graph records once it is mounted, and what `dartvel add
+  /// --dry-run` prints before it is.
+  static List<DVBindingNode> ofModule(String id, Map<Object?, Object?> module) {
+    final String? moduleKind = module['kind'] as String?;
+    if (moduleKind == null || _dartKinds.contains(moduleKind)) {
+      return const <DVBindingNode>[];
+    }
+    final Map<String, Map<String, String>> ops = _operations(module);
+    final List<String> targets = module['targets'] is List
+        ? <String>[for (final Object? t in module['targets'] as List) '$t']
+        : dvBindingNativeTargets;
+    return <DVBindingNode>[
+      for (final String env in const <String>['native', 'web', 'backend'])
+        for (final String? target
+            in env == 'native' ? targets : const <String?>[null])
+          _node(id, moduleKind, env, target, ops),
+    ];
   }
 
   static DVBindingNode _node(String id, String moduleKind, String env,

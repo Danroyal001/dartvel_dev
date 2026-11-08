@@ -28,6 +28,7 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../graph/binding_graph.dart';
 import '../module_trust/module_lock.dart';
 import '../modules/described_api.dart';
 import '../modules/foreign/apple_module.dart';
@@ -148,6 +149,23 @@ class DVAddPlan {
           'dartvel.modules.$id',
     ];
   }
+}
+
+/// How each environment's calls to a generated module would cross, read from
+/// the pubspec it would write: one line per environment and device target
+/// where something is real, by binding kind and carrier, and the DV-BIND
+/// diagnostic for a cell nothing would carry.
+List<String> _bindingLines(String id, DVGeneratedModule module) {
+  final Object? doc = loadYaml(module.files['pubspec.yaml'] ?? '');
+  if (doc is! Map || doc['dartvel'] is! Map) return const <String>[];
+  final Object? block = (doc['dartvel'] as Map)['module'];
+  if (block is! Map) return const <String>[];
+  return <String>[
+    for (final DVBindingNode node in DVBindingGraph.ofModule(id, block))
+      if (node.kind != null)
+        'binding  ${node.environment}${node.target == null ? '' : ' ${node.target}'}: '
+            '${node.kind}, ${node.carrier ?? node.problem}',
+  ];
 }
 
 class AddCommand extends Command<void> {
@@ -331,6 +349,7 @@ class AddCommand extends Command<void> {
           'op       ${op.name}: ${dvModuleEnvironments.map((DVModuleEnvironment e) => '${e.name} ${spec.outcomes[op.name]![e]!.name}').join(', ')}',
         for (final MapEntry<String, String> skip in spec.skipped.entries)
           'skips    ${skip.key}: ${skip.value}',
+        ..._bindingLines(moduleId, module),
       ],
       pin: DVModulePin(
         package: module.packageName,

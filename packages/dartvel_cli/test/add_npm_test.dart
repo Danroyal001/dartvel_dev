@@ -85,6 +85,7 @@ Future<int> run(String root, List<String> args, DVSourceFetcher fetcher) async {
 }
 
 void main() {
+  carriers();
   test('npm: resolves the range, verifies the tarball and wraps the package',
       () async {
     final String root = project();
@@ -118,5 +119,28 @@ void main() {
     expect(await run(root, <String>['npm:@acme/text-kit'], registry), 1);
     expect(Directory(p.join(root, 'modules')).existsSync(), isFalse);
     expect(File(p.join(root, dvModuleLockFile)).existsSync(), isFalse);
+  });
+}
+
+void carriers() {
+  // Carrier selection is printed by --dry-run before anything is written:
+  // how each environment's calls would cross, by binding kind and carrier.
+  test('--dry-run prints the binding kind and carrier per environment',
+      () async {
+    final String root = project();
+    final DVAddPlan plan = await AddCommand.planForeign(
+        root, 'npm:@acme/text-kit', fetcher: _Registry(npmTarball()));
+    final List<String> bindings = plan.lines
+        .where((String l) => l.startsWith('binding '))
+        .toList();
+    expect(bindings, contains(allOf(contains('web'), contains('DVWebBinding'),
+        contains('import()'))));
+    expect(bindings, contains(allOf(contains('backend'),
+        contains('DVNodeJsBinding'))));
+    expect(bindings, contains(allOf(contains('native linux'),
+        contains('DVNodeJsBinding'))));
+    // The package declares the desktops only, so no phone appears.
+    expect(bindings.join('\n'), isNot(contains('android')));
+    expect(Directory(p.join(root, 'modules')).existsSync(), isFalse);
   });
 }
