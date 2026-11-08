@@ -42,3 +42,24 @@ DVPostgresDatabaseAdapter postgresTestAdapter() => DVPostgresDatabaseAdapter(
       user: io.Platform.environment['DARTVEL_TEST_POSTGRES_USER'] ?? 'postgres',
       password: io.Platform.environment['DARTVEL_TEST_POSTGRES_PASSWORD'],
     );
+
+/// Whether a live server was named. When it was, a suite runs against it and
+/// fails -- never skips -- if it cannot connect.
+bool get postgresTestConfigured =>
+    (io.Platform.environment['DARTVEL_TEST_POSTGRES_PORT'] ?? '').isNotEmpty;
+
+/// Drops every table in the current schema whose name starts with
+/// [prefix], so a suite that expects an empty database per test gets one.
+Future<void> postgresDropTables(
+  DVPostgresDatabaseAdapter database,
+  String prefix,
+) async {
+  final List<Map<String, Object?>> tables = await database.query(
+    'SELECT table_name FROM information_schema.tables '
+    'WHERE table_schema = current_schema() AND table_name LIKE ?',
+    <Object?>['$prefix%'],
+  );
+  for (final Map<String, Object?> row in tables) {
+    await database.execute('DROP TABLE IF EXISTS "${row['table_name']}"');
+  }
+}

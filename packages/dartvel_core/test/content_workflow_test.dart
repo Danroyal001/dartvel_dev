@@ -18,6 +18,8 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache;
 import 'package:test/test.dart';
 
+import 'support/postgres_live.dart';
+
 typedef _Adapter = (String name, DVDatabaseAdapter Function() create);
 
 final List<_Adapter> _adapters = <_Adapter>[
@@ -26,6 +28,9 @@ final List<_Adapter> _adapters = <_Adapter>[
   // Refuses every SQL statement, as a document database would: the whole
   // workflow, review queue and schedules included, runs on records.
   ('records engine', DVMemoryRecordEngine.new),
+  // A real server, when DARTVEL_TEST_POSTGRES_PORT names one: the same
+  // suite on Postgres, tables dropped before each test.
+  if (postgresTestConfigured) ('postgres', postgresTestAdapter),
 ];
 
 class _User {
@@ -151,7 +156,12 @@ void main() {
       late DVContentWorkflow<_Page> wf;
 
       setUp(() async {
-        h = _Harness(adapter.$2());
+        final DVDatabaseAdapter database = adapter.$2();
+        if (database is DVPostgresDatabaseAdapter) {
+          await postgresDropTables(database, 'dartvel_content');
+          addTearDown(database.close);
+        }
+        h = _Harness(database);
         wf = h.workflow;
         await wf.ensureSchema();
       });
