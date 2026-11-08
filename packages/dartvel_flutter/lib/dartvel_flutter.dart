@@ -37,6 +37,8 @@ import 'src/auth/session_client.dart';
 // conditional SEO implementation
 import 'src/crashes/crashes.dart';
 import 'src/default_theme.dart' show dvWithPageScrollbars;
+import 'src/theme/tokens.dart'
+    show DVThemeTokens, dvThemeTokens, dvUseThemeTokens, dvResolveColor, DVColorToken, DVMotionToken, DVTextRole;
 import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
@@ -912,6 +914,7 @@ export 'src/studio/studio_sign_in.dart'
 export 'src/studio/studio_site_pages.dart';
 export 'src/studio/studio_style.dart';
 export 'src/table/table.dart';
+export 'src/theme/tokens.dart' hide dvThemeTokens, dvUseThemeTokens, dvResolveColor;
 export 'src/updates/shorebird_updates.dart'
     show DVShorebirdNative, DVShorebirdUpdates;
 export 'src/widgets/browser_menu.dart' show DVBrowserMenu;
@@ -9790,6 +9793,14 @@ class DVTheme {
   void setMode(ThemeMode mode) {
     _mode = mode;
   }
+
+  /// The token set `DVColor`, `DVSpace`, `DVRadius`, `DVElevation`,
+  /// `DVMotion` and the `DVText` roles read: dartvel.dev's until the
+  /// application's `dartvel.theme.tokens` or [useTokens] says otherwise.
+  DVThemeTokens get tokens => dvThemeTokens;
+
+  /// Replaces the token set. Widgets built afterwards read the new values.
+  void useTokens(DVThemeTokens tokens) => dvUseThemeTokens(tokens);
 }
 
 class DVBilling {
