@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
 import 'dart:ui' show ColorSpace;
+
+import 'package:flutter/material.dart';
 
 /// A colour with a value per mode: light, dark and, where the token declares
 /// one, high contrast.

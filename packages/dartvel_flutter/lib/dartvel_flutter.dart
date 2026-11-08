@@ -1732,9 +1732,14 @@ class DVModifier {
   /// nicety to keep.
   DVModifier animate(
     Duration duration, {
-    Curve curve = Curves.easeOut,
+    Curve? curve,
   }) =>
-      _copyWith(animateDuration: duration, animateCurve: curve);
+      _copyWith(
+        animateDuration: duration,
+        // A motion token carries its own curve; anything else eases out.
+        animateCurve: curve ??
+            (duration is DVMotionToken ? duration.curve : Curves.easeOut),
+      );
 
   /// What this box looks like while the pointer is over it.
   ///
@@ -2698,11 +2703,30 @@ class DVBox<T> extends StatelessWidget {
     final decoration = BoxDecoration(
       // Null when a gradient is set: Flutter asserts if a BoxDecoration
       // carries both, and the gradient is the more specific instruction.
-      color: m?.gradientValue != null ? null : m?.boxColor,
+      //
+      // Colour tokens resolve here, against the mode this box is drawn in,
+      // so DVColor.surface is the dark ground in dark and the high-contrast
+      // one when the reader asks for it.
+      color: m?.gradientValue != null || m?.boxColor == null
+          ? null
+          : dvResolveColor(context, m!.boxColor!),
       gradient: m?.gradientValue,
       borderRadius: m?.borderRadius,
-      border: m?.borderValue,
-      boxShadow: m?.shadows,
+      border: _dvResolveBorder(context, m?.borderValue),
+      boxShadow: m?.shadows == null
+          ? null
+          : <BoxShadow>[
+              for (final BoxShadow shadow in m!.shadows!)
+                shadow.color is DVColorToken
+                    ? BoxShadow(
+                        color: dvResolveColor(context, shadow.color),
+                        offset: shadow.offset,
+                        blurRadius: shadow.blurRadius,
+                        spreadRadius: shadow.spreadRadius,
+                        blurStyle: shadow.blurStyle,
+                      )
+                    : shadow,
+            ],
       image: m?.bgImage,
     );
 
@@ -4029,7 +4053,9 @@ class DVText extends StatelessWidget {
       result = Text(
         text,
         style: TextStyle(
-          color: modifier?.textColor,
+          color: modifier?.textColor == null
+              ? null
+              : dvResolveColor(context, modifier!.textColor!),
           fontSize: modifier?.fontSizeValue,
           fontWeight: modifier?.fontWeightValue,
           letterSpacing: modifier?.letterSpacingValue,
@@ -13086,4 +13112,19 @@ String dvGlobalName(Type type) {
   final String name = type.toString().split('<').first.trim();
   if (name.isEmpty) return name;
   return name[0].toLowerCase() + name.substring(1);
+}
+
+/// [border] with any colour token on its sides resolved where [context] is
+/// drawn. Borders of other kinds pass through unchanged.
+BoxBorder? _dvResolveBorder(BuildContext context, BoxBorder? border) {
+  BorderSide side(BorderSide value) => value.color is DVColorToken
+      ? value.copyWith(color: dvResolveColor(context, value.color))
+      : value;
+  if (border is Border) {
+    return Border(top: side(border.top), right: side(border.right), bottom: side(border.bottom), left: side(border.left));
+  }
+  if (border is BorderDirectional) {
+    return BorderDirectional(top: side(border.top), start: side(border.start), end: side(border.end), bottom: side(border.bottom));
+  }
+  return border;
 }
