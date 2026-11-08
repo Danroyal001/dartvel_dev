@@ -440,7 +440,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Styling': 'Partial',
   'Tab Workspaces': 'Partial',
   'Terminal Rendering': 'Partial',
-  'Testing': 'Partial',
+  'Testing': 'Shipped',
   'The Golden Path': 'Shipped',
   'Theme': 'Partial',
   'UI': 'Shipped',
