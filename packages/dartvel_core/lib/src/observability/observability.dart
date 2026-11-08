@@ -71,6 +71,7 @@ class DVObservability {
   static void useTracing({
     DVTraceExporter? exporter,
     double ratio = 1,
+    Duration? maxSpanDuration,
   }) {
     tracer = DVTracer(
       exporter: exporter == null
@@ -79,6 +80,7 @@ class DVObservability {
       sampler: ratio >= 1
           ? DVTraceSampler.always()
           : DVTraceSampler.ratio(ratio),
+      maxSpanDuration: maxSpanDuration,
     );
   }
 

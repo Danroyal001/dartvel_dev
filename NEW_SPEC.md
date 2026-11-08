@@ -6292,8 +6292,9 @@ a bounded queue, never blocking, dropping with a count under `DV-TRACE-002`
 and `DV-TRACE-003`), an AI feature run as a client span under the
 request carrying the model and estimated token counts and never the prompt,
 a limit of 128 attributes per span by default
-(`DV-TRACE-010`, the error attribute exempt), the `dartvel.tracing` block above (`ratio`, `exporter`,
-`endpoint`, `queue`) read strictly at build time and handed to the server,
+(`DV-TRACE-010`, the error attribute exempt), spans left open past `maxSpanDuration`
+closed as incomplete (`DV-TRACE-009`), the `dartvel.tracing` block above (`ratio`, `exporter`,
+`endpoint`, `queue`, `maxSpanDuration`) read strictly at build time and handed to the server,
 `DARTVEL_TRACING_EXPORTER`, `DARTVEL_TRACING_ENDPOINT`,
 `DARTVEL_TRACING_RATIO` and the OpenTelemetry `OTEL_EXPORTER_OTLP_*` and
 `OTEL_SERVICE_NAME` variables overriding it at startup, `DV-TRACE-006` and
@@ -6309,7 +6310,7 @@ queue publish and consume, and transactions; measured rather than estimated
 AI token counts, and a span for an AI adapter called directly rather than
 through a feature; trace context
 in the job envelope and the links that follow from it; client spans and their
-ingest; the maximum span duration (`maxSpanDuration` is not read yet); and `dartvel traces` reading anything but the local buffer. The other
+ingest; and `dartvel traces` reading anything but the local buffer. The other
 diagnostics above are registered meanings, not emitted signals: nothing raises
 one yet, and a code that is emitted for the wrong situation is worse than one
 that is not emitted at all.

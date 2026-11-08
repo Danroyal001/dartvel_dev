@@ -11,6 +11,7 @@ import 'package:test/test.dart';
 
 void main() {
   setUp(DVObservability.resetLogging);
+  durationLimits();
 
   group('attribute limit', () {
     test('past the limit, new attributes are dropped and counted', () {
@@ -91,4 +92,91 @@ void main() {
 
 extension<T> on T {
   R let<R>(R Function(T value) body) => body(this);
+}
+
+// Spans are bounded in time, too (DV-TRACE-009): a span left open past its
+// declared maximum is closed as incomplete rather than held for ever, which
+// would be a memory leak that also silently loses its parent's children.
+void durationLimits() {
+  group('maximum span duration', () {
+    setUp(DVObservability.resetLogging);
+
+    test('a span open past the maximum is closed as incomplete and exported',
+        () async {
+      final DVMemoryTraceExporter exporter = DVMemoryTraceExporter();
+      final DVTracer tracer = DVTracer(
+          exporter: exporter,
+          maxSpanDuration: const Duration(milliseconds: 50));
+      final DVSpan leaked = tracer.startSpan('leaked');
+      final DVSpan finished = tracer.startSpan('finished')..end();
+
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(exporter.spans, containsAll(<DVSpan>[leaked, finished]));
+      expect(leaked.duration, isNotNull, reason: 'it was ended');
+      expect(leaked.status, DVSpanStatus.error);
+      expect(leaked.attributes['dartvel.span.incomplete'], 'true');
+      expect(finished.attributes.containsKey('dartvel.span.incomplete'),
+          isFalse);
+      expect(tracer.openSpans, 0);
+    });
+
+    test('ending it later does not export it twice', () async {
+      final DVMemoryTraceExporter exporter = DVMemoryTraceExporter();
+      final DVTracer tracer = DVTracer(
+          exporter: exporter,
+          maxSpanDuration: const Duration(milliseconds: 20));
+      final DVSpan span = tracer.startSpan('slow');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      span.end();
+      expect(exporter.spans.where((DVSpan s) => s == span), hasLength(1));
+    });
+
+    test('DV-TRACE-009 is logged once for a burst', () async {
+      final DVTracer tracer =
+          DVTracer(maxSpanDuration: const Duration(milliseconds: 20));
+      for (int i = 0; i < 5; i++) {
+        tracer.startSpan('leaked $i');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      expect(
+        DVObservability.recentLogs.where((r) => r.code == 'DV-TRACE-009'),
+        hasLength(1),
+      );
+    });
+
+    test('with no maximum declared nothing is tracked', () {
+      final DVTracer tracer = DVTracer();
+      tracer.startSpan('open');
+      expect(tracer.openSpans, 0);
+    });
+
+    test('dartvel.tracing.maxSpanDuration is read and reaches the tracer',
+        () async {
+      expect(
+        DVTracingConfig.parse(<String, Object?>{'maxSpanDuration': '5m'})
+            .maxSpanDuration,
+        const Duration(minutes: 5),
+      );
+      expect(
+        DVTracingConfig.parse(<String, Object?>{'maxSpanDuration': '250ms'})
+            .maxSpanDuration,
+        const Duration(milliseconds: 250),
+      );
+      expect(
+        () => DVTracingConfig.parse(<String, Object?>{'maxSpanDuration': 'soon'}),
+        throwsA(isA<ArgumentError>().having(
+            (ArgumentError e) => e.name, 'name', 'tracing.maxSpanDuration')),
+      );
+      final DVTracingConfig declared = DVTracingConfig.parse(
+          <String, Object?>{'maxSpanDuration': '30s'});
+      expect(DVTracingConfig.parse(declared.toDeclaration()).maxSpanDuration,
+          const Duration(seconds: 30));
+
+      dvConfigureRuntimeTracing(const <String, String>{}, declared: declared);
+      addTearDown(DVObservability.resetTracing);
+      expect(DVObservability.tracer.maxSpanDuration,
+          const Duration(seconds: 30));
+    });
+  });
 }

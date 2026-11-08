@@ -17,6 +17,7 @@ enum DVTracingExporterKind { none, otlp }
 ///     exporter: otlp             # otlp | none
 ///     endpoint: https://collector.internal:4318
 ///     queue: 2048                # spans held for export before dropping
+///     maxSpanDuration: 5m        # an open span past this is closed, incomplete
 /// ```
 ///
 /// Read strictly, for the reason `dartvel.logging` is: every setting has a
@@ -28,6 +29,7 @@ final class DVTracingConfig {
     this.exporter = DVTracingExporterKind.none,
     this.endpoint,
     this.queue = 2048,
+    this.maxSpanDuration,
   });
 
   /// The share of traces recorded. Everything by default: a framework that
@@ -44,11 +46,17 @@ final class DVTracingConfig {
   /// (`DV-TRACE-002`) rather than queued without bound.
   final int queue;
 
+  /// How long a span may stay open before it is closed as incomplete
+  /// (`DV-TRACE-009`), written `250ms`, `30s`, `5m` or `1h`. Unset tracks
+  /// nothing.
+  final Duration? maxSpanDuration;
+
   static const Set<String> _keys = <String>{
     'ratio',
     'exporter',
     'endpoint',
     'queue',
+    'maxSpanDuration',
   };
 
   /// Reads the `dartvel.tracing` block, or the defaults for none.
@@ -94,11 +102,22 @@ final class DVTracingConfig {
           queue, 'tracing.queue', 'must be a whole number above 0');
     }
 
+    final Object? maximum = value['maxSpanDuration'];
+    Duration? maxSpanDuration;
+    if (maximum != null) {
+      maxSpanDuration = maximum is String ? _duration(maximum) : null;
+      if (maxSpanDuration == null || maxSpanDuration <= Duration.zero) {
+        throw ArgumentError.value(maximum, 'tracing.maxSpanDuration',
+            'must be a positive duration such as 250ms, 30s, 5m or 1h');
+      }
+    }
+
     return DVTracingConfig(
       ratio: (ratio as num?)?.toDouble() ?? 1,
       exporter: kind,
       endpoint: uri,
       queue: (queue as int?) ?? 2048,
+      maxSpanDuration: maxSpanDuration,
     );
   }
 
@@ -109,7 +128,23 @@ final class DVTracingConfig {
         'exporter': exporter.name,
         if (endpoint != null) 'endpoint': '$endpoint',
         'queue': queue,
+        if (maxSpanDuration != null)
+          'maxSpanDuration': '${maxSpanDuration!.inMilliseconds}ms',
       };
+}
+
+final RegExp _durationPattern = RegExp(r'^(\d+)(ms|s|m|h)$');
+
+Duration? _duration(String text) {
+  final RegExpMatch? match = _durationPattern.firstMatch(text.trim());
+  if (match == null) return null;
+  final int amount = int.parse(match.group(1)!);
+  return switch (match.group(2)) {
+    'ms' => Duration(milliseconds: amount),
+    's' => Duration(seconds: amount),
+    'm' => Duration(minutes: amount),
+    _ => Duration(hours: amount),
+  };
 }
 
 /// [declared] with the environment's overrides applied.
@@ -161,6 +196,7 @@ DVTracingConfig dvResolveTracingConfig(
     exporter: exporter,
     endpoint: endpoint,
     queue: declared.queue,
+    maxSpanDuration: declared.maxSpanDuration,
   );
 }
 
@@ -200,7 +236,11 @@ DVOtlpTraceExporter? dvConfigureRuntimeTracing(
     );
   }
 
-  DVObservability.useTracing(exporter: exporter, ratio: config.ratio);
+  DVObservability.useTracing(
+    exporter: exporter,
+    ratio: config.ratio,
+    maxSpanDuration: config.maxSpanDuration,
+  );
 
   if (dvDiagnosticsEnabled(environment)) {
     DVObservability.log(

@@ -148,7 +148,9 @@ class DVSpan {
     this.kind = DVSpanKind.internal,
     int attributeLimit = dvDefaultSpanAttributeLimit,
     void Function()? onAttributeLimit,
+    void Function(DVSpan span)? onEnd,
   })  : _exporter = exporter,
+        _onEnd = onEnd,
         _attributeLimit = attributeLimit,
         _onAttributeLimit = onAttributeLimit,
         startedAt = DateTime.now(),
@@ -174,6 +176,7 @@ class DVSpan {
   final DVTraceExporter? _exporter;
   final Stopwatch _stopwatch;
   bool _ended = false;
+  final void Function(DVSpan span)? _onEnd;
 
   Duration? get duration => _ended ? _stopwatch.elapsed : null;
 
@@ -225,11 +228,11 @@ class DVSpan {
 
   void recordError(Object error, [StackTrace? stackTrace]) {
     status = DVSpanStatus.error;
-    // Through setAttribute rather than straight into the map, because an
-    // upstream client quoting the rejected key back at you is one of the
-    // commonest ways a credential ends up in an error string.
-    // Past the attribute limit too: the error is the attribute that matters
-    // most and the one most likely to arrive last.
+    // Redacted as setAttribute redacts, because an upstream client quoting the
+    // rejected key back at you is one of the commonest ways a credential ends
+    // up in an error string -- but written past the attribute limit, since the
+    // error is the attribute that matters most and the one most likely to
+    // arrive last.
     attributes['error'] = dvRedactSecrets('$error');
     if (stackTrace != null) {
       attributes['error.stack'] = dvRedactSecrets('$stackTrace');
@@ -247,6 +250,7 @@ class DVSpan {
     _stopwatch.stop();
     if (status == DVSpanStatus.unset) status = DVSpanStatus.ok;
     if (sampled) _exporter?.export(this);
+    _onEnd?.call(this);
   }
 }
 
@@ -362,8 +366,14 @@ class DVTracer {
     DVTraceExporter? exporter,
     DVTraceSampler? sampler,
     this.attributeLimit = dvDefaultSpanAttributeLimit,
+    this.maxSpanDuration,
   })  : _exporter = exporter,
         _sampler = sampler ?? DVTraceSampler.always() {
+    final Duration? maximum = maxSpanDuration;
+    if (maximum != null && maximum <= Duration.zero) {
+      throw ArgumentError.value(maximum, 'maxSpanDuration',
+          'a maximum of nothing closes every span as it opens');
+    }
     if (attributeLimit < 1) {
       throw ArgumentError.value(attributeLimit, 'attributeLimit',
           'a span that can hold no attribute records nothing about itself');
@@ -376,6 +386,77 @@ class DVTracer {
   /// The most attributes one span holds (`DV-TRACE-010`).
   final int attributeLimit;
   bool _limitReported = false;
+
+  /// How long a span may stay open before it is closed as incomplete
+  /// (`DV-TRACE-009`). Null tracks nothing.
+  final Duration? maxSpanDuration;
+
+  // Open spans in the order they started, so the first is always the next to
+  // expire and one timer covers them all.
+  final Set<DVSpan> _open = <DVSpan>{};
+  Timer? _expiry;
+  bool _expiryReported = false;
+
+  /// Spans started on this tracer and not yet ended, when a maximum is set.
+  int get openSpans => _open.length;
+
+  void _opened(DVSpan span) {
+    if (maxSpanDuration == null) return;
+    _open.add(span);
+    _expiry ??= _scheduleExpiry();
+  }
+
+  void _closed(DVSpan span) {
+    _open.remove(span);
+    if (_open.isEmpty) {
+      _expiry?.cancel();
+      _expiry = null;
+    }
+  }
+
+  Timer? _scheduleExpiry() {
+    if (_open.isEmpty) return null;
+    final DVSpan oldest = _open.first;
+    final Duration left = maxSpanDuration! - oldest._stopwatch.elapsed;
+    // Outside any span: a timer created inside a request's zone would hold
+    // that request's span as its ambient one for as long as it lives.
+    return runZoned(
+      () => Timer(left < Duration.zero ? Duration.zero : left, _expire),
+      zoneValues: <Object, Object?>{dvSpanZoneKey: null},
+    );
+  }
+
+  void _expire() {
+    _expiry = null;
+    final Duration maximum = maxSpanDuration!;
+    final List<DVSpan> expired = <DVSpan>[];
+    for (final DVSpan span in _open) {
+      if (span._stopwatch.elapsed < maximum) break;
+      expired.add(span);
+    }
+    for (final DVSpan span in expired) {
+      span
+        ..status = DVSpanStatus.error
+        ..attributes['dartvel.span.incomplete'] = 'true'
+        ..end();
+    }
+    if (expired.isNotEmpty && !_expiryReported) {
+      _expiryReported = true;
+      DVObservability.log(
+        'DV-TRACE-009: ${expired.length} span(s) passed their maximum '
+        'duration of $maximum and were closed as incomplete.',
+        level: DVLogLevel.warn,
+        code: 'DV-TRACE-009',
+        context: <String, Object?>{'span': expired.first.name},
+      );
+    }
+    _expiry ??= _scheduleExpiry();
+  }
+
+  DVSpan _track(DVSpan span) {
+    _opened(span);
+    return span;
+  }
 
   /// Once per tracer, not once per dropped attribute: the loop that overflows
   /// one span overflows every span, and a log line each is a second flood.
@@ -401,7 +482,7 @@ class DVTracer {
     DVSpanKind kind = DVSpanKind.internal,
   }) {
     if (parent != null) {
-      return DVSpan._(
+      return _track(DVSpan._(
         name: name,
         traceId: parent.traceId,
         spanId: DVTraceContext.newSpanId(),
@@ -411,14 +492,15 @@ class DVTracer {
         kind: kind,
         attributeLimit: attributeLimit,
         onAttributeLimit: _reportAttributeLimit,
-      );
+        onEnd: maxSpanDuration == null ? null : _closed,
+      ));
     }
 
     if (context != null) {
       // The caller's decision, not ours: re-deciding drops the middle out of
       // a trace someone upstream chose to keep, and keeps the middle of one
       // they chose to drop.
-      return DVSpan._(
+      return _track(DVSpan._(
         name: name,
         traceId: context.traceId,
         spanId: DVTraceContext.newSpanId(),
@@ -428,11 +510,12 @@ class DVTracer {
         kind: kind,
         attributeLimit: attributeLimit,
         onAttributeLimit: _reportAttributeLimit,
-      );
+        onEnd: maxSpanDuration == null ? null : _closed,
+      ));
     }
 
     final String traceId = DVTraceContext.newTraceId();
-    return DVSpan._(
+    return _track(DVSpan._(
       name: name,
       traceId: traceId,
       spanId: DVTraceContext.newSpanId(),
@@ -442,7 +525,8 @@ class DVTracer {
       kind: kind,
       attributeLimit: attributeLimit,
       onAttributeLimit: _reportAttributeLimit,
-    );
+      onEnd: maxSpanDuration == null ? null : _closed,
+    ));
   }
 
   /// Runs [body] inside a span, ending it either way and recording a throw.
