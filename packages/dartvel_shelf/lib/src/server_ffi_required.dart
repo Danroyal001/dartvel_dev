@@ -1,3 +1,4 @@
+import 'package:dartvel_core/dartvel.dart' show DVTracingConfig;
 import 'package:dartvel_core/http.dart';
 
 /// Server handle for builds where the native FFI server is not linked.
@@ -74,6 +75,8 @@ Future<ServerHandle> serve(
   int maxBodyBytes = 1024 * 1024,
   Iterable<DVRouteBodyLimit> routeBodyLimits = const <DVRouteBodyLimit>[],
   Map<String, String> securityHeaders = dvDefaultSecurityHeaders,
+  DVTracingConfig tracing = const DVTracingConfig(),
+  String serviceName = 'dartvel',
 }) async {
   throw StateError(
     'Dartvel Shelf server requires the FFI native backend. Build with dart.library.ffi and the ffigen-generated server bindings.',

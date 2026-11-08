@@ -12,7 +12,10 @@ import 'package:dartvel_core/dartvel.dart'
         DVPreviewMembership,
         DVPreviewServer,
         DVWebServerSettings,
+        DVOtlpTraceExporter,
+        DVTracingConfig,
         dvConfigureRuntimeLogging,
+        dvConfigureRuntimeTracing,
         dvDefaultMaxBodyBytes;
 
 import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
@@ -77,6 +80,10 @@ class ServerHandle {
   bool _stopped = false;
   final Set<NativeWebSocketChannel> _webSockets;
 
+  // The OTLP exporter serve() installed, flushed on stop so the spans of the
+  // last requests before a deploy are not lost with the process.
+  DVOtlpTraceExporter? _traceExporter;
+
   ServerHandle(
     this.host,
     this.port,
@@ -100,6 +107,7 @@ class ServerHandle {
     _dartBodyChunkHandler?.close();
     _dartStreamAckHandler?.close();
     _dartWsWakeupHandler?.close();
+    await _traceExporter?.close();
   }
 }
 
@@ -183,6 +191,12 @@ Future<ServerHandle> serve(
   // empty map sends none. See dvDefaultSecurityHeaders for what is in it and
   // why a Content-Security-Policy is not.
   Map<String, String> securityHeaders = dvDefaultSecurityHeaders,
+  // dartvel.tracing: the sampling ratio and where spans go. The environment
+  // overrides it (DARTVEL_TRACING_*, OTEL_EXPORTER_OTLP_*); see
+  // dvConfigureRuntimeTracing.
+  DVTracingConfig tracing = const DVTracingConfig(),
+  // service.name on exported spans, unless OTEL_SERVICE_NAME names one.
+  String serviceName = 'dartvel',
 }) async {
   if (requestTimeout <= Duration.zero) {
     throw ArgumentError.value(requestTimeout, 'requestTimeout',
@@ -211,6 +225,12 @@ Future<ServerHandle> serve(
   // This also decides whether the diagnostics endpoints answer, which is why
   // it runs before the first request can arrive rather than lazily.
   dvConfigureRuntimeLogging(Platform.environment, write: stdout.writeln);
+
+  // Where spans go, decided once, before the first request opens one.
+  final DVOtlpTraceExporter? traceExporter = dvConfigureRuntimeTracing(
+      Platform.environment,
+      declared: tracing,
+      serviceName: serviceName);
 
   // Branch deployments. A generated backend starts the preview before
   // anything else runs; a hand-written entrypoint that calls serve() directly
@@ -781,7 +801,7 @@ Future<ServerHandle> serve(
     dartStreamAckHandler,
     webSockets,
     dartWsWakeupHandler,
-  );
+  ).._traceExporter = traceExporter;
 }
 
 /// A response body no larger than this, and already whole when the handler

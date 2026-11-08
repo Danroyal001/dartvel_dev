@@ -6286,16 +6286,22 @@ middleware that starts a server span per request and propagates context, a
 client span for every outbound `DV.Http` call made inside a span with the
 `traceparent` naming it, the OTLP/HTTP exporter (the JSON encoding, batched on
 a bounded queue, never blocking, dropping with a count under `DV-TRACE-002`
-and `DV-TRACE-003`), the trace id on every log line, and `/_dartvel/traces`
-serving the ring buffer when diagnostics endpoints are on.
+and `DV-TRACE-003`), the `dartvel.tracing` block above (`ratio`, `exporter`,
+`endpoint`, `queue`) read strictly at build time and handed to the server,
+`DARTVEL_TRACING_EXPORTER`, `DARTVEL_TRACING_ENDPOINT`,
+`DARTVEL_TRACING_RATIO` and the OpenTelemetry `OTEL_EXPORTER_OTLP_*` and
+`OTEL_SERVICE_NAME` variables overriding it at startup, `DV-TRACE-006` and
+`DV-TRACE-007` reported when the server starts, the queue flushed when it
+stops, the trace id on every log line, and `/_dartvel/traces` serving the ring
+buffer when diagnostics endpoints are on.
 
-Not built: configuration that turns the OTLP exporter on in a deployed server,
-so nothing reaches a collector unless application code installs it; the
-protobuf encoding of OTLP; spans for database queries, queue publish and
-consume, and transactions; an AI call's span as a child of the request rather
-than a trace of its own; trace context in the job envelope and the links that
-follow from it; client spans and their ingest; span attribute and duration
-limits; and `dartvel traces` reading anything but the local buffer. The other
+Not built: the protobuf encoding of OTLP; a request span on every request
+rather than on routes that declare the `tracing` middleware; spans for
+database queries, queue publish and consume, and transactions; an AI call's
+span as a child of the request rather than a trace of its own; trace context
+in the job envelope and the links that follow from it; client spans and their
+ingest; span attribute and duration limits (`maxSpanDuration` is not read
+yet); and `dartvel traces` reading anything but the local buffer. The other
 diagnostics above are registered meanings, not emitted signals: nothing raises
 one yet, and a code that is emitted for the wrong situation is worse than one
 that is not emitted at all.

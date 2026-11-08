@@ -21,6 +21,7 @@ export 'metrics.dart';
 export 'otlp_exporter.dart';
 export 'runtime_config.dart';
 export 'tracing.dart';
+export 'tracing_config.dart';
 export 'tracing_middleware.dart';
 
 /// `DV.ObservabilityAndLogging` is built on these.
@@ -62,15 +63,19 @@ class DVObservability {
 
   /// Points tracing at [exporter], sampling [ratio] of traces.
   ///
+  /// With no [exporter], spans go only to the recent-span buffer.
+  ///
   /// The recent-span buffer stays in the chain. An application that configures
   /// a collector still has spans to read on the machine in front of it, which
   /// is where a developer looks first.
   static void useTracing({
-    required DVTraceExporter exporter,
+    DVTraceExporter? exporter,
     double ratio = 1,
   }) {
     tracer = DVTracer(
-      exporter: DVFanoutTraceExporter(<DVTraceExporter>[_spans, exporter]),
+      exporter: exporter == null
+          ? _spans
+          : DVFanoutTraceExporter(<DVTraceExporter>[_spans, exporter]),
       sampler: ratio >= 1
           ? DVTraceSampler.always()
           : DVTraceSampler.ratio(ratio),

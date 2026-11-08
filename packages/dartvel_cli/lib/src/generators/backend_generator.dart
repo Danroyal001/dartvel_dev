@@ -10,6 +10,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVCrashSinkChoice,
         DVLogConfig,
         DVPlatformApiConfig,
+        DVTracingConfig,
         DVWebhooksConfig,
         DVWebhooksConfigException,
         dvMiddlewareKeysAlwaysOn,
@@ -90,6 +91,29 @@ class BackendGenerator {
         'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
       );
     }
+  }
+
+  /// `dartvel.tracing`, read with the parser the runtime uses, so a misspelt
+  /// key fails the build rather than being served as the default.
+  static DVTracingConfig _dvTracingConfig(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return const DVTracingConfig();
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+    try {
+      return DVTracingConfig.parse(dartvel is Map ? dartvel['tracing'] : null);
+    } on ArgumentError catch (error) {
+      throw StateError(
+        'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
+      );
+    }
+  }
+
+  /// [declaration] as a Dart map literal of strings and numbers.
+  static String _dvPlainMapLiteral(Map<String, Object?> declaration) {
+    String quote(String value) =>
+        "'${value.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll(r'$', r'\$')}'";
+    return '<String, Object?>{${declaration.entries.map((MapEntry<String, Object?> e) => '${quote(e.key)}: ${e.value is String ? quote(e.value! as String) : e.value}').join(', ')}}';
   }
 
   /// `dartvel.logging`, read with the parser the runtime uses.
@@ -1013,6 +1037,8 @@ $openApiJson\'\'\';
     final String? corsSource = server.corsSource;
     final String corsConstant = corsSource ?? 'null';
     final String compressionLiteral = server.compression ? 'true' : 'false';
+    // dartvel.tracing: the sampling ratio and where spans go, handed to serve().
+    final String tracingLiteral = _dvPlainMapLiteral(_dvTracingConfig(root).toDeclaration());
     // dartvel.tenancy: which isolation strategy, where the tenant is read
     // from, and whether a request naming none is refused. Emitted where the
     // server starts, which is the only place an application has that runs
@@ -1897,6 +1923,11 @@ const dv.CorsOptions? dartvelConfiguredCors = $corsConstant;
 
 /// Whether responses are compressed, from `dartvel.server.compression`.
 const bool dartvelCompression = $compressionLiteral;
+
+/// Where spans go and how many are kept, from `dartvel.tracing`. The
+/// environment overrides it at startup (DARTVEL_TRACING_*, OTEL_EXPORTER_OTLP_*).
+final core.DVTracingConfig dartvelTracing = core.DVTracingConfig.parse($tracingLiteral);
+
 /// Whether Studio is compiled into this backend. A build that does not serve
 /// it passes -Ddartvel.studio=false, and AOT drops every branch behind this.
 const bool dartvelStudio = ${studioOff ? 'false' : "bool.fromEnvironment('dartvel.studio', defaultValue: true)"};
@@ -2195,7 +2226,7 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   final Future<dv.Response> Function(dv.Request) siteHandler = docsServer == null
       ? handler
       : (dv.Request request) async => await docsServer.respond(request) ?? await handler(request);
-  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
+  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, tracing: dartvelTracing, serviceName: '$pkgName', routeBodyLimits: <dv.DVRouteBodyLimit>[
     // A patch is larger than a request body usually is.
     if (patchPrefix != null) dv.DVRouteBodyLimit('POST', '\$patchPrefix/_dartvel/publish', $dvPatchPublishMaxBytes),
     ...router.bodyLimits,

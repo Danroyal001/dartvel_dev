@@ -320,6 +320,39 @@ dartvel:
       expect(routes, contains('    ...router.bodyLimits,\n  ]);'));
     });
 
+    test('dartvel.tracing reaches the serve call, with the service name',
+        () async {
+      // The exporter existing is not spans leaving a deployed server: the
+      // declaration has to be what serve() is handed.
+      final String routes = await routesFor('''
+name: server_options_app
+dartvel:
+  tracing:
+    ratio: 0.1
+    exporter: otlp
+    endpoint: https://collector.internal:4318
+''');
+
+      expect(routes, contains('core.DVTracingConfig.parse('));
+      expect(routes, contains("'endpoint': 'https://collector.internal:4318'"));
+      expect(routes, contains("'ratio': 0.1"));
+      expect(routes, contains('tracing: dartvelTracing'));
+      expect(routes, contains("serviceName: 'server_options_app'"));
+    });
+
+    test('a misspelt dartvel.tracing key fails generation, naming it',
+        () async {
+      await expectLater(
+        routesFor('''
+name: server_options_app
+dartvel:
+  tracing:
+    ration: 0.1
+'''),
+        throwsA(predicate((Object? e) => '$e'.contains('tracing.ration'))),
+      );
+    });
+
     test('a project that sets no body limit gets the runtime default', () {
       expect(
         DVServerOptions.parse(YamlMap.wrap(<String, Object?>{})).maxBodyBytes,
