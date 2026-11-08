@@ -25,9 +25,11 @@
       "status": "Partial",
       "evidence": [
         "packages/dartvel_cli/lib/src/config/dartvel_config.dart",
-        "packages/dartvel_cli/lib/src/generators/routes_generator.dart"
+        "packages/dartvel_cli/lib/src/generators/routes_generator.dart",
+        "packages/dartvel_cli/lib/src/config/source_paths.dart",
+        "packages/dartvel_cli/test/models_dir_test.dart"
       ],
-      "absent": "Absent: the glob patterns. The section offers glob patterns for file groups, directories and subdirectories under the dartvel: key, and nothing in dartvel_config.dart reads one -- the path options are plain strings with defaults, so a project whose pages live in two directories cannot say so. The rest is built: the default paths, the per-key overrides, and the Dart config file, whose public class extending DartvelConfig is found by the regex at dartvel_config.dart:189 and must start with an uppercase letter so the CLI can import it."
+      "absent": "Absent: lists and glob patterns for pagesDir, backendDir, componentsDir, stylesDir and servicesDir, which still take one directory each, so a project whose pages live in two directories cannot say so. Built: modelsDir takes one directory, a glob or a list of either (a glob ending in .dart names files, any other names directories), read by dvModelSourceFiles in packages/dartvel_cli/lib/src/config/source_paths.dart for the model generator, the model-name scan, dartvel db, dartvel admin and the static-paths check -- each of which had globbed lib/models itself, so modelsDir was read into the config and then ignored -- and dartvel generate model writes to its first plain directory. Also built: the default paths, the per-key overrides, and the Dart config file, whose public class extending DartvelConfig is found by the regex at dartvel_config.dart:189 and must start with an uppercase letter so the CLI can import it."
     },
     {
       "section": "Application Entry",

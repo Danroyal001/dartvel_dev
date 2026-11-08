@@ -159,8 +159,16 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
         DocsText(
           'Each directory has a key of its own: pagesDir, modelsDir, '
           'backendDir, componentsDir, stylesDir and servicesDir. Leave one '
-          'out and it keeps the path shown above.',
+          'out and it keeps the path shown above. modelsDir also takes a list '
+          'and glob patterns, so data models can live in several places:',
         ),
+        DocsShell(<String>[
+          '# pubspec.yaml',
+          'dartvel:',
+          '  modelsDir:',
+          '    - lib/data',
+          '    - lib/features/*/models',
+        ]),
         DocsSubheading('Keep the configuration in Dart'),
         DocsShell(<String>['# pubspec.yaml', 'dartvel: config/dartvel.dart']),
         DocsText(

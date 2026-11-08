@@ -237,8 +237,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Project Structure',
     '`dartvel:` in pubspec.yaml',
-    'Present: default paths, per-key overrides and a Dart config file. '
-        'Absent: glob patterns, so pages cannot live in two directories.',
+    'Present: default paths, per-key overrides, a Dart config file, and '
+        'lists and globs for modelsDir. Absent: lists and globs for the other '
+        'keys, so pages cannot live in two directories.',
   ),
   (
     'Record History and Optimistic Concurrency',

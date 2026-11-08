@@ -83,8 +83,10 @@ void main(List<String> args) => DV.run(args);
 These paths are the defaults. Projects may override them under the `dartvel:`
 key in `pubspec.yaml` (`pagesDir`, `modelsDir`, `backendDir`, `componentsDir`,
 `stylesDir`, `servicesDir`), including glob patterns for file groups,
-directories, and subdirectories. Glob patterns are designed and not built:
-today each key takes one directory. The `dartvel:` key may also point to a
+directories, and subdirectories. `modelsDir` takes them today: one directory,
+a glob, or a list of either, read in one place by every command that looks
+for data models, with new models written to the first plain directory. The
+other keys still take one directory each. The `dartvel:` key may also point to a
 Dart config file:
 
 ```yaml

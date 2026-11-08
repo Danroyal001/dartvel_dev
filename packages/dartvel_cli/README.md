@@ -479,7 +479,7 @@ dartvel:
 | Key | Default | Meaning |
 |---|---|---|
 | `pagesDir` | `lib/pages` | Where file-based pages live. |
-| `modelsDir` | `lib/models` | Where data models live. |
+| `modelsDir` | `lib/models` | Where data models live: a directory, a glob, or a list of either (`[lib/data, lib/features/*/models]`). A glob ending in `.dart` names the files; any other names directories. New models are written to the first plain directory. |
 | `backendDir` | `lib/backend` | Where backend functions live. |
 | `componentsDir`, `stylesDir`, `servicesDir` | `lib/components`, `lib/styles`, `lib/services` | Other source folders the generator reads. |
 | `backendHost` | `0.0.0.0` | Address the development backend binds to. |
