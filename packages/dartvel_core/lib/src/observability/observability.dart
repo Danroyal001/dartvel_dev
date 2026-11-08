@@ -18,6 +18,7 @@ export 'log_file.dart';
 export 'log_shipping.dart';
 export 'logging.dart';
 export 'metrics.dart';
+export 'otlp_exporter.dart';
 export 'runtime_config.dart';
 export 'tracing.dart';
 export 'tracing_middleware.dart';

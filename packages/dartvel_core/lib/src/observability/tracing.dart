@@ -125,6 +125,12 @@ class DVTraceContext {
 
 enum DVSpanStatus { unset, ok, error }
 
+/// What side of a call a span is on, as OpenTelemetry names it.
+///
+/// A collector draws service maps from it: a client span in one service and
+/// the server span it caused in another are what an edge between them is.
+enum DVSpanKind { internal, server, client, producer, consumer }
+
 /// One unit of work inside a trace.
 class DVSpan {
   DVSpan._({
@@ -134,6 +140,7 @@ class DVSpan {
     required this.parentSpanId,
     required this.sampled,
     required DVTraceExporter? exporter,
+    this.kind = DVSpanKind.internal,
   })  : _exporter = exporter,
         startedAt = DateTime.now(),
         _stopwatch = Stopwatch()..start();
@@ -144,6 +151,7 @@ class DVSpan {
   final String? parentSpanId;
   final bool sampled;
   final DateTime startedAt;
+  final DVSpanKind kind;
 
   final Map<String, String> attributes = <String, String>{};
   DVSpanStatus status = DVSpanStatus.unset;
@@ -337,6 +345,7 @@ class DVTracer {
     String name, {
     DVSpan? parent,
     DVTraceContext? context,
+    DVSpanKind kind = DVSpanKind.internal,
   }) {
     if (parent != null) {
       return DVSpan._(
@@ -346,6 +355,7 @@ class DVTracer {
         parentSpanId: parent.spanId,
         sampled: parent.sampled,
         exporter: _exporter,
+        kind: kind,
       );
     }
 
@@ -360,6 +370,7 @@ class DVTracer {
         parentSpanId: context.parentSpanId,
         sampled: context.sampled,
         exporter: _exporter,
+        kind: kind,
       );
     }
 
@@ -371,6 +382,7 @@ class DVTracer {
       parentSpanId: null,
       sampled: _sampler.shouldSample(traceId),
       exporter: _exporter,
+      kind: kind,
     );
   }
 
@@ -380,8 +392,10 @@ class DVTracer {
     Future<T> Function(DVSpan span) body, {
     DVSpan? parent,
     DVTraceContext? context,
+    DVSpanKind kind = DVSpanKind.internal,
   }) async {
-    final DVSpan span = startSpan(name, parent: parent, context: context);
+    final DVSpan span =
+        startSpan(name, parent: parent, context: context, kind: kind);
     try {
       return await body(span);
     } on Object catch (error, stack) {

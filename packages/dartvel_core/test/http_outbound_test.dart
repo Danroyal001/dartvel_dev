@@ -453,6 +453,22 @@ void main() {
       expect(sent.parentSpanId, isNot(parent.spanId),
           reason: 'it is a span under the function, not the function itself');
     });
+
+    test('the call is exported as a client span under the caller, with its status',
+        () async {
+      final _Wire wire = _Wire((_, __) => _reply(503));
+      DVHttp.transport = wire.send;
+      DVObservability.resetTracing();
+      final DVSpan parent = DVObservability.tracer.startSpan('checkout');
+
+      await dvInSpan(parent, () => http.get('https://api.example.com/rates'));
+
+      final DVSpan call = DVObservability.recentSpans
+          .singleWhere((DVSpan span) => span.parentSpanId == parent.spanId);
+      expect(call.kind, DVSpanKind.client);
+      expect(call.traceId, parent.traceId);
+      expect(call.attributes['http.status_code'], '503');
+    });
   });
 
   group('testing is the point', () {

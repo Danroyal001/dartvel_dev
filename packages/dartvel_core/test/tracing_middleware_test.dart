@@ -41,6 +41,17 @@ void main() {
     expect(exporter.spans.single.parentSpanId, isNull);
   });
 
+  test('the request span is a server span, the outbound call a client one', () async {
+    // A collector draws its service map from kinds: an edge is a client span
+    // in one service and the server span it caused in the next.
+    await dvTraced(tracer, get('/orders'), (Request req) async {
+      tracer.startSpan('inner', parent: dvCurrentSpan).end();
+      return Response.text('ok');
+    });
+    expect(exporter.spans.last.kind, DVSpanKind.server);
+    expect(exporter.spans.first.kind, DVSpanKind.internal);
+  });
+
   test('a request with a traceparent joins that trace', () async {
     await dvTraced(
       tracer,

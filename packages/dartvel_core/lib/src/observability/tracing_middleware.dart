@@ -23,6 +23,7 @@ Future<Response> dvTraced(
   final DVSpan span = tracer.startSpan(
     '${request.method} ${request.url.path}',
     context: DVTraceContext.parse(request.headers.get('traceparent')),
+    kind: DVSpanKind.server,
   );
   span
     ..setAttribute('http.method', request.method)

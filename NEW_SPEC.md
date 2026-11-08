@@ -6279,21 +6279,26 @@ not something to discover later.
 
 ## What is built, and what is not
 
-Built: the W3C context type and its parsing, spans with attributes, errors and
-status, the sampler that decides from the trace id, the exporter interface
-with in-memory and ring-buffer implementations, the HTTP server middleware
-that starts a span per request and propagates context, the trace id on every
-log line, and `/_dartvel/traces` serving the ring buffer when diagnostics
-endpoints are on.
+Built: the W3C context type and its parsing, spans with kinds, attributes,
+errors and status, the sampler that decides from the trace id, the exporter
+interface with in-memory and ring-buffer implementations, the HTTP server
+middleware that starts a server span per request and propagates context, a
+client span for every outbound `DV.Http` call made inside a span with the
+`traceparent` naming it, the OTLP/HTTP exporter (the JSON encoding, batched on
+a bounded queue, never blocking, dropping with a count under `DV-TRACE-002`
+and `DV-TRACE-003`), the trace id on every log line, and `/_dartvel/traces`
+serving the ring buffer when diagnostics endpoints are on.
 
-Not built: the OTLP exporter, so nothing reaches a collector; spans for
-database queries, outbound HTTP, queue publish and consume, transactions and
-AI calls, so the only span most requests have is the request itself; trace
-context in the job envelope and the links that follow from it; client spans
-and their ingest; span attribute and duration limits; and `dartvel traces`
-reading anything but the local buffer. The diagnostics above are registered
-meanings, not emitted signals: nothing raises one yet, and a code that is
-emitted for the wrong situation is worse than one that is not emitted at all.
+Not built: configuration that turns the OTLP exporter on in a deployed server,
+so nothing reaches a collector unless application code installs it; the
+protobuf encoding of OTLP; spans for database queries, queue publish and
+consume, and transactions; an AI call's span as a child of the request rather
+than a trace of its own; trace context in the job envelope and the links that
+follow from it; client spans and their ingest; span attribute and duration
+limits; and `dartvel traces` reading anything but the local buffer. The other
+diagnostics above are registered meanings, not emitted signals: nothing raises
+one yet, and a code that is emitted for the wrong situation is worse than one
+that is not emitted at all.
 
 ## Deliberately absent
 

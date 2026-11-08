@@ -980,7 +980,8 @@ class DVHttp {
     final DVSpan? parent = dvCurrentSpan;
     final DVSpan? span = parent == null
         ? null
-        : DVObservability.tracer.startSpan('http $method $key', parent: parent);
+        : DVObservability.tracer.startSpan('http $method $key',
+            parent: parent, kind: DVSpanKind.client);
     if (span != null) {
       sent.putIfAbsent('traceparent', () => span.context.toHeader());
       span
