@@ -95,7 +95,7 @@ DVNpmSurface dvScanNpmPackage(String dir) {
     final String fn = m.group(2)!;
     if (operations.any((DVModuleOperation o) => o.name == fn)) continue;
     if (m.group(3) != null) {
-      skipped[fn] = 'is generic';
+      skipped[fn] = 'is generic (DV-BIND-001)';
       continue;
     }
     final String? why = _whyNot(m.group(4)!, m.group(5)!.trim());
@@ -203,17 +203,17 @@ String? _whyNot(String params, String result) {
         RegExp(r'([A-Za-z_$][\w$]*)\??\s*:\s*\([^()]*\)\s*=>').firstMatch(params)?.group(1);
     return dvCallbackArity(name ?? 'a function');
   }
-  if (result.contains('=>')) return 'returns a function';
+  if (result.contains('=>')) return 'returns a function (DV-BIND-001)';
   for (final String raw in <String>[..._splitTop(params), result]) {
     final String type = raw.contains(':') && raw != result
         ? raw.substring(raw.indexOf(':') + 1).trim()
         : raw.trim();
     final String inner = RegExp(r'^Promise<(.+)>$').firstMatch(type)?.group(1) ?? type;
-    if (inner.contains('{')) return 'uses an object type Dart cannot name';
+    if (inner.contains('{')) return 'uses an object type Dart cannot name (DV-BIND-001)';
     if (_topHas(inner, '|') || _topHas(inner, '&')) {
-      return 'uses a union or an intersection Dart cannot name';
+      return 'uses a union or an intersection Dart cannot name (DV-BIND-001)';
     }
-    if (_dart(inner) == null) return 'uses $inner, which Dart has no type for';
+    if (_dart(inner) == null) return 'uses $inner, which Dart has no type for (DV-BIND-001)';
   }
   return null;
 }

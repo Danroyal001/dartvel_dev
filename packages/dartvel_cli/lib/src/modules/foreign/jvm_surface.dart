@@ -118,12 +118,12 @@ DVJvmSurface dvScanJar(String jar, {List<String> only = const <String>[]}) {
           continue;
         }
         if (counts[m.name]! > 1) {
-          skipped[label] = 'is overloaded, and Dart has no overloading';
+          skipped[label] = 'is overloaded, and Dart has no overloading (DV-BIND-001)';
           continue;
         }
         final (List<String>, String)? types = _descriptor(m.descriptor);
         if (types == null) {
-          skipped[label] = 'takes or returns an object other than a String';
+          skipped[label] = 'takes or returns an object other than a String (DV-BIND-001)';
           continue;
         }
         final (List<String> params, String result) = types;

@@ -366,7 +366,7 @@ Object _function(
   (String, String) Function(String) split,
 ) {
   final _Crossing? result = type(returns);
-  if (result == null) return 'returns $returns, which has no Dart type here';
+  if (result == null) return 'returns $returns, which has no Dart type here (DV-BIND-001)';
   if (result is _Unowned || result is _StringIn) {
     return 'returns ${result is _Unowned ? result.type : 'a char pointer'}, '
         'and nothing says who frees it (DV-BIND-003)';
@@ -380,7 +380,7 @@ Object _function(
     final (String t, String n) = split(raw);
     final String paramName = n == 'arg' ? 'arg${i++}' : n;
     final _Crossing? c = type(t);
-    if (c == null) return 'takes $t, which has no Dart type here';
+    if (c == null) return 'takes $t, which has no Dart type here (DV-BIND-001)';
     if (c is _Unowned) {
       return 'takes ${c.type}, and nothing says who owns it (DV-BIND-003)';
     }

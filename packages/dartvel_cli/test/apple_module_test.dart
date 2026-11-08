@@ -63,7 +63,7 @@ void main() {
     expect(f['unitsToCelsius']!.owner, 'Units');
     expect(surface.skipped['fetch'], contains('async'));
     expect(surface.skipped['parse'], contains('throws'));
-    expect(surface.skipped['each'], contains('does not cross'));
+    expect(surface.skipped['each'], allOf(contains('callback'), contains('DV-BIND-004')));
     final String shim = dvSwiftShim(surface, dvAppleSymbolPrefix(surface));
     expect(shim, contains('@_cdecl("dv_textkit_add")'));
     expect(shim, contains('return Units.toCelsius(fahrenheit: f)'));
