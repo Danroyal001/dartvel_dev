@@ -47,3 +47,41 @@ docker run -d --name dartvel-mysql-test -p 127.0.0.1:3307:3306 \
 cd packages/dartvel_core
 DARTVEL_TEST_MYSQL_PORT=3307 dart test test/mysql_adapter_test.dart
 ```
+
+The Postgres suites (`postgres_adapter_test.dart`, `postgres_search_test.dart`,
+`framework_tables_postgres_live_test.dart`, and the `postgres:` group of
+`content_workflow_test.dart`) read `DARTVEL_TEST_POSTGRES_HOST`, `_PORT`,
+`_DATABASE`, `_USER` and `_PASSWORD`. A stock container works as it is: the
+adapter speaks its default SCRAM-SHA-256 as well as md5 and trust.
+
+```sh
+docker run -d --rm --name dartvel-pg-test -p 127.0.0.1:5450:5432 \
+  -e POSTGRES_PASSWORD=dartvel -e POSTGRES_DB=dartvel_test postgres:17
+cd packages/dartvel_core
+DARTVEL_TEST_POSTGRES_PORT=5450 DARTVEL_TEST_POSTGRES_PASSWORD=dartvel \
+  dart test test/postgres_adapter_test.dart test/postgres_search_test.dart \
+  test/framework_tables_postgres_live_test.dart test/content_workflow_test.dart
+```
+
+To check the TLS modes against a real server, give a container a throwaway
+certificate made on the spot (never commit one; the TLS unit tests make
+theirs the same way at test time and delete it afterwards):
+
+```sh
+certs=$(mktemp -d)
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
+  -addext subjectAltName=DNS:localhost,IP:127.0.0.1 \
+  -keyout "$certs/server.key" -out "$certs/server.crt"
+chmod 644 "$certs"/server.*
+docker run -d --rm --name dartvel-pg-tls -p 127.0.0.1:5451:5432 \
+  -e POSTGRES_PASSWORD=dartvel -e POSTGRES_DB=dartvel_test \
+  -v "$certs":/certs:ro --entrypoint sh postgres:17 -c \
+  'cp /certs/server.* /tmp/ && chown postgres /tmp/server.* &&
+   chmod 600 /tmp/server.key && exec docker-entrypoint.sh postgres \
+   -c ssl=on -c ssl_cert_file=/tmp/server.crt -c ssl_key_file=/tmp/server.key'
+# ...run the suites with DARTVEL_TEST_POSTGRES_PORT=5451, then:
+docker stop dartvel-pg-tls && rm -rf "$certs"
+```
+
+`prefer` and `require` connect encrypted to it; `verifyCa` and `verifyFull`
+refuse its self-signed certificate.
