@@ -3433,11 +3433,11 @@ Stability: `Draft` · Status: `Partial`
 
 A model, a Studio page and a queued job are records: a key, some fields and a
 version. Only the adapter underneath should know whether they sit in a SQL
-table or a MongoDB collection. Today the framework writes SQL strings through
-`DVDatabaseAdapter.query(sql)` in about forty places -- Studio's page and
-workflow stores, `DVRecordTable` under every generated model, the cache and
-queue adapters, auth, analytics -- and a document database can run none of
-them.
+table or a MongoDB collection. The framework wrote SQL strings through
+`DVDatabaseAdapter.query(sql)` in about forty places, and a document database
+can run none of them. Studio's stores and `DVRecordTable`, under every
+generated data model, have moved onto the record operations; the cache and
+queue adapters, auth and analytics have not yet.
 
 ## One set of operations, compiled per engine
 

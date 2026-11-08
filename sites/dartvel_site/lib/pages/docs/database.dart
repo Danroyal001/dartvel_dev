@@ -163,9 +163,12 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
         DocsStatus(
           'Storage-Neutral Records',
           missing: <String>[
-            'Routing generated data models through the storage-neutral '
-                'engine contract is Planned. The SQLite, Postgres and '
-                'MySQL data model paths are built.',
+            'Generated data models read and write through the '
+                'storage-neutral engine contract, and run on an in-memory '
+                'document engine in tests. Offline data models still list '
+                'their pages with SQL.',
+            'Moving the cache, queues, auth, analytics and the other '
+                'framework stores off SQL is Planned.',
             'A MongoDB engine is Planned.',
           ],
         ),
