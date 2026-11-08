@@ -255,6 +255,18 @@ fn types_in_library(name: &str, code: &str, queries: &[(&str, &str)]) -> Vec<Str
 
 /// [types_in_library] with [core] as the source of `dart:core`.
 fn types_in_library_with_core(name: &str, core: &str, code: &str, queries: &[(&str, &str)]) -> Vec<String> {
+    types_in_library_with_files(name, core, &[], code, queries)
+}
+
+/// [types_in_library_with_core] with [files] (paths relative to `test.dart`
+/// and their contents) beside the test library.
+fn types_in_library_with_files(
+    name: &str,
+    core: &str,
+    files: &[(&str, &str)],
+    code: &str,
+    queries: &[(&str, &str)],
+) -> Vec<String> {
     let dir: PathBuf =
         std::env::temp_dir().join(format!("type_analyzer_test_{}_{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -270,6 +282,9 @@ fn types_in_library_with_core(name: &str, core: &str, code: &str, queries: &[(&s
     write(&dir.join("package_config.json"), "{\"configVersion\": 2, \"packages\": []}");
     let path = dir.join("test.dart");
     write(&path, code);
+    for (file, content) in files {
+        write(&dir.join(file), content);
+    }
     let fs = FileSystemState::new(
         FolderBasedDartSdk::new(&dir.join("sdk")),
         parse_package_config_json_file(&dir.join("package_config.json")),
@@ -865,13 +880,13 @@ fn dynamic_never_and_type_parameter_receivers() {
 }
 
 /// The silent failure: a plausible type where upstream's comes from what is
-/// not ported. A receiver that may be null, a member the interface lacks
-/// (an extension may supply it), a member with an implicit return or
+/// not ported. A receiver that may be null, a member neither the interface
+/// nor an applicable extension has, a member with an implicit return or
 /// parameter type (override inference is not ported), and operands that are
 /// not typed all leave the invocation untyped.
 #[test]
 fn operators_resolution_does_not_reach_are_left_untyped() {
-    let code = "extension on String { String operator -(String o) => this; }\n\
+    let code = "extension on int { String operator -(String o) => this; }\n\
         class C { operator +(int x) => 1; int operator *(o) => 1; }\n\
         f<U>(int? maybe, Object o, String s, C c, int i, U u) {\n\
           maybe + 1; o + 1; s - s; c + 1; c * 2; foo + 1; i + foo; u + 1; -maybe;\n\
@@ -1003,15 +1018,15 @@ fn integer_arguments_get_their_context_from_the_parameter() {
 }
 
 /// The silent failure: a plausible type where upstream's comes from what is
-/// not ported. Null-aware and nullable receivers, members an extension
-/// supplies, private names (whose fields flow analysis may promote), generic
+/// not ported. Null-aware and nullable receivers, members of an extension
+/// that does not apply, private names (whose fields flow analysis may promote), generic
 /// methods, members with implicit types, `dynamic` and unresolved receivers,
 /// numeric refinement of `remainder`, calls of function-typed getters,
 /// explicit type arguments and static members are left untyped, as are the
 /// integer arguments of untyped invocations.
 #[test]
 fn member_accesses_resolution_does_not_reach_are_left_untyped() {
-    let code = "extension on String { int get ext => 0; }\n\
+    let code = "extension on int { int get ext => 0; }\n\
         class A { String get g => ''; int _p = 0; T gen<T>(T t) => t; get imp => 1; var inferred = 1;\n\
           int Function() fn = f0; int m(int x) => x; static int st() => 0; }\n\
         int f0() => 0;\n\
@@ -1092,4 +1107,255 @@ fn valid_overrides_combine_into_their_top_merge() {
         abstract class C implements A, B {}\n\
         f(C c) { c.m(); }";
     assert_eq!(member_types("top_merge", code, &[call("c.m()")]), ["(Object?, Object?)"]);
+}
+
+/// A `dart:core` whose classes declare members and operators for the
+/// extension tests, `Object` among them (a receiver that may be null finds
+/// `Object`'s members before any extension's).
+const EXTENSION_CORE: &str = "library dart.core;\n\
+    class Object { bool operator ==(Object other) => true; external int get hashCode; external String toString(); }\n\
+    class Null {}\n\
+    class bool {}\n\
+    abstract class num { num operator +(num other); }\n\
+    abstract class int extends num { bool get isEven; int operator +(num other); }\n\
+    abstract class double extends num { double operator +(num other); }\n\
+    abstract class String { int get length; }\n\
+    class Symbol {}\n\
+    class Function {}\n\
+    class Record {}\n\
+    abstract class Iterable<E> {}\n\
+    abstract class List<E> implements Iterable<E> { E get first; }\n";
+
+fn extension_types(name: &str, code: &str, queries: &[(&str, &str)]) -> Vec<String> {
+    types_in_library_with_core(name, EXTENSION_CORE, code, queries)
+}
+
+/// A member the interface of the receiver's static type lacks is found in
+/// the most specific applicable extension, with the extension's type
+/// parameters inferred from the receiver's type and substituted: a method's
+/// return type, a getter's type, a method torn off, the getter an invocation
+/// reads, and the parameter types integer arguments take as their context.
+/// A receiver that may be null finds `Object`'s members first, then an
+/// extension that applies to its type.
+#[test]
+fn extension_members_apply_implicitly() {
+    let code = "class Shape { int get sides => 0; }\n\
+        class Square extends Shape {}\n\
+        extension Strings on String { int get size => 0; String pad(double width, {int count = 0}) => this;\n\
+          int Function(int) get adder => throw 0; }\n\
+        extension Shapes on Shape { String name(int precision) => ''; int get sides => 0; }\n\
+        extension Squares on Square { bool name(int precision) => true; }\n\
+        extension Lists<T> on List<T> { T get head => first; List<T> twice() => this; T at(int index) => first; }\n\
+        extension Nums<N extends num> on N { N get self => this; N plus(N other) => this; }\n\
+        extension OnNum on num { String get kind => ''; }\n\
+        extension OnInt on int { bool get kind => true; }\n\
+        extension Maybe on Shape? { bool get missing => true; }\n\
+        extension Any on Object? { double get tag => 0; }\n\
+        f(String s, Shape shape, Square square, List<String> strings, int i, double d, String? maybe, Shape? maybeShape) {\n\
+          s.size; s.pad; s.pad(1, count: 2); s.adder(3); shape.name(4); square.name(5); shape.sides;\n\
+          strings.head; strings.twice(); strings.at(6); strings.twice().head; i.self; d.plus(7); i.kind; d.kind;\n\
+          maybe.hashCode; maybe.toString(); maybe.tag; maybeShape.missing; s.size.isEven; 'x'.size;\n\
+        }";
+    assert_eq!(
+        extension_types(
+            "extension_members",
+            code,
+            &[
+                property("s.size"),
+                call("s.pad(1, count: 2)"),
+                integer("1"),
+                integer("2"),
+                property("s.pad"),
+                property("s.adder"),
+                call("s.adder(3)"),
+                call("shape.name(4)"),
+                call("square.name(5)"),
+                property("shape.sides"),
+                property("strings.head"),
+                call("strings.twice()"),
+                call("strings.at(6)"),
+                property("strings.twice().head"),
+                property("i.self"),
+                call("d.plus(7)"),
+                integer("7"),
+                property("i.kind"),
+                property("d.kind"),
+                property("maybe.hashCode"),
+                call("maybe.toString()"),
+                property("maybe.tag"),
+                property("maybeShape.missing"),
+                property("s.size.isEven"),
+                extraction("'x'.size"),
+            ],
+        ),
+        [
+            "int", "String", "double", "int", "String Function(double, {int count})", "int Function(int)", "-",
+            "String", "bool", "int", "String", "List<String>", "String", "String", "int", "double", "double",
+            "bool", "String", "int", "String", "double", "bool", "bool", "int"
+        ]
+    );
+}
+
+/// An explicit override `E(x)` or `E<T>(x)` resolves the member in `E`, with
+/// the type arguments written, or inferred from the argument's type, or
+/// `dynamic` when their number is wrong; it applies even where `E` is not the
+/// most specific extension, or does not apply at all.
+#[test]
+fn extension_overrides_resolve_in_the_named_extension() {
+    let code = "class Shape {}\n\
+        class Square extends Shape {}\n\
+        extension Shapes on Shape { String name(int precision) => ''; int get sides => 0; }\n\
+        extension Squares on Square { bool name(int precision) => true; }\n\
+        extension Lists<T> on List<T> { T get head => first; T at(int index) => first; }\n\
+        extension Strings on String { int get size => 0; }\n\
+        f(Square square, List<int> ints, int i) {\n\
+          Shapes(square).name; Shapes(square).name(1); Squares(square).name(2); Shapes(square).sides; Lists(ints).head;\n\
+          Lists<num>(ints).at(3); Lists<int, int>(ints).head; Strings(i).size; Shapes(square).name;\n\
+        }";
+    assert_eq!(
+        extension_types(
+            "extension_overrides",
+            code,
+            &[
+                call("Shapes(square).name(1)"),
+                integer("1"),
+                call("Squares(square).name(2)"),
+                property("Shapes(square).sides"),
+                property("Lists(ints).head"),
+                call("Lists<num>(ints).at(3)"),
+                integer("3"),
+                property("Lists<int, int>(ints).head"),
+                property("Strings(i).size"),
+                property("Shapes(square).name"),
+            ],
+        ),
+        ["String", "int", "bool", "int", "int", "num", "int", "dynamic", "int", "String Function(int)"]
+    );
+}
+
+/// Operators a class lacks are found in an applicable extension, also on a
+/// receiver that may be null (`Object` has no operator but `==`), with the
+/// extension's type parameters substituted. Through an explicit override,
+/// a binary or unary operator has the extension's method unsubstituted, as
+/// upstream's `extension.getMethod` gives it, and an index operator the
+/// substituted one (`getOverrideMember`).
+#[test]
+fn extension_operators_apply_to_classes_that_lack_them() {
+    let code = "class Matrix {}\n\
+        extension Matrices on Matrix { Matrix operator +(Matrix o) => this; Matrix operator *(double k) => this;\n\
+          Matrix operator -() => this; int operator [](int row) => row; }\n\
+        extension Maybe on Matrix? { Matrix operator ~() => Matrix(); }\n\
+        extension Lists<T> on List<T> { T operator -() => first; List<T> operator *(int n) => this;\n\
+          T operator [](String key) => first; }\n\
+        f(Matrix m, Matrix? maybe, List<bool> flags) {\n\
+          m + m; m * 1; -m; m[2]; ~maybe; -flags; flags * 3; flags['k']; Matrices(m) * 4; -Lists(flags);\n\
+          Lists(flags) * 5; Lists(flags)['j'];\n\
+        }";
+    assert_eq!(
+        extension_types(
+            "extension_operators",
+            code,
+            &[
+                binary("m + m"),
+                binary("m * 1"),
+                integer("1"),
+                unary("-m"),
+                index("m[2]"),
+                integer("2"),
+                unary("~maybe"),
+                unary("-flags"),
+                binary("flags * 3"),
+                index("flags['k']"),
+                binary("Matrices(m) * 4"),
+                integer("4"),
+                unary("-Lists(flags)"),
+                binary("Lists(flags) * 5"),
+                index("Lists(flags)['j']"),
+            ],
+        ),
+        [
+            "Matrix", "Matrix", "double", "Matrix", "int", "int", "Matrix", "bool", "List<bool>", "bool", "Matrix",
+            "double", "T", "List<T>", "bool"
+        ]
+    );
+}
+
+/// The silent failure: a plausible type where upstream finds nothing or
+/// reports an error. Two applicable extensions neither more specific than the
+/// other, an extension with only a setter of the name, an interface setter of
+/// the name (which stops the lookup before extensions), an interface member
+/// (which wins over an extension), an extension that does not apply, a
+/// receiver that may be null and only its interface has the member, a static
+/// member through an override, and an override of `==` leave the access
+/// untyped or typed by the interface.
+#[test]
+fn extension_lookups_upstream_rejects_are_left_untyped() {
+    let code = "class Shape { set label(int v) {} int get sides => 0; }\n\
+        extension First on int { int get clash => 0; int operator -(int o) => 0; }\n\
+        extension Second on int { int get clash => 1; int operator -(int o) => 1; }\n\
+        extension Setters on String { set only(int v) {} }\n\
+        extension Shapes on Shape { int get label => 0; String get sides => ''; static int make() => 0; }\n\
+        extension Ints on int { int get twice => 0; }\n\
+        f(int i, String s, Shape shape, int? maybe, Shape other) {\n\
+          i.clash; i - 1; s.only; shape.label; shape.sides; s.twice; maybe.isEven; maybe.twice;\n\
+          Shapes(shape).make(); Shapes(other) == other;\n\
+        }";
+    assert_eq!(
+        extension_types(
+            "extension_rejected",
+            code,
+            &[
+                property("i.clash"),
+                binary("i - 1"),
+                property("s.only"),
+                property("shape.label"),
+                property("shape.sides"),
+                property("s.twice"),
+                property("maybe.isEven"),
+                property("maybe.twice"),
+                call("Shapes(shape).make()"),
+                binary("Shapes(other) == other"),
+            ],
+        ),
+        ["-", "-", "-", "-", "int", "-", "-", "-", "-", "-"]
+    );
+}
+
+/// The extensions accessible in a file are its library's (unnamed and
+/// private ones too, in every part), and those its imports and its library's
+/// imports provide, prefixed or not, as their combinators filter them; an
+/// unnamed extension of another library is not exported. An extension of a
+/// platform library loses to any other, however specific its type.
+#[test]
+fn accessible_extensions_come_from_the_library_and_its_imports() {
+    let core = format!("{EXTENSION_CORE}extension CoreInts on int {{ String get origin => ''; int get core => 0; }}\n");
+    let library = "extension Shown on String { int get shown => 0; }\n\
+        extension Hidden on String { int get hidden => 0; }\n\
+        extension Prefixed on String { bool get prefixed => true; }\n\
+        extension on String { int get unnamed => 0; }\n";
+    let code = "import 'other.dart' hide Hidden, Prefixed;\n\
+        import 'other.dart' as p show Prefixed;\n\
+        extension Mine on num { bool get origin => true; }\n\
+        extension on String { double get local => 0; }\n\
+        extension _Private on String { bool get private => true; }\n\
+        f(String s, int i) { s.shown; s.hidden; s.prefixed; s.unnamed; s.local; s.private; i.origin; i.core; }";
+    assert_eq!(
+        types_in_library_with_files(
+            "accessible_extensions",
+            &core,
+            &[("other.dart", library)],
+            code,
+            &[
+                property("s.shown"),
+                property("s.hidden"),
+                property("s.prefixed"),
+                property("s.unnamed"),
+                property("s.local"),
+                property("s.private"),
+                property("i.origin"),
+                property("i.core"),
+            ],
+        ),
+        ["int", "-", "bool", "-", "double", "bool", "bool", "int"]
+    );
 }

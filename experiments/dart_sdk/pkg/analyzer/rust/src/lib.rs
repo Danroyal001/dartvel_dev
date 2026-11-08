@@ -98,6 +98,9 @@ pub mod src {
             pub mod type_analyzer;
             pub mod binary_expression_resolver;
             pub mod method_invocation_resolver;
+            pub mod applicable_extensions;
+            pub mod extension_member_resolver;
+            pub mod type_property_resolver;
             pub mod scope;
         }
         pub mod scanner {

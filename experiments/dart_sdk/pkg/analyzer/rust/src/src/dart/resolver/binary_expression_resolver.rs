@@ -31,13 +31,17 @@ use crate::dart::element::nullability_suffix::NullabilitySuffix;
 use crate::src::dart::ast::ast::AstNodeImpl;
 use crate::src::dart::ast::ast_store::{Ast, ChildValue, NO_NODE, NodeId};
 use crate::src::dart::element::class_hierarchy::ClassHierarchy;
-use crate::src::dart::element::element::{ElementKind, ElementStore};
+use crate::src::dart::element::element::{ElementId, ElementKind, ElementStore};
 use crate::src::dart::element::inheritance_manager3::{Member, MethodLookup, get_method};
+use crate::src::dart::element::type_algebra::{Substitution, substitute};
+use crate::src::dart::resolver::applicable_extensions::{extended_type, extension_method, extension_type_parameters};
+use crate::src::dart::resolver::extension_member_resolver::{ExtensionOverride, override_member, override_type_arguments};
+use crate::src::dart::resolver::type_property_resolver::{ExtensionScope, PropertyLookup, resolve};
 use crate::src::dart::element::r#type::TypeImpl;
 use crate::src::dart::element::subtype::TypeSystem;
 use crate::src::dart::element::type_provider::TypeProviderImpl;
 use crate::src::dart::element::type_system::{
-    is_bottom, is_dynamic_bounded, is_invalid_bounded, is_non_nullable, object_type, promote_to_non_null,
+    is_bottom, is_dynamic_bounded, is_invalid_bounded, object_type, promote_to_non_null,
     resolve_to_bound, sdk_class,
 };
 use crate::src::dart::resolver::type_analyzer::{IntegerContextSite, context_site, future_value_type};
@@ -95,6 +99,11 @@ pub struct OperatorResolver<'s> {
     pub static_types: &'s mut HashMap<NodeId, TypeImpl>,
     pub annotation_types: &'s HashMap<NodeId, TypeImpl>,
     pub invocations: &'s mut HashSet<NodeId>,
+    /// The extensions accessible in the file.
+    pub extensions: &'s [ElementId],
+    /// The explicit extension overrides of the file, by node.
+    pub overrides: &'s HashMap<NodeId, ExtensionOverride>,
+    pub inference_using_bounds: bool,
 }
 
 /// How an operator resolved: to a method, to none (the type then follows
@@ -190,8 +199,19 @@ impl OperatorResolver<'_> {
 
     fn type_invocation(&mut self, ast: Ast<'_>, invocation: Invocation, context: Option<TypeImpl>) -> Option<TypeImpl> {
         match invocation {
-            Invocation::Binary { left, operator, right } => self.type_binary(ast, left, &operator, right, context),
+            Invocation::Binary { left, operator, right } => match self.overrides.get(&left).cloned() {
+                Some(extension_override) => self.type_binary_override(ast, &extension_override, &operator, right),
+                None => self.type_binary(ast, left, &operator, right, context),
+            },
             Invocation::Unary { operator, operand } => {
+                if let Some(extension_override) = self.overrides.get(&operand).cloned() {
+                    // `extension.getMethod(...)`, whose return type is not
+                    // substituted.
+                    self.override_type_arguments(ast, &extension_override)?;
+                    let name = if operator == "-" { "unary-" } else { "~" };
+                    let member = self.override_operator(&extension_override, name)?;
+                    return Some(member.return_type(self.store));
+                }
                 // `UnaryOperatorInvocationResolver.resolve`: unary minus
                 // passes its context to an integer literal operand.
                 let operand_context =
@@ -204,11 +224,13 @@ impl OperatorResolver<'_> {
                 self.unary_type(&operator, &operand_type)
             }
             Invocation::Index { receiver, index } => {
-                let Some(receiver_type) = self.type_expression(ast, receiver, Some(TypeImpl::Unknown)) else {
-                    self.type_expression(ast, index, None);
-                    return None;
+                let resolution = match self.overrides.get(&receiver).cloned() {
+                    Some(extension_override) => self.override_index_resolution(ast, &extension_override),
+                    None => match self.type_expression(ast, receiver, Some(TypeImpl::Unknown)) {
+                        Some(receiver_type) => self.index_resolution(&receiver_type),
+                        None => None,
+                    },
                 };
-                let resolution = self.index_resolution(&receiver_type);
                 let Some((type_, index_context)) = resolution else {
                     self.type_expression(ast, index, None);
                     return None;
@@ -217,6 +239,62 @@ impl OperatorResolver<'_> {
                 Some(type_)
             }
         }
+    }
+
+    /// `_resolveUserDefinableElement`, `_resolveRightOperand` and
+    /// `_resolveUserDefinableType` for an extension override operand: the
+    /// extension's method unsubstituted, its parameter type as the right
+    /// operand's context, no numeric refinement, and `Never` when the
+    /// override's extended type is. `==` and `!=` find no method in an
+    /// extension, which is not typed here.
+    fn type_binary_override(
+        &mut self,
+        ast: Ast<'_>,
+        extension_override: &ExtensionOverride,
+        operator: &str,
+        right: NodeId,
+    ) -> Option<TypeImpl> {
+        let member = match self.override_type_arguments(ast, extension_override) {
+            Some(type_arguments) if operator != "==" && operator != "!=" => {
+                self.override_operator(extension_override, operator).map(|member| (member, type_arguments))
+            }
+            _ => None,
+        };
+        let Some((member, type_arguments)) = member else {
+            self.type_expression(ast, right, None);
+            return None;
+        };
+        let right_context = member.parameter_types(self.store).into_iter().next().unwrap_or(TypeImpl::Unknown);
+        self.type_expression(ast, right, Some(right_context))?;
+        let substitution = Substitution::from_pairs(
+            extension_type_parameters(self.store, extension_override.extension),
+            type_arguments,
+        );
+        let declared = extended_type(self.store, extension_override.extension);
+        if is_never(&substitute(self.store, &substitution, &declared)) {
+            return Some(TypeImpl::Never(NullabilitySuffix::none));
+        }
+        Some(member.return_type(self.store))
+    }
+
+    /// `resolveReceiverIndexExpression` for an extension override receiver:
+    /// `getOverrideMember(receiver, '[]')`, substituted, when it is an
+    /// instance method with declared types.
+    fn override_index_resolution(
+        &mut self,
+        ast: Ast<'_>,
+        extension_override: &ExtensionOverride,
+    ) -> Option<(TypeImpl, TypeImpl)> {
+        let type_arguments = self.override_type_arguments(ast, extension_override)?;
+        let member = override_member(self.store, extension_override.extension, &type_arguments, "[]")?;
+        let fragment = self.store.fragment(self.store.element(member.element).first_fragment);
+        if fragment.is_static() || member.has_implicit_types(self.store) {
+            return None;
+        }
+        let parameters = member.parameter_types(self.store);
+        let context = parameters.first().cloned().unwrap_or(TypeImpl::Unknown);
+        let type_ = if parameters.len() == 1 { member.return_type(self.store) } else { TypeImpl::Invalid };
+        Some((type_, context))
     }
 
     /// `BinaryExpressionResolver.resolveBinaryOperatorInvocation`.
@@ -343,37 +421,49 @@ impl OperatorResolver<'_> {
     }
 
     /// `TypePropertyResolver.resolve` of the operator [name] on [receiver],
-    /// as far as it is ported.
+    /// as far as it is ported: the interface's method, else an applicable
+    /// extension's.
     fn resolve_method(&mut self, receiver: &TypeImpl, name: &str) -> Resolved {
         if is_dynamic_bounded(self.store, receiver) || is_invalid_bounded(self.store, receiver) {
             // Only `Object`'s members, and it has no operator but `==`.
             return Resolved::NoMethod;
         }
-        if self.may_be_null(receiver) {
-            return Resolved::Unresolved;
+        let scope = ExtensionScope { extensions: self.extensions, inference_using_bounds: self.inference_using_bounds };
+        match resolve(&mut TypeSystem::new(self.store, &mut self.hierarchy), &scope, receiver, name) {
+            PropertyLookup::Member(member)
+                if self.store.element(member.element).kind == ElementKind::METHOD
+                    && !member.has_implicit_types(self.store) =>
+            {
+                Resolved::Method(member)
+            }
+            PropertyLookup::Never | PropertyLookup::DynamicBounded => Resolved::NoMethod,
+            _ => Resolved::Unresolved,
         }
-        let bound = resolve_to_bound(self.store, receiver);
-        if let Some(i) = bound.as_interface() {
-            let i = i.clone();
-            return match get_method(&mut TypeSystem::new(self.store, &mut self.hierarchy), &i, name) {
-                MethodLookup::Found(member) if !member.has_implicit_types(self.store) => Resolved::Method(member),
-                _ => Resolved::Unresolved,
-            };
-        }
-        if is_never(&bound) {
-            return Resolved::NoMethod;
-        }
-        Resolved::Unresolved
     }
 
-    /// Whether `resolve` treats a receiver of [type_] as nullable.
-    fn may_be_null(&self, type_: &TypeImpl) -> bool {
-        match type_.as_interface() {
-            Some(i) if self.store.element(i.element).kind == ElementKind::EXTENSION_TYPE => {
-                i.nullability_suffix == NullabilitySuffix::question
-            }
-            _ => !is_non_nullable(self.store, type_),
-        }
+    /// The method `extension.getMethod(name)` of the extension [extension_override]
+    /// names, unsubstituted (as upstream's binary and unary operator
+    /// resolution reads it), when it is an instance method with declared
+    /// types.
+    fn override_operator(&self, extension_override: &ExtensionOverride, name: &str) -> Option<Member> {
+        let element = extension_method(self.store, extension_override.extension, name)?;
+        let member = Member { element, substitution: Substitution::from_pairs(Vec::new(), Vec::new()), combined: None };
+        let fragment = self.store.fragment(self.store.element(element).first_fragment);
+        (!fragment.is_static() && !member.has_implicit_types(self.store)).then_some(member)
+    }
+
+    /// The type arguments `resolveOverride` gives [extension_override], whose
+    /// argument is typed first (with no context known: an integer literal
+    /// there stays untyped); `None` when the argument is not typed.
+    fn override_type_arguments(&mut self, ast: Ast<'_>, extension_override: &ExtensionOverride) -> Option<Vec<TypeImpl>> {
+        let argument_type = self.type_expression(ast, extension_override.argument, None)?;
+        Some(override_type_arguments(
+            &mut TypeSystem::new(self.store, &mut self.hierarchy),
+            extension_override.extension,
+            extension_override.type_arguments.clone(),
+            &argument_type,
+            self.inference_using_bounds,
+        ))
     }
 
     /// `UnaryOperatorInvocationResolver.resolve`.
@@ -429,7 +519,7 @@ impl OperatorResolver<'_> {
     /// extension type) on a subtype of `num?`.
     fn refines_numeric(&mut self, member: &Member, target: &TypeImpl) -> bool {
         let name = self.store.element(member.element).name.clone();
-        if member.enclosing_kind(self.store) == ElementKind::EXTENSION_TYPE
+        if matches!(member.enclosing_kind(self.store), ElementKind::EXTENSION_TYPE | ElementKind::EXTENSION)
             || !matches!(name.as_deref(), Some("+" | "-" | "*" | "%"))
         {
             return false;

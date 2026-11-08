@@ -42,6 +42,7 @@ use crate::src::dart::element::scope::{ScopeElement, ScopeFeatures, ScopeId, Sco
 use crate::src::dart::element::type_provider::TypeProviderImpl;
 use crate::src::dart::element::class_hierarchy::ClassHierarchy;
 use crate::src::dart::resolver::binary_expression_resolver::OperatorResolver;
+use crate::src::dart::resolver::extension_member_resolver::ExtensionOverride;
 use crate::src::dart::resolver::method_invocation_resolver::{MemberAccessKind, MemberResolver};
 use crate::dart::analysis::features::Feature;
 use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId};
@@ -130,6 +131,10 @@ pub struct TypeAnalyzer<'a> {
     /// Every read of a variable: the `ParsedUnqualifiedName` and the
     /// variable it finds.
     reads: Vec<(NodeId, usize)>,
+    /// The explicit extension overrides, by their `ParsedValueArguments`.
+    overrides: HashMap<NodeId, ExtensionOverride>,
+    /// Whether the unit's library has `inference-using-bounds`.
+    inference_using_bounds: bool,
 }
 
 /// A name a local scope declares.
@@ -234,6 +239,8 @@ impl<'a> TypeAnalyzer<'a> {
             variable_of_node: HashMap::new(),
             type_parameter_of_node: HashMap::new(),
             reads: Vec::new(),
+            overrides: HashMap::new(),
+            inference_using_bounds: true,
         }
     }
 
@@ -266,6 +273,9 @@ impl<'a> TypeAnalyzer<'a> {
             },
             _ => ScopeFeatures { wildcard_variables: false, records: false },
         };
+        if let AstNodeImpl::CompilationUnitImpl(unit) = ast.node(node) {
+            self.inference_using_bounds = unit.feature_set.is_enabled(Feature::inference_using_bounds);
+        }
         self.visit(ast, node, features);
         self.record_variable_reads();
         self.resolve_operator_invocations(ast, node);
@@ -583,6 +593,11 @@ impl<'a> TypeAnalyzer<'a> {
     /// the enclosing loop's scope gets once the iterable is visited.
     fn resolve_names(&mut self, ast: Ast<'_>, node: NodeId, features: ScopeFeatures) {
         match ast.node(node) {
+            AstNodeImpl::ParsedValueArgumentsImpl(_) => {
+                if let Some(extension_override) = self.extension_override(ast, node) {
+                    self.overrides.insert(node, extension_override);
+                }
+            }
             // An annotation's name has no static type upstream.
             AstNodeImpl::ParsedUnqualifiedNameImpl(_)
                 if matches!(ast.node(ast.parent2(node)), AstNodeImpl::AnnotationImpl(_)) => {}
@@ -639,6 +654,7 @@ impl<'a> TypeAnalyzer<'a> {
         let Some(declarations) = self.declarations.as_mut() else {
             return;
         };
+        let extensions = declarations.scopes.accessible_extensions(declarations.store, declarations.unit);
         OperatorResolver {
             store: &mut *declarations.store,
             hierarchy: ClassHierarchy::default(),
@@ -646,6 +662,9 @@ impl<'a> TypeAnalyzer<'a> {
             static_types: &mut self.static_types,
             annotation_types: &self.annotation_types,
             invocations: &mut self.operator_invocations,
+            extensions: &extensions,
+            overrides: &self.overrides,
+            inference_using_bounds: self.inference_using_bounds,
         }
         .resolve(ast, node);
     }
@@ -658,6 +677,7 @@ impl<'a> TypeAnalyzer<'a> {
         let Some(declarations) = self.declarations.as_mut() else {
             return;
         };
+        let extensions = declarations.scopes.accessible_extensions(declarations.store, declarations.unit);
         MemberResolver {
             store: &mut *declarations.store,
             hierarchy: ClassHierarchy::default(),
@@ -665,6 +685,9 @@ impl<'a> TypeAnalyzer<'a> {
             static_types: &mut self.static_types,
             accesses: &mut self.member_accesses,
             arguments: &mut self.member_arguments,
+            extensions: &extensions,
+            overrides: &self.overrides,
+            inference_using_bounds: self.inference_using_bounds,
         }
         .resolve(ast, node);
     }
@@ -903,6 +926,58 @@ impl<'a> TypeAnalyzer<'a> {
             }
         }
         layer
+    }
+
+    /// [node], a `ParsedValueArguments`, as an explicit extension override:
+    /// `_visitScopeInvocation` makes one of a call `E(x)`, `E<T>(x)` or
+    /// `p.E(x)` whose name finds an extension (in the lexical scope, or in
+    /// the scope of the import prefix `p`). Only an override with one
+    /// positional argument is returned (upstream reports the others and
+    /// gives them `dynamic`).
+    fn extension_override(&self, ast: Ast<'_>, node: NodeId) -> Option<ExtensionOverride> {
+        let declarations = self.declarations.as_ref()?;
+        let v = ast.node(node).as_parsed_value_arguments_impl();
+        let (callee, type_arguments) = match ast.node(v.operand) {
+            AstNodeImpl::ParsedTypeArgumentsImpl(t) => (t.operand, Some(t.type_arguments)),
+            _ => (v.operand, None),
+        };
+        let element = match ast.node(callee) {
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) => self.lookup(&ast.tokens.lexeme_string(n.name)),
+            AstNodeImpl::ParsedNameAccessImpl(n) => match ast.node(n.operand) {
+                AstNodeImpl::ParsedUnqualifiedNameImpl(prefix) => {
+                    match self.lookup(&ast.tokens.lexeme_string(prefix.name)) {
+                        Some(ScopeElement::Prefix(p)) => {
+                            declarations.scopes.lookup_prefix(p, &ast.tokens.lexeme_string(n.name)).getter
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        let Some(ScopeElement::Element(extension)) = element else {
+            return None;
+        };
+        if declarations.store.element(extension).kind != ElementKind::EXTENSION {
+            return None;
+        }
+        let arguments = &ast.node(v.argument_list).as_argument_list_impl().arguments2;
+        let &[argument] = arguments.as_slice() else {
+            return None;
+        };
+        if let AstNodeImpl::NamedArgumentImpl(_) = ast.node(argument) {
+            return None;
+        }
+        let type_arguments = type_arguments.map(|list| {
+            ast.node(list)
+                .as_type_argument_list_impl()
+                .arguments
+                .iter()
+                .map(|annotation| self.annotation_types.get(annotation).cloned().unwrap_or(TypeImpl::Dynamic))
+                .collect()
+        });
+        Some(ExtensionOverride { extension, type_arguments, argument })
     }
 
     /// The innermost local binding of [name].

@@ -573,14 +573,51 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
     return typeSystem.isSubtypeOf(left, numQuestion);
   }
 
+  /// Whether [node] is an explicit extension override `E(x)`, `E<T>(x)` or
+  /// `p.E(x)` with one positional argument that [isKnown] knows.
+  static bool _isKnownOverride(AstNode node, bool Function(AstNode) isKnown) {
+    if (node is! ExtensionOverride2Impl) return false;
+    var arguments = node.argumentList.arguments2;
+    return arguments.length == 1 &&
+        arguments[0] is! NamedArgumentImpl &&
+        isKnown(arguments[0]);
+  }
+
+  /// Whether [element] is an instance member of an extension.
+  static bool _isExtensionMember(ExecutableElement? element) =>
+      element != null &&
+      element.enclosingElement is ExtensionElement &&
+      !element.isStatic;
+
   /// Whether the receiver of [invocation] is known and its operator resolves
   /// as far as the port resolves it: through the interface of the receiver's
-  /// static type to a method with declared types, or not at all because the
-  /// receiver is `dynamic`, invalid or `Never`. A receiver that may be null
-  /// (but for `==` and `!=`, which promote it) and a member the interface
-  /// does not have (which an extension may supply) are not resolved.
+  /// static type, or else an applicable extension, to a method with declared
+  /// types, or not at all because the receiver is `dynamic`, invalid or
+  /// `Never`; or, for an extension override receiver with a known argument
+  /// (not of `==` or `!=`), to the extension's method with declared types.
+  /// A receiver that may be null (but for `==` and `!=`, which promote it)
+  /// resolves only to an extension's operator: `Object` has none.
   bool _isResolvable(AstNode invocation) {
     var receiver = _receiver(invocation);
+    if (receiver is ExtensionOverride2Impl) {
+      if (!_isKnownOverride(receiver, _isKnown)) return false;
+      var element = switch (invocation) {
+        BinaryOperatorInvocationImpl(:var binaryOperator) =>
+          binaryOperator == BinaryOperator.equal ||
+                  binaryOperator == BinaryOperator.notEqual
+              ? null
+              : invocation.element,
+        UnaryOperatorInvocationImpl() => invocation.element,
+        ReceiverIndexExpressionImpl(:var resolution) => switch (resolution) {
+          MethodIndexReadResolutionImpl(:var element) => element,
+          InvalidIndexReadResolutionImpl(:var recoveryElement) =>
+            recoveryElement,
+          _ => null,
+        },
+        _ => null,
+      };
+      return _isExtensionMember(element) && _isDeclared(element);
+    }
     if (receiver is! ExpressionImpl || !_isKnown(receiver)) return false;
     var type = receiver.staticType as TypeImpl;
     var bound = typeSystem.resolveToBound(type);
@@ -596,11 +633,13 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
           return element == null || !element.hasImplicitReturnType;
         }
         return isNever(bound) || isBounded(type) ||
-            (!_mayBeNull(type) && _isDeclared(invocation.element));
+            ((!_mayBeNull(type) || _isExtensionMember(invocation.element)) &&
+                _isDeclared(invocation.element));
       case UnaryOperatorInvocationImpl():
         return type is DynamicType || type is InvalidType || isNever(type) ||
             isBounded(type) || isNever(bound) ||
-            (!_mayBeNull(type) && _isDeclared(invocation.element));
+            ((!_mayBeNull(type) || _isExtensionMember(invocation.element)) &&
+                _isDeclared(invocation.element));
       case ReceiverIndexExpressionImpl(:var resolution):
         var element = switch (resolution) {
           MethodIndexReadResolutionImpl(:var element) => element,
@@ -610,7 +649,8 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
         };
         return isNever(bound) || bound is DynamicType || bound is VoidType ||
             bound is InvalidType ||
-            (!_mayBeNull(bound) && _isDeclared(element));
+            ((!_mayBeNull(bound) || _isExtensionMember(element)) &&
+                _isDeclared(element));
     }
     return false;
   }
@@ -621,11 +661,12 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
       ? type.nullabilitySuffix == NullabilitySuffix.question
       : typeSystem.isPotentiallyNullable(type);
 
-  /// Whether [element] is a method of an interface with a declared return
-  /// type and declared parameter types.
+  /// Whether [element] is a method of an interface or an extension with a
+  /// declared return type and declared parameter types.
   static bool _isDeclared(MethodElement? element) =>
       element != null &&
-      element.enclosingElement is InterfaceElement &&
+      (element.enclosingElement is InterfaceElement ||
+          element.enclosingElement is ExtensionElement) &&
       !element.hasImplicitReturnType &&
       !element.formalParameters.any((parameter) => parameter.hasImplicitType);
 }
@@ -728,35 +769,65 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
     if (operator.type != TokenType.PERIOD || name.lexeme.startsWith('_')) {
       return false;
     }
-    if (receiver is! ExpressionImpl || !_isKnown(receiver)) return false;
-    var type = receiver.staticType as TypeImpl;
-    if (operators._mayBeNull(type) ||
-        typeSystem.resolveToBound(type) is! InterfaceType) {
-      return false;
+    TypeImpl? type;
+    if (receiver is ExtensionOverride2Impl) {
+      if (!OperatorInvocations._isKnownOverride(receiver, _isKnown)) {
+        return false;
+      }
+    } else {
+      if (receiver is! ExpressionImpl || !_isKnown(receiver)) return false;
+      type = receiver.staticType as TypeImpl;
+      if (type is NeverType ||
+          type is VoidType ||
+          typeSystem.resolveToBound(type) is NeverType ||
+          typeSystem.isDynamicBounded(type) ||
+          typeSystem.isInvalidBounded(type)) {
+        return false;
+      }
+    }
+    // Whether [element] is a member the lookup the port makes finds: of the
+    // overriding extension; else of an applicable extension; else of
+    // `Object` for a receiver that may be null or whose bound is not an
+    // interface type; else of the interface.
+    bool isFound(ExecutableElement element) {
+      if (element.isStatic) return false;
+      var enclosing = element.enclosingElement;
+      if (receiver is ExtensionOverride2Impl) {
+        return enclosing == receiver.element;
+      }
+      if (enclosing is ExtensionElement) return true;
+      if (operators._mayBeNull(type!) ||
+          typeSystem.resolveToBound(type) is! InterfaceType) {
+        return enclosing == typeSystem.typeProvider.objectElement;
+      }
+      return enclosing is InterfaceElement;
     }
     switch (access) {
       case ReceiverMethodInvocationImpl(:var typeArguments):
         if (typeArguments != null) return false;
         var element = _invokedMethod(access);
-        if (element == null) return false;
+        if (element == null || !isFound(element)) return false;
         if (element is! MethodElement ||
             !_isDeclaredMethod(element as MethodElement)) {
           return false;
         }
         var numQuestion = typeSystem.typeProvider.numType
             .withNullability(NullabilitySuffix.question);
-        return !(element.enclosingElement is! ExtensionTypeElement &&
+        return !(type != null &&
+            element.enclosingElement is! ExtensionTypeElement &&
+            element.enclosingElement is! ExtensionElement &&
             const {'remainder', 'clamp'}.contains(element.name) &&
             typeSystem.isSubtypeOf(type, numQuestion));
       case ReceiverPropertyExtractionImpl(:var resolution):
         return switch (resolution) {
           GetterInvocationResolutionImpl(:var element) =>
-            element.enclosingElement is InterfaceElement &&
+            isFound(element) &&
                 (element.isOriginVariable
                     ? !element.variable.hasImplicitType
                     : !element.hasImplicitReturnType),
           ExecutableTearOffResolutionImpl(:var element) =>
-            element is MethodElement &&
+            isFound(element) &&
+                element is MethodElement &&
                 _isDeclaredMethod(element as MethodElement),
           _ => false,
         };

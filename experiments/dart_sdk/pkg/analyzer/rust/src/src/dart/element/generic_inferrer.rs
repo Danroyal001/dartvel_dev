@@ -6,9 +6,11 @@
 // `demoteType`, `matchSupertypeConstraints` and
 // `gatherMixinSupertypeConstraintsForInference` (type_system.dart).
 //
-// Not ported: downwards and horizontal inference (`choosePreliminaryTypes`,
-// argument constraints, generic function instantiation), which only
-// expression inference uses, and error reporting: inference here runs
+// `constrainArgument` is ported for one argument, which extension
+// applicability and extension overrides use (the receiver against the
+// extended type). Not ported: downwards and horizontal inference
+// (`choosePreliminaryTypes`, the other argument constraints, generic function
+// instantiation), which only expression inference uses, and error reporting: inference here runs
 // without a diagnostic reporter, as the linker's does.
 
 use std::rc::Rc;
@@ -40,6 +42,12 @@ impl<'s, 'a> GenericInferrer<'s, 'a> {
     /// `constrainReturnType`: [declared] is a subtype of [context].
     pub fn constrain_return_type(&mut self, declared: &TypeImpl, context: &TypeImpl) {
         self.try_match_subtype_of(declared, context, true);
+    }
+
+    /// `constrainArgument`: an argument of type [argument] is passed to a
+    /// parameter of type [parameter].
+    pub fn constrain_argument(&mut self, argument: &TypeImpl, parameter: &TypeImpl) {
+        self.try_match_subtype_of(argument, parameter, false);
     }
 
     /// `_tryMatchSubtypeOf`. `_typesInferredSoFar` is all `_` until a

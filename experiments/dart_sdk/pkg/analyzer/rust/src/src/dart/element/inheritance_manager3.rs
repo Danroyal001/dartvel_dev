@@ -292,3 +292,44 @@ fn same_signature(store: &ElementStore, a: &FunctionTypeImpl, b: &FunctionTypeIm
 fn built(store: &ElementStore, type_: Option<&TypeImpl>) -> TypeImpl {
     type_.map_or(TypeImpl::Dynamic, |t| without_builders(store, t))
 }
+
+/// Whether `getMember3(type, Name('$name='))` finds a member: an instance
+/// setter [name] (a field's setter included), or an instance method named
+/// `[name]=` (`[]=` for [name] `[]`), declared or inherited by [type_]'s
+/// interface. `TypePropertyResolver` does not look for an extension getter
+/// [name] when the interface has one: the name is the interface's.
+pub fn has_setter(store: &ElementStore, type_: &InterfaceTypeImpl, name: &str) -> bool {
+    fn declares(store: &ElementStore, element: ElementId, name: &str, visiting: &mut Vec<ElementId>) -> bool {
+        if visiting.contains(&element) {
+            return false;
+        }
+        let e = store.element(element);
+        let Some(members) = e.members.as_deref() else {
+            return false;
+        };
+        let instance = |member: ElementId| !store.fragment(store.element(member).first_fragment).is_static();
+        let method_name = format!("{name}=");
+        if members.setters.iter().any(|&s| instance(s) && store.element(s).name.as_deref() == Some(name))
+            || members.methods.iter().any(|&m| instance(m) && store.element(m).name.as_deref() == Some(&*method_name))
+        {
+            return true;
+        }
+        let mut supertypes: Vec<TypeImpl> = Vec::new();
+        if matches!(e.kind, ElementKind::CLASS | ElementKind::ENUM) {
+            supertypes.extend(e.type_.clone());
+        }
+        if let Some(types) = store.types(element) {
+            supertypes.extend(types.mixins.iter().cloned());
+            supertypes.extend(types.superclass_constraints.iter().cloned());
+            supertypes.extend(types.interfaces.iter().cloned());
+        }
+        visiting.push(element);
+        let found = supertypes.iter().any(|t| match without_builders(store, t).as_interface() {
+            Some(i) => declares(store, i.element, name, visiting),
+            None => false,
+        });
+        visiting.pop();
+        found
+    }
+    declares(store, type_.element, name, &mut Vec::new())
+}

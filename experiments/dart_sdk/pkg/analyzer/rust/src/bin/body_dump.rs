@@ -240,7 +240,7 @@ impl Dumper<'_> {
             return;
         };
         let runtime_type = match ast.node(invocation.target2) {
-            AstNodeImpl::SimpleIdentifierImpl(_) => "PrefixedIdentifierImpl",
+            AstNodeImpl::SimpleIdentifierImpl(_) if !self.has_record_receiver(ast, access, analyzer) => "PrefixedIdentifierImpl",
             _ => "PropertyAccessImpl",
         };
         let type_ = analyzer
@@ -249,6 +249,24 @@ impl Dumper<'_> {
             .map(|type_| display_string(self.store, type_))
             .unwrap_or_else(|| "-".into());
         writeln!(out, "{runtime_type} {offset}+{length} type={type_}").unwrap();
+    }
+
+    /// Whether the receiver of the member access [access] has a record type
+    /// (past type parameters, to their bounds): `V1Projection` then projects
+    /// `r.p` as a `PropertyAccess`, not a `PrefixedIdentifier`
+    /// (`_usesPrefixedIdentifier`).
+    fn has_record_receiver(&self, ast: Ast<'_>, access: NodeId, analyzer: &Results) -> bool {
+        let AstNodeImpl::ParsedNameAccessImpl(n) = ast.node(access) else {
+            return false;
+        };
+        let mut type_ = analyzer.static_types.get(&n.operand).cloned();
+        while let Some(TypeImpl::TypeParameter(t)) = &type_ {
+            type_ = match &t.promoted_bound {
+                Some(bound) => Some((**bound).clone()),
+                None => self.store.element(t.element).type_.clone(),
+            };
+        }
+        matches!(type_, Some(TypeImpl::Record(_)))
     }
 
     /// Writes the selected expressions under the V1 node [node], in the
@@ -309,7 +327,12 @@ impl Dumper<'_> {
             writeln!(
                 out,
                 "{} {}+{} type={}{}",
-                ast.node(node).runtime_type(),
+                match ast.node(node).runtime_type() {
+                    "PrefixedIdentifierImpl" if self.selection == Selection::Members && self.has_record_receiver(ast, typed, analyzer) => {
+                        "PropertyAccessImpl"
+                    }
+                    runtime_type => runtime_type,
+                },
                 ast.offset(node),
                 ast.length(node),
                 type_,

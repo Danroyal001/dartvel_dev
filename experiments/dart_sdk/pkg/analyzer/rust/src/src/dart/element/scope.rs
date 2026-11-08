@@ -71,6 +71,9 @@ struct GettersAndSetters {
 #[derive(Clone, Debug, Default)]
 struct PrefixScope {
     names: GettersAndSetters,
+    /// `_extensions`: the extensions the imports provide, in the order they
+    /// were added, whether or not their names conflict.
+    extensions: Vec<ElementId>,
     parent: Option<PrefixScopeId>,
     /// `_deferredLibrary`: `loadLibrary` resolves to its function.
     deferred_library: Option<LibraryId>,
@@ -257,6 +260,9 @@ impl Scopes {
             for (_, element) in create_namespace_for_directive(store, *imported, combinators) {
                 if should_add(store, *imported, element, features) {
                     add_to_prefix_scope(&mut scope.names, store, element);
+                    if store.element(element).kind == ElementKind::EXTENSION && !scope.extensions.contains(&element) {
+                        scope.extensions.push(element);
+                    }
                 }
             }
             if let Some(p) = &import.prefix {
@@ -358,6 +364,42 @@ impl Scopes {
             return Some(result);
         }
         f.enclosing.and_then(|e| self.lookup_combined(e, id))
+    }
+
+    /// `LibraryFragmentScope.accessibleExtensions`: the extensions the
+    /// library declares (unnamed and private ones too), then those its
+    /// imports without a prefix provide, then those of each prefix in the
+    /// order the prefixes were declared, then those accessible in the file
+    /// that includes [unit]; each once.
+    pub fn accessible_extensions(&self, store: &ElementStore, unit: UnitId) -> Vec<ElementId> {
+        let f = &self.fragments[&unit];
+        let mut result: Vec<ElementId> = Vec::new();
+        let mut add = |element: ElementId| {
+            if !result.contains(&element) {
+                result.push(element);
+            }
+        };
+        for &e in &store.libraries[f.library as usize].extensions {
+            add(e);
+        }
+        for &e in &self.prefix_scopes[f.no_prefix as usize].extensions {
+            add(e);
+        }
+        // The prefix elements were numbered in the order they were declared.
+        let mut prefixes: Vec<PrefixId> = f.prefixes.values().copied().collect();
+        prefixes.sort_unstable();
+        for prefix in prefixes {
+            let scope = self.prefixes[prefix as usize].scope;
+            for &e in &self.prefix_scopes[scope as usize].extensions {
+                add(e);
+            }
+        }
+        if let Some(enclosing) = f.enclosing {
+            for e in self.accessible_extensions(store, enclosing) {
+                add(e);
+            }
+        }
+        result
     }
 
     /// `PrefixScope.lookup`, for the scope of a prefix element.

@@ -32,12 +32,14 @@ use crate::dart::element::nullability_suffix::NullabilitySuffix;
 use crate::src::dart::ast::ast::AstNodeImpl;
 use crate::src::dart::ast::ast_store::{Ast, ChildValue, NO_NODE, NodeId};
 use crate::src::dart::element::class_hierarchy::ClassHierarchy;
-use crate::src::dart::element::element::{ElementKind, ElementStore, FragmentFlag, NO_ELEMENT};
-use crate::src::dart::element::inheritance_manager3::{Member, MethodLookup, get_member};
+use crate::src::dart::element::element::{ElementId, ElementKind, ElementStore, FragmentFlag, NO_ELEMENT};
+use crate::src::dart::element::inheritance_manager3::Member;
 use crate::src::dart::element::r#type::TypeImpl;
 use crate::src::dart::element::subtype::TypeSystem;
 use crate::src::dart::element::type_provider::TypeProviderImpl;
-use crate::src::dart::element::type_system::{is_non_nullable, resolve_to_bound, sdk_class};
+use crate::src::dart::element::type_system::{is_dynamic_bounded, is_invalid_bounded, resolve_to_bound, sdk_class};
+use crate::src::dart::resolver::extension_member_resolver::{ExtensionOverride, override_member, override_type_arguments};
+use crate::src::dart::resolver::type_property_resolver::{ExtensionScope, PropertyLookup, resolve};
 use fe_analyzer_shared::scanner::token::TokenId;
 
 /// What kind of member access a node is.
@@ -126,6 +128,11 @@ pub struct MemberResolver<'s> {
     pub static_types: &'s mut HashMap<NodeId, TypeImpl>,
     pub accesses: &'s mut HashMap<NodeId, MemberAccessKind>,
     pub arguments: &'s mut HashSet<NodeId>,
+    /// The extensions accessible in the file.
+    pub extensions: &'s [ElementId],
+    /// The explicit extension overrides of the file, by node.
+    pub overrides: &'s HashMap<NodeId, ExtensionOverride>,
+    pub inference_using_bounds: bool,
 }
 
 impl MemberResolver<'_> {
@@ -174,15 +181,43 @@ impl MemberResolver<'_> {
         if name.starts_with('_') {
             return None;
         }
-        let receiver_type = self.receiver_type(ast, access.receiver)?;
-        if self.may_be_null(&receiver_type) {
-            return None;
-        }
-        let bound = resolve_to_bound(self.store, &receiver_type);
-        let interface = bound.as_interface()?.clone();
-        let member = match get_member(&mut TypeSystem::new(self.store, &mut self.hierarchy), &interface, &name) {
-            MethodLookup::Found(member) => member,
-            _ => return None,
+        // The member, and the receiver's type when it is an expression.
+        let (member, receiver_type) = match self.overrides.get(&access.receiver) {
+            Some(extension_override) => {
+                // `getOverrideMember`, with the type arguments
+                // `resolveOverride` gives the override; a static member is
+                // reported upstream.
+                let extension_override = extension_override.clone();
+                let argument_type = self.override_argument_type(ast, &extension_override)?;
+                let type_arguments = override_type_arguments(
+                    &mut TypeSystem::new(self.store, &mut self.hierarchy),
+                    extension_override.extension,
+                    extension_override.type_arguments.clone(),
+                    &argument_type,
+                    self.inference_using_bounds,
+                );
+                let member = override_member(self.store, extension_override.extension, &type_arguments, &name)?;
+                if self.store.fragment(self.store.element(member.element).first_fragment).is_static() {
+                    return None;
+                }
+                (member, None)
+            }
+            None => {
+                let receiver_type = self.receiver_type(ast, access.receiver)?;
+                if matches!(receiver_type, TypeImpl::Never(_) | TypeImpl::Void)
+                    || is_dynamic_bounded(self.store, &receiver_type)
+                    || is_invalid_bounded(self.store, &receiver_type)
+                    || matches!(resolve_to_bound(self.store, &receiver_type), TypeImpl::Never(_))
+                {
+                    return None;
+                }
+                let scope = ExtensionScope { extensions: self.extensions, inference_using_bounds: self.inference_using_bounds };
+                let member = match resolve(&mut TypeSystem::new(self.store, &mut self.hierarchy), &scope, &receiver_type, &name) {
+                    PropertyLookup::Member(member) => member,
+                    _ => return None,
+                };
+                (member, Some(receiver_type))
+            }
         };
         let kind = self.store.element(member.element).kind;
         match access.kind {
@@ -198,8 +233,10 @@ impl MemberResolver<'_> {
                 if kind != ElementKind::METHOD || !self.is_declared_method(&member) {
                     return None;
                 }
-                if self.refines_numeric(&member, &name, &receiver_type) {
-                    return None;
+                if let Some(receiver_type) = &receiver_type {
+                    if self.refines_numeric(&member, &name, receiver_type) {
+                        return None;
+                    }
                 }
                 self.type_arguments(ast, access.argument_list, &member);
                 Some(member.return_type(self.store))
@@ -212,6 +249,17 @@ impl MemberResolver<'_> {
                 _ => None,
             },
         }
+    }
+
+    /// The static type of the argument of [extension_override], when it is
+    /// typed (an integer literal there has a context this port does not
+    /// give it).
+    fn override_argument_type(&self, ast: Ast<'_>, extension_override: &ExtensionOverride) -> Option<TypeImpl> {
+        let argument = un_parenthesized(ast, extension_override.argument);
+        if let AstNodeImpl::IntegerLiteralImpl(_) = ast.node(argument) {
+            return None;
+        }
+        self.static_types.get(&argument).cloned()
     }
 
     /// Gives each integer literal argument (past parentheses) of an
@@ -236,17 +284,6 @@ impl MemberResolver<'_> {
             let type_ = self.integer_literal_type(&parameter.type_.clone());
             self.static_types.insert(literal, type_);
             self.arguments.insert(literal);
-        }
-    }
-
-    /// Whether `TypePropertyResolver.resolve` treats a receiver of [type_]
-    /// as nullable.
-    fn may_be_null(&self, type_: &TypeImpl) -> bool {
-        match type_.as_interface() {
-            Some(i) if self.store.element(i.element).kind == ElementKind::EXTENSION_TYPE => {
-                i.nullability_suffix == NullabilitySuffix::question
-            }
-            _ => !is_non_nullable(self.store, type_),
         }
     }
 
@@ -278,7 +315,7 @@ impl MemberResolver<'_> {
     /// an extension type) on a receiver of type [target], a subtype of
     /// `num?`, from its arguments.
     fn refines_numeric(&mut self, member: &Member, name: &str, target: &TypeImpl) -> bool {
-        if member.enclosing_kind(self.store) == ElementKind::EXTENSION_TYPE || !matches!(name, "remainder" | "clamp") {
+        if matches!(member.enclosing_kind(self.store), ElementKind::EXTENSION_TYPE | ElementKind::EXTENSION) || !matches!(name, "remainder" | "clamp") {
             return false;
         }
         let num = sdk_class(self.store, "dart:core", "num").expect("dart:core declares num");
