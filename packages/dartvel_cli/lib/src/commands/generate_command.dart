@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../build/render_backends.dart';
+import '../config/source_paths.dart';
 import '../generators/generate_check.dart';
 import '../utils/logger.dart';
 
@@ -148,9 +149,9 @@ class GenerateModelSubcommand extends Command<void> {
       return;
     }
     final modelName = argResults!.rest.first;
-    final modelsDir = Directory(
-      p.join(_root ?? Directory.current.path, 'lib', 'models'),
-    );
+    final String root = _root ?? Directory.current.path;
+    // The first plain directory modelsDir names: a glob names no single place.
+    final modelsDir = Directory(p.join(root, dvModelWriteDirectory(root)));
     if (!modelsDir.existsSync()) {
       modelsDir.createSync(recursive: true);
     }

@@ -21,26 +21,19 @@ library;
 
 import 'dart:io';
 
-import 'package:glob/glob.dart';
-import 'package:file/local.dart';
 
+import '../config/source_paths.dart';
 import 'annotation_args.dart';
 import 'primary_constructors.dart';
 
-/// The generated class name of every data model declared under
-/// `lib/models/` in [root], sorted.
+/// The generated class name of every data model declared where `modelsDir`
+/// says in [root] (`lib/models/` by default), sorted.
 ///
 /// Read the way the model generator reads them: the private annotated class,
 /// with its leading underscore dropped.
 List<String> dvDeclaredModelNames(String root) {
-  if (!Directory('$root/lib/models').existsSync()) return const <String>[];
   final Set<String> names = <String>{};
-  for (final entity in Glob('lib/models/**.dart').listFileSystemSync(
-    const LocalFileSystem(),
-    root: root,
-    followLinks: false,
-  )) {
-    if (entity is! File) continue;
+  for (final File entity in dvModelSourceFiles(root)) {
     final String text =
         dvDesugarPrimaryConstructors(File(entity.path).readAsStringSync());
     for (final RegExpMatch m in RegExp(

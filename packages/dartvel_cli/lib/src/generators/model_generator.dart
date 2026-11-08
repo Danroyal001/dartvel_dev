@@ -8,8 +8,6 @@ import 'package:dartvel_core/dartvel.dart'
         DVStudioIndexSpec,
         DVStudioModelSpec;
 import 'package:yaml/yaml.dart';
-import 'package:file/local.dart';
-import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'annotation_args.dart';
 import 'model_rules.dart';
@@ -20,6 +18,7 @@ import 'server_models.dart';
 import 'public_pages.dart';
 import 'record_columns.dart';
 import 'tenant_column.dart';
+import '../config/source_paths.dart';
 import '../utils/helpers.dart';
 
 /// Sort key for a field with no `@DVModel.pageOrder(n)`, so every ordered
@@ -48,12 +47,6 @@ class ModelGenerator {
     // itself a Dartvel module, in which case its models resolve their table
     // and their database through whatever mounted it.
     final String? ownModuleId = _ownModuleId(root);
-    final modelsDir = Directory(p.join(root, 'lib', 'models'));
-    final fs = const LocalFileSystem();
-    // Always '/': a glob separator is not a host path separator, and a
-    // backslash is glob's escape character. p.join here matched nothing on
-    // Windows, so models.g.dart came out empty and every model type was
-    // undefined hundreds of lines away.
     // Every table this project declares, with the statement that creates
     // it, for `dartvel db migrate`.
     //
@@ -76,22 +69,10 @@ class ModelGenerator {
     // cannot have its own, because a catalogue priced in three currencies is
     // three numbers nobody can add together.
     final String? nativeCurrency = _nativeCurrency(root);
-    final glob = Glob('lib/models/**.dart');
-    final files = <File>[];
-    if (modelsDir.existsSync()) {
-      for (final entity in glob.listFileSystemSync(
-        fs,
-        root: root,
-        followLinks: false,
-      )) {
-        if (entity is File) {
-          files.add(File(entity.path));
-        }
-      }
-    }
-    // A listing comes back in whatever order the filesystem keeps, and the
-    // models are written in the order they are read.
-    files.sort((File a, File b) => a.path.compareTo(b.path));
+    // Wherever modelsDir says, sorted: the models are written in the order
+    // they are read, and a listing comes back in whatever order the
+    // filesystem keeps.
+    final List<File> files = dvModelSourceFiles(root);
 
     final sb = StringBuffer();
     // The public pages' specs, for the backend that cannot import this file.

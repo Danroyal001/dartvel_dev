@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../config/source_paths.dart';
 import 'annotation_args.dart';
 import 'primary_constructors.dart';
 import 'public_pages.dart';
@@ -82,6 +83,12 @@ class StaticPathsGenerator {
     if (!libDir.existsSync()) return const <StaticPathsProvider>[];
 
     final providers = <StaticPathsProvider>[];
+    // The data-model sources, wherever modelsDir says: only those get a page
+    // by default, as the model generator reads only those.
+    final Set<String> modelSources = <String>{
+      for (final File f in dvModelSourceFiles(root))
+        p.relative(f.path, from: root).replaceAll(r'\', '/'),
+    };
 
     final files = libDir
         .listSync(recursive: true)
@@ -105,7 +112,7 @@ class StaticPathsGenerator {
       // Only a model the model generator reads gets a page by default: it is
       // the generated class that serves one. A model elsewhere in lib/ still
       // gets what it asks for by name.
-      final bool isModelsFile = relative.startsWith('lib/models/');
+      final bool isModelsFile = modelSources.contains(relative);
       // Blanked annotation arguments: `[^)]*` stops at the first close
       // parenthesis and a string argument can contain one. The model
       // generator masks the same way, and the two disagreeing is a model

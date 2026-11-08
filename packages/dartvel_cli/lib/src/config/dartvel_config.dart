@@ -7,6 +7,7 @@ import 'package:yaml/yaml.dart';
 
 import '../build/runtime_packages.dart' show dvReadRuntimeSection;
 import '../utils/helpers.dart';
+import 'source_paths.dart';
 import '../generators/primary_constructors.dart';
 
 class DartvelConfig {
@@ -100,7 +101,9 @@ class DartvelConfig {
     return DartvelConfig(
       packageName: packageName,
       pagesDir: _string(raw['pagesDir'], 'lib/pages'),
-      modelsDir: _string(raw['modelsDir'], 'lib/models'),
+      // One directory here: where a new model is written. The list and the
+      // globs modelsDir may hold are read by dvModelSourceFiles.
+      modelsDir: dvSourceWriteDirectory(root.path, 'modelsDir', 'lib/models'),
       backendDir: _string(raw['backendDir'], 'lib/backend'),
       componentsDir: _string(raw['componentsDir'], 'lib/components'),
       stylesDir: _string(raw['stylesDir'], 'lib/styles'),

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../config/source_paths.dart';
 import '../generators/annotation_args.dart';
 import '../generators/primary_constructors.dart';
 import '../utils/logger.dart';
@@ -358,15 +359,13 @@ class DartvelAdminGenerator {
   /// Scanned rather than configured: an admin that had to be told which
   /// models exist would silently omit every model added afterwards.
   static List<String> _discoverModels(Directory root) {
-    final modelsDir = Directory(p.join(root.path, 'lib', 'models'));
-    if (!modelsDir.existsSync()) return const <String>[];
     final pattern = RegExp(
       r'@DVModel\s*\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*class\s+_([A-Za-z0-9_]+)\b',
       dotAll: true,
     );
     final names = <String>{};
-    for (final entity in modelsDir.listSync(recursive: true)) {
-      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+    // Wherever modelsDir says, as the model generator reads them.
+    for (final File entity in dvModelSourceFiles(root.path)) {
     // Blanked annotation arguments, because `[^)]*` stops at the first
     // close parenthesis and a string argument can contain one. The model
     // generator masks the same way, and a model this misses while the
@@ -400,8 +399,8 @@ class DartvelAdminGenerator {
     if (models.isEmpty) {
       // An app with no models is a real state, and an empty page with no
       // explanation reads as a broken one.
-      buffer.writeln("    const DVText('No @DVModel classes found in "
-          "lib/models.'),");
+      buffer.writeln("    const DVText('No @DVModel classes found where "
+          "modelsDir points (lib/models by default).'),");
     }
     for (final model in models) {
       buffer.writeln('    $model.Admin(),');

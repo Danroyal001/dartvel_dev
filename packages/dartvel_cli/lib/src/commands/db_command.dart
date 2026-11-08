@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:file/local.dart';
-import 'package:glob/glob.dart';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVDatabaseEngine,
@@ -30,6 +28,7 @@ export 'package:dartvel_core/dartvel.dart' show dvAddColumnFor, dvAddColumnSql;
 import 'package:yaml/yaml.dart';
 
 import '../adoption/local_schema.dart';
+import '../config/source_paths.dart';
 import '../generators/annotation_args.dart';
 import '../graph/module_mounts.dart';
 import '../generators/primary_constructors.dart';
@@ -509,16 +508,9 @@ List<DartvelDbTable> _tablesIn(
   required String? module,
   String prefix = '',
 }) {
-  final glob = Glob('lib/models/**.dart');
-  const fs = LocalFileSystem();
   final tables = <DartvelDbTable>[];
-  for (final entity in glob.listFileSystemSync(
-    fs,
-    root: root,
-    followLinks: false,
-  )) {
-    if (entity.basename.endsWith('.dart') == false) continue;
-    final sourceFile = File(entity.path);
+  // Wherever modelsDir says, as the model generator reads them.
+  for (final File sourceFile in dvModelSourceFiles(root)) {
     final content = dvDesugarPrimaryConstructors(sourceFile.readAsStringSync());
     final matches = RegExp(
       r'@DVModel\s*\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z0-9_]+)',
