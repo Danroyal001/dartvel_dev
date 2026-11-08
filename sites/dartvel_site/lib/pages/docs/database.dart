@@ -167,7 +167,7 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
                 'storage-neutral engine contract, and run on an in-memory '
                 'document engine in tests. Offline data models still list '
                 'their pages with SQL.',
-            'Moving the cache, queues, auth, analytics and the other '
+            'Moving queues, auth, analytics and the other '
                 'framework stores off SQL is Planned.',
             'A MongoDB engine is Planned.',
           ],
