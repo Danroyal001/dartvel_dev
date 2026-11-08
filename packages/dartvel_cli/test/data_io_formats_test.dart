@@ -95,4 +95,37 @@ void main() {
     expect(out, contains('ndjson 2 errors 0'));
     expect(out, contains('missing true'));
   }, timeout: const Timeout(Duration(minutes: 5)));
+
+  test('a JSON export reads back through importJson', () async {
+    // exportJson wrote an array of objects and nothing read one: the section
+    // lists JSON import beside CSV, NDJSON and Excel, and the model had the
+    // other three.
+    final Directory root = await project();
+    final String out = await run(root, r'''
+  final DVExportResult file = Note.exportJson(notes);
+  final DVImportResult<Note> back = Note.importJson(utf8.decode(file.bytes));
+  print('items ${back.items.length} errors ${back.errors.length}');
+  print('first ${back.items.first.title} views ${back.items.first.views}');
+  // The sensitive field was left out of the file, so it reads back empty.
+  print('owner [${back.items.first.owner}]');
+
+  // A bad element is a row error naming its position; the good ones import.
+  final DVImportResult<Note> mixed =
+      Note.importJson('[{"id":"a","title":"A"}, 7, {"title":"no id"}]');
+  print('mixed ${mixed.items.length} rows ${mixed.errors.map((DVImportRowError e) => e.row).join(',')}');
+
+  // A document that is not an array of records is not a row problem.
+  try {
+    Note.importJson('{"id":"a"}');
+    print('accepted an object');
+  } on FormatException catch (error) {
+    print('refused ${error.message.contains('Note')}');
+  }
+''');
+    expect(out, contains('items 2 errors 0'));
+    expect(out, contains('first Deploying, "quoted" views 3'));
+    expect(out, contains('owner []'));
+    expect(out, contains('mixed 1 rows 2,3'));
+    expect(out, contains('refused true'));
+  }, timeout: const Timeout(Duration(minutes: 5)));
 }

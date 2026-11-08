@@ -1600,6 +1600,9 @@ class ModelGenerator {
           '  static DVImportResult<$className> importNdjson(String content) => _${className}Import.ndjson(content);',
         );
         sb.writeln(
+          '  static DVImportResult<$className> importJson(String content) => _${className}Import.json(content);',
+        );
+        sb.writeln(
           '  static DVImportResult<$className> importExcel(String content) => _${className}Import.excel(content);',
         );
         sb.writeln();
@@ -2870,6 +2873,54 @@ class ModelGenerator {
         sb.writeln('        }');
         sb.writeln(
           '        final row = Map<String, Object?>.from(decoded);',
+        );
+        sb.writeln('        _dvRequire(row);');
+        sb.writeln('        items.add(${className}Parser.fromJson(row));');
+        sb.writeln('      } on Object catch (error) {');
+        sb.writeln('        errors.add(DVImportRowError(');
+        sb.writeln('          row: index + 1,');
+        sb.writeln('          message: error.toString(),');
+        sb.writeln('        ));');
+        sb.writeln('      }');
+        sb.writeln('    }');
+        sb.writeln(
+          '    return DVImportResult<$className>(items: items, errors: errors);',
+        );
+        sb.writeln('  }');
+        sb.writeln();
+        // A JSON export is an array of records; reading one back is the
+        // other half. A document that is not an array of objects is not a
+        // row problem, so it is refused whole, naming the model.
+        sb.writeln(
+          '  static DVImportResult<$className> json(String content) {',
+        );
+        sb.writeln('    final Object? decoded;');
+        sb.writeln('    try {');
+        sb.writeln('      decoded = convert.jsonDecode(content);');
+        sb.writeln('    } on FormatException catch (error) {');
+        sb.writeln(
+          "      throw FormatException('A $className JSON import is not JSON: \${error.message}');",
+        );
+        sb.writeln('    }');
+        sb.writeln('    if (decoded is! List<Object?>) {');
+        sb.writeln(
+          "      throw const FormatException('A $className JSON import must be an array of $className records, as exportJson writes.');",
+        );
+        sb.writeln('    }');
+        sb.writeln('    final items = <$className>[];');
+        sb.writeln('    final errors = <DVImportRowError>[];');
+        sb.writeln(
+          '    for (int index = 0; index < decoded.length; index += 1) {',
+        );
+        sb.writeln('      try {');
+        sb.writeln('        final element = decoded[index];');
+        sb.writeln('        if (element is! Map<Object?, Object?>) {');
+        sb.writeln(
+          "          throw const FormatException('JSON row must be a JSON object.');",
+        );
+        sb.writeln('        }');
+        sb.writeln(
+          '        final row = Map<String, Object?>.from(element);',
         );
         sb.writeln('        _dvRequire(row);');
         sb.writeln('        items.add(${className}Parser.fromJson(row));');
