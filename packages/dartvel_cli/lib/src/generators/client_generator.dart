@@ -4164,7 +4164,7 @@ void startDartvelKiosk() {
       ..writeln(imports.join('\n'))
       ..writeln('Widget createDartvelApp({List<String> args = const []}) {')
       ..writeln('${themeTokens == null ? '' : '  runtime.DV.Theme.useTokens($themeTokens);\n'}  final router = createDartvelRouter(arguments: args);')
-      ..writeln(appRoot == null ? "  return MaterialApp.router(title: '${esc(title)}', theme: dartvelDefaultTheme(.light), darkTheme: dartvelDefaultTheme(.dark), themeMode: .system, routerConfig: router);" : '  return Builder(builder: $appRoot);')
+      ..writeln(appRoot == null ? "  return ListenableBuilder(listenable: runtime.DV.Theme, builder: (BuildContext context, Widget? _) => MaterialApp.router(title: '${esc(title)}', theme: dartvelDefaultTheme(.light), darkTheme: dartvelDefaultTheme(.dark), themeMode: runtime.DV.Theme.mode, routerConfig: router));" : '  return Builder(builder: $appRoot);')
       ..writeln('}')
       // Outside the DV class: a boot body naming the application's own
       // Session, Auth or Cache would otherwise resolve to DV's static.

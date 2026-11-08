@@ -9836,13 +9836,26 @@ class _ProviderAuthPage extends StatelessWidget {
       );
 }
 
-class DVTheme {
+/// `DV.Theme`: the mode and the token set.
+///
+/// A [Listenable], so the generated application rebuilds with the new mode
+/// when [setMode] changes it; before, the mode was stored and nothing read it.
+class DVTheme implements Listenable {
   const DVTheme();
   static ThemeMode _mode = ThemeMode.system;
+  static final _DVThemeChanges _changes = _DVThemeChanges();
   ThemeMode get mode => _mode;
   void setMode(ThemeMode mode) {
+    if (mode == _mode) return;
     _mode = mode;
+    _changes.changed();
   }
+
+  @override
+  void addListener(VoidCallback listener) => _changes.addListener(listener);
+
+  @override
+  void removeListener(VoidCallback listener) => _changes.removeListener(listener);
 
   /// The token set `DVColor`, `DVSpace`, `DVRadius`, `DVElevation`,
   /// `DVMotion` and the `DVText` roles read: dartvel.dev's until the
@@ -13151,4 +13164,8 @@ BoxBorder? _dvResolveBorder(BuildContext context, BoxBorder? border) {
     return BorderDirectional(top: side(border.top), start: side(border.start), end: side(border.end), bottom: side(border.bottom));
   }
   return border;
+}
+
+class _DVThemeChanges extends ChangeNotifier {
+  void changed() => notifyListeners();
 }

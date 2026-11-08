@@ -19,6 +19,7 @@ Matcher refusedWith(String code, List<String> words) => throwsA(
     );
 
 void main() {
+  group('mode', modeFollowsDVTheme);
   test('no theme declared generates nothing', () {
     expect(dvThemeTokensSource(null, bundledFamilies: const <String>{}), isNull);
     expect(dvThemeTokensSource(yaml('{}'), bundledFamilies: const <String>{}), isNull);
@@ -134,5 +135,48 @@ theme:
     expect(install, isNonNegative);
     expect(install, lessThan(entry.indexOf('MaterialApp.router(')));
     expect(entry, contains("DVColorToken('accent'"));
+  });
+}
+
+void modeFollowsDVTheme() {
+  test('the generated application takes its mode from DV.Theme and rebuilds when it changes', () async {
+    final Directory root = await Directory.systemTemp.createTemp('dartvel_theme_mode_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    Directory(p.join(root.path, 'lib', 'dartvel_client')).createSync(recursive: true);
+    Directory(p.join(root.path, 'lib', 'pages')).createSync(recursive: true);
+    File(p.join(root.path, 'lib', 'pages', 'index.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+import 'package:flutter/widgets.dart';
+
+@DVPage() Widget _index() => DVText("Home");
+''');
+    await ClientGenerator.generate(
+      root: root.path,
+      pagesDir: 'lib/pages',
+      pkgName: 'mode_app',
+      backendHost: '127.0.0.1',
+      backendPort: 3000,
+      devBackendHost: 'http://localhost:3000',
+      prodBackendHost: 'https://api.example.test',
+      apiBasePath: '/api',
+      envFiles: const <String>[],
+      seoSiteName: 'Mode',
+      seoTitle: 'Mode',
+      seoDesc: 'Mode',
+      seoImage: '',
+      seoTwitter: '',
+      defaultTransition: 'fade',
+      durationMs: 200,
+      curve: 'easeInOut',
+      normalizeTrailing: true,
+      notFoundRedirect: '',
+      plugins: const <String>[],
+      ota: false,
+      dv: YamlMap.wrap(<String, Object?>{}),
+    );
+    final String entry = File(p.join(root.path, 'lib/dartvel_client/application.g.dart')).readAsStringSync();
+    expect(entry, contains('ListenableBuilder(listenable: runtime.DV.Theme'));
+    expect(entry, contains('themeMode: runtime.DV.Theme.mode'));
+    expect(entry, isNot(contains('themeMode: .system')));
   });
 }
