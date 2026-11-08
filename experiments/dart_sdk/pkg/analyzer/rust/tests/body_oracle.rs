@@ -25,6 +25,11 @@ fn declared_variable_reads_match_upstream() {
     compare_selection("identifiers");
 }
 
+#[test]
+fn user_operator_invocations_match_upstream() {
+    compare_selection("user-operators");
+}
+
 /// Runs `oracle/body_dump.dart` and `body_dump` with `--<selection>` on the
 /// corpus and fails unless they wrote nonempty, byte-identical dumps.
 fn compare_selection(selection: &str) {

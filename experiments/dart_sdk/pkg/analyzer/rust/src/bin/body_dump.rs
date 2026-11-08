@@ -15,7 +15,7 @@ use analyzer::src::dart::resolver::type_analyzer::{
 use analyzer::src::dart::sdk::sdk::FolderBasedDartSdk;
 use analyzer::src::summary2::link::Linker;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Write,
     fs,
     path::{Path, PathBuf},
@@ -37,6 +37,11 @@ enum Selection {
     /// declared with a type that flow analysis cannot promote
     /// (`TypeAnalyzer::variable_reads`), with their declarations.
     Identifiers,
+    /// `--user-operators`: invocations of `==`, `!=` and the user-definable
+    /// binary, unary and index operators the analyzer typed
+    /// (`TypeAnalyzer::operator_invocations`), the integer literals that are
+    /// their operands, and parentheses around either.
+    UserOperators,
 }
 
 fn main() {
@@ -49,11 +54,12 @@ fn main() {
             "--out" => out = args.next(),
             "--sdk" => sdk = args.next(),
             "--packages" => packages = args.next(),
-            "--literals" | "--operators" | "--integers" | "--identifiers" if selection.is_some() => usage(),
+            "--literals" | "--operators" | "--integers" | "--identifiers" | "--user-operators" if selection.is_some() => usage(),
             "--literals" => selection = Some(Selection::Literals),
             "--operators" => selection = Some(Selection::Operators),
             "--integers" => selection = Some(Selection::Integers),
             "--identifiers" => selection = Some(Selection::Identifiers),
+            "--user-operators" => selection = Some(Selection::UserOperators),
             _ if arg.starts_with('-') => usage(),
             _ => roots.push(arg),
         }
@@ -95,7 +101,7 @@ fn main() {
 
 fn usage() -> ! {
     eprintln!(
-        "usage: body_dump --sdk <dir> --packages <file> (--literals|--operators|--integers|--identifiers) --out <dir> <root>..."
+        "usage: body_dump --sdk <dir> --packages <file> (--literals|--operators|--integers|--identifiers|--user-operators) --out <dir> <root>..."
     );
     std::process::exit(64)
 }
@@ -118,7 +124,7 @@ fn corpus_files(root: &Path, dir: &Path, out: &Path, files: &mut Vec<(PathBuf, P
 }
 
 /// Parses and analyzes the file at [path] and writes its dump to [target].
-/// With `--integers` and `--identifiers` the file's library is linked first, so that type
+/// With `--integers`, `--identifiers` and `--user-operators` the file's library is linked first, so that type
 /// annotations resolve against it.
 fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Selection, path: &Path, target: &Path) {
     let bytes = fs::read(path).unwrap();
@@ -127,7 +133,7 @@ fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Select
         .encode_utf16()
         .collect::<Vec<_>>()
         .into();
-    let unit = if matches!(selection, Selection::Integers | Selection::Identifiers) {
+    let unit = if matches!(selection, Selection::Integers | Selection::Identifiers | Selection::UserOperators) {
         let uri = linker.fs.path_to_uri(path);
         let file = linker.fs.get_file_for_uri(&uri).expect("a corpus file has a URI");
         linker.unit_of_file(file)
@@ -150,7 +156,11 @@ fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Select
         None => TypeAnalyzer::new(provider),
     };
     analyzer.analyze(ast, parsed.unit);
-    let results = Results { static_types: analyzer.static_types, variable_reads: analyzer.variable_reads };
+    let results = Results {
+        static_types: analyzer.static_types,
+        variable_reads: analyzer.variable_reads,
+        operator_invocations: analyzer.operator_invocations,
+    };
     let mut dump = String::new();
     Dumper { store, selection }.dump_node(ast, parsed.unit, &results, &mut dump);
     fs::create_dir_all(target.parent().unwrap()).unwrap();
@@ -184,6 +194,7 @@ fn is_operator_typed(ast: Ast<'_>, node: NodeId) -> bool {
 struct Results {
     static_types: HashMap<NodeId, TypeImpl>,
     variable_reads: HashMap<NodeId, VariableRead>,
+    operator_invocations: HashSet<NodeId>,
 }
 
 struct Dumper<'a> {
@@ -212,6 +223,7 @@ impl Dumper<'_> {
                 matches!(ast.node(node), AstNodeImpl::SimpleIdentifierImpl(_))
                     && analyzer.variable_reads.contains_key(&source)
             }
+            Selection::UserOperators => is_selected_operator_node(ast, node, source, &analyzer.operator_invocations),
         };
         if selected {
             let type_ = analyzer
@@ -277,5 +289,34 @@ fn called_name_source(ast: Ast<'_>, node: NodeId) -> Option<NodeId> {
             }
             _ => return None,
         };
+    }
+}
+
+/// Whether `--user-operators` selects the V1 node [node], which projects the
+/// canonical node [source]: a binary, prefix or index expression projecting
+/// an operator invocation the analyzer typed, an integer literal whose
+/// parent past parentheses is one, or parentheses around either.
+fn is_selected_operator_node(ast: Ast<'_>, node: NodeId, source: NodeId, invocations: &HashSet<NodeId>) -> bool {
+    let is_operand = |literal: NodeId| {
+        let mut parent = ast.parent2(literal);
+        while let AstNodeImpl::ParenthesizedExpressionImpl(_) = ast.node(parent) {
+            parent = ast.parent2(parent);
+        }
+        invocations.contains(&parent)
+    };
+    match ast.node(node) {
+        AstNodeImpl::BinaryExpressionImpl(_) | AstNodeImpl::PrefixExpressionImpl(_) | AstNodeImpl::IndexExpressionImpl(_) => {
+            invocations.contains(&source)
+        }
+        AstNodeImpl::IntegerLiteralImpl(_) => is_operand(source),
+        AstNodeImpl::ParenthesizedExpressionImpl(_) => {
+            let mut inner = source;
+            while let AstNodeImpl::ParenthesizedExpressionImpl(p) = ast.node(inner) {
+                inner = p.expression2;
+            }
+            invocations.contains(&inner)
+                || (matches!(ast.node(inner), AstNodeImpl::IntegerLiteralImpl(_)) && is_operand(inner))
+        }
+        _ => false,
     }
 }

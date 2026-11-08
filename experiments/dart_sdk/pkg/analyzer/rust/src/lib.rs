@@ -92,9 +92,11 @@ pub mod src {
             pub mod least_upper_bound;
             pub mod type_constraint_gatherer;
             pub mod generic_inferrer;
+            pub mod inheritance_manager3;
         }
         pub mod resolver {
             pub mod type_analyzer;
+            pub mod binary_expression_resolver;
             pub mod scope;
         }
         pub mod scanner {

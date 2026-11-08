@@ -14,13 +14,23 @@
 // declared with a type annotation that flow analysis cannot promote, and
 // writes their declarations' element kind and name offset after the type;
 // see [DeclaredVariableReads].
+// --user-operators selects invocations of `==`, `!=` and the user-definable
+// binary, unary (`-`, `~`) and index (`[]`) operators whose operands the
+// earlier selections or this one type, resolved through the interface of the
+// receiver's static type, with the integer literals that are their operands
+// and the parentheses around either; see [OperatorInvocations].
 import 'dart:io';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/src/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/type.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type_system.dart';
+import 'package:analyzer/src/dart/element/extensions.dart';
+import 'package:analyzer/src/dart/element/type.dart';
+import 'package:analyzer/src/dart/element/type_system.dart';
 import 'element_dump.dart' as elements;
 
 Future<void> main(List<String> args) async {
@@ -31,6 +41,7 @@ Future<void> main(List<String> args) async {
   bool operators = false;
   bool integers = false;
   bool identifiers = false;
+  bool userOperators = false;
   List<String> roots = [];
   for (int i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -41,12 +52,13 @@ Future<void> main(List<String> args) async {
       case '--operators': operators = true;
       case '--integers': integers = true;
       case '--identifiers': identifiers = true;
+      case '--user-operators': userOperators = true;
       default: roots.add(args[i]);
     }
   }
   if (sdk == null || out == null || packages == null || roots.isEmpty ||
-      [literals, operators, integers, identifiers].where((flag) => flag).length > 1) {
-    stderr.writeln('usage: body_dump.dart --sdk <dir> [--literals|--operators|--integers|--identifiers] --out <dir> <root>...');
+      [literals, operators, integers, identifiers, userOperators].where((flag) => flag).length > 1) {
+    stderr.writeln('usage: body_dump.dart --sdk <dir> [--literals|--operators|--integers|--identifiers|--user-operators] --out <dir> <root>...');
     exit(64);
   }
   var collection = elements.newCollection(
@@ -73,12 +85,18 @@ Future<void> main(List<String> args) async {
         (node is ParenthesizedExpression &&
             (isOperatorTyped(node.unParenthesized) ||
                 isLiteral(node.unParenthesized)));
-    var reads = identifiers
+    var reads = identifiers || userOperators
         ? (DeclaredVariableReads(result.libraryElement.typeSystem)
             ..collect(result.unit as AstNodeImpl))
         : null;
+    var invocations = userOperators
+        ? (OperatorInvocations(
+            result.libraryElement.typeSystem as TypeSystemImpl, reads!)
+            ..collect(result.unit as AstNodeImpl))
+        : null;
     void visit(AstNodeImpl node) {
-      Element? read = reads != null &&
+      Element? read = identifiers &&
+              reads != null &&
               node is SimpleIdentifierImpl &&
               reads.selectedLength[node.offset] == node.length
           ? reads.selected[node.offset]
@@ -87,6 +105,7 @@ Future<void> main(List<String> args) async {
           : operators ? isOperatorTyped(node)
           : integers ? node is IntegerLiteralImpl && isDeclaredContextInteger(node)
           : identifiers ? read != null
+          : userOperators ? invocations!.selects(node)
           : true;
       if (node is Expression && selected) {
         buffer.writeln('${node.runtimeType} ${node.offset}+${node.length} '
@@ -95,7 +114,7 @@ Future<void> main(List<String> args) async {
                 '${read.firstFragment.nameOffset}'}');
       }
       if (!literals && !operators && !integers && !identifiers &&
-          node is Identifier) {
+          !userOperators && node is Identifier) {
         Element? element = (node as Identifier).element;
         var fragment = element?.firstFragment;
         buffer.writeln('identifier ${node.offset}+${node.length} '
@@ -139,8 +158,15 @@ bool isDeclaredContextInteger(IntegerLiteralImpl literal) {
       parent.unaryOperator == UnaryOperator.negate &&
       identical(parent.operand, node)) {
     node = parent;
-    parent = node.parent2;
   }
+  return hasDeclaredContext(node);
+}
+
+/// Whether the context type of the expression [node] comes from a declared
+/// type annotation or there is none, read past enclosing parentheses: the
+/// sites [isDeclaredContextInteger] lists.
+bool hasDeclaredContext(AstNode node) {
+  var parent = node.parent2;
   while (parent is ParenthesizedExpressionImpl) {
     node = parent;
     parent = node.parent2;
@@ -267,6 +293,9 @@ class DeclaredVariableReads extends UnifyingAstVisitor2<void> {
   /// The length of each selected read, by offset.
   final Map<int, int> selectedLength = {};
 
+  /// The selected reads.
+  final Set<AstNode> selectedNodes = {};
+
   new(this.typeSystem);
 
   void collect(AstNodeImpl unit) {
@@ -291,6 +320,7 @@ class DeclaredVariableReads extends UnifyingAstVisitor2<void> {
       if (!excluded.contains(element)) {
         selected[node.offset] = element;
         selectedLength[node.offset] = node.length;
+        selectedNodes.add(node);
       }
     }
   }
@@ -362,4 +392,228 @@ bool _canPromote(AstNode read) {
       identical(expression2, node),
     _ => false,
   };
+}
+
+/// What `--user-operators` selects, read on the resolved V2 tree.
+///
+/// An operator invocation is a [BinaryOperatorInvocationImpl] with a binary
+/// operator (`==`, `!=` or a user-definable one), a
+/// [UnaryOperatorInvocationImpl] (`-` or `~`) or a
+/// [ReceiverIndexExpressionImpl] without `?`. It is selected when its receiver
+/// and its argument are known and it is resolved through the interface of the
+/// receiver's static type ([_isResolvable]).
+///
+/// Past parentheses, a known expression is a `--literals` literal, a
+/// `--operators` expression, a `--identifiers` read, a selected invocation, or
+/// an integer literal whose context type is known ([_hasKnownContext]): as a
+/// receiver it has none; as an argument it gets the operator's parameter type
+/// (`==` and `!=` give none), refined for `+`, `-`, `*` and `%` on a `num`
+/// receiver by `refineNumericInvocationContext` from the invocation's own
+/// context, which must then be known; an operand of unary minus gets the
+/// context of the minus; and the declared contexts of
+/// [isDeclaredContextInteger] are known.
+///
+/// Also selected: the integer literals that are operands of a selected
+/// invocation (past parentheses), and parentheses around a selected
+/// invocation or such a literal.
+class OperatorInvocations extends UnifyingAstVisitor2<void> {
+  final TypeSystemImpl typeSystem;
+  final DeclaredVariableReads reads;
+
+  /// `'$kind $offset+$length'` of each selected node; the kind is `invocation`,
+  /// `integer` or `parentheses`.
+  final Set<String> selected = {};
+
+  final Map<AstNode, bool> _selectedInvocations = {};
+
+  new(this.typeSystem, this.reads);
+
+  void collect(AstNodeImpl unit) => unit.accept2(this);
+
+  /// Whether the V1 node [node] projects a selected node.
+  bool selects(AstNode node) {
+    var kind = switch (node) {
+      BinaryExpression() || PrefixExpression() || IndexExpression() =>
+        'invocation',
+      IntegerLiteral() => 'integer',
+      ParenthesizedExpression() => 'parentheses',
+      _ => null,
+    };
+    return kind != null &&
+        selected.contains('$kind ${node.offset}+${node.length}');
+  }
+
+  @override
+  void visitNode(AstNode node) {
+    if (node is CommentImpl) return;
+    if (_isInvocation(node) && _isSelected(node)) {
+      selected.add('invocation ${node.offset}+${node.length}');
+    }
+    if (node is IntegerLiteralImpl && _isSelectedOperand(node)) {
+      selected.add('integer ${node.offset}+${node.length}');
+    }
+    if (node is ParenthesizedExpressionImpl) {
+      var inner = _unParenthesized(node);
+      if ((_isInvocation(inner) && _isSelected(inner)) ||
+          (inner is IntegerLiteralImpl && _isSelectedOperand(inner))) {
+        selected.add('parentheses ${node.offset}+${node.length}');
+      }
+    }
+    node.visitChildren2(this);
+  }
+
+  static AstNode _unParenthesized(AstNode node) {
+    while (node is ParenthesizedExpressionImpl) {
+      node = node.expression2;
+    }
+    return node;
+  }
+
+  static bool _isInvocation(AstNode node) => switch (node) {
+    BinaryOperatorInvocationImpl(:var binaryOperator) => binaryOperator != null,
+    UnaryOperatorInvocationImpl() => true,
+    ReceiverIndexExpressionImpl(:var question) => question == null,
+    _ => false,
+  };
+
+  static AstNode _receiver(AstNode invocation) => switch (invocation) {
+    BinaryOperatorInvocationImpl(:var leftOperand) => leftOperand,
+    UnaryOperatorInvocationImpl(:var operand) => operand,
+    ReceiverIndexExpressionImpl(:var receiver) => receiver,
+    _ => throw StateError('not an invocation'),
+  };
+
+  static AstNode? _argument(AstNode invocation) => switch (invocation) {
+    BinaryOperatorInvocationImpl(:var rightOperand) => rightOperand,
+    ReceiverIndexExpressionImpl(:var index) => index,
+    _ => null,
+  };
+
+  /// The parent of the integer literal [literal] past parentheses, when it is
+  /// a selected invocation.
+  bool _isSelectedOperand(IntegerLiteralImpl literal) {
+    AstNode? parent = literal.parent2;
+    while (parent is ParenthesizedExpressionImpl) {
+      parent = parent.parent2;
+    }
+    return parent != null && _isInvocation(parent) && _isSelected(parent);
+  }
+
+  bool _isSelected(AstNode invocation) =>
+      _selectedInvocations[invocation] ??= _isResolvable(invocation) &&
+          switch (_argument(invocation)) {
+            null => true,
+            var argument => _isKnown(argument),
+          };
+
+  bool _isKnown(AstNode node) {
+    node = _unParenthesized(node);
+    return switch (node) {
+      BooleanLiteralImpl() || DoubleLiteralImpl() || NullLiteralImpl() ||
+      SimpleStringLiteralImpl() || AdjacentStringsImpl() ||
+      StringInterpolationImpl() || SymbolLiteralImpl() => true,
+      IsExpressionImpl() || ThrowExpressionImpl() || RethrowExpressionImpl() ||
+      LogicalAndImpl() || LogicalOrImpl() || LogicalNotImpl() => true,
+      UnqualifiedNameExpressionImpl() => reads.selectedNodes.contains(node),
+      IntegerLiteralImpl() => _hasKnownContext(node),
+      _ => _isInvocation(node) && _isSelected(node),
+    };
+  }
+
+  /// Whether the context type of [node] (an integer literal, or an
+  /// invocation whose context refines the context of its argument) is known.
+  bool _hasKnownContext(AstNode node) {
+    var parent = node.parent2;
+    if (node is IntegerLiteralImpl &&
+        parent is UnaryOperatorInvocationImpl &&
+        parent.unaryOperator == UnaryOperator.negate &&
+        identical(parent.operand, node)) {
+      node = parent;
+      parent = node.parent2;
+    }
+    while (parent is ParenthesizedExpressionImpl) {
+      node = parent;
+      parent = node.parent2;
+    }
+    if (parent != null && _isInvocation(parent)) {
+      if (identical(_receiver(parent), node)) return true;
+      if (!_isResolvable(parent)) return false;
+      return !_refinesContext(parent) || _hasKnownContext(parent);
+    }
+    return hasDeclaredContext(node);
+  }
+
+  /// Whether `refineNumericInvocationContext` replaces the parameter type of
+  /// the resolvable [invocation] as the context of its argument, from the
+  /// invocation's own context.
+  bool _refinesContext(AstNode invocation) {
+    if (invocation is! BinaryOperatorInvocationImpl) return false;
+    var element = invocation.element;
+    if (element == null ||
+        element.enclosingElement is ExtensionElement ||
+        element.enclosingElement is ExtensionTypeElement ||
+        !const {'+', '-', '*', '%'}.contains(element.name)) {
+      return false;
+    }
+    var left = (invocation.leftOperand as ExpressionImpl).staticType!;
+    var numQuestion = typeSystem.typeProvider.numType
+        .withNullability(NullabilitySuffix.question);
+    return typeSystem.isSubtypeOf(left, numQuestion);
+  }
+
+  /// Whether the receiver of [invocation] is known and its operator resolves
+  /// as far as the port resolves it: through the interface of the receiver's
+  /// static type to a method with declared types, or not at all because the
+  /// receiver is `dynamic`, invalid or `Never`. A receiver that may be null
+  /// (but for `==` and `!=`, which promote it) and a member the interface
+  /// does not have (which an extension may supply) are not resolved.
+  bool _isResolvable(AstNode invocation) {
+    var receiver = _receiver(invocation);
+    if (receiver is! ExpressionImpl || !_isKnown(receiver)) return false;
+    var type = receiver.staticType as TypeImpl;
+    var bound = typeSystem.resolveToBound(type);
+    bool isNever(TypeImpl type) =>
+        type is NeverType && type.nullabilitySuffix == NullabilitySuffix.none;
+    bool isBounded(TypeImpl type) =>
+        typeSystem.isDynamicBounded(type) || typeSystem.isInvalidBounded(type);
+    switch (invocation) {
+      case BinaryOperatorInvocationImpl(:var binaryOperator):
+        if (binaryOperator == BinaryOperator.equal) return true;
+        if (binaryOperator == BinaryOperator.notEqual) {
+          var element = invocation.element;
+          return element == null || !element.hasImplicitReturnType;
+        }
+        return isNever(bound) || isBounded(type) ||
+            (!_mayBeNull(type) && _isDeclared(invocation.element));
+      case UnaryOperatorInvocationImpl():
+        return type is DynamicType || type is InvalidType || isNever(type) ||
+            isBounded(type) || isNever(bound) ||
+            (!_mayBeNull(type) && _isDeclared(invocation.element));
+      case ReceiverIndexExpressionImpl(:var resolution):
+        var element = switch (resolution) {
+          MethodIndexReadResolutionImpl(:var element) => element,
+          InvalidIndexReadResolutionImpl(:var recoveryElement) =>
+            recoveryElement,
+          _ => null,
+        };
+        return isNever(bound) || bound is DynamicType || bound is VoidType ||
+            bound is InvalidType ||
+            (!_mayBeNull(bound) && _isDeclared(element));
+    }
+    return false;
+  }
+
+  /// Whether `TypePropertyResolver.resolve` treats a receiver of [type] as
+  /// nullable.
+  bool _mayBeNull(TypeImpl type) => type.isExtensionType
+      ? type.nullabilitySuffix == NullabilitySuffix.question
+      : typeSystem.isPotentiallyNullable(type);
+
+  /// Whether [element] is a method of an interface with a declared return
+  /// type and declared parameter types.
+  static bool _isDeclared(MethodElement? element) =>
+      element != null &&
+      element.enclosingElement is InterfaceElement &&
+      !element.hasImplicitReturnType &&
+      !element.formalParameters.any((parameter) => parameter.hasImplicitType);
 }

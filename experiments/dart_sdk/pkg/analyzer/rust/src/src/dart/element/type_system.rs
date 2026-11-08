@@ -2,7 +2,8 @@
 // and type_provider.dart that the linker's type algorithms use: the classes
 // of `dart:core` and `dart:async` they name (`Object`, `Null`, `Future`,
 // `FutureOr`), and the predicates `isTop`, `isObject`, `isNullable`,
-// `isNonNullable` and `isBottom`.
+// `isNonNullable` and `isBottom`; and for body resolution `resolveToBound`,
+// `isDynamicBounded` and `isInvalidBounded`.
 
 use crate::dart::element::nullability_suffix::NullabilitySuffix;
 use crate::src::dart::element::element::{ElementId, ElementKind, ElementStore};
@@ -391,4 +392,108 @@ fn promotion_is_identity(before: &TypeImpl, after: &TypeImpl) -> bool {
 /// `String.compareTo` of parameter names.
 pub fn compare_names(a: &str, b: &str) -> std::cmp::Ordering {
     crate::src::dart::element::r#type::compare_strings(a, b)
+}
+
+/// `TypeSystemImpl.resolveToBound`: a type parameter type's promoted bound,
+/// else its bound (`Object?` when it has none) resolved, with the united
+/// nullabilities; any other type itself.
+pub fn resolve_to_bound(store: &mut ElementStore, t: &TypeImpl) -> TypeImpl {
+    resolve_to_bound_within(store, t, &mut Vec::new())
+}
+
+fn resolve_to_bound_within(store: &mut ElementStore, t: &TypeImpl, visited: &mut Vec<ElementId>) -> TypeImpl {
+    use crate::src::dart::element::type_algebra::unite_nullabilities;
+    let TypeImpl::TypeParameter(p) = t else {
+        return t.clone();
+    };
+    if let Some(promoted) = &p.promoted_bound {
+        return resolve_to_bound_within(store, promoted, visited);
+    }
+    // A cycle of bounds is an error; it resolves to `Object?` here.
+    let bound = match store.element(p.element).type_.as_ref().map(|b| without_builders(store, b)) {
+        Some(bound) if !visited.contains(&p.element) => bound,
+        _ => return object_type(store, NullabilitySuffix::question),
+    };
+    visited.push(p.element);
+    let resolved = resolve_to_bound_within(store, &bound, visited);
+    let suffix = unite_nullabilities(
+        unite_nullabilities(p.nullability_suffix, bound.nullability_suffix(store)),
+        resolved.nullability_suffix(store),
+    );
+    resolved.with_nullability(store, suffix)
+}
+
+/// `TypeSystemImpl.isDynamicBounded`.
+pub fn is_dynamic_bounded(store: &ElementStore, t: &TypeImpl) -> bool {
+    bounded_by(store, t, &|t| matches!(t, TypeImpl::Dynamic), &mut Vec::new())
+}
+
+/// `TypeSystemImpl.isInvalidBounded`.
+pub fn is_invalid_bounded(store: &ElementStore, t: &TypeImpl) -> bool {
+    bounded_by(store, t, &|t| matches!(t, TypeImpl::Invalid), &mut Vec::new())
+}
+
+fn bounded_by(store: &ElementStore, t: &TypeImpl, base: &dyn Fn(&TypeImpl) -> bool, visited: &mut Vec<ElementId>) -> bool {
+    if base(t) {
+        return true;
+    }
+    let TypeImpl::TypeParameter(p) = t else {
+        return false;
+    };
+    if visited.contains(&p.element) {
+        return false;
+    }
+    visited.push(p.element);
+    if let Some(bound) = store.element(p.element).type_.as_ref().map(|b| without_builders(store, b)) {
+        if bounded_by(store, &bound, base, visited) {
+            return true;
+        }
+    }
+    match &p.promoted_bound {
+        Some(promoted) => bounded_by(store, promoted, base, visited),
+        None => false,
+    }
+}
+
+/// [t] with each linker `TypeBuilder` in it replaced by the type it built
+/// (`dynamic` when it built none), as the types of linked elements read once
+/// linking is done.
+pub fn without_builders(store: &ElementStore, t: &TypeImpl) -> TypeImpl {
+    use crate::src::dart::element::r#type::{FormalParameter, FunctionTypeImpl, InterfaceTypeImpl, RecordTypeImpl};
+    use crate::src::summary2::type_builder::TypeBuilder;
+    use std::rc::Rc;
+    match t {
+        TypeImpl::Builder(id) => {
+            let built = match &store.type_builders[*id as usize] {
+                TypeBuilder::Named(b) => b.type_.clone(),
+                TypeBuilder::Function(b) => b.type_.clone(),
+                TypeBuilder::Record(b) => b.type_.clone(),
+            };
+            match built {
+                Some(built) => without_builders(store, &built),
+                None => TypeImpl::Dynamic,
+            }
+        }
+        TypeImpl::Interface(i) => TypeImpl::Interface(Rc::new(InterfaceTypeImpl {
+            element: i.element,
+            type_arguments: i.type_arguments.iter().map(|a| without_builders(store, a)).collect(),
+            nullability_suffix: i.nullability_suffix,
+        })),
+        TypeImpl::Function(f) => TypeImpl::Function(Rc::new(FunctionTypeImpl {
+            type_parameters: f.type_parameters.clone(),
+            formal_parameters: f
+                .formal_parameters
+                .iter()
+                .map(|p| FormalParameter { name: p.name.clone(), type_: without_builders(store, &p.type_), kind: p.kind })
+                .collect(),
+            return_type: without_builders(store, &f.return_type),
+            nullability_suffix: f.nullability_suffix,
+        })),
+        TypeImpl::Record(r) => TypeImpl::Record(Rc::new(RecordTypeImpl {
+            positional_fields: r.positional_fields.iter().map(|f| without_builders(store, f)).collect(),
+            named_fields: r.named_fields.iter().map(|(n, f)| (n.clone(), without_builders(store, f))).collect(),
+            nullability_suffix: r.nullability_suffix,
+        })),
+        other => other.clone(),
+    }
 }

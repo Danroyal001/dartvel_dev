@@ -14,9 +14,12 @@
 // local variables and formal parameters declared with a type that flow
 // analysis cannot promote (their declared type), with the local scopes of
 // scope_analyzer.dart and scope_context.dart they are resolved in and the
-// part of `NamedTypeResolver` that builds a declared type.
+// part of `NamedTypeResolver` that builds a declared type. Operator
+// invocations (`==`, `!=`, user-definable binary, unary and index operators)
+// and the integer literals that are their operands are typed after those, by
+// binary_expression_resolver.rs.
 // Flow state, diagnostics, rewrites, integer literals in other contexts
-// (arguments, operands, inferred declarations), other identifiers,
+// (call arguments, inferred declarations), other identifiers,
 // invocations and all other expression visitors remain unported. Types are stored beside the
 // AST by NodeId, as linking's annotation types are, rather than changing
 // parsed nodes.
@@ -35,9 +38,11 @@ use crate::src::summary2::type_builder::TypeBuilder;
 use std::rc::Rc;
 use crate::src::dart::element::scope::{ScopeElement, ScopeFeatures, ScopeId, Scopes};
 use crate::src::dart::element::type_provider::TypeProviderImpl;
+use crate::src::dart::element::class_hierarchy::ClassHierarchy;
+use crate::src::dart::resolver::binary_expression_resolver::OperatorResolver;
 use crate::dart::analysis::features::Feature;
 use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub fn is_context_independent_literal(node: &AstNodeImpl) -> bool {
     matches!(
@@ -81,6 +86,10 @@ pub struct TypeAnalyzer<'a> {
     /// (see [TypeAnalyzer::analyze]), with the declarations they find; each
     /// also has its declared type in [static_types].
     pub variable_reads: HashMap<NodeId, VariableRead>,
+    /// The operator invocations typed by method lookup on the static type
+    /// of their receiver (see [TypeAnalyzer::analyze]); each also has its
+    /// type in [static_types].
+    pub operator_invocations: HashSet<NodeId>,
     /// `None` when the unit is analyzed without its library: a context
     /// type that an annotation gives is then unknown, and an integer literal
     /// in it is left without a type; no read of a variable is typed.
@@ -204,6 +213,7 @@ impl<'a> TypeAnalyzer<'a> {
             type_provider,
             static_types: HashMap::new(),
             variable_reads: HashMap::new(),
+            operator_invocations: HashSet::new(),
             declarations: None,
             scope: ScopeId::LibraryFragment(0),
             locals: Vec::new(),
@@ -247,6 +257,7 @@ impl<'a> TypeAnalyzer<'a> {
         };
         self.visit(ast, node, features);
         self.record_variable_reads();
+        self.resolve_operator_invocations(ast, node);
     }
 
     fn visit(&mut self, ast: Ast<'_>, node: NodeId, features: ScopeFeatures) {
@@ -607,6 +618,24 @@ impl<'a> TypeAnalyzer<'a> {
             }
             _ => (),
         }
+    }
+
+    /// With the library, types the operator invocations whose operands are
+    /// typed (binary_expression_resolver.rs), after every other expression
+    /// this file types, since an operand may be a read of a variable.
+    fn resolve_operator_invocations(&mut self, ast: Ast<'_>, node: NodeId) {
+        let Some(declarations) = self.declarations.as_mut() else {
+            return;
+        };
+        OperatorResolver {
+            store: &mut *declarations.store,
+            hierarchy: ClassHierarchy::default(),
+            type_provider: self.type_provider,
+            static_types: &mut self.static_types,
+            annotation_types: &self.annotation_types,
+            invocations: &mut self.operator_invocations,
+        }
+        .resolve(ast, node);
     }
 
     /// Records the declared type of each read of a variable that flow
@@ -1360,13 +1389,20 @@ pub enum IntegerContextSite {
 pub fn integer_context_site(ast: Ast<'_>, literal: NodeId) -> Option<IntegerContextSite> {
     use fe_analyzer_shared::scanner::token::TokenType;
     let mut node = literal;
-    let mut parent = ast.parent2(node);
+    let parent = ast.parent2(node);
     if let AstNodeImpl::UnaryOperatorInvocationImpl(u) = ast.node(parent) {
         if u.operand == node && ast.tokens.type_(u.operator_) == TokenType::MINUS {
             node = parent;
-            parent = ast.parent2(node);
         }
     }
+    context_site(ast, node)
+}
+
+/// Where the context type of the expression [node] comes from, past
+/// enclosing parentheses, when it is one of the sites
+/// [is_declared_context_integer] lists; `None` elsewhere.
+pub fn context_site(ast: Ast<'_>, mut node: NodeId) -> Option<IntegerContextSite> {
+    let mut parent = ast.parent2(node);
     while let AstNodeImpl::ParenthesizedExpressionImpl(_) = ast.node(parent) {
         node = parent;
         parent = ast.parent2(node);
@@ -1519,4 +1555,18 @@ fn type_argument(ast: Ast<'_>, list: NodeId, count: usize, index: usize) -> Opti
     }
     let arguments = &ast.node(list).as_type_argument_list_impl().arguments;
     (arguments.len() == count).then(|| IntegerContextSite::Annotation(arguments[index]))
+}
+
+/// `futureValueType` of the declared return type [declared] of an `async`
+/// function: `S` of `Future<S>` and `FutureOr<S>` (of either nullability),
+/// `dynamic` and `void` themselves, else `Object?`.
+pub fn future_value_type(store: &ElementStore, declared: &TypeImpl) -> TypeImpl {
+    use crate::src::dart::element::type_system::{is_future, is_future_or, object_type};
+    match declared {
+        TypeImpl::Dynamic | TypeImpl::Void => declared.clone(),
+        TypeImpl::Interface(i) if is_future(store, declared) || is_future_or(store, declared) => {
+            i.type_arguments.first().cloned().unwrap_or(TypeImpl::Dynamic)
+        }
+        _ => object_type(store, NullabilitySuffix::question),
+    }
 }

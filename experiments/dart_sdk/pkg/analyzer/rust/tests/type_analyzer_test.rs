@@ -18,9 +18,14 @@
 // - Reads of local variables and formal parameters declared with a type: that
 //   type, the declaration the innermost scope gives, and no type when flow
 //   analysis may promote the variable.
-// - Not in the slice, so no type: unresolved identifiers, `==` (its type is the
-//   operator method's return type), unary minus, integer literals in other
-//   contexts (arguments) and parentheses around any of those.
+// - Operator invocations, analyzed with the library: the return type of the
+//   operator method the receiver's interface has, substituted and refined for
+//   numbers; `==` is `bool`; integer literal operands get the operator's
+//   context; `dynamic`, `Never` and type parameter receivers.
+// - Not in the slice, so no type: unresolved identifiers, operator
+//   invocations without the library or whose resolution is not ported
+//   (nullable receivers, extensions, inferred member types), integer literals
+//   in other contexts (call arguments) and parentheses around any of those.
 
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -231,6 +236,17 @@ fn expressions_outside_the_slice_are_left_untyped() {
 /// [code] as the library `test.dart`; analyzes [code] against that library
 /// and returns the types of [queries] as [types_of] does.
 fn types_in_library(name: &str, code: &str, queries: &[(&str, &str)]) -> Vec<String> {
+    types_in_library_with_core(
+        name,
+        "library dart.core;\nclass Object {}\nclass Null {}\nclass bool {}\nclass num {}\n\
+         class int extends num {}\nclass double extends num {}\nclass String {}\nclass Symbol {}\n",
+        code,
+        queries,
+    )
+}
+
+/// [types_in_library] with [core] as the source of `dart:core`.
+fn types_in_library_with_core(name: &str, core: &str, code: &str, queries: &[(&str, &str)]) -> Vec<String> {
     let dir: PathBuf =
         std::env::temp_dir().join(format!("type_analyzer_test_{}_{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -238,11 +254,7 @@ fn types_in_library(name: &str, code: &str, queries: &[(&str, &str)]) -> Vec<Str
         &dir.join("sdk/lib/_internal/sdk_library_metadata/lib/libraries.dart"),
         "const Map<String, LibraryInfo> libraries = const {\n  'async': const LibraryInfo('async/async.dart'),\n  'core': const LibraryInfo('core/core.dart'),\n};\n",
     );
-    write(
-        &dir.join("sdk/lib/core/core.dart"),
-        "library dart.core;\nclass Object {}\nclass Null {}\nclass bool {}\nclass num {}\n\
-         class int extends num {}\nclass double extends num {}\nclass String {}\nclass Symbol {}\n",
-    );
+    write(&dir.join("sdk/lib/core/core.dart"), core);
     write(
         &dir.join("sdk/lib/async/async.dart"),
         "library dart.async;\nclass Future<T> {}\nclass FutureOr<T> {}\n",
@@ -627,5 +639,244 @@ fn variables_flow_analysis_may_promote_are_left_out() {
             ],
         ),
         ["-", "-", "-", "-", "-", "int PARAMETER k", "int? PARAMETER y", "-", "-", "int? LOCAL_VARIABLE uninitialized"]
+    );
+}
+
+/// A `dart:core` whose classes declare the operators the operator tests
+/// invoke.
+const OPERATOR_CORE: &str = "library dart.core;\n\
+    class Object { bool operator ==(Object other) => true; }\n\
+    class Null {}\n\
+    class bool {}\n\
+    abstract class num {\n\
+      num operator +(num other); num operator -(num other); num operator *(num other);\n\
+      num operator %(num other); double operator /(num other); int operator ~/(num other);\n\
+      num operator -(); bool operator <(num other);\n\
+    }\n\
+    abstract class int extends num {\n\
+      int operator +(num other); int operator -(num other); int operator *(num other);\n\
+      int operator %(num other); int operator -(); int operator ~(); int operator <<(int count);\n\
+    }\n\
+    abstract class double extends num {\n\
+      double operator +(num other); double operator -(num other); double operator *(num other);\n\
+      double operator %(num other); double operator -();\n\
+    }\n\
+    class String { String operator +(String other) => this; String operator [](int index) => this; }\n\
+    class Symbol {}\n\
+    class Function {}\n\
+    class Record {}\n\
+    abstract class List<E> { E operator [](int index); }\n";
+
+fn operator_types(name: &str, code: &str, queries: &[(&str, &str)]) -> Vec<String> {
+    types_in_library_with_core(name, OPERATOR_CORE, code, queries)
+}
+
+fn binary(source: &'static str) -> (&'static str, &'static str) {
+    ("BinaryOperatorInvocationImpl", source)
+}
+
+fn unary(source: &'static str) -> (&'static str, &'static str) {
+    ("UnaryOperatorInvocationImpl", source)
+}
+
+fn index(source: &'static str) -> (&'static str, &'static str) {
+    ("ReceiverIndexExpressionImpl", source)
+}
+
+fn integer(source: &'static str) -> (&'static str, &'static str) {
+    ("IntegerLiteralImpl", source)
+}
+
+/// An operator invocation has the return type of the operator method the
+/// interface of its receiver's static type declares, refined for `+`, `-`,
+/// `*` and `%` on numbers (`refineBinaryExpressionType`).
+#[test]
+fn operators_have_the_return_type_of_their_method() {
+    let code = "f(int i, double d, num n, String s) {\n\
+        i + i; i + d; n + i; d - n; i / i; i ~/ i; i < i; -i; ~i; -d; i << i; s + s; s[i];\n\
+    }";
+    assert_eq!(
+        operator_types(
+            "operators_return_type",
+            code,
+            &[
+                binary("i + i"),
+                binary("i + d"),
+                binary("n + i"),
+                binary("d - n"),
+                binary("i / i"),
+                binary("i ~/ i"),
+                binary("i < i"),
+                unary("-i"),
+                unary("~i"),
+                unary("-d"),
+                binary("i << i"),
+                binary("s + s"),
+                index("s[i]"),
+            ],
+        ),
+        ["int", "double", "num", "double", "double", "int", "bool", "int", "int", "double", "int", "String", "String"]
+    );
+}
+
+/// An integer literal operand has no context as a receiver, the operator's
+/// parameter type as an argument, refined from the invocation's own context
+/// for `+`, `-`, `*` and `%` on a `num` receiver
+/// (`refineNumericInvocationContext`), and the context of a unary minus whose
+/// operand it is.
+#[test]
+fn integer_operands_get_their_context_from_the_operator() {
+    let code = "double f(int i, double d, num n) {\n\
+        i + 1; d + 2; double x = n + 3; double y = i + 4; num z = n + 5; double w = -6;\n\
+        i < 7; double v = n + -8; return n * 9;\n\
+    }";
+    assert_eq!(
+        operator_types(
+            "integer_operands",
+            code,
+            &[
+                integer("1"),
+                integer("2"),
+                integer("3"),
+                integer("4"),
+                integer("5"),
+                integer("6"),
+                integer("7"),
+                integer("8"),
+                integer("9"),
+                binary("d + 2"),
+                binary("n + 3"),
+                binary("i + 4"),
+                binary("n + 5"),
+                unary("-6"),
+                binary("n + -8"),
+                unary("-8"),
+                binary("n * 9"),
+            ],
+        ),
+        [
+            "int", "int", "double", "double", "int", "double", "int", "double", "double", "double", "double",
+            "double", "num", "double", "double", "double", "double"
+        ]
+    );
+}
+
+/// Members are substituted with the receiver's type arguments, through
+/// superclasses too.
+#[test]
+fn operators_of_generic_classes_are_substituted() {
+    let code = "class Box<T> { T operator [](int i) => throw 0; Box<T> operator +(Box<T> o) => this; }\n\
+        class Sub extends Box<String> {}\n\
+        f(List<int> l, Box<bool> b, Sub s) { l[0]; b[1]; b + b; s[2]; l[0] + 3; }";
+    assert_eq!(
+        operator_types(
+            "generic_operators",
+            code,
+            &[index("l[0]"), index("b[1]"), binary("b + b"), index("s[2]"), binary("l[0] + 3")],
+        ),
+        ["int", "bool", "Box<bool>", "String", "int"]
+    );
+}
+
+/// `==` is `bool` (`Never` on a `Never` receiver) whatever method it finds;
+/// `!=` has the return type of the `==` method it finds, on the receiver's
+/// type made non-nullable.
+#[test]
+fn equality_is_bool_and_inequality_has_the_equality_return_type() {
+    let code = "class A { A operator +(A o) => this; }\n\
+        class B { B operator +(B o) => this; String operator ==(Object o) => ''; }\n\
+        f(A a, B b) { (a + a) == 1; (a + a) != 1; (b + b) != 1; (b + b) == 1; (throw 0) == 1; null != 1; }";
+    assert_eq!(
+        operator_types(
+            "equality",
+            code,
+            &[
+                binary("(a + a) == 1"),
+                binary("(a + a) != 1"),
+                binary("(b + b) != 1"),
+                binary("(b + b) == 1"),
+                binary("(throw 0) == 1"),
+                binary("null != 1"),
+            ],
+        ),
+        ["bool", "bool", "String", "bool", "Never", "bool"]
+    );
+}
+
+/// A member a class inherits from its superclass or a mixin, and the most
+/// specific of the members its superinterfaces declare.
+#[test]
+fn inherited_operators_are_found() {
+    let code = "class Base { int operator +(int x) => x; }\n\
+        class Both extends Base {}\n\
+        class Wide { num operator *(num x) => x; }\n\
+        abstract class Narrow { int operator *(num x); }\n\
+        abstract class Combined implements Wide, Narrow {}\n\
+        mixin M on Base { String operator -(int x) => ''; }\n\
+        class Mixed extends Base with M {}\n\
+        f(Both b, Combined c, Mixed m) { b + 1; c * 2; m - 3; m + 4; }";
+    assert_eq!(
+        operator_types(
+            "inherited_operators",
+            code,
+            &[binary("b + 1"), binary("c * 2"), binary("m - 3"), binary("m + 4")],
+        ),
+        ["int", "int", "String", "int"]
+    );
+}
+
+/// Receivers that resolve no member: `dynamic` makes `dynamic`, `Never`
+/// makes `Never`, and a type parameter is resolved through its bound.
+#[test]
+fn dynamic_never_and_type_parameter_receivers() {
+    let code = "f<T extends num>(dynamic d, Never n, T t) { d + 1; -d; d[0]; n + 2; -n; n[3]; t + 4; -t; }";
+    assert_eq!(
+        operator_types(
+            "dynamic_receivers",
+            code,
+            &[
+                binary("d + 1"),
+                unary("-d"),
+                index("d[0]"),
+                binary("n + 2"),
+                unary("-n"),
+                index("n[3]"),
+                binary("t + 4"),
+                unary("-t"),
+            ],
+        ),
+        ["dynamic", "dynamic", "dynamic", "Never", "Never", "Never", "num", "num"]
+    );
+}
+
+/// The silent failure: a plausible type where upstream's comes from what is
+/// not ported. A receiver that may be null, a member the interface lacks
+/// (an extension may supply it), a member with an implicit return or
+/// parameter type (override inference is not ported), and operands that are
+/// not typed all leave the invocation untyped.
+#[test]
+fn operators_resolution_does_not_reach_are_left_untyped() {
+    let code = "extension on String { String operator -(String o) => this; }\n\
+        class C { operator +(int x) => 1; int operator *(o) => 1; }\n\
+        f<U>(int? maybe, Object o, String s, C c, int i, U u) {\n\
+          maybe + 1; o + 1; s - s; c + 1; c * 2; foo + 1; i + foo; u + 1; -maybe;\n\
+        }";
+    assert_eq!(
+        operator_types(
+            "untyped_operators",
+            code,
+            &[
+                binary("maybe + 1"),
+                binary("o + 1"),
+                binary("s - s"),
+                binary("c + 1"),
+                binary("c * 2"),
+                binary("foo + 1"),
+                binary("i + foo"),
+                binary("u + 1"),
+                unary("-maybe"),
+            ],
+        ),
+        ["-", "-", "-", "-", "-", "-", "-", "-", "-"]
     );
 }
