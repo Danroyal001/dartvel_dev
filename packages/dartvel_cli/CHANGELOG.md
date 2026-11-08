@@ -1,5 +1,6 @@
 ## Unreleased
 
+- The generated backend runs every route, and the staged framework routes, inside `core.dvWithRequestMeterKey`, outside the middleware chain; the generated docs site lists it as the `meters` stage of the request lifecycle.
 - `dartvel inspect bindings [--json]`: how each mounted module's calls cross, per environment and device target, with the binding kind and the carrier (`binding_graph.dart`). The project graph records the same nodes under `bindings` (graphVersion 3), and `dartvel add --dry-run` prints them before anything is written.
 - `dartvel build` refuses a module declaring a real operation where nothing can carry it: DV-BIND-005 when the binding kind cannot exist on the target, DV-BIND-007 when no carrier is built (`binding_check.dart`).
 - Generated carriers run every foreign call through `dvBindingCall`, `dvBindingFuture` or `dvBindingStream`, so a foreign error reaches the caller as `DVBindingError`.

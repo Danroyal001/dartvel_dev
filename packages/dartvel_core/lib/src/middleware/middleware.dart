@@ -1,11 +1,13 @@
 // Middleware system - Next.js inspired
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' show Random;
 
 import '../annotations/annotations.dart' show DVCSRF;
 import '../cache/adapters.dart';
 import '../http/client_address.dart';
 import '../http/wintercg.dart' as dv;
+import '../metering/meters.dart' show DVMeters;
 import '../observability/logging.dart' show DVLogLevel;
 import '../observability/observability.dart' show DVObservability;
 import '../privacy/opt_out.dart';
@@ -680,6 +682,37 @@ Future<T> dvWithRequestPrivacy<T>(Object? request, Future<T> Function() body) =>
       dvGlobalPrivacyControl(_requestHeaders(request)),
       body,
     );
+
+/// Runs [body] with [request]'s idempotency key as the default key for usage
+/// metered inside it.
+///
+/// The generated backend wraps every request in this, so a handler records a
+/// meter with no key of its own. A request carrying an `Idempotency-Key`
+/// header records under it, scoped to method and path as the idempotency
+/// middleware scopes it, so a client retry counts once and the same key on
+/// another endpoint is another operation. A request without one gets an id of
+/// its own: two requests are two records.
+Future<T> dvWithRequestMeterKey<T>(Object? request, Future<T> Function() body) {
+  final String? sent = _requestHeaders(request)['idempotency-key']?.trim();
+  final String key = sent == null || sent.isEmpty
+      ? 'req:${_requestIds.next()}'
+      : 'req:${_requestMethod(request)} ${_requestPath(request)} $sent';
+  return DVMeters.withIdempotencyKey(key, body);
+}
+
+final _RequestIds _requestIds = _RequestIds();
+
+/// Ids unique to one request: a random process prefix, so two instances
+/// cannot hand out the same one, and a counter within it.
+class _RequestIds {
+  final String _prefix = List<String>.generate(
+    4,
+    (_) => Random.secure().nextInt(1 << 32).toRadixString(36),
+  ).join();
+  int _sequence = 0;
+
+  String next() => '$_prefix-${_sequence++}';
+}
 
 /// Each in-process rate limiter's callers, for [dvRateLimitTrackedCallers].
 final Expando<Map<String, List<DateTime>>> _rateLimitCallers =

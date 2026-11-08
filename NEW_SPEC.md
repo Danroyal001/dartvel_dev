@@ -7645,7 +7645,11 @@ overcharged somebody.
 
 Every recording carries an idempotency key, defaulting to the request id from
 the Backend Function Request Lifecycle, and the store discards a key it has
-already seen inside the period (`DV-METER-002`). A job records under the job's
+already seen inside the period (`DV-METER-002`). The request id is the
+request's `Idempotency-Key` header when it sent one, scoped to method and path
+as the idempotency middleware scopes it, so a client retry counts once; a
+request without one gets an id of its own. Every generated route opens that
+scope outside its middleware chain, because a middleware meters too. A job records under the job's
 own id, so a retried job counts once however many attempts it took.
 
 A request or job that records one meter more than once — two AI calls, two

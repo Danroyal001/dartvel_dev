@@ -975,6 +975,15 @@ class _Builder {
           DVDocsSpan.text('tracking.'),
         ],
       ),
+      (
+        'meters',
+        const <DVDocsSpan>[
+          DVDocsSpan.text('Metering scope: usage recorded below is keyed by '),
+          DVDocsSpan.text('the request, its '),
+          DVDocsSpan.code('Idempotency-Key'),
+          DVDocsSpan.text(' when it sent one, so a retry counts once.'),
+        ],
+      ),
       if (middleware.contains('tracing'))
         (
           'tracing',

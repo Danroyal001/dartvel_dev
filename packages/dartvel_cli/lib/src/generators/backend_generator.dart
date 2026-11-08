@@ -1377,7 +1377,8 @@ Future<dv.Response> _dvStaged(
 ) =>
     core.dvWithRequestTenant(
       req,
-      () => core.dvWithRequestPrivacy(req, () => _dvAuthenticated(req, run)),
+      () => core.dvWithRequestPrivacy(req,
+          () => core.dvWithRequestMeterKey(req, () => _dvAuthenticated(req, run))),
     );
 
 /// Runs a route's declared middleware around its handler.
@@ -1502,6 +1503,11 @@ ${backendEntries.map((e) {
             // that never opens the scope answers normally, collects normally,
             // and shows no symptom at all.
             ('core.dvWithRequestPrivacy(req, ', '()'),
+            // The default key for usage metered below: the request's
+            // Idempotency-Key when it sent one, so a client retry counts
+            // once, and an id of its own when it did not. Outside the chain,
+            // because a middleware meters too.
+            ('core.dvWithRequestMeterKey(req, ', '()'),
             if (traces) ('core.dvTraced(dvapi.DV.ObservabilityAndLogging.tracer, req, ', '(dv.Request req)'),
             // On every route, with or without dartvel.platformApi: the
             // application's own sessions authenticate here too.

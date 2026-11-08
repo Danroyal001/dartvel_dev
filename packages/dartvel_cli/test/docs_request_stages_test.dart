@@ -56,6 +56,7 @@ Future<Map<String, Object?>> _status() async => <String, Object?>{};
 Pattern _marker(String stage, String function) => switch (stage) {
   'tenant' => 'core.dvWithRequestTenant(',
   'privacy' => 'core.dvWithRequestPrivacy(',
+  'meters' => 'core.dvWithRequestMeterKey(',
   'tracing' => 'core.dvTraced(',
   'body' => 'req.body',
   'csrf' => '_dvValidateCsrf(',
@@ -154,6 +155,9 @@ void main() {
       final String handler = _handler(routes, method, path);
       final List<String> stages = _stagesIn(functions, name);
       for (final String stage in <String>[
+        'tenant',
+        'privacy',
+        'meters',
         'csrf',
         'tracing',
         'policy',

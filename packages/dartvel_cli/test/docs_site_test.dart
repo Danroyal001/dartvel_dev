@@ -610,6 +610,8 @@ void main() {
           // it. It sits above tracing because the denial is in force for
           // everything below, the span included.
           'privacy',
+          // Usage metered below is keyed by the request, on every route.
+          'meters',
           'tracing',
           'middleware:rateLimit',
           'body',
@@ -624,6 +626,7 @@ void main() {
         expect(stages('function-health'), <String>[
           'tenant',
           'privacy',
+          'meters',
           'csrf',
           'function',
         ]);
