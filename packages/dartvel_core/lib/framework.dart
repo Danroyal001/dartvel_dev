@@ -17,6 +17,7 @@ library;
 // store in dartvel.cache.
 export 'src/cache/dv_cache.dart' show DVCacheRuntime;
 export 'src/run/boot.dart';
+export 'src/run/config.dart';
 export 'src/data/offline_database.dart';
 export 'src/data/offline_replay.dart';
 export 'src/data/offline_sync.dart';

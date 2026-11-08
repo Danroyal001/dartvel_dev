@@ -80,6 +80,9 @@ class ServerHandle {
   bool _stopped = false;
   final Set<NativeWebSocketChannel> _webSockets;
 
+  // The requests being answered, which [drain] waits for.
+  _DVDrain? _drain;
+
   // The OTLP exporter serve() installed, flushed on stop so the spans of the
   // last requests before a deploy are not lost with the process.
   DVOtlpTraceExporter? _traceExporter;
@@ -96,6 +99,16 @@ class ServerHandle {
     this._webSockets = const {},
     this._dartWsWakeupHandler,
   ]);
+
+  /// Stops accepting work and waits for the requests being answered to
+  /// finish, then stops. A request that arrives meanwhile is answered 503
+  /// rather than started; one still running after [grace] is answered 503
+  /// for it, so a handler that never returns cannot hold the process.
+  Future<void> drain({Duration grace = const Duration(seconds: 20)}) async {
+    final _DVDrain? drain = _drain;
+    if (drain != null && !_stopped) await drain.close(grace, (int reqId) => _answerError(_api, reqId, 503));
+    await stop();
+  }
 
   Future<void> stop() async {
     if (_stopped) return;
@@ -400,6 +413,7 @@ Future<ServerHandle> serve(
   // is before any request can arrive; `port` may be 0.
   var urlPort = port;
 
+  final drain = _DVDrain();
   final webSockets = <NativeWebSocketChannel>{};
   final activeWebSockets = <int, NativeWebSocketChannel>{};
 
@@ -453,8 +467,14 @@ Future<ServerHandle> serve(
       return;
     }
 
+    // Draining: refused before any handler starts.
+    if (drain.draining) {
+      _answerError(api, reqId, 503);
+      return;
+    }
     Future<void>(() async {
       try {
+        drain.inFlight.add(reqId);
         final resp = await effective(req);
         if (resp is WebSocketResponse) {
           if (!dylib.providesSymbol('aw_ws_prepare')) {
@@ -656,6 +676,9 @@ Future<ServerHandle> serve(
         // told the native side so, and a chunk that arrives after it is
         // dropped rather than waiting for a pull nobody will make.
         bodies.remove(reqId);
+        // Answered, or handed to the native side as a stream: no longer
+        // something a drain waits for.
+        drain.finished(reqId);
       }
     });
   }
@@ -801,7 +824,8 @@ Future<ServerHandle> serve(
     dartStreamAckHandler,
     webSockets,
     dartWsWakeupHandler,
-  ).._traceExporter = traceExporter;
+  ).._traceExporter = traceExporter
+    .._drain = drain;
 }
 
 /// A response body no larger than this, and already whole when the handler
@@ -988,7 +1012,11 @@ void _logRefused(int status, String what, [StackTrace? stack]) {
 void _answerError(gen.DartvelShelfBindings api, int reqId, int status) {
   try {
     final List<int> text = utf8.encode(
-        status == 400 ? 'Bad Request\n' : 'Internal Server Error\n');
+        switch (status) {
+          400 => 'Bad Request\n',
+          503 => 'Service Unavailable: the server is shutting down\n',
+          _ => 'Internal Server Error\n',
+        });
     final Uint8List hdrs = encodeHeaders(<String, List<String>>{
       'content-type': <String>['text/plain; charset=utf-8'],
     });
@@ -1152,5 +1180,30 @@ DVAssetHttpPolicy _assetPolicyFor(String root) {
     return DVWebServerSettings.parse(manifest is Map ? manifest['server'] : null).http;
   } on FormatException {
     return const DVAssetHttpPolicy();
+  }
+}
+
+/// The requests a server is answering, and whether it has stopped taking
+/// new ones: what [ServerHandle.drain] waits on.
+class _DVDrain {
+  final Set<int> inFlight = <int>{};
+  bool draining = false;
+  Completer<void>? _idle;
+
+  void finished(int reqId) {
+    inFlight.remove(reqId);
+    if (inFlight.isEmpty) _idle?.complete();
+    if (inFlight.isEmpty) _idle = null;
+  }
+
+  Future<void> close(Duration grace, void Function(int reqId) cutOff) async {
+    draining = true;
+    if (inFlight.isEmpty) return;
+    final Completer<void> idle = _idle ??= Completer<void>();
+    await idle.future.timeout(grace, onTimeout: () {});
+    for (final int reqId in inFlight.toList()) {
+      cutOff(reqId);
+    }
+    inFlight.clear();
   }
 }

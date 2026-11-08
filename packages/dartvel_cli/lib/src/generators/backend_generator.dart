@@ -27,7 +27,7 @@ import '../build/android_billing_bridge.dart'
 
 // dartvel.capture, read with the parser the generated server reads it with.
 import 'package:dartvel_core/framework.dart'
-    show DVCaptureConfig, DVCaptureConfigError;
+    show DVCaptureConfig, DVCaptureConfigError, DVRunConfig;
 import 'package:file/local.dart';
 
 import 'model_names.dart';
@@ -86,6 +86,22 @@ class BackendGenerator {
     final Object? dartvel = doc is Map ? doc['dartvel'] : null;
     try {
       return DVCrashConfig.parse(dartvel is Map ? dartvel['crashes'] : null);
+    } on ArgumentError catch (error) {
+      throw StateError(
+        'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
+      );
+    }
+  }
+
+  /// `dartvel.run`, read with the parser the runtime uses: a misspelt grace
+  /// fails the build rather than being served as the default.
+  static DVRunConfig _dvRunConfig(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return const DVRunConfig();
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+    try {
+      return DVRunConfig.parse(dartvel is Map ? dartvel['run'] : null);
     } on ArgumentError catch (error) {
       throw StateError(
         'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
@@ -1044,6 +1060,9 @@ $openApiJson\'\'\';
     // server starts, which is the only place an application has that runs
     // before anything is served.
     final String tenancyConfiguration = _dvTenancyConfiguration(root);
+    // dartvel.run: how long a stopping web process waits for the requests
+    // it is answering.
+    final int shutdownGraceMs = _dvRunConfig(root).shutdownGrace.inMilliseconds;
     // dartvel.cache: the store DV.Cache keeps its entries in, opened by
     // every role before it serves, works or ticks anything.
     final String cacheInstaller = _dvCacheInstaller(root);
@@ -2338,6 +2357,10 @@ void _dartvelInstallServerCrashes(core.DVProcessRole role) {
 /// The arguments this process was started with, for the boot functions.
 List<String> _dartvelArguments = const <String>[];
 
+/// dartvel.run.shutdownGrace: how long a stopping web process waits for the
+/// requests it is answering before it answers them 503 itself.
+const Duration _dartvelShutdownGrace = Duration(milliseconds: $shutdownGraceMs);
+
 /// Where this process is in the boot sequence, so a failure names the phase.
 framework.DVBootTracker _dartvelBoot = framework.DVBootTracker(const core.DVEntry.server(role: core.DVServerRole.all));
 
@@ -2357,7 +2380,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       _dartvelAccountSweepTimer?.cancel();
       _dartvelPrivacyTimer?.cancel();
       _dartvelCaptureTimer?.cancel();
-      await handle.stop();
+      // Stop accepting, then let what is being answered finish.
+      await handle.drain(grace: _dartvelShutdownGrace);
     case core.DVProcessRole.worker:
       _dartvelBoot = framework.DVBootTracker(const core.DVEntry.server(role: core.DVServerRole.worker));
       _dartvelBoot.enter(1, 'initializing');
@@ -2561,6 +2585,10 @@ import 'dartvel_backend_routes.g.dart' as gen;
 Future<void> main(List<String> arguments) async {
   try {
     await gen.dartvelMain(arguments);
+    // Stopped cleanly. Exit now rather than when the last timer fires: a
+    // handler the drain gave up on can hold one for minutes.
+    await stdout.flush();
+    exit(0);
   } on core.DVProcessConfigurationError catch (error) {
     // EX_CONFIG: a supervisor restarting this will not fix it.
     stderr.writeln('dartvel: \$error');

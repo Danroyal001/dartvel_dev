@@ -18,6 +18,9 @@ class ServerHandle {
     _stopped = true;
   }
 
+  /// Stops, after the requests being answered: nothing is answered here.
+  Future<void> drain({Duration grace = const Duration(seconds: 20)}) => stop();
+
   bool get isStopped => _stopped;
 }
 

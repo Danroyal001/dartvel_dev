@@ -59,6 +59,8 @@ dependencies:
 dartvel:
   backendHost: 127.0.0.1
   backendPort: ${await freePort()}
+  run:
+    shutdownGrace: 2s
 ''');
     write('pubspec_overrides.yaml', '''
 dependency_overrides:
@@ -78,8 +80,17 @@ import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction()
 Future<String> _slow() async {
-  await Future<void>.delayed(const Duration(seconds: 2));
+  await Future<void>.delayed(const Duration(seconds: 1));
   return 'finished';
+}
+''');
+    write('lib/backend/functions/slower.get.dart', '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Future<String> _slower() async {
+  await Future<void>.delayed(const Duration(seconds: 60));
+  return 'never';
 }
 ''');
     write('lib/boot.dart', '''
@@ -236,4 +247,64 @@ void _second(DVBoot boot) {
     });
   }
 
+  // "Stop accepting, drain in-flight requests up to a declared grace":
+  // a request being answered when the signal arrives is finished, one that
+  // arrives during the drain is refused rather than started, and the grace
+  // (dartvel.run.shutdownGrace, 2s in this project) bounds the wait.
+  Future<Object?> settle(Future<({int status, String body})> request) =>
+      request.then<Object?>((v) => v, onError: (Object e) => e);
+
+  test('a request in flight when SIGTERM arrives is answered before exit',
+      () async {
+    final r = await started();
+    final Future<Object?> slow = settle(get(r.port, '/api/slow'));
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    r.process.kill(ProcessSignal.sigterm);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    // Arrived during the drain: refused, not started.
+    final Object? late = await settle(get(r.port, '/api/hello'));
+    final Object? answered = await slow;
+    final int code = await r.process.exitCode
+        .timeout(const Duration(seconds: 30), onTimeout: () => -1);
+    expect(answered, isA<({int status, String body})>(), reason: '${r.printed}');
+    answered as ({int status, String body});
+    expect(answered.status, 200);
+    expect(answered.body, contains('finished'));
+    if (late is ({int status, String body})) {
+      expect(late.status, 503);
+    } else {
+      expect(late, isA<IOException>());
+    }
+    expect(code, 0, reason: '${r.printed}');
+  });
+
+  test('the drain waits no longer than the declared grace', () async {
+    final r = await started();
+    final Future<Object?> slower = settle(get(r.port, '/api/slower'));
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    final Stopwatch clock = Stopwatch()..start();
+    r.process.kill(ProcessSignal.sigterm);
+    final int code = await r.process.exitCode
+        .timeout(const Duration(seconds: 40), onTimeout: () => -1);
+    expect(code, 0, reason: '${r.printed}');
+    expect(clock.elapsed, greaterThanOrEqualTo(const Duration(milliseconds: 1500)));
+    expect(clock.elapsed, lessThan(const Duration(milliseconds: 4500)));
+    await slower;
+  });
+
+  test('a second signal exits at once, without waiting for the drain',
+      () async {
+    final r = await started();
+    final Future<Object?> slower = settle(get(r.port, '/api/slower'));
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    r.process.kill(ProcessSignal.sigterm);
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    final Stopwatch clock = Stopwatch()..start();
+    r.process.kill(ProcessSignal.sigterm);
+    final int code = await r.process.exitCode
+        .timeout(const Duration(seconds: 30), onTimeout: () => -1);
+    expect(code, 128 + 15, reason: '${r.printed}');
+    expect(clock.elapsed, lessThan(const Duration(seconds: 2)));
+    await slower;
+  });
 }

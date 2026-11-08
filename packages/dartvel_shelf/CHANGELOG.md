@@ -1,3 +1,7 @@
+## Unreleased
+
+- `ServerHandle.drain({grace})`: stops taking requests (a new one is answered 503), waits for the ones being answered, answers any still running after `grace` with 503, then stops. Before, `stop()` was the only way down, and it blocked the isolate inside the native stop while a Dart handler was still running, so the handler could not finish and a handler that never returned held the process.
+
 ## 0.13.16 — 2026-10-22
 
 - Version aligned with dartvel_core 0.13.16.

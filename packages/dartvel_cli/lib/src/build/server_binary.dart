@@ -356,6 +356,10 @@ Future<void> main(List<String> arguments) async {
         database: database,
       ),
     );
+    // Stopped cleanly. Exit now rather than when the last timer fires: a
+    // handler the drain gave up on can hold one for minutes.
+    await stdout.flush();
+    exit(0);
   } on core.DVProcessConfigurationError catch (error) {
     // EX_CONFIG: a supervisor restarting this will not fix it.
     stderr.writeln('dartvel: $error');
