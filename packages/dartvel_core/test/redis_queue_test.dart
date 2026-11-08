@@ -185,6 +185,13 @@ void main() async {
     expect(reserved, isNotNull);
     expect(reserved!.payloadType, Ping);
   });
+  test('the trace context a job was dispatched with comes back', () async {
+    await adapter.enqueue<Ping>('mail', const Ping('a'), traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');
+    await adapter.enqueue<Ping>('mail', const Ping('b'));
+    expect((await adapter.reserve('mail'))!.traceparent, '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');
+    expect((await adapter.reserve('mail'))!.traceparent, isNull);
+  });
+
   test('the tenant a job was dispatched under comes back to the worker',
       () async {
     await adapter.enqueue<Ping>('mail', const Ping('a'), tenant: 'acme');

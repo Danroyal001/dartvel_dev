@@ -197,8 +197,10 @@ void main() {
     });
   });
   group('the tenant', () {
-    Future<DVJobEnvelope<DVJobPayload>?> roundTrip(String? tenant) async {
-      await adapter.enqueue('mail', const _Ping('hello'), tenant: tenant);
+    Future<DVJobEnvelope<DVJobPayload>?> roundTrip(String? tenant,
+        {String? traceparent}) async {
+      await adapter.enqueue('mail', const _Ping('hello'),
+          tenant: tenant, traceparent: traceparent);
       final Map<Object?, Object?> sent = (pubsub.calls.last.body['messages']!
           as List<Object?>).single! as Map<Object?, Object?>;
       pubsub.replies.add(<String, Object?>{
@@ -218,6 +220,11 @@ void main() {
 
     test('a job with none comes back with none', () async {
       expect((await roundTrip(null))!.tenant, isNull);
+    });
+
+    test('the trace context travels in the message too', () async {
+      expect((await roundTrip(null, traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'))!.traceparent, '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');
+      expect((await roundTrip(null))!.traceparent, isNull);
     });
   });
 }

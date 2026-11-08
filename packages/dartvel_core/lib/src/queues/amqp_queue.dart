@@ -96,6 +96,7 @@ class DVAmqpQueueAdapter implements DVQueueAdapter {
     int maxAttempts = 3,
     Duration backoff = const Duration(seconds: 30),
     String? tenant,
+    String? traceparent,
   }) async {
     const DVJobPayloadCodecs codecs = DVJobPayloadCodecs();
     final String? name = codecs.nameFor<TPayload>();
@@ -117,6 +118,7 @@ class DVAmqpQueueAdapter implements DVQueueAdapter {
         'payload': codecs.encodeFor<TPayload>(payload),
         'maxAttempts': maxAttempts,
         'tenant': ?tenant,
+        'traceparent': ?traceparent,
       })),
       // Durable queue, transient message is the combination that looks
       // durable and loses everything on a restart.
@@ -136,6 +138,7 @@ class DVAmqpQueueAdapter implements DVQueueAdapter {
       state: DVJobState.queued,
       createdAt: DateTime.now(),
       tenant: tenant,
+      traceparent: traceparent,
     );
   }
 
@@ -191,6 +194,7 @@ class DVAmqpQueueAdapter implements DVQueueAdapter {
       createdAt: DateTime.now(),
       // The tenant the job was dispatched under, which the worker runs it as.
       tenant: decoded['tenant'] as String?,
+      traceparent: decoded['traceparent'] as String?,
     );
   }
 

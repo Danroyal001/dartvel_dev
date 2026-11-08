@@ -200,8 +200,10 @@ void main() {
   group('the tenant', () {
     // The worker runs a job as the tenant it was dispatched under, so a
     // message that dropped it would run as no tenant at all.
-    Future<DVJobEnvelope<DVJobPayload>?> roundTrip(String? tenant) async {
-      await adapter.enqueue('mail', const _Welcome('u1'), tenant: tenant);
+    Future<DVJobEnvelope<DVJobPayload>?> roundTrip(String? tenant,
+        {String? traceparent}) async {
+      await adapter.enqueue('mail', const _Welcome('u1'),
+          tenant: tenant, traceparent: traceparent);
       sqs.replies.add(<String, Object?>{
         'Messages': <Object?>[
           <String, Object?>{
@@ -220,6 +222,11 @@ void main() {
 
     test('a job with none comes back with none', () async {
       expect((await roundTrip(null))!.tenant, isNull);
+    });
+
+    test('the trace context travels in the message too', () async {
+      expect((await roundTrip(null, traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'))!.traceparent, '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');
+      expect((await roundTrip(null))!.traceparent, isNull);
     });
   });
 }

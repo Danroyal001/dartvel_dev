@@ -66,6 +66,7 @@ class DVPubSubQueueAdapter implements DVQueueAdapter {
     int maxAttempts = 3,
     Duration backoff = const Duration(seconds: 30),
     String? tenant,
+    String? traceparent,
   }) async {
     if (priority != 0) {
       throw UnsupportedError(
@@ -91,6 +92,7 @@ class DVPubSubQueueAdapter implements DVQueueAdapter {
       'payload': codecs.encodeFor<TPayload>(payload),
       'maxAttempts': maxAttempts,
       'tenant': ?tenant,
+      'traceparent': ?traceparent,
     })));
 
     _backoffs[queue] = backoff;
@@ -112,6 +114,7 @@ class DVPubSubQueueAdapter implements DVQueueAdapter {
       state: DVJobState.queued,
       createdAt: DateTime.now(),
       tenant: tenant,
+      traceparent: traceparent,
     );
   }
 
@@ -175,6 +178,7 @@ class DVPubSubQueueAdapter implements DVQueueAdapter {
       createdAt: DateTime.now(),
       // The tenant the job was dispatched under, which the worker runs it as.
       tenant: decoded['tenant'] as String?,
+      traceparent: decoded['traceparent'] as String?,
     );
   }
 

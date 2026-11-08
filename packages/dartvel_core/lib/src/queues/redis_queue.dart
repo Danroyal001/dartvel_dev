@@ -35,6 +35,7 @@ class DVRedisQueueAdapter implements DVQueueAdapter {
     int maxAttempts = 3,
     Duration backoff = const Duration(seconds: 30),
     String? tenant,
+    String? traceparent,
   }) async {
     const codecs = DVJobPayloadCodecs();
     final name = codecs.nameFor<TPayload>();
@@ -57,6 +58,7 @@ class DVRedisQueueAdapter implements DVQueueAdapter {
       attempts: 0,
       state: DVJobState.queued,
       tenant: tenant,
+      traceparent: traceparent,
     );
 
     await client.command(<String>[
@@ -75,6 +77,7 @@ class DVRedisQueueAdapter implements DVQueueAdapter {
         'state': DVJobState.queued.name,
         'lastError': null,
         'tenant': tenant,
+        'traceparent': traceparent,
       }),
     ]);
     // Score orders by priority first, then age. Negating priority makes a
@@ -274,6 +277,7 @@ class DVRedisQueueAdapter implements DVQueueAdapter {
       ),
       lastError: data['lastError'] as String?,
       tenant: data['tenant'] as String?,
+      traceparent: data['traceparent'] as String?,
     );
   }
 }

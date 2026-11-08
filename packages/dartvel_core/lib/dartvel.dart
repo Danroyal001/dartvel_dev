@@ -2054,6 +2054,11 @@ class DVJobEnvelope<TPayload> {
   /// whatever the worker process, or the job before it, was set to.
   final String? tenant;
 
+  /// The W3C `traceparent` of the span that dispatched the job, or null when
+  /// it was dispatched outside a trace. What links a job run hours later back
+  /// to the request that asked for it.
+  final String? traceparent;
+
   const DVJobEnvelope({
     required this.id,
     required this.queue,
@@ -2067,6 +2072,7 @@ class DVJobEnvelope<TPayload> {
     required this.state,
     this.lastError,
     this.tenant,
+    this.traceparent,
   });
 
   DVJobEnvelope<TPayload> copyWith({
@@ -2087,6 +2093,7 @@ class DVJobEnvelope<TPayload> {
       state: state ?? this.state,
       lastError: lastError ?? this.lastError,
       tenant: tenant,
+      traceparent: traceparent,
     );
   }
 }
@@ -2105,6 +2112,7 @@ abstract class DVQueueAdapter {
     int maxAttempts,
     Duration backoff,
     String? tenant,
+    String? traceparent,
   });
 
   Future<DVJobEnvelope<DVJobPayload>?> reserve(String queue);
@@ -2135,6 +2143,7 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
     int maxAttempts = 3,
     Duration backoff = const Duration(seconds: 30),
     String? tenant,
+    String? traceparent,
   }) async {
     final envelope = DVJobEnvelope<TPayload>(
       id: 'job-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}',
@@ -2148,6 +2157,7 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
       attempts: 0,
       state: DVJobState.queued,
       tenant: tenant,
+      traceparent: traceparent,
     );
     final stored = DVJobEnvelope<DVJobPayload>(
       id: envelope.id,
@@ -2161,6 +2171,7 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
       attempts: envelope.attempts,
       state: envelope.state,
       tenant: envelope.tenant,
+      traceparent: envelope.traceparent,
     );
     (_pending[queue] ??= []).add(stored);
     _pending[queue]!.sort((a, b) => b.priority.compareTo(a.priority));
@@ -2401,7 +2412,8 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
         attempts INTEGER NOT NULL,
         state TEXT NOT NULL,
         last_error TEXT,
-        tenant TEXT
+        tenant TEXT,
+        traceparent TEXT
       )
     ''');
     // A table an earlier release made has no tenant column, and CREATE TABLE
@@ -2409,6 +2421,9 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
     // tenant recorded, so they run with none.
     await dvEnsureFrameworkColumns(database, <DVAddColumn>[
       DVAddColumn(tableName, 'tenant', type: 'TEXT'),
+      // Likewise trace context: a job dispatched before it was recorded links
+      // back to nothing.
+      DVAddColumn(tableName, 'traceparent', type: 'TEXT'),
     ]);
     _initialized = true;
   }
@@ -2421,6 +2436,7 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
     int maxAttempts = 3,
     Duration backoff = const Duration(seconds: 30),
     String? tenant,
+    String? traceparent,
   }) async {
     await initialize();
     final codec = DVJobPayloadCodecs._byType[TPayload];
@@ -2443,12 +2459,13 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
       attempts: 0,
       state: DVJobState.queued,
       tenant: tenant,
+      traceparent: traceparent,
     );
 
     await database.execute(
       'INSERT INTO $tableName (id, queue, payload_name, payload, priority, '
       'max_attempts, backoff_ms, created_at, attempts, state, last_error, '
-      'tenant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)',
+      'tenant, traceparent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)',
       <Object?>[
         envelope.id,
         queue,
@@ -2461,6 +2478,7 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
         0,
         DVJobState.queued.name,
         tenant,
+        traceparent,
       ],
     );
     return envelope;
@@ -2614,6 +2632,7 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
       state: state,
       lastError: row['last_error'] as String?,
       tenant: row['tenant'] as String?,
+      traceparent: row['traceparent'] as String?,
     );
   }
 }

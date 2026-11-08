@@ -185,6 +185,26 @@ void main() {
         expect((await queue.reserve('mail'))!.tenant, 'acme');
       });
 
+      test('keeps the trace context through a failure and a retry', () async {
+        // What links a job back to the request that dispatched it.
+        const String origin = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+        final job = await queue.enqueue('mail', const SendWelcomeEmail('a'),
+            maxAttempts: 2, traceparent: origin);
+        expect(job.traceparent, origin);
+        expect((await queue.pending('mail')).single.traceparent, origin);
+        expect((await queue.reserve('mail'))!.traceparent, origin);
+        await queue.fail(job.id, 'boom', StackTrace.empty);
+        expect((await queue.reserve('mail'))!.traceparent, origin);
+        await queue.fail(job.id, 'boom', StackTrace.empty);
+        await queue.retry(job.id);
+        expect((await queue.reserve('mail'))!.traceparent, origin);
+      });
+
+      test('a job dispatched outside a trace has no trace context', () async {
+        await queue.enqueue('mail', const SendWelcomeEmail('a'));
+        expect((await queue.reserve('mail'))!.traceparent, isNull);
+      });
+
       test('a job with no tenant has none', () async {
         await queue.enqueue('mail', const SendWelcomeEmail('a'));
 

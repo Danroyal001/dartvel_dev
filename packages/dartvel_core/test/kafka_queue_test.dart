@@ -195,6 +195,16 @@ void main() {
       expect(await adapter.reserve('mail'), isNull);
     });
   });
+  test('the trace context travels in the record', () async {
+    await adapter.enqueue('mail', const _Ping('a'), traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');
+    await adapter.enqueue('mail', const _Ping('b'));
+    final first = (await adapter.reserve('mail'))!;
+    expect(first.traceparent, '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');
+    // A log hands back the same record until its offset is committed.
+    await adapter.complete(first.id);
+    expect((await adapter.reserve('mail'))!.traceparent, isNull);
+  });
+
   group('the tenant', () {
     test('travels in the record and comes back on the envelope', () async {
       await adapter.enqueue('mail', const _Ping('a'), tenant: 'acme');
