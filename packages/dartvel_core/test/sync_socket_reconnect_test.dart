@@ -30,17 +30,29 @@ class _Server {
 
   _Server(this.port, {this.idleTimeout, this.silent = false});
 
+  /// A free port below the kernel's ephemeral range, so that while this
+  /// server is stopped for a restart nothing else in the run binding port 0
+  /// can be handed its port.
   static Future<int> freePort() async {
-    final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-    final port = probe.port;
-    await probe.close();
-    return port;
+    final random = Random();
+    for (var tries = 0; tries < 200; tries++) {
+      final port = 20000 + random.nextInt(12000);
+      try {
+        final probe =
+            await ServerSocket.bind(InternetAddress.loopbackIPv4, port);
+        await probe.close();
+        return port;
+      } on SocketException {
+        continue;
+      }
+    }
+    throw StateError('no free port below the ephemeral range');
   }
 
   Future<void> start() async {
     final hub = DVSyncRelay(idleTimeout: idleTimeout);
     relay = hub;
-    final http = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+    final http = await _bindAgain();
     _http = http;
     http.listen((HttpRequest request) async {
       final socket = await WebSocketTransformer.upgrade(request);
@@ -52,6 +64,23 @@ class _Server {
       }
       hub.accept(DVSyncWire.of(socket, socket), tenant: 'default');
     });
+  }
+
+  /// Binds the fixed port, waiting briefly if the socket the last run of
+  /// this server held has not been released yet -- as a restarting server
+  /// would.
+  Future<HttpServer> _bindAgain() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (true) {
+      try {
+        return await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+      } on SocketException catch (error) {
+        if (DateTime.now().isAfter(deadline)) {
+          throw StateError('port $port stayed busy: $error');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
   }
 
   Future<void> stop() async {
