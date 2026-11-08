@@ -60,9 +60,15 @@ Future<void> dvRunApplication(
         };
         dvStartAppLifecycleBridge();
         runApp(root());
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          DV.lifecycle.setApp(.ready);
-        });
+        // Ready once a frame with the root in it has been drawn. A post-frame
+        // callback alone waits for a frame something else schedules: where
+        // runApp drew its first frame already, as a test binding does, or an
+        // app shows a still page, nothing does, and the app stayed booting.
+        WidgetsBinding.instance
+          ..addPostFrameCallback((_) {
+            DV.lifecycle.setApp(.ready);
+          })
+          ..ensureVisualUpdate();
         completed.complete();
       } catch (error, stack) {
         DV.lifecycle.setApp(.failed);
