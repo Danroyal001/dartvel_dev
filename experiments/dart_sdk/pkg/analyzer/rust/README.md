@@ -584,12 +584,13 @@ is one of those or a `--literals` literal (the enclosed type).
 `src/dart/resolver/type_analyzer.rs` records those slices' types, using
 the linked SDK classes through the narrow `src/dart/element/type_provider.rs`.
 It does not resolve identifiers other than the `--identifiers` reads, infer
-locals or calls, type integer literals outside the `--integers` sites and
-the operands of `--user-operators` invocations, type operator invocations
-outside that selection, perform flow analysis, report diagnostics or rewrite
+locals or other calls, type integer literals outside the `--integers` sites,
+the operands of `--user-operators` invocations and the arguments of
+`--members` invocations, type operator invocations or member accesses
+outside those selections, perform flow analysis, report diagnostics or rewrite
 the AST; those expressions get no type rather than a guessed one, including a
 parenthesized one. `body_dump` requires `--literals`, `--operators`,
-`--integers`, `--identifiers` or `--user-operators` and
+`--integers`, `--identifiers`, `--user-operators` or `--members` and
 refuses full mode rather than presenting missing resolution as a full result.
 The full upstream dump is available as a reference for the next slices.
 
@@ -855,10 +856,9 @@ other contexts (call arguments, untyped variables, closures' inferred return
 types), and every invocation an operand of which is not typed. The
 identifiers slice leaves out every variable read next to `==` or `!=` (they
 can promote), so equality with a variable operand is not selected. The
-natural next slices reuse the lookup: method invocations and property reads
-on a typed receiver (with their arguments' contexts), and extension
-resolution, which would bring in the nullable receivers and the members an
-interface lacks.
+`--members` slice below reuses the lookup; extension resolution, which would
+bring in the nullable receivers and the members an interface lacks, does not
+yet.
 
 The fixture `tests/body_corpus/user_operators.dart` covers each operator on
 `int`, `double`, `num` and `String`, literal and parenthesized operands,
@@ -881,6 +881,92 @@ literal, operator, integer and identifier tests still match on the default
 corpus (41,283, 13,036, 1,096 and 50,276 rows) and on the held-out roots
 (146,712, 52,170, 10,879 and 108,816 rows).
 
+`--members` selects member accesses on a typed receiver: method invocations
+`r.m(...)` (`ReceiverMethodInvocation`, without type arguments) and property
+reads `r.p` (`ReceiverPropertyExtraction`: a getter, a field's getter or a
+method torn off) whose operator is `.` and whose name is not private, whose
+receiver is known and whose receiver's static type is not nullable and has an
+interface type as its bound, and which resolve through that interface. Past
+parentheses, a known receiver is what `--user-operators` knows (a literal, an
+`--operators` expression, an `--identifiers` read, a selected operator
+invocation), a selected member access, or an integer literal (no context:
+`int`). An invocation must resolve to a method that is not generic and has a
+declared return type and declared parameter types (when its type is invalid,
+because the return type does not resolve, upstream's resolution is invalid
+with that method as the recovery, and it is still selected), other than
+`remainder` and `clamp` on a subtype of `num?`, whose type
+`refineNumericInvocationType` refines from the arguments; a read must resolve
+to a getter with a declared return type (for a field's getter, a field with a
+declared type) or to such a method. The V1 rows are `MethodInvocation`,
+`PrefixedIdentifier` and `PropertyAccess`. The selection also writes the
+integer literals that are arguments of a selected invocation (past
+parentheses, positional or named) and match a parameter, whose type is
+`_recordIntegerLiteralType` with the parameter's type as the context. Both
+sides decide it the same way, the oracle's `MemberAccesses` from upstream's
+resolution and the port from what it types.
+
+`src/dart/resolver/method_invocation_resolver.rs` types them after the
+operator invocations (a receiver may be one; the operator invocations do not
+take a member access as an operand, so the earlier selection is unchanged).
+The parser builds a read as a `ParsedNameAccess` when its receiver is a name
+or a name access, and as a `ReceiverPropertyExtraction` when it is a literal,
+parenthesized, `this` or an index expression; an invocation is a
+`ParsedValueArguments` whose operand is a `ParsedNameAccess`. The member is
+found by `get_member` in `inheritance_manager3.rs`, which now looks up getters
+as well as methods (a method and a getter of one name in two superinterfaces
+are a conflict, left unresolved), merges a mixin's member as
+`_getInterfaceClass` does (a member the mixin declares replaces the member so
+far, one its interface inherits is merged with it, the most specific
+winning; before, any member of the mixin's interface replaced it, which the
+default corpus found: `MethodElementImpl.formalParameters`), and combines
+valid overrides of different types into their top merge (`_topMerge`, which
+the held-out extension type tests found). The type is the method's return
+type, the getter's type or the method's function type, substituted with the
+receiver's type arguments. An invocation of a getter (`r.g()`) is a read of
+the getter, whose value is called: upstream's resolver rewrites it into a
+`FunctionExpressionInvocation` whose function is the read, so the read is
+typed and written as a `PrefixedIdentifier` or `PropertyAccess` (the parse-time
+projection here keeps the `MethodInvocation`; `body_dump` writes the read's
+row in its place), and the call is not typed. `body_dump` finds the member
+accesses of a V1 projection by offset and length, since the projection of
+`a.f().g()` gives the inner invocation the whole chain as its origin.
+
+Limits: `?.` and nullable receivers, cascades, `super`, `this` and implicit
+`this`, static members and import prefixes, extensions and extension
+overrides (upstream looks for one when the interface has no such member, or
+the receiver may be null), `dynamic`, `Never`, invalid, function and record
+receivers, private names (a private field may be promoted by flow analysis,
+and a private name is looked up per library, which `get_member` does not
+port), generic methods and explicit type arguments, members whose types
+override or top-level inference would infer, the call of a getter's value,
+`remainder` and `clamp` on numbers, implicit call tear-offs and generic
+function instantiation, integer literals in other argument positions (past a
+unary minus, inside other expressions), and every access whose receiver is
+not typed.
+
+The fixture `tests/body_corpus/members.dart` covers methods, getters, fields
+and tear-offs on user classes, a subclass, generic classes and a subclass of
+an instantiation, a mixin, the most specific of two interface members,
+enums, extension types (with and without `implements`), `String`, `int`,
+`double`, `num`, `List`, `Map` and `Object` members, chains, literal,
+parenthesized, operator and member access receivers, type parameter
+receivers, each argument context (positional, optional, named, extra,
+parenthesized; `double`, `double?`, `num`, `int`, `Object`, `dynamic`,
+`FutureOr<double>` and substituted type parameters), and each limit above,
+with what the corpora found: a mixin's inherited member, top-merged combined
+signatures, an unresolved return type and invoked getters. Before the port
+typed member accesses it produced 230 upstream rows and none on the Rust
+side; with those cases added it has 247 rows, which match. Unit tests in
+`type_analyzer_test.rs` (on a hand-built `dart:core` with members) failed
+before the port typed them (all `-`), but the one that checks what must stay
+untyped. Measured 2026-11-08: the default corpus matches 18,467 rows across
+589 files (184 seconds), and the held-out roots 29,691 rows across 5,730
+files (326 seconds), zero differences. Before the mixin fix the default
+corpus differed in 4 files; the held-out roots differed in 53 (3 combined
+signatures, 50 invocations whose return type does not resolve). The earlier tests still match on the fixture (154, 77, 130, 416
+and 418 rows), the default corpus (41,283, 13,036, 1,096, 50,276 and 1,359
+rows) and the held-out roots (146,712, 52,170, 10,879, 108,816 and 13,605 rows).
+
 `tests/type_analyzer_test.rs` runs the analyzer on a hand-built `dart:core`
 (so it can run under Miri, not yet done): the literal and operator types,
 integer literals with no context (`int`), with declared contexts (aliases,
@@ -897,6 +983,14 @@ and parentheses around them stay untyped. The four integer tests with expected
 types failed before the analyzer typed integer literals; the three
 variable-read tests failed before it resolved names (all reads `-`). Typing an unknown parenthesized
 expression `bool` fails that last test.
+The member access tests cover method, getter, field and tear-off types
+(substituted, inherited, on literal, parenthesized and chained receivers),
+integer argument contexts, invoked getters, a mixin's inherited member, a
+top-merged combined signature, and what must stay untyped (null-aware and
+nullable receivers, extension members, private names, generic methods,
+implicit member types, `dynamic` and unresolved receivers, `remainder`,
+explicit type arguments, static members); the first two failed before the
+port typed member accesses (all `-`), the last passes by design.
 
 `tests/oracle_comparison.rs` checks that missing empty dumps count as
 differences, extra dumps fail, and identical empty/nonempty dumps match. Its
