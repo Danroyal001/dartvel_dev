@@ -8,9 +8,16 @@
 // - Operators: `is` and `is!` are `bool`, as are `!`, `&&` and `||`, whatever
 //   their operands; `throw` and `rethrow` are `Never`; parentheses take the
 //   type of the expression they enclose.
+// - Integer literals: `int` with no context; with a context from a declared
+//   type annotation, `double` when the annotation is `double`, `double?`,
+//   `FutureOr<double>` or an alias of one (resolved where it is written:
+//   type parameters, members, parameters and locals shadow names, and an
+//   explicit `dart:core` import removes the implicit one), else `int`;
+//   untyped when the annotation cannot be resolved because the unit is
+//   analyzed without its library.
 // - Not in the slice, so no type: identifiers, `==` (its type is the
-//   operator method's return type), unary minus, integer literals and
-//   parentheses around any of those.
+//   operator method's return type), unary minus, integer literals in other
+//   contexts (arguments) and parentheses around any of those.
 
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -21,7 +28,7 @@ use analyzer::src::dart::analysis::file_state::FileSystemState;
 use analyzer::src::dart::ast::ast_store::{Ast, ChildValue, NodeId};
 use analyzer::src::dart::element::display_string_builder::display_string;
 use analyzer::src::dart::element::type_provider::TypeProviderImpl;
-use analyzer::src::dart::resolver::type_analyzer::TypeAnalyzer;
+use analyzer::src::dart::resolver::type_analyzer::{Declarations, TypeAnalyzer};
 use analyzer::src::dart::sdk::sdk::FolderBasedDartSdk;
 use analyzer::src::summary2::link::Linker;
 
@@ -199,7 +206,7 @@ fn parentheses_take_the_type_of_what_they_enclose() {
 /// depends on resolution this slice does not do.
 #[test]
 fn expressions_outside_the_slice_are_left_untyped() {
-    let code = "f() { a == b; -c; 1; (d); (2); x is int; }";
+    let code = "f() { a == b; -c; g(1); (d); g((2)); x is int; }";
     assert_eq!(
         types_of(
             "untyped",
@@ -214,5 +221,156 @@ fn expressions_outside_the_slice_are_left_untyped() {
             ],
         ),
         ["-", "-", "-", "-", "-", "-"]
+    );
+}
+
+/// Links a `dart:core` and a `dart:async` declaring what the tests read, and
+/// [code] as the library `test.dart`; analyzes [code] against that library
+/// and returns the types of [queries] as [types_of] does.
+fn types_in_library(name: &str, code: &str, queries: &[(&str, &str)]) -> Vec<String> {
+    let dir: PathBuf =
+        std::env::temp_dir().join(format!("type_analyzer_test_{}_{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    write(
+        &dir.join("sdk/lib/_internal/sdk_library_metadata/lib/libraries.dart"),
+        "const Map<String, LibraryInfo> libraries = const {\n  'async': const LibraryInfo('async/async.dart'),\n  'core': const LibraryInfo('core/core.dart'),\n};\n",
+    );
+    write(
+        &dir.join("sdk/lib/core/core.dart"),
+        "library dart.core;\nclass Object {}\nclass Null {}\nclass bool {}\nclass num {}\n\
+         class int extends num {}\nclass double extends num {}\nclass String {}\nclass Symbol {}\n",
+    );
+    write(
+        &dir.join("sdk/lib/async/async.dart"),
+        "library dart.async;\nclass Future<T> {}\nclass FutureOr<T> {}\n",
+    );
+    write(&dir.join("package_config.json"), "{\"configVersion\": 2, \"packages\": []}");
+    let path = dir.join("test.dart");
+    write(&path, code);
+    let fs = FileSystemState::new(
+        FolderBasedDartSdk::new(&dir.join("sdk")),
+        parse_package_config_json_file(&dir.join("package_config.json")),
+    );
+    let mut linker = Linker::new(fs);
+    let core_file = linker.fs.get_file_for_uri("dart:core").unwrap();
+    let core = linker.library_for(core_file).unwrap();
+    let file = linker.fs.get_file_for_path(&path);
+    let unit = linker.unit_of_file(file).expect("test.dart is a library");
+    let _ = std::fs::remove_dir_all(&dir);
+    let provider = TypeProviderImpl::new(&linker.store, core);
+    let units: Vec<u16> = code.encode_utf16().collect();
+    let parsed = parse_string(Rc::from(units), None, path.to_str());
+    let ast = Ast::new(&parsed.ast, &parsed.tokens);
+    let Linker { store, types, .. } = &mut linker;
+    let mut analyzer = TypeAnalyzer::with_declarations(
+        &provider,
+        Declarations {
+            store,
+            scopes: &mut types.scopes,
+            fragment_of_node: &types.fragment_of_node,
+            unit,
+        },
+    );
+    analyzer.analyze(ast, parsed.unit);
+    let static_types = analyzer.static_types;
+    let mut all = Vec::new();
+    nodes(ast, parsed.unit, &mut all);
+    queries
+        .iter()
+        .map(|&(kind, source)| {
+            let offset = code.find(source).unwrap_or_else(|| panic!("no {source:?}")) as i32;
+            let node = all
+                .iter()
+                .copied()
+                .find(|&id| {
+                    ast.node(id).runtime_type() == kind
+                        && ast.offset(id) == offset
+                        && ast.length(id) == source.len() as i32
+                })
+                .unwrap_or_else(|| panic!("no {kind} at {source:?}"));
+            match static_types.get(&node) {
+                Some(type_) => display_string(&linker.store, type_),
+                None => "-".to_string(),
+            }
+        })
+        .collect()
+}
+
+fn integers(sources: &[&'static str]) -> Vec<(&'static str, &'static str)> {
+    sources.iter().map(|&s| ("IntegerLiteralImpl", s)).collect()
+}
+
+#[test]
+fn integer_literals_without_a_context_are_int() {
+    let code = "f() { 1; (2); -3; '${4}'; }";
+    let mut queries = integers(&["1", "2", "3", "4"]);
+    queries.push(("ParenthesizedExpressionImpl", "(2)"));
+    assert_eq!(types_of("no_context", code, &queries), ["int", "int", "int", "int", "int"]);
+}
+
+/// The silent failure: `int` for a literal whose context an unresolved
+/// annotation gives, which may be `double`.
+#[test]
+fn annotated_contexts_are_unknown_without_the_library() {
+    let code = "double a = 1;\nf([double b = 2]) {}\ndouble g() => 3;\nvar l = <double>[4];\n";
+    assert_eq!(
+        types_of("without_library", code, &integers(&["1", "2", "3", "4"])),
+        ["-", "-", "-", "-"]
+    );
+}
+
+#[test]
+fn declared_types_give_integer_literals_their_context() {
+    let code = "import 'dart:async';\n\
+        typedef Real = double;\n\
+        typedef Maybe<T> = FutureOr<T>;\n\
+        double a = 1;\n\
+        double? b = -2;\n\
+        int c = 3;\n\
+        num d = 4;\n\
+        Real e = 5;\n\
+        Maybe<double> f = 6;\n\
+        Maybe<int> g = 7;\n\
+        Future<double> h() async => 8;\n\
+        double i() async => 9;\n\
+        void j([double k = 10]) {\n\
+          double l = 11;\n\
+          var m = <double>[12];\n\
+          var n = <String, double>{'x': 13};\n\
+        }\n\
+        FutureOr<double> o = 14;\n";
+    assert_eq!(
+        types_in_library(
+            "declared",
+            code,
+            &integers(&["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"])
+        ),
+        [
+            "double", "double", "int", "int", "double", "double", "int", "double", "int", "double", "double",
+            "double", "double", "double"
+        ]
+    );
+}
+
+#[test]
+fn annotations_resolve_where_they_are_written() {
+    let code = "typedef Real = double;\n\
+        class C<double> { double a = 1; }\n\
+        class D { int Real = 0; Real b = 2; }\n\
+        void f(int double) { double c = 3; }\n\
+        void g<Real>() { Real d = 4; }\n\
+        Real h = 5;\n";
+    assert_eq!(
+        types_in_library("shadowed", code, &integers(&["1", "2", "3", "4", "5"])),
+        ["int", "int", "int", "int", "double"]
+    );
+}
+
+#[test]
+fn an_explicit_dart_core_import_removes_the_implicit_one() {
+    let code = "import 'dart:core' as core;\ncore.double a = 1;\ndouble b = 2;\n";
+    assert_eq!(
+        types_in_library("prefixed_core", code, &integers(&["1", "2"])),
+        ["double", "int"]
     );
 }

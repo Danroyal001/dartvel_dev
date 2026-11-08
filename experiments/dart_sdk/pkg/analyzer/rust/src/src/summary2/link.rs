@@ -74,6 +74,24 @@ impl Linker {
         self.library_of_file.get(&file).copied()
     }
 
+    /// Not upstream: the unit (library fragment) of [file], linking its
+    /// library first if needed, as `getResolvedUnit` finds a file's library:
+    /// the file itself, or the library a `part of` URI names. `None` when no
+    /// linked library includes the file.
+    pub fn unit_of_file(&mut self, file: FileId) -> Option<UnitId> {
+        let library_file = match &self.fs.file(file).kind {
+            crate::src::dart::analysis::file_state::FileKind::PartOfUriKnown { uri_file } => *uri_file,
+            _ => file,
+        };
+        let library = self.library_for(library_file)?;
+        let uri = self.fs.file(file).uri.clone();
+        self.store.libraries[library as usize]
+            .fragments
+            .iter()
+            .copied()
+            .find(|&unit| self.store.units[unit as usize].source_uri == uri)
+    }
+
     /// Links the libraries [inputs] and every library they import or
     /// export, transitively, that is not linked yet.
     pub fn link(&mut self, inputs: &[FileId]) {
