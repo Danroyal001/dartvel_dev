@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `dvRunApplication(bootBudget:, clock:)`: when phases 1-5 take longer than `bootBudget`, DV-RUN-003 warns once naming the slowest phase and `@DVBoot` function.
 - The app entry reports DV-RUN-004 through `DVBootTracker`, the same as the server: the message reads `Boot failed in phase N, name.` (was `Application boot failed in phase N, name.`) and the record's context also carries `entry: app`.
 
 ## 0.13.16 — 2026-10-22

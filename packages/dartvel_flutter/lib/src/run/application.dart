@@ -30,6 +30,8 @@ Future<void> dvRunApplication(
   required Widget Function() root,
   List<DVBootStep> boot = const [],
   FutureOr<void> Function(List<String>)? launch,
+  Duration? bootBudget,
+  DateTime Function()? clock,
 }) async {
   if (_running) {
     DV.log.warn(
@@ -43,13 +45,20 @@ Future<void> dvRunApplication(
   _retry = () {
     _running = false;
     dvResetBoot();
-    return dvRunApplication(args, root: root, boot: boot, launch: launch);
+    return dvRunApplication(
+      args,
+      root: root,
+      boot: boot,
+      launch: launch,
+      bootBudget: bootBudget,
+      clock: clock,
+    );
   };
   final completed = Completer<void>();
   // Where boot is, so a failure names it (DV-RUN-004). Numbers and names
   // follow the boot sequence table in NEW_SPEC.md, Application Entry; a
   // server, a worker and a cron process boot through the same tracker.
-  final tracker = DVBootTracker(const DVEntry.app());
+  final tracker = DVBootTracker(const DVEntry.app(), clock: clock);
   runZonedGuarded(
     () async {
       try {
@@ -81,6 +90,8 @@ Future<void> dvRunApplication(
         }
         dvStartAppLifecycleBridge();
         runApp(root());
+        // dartvel.run.bootBudget covers phases 1-5: the root is up (DV-RUN-003).
+        if (bootBudget != null) tracker.checkBudget(bootBudget);
         // Ready once a frame with the root in it has been drawn. A post-frame
         // callback alone waits for a frame something else schedules: where
         // runApp drew its first frame already, as a test binding does, or an

@@ -25,7 +25,7 @@ import 'package:yaml/yaml.dart';
 
 import 'generated_router.dart';
 
-Future<String> _routerFor(Directory root) async {
+Future<String> _routerFor(Directory root, {Map<String, Object?> dv = const <String, Object?>{}}) async {
   await ClientGenerator.generate(
     root: root.path,
     pagesDir: 'lib/pages',
@@ -49,7 +49,7 @@ Future<String> _routerFor(Directory root) async {
     notFoundRedirect: '',
     plugins: const <String>[],
     ota: false,
-    dv: YamlMap.wrap(<String, Object?>{}),
+    dv: YamlMap.wrap(dv),
   );
   return File(p.join(root.path, 'lib', 'dartvel_client', 'router.g.dart'))
       .readAsStringSync();
@@ -265,6 +265,30 @@ void _start(DVBoot boot) { DV.log('boot ran'); }
           contains('DV-RUN-006'),
         ),
       ),
+    );
+  });
+  // DV-RUN-003 is measured against dartvel.run.bootBudget, so the entry has
+  // to be handed the declared number: a budget nothing reads is the default
+  // in disguise.
+  test('the app entry is given dartvel.run.bootBudget', () async {
+    final root = await _project();
+    addTearDown(() => root.deleteSync(recursive: true));
+    _page(root, 'index.dart', '@DVPage() Widget _index() => DVText("Home");');
+    await _routerFor(root);
+    String entry() => File(
+          p.join(root.path, 'lib/dartvel_client/application.g.dart'),
+        ).readAsStringSync();
+    expect(entry(), contains('bootBudget: const Duration(milliseconds: 800)'));
+    await _routerFor(root, dv: <String, Object?>{
+      'run': <String, Object?>{'bootBudget': '1200ms'},
+    });
+    expect(entry(), contains('bootBudget: const Duration(milliseconds: 1200)'));
+    await expectLater(
+      _routerFor(root, dv: <String, Object?>{
+        'run': <String, Object?>{'bootBudget': 'quick'},
+      }),
+      throwsA(isA<StateError>().having(
+          (e) => e.message, 'message', contains('dartvel.run.bootBudget'))),
     );
   });
 }

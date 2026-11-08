@@ -96,11 +96,23 @@ String dvEntryLabel(DVEntry entry) => switch (entry) {
 /// entry, the server's web, worker and cron processes all boot through it,
 /// so they name a failed phase in the same words.
 class DVBootTracker {
-  DVBootTracker(this.entry, {DVLifecycleRegistry? lifecycle})
-      : _lifecycle = lifecycle ?? dvLifecycle;
+  DVBootTracker(this.entry,
+      {DVLifecycleRegistry? lifecycle, DateTime Function()? clock})
+      : _lifecycle = lifecycle ?? dvLifecycle,
+        _clock = clock ?? DateTime.now;
 
   final DVEntry entry;
   final DVLifecycleRegistry _lifecycle;
+  final DateTime Function() _clock;
+
+  // When boot, the running phase and the running @DVBoot function began, and
+  // how long each finished one took: what DV-RUN-003 names.
+  DateTime? _bootStarted;
+  DateTime? _phaseStarted;
+  DateTime? _stepStarted;
+  final Map<int, ({String name, Duration took})> _phaseTimes =
+      <int, ({String name, Duration took})>{};
+  final Map<int, Duration> _stepTimes = <int, Duration>{};
 
   int _phase = 0;
   String _phaseName = 'uninitialized';
@@ -115,6 +127,11 @@ class DVBootTracker {
 
   /// Enters phase [number], named [name].
   void enter(int number, String name) {
+    final DateTime now = _clock();
+    _bootStarted ??= now;
+    _closeStep(now);
+    _closePhase(now);
+    _phaseStarted = now;
     _phase = number;
     _phaseName = name;
     _bootStep = null;
@@ -125,7 +142,71 @@ class DVBootTracker {
 
   /// The `@DVBoot` function at [index] is about to run: what `dvRunBoot`'s
   /// `onStep` is given.
-  void step(int index) => _bootStep = index;
+  void step(int index) {
+    final DateTime now = _clock();
+    _closeStep(now);
+    _bootStep = index;
+    _stepStarted = now;
+  }
+
+  void _closeStep(DateTime now) {
+    final int? index = _bootStep;
+    final DateTime? started = _stepStarted;
+    if (index != null && started != null) {
+      _stepTimes[index] = (_stepTimes[index] ?? Duration.zero) + now.difference(started);
+    }
+    _stepStarted = null;
+  }
+
+  void _closePhase(DateTime now) {
+    final DateTime? started = _phaseStarted;
+    if (_phase == 0 || started == null) return;
+    final Duration before = _phaseTimes[_phase]?.took ?? Duration.zero;
+    _phaseTimes[_phase] = (name: _phaseName, took: before + now.difference(started));
+    _phaseStarted = null;
+  }
+
+  /// DV-RUN-003: when boot so far took longer than [budget]
+  /// (`dartvel.run.bootBudget`, phases 1-5 for an app entry), warns once,
+  /// naming the slowest phase and the slowest `@DVBoot` function. Returns
+  /// how long boot took. Call it where the measured phases end.
+  Duration checkBudget(Duration budget) {
+    final DateTime now = _clock();
+    _closeStep(now);
+    _closePhase(now);
+    _phaseStarted = now;
+    final Duration elapsed = now.difference(_bootStarted ?? now);
+    if (elapsed <= budget) return elapsed;
+    MapEntry<int, ({String name, Duration took})>? slowestPhase;
+    for (final MapEntry<int, ({String name, Duration took})> phase in _phaseTimes.entries) {
+      if (slowestPhase == null || phase.value.took > slowestPhase.value.took) slowestPhase = phase;
+    }
+    MapEntry<int, Duration>? slowestStep;
+    for (final MapEntry<int, Duration> step in _stepTimes.entries) {
+      if (slowestStep == null || step.value > slowestStep.value) slowestStep = step;
+    }
+    final String phaseText = slowestPhase == null
+        ? ''
+        : '; the slowest phase was phase ${slowestPhase.key}, ${slowestPhase.value.name} (${slowestPhase.value.took.inMilliseconds}ms)';
+    final String stepText = slowestStep == null
+        ? ''
+        : ', and the slowest @DVBoot function ${slowestStep.key + 1} (${slowestStep.value.inMilliseconds}ms)';
+    const DVLog().warn(
+      'Boot of the ${dvEntryLabel(entry)} entry took ${elapsed.inMilliseconds}ms, over its '
+      '${budget.inMilliseconds}ms budget$phaseText$stepText.',
+      code: 'DV-RUN-003',
+      context: <String, Object?>{
+        'entry': entry.kind.name,
+        'budgetMs': budget.inMilliseconds,
+        'elapsedMs': elapsed.inMilliseconds,
+        'slowestPhase': slowestPhase?.key,
+        'slowestPhaseName': slowestPhase?.value.name,
+        'slowestBootStep': slowestStep?.key,
+        'slowestBootStepMs': slowestStep?.value.inMilliseconds,
+      },
+    );
+    return elapsed;
+  }
 
   /// Phase 6: the entry is up. A failure after this is not a boot failure,
   /// and [booted] says so.

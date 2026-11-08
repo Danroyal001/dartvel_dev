@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dartvel_core/framework.dart' as framework_config show DVRunConfig;
 import 'package:dartvel_core/dartvel.dart'
     show
         DVCrashBuildMode,
@@ -645,7 +646,7 @@ class ClientGenerator {
     }
     // Public generated client barrel. Apps import this single file instead of
     // reaching into generated siblings.
-    _generateApplicationEntry(root: root, pkgName: pkgName, title: seoSiteName, theme: dv['theme']);
+    _generateApplicationEntry(root: root, pkgName: pkgName, title: seoSiteName, theme: dv['theme'], run: dv['run']);
     final clientFile = File(p.join(libClientDir.path, 'dartvel_client.dart'));
     // The generator's version is recorded here and nowhere else, so an
     // upgrade is one line of diff rather than a header change in every file.
@@ -4095,7 +4096,15 @@ void startDartvelKiosk() {
   /// `@DVAppRoot` replaces the default `MaterialApp.router` for an existing
   /// Flutter application that keeps its own root; a pure Dartvel application
   /// declares none.
-  static void _generateApplicationEntry({required String root, required String pkgName, required String title, Object? theme}) {
+  static void _generateApplicationEntry({required String root, required String pkgName, required String title, Object? theme, Object? run}) {
+    // dartvel.run: the boot budget DV-RUN-003 measures phases 1-5 against,
+    // read with the runtime's parser so a value it cannot honour stops the build.
+    final framework_config.DVRunConfig runConfig;
+    try {
+      runConfig = framework_config.DVRunConfig.parse(run);
+    } on ArgumentError catch (error) {
+      throw StateError('pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})');
+    }
     // dartvel.theme: checked here, so a token missing a mode stops the build,
     // and installed first thing in createDartvelApp, before any theme is built
     // -- the app, the web-server render and Studio all start there.
@@ -4171,7 +4180,7 @@ void startDartvelKiosk() {
       // Session, Auth or Cache would otherwise resolve to DV's static.
       ..writeln('final List<framework.DVBootStep> _dvBootSteps = <framework.DVBootStep>[${hooks.join(',')}];')
       ..writeln('abstract final class DV {')
-      ..writeln('  static Future<void> run([List<String> args = const []]) => dvRunApplication(args, root: () => createDartvelApp(args: args), boot: _dvBootSteps, launch: negotiateDartvelLaunch);');
+      ..writeln('  static Future<void> run([List<String> args = const []]) => dvRunApplication(args, root: () => createDartvelApp(args: args), boot: _dvBootSteps, launch: negotiateDartvelLaunch, bootBudget: const Duration(milliseconds: ${runConfig.bootBudget.inMilliseconds}));');
     // Static members are not inherited in Dart, so the runtime's namespace is
     // forwarded member by member -- each with its declared type, or
     // `DV.Auth.signIn(...)` would be a dynamic call that compiles with any
