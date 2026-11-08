@@ -4030,11 +4030,18 @@ to the server's own hubs. A dropped connection is reopened on exponential
 backoff with jitter, so the clients of a restarted server do not all return
 in one wave, and what was written meanwhile is sent once it is back. Both ends
 heartbeat: the client replaces a link that stopped answering without closing,
-and the relay closes a connection that went silent. Nothing connects the
-carrier yet -- the generated backend serves no sync endpoint and the generated
-client opens no socket -- so a change made on one server instance, or on one
-device, does not reach another yet. That wiring, backpressure, collaborative
-editing and fanout through Redis, NATS or Kafka are designed and not built.
+and the relay closes a connection that went silent. Sending is
+flow-controlled both ways: a client keeps at most a window of changes
+unacknowledged and a bounded queue behind it, then makes the publisher wait
+(or, for changes a later one supersedes, sheds the oldest queued), and sends
+what was never acknowledged again after a reconnect, which the relay drops as
+a repeat. The relay keeps the same bounds per connection and closes a client
+too slow to keep up, rather than buffering for it or slowing anybody else.
+Nothing connects the carrier yet -- the generated backend serves no sync
+endpoint and the generated client opens no socket -- so a change made on one
+server instance, or on one device, does not reach another yet. That wiring,
+collaborative editing and fanout through Redis, NATS or Kafka are designed
+and not built.
 
 ---
 
