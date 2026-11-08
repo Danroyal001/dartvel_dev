@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Jobs: the queue worker runs every handler inside `DVMeters.withIdempotencyKey('job:<job id>')`, so usage a job records needs no key of its own and a retried job counts once. Before, a handler that recorded without a key threw.
 - Usage metering: inside `DVMeters.withIdempotencyKey`, each meter's recordings are numbered (`key`, `key#2`, ...). Before, the second recording of a meter in one request or job was discarded as a duplicate of the first, so a request that called an AI feature twice billed one call. `DVMeters.nextScopedKey(sequence)` is the same numbering for framework code that derives its own key; AI feature runs use it.
 - Usage metering: `DVQuota.throttle` now slows the call. A recording past a throttle limit returns after `DVMeters.throttleDelay` (1 second by default; `sleep:` is injectable for tests), and `DVMeterOutcome.delayed` says how long. Before, throttle only reported.
 - **Breaking for custom queue adapters:** `DVQueueAdapter.enqueue` takes an optional `traceparent`, which the envelope carries so a job's run joins the trace that queued it. An adapter written outside this repository must add the parameter to compile; the seven built-in adapters carry it.

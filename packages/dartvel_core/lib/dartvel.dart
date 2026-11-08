@@ -9,6 +9,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 
 import 'src/ai/ai.dart';
+import 'src/metering/meters.dart' show DVMeters;
 import 'src/auth/api_scopes.dart';
 import 'src/secrets/secrets.dart';
 import 'src/database/adapter.dart';
@@ -2876,11 +2877,17 @@ class DVQueues {
         // process-wide would reach whatever else runs in the isolate. A job
         // with none runs as the default tenant rather than as the worker's,
         // or the previous job's, or the scope work() was called from.
+        //
+        // Usage the handler records is keyed by the job's id, which every
+        // attempt shares, so a job retried after recording counts once.
         await dvInSpan(
           span,
           () => const DVTenants().withTenant(
             envelope.tenant ?? DVTenants.defaultTenant,
-            () => handler.invoke(envelope.payload),
+            () => DVMeters.withIdempotencyKey(
+              'job:${envelope.id}',
+              () => handler.invoke(envelope.payload),
+            ),
           ),
         );
         await _adapter.complete(envelope.id);
