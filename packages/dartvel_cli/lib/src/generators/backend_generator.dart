@@ -2344,7 +2344,9 @@ framework.DVBootTracker _dartvelBoot = framework.DVBootTracker(const core.DVEntr
 Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, Map<String, Uint8List> studioParts = const <String, Uint8List>{}, core.DVDocsMount? docs, String? docsRoot}) async {
   _dartvelArguments = arguments;
   final core.DVProcessConfiguration process = core.DVProcessConfiguration.resolve(environment: Platform.environment, arguments: arguments, generatedPort: cfg.backendPort);
-  final Future<void> stopped = until ?? Completer<void>().future;
+  // Phase 8: given no [until], SIGTERM or SIGINT stops this process cleanly.
+  final _DartvelShutdownSignals? signals = until == null ? _DartvelShutdownSignals.watch() : null;
+  final Future<void> stopped = until ?? signals!.requested;
   try {
   switch (process.role) {
     case core.DVProcessRole.web:
@@ -2467,6 +2469,49 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
     // the phase, which the generated main exits non-zero with.
     if (_dartvelBoot.booted) rethrow;
     throw _dartvelBoot.fail(error, stack);
+  } finally {
+    await signals?.cancel();
+  }
+  // Everything this process started has stopped.
+  if (core.dvLifecycle.app.value != core.DVAppLifecycle.shuttingDown) core.dvLifecycle.setApp(core.DVAppLifecycle.shuttingDown);
+  core.dvLifecycle.setApp(core.DVAppLifecycle.stopped);
+  stdout.writeln('dartvel backend stopped');
+}
+
+/// SIGTERM and SIGINT, the way a supervisor, a container runtime and a person
+/// at a terminal ask a process to stop. The first moves the lifecycle to
+/// shuttingDown and completes [requested]; a second exits at once, for the
+/// shutdown that is taking too long.
+class _DartvelShutdownSignals {
+  _DartvelShutdownSignals._();
+
+  final Completer<void> _requested = Completer<void>();
+  final List<StreamSubscription<ProcessSignal>> _watching = <StreamSubscription<ProcessSignal>>[];
+
+  Future<void> get requested => _requested.future;
+
+  static _DartvelShutdownSignals watch() {
+    final _DartvelShutdownSignals signals = _DartvelShutdownSignals._();
+    signals._watching.add(ProcessSignal.sigint.watch().listen(signals._received));
+    // Windows delivers no SIGTERM to watch.
+    if (!Platform.isWindows) signals._watching.add(ProcessSignal.sigterm.watch().listen(signals._received));
+    return signals;
+  }
+
+  void _received(ProcessSignal signal) {
+    if (_requested.isCompleted) {
+      stderr.writeln('dartvel: \${signal.name} again, exiting without finishing the shutdown');
+      exit(128 + signal.signalNumber);
+    }
+    stdout.writeln('dartvel: \${signal.name}, shutting down');
+    core.dvLifecycle.setApp(core.DVAppLifecycle.shuttingDown);
+    _requested.complete();
+  }
+
+  Future<void> cancel() async {
+    for (final StreamSubscription<ProcessSignal> watching in _watching) {
+      await watching.cancel();
+    }
   }
 }
 

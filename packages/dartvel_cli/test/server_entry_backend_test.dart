@@ -181,4 +181,59 @@ void _second(DVBoot boot) {
         onTimeout: () => fail('the server did not start:\n$printed'));
     expect(printed.toString(), isNot(contains('DV-RUN-004')));
   });
+
+  /// Starts the server and waits for it to accept.
+  Future<({Process process, StringBuffer printed, int port})> started() async {
+    final int port = await freePort();
+    final Process process =
+        await server(<String, String>{'DARTVEL_PORT': '$port'});
+    final Completer<void> listening = Completer<void>();
+    final StringBuffer printed = StringBuffer();
+    process.stdout.transform(utf8.decoder).listen((String chunk) {
+      printed.write(chunk);
+      if (printed.toString().contains('listening') && !listening.isCompleted) {
+        listening.complete();
+      }
+    });
+    process.stderr.transform(utf8.decoder).listen(printed.write);
+    await listening.future.timeout(const Duration(minutes: 3),
+        onTimeout: () => fail('the server did not start:\n$printed'));
+    return (process: process, printed: printed, port: port);
+  }
+
+  Future<({int status, String body})> get(int port, String path) async {
+    final HttpClient client = HttpClient();
+    try {
+      final HttpClientResponse response =
+          await (await client.getUrl(Uri.parse('http://127.0.0.1:$port$path')))
+              .close();
+      return (
+        status: response.statusCode,
+        body: await response.transform(utf8.decoder).join(),
+      );
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  // Phase 8: "SIGTERM/SIGINT move to shuttingDown: stop accepting, drain
+  // in-flight requests up to a declared grace, flush, exit 0." Before this
+  // the server never listened for a signal, so a deploy's stop was the
+  // default action -- the process killed with whatever it was answering.
+  for (final ProcessSignal signal in <ProcessSignal>[
+    ProcessSignal.sigterm,
+    ProcessSignal.sigint,
+  ]) {
+    test('${signal.name} stops the server cleanly and exits 0', () async {
+      final r = await started();
+      expect((await get(r.port, '/api/hello')).status, 200);
+      r.process.kill(signal);
+      final int code = await r.process.exitCode
+          .timeout(const Duration(seconds: 30), onTimeout: () => -1);
+      expect(code, 0, reason: '${r.printed}');
+      expect(r.printed.toString(), contains('shutting down'));
+      expect(r.printed.toString(), contains('dartvel backend stopped'));
+    });
+  }
+
 }

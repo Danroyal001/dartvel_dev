@@ -116,7 +116,7 @@ No signal folders.
 
 Stability: `Draft` · Status: `Partial`
 
-The generated Flutter application entry, boot hooks, the optional Flutter host root and the server entry's boot phases (a failed phase is DV-RUN-004 and exit 70) are built. Headless entries and the complete shutdown sequence remain designed.
+The generated Flutter application entry, boot hooks, the optional Flutter host root and the server entry's boot phases (a failed phase is DV-RUN-004 and exit 70) are built, and a server stops cleanly on SIGTERM or SIGINT. Headless entries, draining in-flight requests and the rest of the shutdown sequence remain designed.
 
 Every Dartvel process starts in one function:
 
