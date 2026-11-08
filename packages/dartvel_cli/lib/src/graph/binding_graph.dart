@@ -169,6 +169,11 @@ DVBindingCell? dvBindingCell(
   }
 }
 
+/// The binding kind a real call of [moduleKind] crosses in [environment],
+/// whatever the target: null for a module that is Dart all the way down.
+String? dvBindingKind(String? moduleKind, String environment) =>
+    dvBindingCell(moduleKind, environment, null)?.kind;
+
 /// Module kinds the matrix knows to be Dart, with no foreign boundary.
 const Set<String> _dartKinds = <String>{'dartPackage', 'describedApi'};
 

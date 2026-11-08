@@ -61,3 +61,8 @@ export 'src/web/document_fields.dart';
 // module's tests ask before calling into a carrier.
 export 'src/modules/module_host.dart'
     if (dart.library.io) 'src/modules/module_host_io.dart';
+
+// How a generated carrier runs a call across a foreign boundary, so a
+// foreign error reaches the application as a DVBindingError.
+export 'src/modules/binding_error.dart'
+    show dvBindingCall, dvBindingFuture, dvBindingStream;

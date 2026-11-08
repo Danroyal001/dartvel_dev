@@ -22,6 +22,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dartvel_core/dartvel.dart'
     show DVModuleEnvironment, DVModuleOutcome;
 
+import '../../graph/binding_graph.dart' show dvBindingKind;
 import '../described_api.dart';
 import 'dart_surface.dart';
 import 'rpc_codec.dart';
@@ -336,6 +337,9 @@ String _carrier(DVForeignModuleSpec spec, DVModuleEnvironment env) {
   final bool throws = spec.operations.any((DVModuleOperation op) =>
       spec.outcomes[op.name]![env] == DVModuleOutcome.unavailable);
   final DVCarrierSource? carrier = real.isEmpty ? null : spec.carriers[env];
+  // The binding kind a real call crosses here, or null for Dart, which
+  // crosses none and whose errors are already its own.
+  final String? binding = real.isEmpty ? null : dvBindingKind(spec.kind, env.name);
   final bool sends = spec.operations.any((DVModuleOperation op) =>
       spec.outcomes[op.name]![env] == DVModuleOutcome.compat);
   // The backend answers the calls other environments send it.
@@ -363,6 +367,9 @@ String _carrier(DVForeignModuleSpec spec, DVModuleEnvironment env) {
     if (core.isNotEmpty)
       "import 'package:dartvel_core/dartvel.dart'\n"
           '    show ${core.join(', ')};',
+    if (binding != null)
+      "import 'package:dartvel_core/framework.dart'\n"
+          '    show ${_bindingHelpers(real).join(', ')};',
     ...?carrier?.imports,
   ];
   for (final String line in imports) {
@@ -379,7 +386,7 @@ String _carrier(DVForeignModuleSpec spec, DVModuleEnvironment env) {
     final String head = '${op.returnType} ${op.name}(${op.parameterList})';
     switch (outcome) {
       case DVModuleOutcome.real:
-        out.writeln('$head =>\n    ${carrier!.body(op)};');
+        out.writeln('$head =>\n    ${_acrossBinding(spec, op, binding, carrier!.body(op))};');
       case DVModuleOutcome.unavailable:
         out.writeln('$head =>\n    throw const DVModuleUnavailable('
             "'${spec.id}', '${op.name}', DVModuleEnvironment.${env.name});");
@@ -392,6 +399,35 @@ String _carrier(DVForeignModuleSpec spec, DVModuleEnvironment env) {
   }
   if (answers.isNotEmpty) out.write(_dispatcher(spec, answers));
   return '${out.toString().trimRight()}\n';
+}
+
+/// The helper that runs [op] across a binding: once, as a Future or as a
+/// Stream, so a foreign error reaches the caller as a DVBindingError.
+String _bindingHelper(DVModuleOperation op) {
+  final String t = op.returnType;
+  if (t == 'Future' || t.startsWith('Future<')) return 'dvBindingFuture';
+  if (t.startsWith('Stream<')) return 'dvBindingStream';
+  return 'dvBindingCall';
+}
+
+List<String> _bindingHelpers(List<DVModuleOperation> real) =>
+    <String>{for (final DVModuleOperation op in real) _bindingHelper(op)}
+        .toList()
+      ..sort();
+
+/// [body], run across [binding] when there is one.
+String _acrossBinding(DVForeignModuleSpec spec, DVModuleOperation op,
+    String? binding, String body) {
+  if (binding == null) return body;
+  final String t = op.returnType;
+  final String helper = _bindingHelper(op);
+  final String value = helper == 'dvBindingCall'
+      ? t
+      : t.contains('<')
+          ? t.substring(t.indexOf('<') + 1, t.lastIndexOf('>'))
+          : 'dynamic';
+  return "$helper<$value>('${spec.id}', '${op.name}', '$binding',\n"
+      '        () => $body)';
 }
 
 String _noop(DVModuleOperation op, String head, String? value) {

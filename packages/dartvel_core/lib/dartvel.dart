@@ -251,6 +251,7 @@ export 'src/middleware/body_limit.dart';
 export 'src/middleware/middleware.dart';
 export 'src/middleware/middleware_runtime.dart';
 export 'src/middleware/page_middleware_keys.dart';
+export 'src/modules/binding_error.dart' show DVBindingError;
 export 'src/modules/manifest.dart';
 export 'src/modules/module_outcome.dart';
 export 'src/modules/module_rpc.dart';

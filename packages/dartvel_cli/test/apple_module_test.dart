@@ -153,6 +153,14 @@ void main() {
           'class DVModuleUnavailable implements Exception {\n'
           '  const DVModuleUnavailable(this.m, this.o, this.e);\n'
           '  final String m; final String o; final DVModuleEnvironment e;\n}\n');
+    // The helpers a carrier runs a foreign call through. Pass-through here:
+    // this stub stands in for dartvel_core so the carrier compiles; the
+    // conversion itself is tested in module_binding_errors_test.dart.
+    File(p.join(stub.path, 'lib', 'framework.dart'))
+      .writeAsStringSync(
+          'T dvBindingCall<T>(String m, String o, String b, T Function() c) => c();\n'
+          'Future<T> dvBindingFuture<T>(String m, String o, String b, Future<T> Function() c) => c();\n'
+          'Stream<T> dvBindingStream<T>(String m, String o, String b, Stream<T> Function() c) => c();\n');
     final Directory app = Directory(p.join(root.path, 'app'));
     File(p.join(app.path, 'pubspec.yaml'))
       ..createSync(recursive: true)
