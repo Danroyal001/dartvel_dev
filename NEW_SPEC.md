@@ -4039,9 +4039,12 @@ a repeat. The relay keeps the same bounds per connection and closes a client
 too slow to keep up, rather than buffering for it or slowing anybody else.
 Nothing connects the carrier yet -- the generated backend serves no sync
 endpoint and the generated client opens no socket -- so a change made on one
-server instance, or on one device, does not reach another yet. That wiring,
-collaborative editing and fanout through Redis, NATS or Kafka are designed
-and not built.
+server instance, or on one device, does not reach another yet. Before it is
+wired in, the relay has to put each change to the model's `view` policy for
+each connection's signed-in principal: it filters by tenant only today, and
+the policy that runs on the receiving hub runs on a device that should never
+have been sent the record. That, the wiring, collaborative editing and fanout
+through Redis, NATS or Kafka are designed and not built.
 
 ---
 
