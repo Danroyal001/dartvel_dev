@@ -193,9 +193,9 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
         DocsStatus(
           'Package Structure',
           missing: <String>[
-            'The Rust bindings are one integer type, DV.Rust.Int, and it '
-                'does its arithmetic in Dart: there is no Rust behind it '
-                'yet.',
+            'The Rust bindings are two number types, DV.Rust.Int and '
+                'DV.Rust.Float, and they do their arithmetic in Dart: there '
+                'is no Rust behind them yet, and no string or struct.',
             'The build checks the native/ layout but reads nothing '
                 'from native/<target>/: no build compiles or bundles what '
                 'is put there yet.',

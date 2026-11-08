@@ -10069,9 +10069,41 @@ class DVRustInt {
   String toString() => value.toString();
 }
 
+/// Rust's `f64`. Dart's `double` is the same IEEE 754 binary64 on every
+/// platform, so the arithmetic is exact; where Rust's operators differ from
+/// Dart's, Rust's meaning is kept.
+class DVRustFloat {
+  final double value;
+  const DVRustFloat(this.value);
+
+  DVRustFloat operator +(DVRustFloat other) => DVRustFloat(value + other.value);
+  DVRustFloat operator -(DVRustFloat other) => DVRustFloat(value - other.value);
+  DVRustFloat operator *(DVRustFloat other) => DVRustFloat(value * other.value);
+
+  /// Division by zero is infinity (or NaN for 0/0), as in Rust.
+  DVRustFloat operator /(DVRustFloat other) => DVRustFloat(value / other.value);
+
+  /// Rust's `%`: the remainder, signed like the dividend (`-7.5 % 2.0` is
+  /// `-1.5`). Dart's `%` is Euclidean and would answer `0.5`.
+  DVRustFloat operator %(DVRustFloat other) =>
+      DVRustFloat(value.remainder(other.value));
+
+  /// `PartialEq`: NaN equals nothing, itself included.
+  @override
+  bool operator ==(Object other) =>
+      other is DVRustFloat && other.value == value;
+
+  @override
+  int get hashCode => value.hashCode;
+
+  @override
+  String toString() => value.toString();
+}
+
 class DVRust {
   const DVRust();
   DVRustInt Int(int value) => DVRustInt(value);
+  DVRustFloat Float(double value) => DVRustFloat(value);
 }
 
 class DVObservabilityAndLogging {
