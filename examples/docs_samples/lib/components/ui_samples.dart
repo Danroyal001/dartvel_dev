@@ -84,3 +84,19 @@ Widget _priceTag(BuildContext context, int cents, {String currency = 'USD'}) =>
 // docs:start ui-theme
 void useDarkMode() => DV.Theme.setMode(.dark);
 // docs:end
+
+// docs:start ui-tokens
+// Tokens, not numbers: each colour is right in light, dark and high
+// contrast, and changing a token in pubspec.yaml changes every use of it.
+Widget orderTotal(String total) => DVBox.list(
+      <Widget>[
+        DVText('Order total', DVText.caption.color(DVColor.muted)),
+        DVText(total, DVText.heading2.color(DVColor.onSurface)),
+      ],
+      modifier: const DVModifier()
+          .padding(DVSpace.md)
+          .rounded(DVRadius.md)
+          .backgroundColor(DVColor.raised)
+          .shadow(DVElevation.raised),
+    );
+// docs:end

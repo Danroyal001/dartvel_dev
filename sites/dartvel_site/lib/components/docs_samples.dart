@@ -2146,6 +2146,21 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
   'ui-theme': <String>[
     'void useDarkMode() => DV.Theme.setMode(.dark);',
   ],
+  'ui-tokens': <String>[
+    '// Tokens, not numbers: each colour is right in light, dark and high',
+    '// contrast, and changing a token in pubspec.yaml changes every use of it.',
+    'Widget orderTotal(String total) => DVBox.list(',
+    '      <Widget>[',
+    '        DVText(\'Order total\', DVText.caption.color(DVColor.muted)),',
+    '        DVText(total, DVText.heading2.color(DVColor.onSurface)),',
+    '      ],',
+    '      modifier: const DVModifier()',
+    '          .padding(DVSpace.md)',
+    '          .rounded(DVRadius.md)',
+    '          .backgroundColor(DVColor.raised)',
+    '          .shadow(DVElevation.raised),',
+    '    );',
+  ],
   'webhooks-emit': <String>[
     'DV.Webhooks.declare(const DVWebhookEvent(',
     '  \'order.paid\',',
@@ -2339,6 +2354,14 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     'tenancy:',
     '  isolation: shared-database',
     '  source: subdomain',
+  ],
+  'yaml-theme': <String>[
+    'theme:',
+    '  tokens:',
+    '    color:',
+    '      surface: { light: \'#FFFFFF\', dark: \'#101114\', highContrast: \'#000000\' }',
+    '      accent: { light: \'#2C6BED\', dark: \'#5C8DFF\' }',
+    '    space: { xs: 4, sm: 8, md: 16, lg: 24 }',
   ],
   'yaml-webhooks': <String>[
     'webhooks:',
