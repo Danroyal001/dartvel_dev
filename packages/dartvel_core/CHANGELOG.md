@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Usage metering: `DVQuota.throttle` now slows the call. A recording past a throttle limit returns after `DVMeters.throttleDelay` (1 second by default; `sleep:` is injectable for tests), and `DVMeterOutcome.delayed` says how long. Before, throttle only reported.
 - **Breaking for custom queue adapters:** `DVQueueAdapter.enqueue` takes an optional `traceparent`, which the envelope carries so a job's run joins the trace that queued it. An adapter written outside this repository must add the parameter to compile; the seven built-in adapters carry it.
 - Distributed tracing: an OTLP/HTTP exporter (JSON), spans for database queries, transactions, AI feature runs and queued jobs, and DV-TRACE-001, 002, 003, 005, 006, 007, 009 and 010. SQS, Pub/Sub, Kafka and AMQP jobs keep their real dispatch time instead of the time a worker read them.
 - `DVBindingError`: what a foreign library throws through a generated module, carrying the module, the operation, the binding kind and the original error and stack trace. `dvBindingCall`, `dvBindingFuture` and `dvBindingStream` in `framework.dart` are what generated carriers run calls through.

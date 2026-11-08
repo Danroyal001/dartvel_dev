@@ -224,6 +224,7 @@ class DVMeterOutcome {
     this.overage = 0,
     this.codes = const <String>[],
     this.crossed = const <double>[],
+    this.delayed = Duration.zero,
   });
 
   /// Whether a record was stored. False for a duplicate and for a block.
@@ -251,6 +252,22 @@ class DVMeterOutcome {
 
   /// The notification thresholds this recording crossed.
   final List<double> crossed;
+
+  /// How long the call was held under [DVQuota.throttle] before it returned.
+  final Duration delayed;
+
+  DVMeterOutcome _delayedBy(Duration delay) => DVMeterOutcome(
+        recorded: recorded,
+        admitted: admitted,
+        total: total,
+        period: period,
+        applied: applied,
+        limit: limit,
+        overage: overage,
+        codes: codes,
+        crossed: crossed,
+        delayed: delay,
+      );
 }
 
 /// A limit on a level: how many of something exist right now.
@@ -479,9 +496,27 @@ class DVMeters {
     this.limits,
     this.onThreshold,
     this.grace = Duration.zero,
+    this.throttleDelay = const Duration(seconds: 1),
+    Future<void> Function(Duration delay)? sleep,
     DVLogger? logger,
   })  : _clock = clock ?? (() => DateTime.now().toUtc()),
-        _logger = logger;
+        _sleep = sleep ?? ((Duration delay) => Future<void>.delayed(delay)),
+        _logger = logger {
+    if (throttleDelay.isNegative) {
+      throw ArgumentError.value(
+          throttleDelay, 'throttleDelay', 'a delay cannot be negative');
+    }
+  }
+
+  /// How long a recording past a [DVQuota.throttle] limit holds its call
+  /// before returning.
+  ///
+  /// The wait is the caller's and happens after the recording is stored, off
+  /// the tenant's meter queue: a throttled tenant is slowed, and nothing else
+  /// waits behind it -- not another tenant, and not a usage read.
+  final Duration throttleDelay;
+
+  final Future<void> Function(Duration delay) _sleep;
 
   final DVMeterStore store;
   final DVBillingPeriodResolver? periods;
@@ -589,7 +624,20 @@ class DVMeters {
     final DateTime now = _clock().toUtc();
     final DateTime when = (at ?? now).toUtc();
     return _serialised(_queueKey(tenant, meter.name),
-        () => _record(meter, amount, key, tenant, now, when));
+            () => _record(meter, amount, key, tenant, now, when))
+        .then(_throttle);
+  }
+
+  /// Holds a throttled call for [throttleDelay]. Only a recording that was
+  /// stored past the limit waits: a retry already waited the first time.
+  Future<DVMeterOutcome> _throttle(DVMeterOutcome outcome) async {
+    if (outcome.applied != DVQuota.throttle ||
+        !outcome.recorded ||
+        throttleDelay == Duration.zero) {
+      return outcome;
+    }
+    await _sleep(throttleDelay);
+    return outcome._delayedBy(throttleDelay);
   }
 
   Future<DVMeterOutcome> _record(

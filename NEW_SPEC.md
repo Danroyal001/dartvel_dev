@@ -7698,6 +7698,12 @@ one silently means a deployment finds out which it got during an incident:
 `block` turns a customer's integration off, `throttle` makes it slow enough to
 notice, and `allowAndBill` produces an invoice nobody expected.
 
+A throttled call is counted, proceeds, and returns `throttleDelay` later (one
+second unless the deployment sets another). The wait is the caller's, taken
+after the record is stored and off the tenant's meter queue, so another tenant
+and a usage read never wait behind it, and a retry the store discards as a
+duplicate does not wait a second time.
+
 `notifyAt` thresholds send through Notifications before the limit rather than
 at it (`DV-METER-003`). A quota reached with no warning is a support ticket; a
 quota approached with two is a renewal conversation.
