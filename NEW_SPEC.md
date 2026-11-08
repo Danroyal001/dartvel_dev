@@ -7648,6 +7648,13 @@ the Backend Function Request Lifecycle, and the store discards a key it has
 already seen inside the period (`DV-METER-002`). A job records under the job's
 own id, so a retried job counts once however many attempts it took.
 
+A request or job that records one meter more than once — two AI calls, two
+messages sent — makes more than one record, not a duplicate of the first.
+The default key is numbered per meter in the order the recordings are made:
+the first takes the request id, the second `<id>#2`. A retry makes the same
+recordings in the same order, so each is discarded as the duplicate of its
+original. An AI feature run numbers its own runs the same way.
+
 Counters accumulate. Gauges are the current value at a sample, and a gauge is
 billed on its average or its peak over the period, declared per meter, because
 "gigabytes stored" is not a number you add up.

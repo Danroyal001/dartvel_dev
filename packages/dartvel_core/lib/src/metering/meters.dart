@@ -475,6 +475,15 @@ class DVDatabaseMeterStore implements DVMeterStore {
   }
 }
 
+/// One [DVMeters.withIdempotencyKey] scope: its key, and how many recordings
+/// of each meter it has numbered so far.
+class _DVMeterKeyScope {
+  _DVMeterKeyScope(this.key);
+
+  final String key;
+  final Map<String, int> recorded = <String, int>{};
+}
+
 /// The tenant's billing period containing [at], or null when it has none.
 typedef DVBillingPeriodResolver = FutureOr<DVMeterPeriod?> Function(
     String tenant, DateTime at);
@@ -564,10 +573,36 @@ class DVMeters {
   /// Runs [body] with [key] as the idempotency key for recordings that do not
   /// pass one: the request id for a backend call, the job id for a job, so a
   /// retry of either counts once however many attempts it took.
-  static R withIdempotencyKey<R>(String key, R Function() body) =>
-      runZoned(body, zoneValues: <Object?, Object?>{_zoneKey: key});
+  ///
+  /// Each meter's recordings inside the scope are numbered in the order they
+  /// are made: the first takes [key], the second `key#2`, and so on. A
+  /// request that records tokens for two provider calls is two records, and
+  /// the same request retried makes the same two calls in the same order and
+  /// is discarded as their duplicates. The bare key for every recording would
+  /// discard the second call's tokens as a duplicate of the first.
+  static R withIdempotencyKey<R>(String key, R Function() body) => runZoned(
+        body,
+        zoneValues: <Object?, Object?>{_zoneKey: _DVMeterKeyScope(key)},
+      );
 
-  static String? get currentIdempotencyKey => Zone.current[_zoneKey] as String?;
+  static String? get currentIdempotencyKey =>
+      (Zone.current[_zoneKey] as _DVMeterKeyScope?)?.key;
+
+  /// The current scope's key for the next recording in [sequence], or null
+  /// outside a scope.
+  ///
+  /// For framework code that records under a key of its own derived from the
+  /// scope's, such as an AI feature run: each call advances [sequence], so the
+  /// second run in one request is not the first run's duplicate.
+  static String? nextScopedKey(String sequence) => _nextScopedKey(sequence);
+
+  /// The scope's key for the next recording of [meter], or null outside one.
+  static String? _nextScopedKey(String meter) {
+    final _DVMeterKeyScope? scope = Zone.current[_zoneKey] as _DVMeterKeyScope?;
+    if (scope == null) return null;
+    final int ordinal = scope.recorded[meter] = (scope.recorded[meter] ?? 0) + 1;
+    return ordinal == 1 ? scope.key : '${scope.key}#$ordinal';
+  }
 
   final Map<String, Future<void>> _tails = <String, Future<void>>{};
 
@@ -612,7 +647,8 @@ class DVMeters {
             : 'a gauge samples a non-negative, finite value',
       );
     }
-    final String? key = (idempotencyKey ?? currentIdempotencyKey)?.trim();
+    final String? key =
+        (idempotencyKey ?? _nextScopedKey(meter.name))?.trim();
     if (key == null || key.isEmpty) {
       return Future<DVMeterOutcome>.error(StateError(
         'Meter "${meter.name}" was recorded with no idempotency key and no '

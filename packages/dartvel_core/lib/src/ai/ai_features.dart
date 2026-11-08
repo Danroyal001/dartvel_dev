@@ -504,7 +504,8 @@ class DVAIFeatures {
   /// Runs [featureId] on [input], with [context] from [contextFor].
   ///
   /// [idempotencyKey] defaults to the ambient
-  /// [DVMeters.currentIdempotencyKey] and is required for a budgeted feature:
+  /// [DVMeters.withIdempotencyKey] scope's key, numbered per run of this
+  /// feature inside the scope, and is required for a budgeted feature:
   /// usage recorded without one would be counted again on every retry.
   ///
   /// [bypassCache] neither reads nor writes the cache. An evaluation uses it,
@@ -530,7 +531,11 @@ class DVAIFeatures {
     _checkInput(prompts.template(feature.prompt)!.input, input);
 
     final DVMeterDefinition? meter = declared.meter;
-    final String? key = (idempotencyKey ?? DVMeters.currentIdempotencyKey)?.trim();
+    // Numbered within the scope per feature, so a request that runs the same
+    // feature twice records both runs and its retry records neither again.
+    final String? key = (idempotencyKey ??
+            (meter == null ? null : DVMeters.nextScopedKey('ai:$featureId')))
+        ?.trim();
     if (meter != null && (key == null || key.isEmpty)) {
       throw StateError(
         'Feature "$featureId" is budgeted on "${meter.name}" and was run with '

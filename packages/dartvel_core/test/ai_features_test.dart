@@ -372,6 +372,35 @@ void main() {
       });
     });
 
+    test('two runs inside one request scope are two records, and a retry of '
+        'the request is neither', () async {
+      // A request that asks the same feature twice spends tokens twice. Both
+      // under the bare request id, the second would be discarded as a
+      // duplicate of the first and its tokens never billed.
+      final DVMeterDefinition meter = tokens();
+      await const DVTenants().withTenant('acme', () async {
+        final DVAIFeatures f = features(meters: meters, meter: meter)
+          ..register(const DVAIFeature(
+              prompt: 'ticket.summary', budget: DVMeterRef.tenant('aiTokens')));
+        DVAIAnswered? answered;
+        Future<void> request() => DVMeters.withIdempotencyKey('req-1', () async {
+              answered = await f.run('ticket.summary',
+                  input: ticket42, bypassCache: true) as DVAIAnswered;
+              await f.run('ticket.summary', input: ticket42, bypassCache: true);
+            });
+        await request();
+        expect(sonnet.prompts, hasLength(2));
+        final int once = DVAIFeatures.estimateTokens(sonnet.prompts.first) +
+            DVAIFeatures.estimateTokens(
+                jsonEncode(DVJsonCodec.toJson(answered!.output)));
+        expect(await meters.usage(meter, tenant: 'acme'), 2 * once);
+
+        await request();
+        expect(await meters.usage(meter, tenant: 'acme'), 2 * once,
+            reason: 'the retried request makes the same two calls');
+      });
+    });
+
     test('a budgeted feature with no idempotency key is refused before the call',
         () async {
       final DVMeterDefinition meter = tokens();
