@@ -58,6 +58,7 @@ import '../build/render_backends.dart';
 import '../utils/helpers.dart';
 import '../utils/logger.dart';
 import 'route_utils.dart';
+import 'theme_tokens_source.dart';
 import '../commands/version_command.dart' show dartvelCliVersion;
 
 /// Every `_layout.dart` under [pagesDir].
@@ -644,7 +645,7 @@ class ClientGenerator {
     }
     // Public generated client barrel. Apps import this single file instead of
     // reaching into generated siblings.
-    _generateApplicationEntry(root: root, pkgName: pkgName, title: seoSiteName);
+    _generateApplicationEntry(root: root, pkgName: pkgName, title: seoSiteName, theme: dv['theme']);
     final clientFile = File(p.join(libClientDir.path, 'dartvel_client.dart'));
     // The generator's version is recorded here and nowhere else, so an
     // upgrade is one line of diff rather than a header change in every file.
@@ -4093,7 +4094,11 @@ void startDartvelKiosk() {
   /// `@DVAppRoot` replaces the default `MaterialApp.router` for an existing
   /// Flutter application that keeps its own root; a pure Dartvel application
   /// declares none.
-  static void _generateApplicationEntry({required String root, required String pkgName, required String title}) {
+  static void _generateApplicationEntry({required String root, required String pkgName, required String title, Object? theme}) {
+    // dartvel.theme: checked here, so a token missing a mode stops the build,
+    // and installed first thing in createDartvelApp, before any theme is built
+    // -- the app, the web-server render and Studio all start there.
+    final String? themeTokens = dvThemeTokensSource(theme, bundledFamilies: _bundledFontFamilies(root));
     final imports = <String>{
       "import 'dart:async';",
       "import 'package:flutter/material.dart';",
@@ -4158,7 +4163,7 @@ void startDartvelKiosk() {
     final out = StringBuffer('// GENERATED – do not edit.\n// ignore_for_file: non_constant_identifier_names, unused_import\n')
       ..writeln(imports.join('\n'))
       ..writeln('Widget createDartvelApp({List<String> args = const []}) {')
-      ..writeln('  final router = createDartvelRouter(arguments: args);')
+      ..writeln('${themeTokens == null ? '' : '  runtime.DV.Theme.useTokens($themeTokens);\n'}  final router = createDartvelRouter(arguments: args);')
       ..writeln(appRoot == null ? "  return MaterialApp.router(title: '${esc(title)}', theme: dartvelDefaultTheme(.light), darkTheme: dartvelDefaultTheme(.dark), themeMode: .system, routerConfig: router);" : '  return Builder(builder: $appRoot);')
       ..writeln('}')
       // Outside the DV class: a boot body naming the application's own
@@ -5361,4 +5366,18 @@ Map<String, String> _startRoutes(Object? section, Set<String> pages) {
     throw StateError('pubspec.yaml dartvel.startRoutes: ${problems.join('; ')}');
   }
   return routes;
+}
+
+/// The font families the project at [root] bundles under `flutter.fonts`.
+Set<String> _bundledFontFamilies(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return const <String>{};
+  final Object? doc = loadYaml(pubspec.readAsStringSync());
+  final Object? flutter = doc is Map ? doc['flutter'] : null;
+  final Object? fonts = flutter is Map ? flutter['fonts'] : null;
+  return <String>{
+    if (fonts is List)
+      for (final Object? font in fonts)
+        if (font is Map && font['family'] is String) font['family'] as String,
+  };
 }
