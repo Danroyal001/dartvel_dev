@@ -173,7 +173,7 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
               '    fonts:',
               "      characters: ['U+0400-04FF']   # also keep Cyrillic",
               '      # subset: false, useVariable: false, dropUnused: false,',
-              '      # roboto: false -- or fonts: false for none of it',
+              '      # roboto: false; or fonts: false for none of it',
             ]),
           ],
         ),
