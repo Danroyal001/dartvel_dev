@@ -2255,6 +2255,38 @@ response that is not 2xx throws `DVExportDownloadException` rather than
 returning the error page as the file. The OpenAPI document describes the
 response as `application/octet-stream` with a `Content-Disposition` header.
 
+## Refusing a request
+
+A function turns a request down with a reason by throwing `DVRefusal`:
+
+```dart
+@DVBackendFunction()
+Future<String> _wallets(String address) async {
+  if (address.startsWith('0x')) {
+    throw const DVRefusal('That looks like an Ethereum address. Paste a TRON (TRC-20) one.');
+  }
+  return address;
+}
+```
+
+- The route answers `DVRefusal.status` (422 by default; any 400 to 499, such
+  as 409 for a conflict or 404 for something that is not there) with
+  `content-type: application/json` and the body `{"error": message}`. A status
+  outside 400 to 499 fails an assert while developing and answers 422.
+- It runs the function's compensations, like any failure, and is not recorded
+  as a server crash: the function decided, nothing broke.
+- Anything else a function throws answers 500 with the body
+  `Internal Server Error` and nothing from the exception, which can name a
+  table, a path or a key. It is recorded with `DVServerCrashes`.
+
+Every generated typed client function checks the answer before decoding it.
+An answer that is not 2xx throws `DVBackendFunctionException` with
+`statusCode` and `message` -- the server's `error` text when it sent one, as a
+refusal always does -- and `isRefusal` for a 4xx. A failure is never returned
+as the function's result: a `String` function used to return the error page's
+text, and a `Map` function failed a runtime type check. `DVExportResult`
+functions keep throwing `DVExportDownloadException`.
+
 The other results that are not JSON keep their shapes: a `String` is sent as
 `text/plain`, a `Stream<List<int>>` as raw bytes, and any other `Stream<T>` as
 Server-Sent Events. A `Stream<DVExportResult>` is not a download yet.

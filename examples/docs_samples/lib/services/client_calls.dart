@@ -11,3 +11,15 @@ Future<void> callBackend() async {
   // docs:end
   DV.log('$greeting $order');
 }
+
+Future<String?> saveWallet(String pasted) async {
+  // docs:start backend-refusal-client
+  try {
+    return await wallets(address: pasted);
+  } on DVBackendFunctionException catch (failure) {
+    // A refusal carries the function's own words; a server error says so.
+    DV.log(failure.isRefusal ? failure.message : 'Something went wrong. Try again.');
+    return null;
+  }
+  // docs:end
+}

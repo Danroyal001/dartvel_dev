@@ -100,6 +100,30 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'refuse',
+          title: 'Refuse a request with a reason',
+          children: <Widget>[
+            DocsCode('backend-refusal'),
+            Bullets(<String>[
+              'throw DVRefusal(message) answers 422 with {\"error\": message}. '
+                  'Pass status: for another refusal, such as 409 for a name '
+                  'already taken or 404 for something that is not there.',
+              'Write the message for the reader. It is shown as it stands.',
+              'Anything else the function throws is still a 500 that names '
+                  'nothing, so an exception never leaks a table, a path or a key.',
+            ]),
+            DocsCode('backend-refusal-client'),
+            Bullets(<String>[
+              'A generated client function throws DVBackendFunctionException '
+                  'for every answer that is not a success, with the status and '
+                  'the server\'s message. A failure is never returned as the '
+                  'result.',
+              'isRefusal tells a refusal (4xx), whose message is for the '
+                  'reader, from a server error.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'lifecycle',
           title: 'Watch a request move through its stages',
           children: <Widget>[
@@ -109,8 +133,9 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
                   'framework moves it.',
               'Before your code runs, the body is read and the MFA and policy '
                   'checks pass, with the CSRF check first on a generated path.',
-              'An error thrown by the function answers 500, runs its '
-                  'compensations and is recorded as a server crash.',
+              'An error thrown by the function answers 500 with nothing in '
+                  'it, runs its compensations and is recorded as a server crash. '
+                  'A DVRefusal answers its own status instead (below).',
             ]),
             DocsStatus('Backend Function Request Lifecycle', missing: <String>[
               'Four stages are set today: received, executing, '
