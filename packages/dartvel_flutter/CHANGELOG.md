@@ -1,7 +1,8 @@
-## Unreleased
+## 0.13.29 — 2026-11-09
 
 - A tappable text with a tooltip is named by its own words, so a screen reader says what is on screen (WCAG 2.5.3); the tooltip still shows on hover, focus and long press. A "Start listening" button with the tooltip "Create your free account" was announced as the tooltip.
 - The prebuilt sign-up page says an e-mail address and a password are required when either is empty, instead of sending a request the server can only refuse (which also threw uncaught exceptions on the way).
+- Version aligned with dartvel_core 0.13.29.
 
 ## 0.13.28 — 2026-11-09
 
