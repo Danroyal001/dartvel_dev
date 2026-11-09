@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVRefusal(message, {status = 422})`: a backend function throws it to refuse a request with a reason the reader can be shown; the route answers that status with `{"error": message}`. `DVBackendFunctionException` is what a generated client function throws for any answer that is not 2xx, with the status and the server's message.
+
 ## 0.13.28 — 2026-11-09
 
 - Version aligned with dartvel_core 0.13.28.
