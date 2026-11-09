@@ -87,6 +87,7 @@ import '../build/declaration_check.dart';
 import '../build/module_call_check.dart';
 import '../build/device_profile_check.dart';
 import '../build/pwa_icons.dart';
+import '../build/web_branding.dart';
 import '../build/pwa_manifest.dart';
 import '../secrets/secrets_analysis.dart';
 import '../build/pwa_service_worker.dart';
@@ -3677,18 +3678,22 @@ class BuildCommand extends Command<void> {
           'worker back on.');
       exit(1);
     }
+    // The brand is written whether or not the PWA is: the tab icon, the page
+    // title and the description are the site's, never Flutter's template.
+    final DVWebBrand brand = dvWebBrand(_dartvelSection(root), _packageName(root) ?? 'Dartvel App');
+    _writeWebBranding(root, settings, brand);
     if (settings['enabled'] == false) return;
 
-    final name = '${settings['name'] ?? _packageName(root) ?? 'Dartvel App'}';
+    final name = brand.name;
     final result = dvPwaWrite(
       webBuildDir: p.join(root, 'build', 'web'),
       manifest: dvPwaManifest(
         name: name,
-        shortName: settings['shortName'] as String?,
+        shortName: brand.shortName,
         display: '${settings['display'] ?? 'standalone'}',
-        themeColor: '${settings['themeColor'] ?? '#000000'}',
-        backgroundColor: '${settings['backgroundColor'] ?? '#FFFFFF'}',
-        description: settings['description'] as String?,
+        themeColor: brand.themeColor,
+        backgroundColor: brand.backgroundColor,
+        description: brand.description,
         fileHandlers: dvWebFileHandlers(_fileAssociations(root).associations),
         shortcuts: _pwaShortcuts(root),
       ),
@@ -3704,7 +3709,6 @@ class BuildCommand extends Command<void> {
       Logger.log('   ⚠ $problem');
     }
 
-    _writePwaIcons(root, settings);
     _writeFileTypeIcons(root);
     await _writeServiceWorker(root, settings: settings);
   }
@@ -3733,6 +3737,30 @@ class BuildCommand extends Command<void> {
     return (alternates, alternates[locales.defaultLocale]);
   }
 
+  /// The site's own icons and page text in place of Flutter's template.
+  ///
+  /// The icon set (favicon, apple-touch-icon and the four manifest icons) is
+  /// generated from the project's icon, or from a monogram of its name when it
+  /// has none, so no build serves Flutter's logo; and the page's title,
+  /// description and iOS app title stop being the package name and "A new
+  /// Flutter project.".
+  void _writeWebBranding(String root, Map<Object?, Object?> settings, DVWebBrand brand) {
+    final Directory web = Directory(p.join(root, 'build', 'web'));
+    if (!web.existsSync()) return;
+    _writePwaIcons(root, settings, brand);
+    final File index = File(p.join(web.path, 'index.html'));
+    if (index.existsSync()) {
+      final String before = index.readAsStringSync();
+      final String after = dvBrandIndexHtml(before, brand, packageName: _packageName(root));
+      if (after != before) index.writeAsStringSync(after);
+    }
+    final List<String> leftovers = dvTemplateIconsIn(Directory(p.join(root, 'web')));
+    if (leftovers.isNotEmpty) {
+      Logger.log('   ⚠ web/ still holds Flutter\'s template icons (${leftovers.join(', ')}). '
+          'The build replaces them in its output; delete them from web/ or set dartvel.pwa.icon.');
+    }
+  }
+
   /// Generates the four icons the manifest names, from the project's icon.
   ///
   /// The manifest pointed at files nothing produced, and Chrome refuses to
@@ -3740,7 +3768,7 @@ class BuildCommand extends Command<void> {
   /// someone exported four PNGs by hand. Skipped, and said, when the project
   /// has no icon; fatal when it names one that cannot be read, because that is
   /// a mistake the developer can fix in a minute and would otherwise ship.
-  void _writePwaIcons(String root, Map<Object?, Object?> settings) {
+  void _writePwaIcons(String root, Map<Object?, Object?> settings, DVWebBrand brand) {
     final File? source;
     try {
       source = dvPwaIconSource(root, settings);
@@ -3749,19 +3777,24 @@ class BuildCommand extends Command<void> {
       Logger.log('❌ PWA icon');
       exit(1);
     }
+    final DVRgbaImage art;
+    final String from;
     if (source == null) {
-      Logger.log('   No PWA icons generated: add assets/icon.png (or set '
-          'dartvel.pwa.icon) and the 192 and 512 sizes will be built from it.');
-      return;
+      art = dvMonogramIcon(brand.name, accent: dvHexToArgb(brand.themeColor));
+      from = 'a monogram of "${brand.name}"';
+      Logger.log('   ⚠ No icon set: the site gets a monogram of its name. Add assets/icon.png '
+          '(or set dartvel.pwa.icon) for its real icon.');
+    } else {
+      art = dvPngDecode(source.readAsBytesSync());
+      from = p.relative(source.path, from: root);
     }
     try {
-      final List<String> written = dvGeneratePwaIcons(
-        source: source,
+      final List<String> written = dvGenerateWebIcons(
+        source: art,
         into: Directory(p.join(root, 'build', 'web')),
-        background: dvHexToArgb('${settings['backgroundColor'] ?? '#FFFFFF'}'),
+        background: dvHexToArgb(brand.backgroundColor),
       );
-      Logger.log('   PWA icons written from ${p.relative(source.path, from: root)}: '
-          '${written.length}.');
+      Logger.log('   Web icons written from $from: ${written.length}.');
     } on DVPngError catch (error) {
       Logger.error('   ${error.message}');
       Logger.log('❌ PWA icon');
