@@ -3754,10 +3754,24 @@ class BuildCommand extends Command<void> {
       final String after = dvBrandIndexHtml(before, brand, packageName: _packageName(root));
       if (after != before) index.writeAsStringSync(after);
     }
-    final List<String> leftovers = dvTemplateIconsIn(Directory(p.join(root, 'web')));
+    // Only files a project committed: web/ is regenerated from Flutter's
+    // template on every build, so untracked copies there are not the project's.
+    final List<String> leftovers = dvTemplateIconsIn(Directory(p.join(root, 'web')))
+        .where((String rel) => _isTracked(root, 'web/$rel'))
+        .toList();
     if (leftovers.isNotEmpty) {
       Logger.log('   ⚠ web/ still holds Flutter\'s template icons (${leftovers.join(', ')}). '
           'The build replaces them in its output; delete them from web/ or set dartvel.pwa.icon.');
+    }
+  }
+
+  /// Whether git tracks [rel] in the project at [root]; false when git is absent.
+  bool _isTracked(String root, String rel) {
+    try {
+      final ProcessResult result = Process.runSync('git', <String>['ls-files', '--error-unmatch', rel], workingDirectory: root);
+      return result.exitCode == 0;
+    } on Object {
+      return false;
     }
   }
 
