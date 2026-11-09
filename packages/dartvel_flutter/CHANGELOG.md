@@ -1,6 +1,5 @@
 ## Unreleased
 
-- The first click into a text field right after clicking a button focuses the field. The page took keyboard focus back for keyboard scrolling in the middle of the click, while focus was briefly nowhere, and on the web that moved the browser focus off the field being clicked; it now waits until the click is over and takes focus only if the click left it nowhere.
 - A tappable text with a tooltip is named by its own words, so a screen reader says what is on screen (WCAG 2.5.3); the tooltip still shows on hover, focus and long press. A "Start listening" button with the tooltip "Create your free account" was announced as the tooltip.
 - The prebuilt sign-up page says an e-mail address and a password are required when either is empty, instead of sending a request the server can only refuse (which also threw uncaught exceptions on the way).
 
