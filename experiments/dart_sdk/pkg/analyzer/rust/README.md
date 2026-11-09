@@ -930,8 +930,9 @@ row in its place), and the call is not typed. `body_dump` finds the member
 accesses of a V1 projection by offset and length, since the projection of
 `a.f().g()` gives the inner invocation the whole chain as its origin.
 
-Limits (as extended by the extension and `this` slices below): `?.`, nullable
-receivers that neither `Object` nor an extension serves, cascades, `super`,
+Limits (as extended by the extension, `this`, null-aware and cascade slices
+below): nullable receivers that neither `Object` nor an extension serves,
+index and assignment sections of cascades, `super`,
 `this` where it is not known, static members and import prefixes, `dynamic`,
 `Never`, invalid and `void` receivers, `call` of functions and record
 fields, private names (a private field may be promoted by flow analysis,
@@ -1011,8 +1012,8 @@ are never refined numerically. `body_dump` writes the read `r.p` of a
 record-typed receiver as a `PropertyAccess`, as `V1Projection` projects it
 (`_usesPrefixedIdentifier`), which record receivers now reach.
 
-Limits: static extension members, private names, `?.` and cascades through
-extensions, explicit type arguments that do not resolve, overrides with
+Limits: static extension members, private names, cascades on an extension
+override (upstream reports them), explicit type arguments that do not resolve, overrides with
 other than one positional argument, `==` through an override, generic
 extension methods, extension members with implicit types, the receiver
 context of an override (an integer literal argument stays untyped), and
@@ -1098,7 +1099,7 @@ of `Box<int>`) follow.
 Limits: `this` where it is not known (initializers, `late` field
 initializers, static members, where flow analysis may promote it), implicit
 accesses with type arguments, private names, static members, operators with
-an implicit `this` operand, `?.` and cascades on `this`, `super`, and
+an implicit `this` operand, `super`, and
 everything the explicit member accesses leave out.
 
 The fixture `tests/body_corpus/this_receivers.dart` covers explicit and
@@ -1128,6 +1129,72 @@ on the fixture (187, 80, 159 and 632 rows), the default corpus (41,283,
 13,036, 1,096 and 50,276 rows) and the held-out roots (146,712, 52,170, 10,879 and 108,816 rows).
 No existing unit test changed; the unit-test query helper now accepts a
 marked part (`‹this›.a1`) to name a node inside a longer, unique snippet.
+
+Null-aware accesses and the heads of cascade sections widen `--members`
+again. A `?.` access `r?.m(...)` or `r?.p` is selected as the same access
+with `.` would be, its member looked up on the receiver's type made
+non-nullable (`promoteToNonNull`, so `Null` is `Never` and stays out).
+The head of a cascade section, `t..m(...)` (`CascadeMethodInvocation`) or
+`t..p` (`CascadePropertyExtraction`), is a member access whose receiver is
+the cascade's target, made non-nullable when the cascade is null aware
+(`t?..m`, decided by its first section); an access chained on a head
+(`t..c().size`) has a selected head as its receiver, and the integer
+arguments of a selected head are written as the others are. Upstream's null
+shorting decides the type (`NullShortingMixin`): an access in a chain a
+`?.` (or `?[`) starts keeps the member's type while the chain continues,
+as the receiver of another access, an index, a call, type or value
+arguments or `!` (`continueNullShorting`), and is made nullable where the
+chain ends (`finishNullShorting`): in `h.b?.c().size` the inner
+`h.b?.c()` is a `B` and the whole an `int?`; parentheses, an argument, an
+initializer, a cascade's target and a section's body end a chain.
+`method_invocation_resolver.rs` decides both (`is_shorted`,
+`continues_null_shorting`) on the parsed tree. The V1 projection of a
+cascade head, and of an access chained on one, begins at the section's `..`
+or `?..` rather than at the name, so both sides key those accesses by that
+span (`_v1Span`, `v1_span`); `body_dump` also writes the read of a getter a
+section invokes (`..g()`) at that span.
+
+A variable read followed by `?.` may be promoted by flow analysis, so the
+`--identifiers` selection leaves it out, and with it every access on it:
+the null-aware accesses typed here are on member accesses, `this` and
+implicit `this`. Limits: index and assignment sections of cascades, an
+integer literal cascade target (it takes the cascade's context, a `double`
+in `double d = 1..m()`, which the held-out roots found), a cascade on an
+extension override (upstream reports
+`extensionOverrideWithCascade` and resolves no section), null-aware index
+expressions, and everything the earlier slices leave out (private names,
+generic methods, explicit type arguments, implicit member types, untyped
+receivers and targets).
+
+The fixture `tests/body_corpus/null_aware_cascades.dart` covers `?.`
+invocations, reads, tear-offs, fields, `Object` and extension members
+(including one on a nullable type) on nullable and non-nullable receivers,
+on `this` and implicitly; chains that continue (`a?.b.c`, `a?.b?.c`,
+`a?.b().c`) and where they end (an argument, an initializer, a return,
+an assignment target's receiver, which continues the chain, parentheses, an interpolation, a list element, an operand of `==`, a
+cascade target); cascade invocations, reads, chains after a head, a `?.`
+inside a section, null-aware cascades, cascades on parameters, `this`,
+library types and untyped targets; and what stays out: `?.` on variable
+reads, private, generic and implicitly typed members, explicit type
+arguments, null-aware index expressions, assignment and index sections.
+Before the port typed them, `--members` on the fixtures produced 738
+upstream rows with 3 of 19 files differing (the new fixture's 135 rows, of
+which the port wrote 49); with the cases the corpora found added, the
+fixtures now match 742 rows. The extension fixture's
+`OwnOnString(s)..ownLength` found the cascade on an override, and the
+default corpus an index assignment through a chain
+(`driver.ownedFiles?.knownFolders[folder] ??= driver`). Unit tests in
+`type_analyzer_test.rs` (null-aware accesses and where their chains end;
+cascade heads, chains on them and null-aware cascades; and what must stay
+untyped) failed before the port, but the last, which passes by design; its
+integer literal cascade target case was added after the held-out roots
+found it and failed (`int`) until the port left it untyped.
+Measured 2026-11-09: the default corpus matches 52,747 member rows (was
+51,626) across 589 files, and the held-out roots 94,383 (was 93,449) across
+5,730 files, zero differences. The literal, integer, identifier, operator
+and user-operator tests still match on the fixture (194, 160, 694, 80 and
+540 rows), the default corpus (41,283, 1,096, 50,276, 13,036 and 1,402) and
+the held-out roots (146,712, 10,879, 108,816, 52,170 and 14,229).
 
 `tests/type_analyzer_test.rs` runs the analyzer on a hand-built `dart:core`
 (so it can run under Miri, not yet done): the literal and operator types,
