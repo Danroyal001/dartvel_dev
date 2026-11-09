@@ -15007,6 +15007,14 @@ fields in this order:
   featured image, cached, included in SSG output, and generated on demand for
   web-server rendering. Fallbacks: configured model favicon → module favicon →
   application favicon.
+- **Application icons and web brand** — every web build generates favicon.png (32),
+  apple-touch-icon.png (180) and the four manifest icons from `dartvel.pwa.icon`
+  (or `assets/icon.png`); a project with no icon gets a monogram of its name in its
+  accent colour and a build warning. The manifest name, short name, description and
+  colours, and the page title, description and iOS app title, come from
+  `dartvel.pwa` then `dartvel.seo`; Flutter template branding (its logo, the package
+  name as a title, "A new Flutter project.", #0175C2) is never shipped, and template
+  icons left in web/ are reported.
 - **Main content** — the largest text block, chosen from long-text metadata,
   declaration order, schema type, display priority, and actual non-empty length.
 - Sensitive and hidden fields are excluded (see Sensitive Model Fields).

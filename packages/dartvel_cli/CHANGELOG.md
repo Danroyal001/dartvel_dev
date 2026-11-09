@@ -1,3 +1,7 @@
+## Unreleased
+
+- Web builds never ship Flutter's template branding. favicon.png and apple-touch-icon.png are generated with the four manifest icons from dartvel.pwa.icon (or assets/icon.png); a project with no icon gets a monogram of its name and a warning. The manifest, page title, description and iOS app title take the name, description and colours from dartvel.pwa, then dartvel.seo, never the package name, "A new Flutter project." or #0175C2. Flutter template icons left in web/ are reported.
+
 ## 0.13.28 — 2026-11-09
 
 - `dartvel: display: scaling:` and `screen:` in pubspec.yaml reach the app as defines on build and dev; a value the app would not understand fails the build.
