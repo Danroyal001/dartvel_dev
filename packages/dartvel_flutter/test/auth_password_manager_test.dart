@@ -93,6 +93,26 @@ void main() {
     });
   });
 
+  group('sign up with nothing typed', () {
+    // Found on a live app: "Create account" pressed before anything was typed
+    // sent {"email": ""} to the server, which refused it, and the page threw
+    // uncaught exceptions on the way. A form missing what it needs says so
+    // where the reader is looking and sends nothing.
+    testWidgets('asks the provider nothing and says what is missing',
+        (WidgetTester tester) async {
+      final _CountingProvider provider = _CountingProvider();
+      DV.Auth.configure(provider);
+      await tester.pumpWidget(MaterialApp(home: DV.Auth.SignUpPage()));
+
+      await tester.tap(find.byKey(const ValueKey<String>('dv-signup-submit')));
+      await tester.pumpAndSettle();
+
+      expect(provider.signUps, 0);
+      expect(find.textContaining('e-mail address'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('sign up', () {
     testWidgets('the fields are one form, and the new password is saved',
         (WidgetTester tester) async {
@@ -115,4 +135,15 @@ void main() {
       expect(saves(tester), contains(true));
     });
   });
+}
+
+/// The local provider, counting the sign-ups it is asked for.
+class _CountingProvider extends DVLocalAuthProvider {
+  int signUps = 0;
+
+  @override
+  Future<DVAuthUser> signUp({String? email, String? password, Map<String, Object?> metadata = const <String, Object?>{}}) {
+    signUps++;
+    return super.signUp(email: email, password: password, metadata: metadata);
+  }
 }
