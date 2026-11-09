@@ -1,3 +1,7 @@
+## Unreleased
+
+- Generated backend routes answer a thrown `DVRefusal` with its status and `{"error": message}` (not recorded as a crash); any other exception is still a bare 500. Generated typed client functions throw `DVBackendFunctionException` on any answer that is not 2xx, instead of returning the error text as the result.
+
 ## 0.13.28 — 2026-11-09
 
 - `dartvel: display: scaling:` and `screen:` in pubspec.yaml reach the app as defines on build and dev; a value the app would not understand fails the build.
