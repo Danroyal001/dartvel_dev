@@ -9399,6 +9399,12 @@ class _SignUpPageState extends State<_SignUpPage> {
 
   Future<void> _submit() async {
     if (_busy) return;
+    // Nothing to send yet: say so here rather than ask the server to refuse
+    // it. A refused request also took a detour through code that threw.
+    if (_email.text.trim().isEmpty || _password.text.isEmpty) {
+      setState(() => _error = 'An e-mail address and a password are required.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
