@@ -3762,8 +3762,11 @@ class _DVPressableState extends State<_DVPressable> {
     // reader's label, and the HTML's title/aria-label -- so a control cannot
     // say one thing to a mouse and another to a reader. It is the name the
     // application gave, else the tooltip it gave, else the words inside.
+    // The tooltip shows the tooltip; the node below carries the name. They
+    // differ when a control with text has a longer tooltip: the reader hears
+    // the words on screen and still gets the longer words on hover.
     return DVTooltipTarget(
-      label: widget.name ?? widget.tooltip,
+      label: widget.tooltip ?? widget.name,
       site: widget.site,
       builder: _control,
       child: widget.child,
@@ -3792,7 +3795,7 @@ class _DVPressableState extends State<_DVPressable> {
           builder: (BuildContext context) => Semantics(
             button: widget.button,
             enabled: true,
-            label: resolved,
+            label: widget.name ?? resolved,
             // The one action a reader is offered. Without it the node is a
             // button that a screen reader can see but not press, which is
             // worse than not being a button.
@@ -4065,7 +4068,9 @@ class DVText extends StatelessWidget {
       // application reached for.
       result = _DVPressable(
         onTap: modifier.onTapCallback!,
-        name: modifier.semanticLabelValue ?? modifier.tooltipValue ?? text,
+        // A control with text is named by its text (WCAG 2.5.3); the tooltip
+        // still shows on hover, focus and long press.
+        name: modifier.semanticLabelValue ?? text,
         tooltip: modifier.tooltipValue ?? text,
         site: modifier.tapSite,
         button: modifier.semanticButtonValue ?? true,

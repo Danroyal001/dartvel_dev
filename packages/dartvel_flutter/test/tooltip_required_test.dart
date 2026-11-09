@@ -103,6 +103,37 @@ void main() {
     });
   });
 
+  group('a control with text takes its name from the text', () {
+    // Found on a live app: a "Start listening" button with the tooltip
+    // "Create your free account" was announced as "Create your free
+    // account", so a screen reader user heard a control that is not on the
+    // screen (WCAG 2.5.3, label in name). The tooltip still shows on hover.
+    testWidgets('a pressable text with a different tooltip is named by its text',
+        (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await tester.pumpWidget(_app(DVText(
+        'Start listening',
+        DVModifier().tooltip('Create your free account').onTap(_nothing),
+      )));
+      final SemanticsNode node = tester.getSemantics(find.text('Start listening'));
+      expect(node.label, contains('Start listening'));
+      await _hover(tester, find.text('Start listening'));
+      expect(find.text('Create your free account'), findsOneWidget,
+          reason: 'the tooltip is still shown on hover');
+      handle.dispose();
+    });
+
+    testWidgets('an explicit semantic label still wins', (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await tester.pumpWidget(_app(DVText(
+        'Go',
+        DVModifier().semanticLabel('Go to checkout').onTap(_nothing),
+      )));
+      expect(find.bySemanticsLabel('Go to checkout'), findsOneWidget);
+      handle.dispose();
+    });
+  });
+
   group('Studio draws its controls the same way', () {
     testWidgets('an enabled icon button shows its tooltip on hover and focus',
         (WidgetTester tester) async {
