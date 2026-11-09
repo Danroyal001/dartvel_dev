@@ -1116,12 +1116,10 @@ static, generic and implicitly typed members, unresolved names, cascades,
 differing (implicit reads in every earlier fixture with a class, and the new
 one); they now match, as do 538 `--user-operators` rows. The
 `--user-operators` oracle was not run before the port changed (its new rows
-are the `this` operands, which the port did not type before). Unit tests in
-`type_analyzer_test.rs` (`this` in each kind of declaration, implicit
-accesses, and what must stay untyped) failed before the port (all `-`, the
-last because the query helper could not find its nodes, then for a read of
-a declared parameter the test itself got wrong; it now reads an untyped
-parameter). Measured 2026-11-09: the default corpus matches 51,626 member
+are the `this` operands, which the port did not type before). Of the unit tests in
+`type_analyzer_test.rs`, the two that type `this` in each kind of
+declaration and implicit accesses failed before the port (all `-`); the
+third checks what must stay untyped, so it passes with or without the port. Measured 2026-11-09: the default corpus matches 51,626 member
 rows (was 19,879) and 1,402 operator rows (was 1,359) across 589 files, and
 the held-out roots 93,449 member rows (was 30,615) and
 14,229 operator rows (was 13,690) across 5,730 files, zero
