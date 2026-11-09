@@ -196,6 +196,13 @@ Widget layouts(BuildContext context) => DVBox.list(<Widget>[
     ], spacing: 24);
 ```
 
+The whole app is drawn at a size that suits the screen: unchanged on phones,
+tablets and desktops, laid out as a 1280 x 720 screen and drawn larger on a
+television or a 4K signage panel, and laid out 320 wide on a watch.
+`DV.Platform.screen.screenClass` and `.uiScale` say what was chosen;
+`dartvel: display: scaling: off` in pubspec.yaml, or
+`DV.Platform.screen.scaling = const DVDisplayScaling.off()`, turns it off.
+
 The others are `DVBox.scrollableList`, `DVBox.horizontalScrollable`,
 `DVBox.stack`, `DVBox.masonry` and `DVBox.twoPane`, which splits across a
 foldable's hinge and stacks on a phone. `DVBox.image`, `DVBox.video` and

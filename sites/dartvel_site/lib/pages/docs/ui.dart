@@ -130,6 +130,14 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
               'The breakpoints are 840, 1200 and 1600 logical pixels.',
               'isMobile, isTablet, isDesktop, width, height and reducedMotion '
                   'are there too.',
+              'The whole app is drawn at a size that suits the screen. Phones, '
+                  'tablets and desktops are unchanged. A television or a 4K '
+                  'signage panel lays the app out as a 1280 by 720 screen and '
+                  'draws it larger, so it reads from across a room, and a watch '
+                  'lays it out 320 wide so nothing is cut off. '
+                  'DV.Platform.screen.screenClass and uiScale say what was '
+                  'chosen; dartvel: display: scaling: off in pubspec.yaml turns '
+                  'it off, and screen: billboard declares signage that is not 4K.',
               'Layouts adapt before you add a breakpoint. A row that is too '
                   'wide for a watch or a phone stacks its children, and a grid '
                   'drops columns.',
