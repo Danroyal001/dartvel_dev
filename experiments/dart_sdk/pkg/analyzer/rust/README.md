@@ -930,9 +930,9 @@ row in its place), and the call is not typed. `body_dump` finds the member
 accesses of a V1 projection by offset and length, since the projection of
 `a.f().g()` gives the inner invocation the whole chain as its origin.
 
-Limits (as extended by the extension slice below): `?.`, nullable
+Limits (as extended by the extension and `this` slices below): `?.`, nullable
 receivers that neither `Object` nor an extension serves, cascades, `super`,
-`this` and implicit `this`, static members and import prefixes, `dynamic`,
+`this` where it is not known, static members and import prefixes, `dynamic`,
 `Never`, invalid and `void` receivers, `call` of functions and record
 fields, private names (a private field may be promoted by flow analysis,
 and a private name is looked up per library, which `get_member` does not
@@ -1053,6 +1053,84 @@ read `s.ext` of `extension on String` and expected it untyped, and
 `s - s`; both now resolve upstream's way, so the extensions in those tests
 are `on int` (inapplicable to `String`), keeping the tests' intent: an
 extension member upstream does not find stays untyped.
+
+`this` and implicit `this` receivers widen `--members` and
+`--user-operators` the same way. `this` is known in the body of an instance
+method, getter, setter or operator, of a generative constructor or of a
+primary constructor's body (closures inside included), where it has the
+type of `this` of the enclosing declaration (`thisType`: a class, mixin,
+enum or extension type with its own type parameters as arguments, an
+extension's extended type); field and constructor initializers, defaults,
+metadata, factories and static members are left out. Flow analysis may
+promote `this`, so a member is left out entirely when any `this` in its body
+is in a position that can promote it, decided by the tokens as for a
+variable read (`this == other` in `operator ==`, `this is T`, a switch on
+`this`). A known `this` is a receiver like any other: `this.p`,
+`this.m(...)`, `this + x`, `-this`, `this[i]`, also parenthesized, and
+`--members` writes the `this` receivers of selected accesses
+(`ThisExpression` rows), `--user-operators` the `this` operands of selected
+invocations. `--members` also selects implicit `this` accesses: an
+unqualified invocation `m(...)` (`UnqualifiedFunctionInvocation`, V1
+`MethodInvocation`) or read `p` (`UnqualifiedNameExpression`, V1
+`SimpleIdentifier`, also as the receiver of an invoked getter's call) where
+`this` is known, whose name is not private, whose member is found and
+declared as for an explicit receiver (the type of `this` as the receiver
+type), and whose integer arguments get their parameter's type. Operator
+invocations still take no member access as an operand, so `count + 1` with
+an implicit `count` is not selected.
+
+`TypeAnalyzer` keeps the type of `this` while it visits a member's body
+(`member_body`, `promotes_this`) and records each `ParsedUnqualifiedName`
+that no local declares as an implicit `this` access when the lexical lookup
+finds nothing (an instance member of an enclosing class ends it with
+nothing, `InstanceScope.lookup`; then `ThisLookup` resolves it on the type
+of `this`), or finds an instance member of the enclosing extension
+(`ExtensionScope`, which is that member, unsubstituted); a read past an
+instance setter of the extension is looked up on `this`
+(`LexicalLookup.resolveGetter`) but an invocation is not (`resolveUnqualified`:
+such a setter ends the lookup); a name with type arguments is an
+instantiation and is left out. `MemberResolver` types those like explicit
+accesses (`TypePropertyResolver.resolve` with no receiver), so an implicit
+member of an applicable extension, `Object`'s members on a nullable extended
+type and inherited and substituted members (`first` is `int` in a subclass
+of `Box<int>`) follow.
+
+Limits: `this` where it is not known (initializers, `late` field
+initializers, static members, where flow analysis may promote it), implicit
+accesses with type arguments, private names, static members, operators with
+an implicit `this` operand, `?.` and cascades on `this`, `super`, and
+everything the explicit member accesses leave out.
+
+The fixture `tests/body_corpus/this_receivers.dart` covers explicit and
+implicit accesses in methods, getters, operators, constructor bodies,
+closures and local functions; inherited, generic, substituted, mixin, enum
+(`index`, and `name` of `EnumName`), extension type and extension members
+(the extension's own, another applicable extension's, the extended type's,
+on nullable, generic, `int`, `dynamic` and `Future` types, a setter-only and
+a static extension member); invoked getters, tear-offs, integer arguments;
+operators on `this`; and what stays out: initializers, a factory, a static
+method, defaults, shadowing locals and parameters, top-level names, private,
+static, generic and implicitly typed members, unresolved names, cascades,
+`?.`, and members where `this` is promoted. Before the port typed `this`,
+`--members` on the fixtures produced 598 upstream rows with 8 of 18 files
+differing (implicit reads in every earlier fixture with a class, and the new
+one); they now match, as do 538 `--user-operators` rows. The
+`--user-operators` oracle was not run before the port changed (its new rows
+are the `this` operands, which the port did not type before). Unit tests in
+`type_analyzer_test.rs` (`this` in each kind of declaration, implicit
+accesses, and what must stay untyped) failed before the port (all `-`, the
+last because the query helper could not find its nodes, then for a read of
+a declared parameter the test itself got wrong; it now reads an untyped
+parameter). Measured 2026-11-09: the default corpus matches 51,626 member
+rows (was 19,879) and 1,402 operator rows (was 1,359) across 589 files, and
+the held-out roots 93,449 member rows (was 30,615) and
+14,229 operator rows (was 13,690) across 5,730 files, zero
+differences. The literal, operator, integer and identifier tests still match
+on the fixture (187, 80, 159 and 632 rows), the default corpus (41,283,
+13,036, 1,096 and 50,276 rows) and the held-out roots (146,712, 52,170, 10,879 and 108,816 rows).
+No existing unit test changed; the unit-test query helper now accepts a
+marked part (`‹this›.a1`) to name a node inside a longer, unique snippet.
+
 `tests/type_analyzer_test.rs` runs the analyzer on a hand-built `dart:core`
 (so it can run under Miri, not yet done): the literal and operator types,
 integer literals with no context (`int`), with declared contexts (aliases,
