@@ -1,6 +1,7 @@
-## Unreleased
+## 0.13.27 — 2026-11-09
 
 - A text field with a screen-reader label (`.input(...).semanticLabel(...)`) can be typed into again. The label hid the field from the semantics tree, and on the web the empty node left in its place caught the click, so the field never took focus.
+- Version aligned with dartvel_core 0.13.27.
 
 ## 0.13.26 — 2026-11-07
 
@@ -139,7 +140,7 @@
 - `dvRunApplication`: boot hooks, launch negotiation before `runApp`, boot-failure page.
 - Web drag and drop with file bytes; `DV.Platform.media.readCapture`.
 
-## Unreleased
+## 0.13.27 — 2026-11-09
 
 - Android native media: generated Media3/CameraX bridges and JNI adapters against the current player/camera contracts, with device ids, event decoding and disposal tests. Hardware verification pending. Apple branch contributes event-schema tests only; no AVPlayer/AVFoundation implementation.
 
