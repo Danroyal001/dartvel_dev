@@ -8,6 +8,8 @@ import 'package:dartvel_core/binary_payload.dart' show DVAssetEncoding;
 import 'package:dartvel_shelf/native_codec.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+
+import '../build/display_settings.dart';
 import '../build/node_runtime_bundle.dart';
 import '../build/web_fonts.dart';
 import '../analysis/conventions_check.dart';
@@ -1355,6 +1357,9 @@ class BuildCommand extends Command<void> {
         wasm: webWasm,
       ),
       ...?variant?.flutterArguments,
+      // dartvel.display: how big the app is drawn on a television, a signage
+      // panel or a watch. A value the app would not understand fails here.
+      ...dvDisplayDefines(_dartvelSection(_projectRoot)),
     ];
 
     // Check if platform is available

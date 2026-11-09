@@ -61,7 +61,9 @@ Future<void> dvRunApplication(
         };
         dvStartAppLifecycleBridge();
         dvWatchWebFirstFrame();
-        runApp(root());
+        // Drawn at the scale that suits the screen: unchanged on phones,
+        // tablets and desktops, larger on a television, smaller on a watch.
+        runApp(DVDisplayScale(child: root()));
         WidgetsBinding.instance.addPostFrameCallback((_) {
           DV.lifecycle.setApp(.ready);
         });

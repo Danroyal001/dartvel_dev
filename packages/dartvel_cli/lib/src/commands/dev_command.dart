@@ -23,6 +23,7 @@ import '../utils/lan_address.dart';
 import '../utils/linux_utils.dart';
 import '../build/build_target.dart';
 import '../build/dev_studio.dart';
+import '../build/display_settings.dart';
 import '../build/target_packages.dart';
 import 'build_command.dart' show dvTargetContextFor;
 import '../build/platform_scaffold.dart';
@@ -301,6 +302,9 @@ class DevCommand extends Command<void> {
         runLocalApp &&
         (webTarget || deviceOpt == 'chrome');
     flutterArgs.addAll(dvDevStudioFlutterArgs(studioMount, web: studioInApp));
+    // The same dartvel.display defines a build passes, so dev draws the app
+    // at the size the release will.
+    flutterArgs.addAll(dvDisplayDefines(dvReadDartvelSection(root)));
     if (studioInApp) {
       final File webDevConfig = File(p.join(root, 'web_dev_config.yaml'));
       final String? proxy = dvDevStudioProxyConfig(
