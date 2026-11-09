@@ -1638,6 +1638,13 @@ ${backendEntries.map((e) {
       if (result is dv.Response) return result;
       if (result is core.DVExportResult) return _dvExportResponse(result);
       return dv.Response(200, body: Stream<List<int>>.value(conv.utf8.encode(result.toString())));
+    } on core.DVRefusal catch (refusal) {
+$contextFailed
+      // A refusal is the function saying no with a reason for the reader:
+      // its own status and {"error": message}. Not a crash, so not recorded.
+      return dv.Response(refusal.responseStatus,
+          headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
+          body: Stream<List<int>>.value(conv.utf8.encode(refusal.responseBody)));
     } catch (e, st) {
 $contextFailed
       core.DVServerCrashes.record(e, st);
@@ -1728,6 +1735,13 @@ $requestPrelude$mfaGate$policyGate$contextPrelude
       return dv.Response(200,
           headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
           body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(core.dvToEncodable(result)))));
+    } on core.DVRefusal catch (refusal) {
+$contextFailed
+      // A refusal is the function saying no with a reason for the reader:
+      // its own status and {"error": message}. Not a crash, so not recorded.
+      return dv.Response(refusal.responseStatus,
+          headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
+          body: Stream<List<int>>.value(conv.utf8.encode(refusal.responseBody)));
     } catch (e, st) {
 $contextFailed
       // Written before anything else in the error path, and never throws.
@@ -1763,6 +1777,13 @@ $requestPrelude$mfaGate$policyGate$contextPrelude
       return dv.Response(200,
           headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
           body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(core.dvToEncodable(result)))));
+    } on core.DVRefusal catch (refusal) {
+$contextFailed
+      // A refusal is the function saying no with a reason for the reader:
+      // its own status and {"error": message}. Not a crash, so not recorded.
+      return dv.Response(refusal.responseStatus,
+          headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
+          body: Stream<List<int>>.value(conv.utf8.encode(refusal.responseBody)));
     } catch (e, st) {
 $contextFailed
       // Written before anything else in the error path, and never throws.
@@ -3113,6 +3134,13 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           sbClient.writeln(
             "  final r = await _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);",
           );
+          // A failure is thrown, never decoded as the result: the error page's
+          // text came back as a String result (Payseal opened
+          // /tip/Internal%20Server%20Error) and a Map result failed a type
+          // check. DVExportResult checks the answer itself.
+          if (clientReturnType.replaceAll(' ', '') != 'DVExportResult') {
+            sbClient.writeln('  DVBackendFunctionException.throwUnlessSuccess(r);');
+          }
           if (convExpr.isEmpty) {
             sbClient.writeln('  return fromJson(r.data);');
           } else {

@@ -468,6 +468,13 @@ file, so `GET /api/articles.csv` downloads `articles.csv`. Its client function
 returns that `DVExportResult`. See
 [Return a file to download](https://dartvel.dev/docs/backend-functions#files).
 
+A function says no with a reason by throwing `DVRefusal`: the route answers
+422 (or the status you pass) with `{"error": message}`, and the client
+function throws `DVBackendFunctionException` carrying that message, ready to
+show. Any other exception is a 500 that names nothing, and a client function
+never returns an error answer as its result. See
+[Refuse a request with a reason](https://dartvel.dev/docs/backend-functions#refuse).
+
 ---
 
 ## 🖥️ One binary: web-server and Studio

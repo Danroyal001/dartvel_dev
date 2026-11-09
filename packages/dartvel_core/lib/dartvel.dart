@@ -163,6 +163,7 @@ export 'src/http/outbound.dart';
 export 'src/http/peer_address.dart' show DVIpAddress, DVPeerAddress;
 export 'src/http/security_headers.dart'
     show dvApplySecurityHeaders, dvDefaultSecurityHeaders, dvDefaultStrictTransportSecurity;
+export 'src/http/refusal.dart';
 export 'src/http/transport.dart';
 // Re-export common types so backends can import only dartvel_core.
 // The wire types live here now. dartvel_core is on both sides of the wire, so
