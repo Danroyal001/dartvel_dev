@@ -21,7 +21,8 @@
 // extension an override `E(x)` names, with the integer literals that are their operands
 // and the parentheses around either; see [OperatorInvocations].
 // --members selects method invocations `r.m(...)` and property reads `r.p`
-// (getters, fields, method tear-offs) on a known receiver, resolved through
+// (getters, fields, method tear-offs), also null-aware (`r?.m`) and as the
+// heads of cascade sections (`r..m`, `r?..m`), on a known receiver, resolved through
 // the interface of its static type, `Object` (a receiver that may be null),
 // an applicable extension, or the extension an override `E(x)` names, with
 // the integer literals that are their arguments; see [MemberAccesses].
@@ -688,8 +689,16 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
 ///
 /// A member access is a [ReceiverMethodInvocationImpl] (`r.m(...)`, without
 /// type arguments) or a [ReceiverPropertyExtractionImpl] (`r.p`) whose
-/// operator is `.` and whose name is not private (a private field may be
-/// promoted by flow analysis, and private names are looked up per library).
+/// operator is `.` or `?.`, or the head of a cascade section, a
+/// [CascadeMethodInvocationImpl] (`t..m(...)`) or a
+/// [CascadePropertyExtractionImpl] (`t..p`), whose receiver is the cascade's
+/// target; and whose name is not private (a private field may be promoted by
+/// flow analysis, and private names are looked up per library). A `?.`
+/// access, and a head of a null-aware cascade `t?..m`, looks the member up
+/// on its receiver's type made non-nullable; upstream's null shorting decides
+/// the type each access is written with. A cascade head (and an access
+/// chained on one) is keyed by its V1 projection, which begins at the
+/// section's `..` ([_v1Span]).
 /// It is selected when its receiver is known ([_isKnown]) and its static type
 /// is not `dynamic`, invalid, `void` or `Never` (nor bounded by them), or is
 /// an extension override with one positional argument that is known, and the
@@ -745,14 +754,16 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
   void visitNode(AstNode node) {
     if (node is CommentImpl) return;
     if ((node is ReceiverMethodInvocationImpl ||
-            node is UnqualifiedFunctionInvocationImpl) &&
+            node is UnqualifiedFunctionInvocationImpl ||
+            node is CascadeMethodInvocationImpl) &&
         _isSelected(node)) {
-      selected.add('invocation ${node.offset}+${node.length}');
+      selected.add('invocation ${_v1Span(node)}');
     }
     if ((node is ReceiverPropertyExtractionImpl ||
-            node is UnqualifiedNameExpressionImpl) &&
+            node is UnqualifiedNameExpressionImpl ||
+            node is CascadePropertyExtractionImpl) &&
         _isSelected(node)) {
-      selected.add('property ${node.offset}+${node.length}');
+      selected.add('property ${_v1Span(node)}');
     }
     if (node is IntegerLiteralImpl && _isSelectedArgument(node)) {
       selected.add('integer ${node.offset}+${node.length}');
@@ -761,6 +772,34 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
       selected.add('this ${node.offset}+${node.length}');
     }
     node.visitChildren2(this);
+  }
+
+  /// `'$offset+$length'` of the V1 projection of [node]: a node that
+  /// begins a cascade section's body (a cascade head, or an access chained
+  /// on one) projects to a V1 node that begins at the section's `..` or
+  /// `?..`.
+  static String _v1Span(AstNode node) {
+    var offset = node.offset;
+    for (AstNode? ancestor = node.parent2; ancestor != null;
+        ancestor = ancestor.parent2) {
+      if (ancestor is CascadeSectionImpl) {
+        if (identical(ancestor.body.beginToken, node.beginToken)) {
+          offset = ancestor.operator.offset;
+        }
+        break;
+      }
+    }
+    return '$offset+${node.end - offset}';
+  }
+
+  /// The cascade whose section [head] (a cascade method invocation or
+  /// property extraction) begins.
+  static CascadeExpressionImpl _cascadeOf(AstNode head) {
+    var section = head.parent2!;
+    while (section is! CascadeSectionImpl) {
+      section = section.parent2!;
+    }
+    return section.parent2 as CascadeExpressionImpl;
   }
 
   /// Whether [node] is the receiver, past parentheses, of a selected member
@@ -792,7 +831,9 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
     }
     if (node is ReceiverMethodInvocationImpl ||
         node is ReceiverPropertyExtractionImpl ||
-        node is UnqualifiedFunctionInvocationImpl) {
+        node is UnqualifiedFunctionInvocationImpl ||
+        node is CascadeMethodInvocationImpl ||
+        node is CascadePropertyExtractionImpl) {
       return _isSelected(node);
     }
     // A read of a declared variable is known to the operators; an implicit
@@ -815,9 +856,22 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
       // An implicit `this` access: no receiver, the type of `this`.
       UnqualifiedFunctionInvocationImpl(:var name) ||
       UnqualifiedNameExpressionImpl(:var name) => (null, null, name),
+      // A cascade head: the cascade's target is the receiver.
+      CascadeMethodInvocationImpl(:var name) ||
+      CascadePropertyExtractionImpl(:var name) =>
+        (_cascadeOf(access).target2, null, name),
       _ => throw StateError('not a member access'),
     };
-    if ((operator != null && operator.type != TokenType.PERIOD) ||
+    // `r?.m` looks the member up on the receiver's type made non-nullable,
+    // as does a head of a null-aware cascade `r?..m`.
+    var nullAware = switch (access) {
+      CascadeMethodInvocationImpl() || CascadePropertyExtractionImpl() =>
+        _cascadeOf(access).isNullAware,
+      _ => operator?.type == TokenType.QUESTION_PERIOD,
+    };
+    if ((operator != null &&
+            operator.type != TokenType.PERIOD &&
+            operator.type != TokenType.QUESTION_PERIOD) ||
         name.lexeme.startsWith('_')) {
       return false;
     }
@@ -845,6 +899,7 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
     } else {
       if (receiver is! ExpressionImpl || !_isKnown(receiver)) return false;
       type = receiver.staticType as TypeImpl;
+      if (nullAware) type = typeSystem.promoteToNonNull(type);
       if (type is NeverType ||
           type is VoidType ||
           typeSystem.resolveToBound(type) is NeverType ||
@@ -872,7 +927,8 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
     }
     switch (access) {
       case ReceiverMethodInvocationImpl(:var typeArguments) ||
-          UnqualifiedFunctionInvocationImpl(:var typeArguments):
+          UnqualifiedFunctionInvocationImpl(:var typeArguments) ||
+          CascadeMethodInvocationImpl(:var typeArguments):
         if (typeArguments != null) return false;
         var element = _invokedMethod(access as FunctionInvocationImpl);
         if (element == null || !isFound(element)) return false;
@@ -887,10 +943,13 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
             element.enclosingElement is! ExtensionElement &&
             const {'remainder', 'clamp'}.contains(element.name) &&
             typeSystem.isSubtypeOf(type, numQuestion));
-      case ReceiverPropertyExtractionImpl() || UnqualifiedNameExpressionImpl():
+      case ReceiverPropertyExtractionImpl() ||
+          UnqualifiedNameExpressionImpl() ||
+          CascadePropertyExtractionImpl():
         var resolution = switch (access) {
           ReceiverPropertyExtractionImpl(:var resolution) => resolution,
           UnqualifiedNameExpressionImpl(:var resolution) => resolution,
+          CascadePropertyExtractionImpl(:var resolution) => resolution,
           _ => null,
         };
         return switch (resolution) {
@@ -947,7 +1006,8 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
     if (parent is! ArgumentListImpl) return false;
     var invocation = parent.parent2;
     if ((invocation is! ReceiverMethodInvocationImpl &&
-            invocation is! UnqualifiedFunctionInvocationImpl) ||
+            invocation is! UnqualifiedFunctionInvocationImpl &&
+            invocation is! CascadeMethodInvocationImpl) ||
         !_isSelected(invocation!)) {
       return false;
     }

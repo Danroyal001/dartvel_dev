@@ -22,8 +22,16 @@
 // (an unqualified name type_analyzer.rs records as one: [ImplicitThis]) is
 // resolved on the type of `this`, or to the member of the enclosing extension
 // the lexical lookup found (`resolveUnqualified`, `ThisLookup`), by the same
-// rules. Not ported, so left untyped: `?.`,
-// cascades, `super`, `this` where it is not known (see type_analyzer.rs),
+// rules. A null-aware access `r?.m(...)` or `r?.p` looks the member up on
+// the receiver's type made non-nullable (`promoteToNonNull`), and the head
+// of a cascade section `t..m(...)` or `t..p` on the cascade's target (made
+// non-nullable in a null-aware cascade `t?..m()`). Null shorting
+// (`NullShortingMixin`): an access in a chain that a `?.` (or `?[`) starts
+// has the member's type while the chain continues (it is the receiver of
+// another access, an index, a call, an assignment target, type arguments or
+// `!`) and that type
+// made nullable where the chain ends (`finishNullShorting`). Not ported, so
+// left untyped: index and assignment sections of cascades, `super`, `this` where it is not known (see type_analyzer.rs),
 // static members and import
 // prefixes, `dynamic`, `Never`, invalid and void receivers, `call` of
 // functions, record fields, private names (a private field may be promoted
@@ -45,7 +53,7 @@ use crate::src::dart::element::inheritance_manager3::Member;
 use crate::src::dart::element::r#type::TypeImpl;
 use crate::src::dart::element::subtype::TypeSystem;
 use crate::src::dart::element::type_provider::TypeProviderImpl;
-use crate::src::dart::element::type_system::{is_dynamic_bounded, is_invalid_bounded, resolve_to_bound, sdk_class};
+use crate::src::dart::element::type_system::{is_dynamic_bounded, is_invalid_bounded, promote_to_non_null, resolve_to_bound, sdk_class};
 use crate::src::dart::resolver::extension_member_resolver::{ExtensionOverride, override_member, override_type_arguments};
 use crate::src::dart::resolver::type_property_resolver::{ExtensionScope, PropertyLookup, resolve};
 use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId};
@@ -75,6 +83,9 @@ struct Access {
     /// For an implicit `this` access, the `ParsedUnqualifiedName` of its
     /// name; `NO_NODE` otherwise.
     implicit: NodeId,
+    /// For the head of a cascade section, the `CascadeExpression` (whose
+    /// target is [receiver]); `NO_NODE` otherwise.
+    cascade: NodeId,
 }
 
 /// An unqualified name that is an implicit `this` access: the type of `this`
@@ -96,6 +107,35 @@ pub struct ImplicitThis {
 /// read.
 fn member_access(ast: Ast<'_>, node: NodeId) -> Option<Access> {
     match ast.node(node) {
+        // The head of a cascade section: `..m(...)` is a `ParsedValueArguments`
+        // whose operand is a `ParsedCascadeName`, `..p` a
+        // `CascadePropertyExtraction`.
+        AstNodeImpl::ParsedValueArgumentsImpl(v) if matches!(ast.node(v.operand), AstNodeImpl::ParsedCascadeNameImpl(_)) => {
+            let (cascade, operator) = cascade_of(ast, node);
+            Some(Access {
+                kind: MemberAccessKind::Invocation,
+                receiver: ast.node(cascade).as_cascade_expression_impl().target2,
+                operator,
+                name: ast.node(v.operand).as_parsed_cascade_name_impl().name,
+                argument_list: v.argument_list,
+                name_access: v.operand,
+                implicit: NO_NODE,
+                cascade,
+            })
+        }
+        AstNodeImpl::CascadePropertyExtractionImpl(c) => {
+            let (cascade, operator) = cascade_of(ast, node);
+            Some(Access {
+                kind: MemberAccessKind::Property,
+                receiver: ast.node(cascade).as_cascade_expression_impl().target2,
+                operator,
+                name: c.name,
+                argument_list: NO_NODE,
+                name_access: NO_NODE,
+                implicit: NO_NODE,
+                cascade,
+            })
+        }
         AstNodeImpl::ParsedValueArgumentsImpl(v) => match ast.node(v.operand) {
             AstNodeImpl::ParsedNameAccessImpl(n) => Some(Access {
                 kind: MemberAccessKind::Invocation,
@@ -105,6 +145,7 @@ fn member_access(ast: Ast<'_>, node: NodeId) -> Option<Access> {
                 argument_list: v.argument_list,
                 name_access: v.operand,
                 implicit: NO_NODE,
+            cascade: NO_NODE,
             }),
             _ => None,
         },
@@ -124,6 +165,7 @@ fn member_access(ast: Ast<'_>, node: NodeId) -> Option<Access> {
                 argument_list: NO_NODE,
                 name_access: NO_NODE,
                 implicit: NO_NODE,
+            cascade: NO_NODE,
             })
         }
         AstNodeImpl::ReceiverPropertyExtractionImpl(r) => Some(Access {
@@ -134,8 +176,70 @@ fn member_access(ast: Ast<'_>, node: NodeId) -> Option<Access> {
             argument_list: NO_NODE,
             name_access: NO_NODE,
             implicit: NO_NODE,
+            cascade: NO_NODE,
         }),
         _ => None,
+    }
+}
+
+/// The `CascadeExpression` whose section [head] begins, and that section's
+/// `..` or `?..`.
+fn cascade_of(ast: Ast<'_>, head: NodeId) -> (NodeId, TokenId) {
+    let mut section = ast.parent2(head);
+    while !matches!(ast.node(section), AstNodeImpl::CascadeSectionImpl(_)) {
+        section = ast.parent2(section);
+    }
+    (ast.parent2(section), ast.node(section).as_cascade_section_impl().operator_)
+}
+
+/// Whether the cascade [cascade] is null aware: its first section begins
+/// with `?..` (`CascadeExpression.isNullAware`).
+fn is_null_aware_cascade(ast: Ast<'_>, cascade: NodeId) -> bool {
+    let sections = &ast.node(cascade).as_cascade_expression_impl().sections;
+    sections.first().is_some_and(|&section| {
+        ast.tokens.lexeme_string(ast.node(section).as_cascade_section_impl().operator_) == "?.."
+    })
+}
+
+/// Whether [node] is in a chain of null-aware accesses that a `?.` or `?[`
+/// starts: a null-aware access or index, or an access, index, call, type
+/// arguments or `!` whose operand is.
+fn is_shorted(ast: Ast<'_>, node: NodeId) -> bool {
+    match ast.node(node) {
+        AstNodeImpl::ParsedNameAccessImpl(n) => ast.tokens.lexeme_string(n.operator_) == "?." || is_shorted(ast, n.operand),
+        AstNodeImpl::ReceiverPropertyExtractionImpl(r) => {
+            ast.tokens.lexeme_string(r.operator_) == "?." || is_shorted(ast, r.receiver)
+        }
+        AstNodeImpl::ParsedValueArgumentsImpl(v) => is_shorted(ast, v.operand),
+        AstNodeImpl::ParsedTypeArgumentsImpl(t) => is_shorted(ast, t.operand),
+        AstNodeImpl::CallInvocationImpl(c) => is_shorted(ast, c.receiver),
+        AstNodeImpl::ReceiverIndexExpressionImpl(i) => i.question != NO_TOKEN || is_shorted(ast, i.receiver),
+        AstNodeImpl::NullAssertionExpressionImpl(n) => is_shorted(ast, n.operand),
+        _ => false,
+    }
+}
+
+/// Whether null shorting continues past [node]: it is the receiver (not
+/// parenthesized) of an access, an index, a call or an assignment target,
+/// the operand of type or value arguments, or the operand of `!`
+/// (`continueNullShorting`).
+fn continues_null_shorting(ast: Ast<'_>, node: NodeId) -> bool {
+    let parent = ast.parent2(node);
+    if parent == NO_NODE {
+        return false;
+    }
+    match ast.node(parent) {
+        AstNodeImpl::ParsedNameAccessImpl(n) => n.operand == node,
+        AstNodeImpl::ReceiverPropertyExtractionImpl(r) => r.receiver == node,
+        AstNodeImpl::ParsedValueArgumentsImpl(v) => v.operand == node,
+        AstNodeImpl::ParsedTypeArgumentsImpl(t) => t.operand == node,
+        AstNodeImpl::CallInvocationImpl(c) => c.receiver == node,
+        AstNodeImpl::ReceiverIndexExpressionImpl(i) => i.receiver == node,
+        AstNodeImpl::NullAssertionExpressionImpl(n) => n.operand == node,
+        AstNodeImpl::ParsedNameAccessAssignmentTargetImpl(t) => t.operand == node,
+        AstNodeImpl::ReceiverIndexAssignmentTargetImpl(t) => t.receiver == node,
+        AstNodeImpl::ReceiverPropertyAssignmentTargetImpl(t) => t.receiver == node,
+        _ => false,
     }
 }
 
@@ -181,7 +285,12 @@ impl MemberResolver<'_> {
             }
         }
         if let Some(access) = member_access(ast, node).or_else(|| self.implicit_access(ast, node)) {
-            if let Some(type_) = self.type_access(ast, &access) {
+            if let Some(mut type_) = self.type_access(ast, &access) {
+                // `finishNullShorting`: where a null-shorting chain ends, the
+                // access is nullable.
+                if is_shorted(ast, node) && !continues_null_shorting(ast, node) {
+                    type_ = type_.with_nullability(self.store, NullabilitySuffix::question);
+                }
                 self.static_types.insert(node, type_);
                 self.accesses.insert(node, access.kind);
             }
@@ -201,6 +310,7 @@ impl MemberResolver<'_> {
                 argument_list: v.argument_list,
                 name_access: v.operand,
                 implicit: v.operand,
+                cascade: NO_NODE,
             }),
             AstNodeImpl::ParsedUnqualifiedNameImpl(n) if self.implicit_this.contains_key(&node) => {
                 let parent = ast.parent2(node);
@@ -217,6 +327,7 @@ impl MemberResolver<'_> {
                     argument_list: NO_NODE,
                     name_access: NO_NODE,
                     implicit: node,
+                    cascade: NO_NODE,
                 })
             }
             _ => None,
@@ -246,7 +357,22 @@ impl MemberResolver<'_> {
     /// The type of [access], typing the integer literal arguments of an
     /// invocation; `None` when it is not resolved as far as this port goes.
     fn type_access(&mut self, ast: Ast<'_>, access: &Access) -> Option<TypeImpl> {
-        if access.implicit == NO_NODE && ast.tokens.lexeme_string(access.operator) != "." {
+        // An implicit `this` access has no operator.
+        let operator = if access.operator == NO_TOKEN { String::new() } else { ast.tokens.lexeme_string(access.operator) };
+        let null_aware = if access.cascade != NO_NODE {
+            if operator != ".." && operator != "?.." {
+                return None;
+            }
+            is_null_aware_cascade(ast, access.cascade)
+        } else {
+            if access.implicit == NO_NODE && operator != "." && operator != "?." {
+                return None;
+            }
+            operator == "?."
+        };
+        // An extension override is not a cascade target: upstream reports it
+        // (`extensionOverrideWithCascade`) and resolves no section on it.
+        if access.cascade != NO_NODE && self.overrides.contains_key(&access.receiver) {
             return None;
         }
         let name = ast.tokens.lexeme_string(access.name);
@@ -299,7 +425,18 @@ impl MemberResolver<'_> {
                 (member, None)
             }
             (None, None) => {
-                let receiver_type = self.receiver_type(ast, access.receiver)?;
+                // An integer literal cascade target has the cascade's
+                // context (`double d = 1..m()` makes it a `double`), which
+                // this port does not give it.
+                if access.cascade != NO_NODE
+                    && matches!(ast.node(un_parenthesized(ast, access.receiver)), AstNodeImpl::IntegerLiteralImpl(_))
+                {
+                    return None;
+                }
+                let mut receiver_type = self.receiver_type(ast, access.receiver)?;
+                if null_aware {
+                    receiver_type = promote_to_non_null(self.store, &receiver_type);
+                }
                 if !self.is_member_receiver(&receiver_type) {
                     return None;
                 }

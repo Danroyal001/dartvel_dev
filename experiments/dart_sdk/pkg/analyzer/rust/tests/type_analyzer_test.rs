@@ -1530,3 +1530,121 @@ fn locate(code: &str, source: &str) -> (i32, i32) {
         _ => (start as i32, whole.len() as i32),
     }
 }
+
+/// The head of a cascade section, a read `..p`.
+fn cascade_read(source: &'static str) -> (&'static str, &'static str) {
+    ("CascadePropertyExtractionImpl", source)
+}
+
+/// `r?.m(...)` and `r?.p` look the member up on the receiver's type made
+/// non-nullable. Null shorting makes the access that ends a chain nullable:
+/// in `h.b?.c().d` the inner `h.b?.c()` is a `B`, and the whole is an
+/// `int?`; the receiver of an assignment target continues the chain, while
+/// parentheses, an argument, a variable's initializer and a cascade
+/// target end the chain. An access on a non-nullable receiver is still
+/// nullable (`h.s?.length`). (Receivers are member accesses: a variable read
+/// before `?.` may be promoted, which this port does not do.)
+#[test]
+fn null_aware_accesses_are_nullable_where_their_chain_ends() {
+    let code = "class B { int get size => 0; B c() => this; B? n; String d(int p) => ''; }\n\
+        class H { B? b; String s = ''; void f2() { b?.size; } }\n\
+        f(H h) {\n\
+          h.b?.size; h.b?.c(); h.b?.d(1); h.b?.d; h.s?.length; h.b?.hashCode;\n\
+          h.b?.c().size; h.b?.n?.size; (h.b?.c()).hashCode; int? v = h.b?.c().c().size; h.b?.c()..size; h.b?.c().n = null;\n\
+        }";
+    assert_eq!(
+        member_types(
+            "null_aware",
+            code,
+            &[
+                property("h.b?.size"),
+                call("h.b?.c()"),
+                call("h.b?.d(1)"),
+                integer("h.b?.d(‹1›)"),
+                property("‹h.b?.d›;"),
+                property("h.s?.length"),
+                property("h.b?.hashCode"),
+                property("h.b?.c().size"),
+                call("‹h.b?.c()›.size"),
+                property("h.b?.n?.size"),
+                property("‹h.b?.n›?.size"),
+                extraction("(h.b?.c()).hashCode"),
+                call("(‹h.b?.c()›).hashCode"),
+                property("h.b?.c().c().size"),
+                call("‹h.b?.c().c()›.size"),
+                call("‹h.b?.c()›..size"),
+                name("‹b›?.size; } }"),
+                property("‹b?.size›; } }"),
+                call("‹h.b?.c()›.n = null"),
+            ],
+        ),
+        [
+            "int?", "B?", "String?", "int", "String Function(int)?", "int?", "int?", "int?", "B", "int?", "B?", "int",
+            "B?", "int?", "B", "B?", "B?", "int?", "B"
+        ]
+    );
+}
+
+/// The heads of cascade sections `t..m(...)` and `t..p` are member accesses
+/// on the cascade's target, as are accesses chained on them (`t..c().size`);
+/// a null-aware cascade `t?..m()` looks them up on the target made
+/// non-nullable. A section's value is discarded, so nothing in it is
+/// nullable unless the section itself shorts (`t..n?.size`).
+#[test]
+fn cascade_sections_are_member_accesses_on_the_target() {
+    let code = "class B { int get size => 0; B c() => this; B? n; String d(int p) => ''; void clear() {} }\n\
+        class H { B? b; }\n\
+        f(B t, H h, String s) {\n\
+          t..clear()..size; t..d(2); t..c().size; t..n?.size; h.b?..clear()..size; s..length;\n\
+        }";
+    assert_eq!(
+        member_types(
+            "cascades",
+            code,
+            &[
+                call("t..‹clear()›..size"),
+                cascade_read("t..clear()..‹size›"),
+                call("t..‹d(2)›"),
+                integer("t..d(‹2›)"),
+                property("t..‹c().size›"),
+                call("t..‹c()›.size"),
+                property("t..‹n?.size›"),
+                cascade_read("t..‹n›?.size"),
+                call("h.b?..‹clear()›..size"),
+                cascade_read("h.b?..clear()..‹size›"),
+                cascade_read("s..‹length›"),
+            ],
+        ),
+        ["void", "int", "String", "int", "int", "B", "int?", "B?", "void", "int", "int"]
+    );
+}
+
+/// The silent failure: null-aware and cascaded accesses the port does not
+/// resolve stay untyped: a `?.` on a variable read (flow analysis may promote
+/// it), private, generic and implicitly typed members, explicit type
+/// arguments, a cascade on an untyped target, a cascade on an integer
+/// literal (whose context is the cascade's: `double` here), and a null-aware
+/// index.
+#[test]
+fn null_aware_and_cascade_resolution_does_not_reach_is_left_untyped() {
+    let code = "class B { int _p = 0; T g<T>(T t) => t; var inferred = 1; int get size => 0; void clear() {} }\n\
+        class H { B? b; List<int>? l; }\n\
+        f(H h, B? v) {\n\
+          v?.size; h.b?._p; h.b?.g(1); h.b?.g<int>(2); h.b?.inferred; B()..clear(); h.l?[0]; double d = 1..hashCode;\n\
+        }";
+    assert_eq!(
+        member_types(
+            "null_aware_untyped",
+            code,
+            &[
+                property("v?.size"),
+                property("h.b?._p"),
+                call("h.b?.g(1)"),
+                property("h.b?.inferred"),
+                call("B()..‹clear()›"),
+                cascade_read("1..‹hashCode›"),
+            ],
+        ),
+        ["-", "-", "-", "-", "-", "-"]
+    );
+}

@@ -10,6 +10,7 @@ use analyzer::src::dart::element::element::ElementStore;
 use analyzer::src::dart::element::r#type::TypeImpl;
 use analyzer::src::dart::element::type_provider::TypeProviderImpl;
 use analyzer::src::dart::resolver::method_invocation_resolver::MemberAccessKind;
+use fe_analyzer_shared::scanner::token::NO_TOKEN;
 use analyzer::src::dart::resolver::type_analyzer::{
     Declarations, TypeAnalyzer, VariableRead, is_context_independent_literal, is_declared_context_integer,
 };
@@ -169,7 +170,7 @@ fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Select
         member_spans: analyzer
             .member_accesses
             .iter()
-            .map(|(&node, &kind)| ((ast.offset(node), ast.length(node)), (kind, node)))
+            .map(|(&node, &kind)| (v1_span(ast, node), (kind, node)))
             .collect(),
         member_nodes: analyzer.member_accesses.keys().copied().collect(),
         member_arguments: analyzer.member_arguments,
@@ -234,16 +235,23 @@ impl Dumper<'_> {
         let AstNodeImpl::MethodInvocationImpl(invocation) = ast.node(node) else {
             return;
         };
-        if invocation.target2 == NO_NODE {
+        // `..g()` of a getter in a cascade section: the read begins at the
+        // section's `..` or `?..`, which is the invocation's operator.
+        let cascaded = invocation.target2 == NO_NODE
+            && invocation.operator_ != NO_TOKEN
+            && matches!(ast.tokens.lexeme_string(invocation.operator_).as_str(), ".." | "?..");
+        if invocation.target2 == NO_NODE && !cascaded {
             return;
         }
-        let offset = ast.offset(invocation.target2);
+        let offset = if cascaded { ast.tokens.offset(invocation.operator_) } else { ast.offset(invocation.target2) };
         let length = ast.end(invocation.method_name) - offset;
         let Some(&(MemberAccessKind::Property, access)) = analyzer.member_spans.get(&(offset, length)) else {
             return;
         };
-        let runtime_type = match ast.node(invocation.target2) {
-            AstNodeImpl::SimpleIdentifierImpl(_) if !self.has_record_receiver(ast, access, analyzer) => "PrefixedIdentifierImpl",
+        let runtime_type = match (cascaded, ast.node(invocation.target2)) {
+            (false, AstNodeImpl::SimpleIdentifierImpl(_)) if !self.has_record_receiver(ast, access, analyzer) => {
+                "PrefixedIdentifierImpl"
+            }
             _ => "PropertyAccessImpl",
         };
         let type_ = analyzer
@@ -362,6 +370,25 @@ impl Dumper<'_> {
             }
         }
     }
+}
+
+/// The offset and length of the V1 projection of the canonical node [node]:
+/// a node that begins a cascade section's body (a cascade head, or an access
+/// chained on one) projects to a V1 node that begins at the section's `..`
+/// or `?..`.
+fn v1_span(ast: Ast<'_>, node: NodeId) -> (i32, i32) {
+    let mut offset = ast.offset(node);
+    let mut ancestor = ast.parent2(node);
+    while ancestor != NO_NODE {
+        if let AstNodeImpl::CascadeSectionImpl(section) = ast.node(ancestor) {
+            if ast.offset(section.body) == offset {
+                offset = ast.tokens.offset(section.operator_);
+            }
+            break;
+        }
+        ancestor = ast.parent2(ancestor);
+    }
+    (offset, ast.end(node) - offset)
 }
 
 /// The parsed name the `methodName` [node] of an unqualified call `f()` was
