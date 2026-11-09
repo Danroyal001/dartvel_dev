@@ -325,14 +325,14 @@ fn types_in_library_with_files(
     queries
         .iter()
         .map(|&(kind, source)| {
-            let offset = code.find(source).unwrap_or_else(|| panic!("no {source:?}")) as i32;
+            let (offset, length) = locate(code, source);
             let node = all
                 .iter()
                 .copied()
                 .find(|&id| {
                     ast.node(id).runtime_type() == kind
                         && ast.offset(id) == offset
-                        && ast.length(id) == source.len() as i32
+                        && ast.length(id) == length
                 })
                 .unwrap_or_else(|| {
                     let found: Vec<_> = all
@@ -1367,4 +1367,166 @@ fn accessible_extensions_come_from_the_library_and_its_imports() {
         ),
         ["int", "-", "bool", "-", "double", "bool", "bool", "int"]
     );
+}
+
+/// `this`.
+fn this_at(source: &'static str) -> (&'static str, &'static str) {
+    ("ThisExpressionImpl", source)
+}
+
+/// An unqualified read: an implicit `this` read when it finds no local or
+/// library declaration.
+fn name(source: &'static str) -> (&'static str, &'static str) {
+    ("ParsedUnqualifiedNameImpl", source)
+}
+
+/// In the body of an instance member `this` has the type of `this` of the
+/// enclosing class (its own type parameters as arguments), mixin, enum or
+/// extension type, or an extension's extended type; member accesses and
+/// operators on it resolve as on any receiver of that type.
+#[test]
+fn this_has_the_type_of_the_enclosing_declaration() {
+    let code = "class A { int a1 = 0; int m1(int x) => x; int operator +(int o) => 0; bool operator [](int i) => true;\n\
+          void f1() { this.a1; this.m1(1); this + 2; this[3]; } }\n\
+        class Box<T> { T get b1 => throw 0; void f2() { this.b1; } }\n\
+        mixin M { String get c1 => ''; void f3() { this.c1; } }\n\
+        enum E { x; void f4() { this.index; } }\n\
+        extension type V(int v1) { void f5() { this.v1; } }\n\
+        extension S on String { int get d1 => 0; void f6() { this.length; this.d1; } }\n\
+        extension L<T> on List<T> { void f7() { this.first; } }\n";
+    let core = format!("{EXTENSION_CORE}abstract class Enum {{ int get index; }}\n");
+    assert_eq!(
+        types_in_library_with_core(
+            "this_types",
+            &core,
+            code,
+            &[
+                extraction("this.a1"),
+                call("this.m1(1)"),
+                binary("this + 2"),
+                index("this[3]"),
+                this_at("‹this›.a1"),
+                this_at("‹this› + 2"),
+                extraction("this.b1"),
+                this_at("‹this›.b1"),
+                extraction("this.c1"),
+                extraction("this.index"),
+                this_at("‹this›.index"),
+                extraction("this.v1"),
+                this_at("‹this›.v1"),
+                extraction("this.length"),
+                extraction("this.d1"),
+                this_at("‹this›.length"),
+                extraction("this.first"),
+                this_at("‹this›.first"),
+            ],
+        ),
+        [
+            "int", "int", "int", "bool", "A", "A", "T", "Box<T>", "String", "int", "E", "int", "V", "int", "int",
+            "String", "T", "List<T>"
+        ]
+    );
+}
+
+/// An unqualified name that no local or library declaration hides is a
+/// member of `this` (`ThisLookup`): an inherited or declared method invoked
+/// or torn off, a getter or field read, a getter invoked (its read is typed,
+/// not the call), a member of an applicable extension, inside closures too;
+/// in an extension the extension's own members come first (`ExtensionScope`),
+/// then the extended type's. Integer arguments get the parameter's type as
+/// their context.
+#[test]
+fn implicit_this_accesses_resolve_on_the_type_of_this() {
+    let code = "class Base { int inherited(int x) => x; }\n\
+        class A extends Base { void f1() { ratio; size; describe(1); describe; inherited(2); adder(3); size.isEven; () => hashCode; }\n\
+          double ratio = 0; int Function(int) adder = g; int get size => 0; String describe(double p) => ''; }\n\
+        class Box<T> { void f2() { first; } T get first => throw 0; }\n\
+        class IntBox extends Box<int> { void f3() { first; } }\n\
+        int g(int x) => x;\n\
+        extension S on String { void f4() { length; d1; twice(); shout; } int get d1 => 0; String twice() => this; }\n\
+        extension Loud on String { String get shout => this; }\n";
+    assert_eq!(
+        extension_types(
+            "implicit_this",
+            code,
+            &[
+                name("ratio"),
+                name("size"),
+                call("describe(1)"),
+                integer("describe(‹1›)"),
+                name("{ ratio; size; describe(1); ‹describe›;"),
+                call("inherited(2)"),
+                name("adder"),
+                call("adder(3)"),
+                property("size.isEven"),
+                name("hashCode"),
+                name("f2() { ‹first›;"),
+                name("f3() { ‹first›;"),
+                name("length"),
+                name("d1"),
+                call("twice()"),
+                name("shout"),
+            ],
+        ),
+        [
+            "double", "int", "String", "double", "String Function(double)", "int", "int Function(int)", "-", "bool",
+            "int", "T", "int", "int", "int", "String", "String"
+        ]
+    );
+}
+
+/// The silent failure: `this` and implicit `this` where upstream's type is
+/// not the enclosing declaration's, or comes from what is not ported, stay
+/// untyped: static members and initializers (`this` is not accessible),
+/// members where flow analysis may promote `this`, names a local, a
+/// parameter or a top-level declaration hides, private and static members,
+/// generic methods, implicit member types, a receiver of type `dynamic`, and
+/// numeric refinement of `remainder`.
+#[test]
+fn this_resolution_does_not_reach_is_left_untyped() {
+    let code = "int top() => 0;\n\
+        class A { static int st1() => sz1; int sz1 = 0; int sz2 = 0; late int lt = sz2; int _p = 0; T gen<T>(T t) => t;\n\
+          get imp => 1; int i1 = 0;\n\
+          A() : i1 = 0;\n\
+          void promoted() { if (this is Object) { sz1; } }\n\
+          void hidden(sz1) { sz1; top(); _p; gen(1); imp; }\n\
+          static void st2() { st1(); } }\n\
+        extension D on dynamic { int get one => 1; void f() { one; } }\n\
+        extension I on int { void f2() { remainder(2); } }\n";
+    assert_eq!(
+        extension_types(
+            "this_untyped",
+            code,
+            &[
+                name("=> ‹sz1›;"),
+                name("lt = ‹sz2›"),
+                name("{ if (this is Object) { ‹sz1›;"),
+                name("(sz1) { ‹sz1›;"),
+                call("{ sz1; ‹top()›"),
+                name("top(); ‹_p›;"),
+                call("gen(1)"),
+                name("gen(1); ‹imp›;"),
+                call("{ ‹st1()›;"),
+                name("{ ‹one›;"),
+                call("remainder(2)"),
+            ],
+        ),
+        ["-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"]
+    );
+}
+
+/// The offset and length of the node [source] names in [code]: the first
+/// occurrence of [source], or, when it marks a part with `‹` and `›`, that
+/// part of the first occurrence of the whole without the marks.
+fn locate(code: &str, source: &str) -> (i32, i32) {
+    let whole: String = source.chars().filter(|&c| c != '‹' && c != '›').collect();
+    let start = code.find(&whole).unwrap_or_else(|| panic!("no {whole:?}"));
+    match (source.find('‹'), source.find('›')) {
+        (Some(open), Some(close)) => {
+            let prefix = source[..open].len();
+            let part = source[open + '‹'.len_utf8()..close].len();
+            ((start + prefix) as i32, part as i32)
+        }
+        _ => (start as i32, whole.len() as i32),
+    }
 }

@@ -18,8 +18,13 @@
 // `void` or `Never` (nor bounded by them), the name is not private, and the
 // member found has declared types: for an invocation a method that is not
 // generic, for a read a getter (a field's getter) or such a method; an
-// override's member is not static. Not ported, so left untyped: `?.`,
-// cascades, `super`, `this` and implicit `this`, static members and import
+// override's member is not static. An implicit `this` access `m(...)` or `p`
+// (an unqualified name type_analyzer.rs records as one: [ImplicitThis]) is
+// resolved on the type of `this`, or to the member of the enclosing extension
+// the lexical lookup found (`resolveUnqualified`, `ThisLookup`), by the same
+// rules. Not ported, so left untyped: `?.`,
+// cascades, `super`, `this` where it is not known (see type_analyzer.rs),
+// static members and import
 // prefixes, `dynamic`, `Never`, invalid and void receivers, `call` of
 // functions, record fields, private names (a private field may be promoted
 // by flow analysis, and a private name is looked up per library), generic
@@ -43,7 +48,7 @@ use crate::src::dart::element::type_provider::TypeProviderImpl;
 use crate::src::dart::element::type_system::{is_dynamic_bounded, is_invalid_bounded, resolve_to_bound, sdk_class};
 use crate::src::dart::resolver::extension_member_resolver::{ExtensionOverride, override_member, override_type_arguments};
 use crate::src::dart::resolver::type_property_resolver::{ExtensionScope, PropertyLookup, resolve};
-use fe_analyzer_shared::scanner::token::TokenId;
+use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId};
 
 /// What kind of member access a node is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,8 +69,22 @@ struct Access {
     name: TokenId,
     /// The argument list of an invocation; `NO_NODE` for a read.
     argument_list: NodeId,
-    /// The `ParsedNameAccess` an invocation invokes; `NO_NODE` for a read.
+    /// The `ParsedNameAccess` (or, implicitly on `this`, the
+    /// `ParsedUnqualifiedName`) an invocation invokes; `NO_NODE` for a read.
     name_access: NodeId,
+    /// For an implicit `this` access, the `ParsedUnqualifiedName` of its
+    /// name; `NO_NODE` otherwise.
+    implicit: NodeId,
+}
+
+/// An unqualified name that is an implicit `this` access: the type of `this`
+/// where it is written, and the instance member of the enclosing extension
+/// the lexical lookup found, if any (otherwise the member is looked up on
+/// the type of `this`).
+#[derive(Clone, Debug)]
+pub struct ImplicitThis {
+    pub this_type: TypeImpl,
+    pub lexical: Option<ElementId>,
 }
 
 /// [node] as a member access: an invocation `r.m(...)` without type
@@ -85,6 +104,7 @@ fn member_access(ast: Ast<'_>, node: NodeId) -> Option<Access> {
                 name: n.name,
                 argument_list: v.argument_list,
                 name_access: v.operand,
+                implicit: NO_NODE,
             }),
             _ => None,
         },
@@ -103,6 +123,7 @@ fn member_access(ast: Ast<'_>, node: NodeId) -> Option<Access> {
                 name: n.name,
                 argument_list: NO_NODE,
                 name_access: NO_NODE,
+                implicit: NO_NODE,
             })
         }
         AstNodeImpl::ReceiverPropertyExtractionImpl(r) => Some(Access {
@@ -112,6 +133,7 @@ fn member_access(ast: Ast<'_>, node: NodeId) -> Option<Access> {
             name: r.name,
             argument_list: NO_NODE,
             name_access: NO_NODE,
+            implicit: NO_NODE,
         }),
         _ => None,
     }
@@ -135,6 +157,8 @@ pub struct MemberResolver<'s> {
     pub extensions: &'s [ElementId],
     /// The explicit extension overrides of the file, by node.
     pub overrides: &'s HashMap<NodeId, ExtensionOverride>,
+    /// The implicit `this` accesses of the file, by name.
+    pub implicit_this: &'s HashMap<NodeId, ImplicitThis>,
     pub inference_using_bounds: bool,
 }
 
@@ -156,12 +180,57 @@ impl MemberResolver<'_> {
                 _ => (),
             }
         }
-        if let Some(access) = member_access(ast, node) {
+        if let Some(access) = member_access(ast, node).or_else(|| self.implicit_access(ast, node)) {
             if let Some(type_) = self.type_access(ast, &access) {
                 self.static_types.insert(node, type_);
                 self.accesses.insert(node, access.kind);
             }
         }
+    }
+
+    /// [node] as an implicit `this` access (an unqualified name the analyzer
+    /// recorded as one): an invocation `m(...)` without type arguments, or a
+    /// read `p` that is not invoked.
+    fn implicit_access(&self, ast: Ast<'_>, node: NodeId) -> Option<Access> {
+        match ast.node(node) {
+            AstNodeImpl::ParsedValueArgumentsImpl(v) if self.implicit_this.contains_key(&v.operand) => Some(Access {
+                kind: MemberAccessKind::Invocation,
+                receiver: NO_NODE,
+                operator: NO_TOKEN,
+                name: ast.node(v.operand).as_parsed_unqualified_name_impl().name,
+                argument_list: v.argument_list,
+                name_access: v.operand,
+                implicit: v.operand,
+            }),
+            AstNodeImpl::ParsedUnqualifiedNameImpl(n) if self.implicit_this.contains_key(&node) => {
+                let parent = ast.parent2(node);
+                if let AstNodeImpl::ParsedValueArgumentsImpl(v) = ast.node(parent) {
+                    if v.operand == node {
+                        return None;
+                    }
+                }
+                Some(Access {
+                    kind: MemberAccessKind::Property,
+                    receiver: NO_NODE,
+                    operator: NO_TOKEN,
+                    name: n.name,
+                    argument_list: NO_NODE,
+                    name_access: NO_NODE,
+                    implicit: node,
+                })
+            }
+            _ => None,
+        }
+    }
+
+    /// Whether a member access on a receiver of type [type_] is resolved by
+    /// member lookup here: not `dynamic`, invalid, `void` or `Never`, nor
+    /// bounded by them.
+    fn is_member_receiver(&mut self, type_: &TypeImpl) -> bool {
+        !(matches!(type_, TypeImpl::Never(_) | TypeImpl::Void)
+            || is_dynamic_bounded(self.store, type_)
+            || is_invalid_bounded(self.store, type_)
+            || matches!(resolve_to_bound(self.store, type_), TypeImpl::Never(_)))
     }
 
     /// The static type of a receiver: an integer literal has no context
@@ -177,7 +246,7 @@ impl MemberResolver<'_> {
     /// The type of [access], typing the integer literal arguments of an
     /// invocation; `None` when it is not resolved as far as this port goes.
     fn type_access(&mut self, ast: Ast<'_>, access: &Access) -> Option<TypeImpl> {
-        if ast.tokens.lexeme_string(access.operator) != "." {
+        if access.implicit == NO_NODE && ast.tokens.lexeme_string(access.operator) != "." {
             return None;
         }
         let name = ast.tokens.lexeme_string(access.name);
@@ -185,8 +254,32 @@ impl MemberResolver<'_> {
             return None;
         }
         // The member, and the receiver's type when it is an expression.
-        let (member, receiver_type) = match self.overrides.get(&access.receiver) {
-            Some(extension_override) => {
+        let implicit = self.implicit_this.get(&access.implicit).cloned();
+        let (member, receiver_type) = match (implicit, self.overrides.get(&access.receiver)) {
+            (Some(implicit), _) => {
+                // `resolveUnqualified` and `ThisLookup`: the member of the
+                // enclosing extension the lexical lookup found, else the
+                // member of the type of `this`.
+                let this_type = implicit.this_type;
+                if !self.is_member_receiver(&this_type) {
+                    return None;
+                }
+                let member = match implicit.lexical {
+                    Some(element) => Member { element, substitution: Default::default(), combined: None },
+                    None => {
+                        let scope = ExtensionScope { extensions: self.extensions, inference_using_bounds: self.inference_using_bounds };
+                        match resolve(&mut TypeSystem::new(self.store, &mut self.hierarchy), &scope, &this_type, &name) {
+                            PropertyLookup::Member(member) => member,
+                            _ => return None,
+                        }
+                    }
+                };
+                if self.store.fragment(self.store.element(member.element).first_fragment).is_static() {
+                    return None;
+                }
+                (member, Some(this_type))
+            }
+            (None, Some(extension_override)) => {
                 // `getOverrideMember`, with the type arguments
                 // `resolveOverride` gives the override; a static member is
                 // reported upstream.
@@ -205,13 +298,9 @@ impl MemberResolver<'_> {
                 }
                 (member, None)
             }
-            None => {
+            (None, None) => {
                 let receiver_type = self.receiver_type(ast, access.receiver)?;
-                if matches!(receiver_type, TypeImpl::Never(_) | TypeImpl::Void)
-                    || is_dynamic_bounded(self.store, &receiver_type)
-                    || is_invalid_bounded(self.store, &receiver_type)
-                    || matches!(resolve_to_bound(self.store, &receiver_type), TypeImpl::Never(_))
-                {
+                if !self.is_member_receiver(&receiver_type) {
                     return None;
                 }
                 let scope = ExtensionScope { extensions: self.extensions, inference_using_bounds: self.inference_using_bounds };

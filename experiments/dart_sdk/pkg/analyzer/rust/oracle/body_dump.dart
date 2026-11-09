@@ -25,6 +25,10 @@
 // the interface of its static type, `Object` (a receiver that may be null),
 // an applicable extension, or the extension an override `E(x)` names, with
 // the integer literals that are their arguments; see [MemberAccesses].
+// Both also take `this` as a receiver where it is known, and --members selects
+// implicit `this` accesses `m(...)` and `p` and the `this` receivers of
+// selected accesses, --user-operators the `this` operands of selected
+// invocations; see [ThisContexts].
 import 'dart:io';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/token.dart';
@@ -99,7 +103,8 @@ Future<void> main(List<String> args) async {
         : null;
     var invocations = userOperators || members
         ? (OperatorInvocations(
-            result.libraryElement.typeSystem as TypeSystemImpl, reads!)
+            result.libraryElement.typeSystem as TypeSystemImpl, reads!,
+            ThisContexts())
             ..collect(result.unit as AstNodeImpl))
         : null;
     var memberAccesses = members
@@ -433,6 +438,7 @@ bool _canPromote(AstNode read) {
 class OperatorInvocations extends UnifyingAstVisitor2<void> {
   final TypeSystemImpl typeSystem;
   final DeclaredVariableReads reads;
+  final ThisContexts thisContexts;
 
   /// `'$kind $offset+$length'` of each selected node; the kind is `invocation`,
   /// `integer` or `parentheses`.
@@ -440,7 +446,7 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
 
   final Map<AstNode, bool> _selectedInvocations = {};
 
-  new(this.typeSystem, this.reads);
+  new(this.typeSystem, this.reads, this.thisContexts);
 
   void collect(AstNodeImpl unit) => unit.accept2(this);
 
@@ -451,6 +457,7 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
         'invocation',
       IntegerLiteral() => 'integer',
       ParenthesizedExpression() => 'parentheses',
+      ThisExpression() => 'this',
       _ => null,
     };
     return kind != null &&
@@ -465,6 +472,9 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
     }
     if (node is IntegerLiteralImpl && _isSelectedOperand(node)) {
       selected.add('integer ${node.offset}+${node.length}');
+    }
+    if (node is ThisExpressionImpl && _isSelectedOperand(node)) {
+      selected.add('this ${node.offset}+${node.length}');
     }
     if (node is ParenthesizedExpressionImpl) {
       var inner = _unParenthesized(node);
@@ -503,10 +513,10 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
     _ => null,
   };
 
-  /// The parent of the integer literal [literal] past parentheses, when it is
-  /// a selected invocation.
-  bool _isSelectedOperand(IntegerLiteralImpl literal) {
-    AstNode? parent = literal.parent2;
+  /// Whether the parent of the integer literal or `this` [operand] past
+  /// parentheses is a selected invocation.
+  bool _isSelectedOperand(AstNode operand) {
+    AstNode? parent = operand.parent2;
     while (parent is ParenthesizedExpressionImpl) {
       parent = parent.parent2;
     }
@@ -529,6 +539,7 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
       IsExpressionImpl() || ThrowExpressionImpl() || RethrowExpressionImpl() ||
       LogicalAndImpl() || LogicalOrImpl() || LogicalNotImpl() => true,
       UnqualifiedNameExpressionImpl() => reads.selectedNodes.contains(node),
+      ThisExpressionImpl() => thisContexts.instanceOf(node) != null,
       IntegerLiteralImpl() => _hasKnownContext(node),
       _ => _isInvocation(node) && _isSelected(node),
     };
@@ -719,8 +730,11 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
   bool selects(AstNode node) {
     var kind = switch (node) {
       MethodInvocation() => 'invocation',
-      PrefixedIdentifier() || PropertyAccess() => 'property',
+      // An implicit `this` read projects a `SimpleIdentifier`.
+      PrefixedIdentifier() || PropertyAccess() || SimpleIdentifier() =>
+        'property',
       IntegerLiteral() => 'integer',
+      ThisExpression() => 'this',
       _ => null,
     };
     return kind != null &&
@@ -730,16 +744,38 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
   @override
   void visitNode(AstNode node) {
     if (node is CommentImpl) return;
-    if (node is ReceiverMethodInvocationImpl && _isSelected(node)) {
+    if ((node is ReceiverMethodInvocationImpl ||
+            node is UnqualifiedFunctionInvocationImpl) &&
+        _isSelected(node)) {
       selected.add('invocation ${node.offset}+${node.length}');
     }
-    if (node is ReceiverPropertyExtractionImpl && _isSelected(node)) {
+    if ((node is ReceiverPropertyExtractionImpl ||
+            node is UnqualifiedNameExpressionImpl) &&
+        _isSelected(node)) {
       selected.add('property ${node.offset}+${node.length}');
     }
     if (node is IntegerLiteralImpl && _isSelectedArgument(node)) {
       selected.add('integer ${node.offset}+${node.length}');
     }
+    if (node is ThisExpressionImpl && _isSelectedReceiver(node)) {
+      selected.add('this ${node.offset}+${node.length}');
+    }
     node.visitChildren2(this);
+  }
+
+  /// Whether [node] is the receiver, past parentheses, of a selected member
+  /// access.
+  bool _isSelectedReceiver(AstNode node) {
+    while (node.parent2 is ParenthesizedExpressionImpl) {
+      node = node.parent2!;
+    }
+    return switch (node.parent2) {
+      ReceiverMethodInvocationImpl access =>
+        identical(access.receiver, node) && _isSelected(access),
+      ReceiverPropertyExtractionImpl access =>
+        identical(access.receiver, node) && _isSelected(access),
+      _ => false,
+    };
   }
 
   bool _isKnown(AstNode node) {
@@ -755,8 +791,14 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
       }
     }
     if (node is ReceiverMethodInvocationImpl ||
-        node is ReceiverPropertyExtractionImpl) {
+        node is ReceiverPropertyExtractionImpl ||
+        node is UnqualifiedFunctionInvocationImpl) {
       return _isSelected(node);
+    }
+    // A read of a declared variable is known to the operators; an implicit
+    // `this` read is a member access.
+    if (node is UnqualifiedNameExpressionImpl && _isSelected(node)) {
+      return true;
     }
     return operators._isKnown(node);
   }
@@ -770,13 +812,33 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
         (receiver, operator, name),
       ReceiverPropertyExtractionImpl(:var receiver, :var operator, :var name) =>
         (receiver, operator, name),
+      // An implicit `this` access: no receiver, the type of `this`.
+      UnqualifiedFunctionInvocationImpl(:var name) ||
+      UnqualifiedNameExpressionImpl(:var name) => (null, null, name),
       _ => throw StateError('not a member access'),
     };
-    if (operator.type != TokenType.PERIOD || name.lexeme.startsWith('_')) {
+    if ((operator != null && operator.type != TokenType.PERIOD) ||
+        name.lexeme.startsWith('_')) {
       return false;
     }
     TypeImpl? type;
-    if (receiver is ExtensionOverride2Impl) {
+    if (receiver == null) {
+      // An annotation's name has no static type; a read with type
+      // arguments is an instantiation the port does not type.
+      if (access.parent2 is AnnotationImpl ||
+          access.parent2 is FunctionInstantiationImpl) {
+        return false;
+      }
+      var instance = operators.thisContexts.instanceOf(access);
+      if (instance == null) return false;
+      type = instance.thisType as TypeImpl;
+      if (type is VoidType ||
+          typeSystem.resolveToBound(type) is NeverType ||
+          typeSystem.isDynamicBounded(type) ||
+          typeSystem.isInvalidBounded(type)) {
+        return false;
+      }
+    } else if (receiver is ExtensionOverride2Impl) {
       if (!OperatorInvocations._isKnownOverride(receiver, _isKnown)) {
         return false;
       }
@@ -809,9 +871,10 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
       return enclosing is InterfaceElement;
     }
     switch (access) {
-      case ReceiverMethodInvocationImpl(:var typeArguments):
+      case ReceiverMethodInvocationImpl(:var typeArguments) ||
+          UnqualifiedFunctionInvocationImpl(:var typeArguments):
         if (typeArguments != null) return false;
-        var element = _invokedMethod(access);
+        var element = _invokedMethod(access as FunctionInvocationImpl);
         if (element == null || !isFound(element)) return false;
         if (element is! MethodElement ||
             !_isDeclaredMethod(element as MethodElement)) {
@@ -824,7 +887,12 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
             element.enclosingElement is! ExtensionElement &&
             const {'remainder', 'clamp'}.contains(element.name) &&
             typeSystem.isSubtypeOf(type, numQuestion));
-      case ReceiverPropertyExtractionImpl(:var resolution):
+      case ReceiverPropertyExtractionImpl() || UnqualifiedNameExpressionImpl():
+        var resolution = switch (access) {
+          ReceiverPropertyExtractionImpl(:var resolution) => resolution,
+          UnqualifiedNameExpressionImpl(:var resolution) => resolution,
+          _ => null,
+        };
         return switch (resolution) {
           GetterInvocationResolutionImpl(:var element) =>
             isFound(element) &&
@@ -845,8 +913,7 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
   /// of its recovery when the invocation's type is invalid (an invalid
   /// return type makes the resolution invalid, with the valid resolution as
   /// the recovery).
-  static ExecutableElement? _invokedMethod(
-      ReceiverMethodInvocationImpl invocation) {
+  static ExecutableElement? _invokedMethod(FunctionInvocationImpl invocation) {
     return switch (invocation.resolution) {
       ExecutableInvocationResolutionImpl(:var element) => element,
       InvalidInvocationResolutionImpl(
@@ -879,11 +946,12 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
     }
     if (parent is! ArgumentListImpl) return false;
     var invocation = parent.parent2;
-    if (invocation is! ReceiverMethodInvocationImpl ||
-        !_isSelected(invocation)) {
+    if ((invocation is! ReceiverMethodInvocationImpl &&
+            invocation is! UnqualifiedFunctionInvocationImpl) ||
+        !_isSelected(invocation!)) {
       return false;
     }
-    var element = _invokedMethod(invocation)!;
+    var element = _invokedMethod(invocation as FunctionInvocationImpl)!;
     var parameters = element.formalParameters;
     if (name != null) {
       return parameters.any(
@@ -895,5 +963,87 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
         .indexWhere((each) => identical(each, argument));
     return index <
         parameters.where((parameter) => parameter.isPositional).length;
+  }
+}
+
+/// Where `this` is known, read on the resolved V2 tree.
+///
+/// `this` (explicit, or the implicit receiver of an unqualified member
+/// access) is known inside the body of an instance method, getter, setter or
+/// operator, of a generative constructor or of a primary constructor's body,
+/// with the type of `this` of the enclosing class, mixin, enum, extension
+/// type or extension (an extension's extended type). Field initializers,
+/// constructor initializers, default values, metadata, factories and static
+/// members are left out. Flow analysis may promote `this`, so a member is
+/// left out entirely when any `this` in its body is in a position that can
+/// promote it ([_canPromote], as for a variable read).
+class ThisContexts {
+  final Map<AstNode, bool> _promotes = {};
+
+  /// The instance element whose `this` [node] reads, or `null` when `this`
+  /// is not known there.
+  InstanceElement? instanceOf(AstNode node) {
+    AstNode child = node;
+    var parent = node.parent2;
+    while (parent != null) {
+      AstNode? body;
+      var member = true;
+      switch (parent) {
+        case MethodDeclaration2Impl(:var staticKeyword, body: var b):
+          body = staticKeyword == null ? b : null;
+        case GetterDeclarationImpl(:var staticKeyword, body: var b):
+          body = staticKeyword == null ? b : null;
+        case SetterDeclarationImpl(:var staticKeyword, body: var b):
+          body = staticKeyword == null ? b : null;
+        case OperatorDeclarationImpl(body: var b):
+          body = b;
+        case ConstructorDeclaration2Impl(:var factoryKeyword, body: var b):
+          body = factoryKeyword == null ? b : null;
+        case PrimaryConstructorBody2Impl(body: var b):
+          body = b;
+        default:
+          member = false;
+      }
+      if (member) {
+        if (body == null || !identical(child, body)) return null;
+        if (_promotes[parent] ??= _promotesThis(body)) return null;
+        AstNode? declaration = parent.parent2;
+        while (declaration != null) {
+          switch (declaration) {
+            case ClassDeclaration2Impl(:var declaredFragment?):
+              return declaredFragment.element;
+            case MixinDeclaration2Impl(:var declaredFragment?):
+              return declaredFragment.element;
+            case EnumDeclaration2Impl(:var declaredFragment?):
+              return declaredFragment.element;
+            case ExtensionTypeDeclaration2Impl(:var declaredFragment?):
+              return declaredFragment.element;
+            case ExtensionDeclaration2Impl(:var declaredFragment?):
+              return declaredFragment.element;
+          }
+          declaration = declaration.parent2;
+        }
+        return null;
+      }
+      child = parent;
+      parent = parent.parent2;
+    }
+    return null;
+  }
+
+  static bool _promotesThis(AstNode body) {
+    var finder = _PromotedThisFinder();
+    body.accept2(finder);
+    return finder.found;
+  }
+}
+
+class _PromotedThisFinder extends UnifyingAstVisitor2<void> {
+  bool found = false;
+
+  @override
+  void visitNode(AstNode node) {
+    if (node is ThisExpressionImpl && _canPromote(node)) found = true;
+    node.visitChildren2(this);
   }
 }

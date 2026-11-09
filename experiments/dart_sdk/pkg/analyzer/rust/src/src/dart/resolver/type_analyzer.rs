@@ -24,6 +24,11 @@
 // file (scope.rs) and the explicit extension overrides `E(x)`, which this
 // file recognizes where `_visitScopeInvocation` does (a call whose name
 // finds an extension).
+// ThisExpression has the type of `this` in the body of an instance member
+// ([member_body]), unless flow analysis may promote `this` there
+// ([promotes_this]); an unqualified name no local or library declaration
+// hides is recorded there as an implicit `this` access, which
+// method_invocation_resolver.rs types.
 // Flow state, diagnostics, rewrites, integer literals in other contexts
 // (inferred declarations, untyped calls), other identifiers, other
 // invocations and all other expression visitors remain unported. Types are stored beside the
@@ -35,7 +40,7 @@ use crate::src::dart::ast::ast::{
 };
 use crate::src::dart::ast::ast_store::{Ast, ChildValue, NO_NODE, NodeId};
 use crate::dart::element::nullability_suffix::NullabilitySuffix;
-use crate::src::dart::element::element::{ElementId, ElementKind, ElementStore, FragmentId, NO_ELEMENT, NO_LIBRARY, UnitId};
+use crate::src::dart::element::element::{ElementId, ElementKind, ElementStore, FragmentId, NO_ELEMENT, NO_FRAGMENT, NO_LIBRARY, UnitId};
 use crate::src::dart::element::r#type::{FormalParameter, FunctionTypeImpl, RecordTypeImpl, TypeImpl};
 use crate::src::dart::element::type_algebra::{Substitution, substitute};
 use crate::src::dart::element::type_system::is_non_nullable;
@@ -45,9 +50,10 @@ use std::rc::Rc;
 use crate::src::dart::element::scope::{ScopeElement, ScopeFeatures, ScopeId, Scopes};
 use crate::src::dart::element::type_provider::TypeProviderImpl;
 use crate::src::dart::element::class_hierarchy::ClassHierarchy;
+use crate::src::dart::resolver::applicable_extensions::extended_type;
 use crate::src::dart::resolver::binary_expression_resolver::OperatorResolver;
 use crate::src::dart::resolver::extension_member_resolver::ExtensionOverride;
-use crate::src::dart::resolver::method_invocation_resolver::{MemberAccessKind, MemberResolver};
+use crate::src::dart::resolver::method_invocation_resolver::{ImplicitThis, MemberAccessKind, MemberResolver};
 use crate::dart::analysis::features::Feature;
 use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId};
 use std::collections::{HashMap, HashSet};
@@ -139,6 +145,13 @@ pub struct TypeAnalyzer<'a> {
     overrides: HashMap<NodeId, ExtensionOverride>,
     /// Whether the unit's library has `inference-using-bounds`.
     inference_using_bounds: bool,
+    /// The type of `this` where it is known (see [TypeAnalyzer::this_type_in]).
+    this_type: Option<TypeImpl>,
+    /// The class, mixin, enum, extension type or extension being visited.
+    instance_element: Option<ElementId>,
+    /// The unqualified names that are implicit `this` accesses, by their
+    /// `ParsedUnqualifiedName`.
+    implicit_this: HashMap<NodeId, ImplicitThis>,
 }
 
 /// A name a local scope declares.
@@ -245,6 +258,9 @@ impl<'a> TypeAnalyzer<'a> {
             reads: Vec::new(),
             overrides: HashMap::new(),
             inference_using_bounds: true,
+            this_type: None,
+            instance_element: None,
+            implicit_this: HashMap::new(),
         }
     }
 
@@ -293,6 +309,7 @@ impl<'a> TypeAnalyzer<'a> {
             return;
         }
         let outer_scope = self.scope;
+        let outer_instance = self.instance_element;
         let outer_locals = self.locals.len();
         let body = self.enter_scopes(ast, node, features);
         if let AstNodeImpl::NamedTypeImpl(_)
@@ -315,6 +332,7 @@ impl<'a> TypeAnalyzer<'a> {
         }
         self.exit_scopes(ast, node);
         self.scope = outer_scope;
+        self.instance_element = outer_instance;
         self.locals.truncate(outer_locals);
         self.resolve_names(ast, node, features);
         let provider = self.type_provider;
@@ -363,6 +381,12 @@ impl<'a> TypeAnalyzer<'a> {
             AstNodeImpl::ThrowExpressionImpl(_) | AstNodeImpl::RethrowExpressionImpl(_) => {
                 provider.bottom_type.clone()
             }
+            // visitThisExpression: the unpromoted type of `this`, where it
+            // is known.
+            AstNodeImpl::ThisExpressionImpl(_) => match &self.this_type {
+                Some(type_) => type_.clone(),
+                None => return,
+            },
             // visitParenthesizedExpression: `node.expression2.typeOrThrow`.
             // Upstream always has that type; here it is known only when the
             // enclosed expression is one this file types.
@@ -467,7 +491,12 @@ impl<'a> TypeAnalyzer<'a> {
             let layer = self.define_local_elements(ast, &[child], features);
             self.locals.push(layer);
         }
+        let outer_this = self.this_type.clone();
+        if let Some(is_body) = member_body(ast, parent, child) {
+            self.this_type = if is_body { self.this_type_in(ast, child) } else { None };
+        }
         self.visit(ast, child, features);
+        self.this_type = outer_this;
         self.locals.truncate(mark);
     }
 
@@ -606,11 +635,16 @@ impl<'a> TypeAnalyzer<'a> {
             AstNodeImpl::ParsedUnqualifiedNameImpl(_)
                 if matches!(ast.node(ast.parent2(node)), AstNodeImpl::AnnotationImpl(_)) => {}
             AstNodeImpl::ParsedUnqualifiedNameImpl(n) => {
-                if let Some(BindingKind::Variable(id)) = self.lookup_binding(&ast.tokens.lexeme_string(n.name)) {
-                    self.reads.push((node, id));
-                    if can_promote(ast, node) {
-                        self.variables[id].promotable_read = true;
+                let name = ast.tokens.lexeme_string(n.name);
+                match self.lookup_binding(&name) {
+                    Some(BindingKind::Variable(id)) => {
+                        self.reads.push((node, id));
+                        if can_promote(ast, node) {
+                            self.variables[id].promotable_read = true;
+                        }
                     }
+                    Some(_) => (),
+                    None => self.record_implicit_this(ast, node, &name),
                 }
             }
             AstNodeImpl::UnqualifiedNameAssignmentTargetImpl(AstUnqualifiedNameAssignmentTarget { name })
@@ -691,6 +725,7 @@ impl<'a> TypeAnalyzer<'a> {
             arguments: &mut self.member_arguments,
             extensions: &extensions,
             overrides: &self.overrides,
+            implicit_this: &self.implicit_this,
             inference_using_bounds: self.inference_using_bounds,
         }
         .resolve(ast, node);
@@ -747,6 +782,90 @@ impl<'a> TypeAnalyzer<'a> {
             .collect();
         let scope = declarations.scopes.type_parameter_scope(store, scope, &type_parameters, features);
         self.scope = declarations.scopes.instance_scope(store, scope, element, instance);
+        self.instance_element = Some(element);
+    }
+
+    /// The type of `this` in [body], the body of an instance member (see
+    /// [member_body]): `thisType` of the enclosing declaration, the
+    /// interface type of a class, mixin, enum or extension type with its own
+    /// type parameters as arguments, or an extension's extended type. `None`
+    /// without the library, or when flow analysis may promote `this` in the
+    /// body ([promotes_this]), which leaves out `this` and every implicit
+    /// `this` access in it.
+    fn this_type_in(&self, ast: Ast<'_>, body: NodeId) -> Option<TypeImpl> {
+        let declarations = self.declarations.as_ref()?;
+        let element = self.instance_element?;
+        if promotes_this(ast, body) {
+            return None;
+        }
+        let store = &*declarations.store;
+        match store.element(element).kind {
+            ElementKind::EXTENSION => Some(extended_type(store, element)),
+            ElementKind::CLASS | ElementKind::MIXIN | ElementKind::ENUM | ElementKind::EXTENSION_TYPE => {
+                let arguments = store
+                    .fragment(store.element(element).first_fragment)
+                    .type_parameters
+                    .iter()
+                    .map(|&f| TypeImpl::type_parameter(store.fragment(f).element, NullabilitySuffix::none))
+                    .collect();
+                Some(TypeImpl::interface(element, arguments, NullabilitySuffix::none))
+            }
+            _ => None,
+        }
+    }
+
+    /// Records the unqualified name [node] (no local declares [name]) as an
+    /// implicit `this` access where `this` is known: when the lexical lookup
+    /// finds nothing (an instance member of an enclosing class yields
+    /// nothing, `InstanceScope.lookup`), it is a member of the type of
+    /// `this` (`ThisLookup`); when it finds an instance member of the
+    /// enclosing extension (`ExtensionScope`), it is that member. A read
+    /// past an instance setter of the extension is also looked up on `this`
+    /// (`LexicalLookup.resolveGetter`), but an invocation is not
+    /// (`resolveUnqualified`: such a setter ends the lookup). A name with
+    /// type arguments is an instantiation, which is not ported.
+    fn record_implicit_this(&mut self, ast: Ast<'_>, node: NodeId, name: &str) {
+        let Some(this_type) = self.this_type.clone() else {
+            return;
+        };
+        let Some(declarations) = self.declarations.as_ref() else {
+            return;
+        };
+        let parent = ast.parent2(node);
+        let invoked = match ast.node(parent) {
+            AstNodeImpl::ParsedValueArgumentsImpl(v) => v.operand == node,
+            AstNodeImpl::ParsedTypeArgumentsImpl(t) if t.operand == node => return,
+            _ => false,
+        };
+        let store = &*declarations.store;
+        let result = declarations.scopes.lookup(store, self.scope, name);
+        let extension_instance_member = |found: &Option<ScopeElement>| match found {
+            Some(ScopeElement::Element(e))
+                if matches!(store.element(*e).kind, ElementKind::METHOD | ElementKind::GETTER | ElementKind::SETTER) =>
+            {
+                let fragment = store.fragment(store.element(*e).first_fragment);
+                if fragment.enclosing_fragment == NO_FRAGMENT {
+                    return None;
+                }
+                let enclosing = store.fragment(fragment.enclosing_fragment).element;
+                (!fragment.is_static() && store.element(enclosing).kind == ElementKind::EXTENSION).then_some(*e)
+            }
+            _ => None,
+        };
+        let lexical = match (&result.getter, &result.setter) {
+            (None, None) => None,
+            (Some(_), _) => match extension_instance_member(&result.getter) {
+                Some(member) => Some(member),
+                None => return,
+            },
+            (None, Some(_)) => {
+                if invoked || extension_instance_member(&result.setter).is_none() {
+                    return;
+                }
+                None
+            }
+        };
+        self.implicit_this.insert(node, ImplicitThis { this_type, lexical });
     }
 
     /// `_defineLocalElements`: the local functions, variables and pattern
@@ -1679,4 +1798,38 @@ pub fn future_value_type(store: &ElementStore, declared: &TypeImpl) -> TypeImpl 
         }
         _ => object_type(store, NullabilitySuffix::question),
     }
+}
+
+/// Whether [child] of [parent] is the body of an instance member, where
+/// `this` is known: `Some(true)` for the body of an instance method, getter,
+/// setter or operator, of a generative constructor or of a primary
+/// constructor's body; `Some(false)` for any other child of such a member,
+/// or any child of a static member or a factory (initializers, defaults,
+/// metadata); `None` when [parent] is not a member. Field initializers are
+/// not member bodies, so `this` is not known there.
+fn member_body(ast: Ast<'_>, parent: NodeId, child: NodeId) -> Option<bool> {
+    Some(match ast.node(parent) {
+        AstNodeImpl::MethodDeclaration2Impl(d) => d.static_keyword == NO_TOKEN && d.body == child,
+        AstNodeImpl::GetterDeclarationImpl(d) => d.static_keyword == NO_TOKEN && d.body == child,
+        AstNodeImpl::SetterDeclarationImpl(d) => d.static_keyword == NO_TOKEN && d.body == child,
+        AstNodeImpl::OperatorDeclarationImpl(d) => d.body == child,
+        AstNodeImpl::ConstructorDeclaration2Impl(d) => d.factory_keyword == NO_TOKEN && d.body == child,
+        AstNodeImpl::PrimaryConstructorBody2Impl(b) => b.body == child,
+        _ => return None,
+    })
+}
+
+/// Whether flow analysis may promote `this` in [body]: a `this` in it is in
+/// a position that can promote it, as for a variable read ([can_promote]).
+fn promotes_this(ast: Ast<'_>, body: NodeId) -> bool {
+    if let AstNodeImpl::ThisExpressionImpl(_) = ast.node(body) {
+        if can_promote(ast, body) {
+            return true;
+        }
+    }
+    ast.named_child_entities2(body).into_iter().any(|child| match child.value {
+        ChildValue::Node(id) => promotes_this(ast, id),
+        ChildValue::NodeList(ids) => ids.iter().any(|&id| promotes_this(ast, id)),
+        _ => false,
+    })
 }

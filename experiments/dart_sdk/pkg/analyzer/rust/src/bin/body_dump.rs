@@ -171,6 +171,7 @@ fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Select
             .iter()
             .map(|(&node, &kind)| ((ast.offset(node), ast.length(node)), (kind, node)))
             .collect(),
+        member_nodes: analyzer.member_accesses.keys().copied().collect(),
         member_arguments: analyzer.member_arguments,
     };
     let mut dump = String::new();
@@ -211,6 +212,8 @@ struct Results {
     /// projections find them: the projection of `a.f().g()` gives the inner
     /// invocation the whole chain as its origin.
     member_spans: HashMap<(i32, i32), (MemberAccessKind, NodeId)>,
+    /// The member accesses by their canonical nodes.
+    member_nodes: HashSet<NodeId>,
     member_arguments: HashSet<NodeId>,
 }
 
@@ -295,9 +298,10 @@ impl Dumper<'_> {
             Selection::Members => {
                 let kind = match ast.node(node) {
                     AstNodeImpl::MethodInvocationImpl(_) => Some(MemberAccessKind::Invocation),
-                    AstNodeImpl::PrefixedIdentifierImpl(_) | AstNodeImpl::PropertyAccessImpl(_) => {
-                        Some(MemberAccessKind::Property)
-                    }
+                    // An implicit `this` read projects a `SimpleIdentifier`.
+                    AstNodeImpl::PrefixedIdentifierImpl(_)
+                    | AstNodeImpl::PropertyAccessImpl(_)
+                    | AstNodeImpl::SimpleIdentifierImpl(_) => Some(MemberAccessKind::Property),
                     _ => None,
                 };
                 match kind {
@@ -308,10 +312,11 @@ impl Dumper<'_> {
                         }
                         _ => false,
                     },
-                    None => {
-                        matches!(ast.node(node), AstNodeImpl::IntegerLiteralImpl(_))
-                            && analyzer.member_arguments.contains(&source)
-                    }
+                    None => match ast.node(node) {
+                        AstNodeImpl::IntegerLiteralImpl(_) => analyzer.member_arguments.contains(&source),
+                        AstNodeImpl::ThisExpressionImpl(_) => is_selected_receiver(ast, source, &analyzer.member_nodes),
+                        _ => false,
+                    },
                 }
             }
         };
@@ -406,7 +411,7 @@ fn is_selected_operator_node(ast: Ast<'_>, node: NodeId, source: NodeId, invocat
         AstNodeImpl::BinaryExpressionImpl(_) | AstNodeImpl::PrefixExpressionImpl(_) | AstNodeImpl::IndexExpressionImpl(_) => {
             invocations.contains(&source)
         }
-        AstNodeImpl::IntegerLiteralImpl(_) => is_operand(source),
+        AstNodeImpl::IntegerLiteralImpl(_) | AstNodeImpl::ThisExpressionImpl(_) => is_operand(source),
         AstNodeImpl::ParenthesizedExpressionImpl(_) => {
             let mut inner = source;
             while let AstNodeImpl::ParenthesizedExpressionImpl(p) = ast.node(inner) {
@@ -414,6 +419,30 @@ fn is_selected_operator_node(ast: Ast<'_>, node: NodeId, source: NodeId, invocat
             }
             invocations.contains(&inner)
                 || (matches!(ast.node(inner), AstNodeImpl::IntegerLiteralImpl(_)) && is_operand(inner))
+        }
+        _ => false,
+    }
+}
+
+/// Whether the canonical node [receiver] (`this`) is, past parentheses, the
+/// receiver of a member access the analyzer typed: a read `this.p`
+/// (`ReceiverPropertyExtraction`), or the `ParsedNameAccess` of an
+/// invocation `this.m(...)` (whose `ParsedValueArguments` is the access, or
+/// which is itself the read of an invoked getter).
+fn is_selected_receiver(ast: Ast<'_>, receiver: NodeId, accesses: &HashSet<NodeId>) -> bool {
+    let mut node = receiver;
+    while let AstNodeImpl::ParenthesizedExpressionImpl(_) = ast.node(ast.parent2(node)) {
+        node = ast.parent2(node);
+    }
+    let parent = ast.parent2(node);
+    match ast.node(parent) {
+        AstNodeImpl::ReceiverPropertyExtractionImpl(r) => r.receiver == node && accesses.contains(&parent),
+        AstNodeImpl::ParsedNameAccessImpl(n) if n.operand == node => {
+            accesses.contains(&parent) || {
+                let invocation = ast.parent2(parent);
+                matches!(ast.node(invocation), AstNodeImpl::ParsedValueArgumentsImpl(v) if v.operand == parent)
+                    && accesses.contains(&invocation)
+            }
         }
         _ => false,
     }
