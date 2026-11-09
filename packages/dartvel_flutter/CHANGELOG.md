@@ -1,3 +1,8 @@
+## 0.13.28 — 2026-11-09
+
+- The whole app is drawn at a size that suits the screen. Phones, tablets and desktops are unchanged; a television or a 4K signage panel at 1x lays the app out as 1280 x 720 and draws it larger, and a watch lays it out 320 wide. `DV.Platform.screen.screenClass`, `.uiScale` and `.scaling` (auto, off or fixed), and `dartvel: display:` in pubspec.
+- Version aligned with dartvel_core 0.13.28.
+
 ## 0.13.27 — 2026-11-09
 
 - A text field with a screen-reader label (`.input(...).semanticLabel(...)`) can be typed into again. The label hid the field from the semantics tree, and on the web the empty node left in its place caught the click, so the field never took focus.

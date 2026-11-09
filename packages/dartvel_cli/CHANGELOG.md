@@ -1,3 +1,8 @@
+## 0.13.28 — 2026-11-09
+
+- `dartvel: display: scaling:` and `screen:` in pubspec.yaml reach the app as defines on build and dev; a value the app would not understand fails the build.
+- Version aligned with dartvel_core 0.13.28.
+
 ## 0.13.27 — 2026-11-09
 
 - Version aligned with dartvel_core 0.13.27.
