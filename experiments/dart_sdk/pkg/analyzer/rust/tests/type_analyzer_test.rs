@@ -1648,3 +1648,174 @@ fn null_aware_and_cascade_resolution_does_not_reach_is_left_untyped() {
         ["-", "-", "-", "-", "-", "-"]
     );
 }
+
+/// `super.m(...)` and `super.p` find the member `getMember(forSuper: true)`
+/// finds in the enclosing class: the concrete member of the superclass chain,
+/// where a mixin's own concrete member replaces the superclass's (`n` is the
+/// mixin's `int`, not the base's `num`) but an abstract one does not (`k` is
+/// the base's `num`, not the mixin's abstract `int`); failing a concrete
+/// member, the abstract one (`value`). In a mixin declaration it is the
+/// member of its superclass constraints. Substituted with the supertypes'
+/// type arguments.
+#[test]
+fn super_accesses_resolve_through_the_superclass_chain() {
+    let code = "abstract class Base<T> { T get value; num n() => 0; num k() => 0; String d() => ''; int m(int x) => x; T item() => throw 0; }\n\
+        mixin M on Base<int> { int n() => 0; int k(); String twice() => super.d(); }\n\
+        mixin Free { int hash() => super.hashCode; }\n\
+        class Impl extends Base<int> with M {\n\
+          int get value => 1;\n\
+          void f() { super.value; super.n(); super.k(); super.d(); super.m(2); super.m; super.item(); super.d().length; }\n\
+          int get g => super.value;\n\
+        }";
+    assert_eq!(
+        member_types(
+            "supers",
+            code,
+            &[
+                property("‹super.value›; super.n()"),
+                call("super.n()"),
+                call("super.k()"),
+                call("‹super.d()›; super.m"),
+                call("super.m(2)"),
+                integer("super.m(‹2›)"),
+                property("‹super.m›; super.item"),
+                call("super.item()"),
+                property("super.d().length"),
+                call("‹super.d()›.length"),
+                property("g => ‹super.value›"),
+                call("‹super.d()›; }"),
+                property("super.hashCode"),
+            ],
+        ),
+        ["int", "int", "num", "String", "int", "int", "int Function(int)", "int", "int", "String", "int", "String", "int"]
+    );
+}
+
+/// The silent failure: `super` accesses the port does not resolve stay
+/// untyped: in a static member, an extension type and an extension (no
+/// superclass to dispatch to), where flow analysis may promote `this`,
+/// private, generic, implicitly typed and missing members, and `super?.m`.
+#[test]
+fn super_resolution_does_not_reach_is_left_untyped() {
+    let code = "class A { int m() => 0; int _p() => 0; T g<T>(T t) => t; var inferred = 1; }\n\
+        class B extends A {\n\
+          static int s() => super.m();\n\
+          void promoted() { super.m(); if (this is A) {} }\n\
+          void f() { super._p(); super.g(1); super.inferred; super.missing(); super?.m(); }\n\
+        }\n\
+        extension type E(int i) { int e() => super.hashCode; }\n\
+        extension X on A { int x() => super.hashCode; }";
+    assert_eq!(
+        member_types(
+            "supers_untyped",
+            code,
+            &[
+                call("s() => ‹super.m()›"),
+                call("‹super.m()›; if"),
+                call("super._p()"),
+                call("super.g(1)"),
+                property("super.inferred"),
+                call("super.missing()"),
+                call("super?.m()"),
+                property("e() => ‹super.hashCode›"),
+                property("x() => ‹super.hashCode›"),
+            ],
+        ),
+        ["-"; 9]
+    );
+}
+
+fn cascade_index(source: &'static str) -> (&'static str, &'static str) {
+    ("CascadeIndexExpressionImpl", source)
+}
+
+fn assignment(source: &'static str) -> (&'static str, &'static str) {
+    ("DirectAssignmentImpl", source)
+}
+
+/// `r?[i]` looks `[]` up on the receiver's type made non-nullable, and null
+/// shorting makes the index that ends a chain nullable: in `ll[0]?[1][2]`
+/// the inner `ll[0]?[1]` is a `List<int>` and the whole an `int?`;
+/// parentheses and an argument end the chain, and a `?[` ending as the
+/// operand of `+` makes that `+` (on an `int?`) unresolved.
+#[test]
+fn null_aware_indexes_are_nullable_where_their_chain_ends() {
+    let code = "g(int? x) {}\n\
+        f(List<List<int>?> l, List<List<List<int>>?> ll) {\n\
+          l[0]?[1]; ll[0]?[1][2]; (l[0]?[1]); g(l[0]?[1]); l[0]?[1] + 1;\n\
+        }";
+    assert_eq!(
+        operator_types(
+            "null_aware_index",
+            code,
+            &[
+                index("‹l[0]?[1]›; ll"),
+                integer("l[0]?[‹1›]; ll"),
+                index("ll[0]?[1][2]"),
+                index("‹ll[0]?[1]›[2]"),
+                index("‹l[0]?[1]›)"),
+                index("g(‹l[0]?[1]›)"),
+                index("‹l[0]?[1]› + 1"),
+                binary("l[0]?[1] + 1"),
+            ],
+        ),
+        ["int?", "int", "int?", "List<int>", "int?", "int?", "int?", "-"]
+    );
+}
+
+/// A cascade section `t..[i]` is an index invocation on the cascade's
+/// target (made non-nullable in a null-aware cascade `t?..[i]`), keyed by
+/// its V1 projection, which begins at the `..`; a section's value is
+/// discarded, so it is not nullable. Not on an integer literal target.
+#[test]
+fn cascade_indexes_are_operator_invocations_on_the_target() {
+    let code = "f(List<int> a, List<List<int>?> l, String s) {\n\
+          a..[0]..[1]; s..[2]; l[0]?..[3]; 1..[4];\n\
+        }";
+    assert_eq!(
+        operator_types(
+            "cascade_index",
+            code,
+            &[
+                cascade_index("‹[0]›..[1]"),
+                integer("[‹0›]..[1]"),
+                cascade_index("‹[1]›; s"),
+                cascade_index("[2]"),
+                cascade_index("[3]"),
+                cascade_index("[4]"),
+            ],
+        ),
+        ["int", "int", "int", "String", "int", "-"]
+    );
+}
+
+/// A cascade section `t..p = v` (a direct assignment, also through a chain
+/// `t..a.b = v` and on a null-aware cascade) has the type of its value, when
+/// the value is typed. Not typed: an integer literal value (its context is
+/// the write's type), and compound and if-null assignments.
+#[test]
+fn cascade_assignment_sections_have_the_type_of_their_value() {
+    let code = "class B { String label = ''; int count = 0; B get self => this; B? next; }\n\
+        f(B b, String t) {\n\
+          b..label = t; b..label = 'x'; b..self.label = t; b..label = b.label; b.next?..label = (t);\n\
+          b..count = 1; b..label += t; b..label ??= t; b.label = t;\n\
+        }";
+    assert_eq!(
+        member_types(
+            "cascade_assignments",
+            code,
+            &[
+                assignment("‹label = t›; b..label = 'x'"),
+                assignment("label = 'x'"),
+                assignment("self.label = t"),
+                assignment("label = b.label"),
+                assignment("label = (t)"),
+                assignment("count = 1"),
+                ("CompoundAssignmentImpl", "label += t"),
+                ("IfNullAssignmentImpl", "label ??= t"),
+                assignment("‹b.label = t›;\n"),
+            ],
+        ),
+        ["String", "String", "String", "String", "String", "-", "-", "-", "-"]
+    );
+}

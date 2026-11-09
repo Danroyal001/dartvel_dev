@@ -53,7 +53,7 @@ use crate::src::dart::element::class_hierarchy::ClassHierarchy;
 use crate::src::dart::resolver::applicable_extensions::extended_type;
 use crate::src::dart::resolver::binary_expression_resolver::OperatorResolver;
 use crate::src::dart::resolver::extension_member_resolver::ExtensionOverride;
-use crate::src::dart::resolver::method_invocation_resolver::{ImplicitThis, MemberAccessKind, MemberResolver};
+use crate::src::dart::resolver::method_invocation_resolver::{ImplicitThis, MemberAccessKind, MemberResolver, SuperReceiver};
 use crate::dart::analysis::features::Feature;
 use fe_analyzer_shared::scanner::token::{NO_TOKEN, TokenId};
 use std::collections::{HashMap, HashSet};
@@ -110,6 +110,12 @@ pub struct TypeAnalyzer<'a> {
     pub member_accesses: HashMap<NodeId, MemberAccessKind>,
     /// The integer literals typed as arguments of those invocations.
     pub member_arguments: HashSet<NodeId>,
+    /// The `super` receivers where `this` is known in a class, mixin or
+    /// enum: the type of `this` (`SuperExpression`'s static type) and the
+    /// enclosing declaration, which `super.m` dispatches from.
+    pub super_receivers: HashMap<NodeId, SuperReceiver>,
+    /// The cascade sections `t..p = v` typed with their value's type.
+    pub member_assignments: HashSet<NodeId>,
     /// `None` when the unit is analyzed without its library: a context
     /// type that an annotation gives is then unknown, and an integer literal
     /// in it is left without a type; no read of a variable is typed.
@@ -261,6 +267,8 @@ impl<'a> TypeAnalyzer<'a> {
             this_type: None,
             instance_element: None,
             implicit_this: HashMap::new(),
+            super_receivers: HashMap::new(),
+            member_assignments: HashSet::new(),
         }
     }
 
@@ -335,6 +343,13 @@ impl<'a> TypeAnalyzer<'a> {
         self.instance_element = outer_instance;
         self.locals.truncate(outer_locals);
         self.resolve_names(ast, node, features);
+        // visitSuperReference: the unpromoted type of `this`, recorded beside
+        // the static types, since `super` is not an operand member lookup
+        // on that type could resolve.
+        if let AstNodeImpl::SuperReferenceImpl(_) = ast.node(node) {
+            self.record_super_receiver(node);
+            return;
+        }
         let provider = self.type_provider;
         let type_ = match ast.node(node) {
             // visitBooleanLiteral, visitDoubleLiteral, visitNullLiteral.
@@ -726,6 +741,8 @@ impl<'a> TypeAnalyzer<'a> {
             extensions: &extensions,
             overrides: &self.overrides,
             implicit_this: &self.implicit_this,
+            super_receivers: &self.super_receivers,
+            assignments: &mut self.member_assignments,
             inference_using_bounds: self.inference_using_bounds,
         }
         .resolve(ast, node);
@@ -811,6 +828,20 @@ impl<'a> TypeAnalyzer<'a> {
                 Some(TypeImpl::interface(element, arguments, NullabilitySuffix::none))
             }
             _ => None,
+        }
+    }
+
+    /// Records the `super` receiver [node] where `this` is known in a
+    /// class, mixin or enum (an extension type or an extension has no
+    /// superclass to dispatch to).
+    fn record_super_receiver(&mut self, node: NodeId) {
+        let (Some(this_type), Some(element), Some(declarations)) =
+            (self.this_type.clone(), self.instance_element, self.declarations.as_ref())
+        else {
+            return;
+        };
+        if matches!(declarations.store.element(element).kind, ElementKind::CLASS | ElementKind::MIXIN | ElementKind::ENUM) {
+            self.super_receivers.insert(node, SuperReceiver { this_type, element });
         }
     }
 

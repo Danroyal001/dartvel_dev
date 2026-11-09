@@ -4,7 +4,11 @@
 // `TypeAnalyzer.visitReceiverIndexExpression` with
 // `PropertyElementResolver.resolveReceiverIndexExpression` that type an
 // operator invocation: `==`, `!=`, the user-definable binary operators, unary
-// `-` and `~`, and `[]` without `?`. The operator is found by
+// `-` and `~`, and `[]`, also null-aware (`r?[i]`, on the receiver's type
+// made non-nullable, with null shorting: the index that ends a chain is
+// nullable, as method_invocation_resolver.rs decides for accesses) and as a
+// cascade section (`t..[i]`, on the cascade's target, made non-nullable in a
+// null-aware cascade; a section's value is discarded and not nullable). The operator is found by
 // type_property_resolver.rs (the interface of the receiver's static type, or
 // the most specific applicable extension), or for an explicit extension
 // override operand in the extension it names: binary and unary operators as
@@ -18,7 +22,8 @@
 // declared types, or not at all because the receiver is `dynamic`, invalid
 // or `Never`. Not ported, so left untyped: `super` receivers, `==` and `!=`
 // through an override, members with types override inference would infer,
-// `?[]` and cascades, flow analysis, implicit call tear-offs and generic
+// a cascade index on an integer literal (whose context is the cascade's) or
+// an extension override (`extensionOverrideWithCascade`), flow analysis, implicit call tear-offs and generic
 // function instantiation of an index's value, and diagnostics.
 //
 // Contexts are `Option<TypeImpl>`: `None` when this port does not know the
@@ -45,6 +50,9 @@ use crate::src::dart::element::type_system::{
     resolve_to_bound, sdk_class,
 };
 use crate::src::dart::resolver::type_analyzer::{IntegerContextSite, context_site, future_value_type};
+use crate::src::dart::resolver::method_invocation_resolver::{
+    cascade_of, continues_null_shorting, is_null_aware_cascade, is_shorted,
+};
 use fe_analyzer_shared::scanner::token::NO_TOKEN;
 
 /// The binary operators a `BinaryOperatorInvocation` invokes (its
@@ -57,7 +65,10 @@ const BINARY_OPERATORS: [&str; 18] =
 pub enum Invocation {
     Binary { left: NodeId, operator: String, right: NodeId },
     Unary { operator: String, operand: NodeId },
-    Index { receiver: NodeId, index: NodeId },
+    /// `r[i]`, `r?[i]` ([null_aware]) or a cascade section `t..[i]`
+    /// ([cascade]: [receiver] is the cascade's target, which is not an
+    /// operand of the section).
+    Index { receiver: NodeId, index: NodeId, null_aware: bool, cascade: bool },
 }
 
 /// [node] as an operator invocation this file types.
@@ -75,8 +86,20 @@ pub fn invocation(ast: Ast<'_>, node: NodeId) -> Option<Invocation> {
             let operator = ast.tokens.lexeme_string(u.operator_);
             matches!(operator.as_str(), "-" | "~").then_some(Invocation::Unary { operator, operand: u.operand })
         }
-        AstNodeImpl::ReceiverIndexExpressionImpl(r) if r.question == NO_TOKEN => {
-            Some(Invocation::Index { receiver: r.receiver, index: r.index })
+        AstNodeImpl::ReceiverIndexExpressionImpl(r) => Some(Invocation::Index {
+            receiver: r.receiver,
+            index: r.index,
+            null_aware: r.question != NO_TOKEN,
+            cascade: false,
+        }),
+        AstNodeImpl::CascadeIndexExpressionImpl(c) => {
+            let (cascade, _) = cascade_of(ast, node);
+            Some(Invocation::Index {
+                receiver: ast.node(cascade).as_cascade_expression_impl().target2,
+                index: c.index,
+                null_aware: is_null_aware_cascade(ast, cascade),
+                cascade: true,
+            })
         }
         _ => None,
     }
@@ -87,7 +110,7 @@ impl Invocation {
         match *self {
             Invocation::Binary { left, right, .. } => node == left || node == right,
             Invocation::Unary { operand, .. } => node == operand,
-            Invocation::Index { receiver, index } => node == receiver || node == index,
+            Invocation::Index { receiver, index, cascade, .. } => (!cascade && node == receiver) || node == index,
         }
     }
 }
@@ -186,7 +209,12 @@ impl OperatorResolver<'_> {
             }
             _ => match invocation(ast, node) {
                 Some(invocation) => {
-                    let type_ = self.type_invocation(ast, invocation, context)?;
+                    let mut type_ = self.type_invocation(ast, invocation, context)?;
+                    // `finishNullShorting`: where a chain a `?[` starts ends,
+                    // the index is nullable.
+                    if is_shorted(ast, node) && !continues_null_shorting(ast, node) {
+                        type_ = type_.with_nullability(self.store, NullabilitySuffix::question);
+                    }
                     self.invocations.insert(node);
                     type_
                 }
@@ -223,13 +251,33 @@ impl OperatorResolver<'_> {
                 let operand_type = self.type_expression(ast, operand, operand_context)?;
                 self.unary_type(&operator, &operand_type)
             }
-            Invocation::Index { receiver, index } => {
+            Invocation::Index { receiver, index, null_aware, cascade } => {
                 let resolution = match self.overrides.get(&receiver).cloned() {
+                    // A cascade on an override resolves no section.
+                    Some(_) if cascade => None,
                     Some(extension_override) => self.override_index_resolution(ast, &extension_override),
-                    None => match self.type_expression(ast, receiver, Some(TypeImpl::Unknown)) {
-                        Some(receiver_type) => self.index_resolution(&receiver_type),
-                        None => None,
-                    },
+                    None => {
+                        // The cascade's target was typed in its own position;
+                        // an integer literal there has the cascade's context.
+                        let receiver_type = if cascade {
+                            let target = un_parenthesized(ast, receiver);
+                            if matches!(ast.node(target), AstNodeImpl::IntegerLiteralImpl(_)) {
+                                None
+                            } else {
+                                self.static_types.get(&receiver).cloned()
+                            }
+                        } else {
+                            self.type_expression(ast, receiver, Some(TypeImpl::Unknown))
+                        };
+                        match receiver_type {
+                            Some(receiver_type) if null_aware => {
+                                let receiver_type = promote_to_non_null(self.store, &receiver_type);
+                                self.index_resolution(&receiver_type)
+                            }
+                            Some(receiver_type) => self.index_resolution(&receiver_type),
+                            None => None,
+                        }
+                    }
                 };
                 let Some((type_, index_context)) = resolution else {
                     self.type_expression(ast, index, None);
@@ -584,4 +632,11 @@ fn has_implicit_return_type(store: &ElementStore, member: &Member) -> bool {
     store
         .fragment(store.element(member.element).first_fragment)
         .has_flag(FragmentFlag::executableFragment_hasImplicitReturnType)
+}
+
+fn un_parenthesized(ast: Ast<'_>, mut node: NodeId) -> NodeId {
+    while let AstNodeImpl::ParenthesizedExpressionImpl(p) = ast.node(node) {
+        node = p.expression2;
+    }
+    node
 }

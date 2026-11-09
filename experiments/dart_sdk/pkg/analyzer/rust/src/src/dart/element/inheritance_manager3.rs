@@ -19,9 +19,21 @@
 //
 // Not ported: candidates none of which is a valid override (reported as
 // `Ambiguous`, which callers treat as unresolved), a method
-// and a getter of one name (also `Ambiguous`), setters, private names (`Name` with its library), `forSuper`,
+// and a getter of one name (also `Ambiguous`), setters, private names (`Name` with its library),
 // the extension type rules for members redeclared from non-extension-type
 // superinterfaces, and conflicts and their diagnostics. Nothing is cached.
+//
+// `getMember(forSuper: true)` ([get_super_member]) finds what `super.m`
+// dispatches to: in a class or enum the concrete member of
+// `superImplemented.last`, the members the superclass implements (its
+// own concrete members over its mixins' over its superclass's) with each
+// mixin's own concrete members applied over them (`_addMixinMembers`:
+// abstract members and `Object`'s are skipped), so an abstract member does
+// not hide a concrete one; failing that, `recoverFailedSuperLookup`'s member
+// of the last supertype (mixins, then the superclass) whose interface has one,
+// abstract or not. In a mixin declaration it is the member of its superclass
+// constraints' combined interface (`superInterface`). Extension types have
+// none.
 
 use crate::dart::element::nullability_suffix::NullabilitySuffix;
 use crate::src::dart::element::class_hierarchy::from_interface_type;
@@ -139,6 +151,149 @@ pub fn get_method(system: &mut TypeSystem<'_>, type_: &InterfaceTypeImpl, name: 
 /// not ported and reported as `Ambiguous`.
 pub fn get_member(system: &mut TypeSystem<'_>, type_: &InterfaceTypeImpl, name: &str) -> MethodLookup {
     interface_method(system, type_.element, &type_.type_arguments, name, true, &mut Vec::new())
+}
+
+/// `getMember(element, Name(name), forSuper: true)` for the instance method
+/// or getter [name] that `super.name` in the class, enum or mixin [element]
+/// reaches, with the abstract member `recoverFailedSuperLookup` keeps when no
+/// concrete one is found. Its substitution maps to [element]'s own type
+/// parameters (the type of `this` there).
+pub fn get_super_member(system: &mut TypeSystem<'_>, element: ElementId, name: &str) -> MethodLookup {
+    let e = system.store.element(element);
+    let kind = e.kind;
+    let supertype = if matches!(kind, ElementKind::CLASS | ElementKind::ENUM) { e.type_.clone() } else { None };
+    let (mixins, mut constraints) = match system.store.types(element) {
+        Some(types) => (types.mixins.clone(), types.superclass_constraints.clone()),
+        None => (Vec::new(), Vec::new()),
+    };
+    match kind {
+        ElementKind::MIXIN => {
+            // `superInterface`: the most specific member of the constraints.
+            if constraints.is_empty() {
+                constraints.extend(object_type_of(system.store));
+            }
+            let mut candidates = Vec::new();
+            for constraint in &constraints {
+                match super_type_member(system, constraint, name) {
+                    MethodLookup::Found(member) => candidates.push(member),
+                    MethodLookup::NotFound => {}
+                    MethodLookup::Ambiguous => return MethodLookup::Ambiguous,
+                }
+            }
+            if candidates.is_empty() { MethodLookup::NotFound } else { merge(system, candidates) }
+        }
+        ElementKind::CLASS | ElementKind::ENUM => {
+            // `superImplemented.last`: the mixins' own concrete members over
+            // what the superclass implements.
+            for mixin in mixins.iter().rev() {
+                if let Some(member) = implemented_in(system, mixin, name, true) {
+                    return MethodLookup::Found(member);
+                }
+            }
+            if let Some(supertype) = &supertype {
+                if let Some(member) = implemented_in(system, supertype, name, false) {
+                    return MethodLookup::Found(member);
+                }
+            }
+            // `recoverFailedSuperLookup`: the member of the last supertype
+            // whose interface has one, abstract or not.
+            for supertype in mixins.iter().rev().chain(supertype.iter()) {
+                match super_type_member(system, supertype, name) {
+                    MethodLookup::NotFound => {}
+                    found => return found,
+                }
+            }
+            MethodLookup::NotFound
+        }
+        _ => MethodLookup::NotFound,
+    }
+}
+
+/// `getMember3(type, Name(name))` for a supertype as it is written in the
+/// declaration (with builders).
+fn super_type_member(system: &mut TypeSystem<'_>, type_: &TypeImpl, name: &str) -> MethodLookup {
+    match without_builders(system.store, type_).as_interface() {
+        Some(i) => {
+            let i = i.clone();
+            interface_method(system, i.element, &i.type_arguments, name, true, &mut Vec::new())
+        }
+        None => MethodLookup::NotFound,
+    }
+}
+
+/// The concrete instance method or getter [name] the interface of [type_]
+/// implements (`Interface.implemented`), with [type_]'s type arguments
+/// substituted; with [mixin], as `_addMixinMembers` applies it, not one of
+/// `Object`'s.
+fn implemented_in(system: &mut TypeSystem<'_>, type_: &TypeImpl, name: &str, mixin: bool) -> Option<Member> {
+    let i = without_builders(system.store, type_).as_interface()?.clone();
+    implemented(system, i.element, &i.type_arguments, name, mixin, &mut Vec::new())
+}
+
+fn implemented(
+    system: &mut TypeSystem<'_>,
+    element: ElementId,
+    arguments: &[TypeImpl],
+    name: &str,
+    skip_object: bool,
+    visiting: &mut Vec<ElementId>,
+) -> Option<Member> {
+    if visiting.contains(&element) {
+        return None;
+    }
+    let substitution = from_interface_type(system.store, element, arguments);
+    let e = system.store.element(element);
+    let members = e.members.as_deref()?;
+    let is_object = Some(element) == object_element(system.store);
+    // `_addImplemented`: the class's own concrete members win.
+    for &method in members.methods.iter().chain(&members.getters) {
+        let fragment = system.store.fragment(system.store.element(method).first_fragment);
+        if !fragment.is_static()
+            && !fragment.has_flag(FragmentFlag::executableFragment_isAbstract)
+            && fragment.method_lookup_name().as_deref() == Some(name)
+        {
+            if skip_object && is_object {
+                return None;
+            }
+            return Some(Member { element: method, substitution, combined: None });
+        }
+    }
+    if !matches!(e.kind, ElementKind::CLASS | ElementKind::ENUM) {
+        return None;
+    }
+    let supertype = e.type_.clone();
+    let mixins = system.store.types(element).map(|t| t.mixins.clone()).unwrap_or_default();
+    visiting.push(element);
+    let instantiate = |system: &mut TypeSystem<'_>, t: &TypeImpl| {
+        let t = without_builders(system.store, t);
+        substitute(system.store, &substitution, &t).as_interface().cloned()
+    };
+    let mut found = None;
+    for mixin in mixins.iter().rev() {
+        if let Some(i) = instantiate(system, mixin) {
+            if let Some(member) = implemented(system, i.element, &i.type_arguments, name, true, visiting) {
+                found = Some(member);
+                break;
+            }
+        }
+    }
+    if found.is_none() {
+        if let Some(i) = supertype.as_ref().and_then(|t| instantiate(system, t)) {
+            found = implemented(system, i.element, &i.type_arguments, name, skip_object, visiting);
+        }
+    }
+    visiting.pop();
+    found
+}
+
+/// `Object` of `dart:core`.
+fn object_element(store: &ElementStore) -> Option<ElementId> {
+    crate::src::dart::element::type_system::sdk_class(store, "dart:core", "Object")
+}
+
+/// `Object` as a type, for a mixin declared without `on`.
+fn object_type_of(store: &ElementStore) -> Option<TypeImpl> {
+    object_element(store).map(|object| TypeImpl::interface(object, Vec::new(), NullabilitySuffix::none))
 }
 
 /// The member [name] of the interface of [element] instantiated with

@@ -45,8 +45,10 @@ enum Selection {
     /// their operands, and parentheses around either.
     UserOperators,
     /// `--members`: method invocations and property reads on a typed
-    /// receiver the analyzer typed (`TypeAnalyzer::member_accesses`), and the
-    /// integer literals that are arguments of those invocations.
+    /// receiver the analyzer typed (`TypeAnalyzer::member_accesses`), the
+    /// integer literals that are arguments of those invocations, the `this`
+    /// and `super` receivers of those accesses, and the cascade sections
+    /// `t..p = v` typed with their value's type.
     Members,
 }
 
@@ -163,8 +165,14 @@ fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Select
         None => TypeAnalyzer::new(provider),
     };
     analyzer.analyze(ast, parsed.unit);
+    // A `super` receiver's type is `SuperExpression`'s static type; it is
+    // kept apart from the static types the resolvers read.
+    let mut static_types = analyzer.static_types;
+    for (&node, receiver) in &analyzer.super_receivers {
+        static_types.insert(node, receiver.this_type.clone());
+    }
     let results = Results {
-        static_types: analyzer.static_types,
+        static_types,
         variable_reads: analyzer.variable_reads,
         operator_invocations: analyzer.operator_invocations,
         member_spans: analyzer
@@ -174,6 +182,7 @@ fn dump_file(linker: &mut Linker, provider: &TypeProviderImpl, selection: Select
             .collect(),
         member_nodes: analyzer.member_accesses.keys().copied().collect(),
         member_arguments: analyzer.member_arguments,
+        member_assignments: analyzer.member_assignments,
     };
     let mut dump = String::new();
     Dumper { store, selection }.dump_node(ast, parsed.unit, &results, &mut dump);
@@ -216,6 +225,8 @@ struct Results {
     /// The member accesses by their canonical nodes.
     member_nodes: HashSet<NodeId>,
     member_arguments: HashSet<NodeId>,
+    /// The cascade sections `t..p = v` typed with their value's type.
+    member_assignments: HashSet<NodeId>,
 }
 
 struct Dumper<'a> {
@@ -322,7 +333,10 @@ impl Dumper<'_> {
                     },
                     None => match ast.node(node) {
                         AstNodeImpl::IntegerLiteralImpl(_) => analyzer.member_arguments.contains(&source),
-                        AstNodeImpl::ThisExpressionImpl(_) => is_selected_receiver(ast, source, &analyzer.member_nodes),
+                        AstNodeImpl::ThisExpressionImpl(_) | AstNodeImpl::SuperExpressionImpl(_) => {
+                            is_selected_receiver(ast, source, &analyzer.member_nodes)
+                        }
+                        AstNodeImpl::AssignmentExpressionImpl(_) => analyzer.member_assignments.contains(&source),
                         _ => false,
                     },
                 }

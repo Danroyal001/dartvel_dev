@@ -30,8 +30,17 @@
 // has the member's type while the chain continues (it is the receiver of
 // another access, an index, a call, an assignment target, type arguments or
 // `!`) and that type
-// made nullable where the chain ends (`finishNullShorting`). Not ported, so
-// left untyped: index and assignment sections of cascades, `super`, `this` where it is not known (see type_analyzer.rs),
+// made nullable where the chain ends (`finishNullShorting`). An access
+// `super.m(...)` or `super.p` where `this` is known in a class, mixin or
+// enum is resolved to the member `getMember(forSuper: true)` finds in the
+// enclosing declaration (`_resolveSuperInvocation`, inheritance_manager3.rs
+// [get_super_member]), by the same rules otherwise. A cascade section
+// `t..p = v` (a direct assignment that is a section's body: `t..a.b = v`
+// and `t..[i] = v` too) has the type of its value when the value is typed
+// and not an integer literal, whose context is the write's type
+// (`AssignmentExpressionResolver`: for `=` the type is the right-hand
+// side's). Not ported, so left untyped: compound and if-null assignment
+// sections, `super` operators and `super?.m`, `this` where it is not known (see type_analyzer.rs),
 // static members and import
 // prefixes, `dynamic`, `Never`, invalid and void receivers, `call` of
 // functions, record fields, private names (a private field may be promoted
@@ -49,7 +58,7 @@ use crate::src::dart::ast::ast::AstNodeImpl;
 use crate::src::dart::ast::ast_store::{Ast, ChildValue, NO_NODE, NodeId};
 use crate::src::dart::element::class_hierarchy::ClassHierarchy;
 use crate::src::dart::element::element::{ElementId, ElementKind, ElementStore, FragmentFlag, NO_ELEMENT};
-use crate::src::dart::element::inheritance_manager3::Member;
+use crate::src::dart::element::inheritance_manager3::{Member, MethodLookup, get_super_member};
 use crate::src::dart::element::r#type::TypeImpl;
 use crate::src::dart::element::subtype::TypeSystem;
 use crate::src::dart::element::type_provider::TypeProviderImpl;
@@ -96,6 +105,14 @@ struct Access {
 pub struct ImplicitThis {
     pub this_type: TypeImpl,
     pub lexical: Option<ElementId>,
+}
+
+/// A `super` receiver: the type of `this` where it is written and the
+/// class, mixin or enum it is written in.
+#[derive(Clone, Debug)]
+pub struct SuperReceiver {
+    pub this_type: TypeImpl,
+    pub element: ElementId,
 }
 
 /// [node] as a member access: an invocation `r.m(...)` without type
@@ -184,7 +201,7 @@ fn member_access(ast: Ast<'_>, node: NodeId) -> Option<Access> {
 
 /// The `CascadeExpression` whose section [head] begins, and that section's
 /// `..` or `?..`.
-fn cascade_of(ast: Ast<'_>, head: NodeId) -> (NodeId, TokenId) {
+pub(crate) fn cascade_of(ast: Ast<'_>, head: NodeId) -> (NodeId, TokenId) {
     let mut section = ast.parent2(head);
     while !matches!(ast.node(section), AstNodeImpl::CascadeSectionImpl(_)) {
         section = ast.parent2(section);
@@ -194,7 +211,7 @@ fn cascade_of(ast: Ast<'_>, head: NodeId) -> (NodeId, TokenId) {
 
 /// Whether the cascade [cascade] is null aware: its first section begins
 /// with `?..` (`CascadeExpression.isNullAware`).
-fn is_null_aware_cascade(ast: Ast<'_>, cascade: NodeId) -> bool {
+pub(crate) fn is_null_aware_cascade(ast: Ast<'_>, cascade: NodeId) -> bool {
     let sections = &ast.node(cascade).as_cascade_expression_impl().sections;
     sections.first().is_some_and(|&section| {
         ast.tokens.lexeme_string(ast.node(section).as_cascade_section_impl().operator_) == "?.."
@@ -204,7 +221,7 @@ fn is_null_aware_cascade(ast: Ast<'_>, cascade: NodeId) -> bool {
 /// Whether [node] is in a chain of null-aware accesses that a `?.` or `?[`
 /// starts: a null-aware access or index, or an access, index, call, type
 /// arguments or `!` whose operand is.
-fn is_shorted(ast: Ast<'_>, node: NodeId) -> bool {
+pub(crate) fn is_shorted(ast: Ast<'_>, node: NodeId) -> bool {
     match ast.node(node) {
         AstNodeImpl::ParsedNameAccessImpl(n) => ast.tokens.lexeme_string(n.operator_) == "?." || is_shorted(ast, n.operand),
         AstNodeImpl::ReceiverPropertyExtractionImpl(r) => {
@@ -223,7 +240,7 @@ fn is_shorted(ast: Ast<'_>, node: NodeId) -> bool {
 /// parenthesized) of an access, an index, a call or an assignment target,
 /// the operand of type or value arguments, or the operand of `!`
 /// (`continueNullShorting`).
-fn continues_null_shorting(ast: Ast<'_>, node: NodeId) -> bool {
+pub(crate) fn continues_null_shorting(ast: Ast<'_>, node: NodeId) -> bool {
     let parent = ast.parent2(node);
     if parent == NO_NODE {
         return false;
@@ -263,6 +280,10 @@ pub struct MemberResolver<'s> {
     pub overrides: &'s HashMap<NodeId, ExtensionOverride>,
     /// The implicit `this` accesses of the file, by name.
     pub implicit_this: &'s HashMap<NodeId, ImplicitThis>,
+    /// The `super` receivers of the file.
+    pub super_receivers: &'s HashMap<NodeId, SuperReceiver>,
+    /// The cascade sections `t..p = v` this resolver typed.
+    pub assignments: &'s mut HashSet<NodeId>,
     pub inference_using_bounds: bool,
 }
 
@@ -282,6 +303,19 @@ impl MemberResolver<'_> {
                     }
                 }
                 _ => (),
+            }
+        }
+        if let AstNodeImpl::DirectAssignmentImpl(assignment) = ast.node(node) {
+            // `t..p = v`: a section's body; the value is typed before it.
+            let parent = ast.parent2(node);
+            let section_body =
+                matches!(ast.node(parent), AstNodeImpl::CascadeSectionImpl(section) if section.body == node);
+            let value = un_parenthesized(ast, assignment.value);
+            if section_body && !matches!(ast.node(value), AstNodeImpl::IntegerLiteralImpl(_)) {
+                if let Some(type_) = self.static_types.get(&value).cloned() {
+                    self.static_types.insert(node, type_);
+                    self.assignments.insert(node);
+                }
             }
         }
         if let Some(access) = member_access(ast, node).or_else(|| self.implicit_access(ast, node)) {
@@ -381,6 +415,21 @@ impl MemberResolver<'_> {
         }
         // The member, and the receiver's type when it is an expression.
         let implicit = self.implicit_this.get(&access.implicit).cloned();
+        if let Some(receiver) = self.super_receivers.get(&access.receiver).cloned() {
+            // `_resolveSuperInvocation`: `super?.m` and a cascade on
+            // `super` are errors.
+            if operator != "." {
+                return None;
+            }
+            let member = match get_super_member(&mut TypeSystem::new(self.store, &mut self.hierarchy), receiver.element, &name) {
+                MethodLookup::Found(member) => member,
+                _ => return None,
+            };
+            if self.store.fragment(self.store.element(member.element).first_fragment).is_static() {
+                return None;
+            }
+            return self.type_member(ast, access, member, Some(receiver.this_type), &name);
+        }
         let (member, receiver_type) = match (implicit, self.overrides.get(&access.receiver)) {
             (Some(implicit), _) => {
                 // `resolveUnqualified` and `ThisLookup`: the member of the
@@ -448,6 +497,19 @@ impl MemberResolver<'_> {
                 (member, Some(receiver_type))
             }
         };
+        self.type_member(ast, access, member, receiver_type, &name)
+    }
+
+    /// The type of [access] to [member], found on a receiver of type
+    /// [receiver_type] (none for an override's member).
+    fn type_member(
+        &mut self,
+        ast: Ast<'_>,
+        access: &Access,
+        member: Member,
+        receiver_type: Option<TypeImpl>,
+        name: &str,
+    ) -> Option<TypeImpl> {
         let kind = self.store.element(member.element).kind;
         match access.kind {
             MemberAccessKind::Invocation => {
@@ -463,7 +525,7 @@ impl MemberResolver<'_> {
                     return None;
                 }
                 if let Some(receiver_type) = &receiver_type {
-                    if self.refines_numeric(&member, &name, receiver_type) {
+                    if self.refines_numeric(&member, name, receiver_type) {
                         return None;
                     }
                 }

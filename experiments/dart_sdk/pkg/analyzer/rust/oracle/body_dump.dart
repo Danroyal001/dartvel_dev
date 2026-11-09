@@ -15,17 +15,21 @@
 // writes their declarations' element kind and name offset after the type;
 // see [DeclaredVariableReads].
 // --user-operators selects invocations of `==`, `!=` and the user-definable
-// binary, unary (`-`, `~`) and index (`[]`) operators whose operands the
+// binary, unary (`-`, `~`) and index (`[]`, also null-aware `r?[i]` and as
+// a cascade section `t..[i]`) operators whose operands the
 // earlier selections or this one type, resolved through the interface of the
 // receiver's static type or an applicable extension, or through the
 // extension an override `E(x)` names, with the integer literals that are their operands
 // and the parentheses around either; see [OperatorInvocations].
 // --members selects method invocations `r.m(...)` and property reads `r.p`
 // (getters, fields, method tear-offs), also null-aware (`r?.m`) and as the
-// heads of cascade sections (`r..m`, `r?..m`), on a known receiver, resolved through
+// heads of cascade sections (`r..m`, `r?..m`), and on `super` through the
+// superclass chain, on a known receiver, resolved through
 // the interface of its static type, `Object` (a receiver that may be null),
 // an applicable extension, or the extension an override `E(x)` names, with
-// the integer literals that are their arguments; see [MemberAccesses].
+// the integer literals that are their arguments, the `super` receivers of
+// selected accesses, and the cascade sections `t..p = v` (a direct assignment)
+// whose value is known; see [MemberAccesses].
 // Both also take `this` as a receiver where it is known, and --members selects
 // implicit `this` accesses `m(...)` and `p` and the `this` receivers of
 // selected accesses, --user-operators the `this` operands of selected
@@ -418,10 +422,16 @@ bool _canPromote(AstNode read) {
 ///
 /// An operator invocation is a [BinaryOperatorInvocationImpl] with a binary
 /// operator (`==`, `!=` or a user-definable one), a
-/// [UnaryOperatorInvocationImpl] (`-` or `~`) or a
-/// [ReceiverIndexExpressionImpl] without `?`. It is selected when its receiver
+/// [UnaryOperatorInvocationImpl] (`-` or `~`), a
+/// [ReceiverIndexExpressionImpl] (also null-aware, `r?[i]`, which looks the
+/// operator up on the receiver's type made non-nullable; upstream's null
+/// shorting decides the type it is written with) or a
+/// [CascadeIndexExpressionImpl] (`t..[i]`, whose receiver is the cascade's
+/// target, made non-nullable in a null-aware cascade; not on an integer
+/// literal or an extension override). It is selected when its receiver
 /// and its argument are known and it is resolved through the interface of the
-/// receiver's static type ([_isResolvable]).
+/// receiver's static type ([_isResolvable]). Like a cascade head, a cascade
+/// index is keyed by its V1 projection, which begins at the section's `..`.
 ///
 /// Past parentheses, a known expression is a `--literals` literal, a
 /// `--operators` expression, a `--identifiers` read, a selected invocation, or
@@ -469,7 +479,7 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
   void visitNode(AstNode node) {
     if (node is CommentImpl) return;
     if (_isInvocation(node) && _isSelected(node)) {
-      selected.add('invocation ${node.offset}+${node.length}');
+      selected.add('invocation ${MemberAccesses._v1Span(node)}');
     }
     if (node is IntegerLiteralImpl && _isSelectedOperand(node)) {
       selected.add('integer ${node.offset}+${node.length}');
@@ -497,7 +507,7 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
   static bool _isInvocation(AstNode node) => switch (node) {
     BinaryOperatorInvocationImpl(:var binaryOperator) => binaryOperator != null,
     UnaryOperatorInvocationImpl() => true,
-    ReceiverIndexExpressionImpl(:var question) => question == null,
+    ReceiverIndexExpressionImpl() || CascadeIndexExpressionImpl() => true,
     _ => false,
   };
 
@@ -505,12 +515,15 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
     BinaryOperatorInvocationImpl(:var leftOperand) => leftOperand,
     UnaryOperatorInvocationImpl(:var operand) => operand,
     ReceiverIndexExpressionImpl(:var receiver) => receiver,
+    // A cascade section `t..[i]`: the cascade's target is the receiver.
+    CascadeIndexExpressionImpl() => MemberAccesses._cascadeOf(invocation).target2,
     _ => throw StateError('not an invocation'),
   };
 
   static AstNode? _argument(AstNode invocation) => switch (invocation) {
     BinaryOperatorInvocationImpl(:var rightOperand) => rightOperand,
     ReceiverIndexExpressionImpl(:var index) => index,
+    CascadeIndexExpressionImpl(:var index) => index,
     _ => null,
   };
 
@@ -613,6 +626,15 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
   /// resolves only to an extension's operator: `Object` has none.
   bool _isResolvable(AstNode invocation) {
     var receiver = _receiver(invocation);
+    if (invocation is CascadeIndexExpressionImpl) {
+      // Upstream reports a cascade on an override
+      // (`extensionOverrideWithCascade`) and resolves no section on it; an
+      // integer literal target has the cascade's context.
+      var target = _unParenthesized(receiver);
+      if (target is ExtensionOverride2Impl || target is IntegerLiteralImpl) {
+        return false;
+      }
+    }
     if (receiver is ExtensionOverride2Impl) {
       if (!_isKnownOverride(receiver, _isKnown)) return false;
       var element = switch (invocation) {
@@ -622,7 +644,7 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
               ? null
               : invocation.element,
         UnaryOperatorInvocationImpl() => invocation.element,
-        ReceiverIndexExpressionImpl(:var resolution) => switch (resolution) {
+        IndexExpression2Impl(:var resolution) => switch (resolution) {
           MethodIndexReadResolutionImpl(:var element) => element,
           InvalidIndexReadResolutionImpl(:var recoveryElement) =>
             recoveryElement,
@@ -634,6 +656,14 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
     }
     if (receiver is! ExpressionImpl || !_isKnown(receiver)) return false;
     var type = receiver.staticType as TypeImpl;
+    // `r?[i]` and a section of a null-aware cascade `t?..[i]` look the
+    // operator up on the receiver's type made non-nullable.
+    if ((invocation is ReceiverIndexExpressionImpl &&
+            invocation.question != null) ||
+        (invocation is CascadeIndexExpressionImpl &&
+            MemberAccesses._cascadeOf(invocation).isNullAware)) {
+      type = typeSystem.promoteToNonNull(type);
+    }
     var bound = typeSystem.resolveToBound(type);
     bool isNever(TypeImpl type) =>
         type is NeverType && type.nullabilitySuffix == NullabilitySuffix.none;
@@ -654,7 +684,7 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
             isBounded(type) || isNever(bound) ||
             ((!_mayBeNull(type) || _isExtensionMember(invocation.element)) &&
                 _isDeclared(invocation.element));
-      case ReceiverIndexExpressionImpl(:var resolution):
+      case IndexExpression2Impl(:var resolution):
         var element = switch (resolution) {
           MethodIndexReadResolutionImpl(:var element) => element,
           InvalidIndexReadResolutionImpl(:var recoveryElement) =>
@@ -718,9 +748,19 @@ class OperatorInvocations extends UnifyingAstVisitor2<void> {
 /// Past parentheses, a known receiver is what [OperatorInvocations] knows, a
 /// selected member access, or an integer literal (no context: `int`).
 ///
+/// A `super` access `super.m(...)` or `super.p` (operator `.`) is selected
+/// where `this` is known ([ThisContexts]) in a class, mixin or enum, when the
+/// member it resolves to (`getMember(forSuper: true)`, or the abstract member
+/// of the recovery) is an instance member of an interface (not an extension
+/// type) meeting the conditions above.
+///
 /// Also selected: the integer literals that are arguments of a selected
 /// invocation (past parentheses, positional or named) and that match a
-/// parameter, whose type is their context.
+/// parameter, whose type is their context; the `this` and `super` receivers
+/// of selected accesses; and the cascade sections `t..p = v` (a
+/// [DirectAssignmentImpl] that is a section's body, keyed by its V1 span)
+/// whose value, past parentheses, is known and not an integer literal: its
+/// type is the value's.
 class MemberAccesses extends UnifyingAstVisitor2<void> {
   final TypeSystemImpl typeSystem;
   final OperatorInvocations operators;
@@ -744,6 +784,8 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
         'property',
       IntegerLiteral() => 'integer',
       ThisExpression() => 'this',
+      SuperExpression() => 'super',
+      AssignmentExpression() => 'assignment',
       _ => null,
     };
     return kind != null &&
@@ -753,6 +795,12 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
   @override
   void visitNode(AstNode node) {
     if (node is CommentImpl) return;
+    if (node is SuperReferenceImpl && _isSelectedReceiver(node)) {
+      selected.add('super ${node.offset}+${node.length}');
+    }
+    if (node is DirectAssignmentImpl && _isSelectedAssignment(node)) {
+      selected.add('assignment ${_v1Span(node)}');
+    }
     if ((node is ReceiverMethodInvocationImpl ||
             node is UnqualifiedFunctionInvocationImpl ||
             node is CascadeMethodInvocationImpl) &&
@@ -817,6 +865,20 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
     };
   }
 
+  /// Whether [assignment] is a cascade section `t..p = v` (`t?..p = v`,
+  /// `t..a.b = v`, `t..[i] = v`): a direct assignment that is the body of a
+  /// section, whose value is known and not an integer literal (which takes
+  /// the write's type as its context). Its type is the value's.
+  bool _isSelectedAssignment(DirectAssignmentImpl assignment) {
+    var section = assignment.parent2;
+    if (section is! CascadeSectionImpl ||
+        !identical(section.body, assignment)) {
+      return false;
+    }
+    var value = OperatorInvocations._unParenthesized(assignment.value);
+    return value is! IntegerLiteralImpl && _isKnown(value);
+  }
+
   bool _isKnown(AstNode node) {
     node = OperatorInvocations._unParenthesized(node);
     if (node is IntegerLiteralImpl) {
@@ -876,7 +938,19 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
       return false;
     }
     TypeImpl? type;
-    if (receiver == null) {
+    if (receiver is SuperReferenceImpl) {
+      // `super.m`: `getMember(forSuper: true)` in the enclosing class,
+      // mixin or enum (an extension type or an extension has no superclass
+      // to dispatch to), where `this` is known.
+      if (operator?.type != TokenType.PERIOD) return false;
+      var instance = operators.thisContexts.instanceOf(access);
+      if (instance is! ClassElement &&
+          instance is! MixinElement &&
+          instance is! EnumElement) {
+        return false;
+      }
+      type = instance!.thisType as TypeImpl;
+    } else if (receiver == null) {
       // An annotation's name has no static type; a read with type
       // arguments is an instantiation the port does not type.
       if (access.parent2 is AnnotationImpl ||
@@ -915,6 +989,10 @@ class MemberAccesses extends UnifyingAstVisitor2<void> {
     bool isFound(ExecutableElement element) {
       if (element.isStatic) return false;
       var enclosing = element.enclosingElement;
+      if (receiver is SuperReferenceImpl) {
+        return enclosing is InterfaceElement &&
+            enclosing is! ExtensionTypeElement;
+      }
       if (receiver is ExtensionOverride2Impl) {
         return enclosing == receiver.element;
       }
