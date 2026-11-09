@@ -36,7 +36,10 @@ void main() {
     ]);
   });
 
-  test('no docs or comparison page types a Dartvel version as current', () {
+  test('no page or component types a Dartvel version as current', () {
+    // The home page said "dartvel_dev 0.11.5 is on pub.dev" and showed 0.11.5
+    // as the current version at 0.13.27, because this check only read docs/
+    // and vs/. It reads every page and component now; comments are history.
     // A Dartvel-shaped version, not an address (10.0.0.0/8, 0.0.0.0) or
     // another package's constraint (^0.19.7).
     final RegExp version =
@@ -44,14 +47,30 @@ void main() {
     final RegExp history = RegExp(
         r'(Since|since|before|Before|until|Until) v?0\.\d+\.\d+|0\.\d+\.\d+ and earlier');
     final List<String> typed = <String>[
-      for (final String dir in <String>['lib/pages/docs', 'lib/pages/vs'])
+      for (final String dir in <String>['lib/pages', 'lib/components'])
         for (final FileSystemEntity e in Directory(dir).listSync(recursive: true))
           if (e is File && e.path.endsWith('.dart'))
             for (final (int, String) line in e
                 .readAsLinesSync()
                 .indexed
                 .where(((int, String) l) =>
+                    !l.$2.trimLeft().startsWith('//') &&
+                    !l.$2.contains('const String kDartvelVersion') &&
                     version.hasMatch(l.$2.replaceAll(history, ''))))
+              '${e.path}:${line.$1 + 1}: ${line.$2.trim()}',
+    ];
+    expect(typed, isEmpty, reason: typed.join('\n'));
+  });
+
+  test('no page types a spec count the constants already hold', () {
+    // The home page showed 79 sections partial while the record said 80.
+    final RegExp typedCount = RegExp(
+        r"'\d+ spec sections|Stat\('\d+', 'sections (shipped|partial|designed)");
+    final List<String> typed = <String>[
+      for (final FileSystemEntity e in Directory('lib/pages').listSync(recursive: true))
+        if (e is File && e.path.endsWith('.dart'))
+          for (final (int, String) line in e.readAsLinesSync().indexed)
+            if (typedCount.hasMatch(line.$2))
               '${e.path}:${line.$1 + 1}: ${line.$2.trim()}',
     ];
     expect(typed, isEmpty, reason: typed.join('\n'));
