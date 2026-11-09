@@ -808,6 +808,18 @@ class BackendGenerator {
         // the build.
         'authentication':
             dvAuthenticationRequiredFromSource(src, rel: rel) ? '1' : '0',
+        // The function's own rateLimit, as the count and the window in
+        // milliseconds, or empty for none. A value this cannot read stops
+        // the build.
+        ...() {
+          final ({int maxRequests, Duration window})? budget =
+              dvRateLimitFromSource(src, rel: rel);
+          return <String, String>{
+            'rateMax': budget == null ? '' : '${budget.maxRequests}',
+            'rateWindowMs':
+                budget == null ? '' : '${budget.window.inMilliseconds}',
+          };
+        }(),
         // Where it was declared, for a refusal that has to name the file.
         'rel': rel,
         // And where that is on disk, in which package, so the client can
@@ -1592,7 +1604,21 @@ ${backendEntries.map((e) {
                     'core.DVApiPrincipal.current == null) '
                     'return _dvUnauthenticated();'
               : '';
-          final String mfaGate = authenticationGate + (mfa.isEmpty ? '' : '\n    {'
+          // rateLimit: '100/hour', after authentication so a signed-in caller
+          // is counted as themselves, and before the second factor and the
+          // policy, which a caller past its budget is not asked about. The
+          // function's own budget, keyed by where it is served.
+          final String rateMax = e['rateMax'] ?? '';
+          final String rateLimitGate = rateMax.isEmpty
+              ? ''
+              : '\n    {'
+                    '\n      final dv.Response? _dvLimited = await core.dvFunctionRateLimited(req, '
+                    "function: '${method.toUpperCase()} ${rawPath.isNotEmpty ? esc(rawPath) : '$path${esc(e['rawPathSuffix'] ?? '')}'}', "
+                    'maxRequests: $rateMax, '
+                    'window: const Duration(milliseconds: ${e['rateWindowMs']}));'
+                    '\n      if (_dvLimited != null) return _dvLimited;'
+                    '\n    }';
+          final String mfaGate = authenticationGate + rateLimitGate + (mfa.isEmpty ? '' : '\n    {'
                     '\n      final _dvStepUp = core.DVAuthEndpoints.requireMfa($mfa);'
                     '\n      if (_dvStepUp != null) return _dvStepUp;'
                     '\n    }');

@@ -13777,6 +13777,21 @@ than told it may not. `DVAuthentication.optional`, the default, runs for
 anybody. The build reads the value literally and stops, naming the file, on
 one it cannot read, rather than generating the function unguarded.
 
+`rateLimit` is built. It is a string literal `'<count>/<unit>'`, the unit
+`second`, `minute`, `hour` or `day`. Past the count in the window the request
+is answered 429 with `Retry-After` before the function runs -- after
+`authentication`, ahead of `mfa` and `policy`. Each function has its own
+budget, and a caller that authenticated is counted as itself (the signed-in
+person, the API key or the OAuth token) rather than as its address, so two
+people behind one office address do not share one. Counts are kept in
+`DVMiddlewareSettings.rateLimitStore` when one is set, so every instance
+shares them, and in the process otherwise. Nothing is written or logged for an
+allowed request. A value the build cannot read stops it, naming the file.
+
+`transaction` is designed and is not a parameter yet: what `auto` decides,
+and whether a transaction here is the `DV.transaction` saga or a database
+transaction every storage engine can open, is not settled.
+
 ## Raw HTTP paths
 
 Raw HTTP exposure stays part of `@DVBackendFunction`; there is no separate
@@ -13796,8 +13811,8 @@ and appends a suffix (`<apiBasePath>/products/get_product/public` for
 `functions/products/get_product.get.dart`). The two
 are mutually exclusive.
 
-`@DVBackendFunction` takes `policy`, `mfa`, `authentication`, `rawPath` and
-`rawPathSuffix` today. A raw path is a string literal of plain segments, without path
+`@DVBackendFunction` takes `policy`, `mfa`, `authentication`, `rateLimit`,
+`rawPath` and `rawPathSuffix` today. A raw path is a string literal of plain segments, without path
 parameters, and the generated client calls the function where it is served.
 A raw path is for callers that are not the application's own pages -- a
 payment provider's webhook, a store's server notification -- so it does not
@@ -13807,8 +13822,7 @@ credential gives a forged cross-site request no session to act as. A bearer
 credential (an API key, an OAuth token, a `Bearer dvs_` session token) is
 still judged on a raw path, and `authentication`, `policy` and `mfa` still
 apply to whoever it names. A function that is not raw keeps both the cookie
-and the CSRF check. `transaction` and `rateLimit` are designed and are not
-parameters yet.
+and the CSRF check.
 
 ---
 

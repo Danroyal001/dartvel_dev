@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `@DVBackendFunction(rateLimit:)`, `dvParseRateLimit` and `dvFunctionRateLimited(request, function:, maxRequests:, window:)`: a function's own budget, 429 with `Retry-After` past it, counted per authenticated caller. `CommonMiddleware.rateLimit` takes `scope:` (part of the shared-store key) and `byCaller:`; both default to the old behaviour.
+
 - `DVAuthentication` (`optional`, `required`) and `@DVBackendFunction(authentication:)`. Breaking only for code outside this repository that declares its own top-level `DVAuthentication` and imports `package:dartvel_core/dartvel.dart`.
 
 - `DVBootTracker.checkBudget(budget)` and a `clock:` for the tracker: DV-RUN-003 when boot took longer than the budget, naming the elapsed time, the slowest phase and the slowest `@DVBoot` function (`context`: `budgetMs`, `elapsedMs`, `slowestPhase`, `slowestPhaseName`, `slowestBootStep`, `slowestBootStepMs`).

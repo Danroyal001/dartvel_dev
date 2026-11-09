@@ -929,11 +929,20 @@ class DVBackendFunction {
   /// the function unguarded.
   final DVAuthentication? authentication;
 
+  /// This function's own budget, `'<count>/<unit>'` with a unit of `second`,
+  /// `minute`, `hour` or `day`: `'100/hour'`. Past it the request is answered
+  /// 429 with `Retry-After` before the function runs. Each function has its
+  /// own count, and a caller that authenticated is counted as itself rather
+  /// than as its address. A string literal the build reads; anything else
+  /// stops it.
+  final String? rateLimit;
+
   const DVBackendFunction({
     this.middleware = const <DVMiddlewareKey>[],
     this.policy,
     this.mfa,
     this.authentication,
+    this.rateLimit,
     this.rawPath,
     this.rawPathSuffix,
     this.aiTool,

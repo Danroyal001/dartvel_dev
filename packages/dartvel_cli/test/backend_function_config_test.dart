@@ -88,6 +88,11 @@ Future<void> main() async {
     out['signedInOrder'] = await call(port, 'POST', '/order', bearer: signedIn);
     out['anonymousBrowse'] = await call(port, 'GET', '/browse');
     out['anonymousCatalog'] = await call(port, 'GET', '/catalog');
+    for (int i = 1; i <= 3; i++) {
+      out['quote$i'] = await call(port, 'GET', '/quote');
+    }
+    out['quoteSignedIn'] = await call(port, 'GET', '/quote', bearer: signedIn);
+    out['catalogAfterQuotes'] = await call(port, 'GET', '/catalog');
   } finally {
     await handle.stop();
   }
@@ -201,6 +206,12 @@ import 'package:dartvel_core/dartvel.dart';
 @DVBackendFunction()
 Future<String> _catalog() async => 'catalog';
 ''',
+        'lib/backend/functions/quote.get.dart': '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction(rateLimit: '2/minute')
+Future<String> _quote() async => 'quote';
+''',
         'bin/probe.dart': _probe,
       });
       final ProcessResult generated = await _generate(packages, project.path);
@@ -260,6 +271,33 @@ Future<String> _catalog() async => 'catalog';
       expect(status('anonymousCatalog'), 200);
       expect(at('anonymousCatalog')['body'], 'catalog');
     });
+
+    test('rateLimit: allows the declared number, then answers 429 with '
+        'Retry-After without running the function', () {
+      expect(status('quote1'), 200, reason: '${at('quote1')}');
+      expect(status('quote2'), 200, reason: '${at('quote2')}');
+      expect(status('quote3'), 429, reason: '${at('quote3')}');
+      expect(at('quote3')['body'], isNot(contains('quote')));
+      expect(int.parse(at('quote3')['retryAfter']! as String), greaterThan(0));
+    });
+
+    test('rateLimit: a signed-in caller has their own budget, and another '
+        'function is not limited by it', () {
+      expect(status('quoteSignedIn'), 200, reason: '${at('quoteSignedIn')}');
+      expect(status('catalogAfterQuotes'), 200);
+    });
+  });
+
+  test('a rateLimit the generator cannot read stops the build and names the '
+      'file, rather than leaving the function unlimited', () async {
+    await _expectBuildStops(<String, String>{
+      'lib/backend/functions/search.get.dart': '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction(rateLimit: '100 per hour')
+Future<String> _search() async => 'found';
+''',
+    }, file: 'search.get.dart', parameter: 'rateLimit');
   });
 
   test('an authentication value the generator cannot read stops the build and '

@@ -1,11 +1,13 @@
 /// The function configuration a `@DVBackendFunction` declares, read from
-/// source: `authentication:`.
+/// source: `authentication:` and `rateLimit:`.
 ///
 /// Read literally, like `policy:` and `mfa:`, so the forms are the ones the
 /// specification writes. A value the build cannot read stops it naming the
 /// file: skipped, the function would be generated without the guard its
 /// declaration asked for, and the build would be green.
 library;
+
+import 'package:dartvel_core/dartvel.dart' show dvParseRateLimit;
 
 import 'annotation_args.dart';
 
@@ -44,4 +46,29 @@ bool dvAuthenticationRequiredFromSource(String source, {required String rel}) {
     'a requirement Dartvel can read, so the function cannot be guarded. '
     'Write DVAuthentication.required or DVAuthentication.optional.',
   );
+}
+
+/// The budget [source]'s `@DVBackendFunction(rateLimit: ...)` declares, or
+/// null when it declares none. Anything but a string literal
+/// `'<count>/<unit>'` that `dvParseRateLimit` reads throws naming [rel].
+({int maxRequests, Duration window})? dvRateLimitFromSource(
+  String source, {
+  required String rel,
+}) {
+  final String? args = dvAnnotationArgs(source, 'DVBackendFunction');
+  if (args == null) return null;
+  final String? value = _argument(args, 'rateLimit');
+  if (value == null || value == 'null') return null;
+  final RegExpMatch? quoted = RegExp(r'''^(['"])(.*)\1$''').firstMatch(value);
+  final ({int maxRequests, Duration window})? budget =
+      quoted == null ? null : dvParseRateLimit(quoted.group(2)!);
+  if (budget == null) {
+    throw StateError(
+      '$rel declares @DVBackendFunction(rateLimit: $value), which is not a '
+      'limit Dartvel can read, so the function cannot be limited. Write a '
+      "string literal '<count>/<unit>' with a unit of second, minute, hour "
+      "or day, such as rateLimit: '100/hour'.",
+    );
+  }
+  return budget;
 }

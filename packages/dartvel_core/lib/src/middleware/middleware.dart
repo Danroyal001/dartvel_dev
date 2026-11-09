@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'dart:math' show Random;
 
 import '../annotations/annotations.dart' show DVCSRF;
+import '../auth/api_scopes.dart' show DVApiPrincipal;
+import '../auth/session_authentication.dart' show DVSessionPrincipal;
 import '../cache/adapters.dart';
 import '../http/client_address.dart';
 import '../http/wintercg.dart' as dv;
@@ -110,12 +112,25 @@ class CommonMiddleware {
   /// anything having to expire on time, and a store that is unreachable
   /// allows the request. Refusing everything while the cache is down turns a
   /// cache outage into an outage.
+  ///
+  /// [scope] names what this budget is for, and goes into the shared store's
+  /// key, so two limiters sharing one store keep separate counts: without it
+  /// a function's own limit and the route chain's would draw on one counter.
+  ///
+  /// [byCaller] counts a request that authenticated as its caller -- the
+  /// signed-in person, or the API key or OAuth token -- rather than as the
+  /// address it came from, so two people behind one office address each get
+  /// the budget and one person moving between networks does not get two.
+  /// It needs the authentication stage to have run, which is why it is off
+  /// for the route chain's limiter, whose callers it would change.
   static Middleware rateLimit({
     int maxRequests = 100,
     Duration window = const Duration(minutes: 1),
     ClientIdentifier? clientIdentifier,
     DVCacheAdapter? store,
     DateTime Function()? clock,
+    String? scope,
+    bool byCaller = false,
   }) {
     if (store != null && store is! DVCountingCacheAdapter) {
       throw ArgumentError.value(
@@ -135,8 +150,9 @@ class CommonMiddleware {
 
     late final Middleware limiter;
     limiter = (request, context) async {
-      final clientId =
-          clientIdentifier?.call(request) ?? _clientIdentifier(request);
+      final clientId = clientIdentifier?.call(request) ??
+          (byCaller ? _authenticatedCaller() : null) ??
+          _clientIdentifier(request);
       final at = now();
 
       if (shared != null) {
@@ -146,7 +162,9 @@ class CommonMiddleware {
         final int slot = at.millisecondsSinceEpoch ~/ window.inMilliseconds;
         try {
           final int count = await shared.increment(
-            'dv:ratelimit:$clientId:$slot',
+            scope == null
+                ? 'dv:ratelimit:$clientId:$slot'
+                : 'dv:ratelimit:$scope:$clientId:$slot',
             // Two windows, so a counter outlives the window it counts and
             // still cannot pile up.
             ttl: window * 2,
@@ -494,6 +512,18 @@ Uri _requestUri(Object? request) {
 /// client sends to an origin it can reach directly, so a caller writing a new
 /// value per request was never limited. A CDN's own header is believed only
 /// as far as its proxy is configured as trusted, through the resolver.
+/// Who the request authenticated as, for a limiter that counts by caller, or
+/// null when it authenticated as nobody. Prefixed by kind and tenant, so a
+/// user id and an API key's subject that happen to be equal never share a
+/// count, and neither does one user id on two tenants.
+String? _authenticatedCaller() {
+  final DVSessionPrincipal? session = DVSessionPrincipal.current;
+  if (session != null) return 'user:${session.tenant}:${session.userId}';
+  final DVApiPrincipal? api = DVApiPrincipal.current;
+  if (api != null) return 'api:${api.tenant}:${api.kind.name}:${api.subject}';
+  return null;
+}
+
 String _clientIdentifier(Object? request) {
   final source = DVClientAddress.current.source(request);
   if (source != null) return source;

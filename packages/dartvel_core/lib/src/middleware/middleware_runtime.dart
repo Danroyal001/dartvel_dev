@@ -24,8 +24,10 @@
 library;
 
 import 'dart:async';
+import 'dart:convert' show utf8;
 
 import '../cache/adapters.dart';
+import '../http/wintercg.dart' show Headers, Request, Response;
 import 'middleware.dart';
 
 /// Configuration the built middleware need, with defaults that are safe when
@@ -383,6 +385,7 @@ Future<DVMiddlewareResult> dvRunMiddlewares(
 /// fresh one.
 void dvResetMiddlewareRuntime() {
   _built.clear();
+  _functionLimits.clear();
   DVMiddlewareSettings.maintenanceIsDown = DVMiddlewareSettings._notDown;
   DVMiddlewareSettings.maintenanceAllows = const <String>['/health'];
   DVMiddlewareSettings.maintenanceBypassSecret = null;
@@ -396,4 +399,71 @@ void dvResetMiddlewareRuntime() {
   DVMiddlewareSettings.requireIdempotencyKey = false;
   DVMiddlewareSettings.authUserId = null;
   DVMiddlewareSettings.contentSecurityPolicy = null;
+}
+
+/// A `@DVBackendFunction(rateLimit: ...)` value, `'<count>/<unit>'` with a
+/// unit of `second`, `minute`, `hour` or `day` -- `'100/hour'` -- read as the
+/// requests allowed and the window they are allowed in. Null for anything
+/// else, a count below one included: the build refuses such a value rather
+/// than guessing what was meant.
+({int maxRequests, Duration window})? dvParseRateLimit(String value) {
+  final RegExpMatch? match =
+      RegExp(r'^\s*(\d+)\s*/\s*(second|minute|hour|day)\s*$').firstMatch(value);
+  if (match == null) return null;
+  final int? count = int.tryParse(match.group(1)!);
+  if (count == null || count < 1) return null;
+  final Duration window = switch (match.group(2)!) {
+    'second' => const Duration(seconds: 1),
+    'minute' => const Duration(minutes: 1),
+    'hour' => const Duration(hours: 1),
+    _ => const Duration(days: 1),
+  };
+  return (maxRequests: count, window: window);
+}
+
+/// Each function's own limiter, built on its first request and kept, because
+/// the count lives in the limiter. Keyed by function and budget, so a
+/// function whose declared limit changes between two builds served by one
+/// process starts a new count rather than reading the old one.
+final Map<String, Middleware> _functionLimits = <String, Middleware>{};
+
+/// The refusal for [request] when the backend function [function] has used
+/// its `rateLimit:` budget -- 429, `Retry-After` and fixed text -- or null to
+/// let it run.
+///
+/// Each function has its own budget: a burst on one read does not lock
+/// anybody out of another function. A request that authenticated is counted
+/// as its caller, one that did not as its address. Counts are kept in
+/// [DVMiddlewareSettings.rateLimitStore] when one is set, under a key naming
+/// the function, and in this process otherwise, as the route chain's limiter
+/// does. Nothing is written or logged for a request that is allowed.
+Future<Response?> dvFunctionRateLimited(
+  Request request, {
+  required String function,
+  required int maxRequests,
+  required Duration window,
+}) async {
+  final Middleware limiter = _functionLimits.putIfAbsent(
+    '$function $maxRequests ${window.inMilliseconds}',
+    () => CommonMiddleware.rateLimit(
+      maxRequests: maxRequests,
+      window: window,
+      store: DVMiddlewareSettings.rateLimitStore,
+      scope: 'fn:$function',
+      byCaller: true,
+    ),
+  );
+  final MiddlewareContext context = MiddlewareContext();
+  await limiter(request, context);
+  if (context.shouldContinue) return null;
+  final Object? retryAfter = context.data['retryAfter'];
+  return Response(
+    429,
+    headers: Headers(<String, String>{
+      'content-type': 'text/plain; charset=utf-8',
+      'cache-control': 'no-store',
+      if (retryAfter is int) 'retry-after': '$retryAfter',
+    }),
+    body: Stream<List<int>>.value(utf8.encode(_refusalMessage['rateLimitError']!)),
+  );
 }

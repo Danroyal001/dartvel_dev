@@ -115,7 +115,7 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
             DocsStatus('Backend Function Request Lifecycle', missing: <String>[
               'Four stages are set today: received, executing, '
                   'preparingResponse and failed.',
-              'transaction and rateLimit are not parameters of '
+              'transaction is not a parameter of '
                   '@DVBackendFunction yet.',
               'The generated client does not send the binary flat-buffer '
                   'format, though the server decodes it.',
@@ -171,6 +171,9 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
               'authentication: DVAuthentication.required answers 401 when the '
                   'request has no session, API key or OAuth token, before the '
                   'function runs.',
+              'rateLimit: \'100/hour\' gives the function its own budget. Past '
+                  'it the request gets 429 and Retry-After. A signed-in caller '
+                  'is counted as themselves, not by address.',
               'policy: \'Order.update\' asks the OrderPolicy class. A refusal is '
                   '403, or 401 when nobody is signed in.',
               'mfa: DVMfa.required, or DVMfa.recent(duration), needs a recent '

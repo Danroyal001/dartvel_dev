@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `@DVBackendFunction(rateLimit: '100/hour')` is enforced by the generated backend: past the count the request is answered 429 with `Retry-After` before the function runs, after `authentication` and ahead of `mfa` and `policy`. A value that is not a `'<count>/<second|minute|hour|day>'` literal stops `dartvel routes`, naming the file.
+
 - `@DVBackendFunction(authentication: DVAuthentication.required)` is enforced by the generated backend: a request with no session, API key or OAuth token is answered 401 with `WWW-Authenticate: Bearer` before the function runs, ahead of the `mfa` and `policy` checks. A value `dartvel routes` cannot read literally stops it, naming the file.
 
 - `dartvel analyze boot`: DV-RUN-007 for each `@DVBoot` function the app entry runs that awaits an HTTP request (`DV.Http`, `DVHttp()`, `package:http`, `HttpClient`) before the first frame, with the file and line of the request.
