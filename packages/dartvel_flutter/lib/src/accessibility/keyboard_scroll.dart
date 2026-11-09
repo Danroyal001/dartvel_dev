@@ -14,7 +14,9 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import 'editing_focus.dart';
@@ -75,11 +77,13 @@ class _DVKeyboardScrollState extends State<DVKeyboardScroll> {
     // either -- and from then on the page answered no key. The reader had to
     // find a link to click before scrolling worked again.
     FocusManager.instance.addListener(_focusChanged);
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_pointerEvent);
   }
 
   @override
   void dispose() {
     FocusManager.instance.removeListener(_focusChanged);
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_pointerEvent);
     _node.dispose();
     super.dispose();
   }
@@ -95,15 +99,61 @@ class _DVKeyboardScrollState extends State<DVKeyboardScroll> {
   /// a sheet that has just opened over the page and is about to focus its
   /// first control: taking focus back from it put the dialog's keys on the
   /// page beneath, and Esc never reached the dialog.
+  ///
+  /// Never in the middle of a click or a tap. A click from a button into a
+  /// text field starts by taking focus off the button, and for that moment
+  /// focus is nowhere; taking it then moved the browser's focus to the page
+  /// and away from the field being clicked, so the field never started
+  /// editing and the first click into it did nothing. While a pointer is
+  /// down the page waits, and looks again once the gesture is over and its
+  /// frame has been drawn: by then the field the reader clicked holds focus,
+  /// and only a click that landed on nothing leaves focus for the page.
   void _focusChanged() {
-    if (!mounted || !_node.canRequestFocus) return;
-    final FocusNode? focused = FocusManager.instance.primaryFocus;
-    if (identical(focused, _node)) return;
-    if (focused == null ||
-        identical(focused, widget.takesFocusFrom) ||
-        (focused is FocusScopeNode && _node.ancestors.contains(focused))) {
-      _node.requestFocus();
+    if (!_focusIsNowhere()) return;
+    if (_pointersDown > 0) {
+      _takeBackAfterPointers = true;
+      return;
     }
+    _takeBackAfterFrame();
+  }
+
+  bool _focusIsNowhere() {
+    if (!mounted || !_node.canRequestFocus) return false;
+    final FocusNode? focused = FocusManager.instance.primaryFocus;
+    if (identical(focused, _node)) return false;
+    return focused == null ||
+        identical(focused, widget.takesFocusFrom) ||
+        (focused is FocusScopeNode && _node.ancestors.contains(focused));
+  }
+
+  int _pointersDown = 0;
+  bool _takeBackAfterPointers = false;
+  bool _takeBackScheduled = false;
+
+  void _pointerEvent(PointerEvent event) {
+    if (event is PointerDownEvent) {
+      _pointersDown++;
+    } else if (event is PointerUpEvent || event is PointerCancelEvent) {
+      if (_pointersDown > 0) _pointersDown--;
+      if (_pointersDown == 0 && _takeBackAfterPointers) {
+        _takeBackAfterPointers = false;
+        _takeBackAfterFrame();
+      }
+    }
+  }
+
+  void _takeBackAfterFrame() {
+    if (_takeBackScheduled) return;
+    _takeBackScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _takeBackScheduled = false;
+      if (_pointersDown > 0) {
+        _takeBackAfterPointers = true;
+      } else if (_focusIsNowhere()) {
+        _node.requestFocus();
+      }
+    });
+    SchedulerBinding.instance.ensureVisualUpdate();
   }
 
   @override
