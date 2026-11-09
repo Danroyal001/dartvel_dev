@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Generated backend routes answer a thrown `DVRefusal` with its status and `{"error": message}` (not recorded as a crash); any other exception is still a bare 500. Generated typed client functions throw `DVBackendFunctionException` on any answer that is not 2xx, instead of returning the error text as the result.
+- Web builds never ship Flutter's template branding. favicon.png and apple-touch-icon.png are generated with the four manifest icons from dartvel.pwa.icon (or assets/icon.png); a project with no icon gets a monogram of its name and a warning. The manifest, page title, description and iOS app title take the name, description and colours from dartvel.pwa, then dartvel.seo, never the package name, "A new Flutter project." or #0175C2. Flutter template icons left in web/ are reported.
 
 ## 0.13.28 — 2026-11-09
 

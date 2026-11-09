@@ -122,9 +122,16 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           title: 'Install it as an app, and use it offline',
           children: <Widget>[
             Bullets(<String>[
-              '`dartvel build web` writes the manifest, icons from web/icon.png, '
-                  'and a service worker. A page the worker cannot reach opens '
-                  '/offline, a page of your app that says where you were.',
+              '`dartvel build web` writes the manifest, the icons and a service '
+                  'worker. A page the worker cannot reach opens /offline, a page '
+                  'of your app that says where you were.',
+              'Every icon comes from one image, `dartvel.pwa.icon` (or assets/icon.png): '
+                  'the tab icon (favicon.png), the home-screen icon '
+                  '(apple-touch-icon.png) and the four install icons. With no '
+                  'image the build draws a monogram of your app\'s name and says so. '
+                  'Flutter\'s template logo, package name, "A new Flutter project." '
+                  'and blue are never shipped: the name, description and colours '
+                  'come from dartvel.pwa, then dartvel.seo.',
               'A change sent while offline is queued in the browser and sent in '
                   'order when the network is back. CI checks this in Chrome on '
                   'every push.',
