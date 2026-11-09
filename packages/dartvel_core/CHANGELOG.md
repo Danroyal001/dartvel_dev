@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `DVAuthentication` (`optional`, `required`) and `@DVBackendFunction(authentication:)`. Breaking only for code outside this repository that declares its own top-level `DVAuthentication` and imports `package:dartvel_core/dartvel.dart`.
+
 - `DVBootTracker.checkBudget(budget)` and a `clock:` for the tracker: DV-RUN-003 when boot took longer than the budget, naming the elapsed time, the slowest phase and the slowest `@DVBoot` function (`context`: `budgetMs`, `elapsedMs`, `slowestPhase`, `slowestPhaseName`, `slowestBootStep`, `slowestBootStepMs`).
 - `DVRunConfig` (`framework.dart`): `dartvel.run` (`bootBudget`, `headlessBudget`, `shutdownGrace`) parsed with the spec's defaults; an unknown key or a duration that is not `<n>ms|s|m|h` is an `ArgumentError`.
 - `DVBootTracker` and `DVBootFailure` (`framework.dart`): one walk through the boot sequence for every entry. Each phase moves `DV.lifecycle.app` (1-2 `initializing`, 3-5 `booting`, 6 `ready`); a phase that throws moves it to `failed` and logs DV-RUN-004 with the entry, the phase and, in phase 4, the `@DVBoot` function (`context`: `entry`, `phase`, `phaseName`, `bootStep`).

@@ -115,7 +115,7 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
             DocsStatus('Backend Function Request Lifecycle', missing: <String>[
               'Four stages are set today: received, executing, '
                   'preparingResponse and failed.',
-              'transaction, authentication and rateLimit are not parameters of '
+              'transaction and rateLimit are not parameters of '
                   '@DVBackendFunction yet.',
               'The generated client does not send the binary flat-buffer '
                   'format, though the server decodes it.',
@@ -168,6 +168,9 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
           title: 'Protect a function with a policy and MFA',
           children: <Widget>[
             Bullets(<String>[
+              'authentication: DVAuthentication.required answers 401 when the '
+                  'request has no session, API key or OAuth token, before the '
+                  'function runs.',
               'policy: \'Order.update\' asks the OrderPolicy class. A refusal is '
                   '403, or 401 when nobody is signed in.',
               'mfa: DVMfa.required, or DVMfa.recent(duration), needs a recent '

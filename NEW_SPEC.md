@@ -13769,6 +13769,14 @@ Future<Order> _createOrder(DVContext context, OrderInput input) async =>
     Order.create(input);
 ```
 
+`authentication` is built. `DVAuthentication.required` refuses a request
+that authenticated with nothing -- no session, no API key, no OAuth token --
+with 401 and `WWW-Authenticate: Bearer` before the function runs, and ahead
+of the `mfa` and `policy` checks, so the client is asked to sign in rather
+than told it may not. `DVAuthentication.optional`, the default, runs for
+anybody. The build reads the value literally and stops, naming the file, on
+one it cannot read, rather than generating the function unguarded.
+
 ## Raw HTTP paths
 
 Raw HTTP exposure stays part of `@DVBackendFunction`; there is no separate
@@ -13788,8 +13796,8 @@ and appends a suffix (`<apiBasePath>/products/get_product/public` for
 `functions/products/get_product.get.dart`). The two
 are mutually exclusive.
 
-`@DVBackendFunction` takes `policy`, `mfa`, `rawPath` and `rawPathSuffix`
-today. A raw path is a string literal of plain segments, without path
+`@DVBackendFunction` takes `policy`, `mfa`, `authentication`, `rawPath` and
+`rawPathSuffix` today. A raw path is a string literal of plain segments, without path
 parameters, and the generated client calls the function where it is served.
 A raw path is for callers that are not the application's own pages -- a
 payment provider's webhook, a store's server notification -- so it does not
@@ -13797,9 +13805,9 @@ read the session cookie, and a POST to it needs no CSRF token. CSRF protects
 a credential the browser attaches on its own; a route that never reads that
 credential gives a forged cross-site request no session to act as. A bearer
 credential (an API key, an OAuth token, a `Bearer dvs_` session token) is
-still judged on a raw path, and `policy` and `mfa` still apply to whoever it
-names. A function that is not raw keeps both the cookie and the CSRF check.
-`transaction`, `authentication` and `rateLimit` are designed and are not
+still judged on a raw path, and `authentication`, `policy` and `mfa` still
+apply to whoever it names. A function that is not raw keeps both the cookie
+and the CSRF check. `transaction` and `rateLimit` are designed and are not
 parameters yet.
 
 ---

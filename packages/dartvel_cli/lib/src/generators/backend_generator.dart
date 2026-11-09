@@ -34,6 +34,7 @@ import 'model_names.dart';
 import 'client_type_imports.dart';
 import 'function_body.dart';
 import 'raw_path.dart';
+import 'function_config.dart';
 import 'job_generator.dart';
 import 'symbol_qualifier.dart';
 import 'client_generator.dart' show ClientGenerator, DVBootHook;
@@ -803,6 +804,10 @@ class BackendGenerator {
         'mfa':
             dvMfaFromSource(src, annotation: 'DVBackendFunction', rel: rel) ??
             '',
+        // Whether the function needs a caller. A value this cannot read stops
+        // the build.
+        'authentication':
+            dvAuthenticationRequiredFromSource(src, rel: rel) ? '1' : '0',
         // Where it was declared, for a refusal that has to name the file.
         'rel': rel,
         // And where that is on disk, in which package, so the client can
@@ -1578,10 +1583,19 @@ ${backendEntries.map((e) {
           // session proves enough is an authentication question, and a policy is
           // asked about a caller once that is settled.
           final String mfa = e['mfa'] ?? '';
-          final String mfaGate = mfa.isEmpty ? '' : '\n    {'
+          // authentication: DVAuthentication.required, asked first of the
+          // three: nobody is told to sign in, never that a second factor or a
+          // policy refused them. Either credential counts -- the
+          // application's own session, or an API key or OAuth token.
+          final String authenticationGate = e['authentication'] == '1'
+              ? '\n    if (core.DVSessionPrincipal.current == null && '
+                    'core.DVApiPrincipal.current == null) '
+                    'return _dvUnauthenticated();'
+              : '';
+          final String mfaGate = authenticationGate + (mfa.isEmpty ? '' : '\n    {'
                     '\n      final _dvStepUp = core.DVAuthEndpoints.requireMfa($mfa);'
                     '\n      if (_dvStepUp != null) return _dvStepUp;'
-                    '\n    }';
+                    '\n    }');
           // A route that declares no policy action is one no scope can cover, so
           // a request authenticated with an API key or OAuth token is refused
           // there rather than run with a caller nothing checked.

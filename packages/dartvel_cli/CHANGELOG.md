@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `@DVBackendFunction(authentication: DVAuthentication.required)` is enforced by the generated backend: a request with no session, API key or OAuth token is answered 401 with `WWW-Authenticate: Bearer` before the function runs, ahead of the `mfa` and `policy` checks. A value `dartvel routes` cannot read literally stops it, naming the file.
+
 - `dartvel analyze boot`: DV-RUN-007 for each `@DVBoot` function the app entry runs that awaits an HTTP request (`DV.Http`, `DVHttp()`, `package:http`, `HttpClient`) before the first frame, with the file and line of the request.
 - The generated `DV.run` passes `dartvel.run.bootBudget` (default 800ms) to the app entry, so a slow boot reports DV-RUN-003. An unreadable `dartvel.run` value stops `dartvel routes`.
 - A stopping web process drains: new requests are answered 503, the ones being answered finish, and after `dartvel.run.shutdownGrace` (default 20s) any still running are answered 503. The generated server `main` exits 0 once stopped instead of waiting for leftover timers. `dartvel.run` is validated at generation: a misspelt key or an unreadable duration stops `dartvel routes`.

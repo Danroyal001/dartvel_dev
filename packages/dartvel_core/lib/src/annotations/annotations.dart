@@ -875,6 +875,21 @@ class DVSensitiveModelField {
   });
 }
 
+/// Whether a backend function needs a caller, declared with
+/// `@DVBackendFunction(authentication: ...)`.
+enum DVAuthentication {
+  /// Runs for anybody, signed in or not. The default: what a function that
+  /// declares nothing does.
+  optional,
+
+  /// Runs only for a request that authenticated -- the application's own
+  /// session, an API key or an OAuth token. Nobody is refused with 401 and a
+  /// `WWW-Authenticate: Bearer` challenge before the function runs, so the
+  /// client sends the person to sign in rather than to a page saying they
+  /// may not.
+  required,
+}
+
 /// Annotation for a Dartvel Backend Function
 class DVBackendFunction {
   /// Ordered middleware executed before this declaration.
@@ -908,10 +923,17 @@ class DVBackendFunction {
   /// Functions are planned to read this one registry; none exists yet.
   final DVAITool? aiTool;
 
+  /// Whether the function needs a caller. Null is
+  /// [DVAuthentication.optional]. Read literally from source by the build,
+  /// like [mfa]: a value it cannot read stops the build rather than leaving
+  /// the function unguarded.
+  final DVAuthentication? authentication;
+
   const DVBackendFunction({
     this.middleware = const <DVMiddlewareKey>[],
     this.policy,
     this.mfa,
+    this.authentication,
     this.rawPath,
     this.rawPathSuffix,
     this.aiTool,
