@@ -846,11 +846,11 @@ into one member when their signatures agree and otherwise the most specific
 one, with the receiver's type arguments substituted. `type_system.rs` adds
 `resolveToBound`, `isDynamicBounded` and `isInvalidBounded`.
 
-Limits (extensions were added by the extension slice below): `super`
+Limits (extensions were added by the extension slice below, `?[]` and
+cascade index sections by the super and sections slice): `super`
 receivers, members whose types override inference would infer (an operator without a declared
 return or parameter type, which upstream infers from what it overrides),
-combined member signatures where no candidate is most specific, `?[]`,
-cascades, compound assignments and increments, implicit call tear-offs and
+combined member signatures where no candidate is most specific, compound assignments and increments, implicit call tear-offs and
 generic function instantiation of an operator's value, integer literals in
 other contexts (call arguments, untyped variables, closures' inferred return
 types), and every invocation an operand of which is not typed. The
@@ -930,9 +930,10 @@ row in its place), and the call is not typed. `body_dump` finds the member
 accesses of a V1 projection by offset and length, since the projection of
 `a.f().g()` gives the inner invocation the whole chain as its origin.
 
-Limits (as extended by the extension, `this`, null-aware and cascade slices
-below): nullable receivers that neither `Object` nor an extension serves,
-index and assignment sections of cascades, `super`,
+Limits (as extended by the extension, `this`, null-aware, cascade and super
+and sections slices below): nullable receivers that neither `Object` nor an
+extension serves, compound and if-null assignment sections of cascades,
+`super` where `this` is not known and `super?.m`,
 `this` where it is not known, static members and import prefixes, `dynamic`,
 `Never`, invalid and `void` receivers, `call` of functions and record
 fields, private names (a private field may be promoted by flow analysis,
@@ -1195,6 +1196,90 @@ Measured 2026-11-09: the default corpus matches 52,747 member rows (was
 and user-operator tests still match on the fixture (194, 160, 694, 80 and
 540 rows), the default corpus (41,283, 1,096, 50,276, 13,036 and 1,402) and
 the held-out roots (146,712, 10,879, 108,816, 52,170 and 14,229).
+
+`super` accesses, null-aware indexes and the index and assignment sections
+of cascades come next. `super.m(...)` and `super.p` (operator `.`) are
+selected by `--members` where `this` is known (`ThisContexts`) in a class,
+mixin or enum, and resolved as `_resolveSuperInvocation` resolves them: to
+the member `getMember(forSuper: true)` finds in the enclosing declaration,
+which `inheritance_manager3.rs` ports as `get_super_member`. In a class or
+enum that is the concrete member of `superImplemented.last`: what the
+superclass implements (its own concrete members over its mixins' over its
+superclass's), with each mixin's own concrete members applied over it
+(`_addMixinMembers`, which skips abstract members and `Object`'s), so an
+abstract member does not hide a concrete one; failing a concrete member,
+`recoverFailedSuperLookup` keeps the member of the last supertype whose
+interface has one, abstract or not (`super.value` of an abstract getter).
+In a mixin declaration it is the member of its superclass constraints'
+combined interface. The member must meet the `--members` conditions (not
+generic, declared types, not private), and both sides also write the
+`super` receiver (`SuperExpression`), whose type is that of `this`.
+The analyzer keeps those receivers beside the static types
+(`super_receivers`), so that no operator or lookup on the type of `this`
+takes `super` for an operand.
+
+`--user-operators` now selects `r?[i]` too: `[]` is looked up on the
+receiver's type made non-nullable, and null shorting (`is_shorted`,
+`continues_null_shorting`, shared with the member resolver) makes the index
+that ends a chain nullable, so in `ll[0]?[1][2]` the inner `ll[0]?[1]` is a
+`List<int>` and the whole an `int?`; an access chained on it
+(`lists[0]?[1].isEven`) continues the chain in `--members`. A cascade
+section `t..[i]` (`CascadeIndexExpression`) is an index invocation on the
+cascade's target, made non-nullable in a null-aware cascade; the target is
+typed in its own position, not again as an operand, and a section's value
+is not nullable. Like a cascade head it is keyed by its V1 span, which
+begins at the `..`; the oracle now keys every selected invocation by
+`_v1Span`. A cascade on an integer literal or an extension override is
+left out.
+
+`--members` also selects a cascade section `t..p = v`: a direct
+assignment that is a section's body (`t?..p = v`, `t..a.b = v` and
+`t..[i] = v` too), whose value, past parentheses, is known and not an
+integer literal (which takes the write's type as its context). Its type is
+the value's, as `AssignmentExpressionResolver` gives a `=` assignment
+the type of its right-hand side, whatever the target resolves to; the
+write itself (`..p`) has no static type on either side.
+
+Limits: `super` where `this` is not known (initializers, static members,
+members where flow analysis may promote `this`), `super` operators
+(`super + 1`, `super[i]`, `-super`), `super?.m`, and in extension types
+and extensions (upstream types them invalid); `?[` and cascade indexes on
+receivers the operator selection does not know, which leaves out member
+accesses (`a.list?[0]`: the operator invocations still do not see the
+member accesses) and variable reads before `?[` or `?..` (flow analysis
+may promote them); compound and if-null assignment sections, an integer
+literal value, and assignments outside cascades.
+
+The fixture `tests/body_corpus/supers_and_sections.dart` covers `super`
+invocations, reads, fields, tear-offs, invoked getters, chains and integer
+arguments in methods, getters, operators, setters, constructor bodies and
+closures; inherited, substituted (through a generic superclass and a
+generic mixin) and mixin-replaced members, an abstract getter found by the
+recovery, mixins with and without `on` (two constraints), and an enum;
+`?[` that continues (`?[1][2]`, `?[1].isEven`) and ends (parentheses, an
+argument, a list element, operands of `==`, `+` and unary minus);
+cascade indexes, also chained, with a `double` index context, on a string
+literal, `this` and a null-aware cascade; assignment sections with string,
+interpolated, parenthesized, variable, member access and `this` values, on
+a chain, an index, a `dynamic` and a null-aware target; and what stays out
+(generic, implicitly typed, private and missing `super` members, `super?.`,
+`super ==`, a static member, a member promoting `this`, an extension type,
+an extension, integer values, compound and if-null sections, an index write,
+and a cascade on an override). Before the port, `--members` on the fixture
+missed every `super` and assignment row and `--user-operators` its 60
+index rows (the port wrote nothing for them); the fixtures now match 830
+member rows (was 742) and 612 user-operator rows (was 540) across 20 files.
+Of the new unit tests in `type_analyzer_test.rs`, the four that expect
+types (`super` accesses through the superclass chain, null-aware indexes
+and where their chains end, cascade indexes, assignment sections) failed
+before the port (all `-`); the one that checks what `super` leaves untyped
+passes by design. Measured 2026-11-09: the default corpus matches 55,362
+member rows (was 52,747) and 1,402 user-operator rows across 589 files, and
+the held-out roots 96,689 member rows (was 94,383) and 14,231 user-operator
+rows (was 14,229) across 5,730 files, zero differences. The literal,
+integer, identifier and operator tests still match on the fixture (207, 170,
+743 and 82 rows), the default corpus (41,283, 1,096, 50,276 and 13,036) and
+the held-out roots (146,712, 10,879, 108,816 and 52,170).
 
 `tests/type_analyzer_test.rs` runs the analyzer on a hand-built `dart:core`
 (so it can run under Miri, not yet done): the literal and operator types,
