@@ -1,3 +1,7 @@
+## Unreleased
+
+- A text field with a screen-reader label (`.input(...).semanticLabel(...)`) can be typed into again. The label hid the field from the semantics tree, and on the web the empty node left in its place caught the click, so the field never took focus.
+
 ## 0.13.26 — 2026-11-07
 
 - A hook, installed only when the browser is under automation, lets the build's semantics read move a running app between routes.

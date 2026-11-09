@@ -4097,6 +4097,12 @@ class DVText extends StatelessWidget {
       // identifier.
       final bool ownsLabel = modifier.semanticRoleValue != null &&
           modifier.semanticLabelValue == null;
+      // An input is never excluded: the child is the text field itself, and
+      // excluding it left one empty node with no text-field flag and no tap
+      // action. On the web that node sat over the field and took the click,
+      // so a labelled search box could not be typed into. Its label is merged
+      // into the field's own node instead.
+      final bool isInput = modifier.inputValue == true;
       result = Semantics(
         label: ownsLabel
             ? text
@@ -4105,15 +4111,16 @@ class DVText extends StatelessWidget {
         button: textPressable ? null : modifier.semanticButtonValue,
         headingLevel: modifier.semanticHeadingValue,
         identifier: modifier.semanticRoleValue,
-        excludeSemantics: ownsLabel ||
-            (!textPressable && modifier.semanticLabelValue != null),
+        excludeSemantics: !isInput &&
+            (ownsLabel ||
+                (!textPressable && modifier.semanticLabelValue != null)),
         child: result,
       );
       // Merged only when the node does not already own its text. A
       // MergeSemantics around a node carrying an identifier reports the merged
       // node instead, and the identifier is not carried through -- which is
       // how a role that was plainly set arrived as an empty string.
-      if (!ownsLabel && modifier.semanticLabelValue == null) {
+      if (isInput || (!ownsLabel && modifier.semanticLabelValue == null)) {
         result = MergeSemantics(child: result);
       }
     }
