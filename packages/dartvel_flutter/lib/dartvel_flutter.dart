@@ -37,6 +37,8 @@ import 'src/auth/session_client.dart';
 // conditional SEO implementation
 import 'src/crashes/crashes.dart';
 import 'src/default_theme.dart' show dvWithPageScrollbars;
+import 'src/display/display_scale.dart'
+    show DVDisplayScaling, DVScreenClass, dvCurrentScreenClass, dvCurrentUiScale, dvDisplayScaling;
 import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
@@ -805,6 +807,8 @@ export 'src/auth/session_token_file_io.dart'
     if (dart.library.js_interop) 'src/auth/session_token_file_web.dart';
 export 'src/crashes/crashes.dart';
 export 'src/default_theme.dart';
+export 'src/display/display_scale.dart'
+    hide dvCurrentScreenClass, dvCurrentUiScale, dvDisplayScaling;
 // The documentation site: the widgets that draw the document `dartvel docs`
 // writes, so a project hosting its documentation under a mount of its own can
 // reach them. The document itself is re-exported from dartvel_core below.
@@ -6416,6 +6420,19 @@ class DVScreen {
   Map<String, double> get safeAreaBounds => _platform.safeAreas;
   String get breakPoints => _platform.breakpoint;
   String get shape => _platform.screenShape;
+
+  /// What kind of screen the app is on: watch, phone, tablet, desktop, tv or
+  /// billboard. Read from the real screen, not the scaled layout.
+  DVScreenClass get screenClass => dvCurrentScreenClass;
+
+  /// The factor the whole interface is drawn at: 1 on phones, tablets and
+  /// desktops, larger on a television or signage panel, smaller on a watch.
+  double get uiScale => dvCurrentUiScale;
+
+  /// How the interface is sized for the screen. Defaults to `dartvel: display:
+  /// scaling:` in pubspec (auto when unset); assigning redraws the app.
+  DVDisplayScaling get scaling => dvDisplayScaling;
+  set scaling(DVDisplayScaling value) => dvDisplayScaling = value;
 }
 
 
