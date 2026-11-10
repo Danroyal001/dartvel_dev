@@ -388,6 +388,79 @@ Widget _featureCard(String title) => DVText(title).modifier(cardStyle);
   );
 
   test(
+    'a helper whose return type is a record is qualified too',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'dartvel_private_widget_test_',
+      );
+      try {
+        Directory(
+          p.join(root.path, 'lib', 'dartvel_client'),
+        ).createSync(recursive: true);
+        Directory(
+          p.join(root.path, 'lib', 'components'),
+        ).createSync(recursive: true);
+
+        File(
+          p.join(root.path, 'lib', 'components', 'cards.dart'),
+        ).writeAsStringSync('''
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+
+/// Learn Acer's element facts: a label and a value each.
+List<(String, String)> facts(String name) => <(String, String)>[('Name', name)];
+
+(String, int) pair(String name) => (name, name.length);
+
+@DVFunctionalWidget()
+Widget _featureCard(String title) => DVText('\${facts(title).first.\$2} \${pair(title).\$2}');
+''');
+
+        await ClientGenerator.generate(
+          root: root.path,
+          pagesDir: 'lib/pages',
+          pkgName: 'private_client_app',
+          buildId: 'test-build',
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          devBackendHost: 'http://localhost:3000',
+          prodBackendHost: 'https://api.example.test',
+          apiBasePath: '/api',
+          envFiles: const <String>[],
+          seoSiteName: 'Private App',
+          seoTitle: 'Private App',
+          seoDesc: 'Private App',
+          seoImage: '',
+          seoTwitter: '',
+          defaultTransition: 'fade',
+          durationMs: 200,
+          curve: 'easeInOut',
+          normalizeTrailing: true,
+          notFoundRedirect: '',
+          plugins: const <String>[],
+          ota: false,
+          dv: YamlMap.wrap(<String, Object?>{}),
+        );
+
+        final widgets = File(
+          p.join(root.path, 'lib', 'dartvel_client', 'widgets.g.dart'),
+        ).readAsStringSync();
+
+        expect(
+          widgets,
+          contains(
+            "import 'package:private_client_app/components/cards.dart' as w0;",
+          ),
+        );
+        expect(widgets, contains('w0.facts(title)'));
+        expect(widgets, contains('w0.pair(title)'));
+        expect(widgets, isNot(contains('{facts(title)')));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
     'private block-bodied functional widgets are lowered into the widget',
     () async {
       final root = await Directory.systemTemp.createTemp(
@@ -652,7 +725,7 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
       // And the message must carry the policy at runtime, not the generator's
       // empty local: an unescaped interpolation here is how the whole file
       // stopped compiling once already.
-      expect(routes, contains(r"'Not authorized ($policy)'"));
+      expect(routes, contains(r"'Not authorized (\$policy)'"));
 
       // A function that declares no policy is not gated. Without this the
       // test would pass just as well if every route were guarded by the
