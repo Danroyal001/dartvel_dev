@@ -823,6 +823,7 @@ export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
 export 'src/kiosk/session_clear.dart';
 export 'src/lifecycle/app_lifecycle_bridge.dart';
+export 'src/driver/agent_driver.dart';
 export 'src/logging/logging.dart';
 export 'src/media/camera_view.dart' hide DVCameraView;
 // The renderer behind DVBox.image is not a second image widget, so it is
