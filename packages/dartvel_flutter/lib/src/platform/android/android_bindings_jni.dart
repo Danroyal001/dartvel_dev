@@ -226,6 +226,7 @@ class DVAndroidBindings {
     DVNativeBridge.register('apps.uninstall', (Object? arguments) => DVAndroidApps.uninstall(context, packageOf(arguments)));
     DVNativeBridge.register('apps.icon', (Object? arguments) => DVAndroidApps.icon(context, packageOf(arguments)));
     DVNativeBridge.register('apps.isDefaultLauncher', (Object? _) => DVAndroidApps.isDefaultLauncher(context));
+    DVNativeBridge.register('apps.defaultFor', (Object? arguments) => DVAndroidApps.defaultFor(context, arguments is Map ? '${arguments['role'] ?? ''}' : ''));
     // The role question is an Activity's (startActivityForResult); without one
     // the Home settings page is started from the application Context.
     DVNativeBridge.register('apps.requestDefaultLauncher', (Object? _) => DVAndroidApps.requestDefaultLauncher(context, DVAndroidActivities.current));

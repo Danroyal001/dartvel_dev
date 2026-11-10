@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   tearDown(() {
-    for (final String name in const ['apps.list', 'apps.open', 'apps.openSettings', 'apps.uninstall', 'apps.icon', 'apps.isDefaultLauncher', 'apps.requestDefaultLauncher']) {
+    for (final String name in const ['apps.list', 'apps.open', 'apps.openSettings', 'apps.uninstall', 'apps.icon', 'apps.isDefaultLauncher', 'apps.requestDefaultLauncher', 'apps.defaultFor']) {
       DVNativeBridge.unregister(name);
     }
   });
@@ -122,5 +122,26 @@ void main() {
     await expectLater(const DVApps().isDefaultLauncher(), throwsA(isA<UnsupportedError>()));
     await expectLater(const DVApps().requestDefaultLauncher(), throwsA(isA<UnsupportedError>()));
     await expectLater(const DVApps().icon('com.termux'), throwsA(isA<UnsupportedError>()));
+  });
+
+  test('the app the phone opens for a role, as the person set it', () async {
+    final List<Object?> asked = [];
+    DVNativeBridge.register('apps.defaultFor', (Object? arguments) {
+      asked.add((arguments! as Map)['role']);
+      return const {'phone': 'com.google.android.dialer', 'browser': 'org.mozilla.firefox'}[(arguments as Map)['role']];
+    });
+    const DVApps apps = DVApps();
+    expect(await apps.defaultFor(DVAppRole.browser), 'org.mozilla.firefox');
+    expect(await apps.defaultFor(DVAppRole.phone), 'com.google.android.dialer');
+    expect(await apps.defaultFor(DVAppRole.camera), isNull, reason: 'no app for a role is null, not an empty name');
+    expect(asked, ['browser', 'phone', 'camera']);
+  });
+
+  test('every role the dock needs exists', () {
+    expect(DVAppRole.values.map((DVAppRole role) => role.name), containsAll(<String>['phone', 'messages', 'browser', 'camera', 'email', 'maps']));
+  });
+
+  test('defaultFor is unsupported where no binding is registered', () async {
+    await expectLater(const DVApps().defaultFor(DVAppRole.browser), throwsA(isA<UnsupportedError>()));
   });
 }
