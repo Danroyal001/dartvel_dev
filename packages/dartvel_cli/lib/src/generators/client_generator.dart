@@ -4789,11 +4789,17 @@ $code
       final String uri = match.group(1)!;
       final String suffix = (match.group(2) ?? '').trim();
 
-      // dart: and package: come across unchanged; the framework and SDK are
-      // already imported here, and a duplicate import is a compile error the
-      // caller de-duplicates against.
-      if (uri.startsWith('dart:')) continue;
       if (suffix.contains('deferred')) continue;
+
+      // dart: imports come across as written. The generated file imports
+      // dart:async itself, but a widget calling jsonEncode or math.max needs
+      // its own dart:convert or dart:math; skipping them left utf8 and
+      // jsonEncode undefined in widgets.g.dart. Importing a library twice is
+      // only a lint (duplicate_import), which generated files ignore.
+      if (uri.startsWith('dart:')) {
+        out.add("import '$uri'${suffix.isEmpty ? '' : ' $suffix'};");
+        continue;
+      }
 
       // Every caller already imports dartvel_flutter with DV hidden; a bare
       // copy of the source's import would name the same URI twice.
