@@ -63,7 +63,7 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 'still compile as `@Deprecated` aliases for one release. '
                 '`DV.Platform.notifications` unifies the notifications service and device-local notifications under the standard lowerCamel convention.'),
             DocsShell(<String>[
-              'DV.Platform.camera, media, location, bluetooth, nfc, clipboard, share',
+              'DV.Platform.camera, media, location, bluetooth, nfc, clipboard, share, apps',
               'DV.Platform.sensors, biometrics, deepLinks, haptics, contacts',
               'DV.Platform.notifications, permissions, browserExtension, network',
               'DV.Platform.install, display, fileStorage, device, fonts, dragDrop',
@@ -120,6 +120,7 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 <String>['device', 'Shipped (stub)', 'all'],
                 <String>['clipboard', 'Partial', 'web, Linux, Windows, macOS (varies)'],
                 <String>['share', 'Partial', 'Android, web; iOS built but not yet run on an iPhone'],
+                <String>['apps', 'Partial', 'Android (list, open, settings, uninstall); dartvel.android.launcher makes a home-screen app; not yet run on a device'],
                 <String>['sensors', 'Partial', 'Android, some web; iOS built but not yet run on an iPhone'],
                 <String>['biometrics', 'Partial', 'web; canAuthenticate on Android; iOS (Face ID, Touch ID) built but not yet run on an iPhone'],
                 <String>['deepLinks', 'Stub', 'all'],
