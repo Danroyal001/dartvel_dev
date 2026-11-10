@@ -461,6 +461,77 @@ Widget _featureCard(String title) => DVText('\${facts(title).first.\$2} \${pair(
   );
 
   test(
+    'a widget file\'s dart: imports reach the generated widgets',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'dartvel_private_widget_test_',
+      );
+      try {
+        Directory(
+          p.join(root.path, 'lib', 'dartvel_client'),
+        ).createSync(recursive: true);
+        Directory(
+          p.join(root.path, 'lib', 'components'),
+        ).createSync(recursive: true);
+
+        File(
+          p.join(root.path, 'lib', 'components', 'cards.dart'),
+        ).writeAsStringSync('''
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+
+import 'dart:convert';
+import 'dart:math' as math;
+
+@DVFunctionalWidget()
+Widget _featureCard(String title) => DVText(jsonEncode(<String, Object?>{'t': title, 'n': math.max(1, 2)}));
+''');
+
+        await ClientGenerator.generate(
+          root: root.path,
+          pagesDir: 'lib/pages',
+          pkgName: 'private_client_app',
+          buildId: 'test-build',
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          devBackendHost: 'http://localhost:3000',
+          prodBackendHost: 'https://api.example.test',
+          apiBasePath: '/api',
+          envFiles: const <String>[],
+          seoSiteName: 'Private App',
+          seoTitle: 'Private App',
+          seoDesc: 'Private App',
+          seoImage: '',
+          seoTwitter: '',
+          defaultTransition: 'fade',
+          durationMs: 200,
+          curve: 'easeInOut',
+          normalizeTrailing: true,
+          notFoundRedirect: '',
+          plugins: const <String>[],
+          ota: false,
+          dv: YamlMap.wrap(<String, Object?>{}),
+        );
+
+        final widgets = File(
+          p.join(root.path, 'lib', 'dartvel_client', 'widgets.g.dart'),
+        ).readAsStringSync();
+
+        expect(
+          widgets,
+          contains(
+            "import 'package:private_client_app/components/cards.dart' as w0;",
+          ),
+        );
+        expect(widgets, contains("import 'dart:convert';"));
+        expect(widgets, contains("import 'dart:math' as math;"));
+        expect(widgets, contains('jsonEncode('));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
     'private block-bodied functional widgets are lowered into the widget',
     () async {
       final root = await Directory.systemTemp.createTemp(

@@ -455,9 +455,16 @@ List<DVConventionFinding> dvScanProjectForConventions(String root) {
     '.next',
     'dartvel_client',
   };
+  // Top-level folders the project's own .gitignore excludes are not what it
+  // commits. The build writes android/ and the other native folders there
+  // (gradlew.bat included), and flagging them flagged Dartvel's own output.
+  final Set<String> gitIgnoredTopLevel = _gitIgnoredTopLevelFolders(root);
   void walk(Directory dir) {
     for (final entity in dir.listSync(followLinks: false)) {
-      if (entity is Directory && !ignored.contains(p.basename(entity.path)))
+      final bool topLevel = p.equals(p.dirname(entity.path), root);
+      if (entity is Directory &&
+          !ignored.contains(p.basename(entity.path)) &&
+          !(topLevel && gitIgnoredTopLevel.contains(p.basename(entity.path))))
         walk(entity);
       if (entity is! File) continue;
       final relative = p
@@ -497,4 +504,21 @@ List<DVConventionFinding> dvScanProjectForConventions(String root) {
         a.path == b.path ? a.line.compareTo(b.line) : a.path.compareTo(b.path),
   );
   return findings;
+}
+
+/// Folder names the root `.gitignore` excludes as a whole: lines like
+/// `android/`, `/ios` or `web`, with no wildcard or negation.
+Set<String> _gitIgnoredTopLevelFolders(String root) {
+  final File gitignore = File(p.join(root, '.gitignore'));
+  if (!gitignore.existsSync()) return const <String>{};
+  final Set<String> names = <String>{};
+  for (final String raw in gitignore.readAsLinesSync()) {
+    final String line = raw.trim();
+    if (line.isEmpty || line.startsWith('#') || line.startsWith('!')) continue;
+    if (RegExp(r'[*?\[\]]').hasMatch(line)) continue;
+    final String name = line.replaceAll(RegExp(r'^/+|/+$'), '');
+    if (name.isEmpty || name.contains('/')) continue;
+    names.add(name);
+  }
+  return names;
 }
