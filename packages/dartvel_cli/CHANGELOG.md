@@ -1,3 +1,9 @@
+## Unreleased
+
+- A backend function parameter named `query`, `body` or `headers` stops the build with the file, the parameter and the fix, instead of generating a client function that declares the name twice and does not compile.
+- A functional widget calling a helper whose return type is a record (`List<(String, String)> facts(...)`) now compiles: the helper is qualified like any other.
+- The agent docs `dartvel create` and `dartvel dev` write name the installed documentation from `~`, not the machine's home path, so a fresh project no longer fails its own DV-CONV-017 check.
+
 ## 0.13.30 — 2026-11-10
 
 - `dartvel.android.launcher: true` makes an app eligible as the phone's home screen: the build adds HOME/DEFAULT to the launcher activity and the MAIN/LAUNCHER `<queries>` entry Android 11+ needs to see other apps, in marked blocks a later build replaces.
