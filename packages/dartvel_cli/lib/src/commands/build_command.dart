@@ -2087,7 +2087,32 @@ class BuildCommand extends Command<void> {
     final String before = manifest.readAsStringSync();
     final String after = dvAndroidHomeLauncherManifest(before, enabled: enabled);
     if (after != before) manifest.writeAsStringSync(after);
-    if (enabled) Logger.log('   Home screen: this app can be chosen as the phone\'s home app.');
+
+    // The wallpaper behind the app, in both window themes, light and dark.
+    for (final String values in const <String>['values', 'values-night']) {
+      final File styles = File(p.join(root, 'android', 'app', 'src', 'main', 'res', values, 'styles.xml'));
+      if (!styles.existsSync()) continue;
+      final String text = styles.readAsStringSync();
+      final String written = dvAndroidHomeLauncherStyles(text, enabled: enabled);
+      if (written != text) styles.writeAsStringSync(written);
+    }
+    final Directory kotlin = Directory(p.join(root, 'android', 'app', 'src', 'main', 'kotlin'));
+    final List<File> activities = kotlin.existsSync()
+        ? kotlin.listSync(recursive: true).whereType<File>().where((File file) => p.basename(file.path) == 'MainActivity.kt').toList()
+        : <File>[];
+    for (final File activity in activities) {
+      final String text = activity.readAsStringSync();
+      final String? written = dvAndroidHomeLauncherActivity(text, enabled: enabled);
+      if (written == null) {
+        Logger.log('⚠️  ${p.relative(activity.path, from: root)} is not Flutter\'s own MainActivity, so the wallpaper will not show through. Its Flutter surface needs BackgroundMode.transparent.');
+      } else if (written != text) {
+        activity.writeAsStringSync(written);
+      }
+    }
+    if (enabled && activities.isEmpty) {
+      Logger.log('⚠️  No MainActivity.kt under android/app/src/main/kotlin, so the wallpaper will not show through.');
+    }
+    if (enabled) Logger.log('   Home screen: this app can be chosen as the phone\'s home app, over the phone\'s wallpaper.');
   }
 
   void _writeIosAppShortcuts(String root) {

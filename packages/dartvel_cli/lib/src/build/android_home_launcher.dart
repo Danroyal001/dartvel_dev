@@ -63,3 +63,67 @@ String dvAndroidHomeLauncherManifest(String manifest, {required bool enabled}) {
       '$_queriesEnd\n';
   return '${out.substring(0, applicationLine)}$queries${out.substring(applicationLine)}';
 }
+
+// The wallpaper. A home app sits on the phone's wallpaper: the window asks
+// for it (windowShowWallpaper) and draws no background of its own, from the
+// first instant (LaunchTheme) and after (NormalTheme), and Flutter's surface
+// is transparent so the frame does not paint over it. Without the first, the
+// time between pressing home and the first frame is a black screen.
+
+const String _styleStart = '        <!-- dartvel.android.launcher wallpaper: begin -->';
+const String _styleEnd = '        <!-- dartvel.android.launcher wallpaper: end -->';
+const String _styleBlock = '$_styleStart\n'
+    '        <item name="android:windowShowWallpaper">true</item>\n'
+    '        <item name="android:windowBackground">@android:color/transparent</item>\n'
+    '$_styleEnd\n';
+
+/// Flutter's own window backgrounds, put back when the setting is turned off.
+const Map<String, String> _flutterBackgrounds = <String, String>{
+  'LaunchTheme': '@drawable/launch_background',
+  'NormalTheme': '?android:colorBackground',
+};
+
+/// [styles] (a res/values*/styles.xml) with LaunchTheme and NormalTheme
+/// showing the wallpaper, or with Flutter's backgrounds when [enabled] is
+/// false.
+String dvAndroidHomeLauncherStyles(String styles, {required bool enabled}) {
+  String out = _strip(styles, _styleStart, _styleEnd);
+  for (final MapEntry<String, String> theme in _flutterBackgrounds.entries) {
+    final RegExpMatch? open = RegExp('<style\\s+name="${theme.key}"[^>]*>').firstMatch(out);
+    if (open == null) continue;
+    final int close = out.indexOf('</style>', open.end);
+    if (close < 0) continue;
+    String body = out.substring(open.end, close);
+    final RegExp background = RegExp(r'\n[ \t]*<item\s+name="android:windowBackground">[^<]*</item>');
+    if (enabled) {
+      body = body.replaceAll(background, '');
+      final int closeLine = body.lastIndexOf('\n') + 1;
+      body = '${body.substring(0, closeLine)}$_styleBlock${body.substring(closeLine)}';
+    } else if (!background.hasMatch(body)) {
+      final int closeLine = body.lastIndexOf('\n') + 1;
+      body = '${body.substring(0, closeLine)}        <item name="android:windowBackground">${theme.value}</item>\n${body.substring(closeLine)}';
+    }
+    out = '${out.substring(0, open.end)}$body${out.substring(close)}';
+  }
+  return out;
+}
+
+const String _flutterActivityLine = 'class MainActivity : FlutterActivity()';
+const String _transparentActivity = 'class MainActivity : FlutterActivity() {\n'
+    '    // dartvel.android.launcher: the phone\'s wallpaper shows through the app.\n'
+    '    override fun getBackgroundMode(): io.flutter.embedding.android.FlutterActivityLaunchConfigs.BackgroundMode =\n'
+    '        io.flutter.embedding.android.FlutterActivityLaunchConfigs.BackgroundMode.transparent\n'
+    '}';
+
+/// [activity] (MainActivity.kt) with a transparent Flutter surface, or as
+/// Flutter wrote it when [enabled] is false. Null when [enabled] and the
+/// activity is not Flutter's own any more: Dartvel does not rewrite an
+/// activity someone has changed.
+String? dvAndroidHomeLauncherActivity(String activity, {required bool enabled}) {
+  final bool ours = activity.contains(_transparentActivity);
+  if (!enabled) return ours ? activity.replaceFirst(_transparentActivity, _flutterActivityLine) : activity;
+  if (ours) return activity;
+  final RegExp plain = RegExp('^${RegExp.escape(_flutterActivityLine)}[ \\t]*\$', multiLine: true);
+  if (!plain.hasMatch(activity)) return null;
+  return activity.replaceFirst(plain, _transparentActivity);
+}
