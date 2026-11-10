@@ -58,6 +58,19 @@ void main() {
     expect(dvAndroidHomeLauncherEnabled(<Object?, Object?>{}), isFalse);
   });
 
+  test('a TV lists it too: the TV launcher category, no touchscreen required, a banner', () {
+    final String out = dvAndroidHomeLauncherManifest(_manifest, enabled: true);
+    expect(out, contains('android.intent.category.LEANBACK_LAUNCHER'));
+    expect(out, contains('<uses-feature android:name="android.software.leanback" android:required="false"/>'));
+    expect(out, contains('<uses-feature android:name="android.hardware.touchscreen" android:required="false"/>'));
+    expect(out, contains('android:banner="@mipmap/ic_launcher"'));
+    expect(dvAndroidHomeLauncherManifest(out, enabled: true), out);
+    final String off = dvAndroidHomeLauncherManifest(out, enabled: false);
+    expect(off, isNot(contains('LEANBACK')));
+    expect(off, isNot(contains('uses-feature')));
+    expect(off, isNot(contains('android:banner')));
+  });
+
   group('the wallpaper behind a home app', () {
     const String styles = '''<?xml version="1.0" encoding="utf-8"?>
 <resources>
