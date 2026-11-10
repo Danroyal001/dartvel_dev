@@ -44,6 +44,7 @@ const Set<String> dvNativeBindingNames = <String>{
   'apps.icon',
   'apps.isDefaultLauncher',
   'apps.requestDefaultLauncher',
+  'apps.defaultFor',
 
   // Feedback and system integration.
   'clipboard.copy',

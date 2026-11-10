@@ -71,6 +71,24 @@ void main() {
     expect(off, isNot(contains('android:banner')));
   });
 
+  test('it may see the apps behind each dock role and the screens that choose the home app', () {
+    final String out = dvAndroidHomeLauncherManifest(_manifest, enabled: true);
+    for (final String wanted in const [
+      'android.intent.action.DIAL',
+      'android.intent.action.SENDTO',
+      'android:scheme="smsto"',
+      'android:scheme="https"',
+      'android.media.action.STILL_IMAGE_CAMERA',
+      'android:scheme="mailto"',
+      'android:scheme="geo"',
+      'android.settings.HOME_SETTINGS',
+      'android.app.role.action.REQUEST_ROLE',
+    ]) {
+      expect(out, contains(wanted), reason: wanted);
+    }
+    expect(dvAndroidHomeLauncherManifest(out, enabled: true), out);
+  });
+
   group('the wallpaper behind a home app', () {
     const String styles = '''<?xml version="1.0" encoding="utf-8"?>
 <resources>

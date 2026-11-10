@@ -40,6 +40,8 @@ import 'package:dartvel_core/dartvel.dart'
         dvWithPreloads;
 import 'package:dartvel_core/dartvel.dart' as core
     show
+        DVHostRedirect,
+        dvHostRedirectTarget,
         DVSessionAuthentication,
         DVSessionAuthenticationResult,
         DVSessionCookie,
@@ -121,6 +123,8 @@ String dvWebServerManifest({
       // dartvel.hosts: which host shows which part of the route tree. Absent
       // when none are declared, and the server then serves as it always did.
       if (hosts.isNotEmpty) 'hosts': hosts.toJson(),
+      // dartvel.hosts entries that only redirect, answered before anything.
+      if (hosts.redirectHosts.isNotEmpty) 'hostRedirects': hosts.redirectsToJson(),
       // Where the server sends somebody signed out who asked for a guarded
       // route: the sign-in page the client's gate sends them to.
       if (signIn != null) 'signIn': signIn,
@@ -452,6 +456,17 @@ Handler dvWebServerHandler({
     final onDisk = File(p.join(webRoot, request.url.path));
     if (request.url.path.isNotEmpty && onDisk.existsSync()) {
       return files(request);
+    }
+
+    // dartvel.hosts redirecting hosts, as the deployed server answers them.
+    final String? hostTarget = core.dvHostRedirectTarget(
+      core.DVHostRedirect.listFromJson(manifest['hostRedirects']),
+      host: _shelfRequestHost(request),
+      rawPath: '/${request.url.path}',
+    );
+    if (hostTarget != null) {
+      final String target = request.url.hasQuery && !hostTarget.contains('?') ? '$hostTarget?${request.url.query}' : hostTarget;
+      return Response(301, headers: <String, String>{'location': target});
     }
 
     // dartvel.redirects, as the deployed server answers them (dartvel_shelf).

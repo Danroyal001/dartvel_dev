@@ -115,6 +115,41 @@ class DVAndroidApps {
     return _icon(info, pm);
   }
 
+  /// The intent each role is answered for: what the phone opens to call, to
+  /// text, to show a web page, to take a picture, to write an email and to
+  /// show a place. The launcher manifest's <queries> declares each one, or
+  /// Android 11+ hides the apps that answer them.
+  static Intent? _roleIntent(String role) {
+    Intent withData(JString? action, String data) => Intent.new$3(action, Uri.parse(data.toJString()));
+    return switch (role) {
+      'phone' => withData(Intent.ACTION_DIAL, 'tel:'),
+      'messages' => withData(Intent.ACTION_SENDTO, 'smsto:'),
+      'browser' => withData(Intent.ACTION_VIEW, 'https://example.com')..addCategory(Intent.CATEGORY_BROWSABLE),
+      'camera' => Intent.new$2('android.media.action.STILL_IMAGE_CAMERA'.toJString()),
+      'email' => withData(Intent.ACTION_SENDTO, 'mailto:'),
+      'maps' => withData(Intent.ACTION_VIEW, 'geo:0,0?q='),
+      _ => null,
+    };
+  }
+
+  /// The package the phone opens for [role]: the default the person chose,
+  /// else the first app that answers it, else null. With no default Android
+  /// resolves to its own chooser (package "android"), which is not an app.
+  static String? defaultFor(Context context, String role) {
+    final pm = context.packageManager;
+    final intent = _roleIntent(role);
+    if (pm == null || intent == null) return null;
+    final String? chosen = pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName?.toDartString(releaseOriginal: true);
+    if (chosen != null && chosen.isNotEmpty && chosen != 'android') return chosen;
+    final found = pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
+    if (found == null) return null;
+    for (final ResolveInfo? info in found.asDart()) {
+      final String? package = info?.activityInfo?.packageName?.toDartString(releaseOriginal: true);
+      if (package != null && package.isNotEmpty && package != 'android') return package;
+    }
+    return null;
+  }
+
   /// Whether the activity the home button opens belongs to this app.
   static bool isDefaultLauncher(Context context) {
     final pm = context.packageManager;
@@ -125,28 +160,42 @@ class DVAndroidApps {
     return holder != null && holder == self;
   }
 
-  /// Asks to become the home app: the system's role question when there is
-  /// an [activity] and the phone has one, else the Home app settings. False
-  /// when the phone has neither.
+  /// Asks to become the home app, and true once a screen for it has opened.
+  ///
+  /// The Home app settings come first: every phone has them, and the
+  /// person sees where to choose. The role question is the fallback, because
+  /// some vendors' Android (Tecno's HiOS among them) refuse it without
+  /// showing anything, which reads as a button that does nothing.
+  ///
+  /// Each screen is started and its failure caught, not looked up first:
+  /// from Android 11 a lookup answers "none" for a system screen this app may
+  /// not see, which would make the button do nothing.
   static bool requestDefaultLauncher(Context context, Activity? activity) {
-    final pm = context.packageManager;
-    if (pm == null) return false;
+    for (final String action in _homeSettingsActions) {
+      try {
+        context.startActivity(Intent.new$2(action.toJString())..addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        return true;
+      } on Object {
+        // This phone has no such screen; try the next.
+      }
+    }
     if (activity != null) {
-      final role = Intent.new$2(_requestRoleAction.toJString())..putExtra$8(_roleNameExtra.toJString(), _homeRole.toJString());
-      if (role.resolveActivity(pm) != null) {
+      try {
+        final role = Intent.new$2(_requestRoleAction.toJString())..putExtra$8(_roleNameExtra.toJString(), _homeRole.toJString());
         activity.startActivityForResult(role, _homeRoleRequestCode);
         return true;
+      } on Object {
+        // No role question on this phone either.
       }
     }
-    for (final String action in _homeSettingsActions) {
-      final settings = Intent.new$2(action.toJString())..addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      if (settings.resolveActivity(pm) != null) {
-        context.startActivity(settings);
-        return true;
-      }
+    try {
+      context.startActivity(Intent.new$2('android.settings.SETTINGS'.toJString())..addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+      return true;
+    } on Object {
+      return false;
     }
-    return false;
   }
+
 
   /// Starts [package] the way tapping its icon would. False when the package
   /// is gone or has no launcher activity.

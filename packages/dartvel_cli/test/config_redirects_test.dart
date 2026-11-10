@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dartvel_cli/src/build/web_server.dart';
+import 'package:dartvel_core/dartvel.dart' show DVHostRedirect, dvHostRedirectTarget;
 import 'package:test/test.dart';
 
 void main() {
@@ -27,5 +28,26 @@ void main() {
       '/downloads': <String, Object?>{'to': '/downloads/', 'status': 301},
       '/botm': <String, Object?>{'to': '/book-of-the-month/', 'status': 302},
     });
+  });
+
+  test('a dartvel.hosts entry that only redirects reaches the manifest', () {
+    final hosts = dvHostsConfig(<Object?, Object?>{
+      'hosts': <Object?, Object?>{
+        'example.com': <Object?, Object?>{'siteUrl': 'https://example.com'},
+        'old.example.net': <Object?, Object?>{'redirect': 'https://example.com/new'},
+      },
+    });
+    expect(hosts.problems, isEmpty);
+    final Map<String, Object?> manifest = jsonDecode(dvWebServerManifest(
+      routes: const <String>['/'],
+      titles: const <String, String>{},
+      text: const <String, List<String>>{},
+      siteUrl: 'https://example.com',
+      hosts: hosts.hosts,
+    )) as Map<String, Object?>;
+    expect(
+      dvHostRedirectTarget(DVHostRedirect.listFromJson(manifest['hostRedirects']), host: 'old.example.net', rawPath: '/x'),
+      'https://example.com/new',
+    );
   });
 }

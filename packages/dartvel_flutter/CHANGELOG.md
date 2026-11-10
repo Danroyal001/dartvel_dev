@@ -1,3 +1,8 @@
+## Unreleased
+
+- `DV.Platform.apps.defaultFor(DVAppRole)`: the app the phone opens to call, text, browse, take a picture, email or show a place.
+- `requestDefaultLauncher()` opens the Home app settings first and catches each screen's failure instead of looking it up, so the button never silently does nothing.
+
 ## 0.13.34 — 2026-11-10
 
 - `DV.Platform.apps`: `icon(package)`, `isDefaultLauncher()` and `requestDefaultLauncher()` (Android's own role question, or the Home app settings).

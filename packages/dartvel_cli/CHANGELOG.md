@@ -1,3 +1,8 @@
+## Unreleased
+
+- `dartvel.hosts` redirecting hosts reach the web-server manifest (`hostRedirects`) and `dartvel dev --release` answers them too.
+- `dartvel.android.launcher` declares the dock roles (dial, SMS, browser, camera, email, maps) and the home-app screens in `<queries>`.
+
 ## 0.13.34 — 2026-11-10
 
 - `dartvel.android.launcher: true` now also shows the wallpaper behind the app (both window themes, transparent Flutter surface), keeps the home app when Back reaches its first page, and lists it on Android TV (LEANBACK_LAUNCHER, banner, leanback/touchscreen not required).

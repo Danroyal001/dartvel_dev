@@ -1,3 +1,7 @@
+## Unreleased
+
+- The web-server binary answers `dartvel.hosts` redirecting hosts with a 301 before anything else, query kept.
+
 ## 0.13.34 — 2026-11-10
 
 - Version aligned with dartvel_core 0.13.34.

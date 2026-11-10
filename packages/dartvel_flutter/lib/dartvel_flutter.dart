@@ -6110,6 +6110,9 @@ class DVInstalledApp {
 ///
 /// Seeing other apps needs the `<queries>` declaration Android 11 requires,
 /// which `dartvel.android.launcher: true` writes into the manifest.
+/// What an app is for on the phone, as Android's default apps are chosen.
+enum DVAppRole { phone, messages, browser, camera, email, maps }
+
 class DVApps {
   const DVApps();
 
@@ -6167,6 +6170,19 @@ class DVApps {
     }
     final bool shown = await DVNativeBridge.require<bool>('apps.requestDefaultLauncher');
     if (!shown) throw StateError('This device has no screen for choosing the home app.');
+  }
+
+  /// The app the phone opens for [role], as the person set it: their default
+  /// browser for a web link, their messaging app for a text. When no default
+  /// is set, the first app that handles the role; null when none does. A
+  /// launcher builds its dock from these rather than from a list of package
+  /// names, which is wrong on every phone where someone chose another app.
+  Future<String?> defaultFor(DVAppRole role) async {
+    if (!DVNativeBridge.isRegistered('apps.defaultFor')) {
+      throw UnsupportedError('Reading the default apps is available on Android only.');
+    }
+    final Object? package = await DVNativeBridge.require<Object?>('apps.defaultFor', <String, Object?>{'role': role.name});
+    return package is String && package.isNotEmpty ? package : null;
   }
 
   /// Starts the app [packageName] the way tapping its icon would.

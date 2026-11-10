@@ -59,6 +59,50 @@ final class const DVHostEntry({
   );
 }
 
+/// A `dartvel.hosts` entry that only redirects: a domain kept for its links
+/// that now lives elsewhere. [paths] are exact paths sent somewhere of their
+/// own; every other path goes to [to], or is not redirected when [to] is null.
+/// Answered with a 301 before any routing, and invisible to everything else
+/// hosts do: mounts, canonical URLs, sitemaps.
+final class const DVHostRedirect({
+  required final String pattern,
+  final String? to,
+  final Map<String, String> paths = const <String, String>{},
+}) {
+  Map<String, Object?> toJson() => <String, Object?>{
+    'pattern': pattern,
+    if (to != null) 'to': to,
+    if (paths.isNotEmpty) 'paths': paths,
+  };
+
+  /// What [DVHosts.redirectsToJson] wrote; empty for anything else.
+  static List<DVHostRedirect> listFromJson(Object? json) => json is! List
+      ? const <DVHostRedirect>[]
+      : <DVHostRedirect>[
+          for (final Object? e in json)
+            if (e is Map)
+              DVHostRedirect(
+                pattern: '${e['pattern']}',
+                to: e['to'] as String?,
+                paths: e['paths'] is Map
+                    ? <String, String>{for (final MapEntry<Object?, Object?> p in (e['paths'] as Map).entries) '${p.key}': '${p.value}'}
+                    : const <String, String>{},
+              ),
+        ];
+}
+
+/// Where a request for [rawPath] on [host] is redirected by [redirects], or
+/// null when that host does not redirect it.
+String? dvHostRedirectTarget(List<DVHostRedirect> redirects, {required String? host, required String rawPath}) {
+  final String? name = dvNormaliseHost(host);
+  if (name == null || redirects.isEmpty) return null;
+  for (final DVHostRedirect redirect in redirects) {
+    if (redirect.pattern != name) continue;
+    return redirect.paths[rawPath] ?? redirect.to;
+  }
+  return null;
+}
+
 /// The entries of `dartvel.hosts`, and the problems found reading them.
 typedef DVHostsParse = ({DVHosts hosts, List<String> problems});
 
@@ -67,8 +111,11 @@ typedef DVHostsParse = ({DVHosts hosts, List<String> problems});
 /// Empty means `dartvel.hosts` was not declared, and then nothing anywhere
 /// behaves differently: every function here is only consulted when
 /// [isEmpty] is false.
-final class const DVHosts(final List<DVHostEntry> entries) {
+final class const DVHosts(final List<DVHostEntry> entries, {final List<DVHostRedirect> redirectHosts = const <DVHostRedirect>[]}) {
   static const DVHosts none = DVHosts(<DVHostEntry>[]);
+
+  /// The redirecting hosts, for the manifest's `hostRedirects`.
+  List<Object?> redirectsToJson() => <Object?>[for (final DVHostRedirect r in redirectHosts) r.toJson()];
 
   bool get isEmpty => entries.isEmpty;
   bool get isNotEmpty => entries.isNotEmpty;
@@ -96,6 +143,7 @@ final class const DVHosts(final List<DVHostEntry> entries) {
       return (hosts: none, problems: problems);
     }
     final List<DVHostEntry> entries = <DVHostEntry>[];
+    final List<DVHostRedirect> redirectHosts = <DVHostRedirect>[];
     for (final MapEntry<Object?, Object?> e in yaml.entries) {
       final String pattern = '${e.key}'.trim().toLowerCase();
       final Object? raw = e.value;
@@ -109,6 +157,42 @@ final class const DVHosts(final List<DVHostEntry> entries) {
           ? raw
           : const <Object?, Object?>{};
       String where(String key) => 'dartvel.hosts."$pattern".$key';
+
+      if (settings.containsKey('redirect') || settings.containsKey('redirects')) {
+        final List<String> before = List<String>.of(problems);
+        bool target(String value) => value.startsWith('/') || _origin(value, allowPath: true) != null;
+        if (pattern.startsWith('*.') || !_ascii(pattern) || !pattern.split('.').every(_isLabel)) {
+          problems.add('dartvel.hosts: "$pattern" is not a valid hostname; a redirecting host is one exact name.');
+        }
+        for (final String key in const <String>['mount', 'siteUrl']) {
+          if (settings.containsKey(key)) problems.add('${where(key)}: a redirecting host serves no pages, so it has no $key.');
+        }
+        final Object? to = settings['redirect'];
+        if (to != null && !('$to'.startsWith('https://') || '$to'.startsWith('http://')) ) {
+          problems.add('${where('redirect')} must be a full http(s) address, not "$to".');
+        }
+        final Map<String, String> paths = <String, String>{};
+        final Object? rawPaths = settings['redirects'];
+        if (rawPaths != null && rawPaths is! Map) {
+          problems.add('${where('redirects')} must be a map of path: target.');
+        } else if (rawPaths is Map) {
+          for (final MapEntry<Object?, Object?> p in rawPaths.entries) {
+            final String from = '${p.key}';
+            final String value = '${p.value}';
+            if (!from.startsWith('/')) {
+              problems.add('${where('redirects')}: "$from" must be a path starting with /.');
+            } else if (!target(value)) {
+              problems.add('${where('redirects')}."$from" must be a path or a full http(s) address, not "$value".');
+            } else {
+              paths[from] = value;
+            }
+          }
+        }
+        if (problems.length == before.length) {
+          redirectHosts.add(DVHostRedirect(pattern: pattern, to: to == null ? null : '$to', paths: paths));
+        }
+        continue;
+      }
 
       final bool wildcard = pattern.startsWith('*.');
       if (!_ascii(pattern)) {
@@ -238,7 +322,7 @@ final class const DVHosts(final List<DVHostEntry> entries) {
     }
     return (
       hosts: problems.isEmpty
-          ? DVHosts(List<DVHostEntry>.unmodifiable(entries))
+          ? DVHosts(List<DVHostEntry>.unmodifiable(entries), redirectHosts: List<DVHostRedirect>.unmodifiable(redirectHosts))
           : none,
       problems: problems,
     );

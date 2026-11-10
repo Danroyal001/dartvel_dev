@@ -26,6 +26,10 @@ const Map<String, Object?> _hosts = <String, Object?>{
     'name': 'Example Docs',
     'description': 'Reference for Example.',
   },
+  'old-example.net': <String, Object?>{
+    'redirect': 'https://example.com/pricing',
+    'redirects': <String, Object?>{'/docs': 'https://docs.example.com/'},
+  },
   '*.apps.example.com': <String, Object?>{
     'mount': '/apps/{label}',
     'siteUrl': 'https://{label}.apps.example.com',
@@ -61,6 +65,7 @@ Directory site({bool hosts = true}) {
         'description': 'Site-wide description.',
       },
       if (hosts) 'hosts': DVHosts.parse(_hosts).hosts.toJson(),
+      if (hosts) 'hostRedirects': DVHosts.parse(_hosts).hosts.redirectsToJson(),
       'server': <String, Object?>{},
       'routes': <String, Object?>{
         '/': <String, Object?>{'title': 'Home'},
@@ -126,6 +131,25 @@ String? siteName(String html) =>
 void main() {
   setUp(dvPurgeRenderedPages);
   tearDown(DVClientAddress.reset);
+
+  group('a host that only redirects', () {
+    test('every path goes to its target with a 301, query kept', () async {
+      final Response r = await handleSsrFallback(request('https://old-example.net/anything?ref=x'), site().path);
+      expect(r.status, 301);
+      expect(r.headers.get('location'), 'https://example.com/pricing?ref=x');
+    });
+
+    test('a path it names goes where it says', () async {
+      final Response r = await handleSsrFallback(request('https://old-example.net/docs'), site().path);
+      expect(r.status, 301);
+      expect(r.headers.get('location'), 'https://docs.example.com/');
+    });
+
+    test('the hosts that serve pages still serve them', () async {
+      final Response r = await handleSsrFallback(request('https://example.com/pricing'), site().path);
+      expect(r.status, 200);
+    });
+  });
 
   group('redirects to the host that owns the page', () {
     test('primary /docs/x is 301 to docs.example.com/x, query kept', () async {
