@@ -174,6 +174,16 @@ classes:
   # The installed-apps binding (DV.Platform.apps): an app icon drawn to a
   # Bitmap is compressed to PNG bytes through this.
   - java.io.ByteArrayOutputStream
+  # Which apps can be launched, their names and icons, and opening one.
+  - android.content.pm.ResolveInfo
+  - android.content.pm.ActivityInfo
+  - android.content.pm.PackageItemInfo
+  - android.graphics.drawable.Drawable
+  - android.graphics.Bitmap
+  - android.graphics.Canvas
+  # Canvas names Region.Op in its clip calls; without it those do not compile.
+  - android.graphics.Region
+  - android.net.Uri
 
 exclude:
   methods:

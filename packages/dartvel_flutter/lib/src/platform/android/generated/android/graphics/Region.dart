@@ -36,13 +36,1371 @@ import 'dart:core' show Object, String;
 import 'package:jni/_internal.dart' as jni$_;
 import 'package:jni/jni.dart' as jni$_;
 
+import '../../java/lang/Enum.dart' as enum$_;
+
+import '../os/Parcel.dart' as parcel$_;
+
+import '../os/Parcelable.dart' as parcelable$_;
+
+import 'Path.dart' as path$_;
+
+import 'Rect.dart' as rect$_;
+
+/// from: `android.graphics.Region$Op`
+extension type Region$Op._(jni$_.JObject _$this) implements enum$_.Enum {
+  static final _class = jni$_.JClass.forName(r'android/graphics/Region$Op');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<Region$Op> type = $Region$Op$Type$();
+  static final _id_DIFFERENCE = _class.staticFieldId(
+    r'DIFFERENCE',
+    r'Landroid/graphics/Region$Op;',
+  );
+
+  /// from: `static public final android.graphics.Region$Op DIFFERENCE`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Region$Op get DIFFERENCE =>
+      _id_DIFFERENCE.get(_class, Region$Op.type) as Region$Op;
+
+  static final _id_INTERSECT = _class.staticFieldId(
+    r'INTERSECT',
+    r'Landroid/graphics/Region$Op;',
+  );
+
+  /// from: `static public final android.graphics.Region$Op INTERSECT`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Region$Op get INTERSECT =>
+      _id_INTERSECT.get(_class, Region$Op.type) as Region$Op;
+
+  static final _id_UNION = _class.staticFieldId(
+    r'UNION',
+    r'Landroid/graphics/Region$Op;',
+  );
+
+  /// from: `static public final android.graphics.Region$Op UNION`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Region$Op get UNION =>
+      _id_UNION.get(_class, Region$Op.type) as Region$Op;
+
+  static final _id_XOR = _class.staticFieldId(
+    r'XOR',
+    r'Landroid/graphics/Region$Op;',
+  );
+
+  /// from: `static public final android.graphics.Region$Op XOR`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Region$Op get XOR => _id_XOR.get(_class, Region$Op.type) as Region$Op;
+
+  static final _id_REVERSE_DIFFERENCE = _class.staticFieldId(
+    r'REVERSE_DIFFERENCE',
+    r'Landroid/graphics/Region$Op;',
+  );
+
+  /// from: `static public final android.graphics.Region$Op REVERSE_DIFFERENCE`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Region$Op get REVERSE_DIFFERENCE =>
+      _id_REVERSE_DIFFERENCE.get(_class, Region$Op.type) as Region$Op;
+
+  static final _id_REPLACE = _class.staticFieldId(
+    r'REPLACE',
+    r'Landroid/graphics/Region$Op;',
+  );
+
+  /// from: `static public final android.graphics.Region$Op REPLACE`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Region$Op get REPLACE =>
+      _id_REPLACE.get(_class, Region$Op.type) as Region$Op;
+
+  static final _id_values = _class.staticMethodId(
+    r'values',
+    r'()[Landroid/graphics/Region$Op;',
+  );
+
+  static final _values =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `static public android.graphics.Region$Op[] values()`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JArray<Region$Op?>? values() {
+    final _$$classRef = _class.reference;
+    return _values(
+      _$$classRef.pointer,
+      _id_values.pointer,
+    ).object<jni$_.JArray<Region$Op?>?>();
+  }
+
+  static final _id_valueOf = _class.staticMethodId(
+    r'valueOf',
+    r'(Ljava/lang/String;)Landroid/graphics/Region$Op;',
+  );
+
+  static final _valueOf =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.graphics.Region$Op valueOf(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Region$Op? valueOf(jni$_.JString? string) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _valueOf(
+      _$$classRef.pointer,
+      _id_valueOf.pointer,
+      _$string.pointer,
+    ).object<Region$Op?>();
+  }
+}
+
+final class $Region$Op$Type$ extends jni$_.JType<Region$Op> {
+  @jni$_.internal
+  const $Region$Op$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Landroid/graphics/Region$Op;';
+}
+
 /// from: `android.graphics.Region`
-///
-/// WARNING: Region is a stub. To generate bindings for this class, include
-/// android.graphics.Region in your config's classes list.
-///
-extension type Region._(jni$_.JObject _$this) implements jni$_.JObject {
+extension type Region._(jni$_.JObject _$this)
+    implements jni$_.JObject, parcelable$_.Parcelable {
+  static final _class = jni$_.JClass.forName(r'android/graphics/Region');
+
+  /// The type which includes information such as the signature of this class.
   static const jni$_.JType<Region> type = $Region$Type$();
+  static final _id_CREATOR = _class.staticFieldId(
+    r'CREATOR',
+    r'Landroid/os/Parcelable$Creator;',
+  );
+
+  /// from: `static public final android.os.Parcelable$Creator<android.graphics.Region> CREATOR`
+  /// The returned object must be released after use, by calling the [release] method.
+  static parcelable$_.Parcelable$$Creator? get CREATOR =>
+      _id_CREATOR.getNullable(_class, parcelable$_.Parcelable$$Creator.type)
+          as parcelable$_.Parcelable$$Creator?;
+
+  static final _id_new$ = _class.constructorId(r'()V');
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void <init>()`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory Region() {
+    final _$$classRef = _class.reference;
+    return _new$(_$$classRef.pointer, _id_new$.pointer).object<Region>();
+  }
+
+  static final _id_new$1 = _class.constructorId(
+    r'(Landroid/graphics/Region;)V',
+  );
+
+  static final _new$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.graphics.Region region)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory Region.new$1(Region? region) {
+    final _$$classRef = _class.reference;
+    final _$region = region?.reference ?? jni$_.jNullReference;
+    return _new$1(
+      _$$classRef.pointer,
+      _id_new$1.pointer,
+      _$region.pointer,
+    ).object<Region>();
+  }
+
+  static final _id_new$2 = _class.constructorId(r'(Landroid/graphics/Rect;)V');
+
+  static final _new$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.graphics.Rect rect)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory Region.new$2(rect$_.Rect? rect) {
+    final _$$classRef = _class.reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    return _new$2(
+      _$$classRef.pointer,
+      _id_new$2.pointer,
+      _$rect.pointer,
+    ).object<Region>();
+  }
+
+  static final _id_new$3 = _class.constructorId(r'(IIII)V');
+
+  static final _new$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Int32, jni$_.Int32, jni$_.Int32, jni$_.Int32)
+                >,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void <init>(int i, int i1, int i2, int i3)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory Region.new$3(
+    core$_.int i,
+    core$_.int i1,
+    core$_.int i2,
+    core$_.int i3,
+  ) {
+    final _$$classRef = _class.reference;
+    return _new$3(
+      _$$classRef.pointer,
+      _id_new$3.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+    ).object<Region>();
+  }
+}
+
+extension Region$$Methods on Region {
+  static final _id_setEmpty = Region._class.instanceMethodId(
+    r'setEmpty',
+    r'()V',
+  );
+
+  static final _setEmpty =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void setEmpty()`
+  void setEmpty() {
+    final _$$selfRef = reference;
+    _setEmpty(_$$selfRef.pointer, _id_setEmpty.pointer).check();
+  }
+
+  static final _id_set = Region._class.instanceMethodId(
+    r'set',
+    r'(Landroid/graphics/Region;)Z',
+  );
+
+  static final _set =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean set(android.graphics.Region region)`
+  core$_.bool set(Region? region) {
+    final _$$selfRef = reference;
+    final _$region = region?.reference ?? jni$_.jNullReference;
+    return _set(_$$selfRef.pointer, _id_set.pointer, _$region.pointer).boolean;
+  }
+
+  static final _id_set$1 = Region._class.instanceMethodId(
+    r'set',
+    r'(Landroid/graphics/Rect;)Z',
+  );
+
+  static final _set$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean set(android.graphics.Rect rect)`
+  core$_.bool set$1(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    return _set$1(
+      _$$selfRef.pointer,
+      _id_set$1.pointer,
+      _$rect.pointer,
+    ).boolean;
+  }
+
+  static final _id_set$2 = Region._class.instanceMethodId(r'set', r'(IIII)Z');
+
+  static final _set$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Int32, jni$_.Int32, jni$_.Int32, jni$_.Int32)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public boolean set(int i, int i1, int i2, int i3)`
+  core$_.bool set$2(core$_.int i, core$_.int i1, core$_.int i2, core$_.int i3) {
+    final _$$selfRef = reference;
+    return _set$2(_$$selfRef.pointer, _id_set$2.pointer, i, i1, i2, i3).boolean;
+  }
+
+  static final _id_setPath = Region._class.instanceMethodId(
+    r'setPath',
+    r'(Landroid/graphics/Path;Landroid/graphics/Region;)Z',
+  );
+
+  static final _setPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean setPath(android.graphics.Path path, android.graphics.Region region)`
+  core$_.bool setPath(path$_.Path? path, Region? region) {
+    final _$$selfRef = reference;
+    final _$path = path?.reference ?? jni$_.jNullReference;
+    final _$region = region?.reference ?? jni$_.jNullReference;
+    return _setPath(
+      _$$selfRef.pointer,
+      _id_setPath.pointer,
+      _$path.pointer,
+      _$region.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$isEmpty = Region._class.instanceMethodId(
+    r'isEmpty',
+    r'()Z',
+  );
+
+  static final _get$isEmpty =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public native boolean isEmpty()`
+  core$_.bool get isEmpty {
+    final _$$selfRef = reference;
+    return _get$isEmpty(_$$selfRef.pointer, _id_get$isEmpty.pointer).boolean;
+  }
+
+  static final _id_get$isRect = Region._class.instanceMethodId(
+    r'isRect',
+    r'()Z',
+  );
+
+  static final _get$isRect =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public native boolean isRect()`
+  core$_.bool get isRect {
+    final _$$selfRef = reference;
+    return _get$isRect(_$$selfRef.pointer, _id_get$isRect.pointer).boolean;
+  }
+
+  static final _id_get$isComplex = Region._class.instanceMethodId(
+    r'isComplex',
+    r'()Z',
+  );
+
+  static final _get$isComplex =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public native boolean isComplex()`
+  core$_.bool get isComplex {
+    final _$$selfRef = reference;
+    return _get$isComplex(
+      _$$selfRef.pointer,
+      _id_get$isComplex.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$bounds = Region._class.instanceMethodId(
+    r'getBounds',
+    r'()Landroid/graphics/Rect;',
+  );
+
+  static final _get$bounds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.graphics.Rect getBounds()`
+  /// The returned object must be released after use, by calling the [release] method.
+  rect$_.Rect? get bounds {
+    final _$$selfRef = reference;
+    return _get$bounds(
+      _$$selfRef.pointer,
+      _id_get$bounds.pointer,
+    ).object<rect$_.Rect?>();
+  }
+
+  static final _id_getBounds = Region._class.instanceMethodId(
+    r'getBounds',
+    r'(Landroid/graphics/Rect;)Z',
+  );
+
+  static final _getBounds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean getBounds(android.graphics.Rect rect)`
+  core$_.bool getBounds(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    return _getBounds(
+      _$$selfRef.pointer,
+      _id_getBounds.pointer,
+      _$rect.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$boundaryPath = Region._class.instanceMethodId(
+    r'getBoundaryPath',
+    r'()Landroid/graphics/Path;',
+  );
+
+  static final _get$boundaryPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.graphics.Path getBoundaryPath()`
+  /// The returned object must be released after use, by calling the [release] method.
+  path$_.Path? get boundaryPath {
+    final _$$selfRef = reference;
+    return _get$boundaryPath(
+      _$$selfRef.pointer,
+      _id_get$boundaryPath.pointer,
+    ).object<path$_.Path?>();
+  }
+
+  static final _id_getBoundaryPath = Region._class.instanceMethodId(
+    r'getBoundaryPath',
+    r'(Landroid/graphics/Path;)Z',
+  );
+
+  static final _getBoundaryPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean getBoundaryPath(android.graphics.Path path)`
+  core$_.bool getBoundaryPath(path$_.Path? path) {
+    final _$$selfRef = reference;
+    final _$path = path?.reference ?? jni$_.jNullReference;
+    return _getBoundaryPath(
+      _$$selfRef.pointer,
+      _id_getBoundaryPath.pointer,
+      _$path.pointer,
+    ).boolean;
+  }
+
+  static final _id_contains = Region._class.instanceMethodId(
+    r'contains',
+    r'(II)Z',
+  );
+
+  static final _contains =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public native boolean contains(int i, int i1)`
+  core$_.bool contains(core$_.int i, core$_.int i1) {
+    final _$$selfRef = reference;
+    return _contains(_$$selfRef.pointer, _id_contains.pointer, i, i1).boolean;
+  }
+
+  static final _id_quickContains = Region._class.instanceMethodId(
+    r'quickContains',
+    r'(Landroid/graphics/Rect;)Z',
+  );
+
+  static final _quickContains =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean quickContains(android.graphics.Rect rect)`
+  core$_.bool quickContains(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    return _quickContains(
+      _$$selfRef.pointer,
+      _id_quickContains.pointer,
+      _$rect.pointer,
+    ).boolean;
+  }
+
+  static final _id_quickContains$1 = Region._class.instanceMethodId(
+    r'quickContains',
+    r'(IIII)Z',
+  );
+
+  static final _quickContains$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Int32, jni$_.Int32, jni$_.Int32, jni$_.Int32)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public native boolean quickContains(int i, int i1, int i2, int i3)`
+  core$_.bool quickContains$1(
+    core$_.int i,
+    core$_.int i1,
+    core$_.int i2,
+    core$_.int i3,
+  ) {
+    final _$$selfRef = reference;
+    return _quickContains$1(
+      _$$selfRef.pointer,
+      _id_quickContains$1.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+    ).boolean;
+  }
+
+  static final _id_quickReject = Region._class.instanceMethodId(
+    r'quickReject',
+    r'(Landroid/graphics/Rect;)Z',
+  );
+
+  static final _quickReject =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean quickReject(android.graphics.Rect rect)`
+  core$_.bool quickReject(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    return _quickReject(
+      _$$selfRef.pointer,
+      _id_quickReject.pointer,
+      _$rect.pointer,
+    ).boolean;
+  }
+
+  static final _id_quickReject$1 = Region._class.instanceMethodId(
+    r'quickReject',
+    r'(IIII)Z',
+  );
+
+  static final _quickReject$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Int32, jni$_.Int32, jni$_.Int32, jni$_.Int32)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public native boolean quickReject(int i, int i1, int i2, int i3)`
+  core$_.bool quickReject$1(
+    core$_.int i,
+    core$_.int i1,
+    core$_.int i2,
+    core$_.int i3,
+  ) {
+    final _$$selfRef = reference;
+    return _quickReject$1(
+      _$$selfRef.pointer,
+      _id_quickReject$1.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+    ).boolean;
+  }
+
+  static final _id_quickReject$2 = Region._class.instanceMethodId(
+    r'quickReject',
+    r'(Landroid/graphics/Region;)Z',
+  );
+
+  static final _quickReject$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public native boolean quickReject(android.graphics.Region region)`
+  core$_.bool quickReject$2(Region? region) {
+    final _$$selfRef = reference;
+    final _$region = region?.reference ?? jni$_.jNullReference;
+    return _quickReject$2(
+      _$$selfRef.pointer,
+      _id_quickReject$2.pointer,
+      _$region.pointer,
+    ).boolean;
+  }
+
+  static final _id_translate = Region._class.instanceMethodId(
+    r'translate',
+    r'(II)V',
+  );
+
+  static final _translate =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void translate(int i, int i1)`
+  void translate(core$_.int i, core$_.int i1) {
+    final _$$selfRef = reference;
+    _translate(_$$selfRef.pointer, _id_translate.pointer, i, i1).check();
+  }
+
+  static final _id_translate$1 = Region._class.instanceMethodId(
+    r'translate',
+    r'(IILandroid/graphics/Region;)V',
+  );
+
+  static final _translate$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Int32, jni$_.Int32, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public native void translate(int i, int i1, android.graphics.Region region)`
+  void translate$1(core$_.int i, core$_.int i1, Region? region) {
+    final _$$selfRef = reference;
+    final _$region = region?.reference ?? jni$_.jNullReference;
+    _translate$1(
+      _$$selfRef.pointer,
+      _id_translate$1.pointer,
+      i,
+      i1,
+      _$region.pointer,
+    ).check();
+  }
+
+  static final _id_union = Region._class.instanceMethodId(
+    r'union',
+    r'(Landroid/graphics/Rect;)Z',
+  );
+
+  static final _union =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public final boolean union(android.graphics.Rect rect)`
+  core$_.bool union(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    return _union(
+      _$$selfRef.pointer,
+      _id_union.pointer,
+      _$rect.pointer,
+    ).boolean;
+  }
+
+  static final _id_op = Region._class.instanceMethodId(
+    r'op',
+    r'(Landroid/graphics/Rect;Landroid/graphics/Region$Op;)Z',
+  );
+
+  static final _op =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean op(android.graphics.Rect rect, android.graphics.Region$Op op)`
+  core$_.bool op(rect$_.Rect? rect, Region$Op? op) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    final _$op = op?.reference ?? jni$_.jNullReference;
+    return _op(
+      _$$selfRef.pointer,
+      _id_op.pointer,
+      _$rect.pointer,
+      _$op.pointer,
+    ).boolean;
+  }
+
+  static final _id_op$1 = Region._class.instanceMethodId(
+    r'op',
+    r'(IIIILandroid/graphics/Region$Op;)Z',
+  );
+
+  static final _op$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean op(int i, int i1, int i2, int i3, android.graphics.Region$Op op)`
+  core$_.bool op$1(
+    core$_.int i,
+    core$_.int i1,
+    core$_.int i2,
+    core$_.int i3,
+    Region$Op? op,
+  ) {
+    final _$$selfRef = reference;
+    final _$op = op?.reference ?? jni$_.jNullReference;
+    return _op$1(
+      _$$selfRef.pointer,
+      _id_op$1.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+      _$op.pointer,
+    ).boolean;
+  }
+
+  static final _id_op$2 = Region._class.instanceMethodId(
+    r'op',
+    r'(Landroid/graphics/Region;Landroid/graphics/Region$Op;)Z',
+  );
+
+  static final _op$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean op(android.graphics.Region region, android.graphics.Region$Op op)`
+  core$_.bool op$2(Region? region, Region$Op? op) {
+    final _$$selfRef = reference;
+    final _$region = region?.reference ?? jni$_.jNullReference;
+    final _$op = op?.reference ?? jni$_.jNullReference;
+    return _op$2(
+      _$$selfRef.pointer,
+      _id_op$2.pointer,
+      _$region.pointer,
+      _$op.pointer,
+    ).boolean;
+  }
+
+  static final _id_op$3 = Region._class.instanceMethodId(
+    r'op',
+    r'(Landroid/graphics/Rect;Landroid/graphics/Region;Landroid/graphics/Region$Op;)Z',
+  );
+
+  static final _op$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean op(android.graphics.Rect rect, android.graphics.Region region, android.graphics.Region$Op op)`
+  core$_.bool op$3(rect$_.Rect? rect, Region? region, Region$Op? op) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    final _$region = region?.reference ?? jni$_.jNullReference;
+    final _$op = op?.reference ?? jni$_.jNullReference;
+    return _op$3(
+      _$$selfRef.pointer,
+      _id_op$3.pointer,
+      _$rect.pointer,
+      _$region.pointer,
+      _$op.pointer,
+    ).boolean;
+  }
+
+  static final _id_op$4 = Region._class.instanceMethodId(
+    r'op',
+    r'(Landroid/graphics/Region;Landroid/graphics/Region;Landroid/graphics/Region$Op;)Z',
+  );
+
+  static final _op$4 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean op(android.graphics.Region region, android.graphics.Region region1, android.graphics.Region$Op op)`
+  core$_.bool op$4(Region? region, Region? region1, Region$Op? op) {
+    final _$$selfRef = reference;
+    final _$region = region?.reference ?? jni$_.jNullReference;
+    final _$region1 = region1?.reference ?? jni$_.jNullReference;
+    final _$op = op?.reference ?? jni$_.jNullReference;
+    return _op$4(
+      _$$selfRef.pointer,
+      _id_op$4.pointer,
+      _$region.pointer,
+      _$region1.pointer,
+      _$op.pointer,
+    ).boolean;
+  }
+
+  static final _id_toString$1 = Region._class.instanceMethodId(
+    r'toString',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _toString$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String toString()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? toString$1() {
+    final _$$selfRef = reference;
+    return _toString$1(
+      _$$selfRef.pointer,
+      _id_toString$1.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_describeContents = Region._class.instanceMethodId(
+    r'describeContents',
+    r'()I',
+  );
+
+  static final _describeContents =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int describeContents()`
+  core$_.int describeContents() {
+    final _$$selfRef = reference;
+    return _describeContents(
+      _$$selfRef.pointer,
+      _id_describeContents.pointer,
+    ).integer;
+  }
+
+  static final _id_writeToParcel = Region._class.instanceMethodId(
+    r'writeToParcel',
+    r'(Landroid/os/Parcel;I)V',
+  );
+
+  static final _writeToParcel =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void writeToParcel(android.os.Parcel parcel, int i)`
+  void writeToParcel(parcel$_.Parcel? parcel, core$_.int i) {
+    final _$$selfRef = reference;
+    final _$parcel = parcel?.reference ?? jni$_.jNullReference;
+    _writeToParcel(
+      _$$selfRef.pointer,
+      _id_writeToParcel.pointer,
+      _$parcel.pointer,
+      i,
+    ).check();
+  }
+
+  static final _id_equals = Region._class.instanceMethodId(
+    r'equals',
+    r'(Ljava/lang/Object;)Z',
+  );
+
+  static final _equals =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean equals(java.lang.Object object)`
+  core$_.bool equals(jni$_.JObject? object) {
+    final _$$selfRef = reference;
+    final _$object = object?.reference ?? jni$_.jNullReference;
+    return _equals(
+      _$$selfRef.pointer,
+      _id_equals.pointer,
+      _$object.pointer,
+    ).boolean;
+  }
 }
 
 final class $Region$Type$ extends jni$_.JType<Region> {

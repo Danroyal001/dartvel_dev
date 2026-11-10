@@ -36,13 +36,669 @@ import 'dart:core' show Object, String;
 import 'package:jni/_internal.dart' as jni$_;
 import 'package:jni/jni.dart' as jni$_;
 
+import '../../../java/lang/CharSequence.dart' as charsequence$_;
+
+import '../../../java/util/Comparator.dart' as comparator$_;
+
+import '../../graphics/drawable/Drawable.dart' as drawable$_;
+
+import '../../os/Parcel.dart' as parcel$_;
+
+import '../../os/Parcelable.dart' as parcelable$_;
+
+import '../../util/Printer.dart' as printer$_;
+
+import '../IntentFilter.dart' as intentfilter$_;
+
+import 'ActivityInfo.dart' as activityinfo$_;
+
+import 'PackageManager.dart' as packagemanager$_;
+
+import 'ProviderInfo.dart' as providerinfo$_;
+
+import 'ServiceInfo.dart' as serviceinfo$_;
+
+/// from: `android.content.pm.ResolveInfo$DisplayNameComparator`
+extension type ResolveInfo$DisplayNameComparator._(jni$_.JObject _$this)
+    implements jni$_.JObject, comparator$_.Comparator {
+  static final _class = jni$_.JClass.forName(
+    r'android/content/pm/ResolveInfo$DisplayNameComparator',
+  );
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<ResolveInfo$DisplayNameComparator> type =
+      $ResolveInfo$DisplayNameComparator$Type$();
+  static final _id_new$ = _class.constructorId(
+    r'(Landroid/content/pm/PackageManager;)V',
+  );
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.content.pm.PackageManager packageManager)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory ResolveInfo$DisplayNameComparator(
+    packagemanager$_.PackageManager? packageManager,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$packageManager = packageManager?.reference ?? jni$_.jNullReference;
+    return _new$(
+      _$$classRef.pointer,
+      _id_new$.pointer,
+      _$packageManager.pointer,
+    ).object<ResolveInfo$DisplayNameComparator>();
+  }
+}
+
+extension ResolveInfo$DisplayNameComparator$$Methods
+    on ResolveInfo$DisplayNameComparator {
+  static final _id_compare = ResolveInfo$DisplayNameComparator._class
+      .instanceMethodId(
+        r'compare',
+        r'(Landroid/content/pm/ResolveInfo;Landroid/content/pm/ResolveInfo;)I',
+      );
+
+  static final _compare =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public final int compare(android.content.pm.ResolveInfo resolveInfo, android.content.pm.ResolveInfo resolveInfo1)`
+  core$_.int compare(ResolveInfo? resolveInfo, ResolveInfo? resolveInfo1) {
+    final _$$selfRef = reference;
+    final _$resolveInfo = resolveInfo?.reference ?? jni$_.jNullReference;
+    final _$resolveInfo1 = resolveInfo1?.reference ?? jni$_.jNullReference;
+    return _compare(
+      _$$selfRef.pointer,
+      _id_compare.pointer,
+      _$resolveInfo.pointer,
+      _$resolveInfo1.pointer,
+    ).integer;
+  }
+}
+
+final class $ResolveInfo$DisplayNameComparator$Type$
+    extends jni$_.JType<ResolveInfo$DisplayNameComparator> {
+  @jni$_.internal
+  const $ResolveInfo$DisplayNameComparator$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature =>
+      r'Landroid/content/pm/ResolveInfo$DisplayNameComparator;';
+}
+
 /// from: `android.content.pm.ResolveInfo`
-///
-/// WARNING: ResolveInfo is a stub. To generate bindings for this class, include
-/// android.content.pm.ResolveInfo in your config's classes list.
-///
-extension type ResolveInfo._(jni$_.JObject _$this) implements jni$_.JObject {
+extension type ResolveInfo._(jni$_.JObject _$this)
+    implements jni$_.JObject, parcelable$_.Parcelable {
+  static final _class = jni$_.JClass.forName(r'android/content/pm/ResolveInfo');
+
+  /// The type which includes information such as the signature of this class.
   static const jni$_.JType<ResolveInfo> type = $ResolveInfo$Type$();
+  static final _id_CREATOR = _class.staticFieldId(
+    r'CREATOR',
+    r'Landroid/os/Parcelable$Creator;',
+  );
+
+  /// from: `static public final android.os.Parcelable$Creator<android.content.pm.ResolveInfo> CREATOR`
+  /// The returned object must be released after use, by calling the [release] method.
+  static parcelable$_.Parcelable$$Creator? get CREATOR =>
+      _id_CREATOR.getNullable(_class, parcelable$_.Parcelable$$Creator.type)
+          as parcelable$_.Parcelable$$Creator?;
+
+  static final _id_new$ = _class.constructorId(r'()V');
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void <init>()`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory ResolveInfo() {
+    final _$$classRef = _class.reference;
+    return _new$(_$$classRef.pointer, _id_new$.pointer).object<ResolveInfo>();
+  }
+
+  static final _id_new$1 = _class.constructorId(
+    r'(Landroid/content/pm/ResolveInfo;)V',
+  );
+
+  static final _new$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.content.pm.ResolveInfo resolveInfo)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory ResolveInfo.new$1(ResolveInfo? resolveInfo) {
+    final _$$classRef = _class.reference;
+    final _$resolveInfo = resolveInfo?.reference ?? jni$_.jNullReference;
+    return _new$1(
+      _$$classRef.pointer,
+      _id_new$1.pointer,
+      _$resolveInfo.pointer,
+    ).object<ResolveInfo>();
+  }
+}
+
+extension ResolveInfo$$Methods on ResolveInfo {
+  static final _id_activityInfo = ResolveInfo._class.instanceFieldId(
+    r'activityInfo',
+    r'Landroid/content/pm/ActivityInfo;',
+  );
+
+  /// from: `public android.content.pm.ActivityInfo activityInfo`
+  /// The returned object must be released after use, by calling the [release] method.
+  activityinfo$_.ActivityInfo? get activityInfo =>
+      _id_activityInfo.getNullable(this, activityinfo$_.ActivityInfo.type)
+          as activityinfo$_.ActivityInfo?;
+
+  /// from: `public android.content.pm.ActivityInfo activityInfo`
+  /// The returned object must be released after use, by calling the [release] method.
+  set activityInfo(activityinfo$_.ActivityInfo? value) =>
+      _id_activityInfo.set(this, activityinfo$_.ActivityInfo.type, value);
+
+  static final _id_filter = ResolveInfo._class.instanceFieldId(
+    r'filter',
+    r'Landroid/content/IntentFilter;',
+  );
+
+  /// from: `public android.content.IntentFilter filter`
+  /// The returned object must be released after use, by calling the [release] method.
+  intentfilter$_.IntentFilter? get filter =>
+      _id_filter.getNullable(this, intentfilter$_.IntentFilter.type)
+          as intentfilter$_.IntentFilter?;
+
+  /// from: `public android.content.IntentFilter filter`
+  /// The returned object must be released after use, by calling the [release] method.
+  set filter(intentfilter$_.IntentFilter? value) =>
+      _id_filter.set(this, intentfilter$_.IntentFilter.type, value);
+
+  static final _id_icon = ResolveInfo._class.instanceFieldId(r'icon', r'I');
+
+  /// from: `public int icon`
+  core$_.int get icon =>
+      _id_icon.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int icon`
+  set icon(core$_.int value) => _id_icon.set(this, jni$_.jint.type, value);
+
+  static final _id_isDefault = ResolveInfo._class.instanceFieldId(
+    r'isDefault',
+    r'Z',
+  );
+
+  /// from: `public boolean isDefault`
+  core$_.bool get isDefault =>
+      _id_isDefault.getNullable(this, jni$_.jboolean.type) as core$_.bool;
+
+  /// from: `public boolean isDefault`
+  set isDefault(core$_.bool value) =>
+      _id_isDefault.set(this, jni$_.jboolean.type, value);
+
+  static final _id_isInstantAppAvailable = ResolveInfo._class.instanceFieldId(
+    r'isInstantAppAvailable',
+    r'Z',
+  );
+
+  /// from: `public boolean isInstantAppAvailable`
+  core$_.bool get isInstantAppAvailable =>
+      _id_isInstantAppAvailable.getNullable(this, jni$_.jboolean.type)
+          as core$_.bool;
+
+  /// from: `public boolean isInstantAppAvailable`
+  set isInstantAppAvailable(core$_.bool value) =>
+      _id_isInstantAppAvailable.set(this, jni$_.jboolean.type, value);
+
+  static final _id_labelRes = ResolveInfo._class.instanceFieldId(
+    r'labelRes',
+    r'I',
+  );
+
+  /// from: `public int labelRes`
+  core$_.int get labelRes =>
+      _id_labelRes.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int labelRes`
+  set labelRes(core$_.int value) =>
+      _id_labelRes.set(this, jni$_.jint.type, value);
+
+  static final _id_match = ResolveInfo._class.instanceFieldId(r'match', r'I');
+
+  /// from: `public int match`
+  core$_.int get match =>
+      _id_match.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int match`
+  set match(core$_.int value) => _id_match.set(this, jni$_.jint.type, value);
+
+  static final _id_nonLocalizedLabel = ResolveInfo._class.instanceFieldId(
+    r'nonLocalizedLabel',
+    r'Ljava/lang/CharSequence;',
+  );
+
+  /// from: `public java.lang.CharSequence nonLocalizedLabel`
+  /// The returned object must be released after use, by calling the [release] method.
+  charsequence$_.CharSequence? get nonLocalizedLabel =>
+      _id_nonLocalizedLabel.getNullable(this, charsequence$_.CharSequence.type)
+          as charsequence$_.CharSequence?;
+
+  /// from: `public java.lang.CharSequence nonLocalizedLabel`
+  /// The returned object must be released after use, by calling the [release] method.
+  set nonLocalizedLabel(charsequence$_.CharSequence? value) =>
+      _id_nonLocalizedLabel.set(this, charsequence$_.CharSequence.type, value);
+
+  static final _id_preferredOrder = ResolveInfo._class.instanceFieldId(
+    r'preferredOrder',
+    r'I',
+  );
+
+  /// from: `public int preferredOrder`
+  core$_.int get preferredOrder =>
+      _id_preferredOrder.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int preferredOrder`
+  set preferredOrder(core$_.int value) =>
+      _id_preferredOrder.set(this, jni$_.jint.type, value);
+
+  static final _id_priority = ResolveInfo._class.instanceFieldId(
+    r'priority',
+    r'I',
+  );
+
+  /// from: `public int priority`
+  core$_.int get priority =>
+      _id_priority.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int priority`
+  set priority(core$_.int value) =>
+      _id_priority.set(this, jni$_.jint.type, value);
+
+  static final _id_providerInfo = ResolveInfo._class.instanceFieldId(
+    r'providerInfo',
+    r'Landroid/content/pm/ProviderInfo;',
+  );
+
+  /// from: `public android.content.pm.ProviderInfo providerInfo`
+  /// The returned object must be released after use, by calling the [release] method.
+  providerinfo$_.ProviderInfo? get providerInfo =>
+      _id_providerInfo.getNullable(this, providerinfo$_.ProviderInfo.type)
+          as providerinfo$_.ProviderInfo?;
+
+  /// from: `public android.content.pm.ProviderInfo providerInfo`
+  /// The returned object must be released after use, by calling the [release] method.
+  set providerInfo(providerinfo$_.ProviderInfo? value) =>
+      _id_providerInfo.set(this, providerinfo$_.ProviderInfo.type, value);
+
+  static final _id_resolvePackageName = ResolveInfo._class.instanceFieldId(
+    r'resolvePackageName',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `public java.lang.String resolvePackageName`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get resolvePackageName =>
+      _id_resolvePackageName.getNullable(this, jni$_.JString.type)
+          as jni$_.JString?;
+
+  /// from: `public java.lang.String resolvePackageName`
+  /// The returned object must be released after use, by calling the [release] method.
+  set resolvePackageName(jni$_.JString? value) =>
+      _id_resolvePackageName.set(this, jni$_.JString.type, value);
+
+  static final _id_serviceInfo = ResolveInfo._class.instanceFieldId(
+    r'serviceInfo',
+    r'Landroid/content/pm/ServiceInfo;',
+  );
+
+  /// from: `public android.content.pm.ServiceInfo serviceInfo`
+  /// The returned object must be released after use, by calling the [release] method.
+  serviceinfo$_.ServiceInfo? get serviceInfo =>
+      _id_serviceInfo.getNullable(this, serviceinfo$_.ServiceInfo.type)
+          as serviceinfo$_.ServiceInfo?;
+
+  /// from: `public android.content.pm.ServiceInfo serviceInfo`
+  /// The returned object must be released after use, by calling the [release] method.
+  set serviceInfo(serviceinfo$_.ServiceInfo? value) =>
+      _id_serviceInfo.set(this, serviceinfo$_.ServiceInfo.type, value);
+
+  static final _id_specificIndex = ResolveInfo._class.instanceFieldId(
+    r'specificIndex',
+    r'I',
+  );
+
+  /// from: `public int specificIndex`
+  core$_.int get specificIndex =>
+      _id_specificIndex.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int specificIndex`
+  set specificIndex(core$_.int value) =>
+      _id_specificIndex.set(this, jni$_.jint.type, value);
+
+  static final _id_loadLabel = ResolveInfo._class.instanceMethodId(
+    r'loadLabel',
+    r'(Landroid/content/pm/PackageManager;)Ljava/lang/CharSequence;',
+  );
+
+  static final _loadLabel =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public java.lang.CharSequence loadLabel(android.content.pm.PackageManager packageManager)`
+  /// The returned object must be released after use, by calling the [release] method.
+  charsequence$_.CharSequence? loadLabel(
+    packagemanager$_.PackageManager? packageManager,
+  ) {
+    final _$$selfRef = reference;
+    final _$packageManager = packageManager?.reference ?? jni$_.jNullReference;
+    return _loadLabel(
+      _$$selfRef.pointer,
+      _id_loadLabel.pointer,
+      _$packageManager.pointer,
+    ).object<charsequence$_.CharSequence?>();
+  }
+
+  static final _id_loadIcon = ResolveInfo._class.instanceMethodId(
+    r'loadIcon',
+    r'(Landroid/content/pm/PackageManager;)Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _loadIcon =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.graphics.drawable.Drawable loadIcon(android.content.pm.PackageManager packageManager)`
+  /// The returned object must be released after use, by calling the [release] method.
+  drawable$_.Drawable? loadIcon(
+    packagemanager$_.PackageManager? packageManager,
+  ) {
+    final _$$selfRef = reference;
+    final _$packageManager = packageManager?.reference ?? jni$_.jNullReference;
+    return _loadIcon(
+      _$$selfRef.pointer,
+      _id_loadIcon.pointer,
+      _$packageManager.pointer,
+    ).object<drawable$_.Drawable?>();
+  }
+
+  static final _id_get$iconResource = ResolveInfo._class.instanceMethodId(
+    r'getIconResource',
+    r'()I',
+  );
+
+  static final _get$iconResource =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final int getIconResource()`
+  core$_.int get iconResource {
+    final _$$selfRef = reference;
+    return _get$iconResource(
+      _$$selfRef.pointer,
+      _id_get$iconResource.pointer,
+    ).integer;
+  }
+
+  static final _id_dump = ResolveInfo._class.instanceMethodId(
+    r'dump',
+    r'(Landroid/util/Printer;Ljava/lang/String;)V',
+  );
+
+  static final _dump =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void dump(android.util.Printer printer, java.lang.String string)`
+  void dump(printer$_.Printer? printer, jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$printer = printer?.reference ?? jni$_.jNullReference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    _dump(
+      _$$selfRef.pointer,
+      _id_dump.pointer,
+      _$printer.pointer,
+      _$string.pointer,
+    ).check();
+  }
+
+  static final _id_get$isCrossProfileIntentForwarderActivity = ResolveInfo
+      ._class
+      .instanceMethodId(r'isCrossProfileIntentForwarderActivity', r'()Z');
+
+  static final _get$isCrossProfileIntentForwarderActivity =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isCrossProfileIntentForwarderActivity()`
+  core$_.bool get isCrossProfileIntentForwarderActivity {
+    final _$$selfRef = reference;
+    return _get$isCrossProfileIntentForwarderActivity(
+      _$$selfRef.pointer,
+      _id_get$isCrossProfileIntentForwarderActivity.pointer,
+    ).boolean;
+  }
+
+  static final _id_toString$1 = ResolveInfo._class.instanceMethodId(
+    r'toString',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _toString$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String toString()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? toString$1() {
+    final _$$selfRef = reference;
+    return _toString$1(
+      _$$selfRef.pointer,
+      _id_toString$1.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_describeContents = ResolveInfo._class.instanceMethodId(
+    r'describeContents',
+    r'()I',
+  );
+
+  static final _describeContents =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int describeContents()`
+  core$_.int describeContents() {
+    final _$$selfRef = reference;
+    return _describeContents(
+      _$$selfRef.pointer,
+      _id_describeContents.pointer,
+    ).integer;
+  }
+
+  static final _id_writeToParcel = ResolveInfo._class.instanceMethodId(
+    r'writeToParcel',
+    r'(Landroid/os/Parcel;I)V',
+  );
+
+  static final _writeToParcel =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void writeToParcel(android.os.Parcel parcel, int i)`
+  void writeToParcel(parcel$_.Parcel? parcel, core$_.int i) {
+    final _$$selfRef = reference;
+    final _$parcel = parcel?.reference ?? jni$_.jNullReference;
+    _writeToParcel(
+      _$$selfRef.pointer,
+      _id_writeToParcel.pointer,
+      _$parcel.pointer,
+      i,
+    ).check();
+  }
 }
 
 final class $ResolveInfo$Type$ extends jni$_.JType<ResolveInfo> {

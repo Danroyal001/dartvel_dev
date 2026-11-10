@@ -4,6 +4,7 @@ export 'AttributeSet.dart';
 export 'DisplayMetrics.dart';
 export 'LongSparseArray.dart';
 export 'Pair.dart';
+export 'Printer.dart';
 export 'Property.dart';
 export 'SparseArray.dart';
 export 'TypedValue.dart';

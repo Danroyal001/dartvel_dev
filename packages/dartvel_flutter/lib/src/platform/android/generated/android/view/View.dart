@@ -2169,8 +2169,7 @@ extension type View$OnCreateContextMenuListener._(jni$_.JObject _$this)
       $p,
       _$invokePointer,
       [
-        if ($impl.onCreateContextMenu$async)
-          r'onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V',
+        if ($impl.onCreateContextMenu$async) r'onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V',
       ],
     );
     final $a = $p.sendPort.nativePort;
@@ -3207,11 +3206,15 @@ extension type View$OnLayoutChangeListener._(jni$_.JObject _$this)
       $i.args?.release();
       jni$_.ProtectedJniExtensions.returnResult($i.result, $r);
     });
-    implementer
-        .add(r'android.view.View$OnLayoutChangeListener', $p, _$invokePointer, [
-          if ($impl.onLayoutChange$async)
-            r'onLayoutChange(Landroid/view/View;IIIIIIII)V',
-        ]);
+    implementer.add(
+      r'android.view.View$OnLayoutChangeListener',
+      $p,
+      _$invokePointer,
+      [
+        if ($impl.onLayoutChange$async)
+          r'onLayoutChange(Landroid/view/View;IIIIIIII)V',
+      ],
+    );
     final $a = $p.sendPort.nativePort;
     _$impls[$a] = $impl;
   }
@@ -3653,11 +3656,15 @@ extension type View$OnScrollChangeListener._(jni$_.JObject _$this)
       $i.args?.release();
       jni$_.ProtectedJniExtensions.returnResult($i.result, $r);
     });
-    implementer
-        .add(r'android.view.View$OnScrollChangeListener', $p, _$invokePointer, [
-          if ($impl.onScrollChange$async)
-            r'onScrollChange(Landroid/view/View;IIII)V',
-        ]);
+    implementer.add(
+      r'android.view.View$OnScrollChangeListener',
+      $p,
+      _$invokePointer,
+      [
+        if ($impl.onScrollChange$async)
+          r'onScrollChange(Landroid/view/View;IIII)V',
+      ],
+    );
     final $a = $p.sendPort.nativePort;
     _$impls[$a] = $impl;
   }
@@ -4290,7 +4297,7 @@ final class $View$OnUnhandledKeyEventListener$Type$
 extension type View._(jni$_.JObject _$this)
     implements
         jni$_.JObject,
-        drawable$_.Drawable$$Callback,
+        drawable$_.Drawable$Callback,
         keyevent$_.KeyEvent$$Callback,
         accessibilityeventsource$_.AccessibilityEventSource {
   static final _class = jni$_.JClass.forName(r'android/view/View');
@@ -4338,10 +4345,9 @@ extension type View._(jni$_.JObject _$this)
   /// The returned object must be released after use, by calling the [release] method.
   static jni$_.JString? get AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_DATE =>
       _id_AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_DATE.getNullable(
-            _class,
-            jni$_.JString.type,
-          )
-          as jni$_.JString?;
+        _class,
+        jni$_.JString.type,
+      ) as jni$_.JString?;
 
   static final _id_AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_DAY = _class
       .staticFieldId(
@@ -4353,10 +4359,9 @@ extension type View._(jni$_.JObject _$this)
   /// The returned object must be released after use, by calling the [release] method.
   static jni$_.JString? get AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_DAY =>
       _id_AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_DAY.getNullable(
-            _class,
-            jni$_.JString.type,
-          )
-          as jni$_.JString?;
+        _class,
+        jni$_.JString.type,
+      ) as jni$_.JString?;
 
   static final _id_AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_MONTH = _class
       .staticFieldId(
@@ -4368,10 +4373,9 @@ extension type View._(jni$_.JObject _$this)
   /// The returned object must be released after use, by calling the [release] method.
   static jni$_.JString? get AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_MONTH =>
       _id_AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_MONTH.getNullable(
-            _class,
-            jni$_.JString.type,
-          )
-          as jni$_.JString?;
+        _class,
+        jni$_.JString.type,
+      ) as jni$_.JString?;
 
   static final _id_AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_YEAR = _class
       .staticFieldId(
@@ -4383,10 +4387,9 @@ extension type View._(jni$_.JObject _$this)
   /// The returned object must be released after use, by calling the [release] method.
   static jni$_.JString? get AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_YEAR =>
       _id_AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_YEAR.getNullable(
-            _class,
-            jni$_.JString.type,
-          )
-          as jni$_.JString?;
+        _class,
+        jni$_.JString.type,
+      ) as jni$_.JString?;
 
   static final _id_AUTOFILL_HINT_CREDIT_CARD_NUMBER = _class.staticFieldId(
     r'AUTOFILL_HINT_CREDIT_CARD_NUMBER',
@@ -4397,10 +4400,9 @@ extension type View._(jni$_.JObject _$this)
   /// The returned object must be released after use, by calling the [release] method.
   static jni$_.JString? get AUTOFILL_HINT_CREDIT_CARD_NUMBER =>
       _id_AUTOFILL_HINT_CREDIT_CARD_NUMBER.getNullable(
-            _class,
-            jni$_.JString.type,
-          )
-          as jni$_.JString?;
+        _class,
+        jni$_.JString.type,
+      ) as jni$_.JString?;
 
   static final _id_AUTOFILL_HINT_CREDIT_CARD_SECURITY_CODE = _class
       .staticFieldId(
@@ -4412,10 +4414,9 @@ extension type View._(jni$_.JObject _$this)
   /// The returned object must be released after use, by calling the [release] method.
   static jni$_.JString? get AUTOFILL_HINT_CREDIT_CARD_SECURITY_CODE =>
       _id_AUTOFILL_HINT_CREDIT_CARD_SECURITY_CODE.getNullable(
-            _class,
-            jni$_.JString.type,
-          )
-          as jni$_.JString?;
+        _class,
+        jni$_.JString.type,
+      ) as jni$_.JString?;
 
   static final _id_AUTOFILL_HINT_EMAIL_ADDRESS = _class.staticFieldId(
     r'AUTOFILL_HINT_EMAIL_ADDRESS',
