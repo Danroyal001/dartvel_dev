@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.34 — 2026-11-10
 
 - `dartvel.android.launcher: true` now also shows the wallpaper behind the app (both window themes, transparent Flutter surface), keeps the home app when Back reaches its first page, and lists it on Android TV (LEANBACK_LAUNCHER, banner, leanback/touchscreen not required).
 

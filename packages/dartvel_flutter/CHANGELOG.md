@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.34 — 2026-11-10
 
 - `DV.Platform.apps`: `icon(package)`, `isDefaultLauncher()` and `requestDefaultLauncher()` (Android's own role question, or the Home app settings).
 - Gesture helpers on `DVModifier` for `DVBox` and `DVText`: `onLongPress`, `onDoubleTap`, `onSwipeLeft/Right/Up/Down` and `onGesture(DVGesture(...))`; swipes are screen-reader actions and a long press takes precedence over the tooltip.
