@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DV.Platform.apps` (Android): `list()` answers every app with a launcher activity (package, name, icon as PNG bytes), sorted by name; `open`, `openSettings` and `uninstall` start the app, its system info page and the system uninstall confirmation. Through JNI and PackageManager. Elsewhere `isSupported` is false and the calls throw `UnsupportedError`, never an empty list that reads as a device with no apps.
+
 ## 0.13.29 — 2026-11-09
 
 - A tappable text with a tooltip is named by its own words, so a screen reader says what is on screen (WCAG 2.5.3); the tooltip still shows on hover, focus and long press. A "Start listening" button with the tooltip "Create your free account" was announced as the tooltip.
