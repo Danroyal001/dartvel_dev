@@ -120,6 +120,30 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'hosts',
+          title: 'Serve several domains from one binary',
+          children: <Widget>[
+            DocsText('dartvel.hosts in pubspec.yaml maps each domain to a part of the '
+                'site: docs.example.com can show the pages under /docs. A domain '
+                'whose content moved can just redirect.'),
+            DocsShell(<String>[
+              'hosts:',
+              '  example.com: {}',
+              '  docs.example.com: { mount: /docs, siteUrl: https://docs.example.com }',
+              '  old-example.net:',
+              '    redirect: https://example.com/about',
+              '    redirects: { /tools: https://example.com/tools }',
+            ]),
+            Bullets(<String>[
+              'A redirecting domain serves no pages: every path is sent on with a '
+                  'permanent (301) redirect, keeping the query string.',
+              'redirects sends exact paths somewhere of their own.',
+              'Only the web-server build serves hosts; a static build serves every '
+                  'page on every domain.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'roles',
           title: 'Run as web, worker or cron',
           children: <Widget>[

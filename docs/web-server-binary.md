@@ -72,6 +72,20 @@ dartvel:
       siteUrl: https://{label}.apps.example.com
 ```
 
+A host can also only redirect: a domain kept for the links people have to it, whose content now lives
+elsewhere. It serves no pages, so it has no `mount` or `siteUrl`:
+
+```yaml
+    old-example.net:
+      redirect: https://example.com/about      # every path, with a 301
+      redirects:                               # optional: exact paths sent elsewhere
+        /tools: https://tools.example.com/
+```
+
+The server answers it before anything else, keeping the query string, and nothing else hosts do (mounts,
+canonical URLs, sitemaps) sees it. With only `redirects`, an unnamed path on that host is not redirected.
+A redirect target is a full `http(s)` address; a `redirects` target may also be a path.
+
 The build refuses the configuration, naming each problem, when there is not exactly one primary host, a
 wildcard is anything but `*.` followed by a hostname, `{label}` appears in an entry that is not a
 wildcard (or is not a whole path segment of the mount, once), a mount does not start with `/`, two hosts
