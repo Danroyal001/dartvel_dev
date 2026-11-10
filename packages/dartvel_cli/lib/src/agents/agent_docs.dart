@@ -360,6 +360,21 @@ List<DVAgentDocWrite> dvApplyAgentDocs(List<DVAgentDocWrite> plan) {
   return written;
 }
 
+/// [path] with the home directory written as `~`, for a file a project
+/// commits: `/home/ada/.pub-cache/...` is right on one machine and wrong on
+/// every other, and the conventions check flags it (DV-CONV-017). A path
+/// outside the home directory is returned as it is.
+String dvPortableDocsPath(String path, {String? home}) {
+  final String? base = home ?? Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+  if (base == null || base.isEmpty) return path;
+  final String trimmed = base.endsWith('/') || base.endsWith(r'\') ? base.substring(0, base.length - 1) : base;
+  if (path == trimmed) return '~';
+  for (final String separator in <String>['/', r'\']) {
+    if (path.startsWith('$trimmed$separator')) return '~/${path.substring(trimmed.length + 1).replaceAll(r'\', '/')}';
+  }
+  return path;
+}
+
 /// The documentation directory shipped with the installed Dartvel CLI, or
 /// null.
 ///
@@ -451,7 +466,8 @@ Future<DVAgentDocsSyncResult> dvSyncAgentDocs({
   // is preferred when it has one, because a project on a newer Dartvel should
   // be told the newer rules and not this binary's memory of them.
   final String rules = bundled ?? _fallbackRules;
-  final String? docsPath = await dvBundledDocsPath();
+  final String? installedDocs = await dvBundledDocsPath();
+  final String? docsPath = installedDocs == null ? null : dvPortableDocsPath(installedDocs);
 
   final List<DVAgentDocWrite> plan = dvPlanAgentDocs(
     root: root,
