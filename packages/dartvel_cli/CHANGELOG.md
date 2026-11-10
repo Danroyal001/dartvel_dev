@@ -1,3 +1,8 @@
+## Unreleased
+
+- A functional widget's own dart: imports (dart:convert, dart:math) reach widgets.g.dart, so jsonEncode or math.max in a widget compiles.
+- The conventions check no longer scans top-level folders the project's .gitignore excludes, such as the generated android/, so a fresh build stops flagging its own gradlew.bat (DV-CONV-016).
+
 ## 0.13.31 — 2026-11-10
 
 - A backend function parameter named `query`, `body` or `headers` stops the build with the file, the parameter and the fix, instead of generating a client function that declares the name twice and does not compile.
