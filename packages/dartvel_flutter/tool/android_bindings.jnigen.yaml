@@ -171,6 +171,10 @@ classes:
   - javax.crypto.Cipher
   - javax.crypto.spec.GCMParameterSpec
 
+  # The installed-apps binding (DV.Platform.apps): an app icon drawn to a
+  # Bitmap is compressed to PNG bytes through this.
+  - java.io.ByteArrayOutputStream
+
 exclude:
   methods:
     # Deprecated overloads that generate ambiguous Dart names and that nothing
