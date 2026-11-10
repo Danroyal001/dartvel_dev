@@ -737,6 +737,18 @@ class BackendGenerator {
           'rawPathSuffix.',
         );
       }
+      // The generated client function takes its own query, body and headers
+      // arguments; a parameter with one of those names would be declared
+      // twice there, and the compile error would point into a generated file.
+      for (final String reserved in const <String>['query', 'body', 'headers']) {
+        if (typedParams.split(',').map((String n) => n.trim()).contains(reserved)) {
+          throw StateError(
+            '$rel: the parameter "$reserved" of $typedName clashes with the '
+            'generated client\'s own "$reserved" argument. Rename the parameter '
+            '(for example to "${reserved}Text").',
+          );
+        }
+      }
       backendEntries.add({
         'i': '$i',
         'method': method,
