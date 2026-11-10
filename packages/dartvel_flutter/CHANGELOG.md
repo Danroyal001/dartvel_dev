@@ -1,3 +1,8 @@
+## Unreleased
+
+- `DV.Platform.apps`: `icon(package)`, `isDefaultLauncher()` and `requestDefaultLauncher()` (Android's own role question, or the Home app settings).
+- Gesture helpers on `DVModifier` for `DVBox` and `DVText`: `onLongPress`, `onDoubleTap`, `onSwipeLeft/Right/Up/Down` and `onGesture(DVGesture(...))`; swipes are screen-reader actions and a long press takes precedence over the tooltip.
+
 ## 0.13.33 — 2026-11-10
 
 - Agent driver on the headless host: `DV.Test.driver(pump: tester.pump)` reads the semantics tree (refs, roles, labels, values, state, actions) and taps, types, scrolls and waits through it; sensitive fields are named, never valued; stale refs, disabled controls and waits that cannot settle fail with DV-DRIVER-002/003/004.

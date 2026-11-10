@@ -120,7 +120,7 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 <String>['device', 'Shipped (stub)', 'all'],
                 <String>['clipboard', 'Partial', 'web, Linux, Windows, macOS (varies)'],
                 <String>['share', 'Partial', 'Android, web; iOS built but not yet run on an iPhone'],
-                <String>['apps', 'Partial', 'Android (list, open, settings, uninstall); dartvel.android.launcher makes a home-screen app; not yet run on a device'],
+                <String>['apps', 'Partial', 'Android (list, icon, open, settings, uninstall, ask to be the home app); dartvel.android.launcher makes a home-screen app over the wallpaper, on phones and Android TV'],
                 <String>['sensors', 'Partial', 'Android, some web; iOS built but not yet run on an iPhone'],
                 <String>['biometrics', 'Partial', 'web; canAuthenticate on Android; iOS (Face ID, Touch ID) built but not yet run on an iPhone'],
                 <String>['deepLinks', 'Stub', 'all'],

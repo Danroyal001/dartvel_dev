@@ -816,6 +816,7 @@ Everything else is built from them, with a `DVModifier` (Styling):
 - Cards: `DVModifier().card()`
 - Text inputs: `DVModifier().input(label: ...)` on a `DVText`
 - Buttons: `DVModifier().onTap(...)`, or its alias `.onPressed(...)`
+- Gestures: `.onLongPress(...)`, `.onDoubleTap(...)`, `.onSwipeLeft/Right/Up/Down(...)`, and `.onGesture(DVGesture(onStart:, onUpdate:, onEnd:))` for a custom drag, pinch or rotate. A long press is the action's (the tooltip then shows on hover and focus); each swipe is a fling faster than `dvSwipeVelocity` and is offered to a screen reader as the matching scroll action, so no gesture is touch-only.
 - Rows: `DVBox.row(children)`
 - Columns and lists: `DVBox.list(children)`
 - Grids: `DVBox.grid(children)`
@@ -1041,6 +1042,10 @@ Fluent modifiers include
 .card()
 .input()
 .onTap()            // alias: onPressed
+.onLongPress()
+.onDoubleTap()
+.onSwipeLeft()      // also onSwipeRight, onSwipeUp, onSwipeDown
+.onGesture()        // DVGesture: drag, pinch, rotate
 .semanticLabel()
 ```
 
@@ -3408,8 +3413,8 @@ Native APIs, including:
 - NFC (`DV.Platform.nfc`, deprecated alias `DV.Platform.nfc`, and `DV.NFC` proxy)
 - Clipboard (`DV.Platform.clipboard`, deprecated alias `DV.Platform.clipboard`, and `DV.Clipboard` proxy)
 - Share (`DV.Platform.share`, deprecated alias `DV.Platform.share`, or `DV.Share` proxy)
-- Installed apps (`DV.Platform.apps`, Android): `list({icons})` answers every app with a launcher activity as `DVInstalledApp` (`packageName`, `label`, `icon` as PNG bytes), sorted by name; `open`, `openSettings` and `uninstall` start the app, its system info page and the system's own uninstall confirmation. Through JNI and PackageManager. Elsewhere `isSupported` is false and the calls throw `UnsupportedError`, never an empty list that reads as a device with no apps.
-  - `dartvel.android.launcher: true` makes the app eligible as the phone's home screen: the build adds MAIN/HOME/DEFAULT to the launcher activity and the MAIN/LAUNCHER `<queries>` entry Android 11+ needs before an app can see others, in marked blocks a later build replaces.
+- Installed apps (`DV.Platform.apps`, Android): `list({icons})` answers every app with a launcher activity as `DVInstalledApp` (`packageName`, `label`, `icon` as PNG bytes), sorted by name; `open`, `openSettings` and `uninstall` start the app, its system info page and the system's own uninstall confirmation. `icon(package)` draws one app's icon, so a launcher lists names with `list(icons: false)` at once and fills icons in after the first frame instead of drawing every icon before anything shows. `isDefaultLauncher()` says whether this app answers MAIN/HOME, and `requestDefaultLauncher()` asks the person to make it the home app: Android has no permission for that, so the system shows its own role question (Android 10+, from the Activity) or its Home app settings, and the person decides. Through JNI and PackageManager. Elsewhere `isSupported` is false and the calls throw `UnsupportedError`, never an empty list that reads as a device with no apps.
+  - `dartvel.android.launcher: true` makes the app eligible as the phone's home screen: the build adds MAIN/HOME/DEFAULT to the launcher activity and the MAIN/LAUNCHER `<queries>` entry Android 11+ needs before an app can see others, in marked blocks a later build replaces. It also makes a home app that behaves like one: both window themes show the phone's wallpaper and draw no background (no black window between pressing home and the first frame), Flutter's own MainActivity gets a transparent surface and keeps the app when Back reaches its first page (an edited MainActivity is reported, not rewritten), and Android TV lists it (LEANBACK_LAUNCHER, leanback and touchscreen not required, the icon as banner). Turning the setting off removes all of it.
 - Notifications (`DV.Platform.notifications` / `DV.Notifications` proxy) - device-local notifications; mail is `DV.Notifications.mail`
 - Sensors (`DV.Platform.sensors`, deprecated alias `DV.Platform.sensors`, and `DV.Sensors` proxy)
 - Biometrics (`DV.Platform.biometrics`, deprecated alias `DV.Platform.biometrics`, and `DV.Biometrics` proxy)

@@ -159,6 +159,16 @@ need no generator.
 
 ## UI: DVBox, DVText and the modifier chain
 
+Gestures are named, not built: `.onTap()` (alias `.onPressed()`),
+`.onLongPress()`, `.onDoubleTap()`, `.onSwipeLeft()`/`Right`/`Up`/`Down`, and
+`.onGesture(DVGesture(...))` for a custom drag, pinch or rotate. Each swipe is
+also a screen-reader action.
+
+```dart
+DVBox(page, DVModifier().onSwipeUp(openDrawer));
+DVText(app.label).modifier(DVModifier().onTap(open).onLongPress(showMenu));
+```
+
 `DVBox` is the one layout primitive and `DVText` the one text primitive. Both
 take a `DVModifier`, an immutable chain of styling, layout, interaction and
 semantics. The chain is Dartvel's own, rendered with Flutter widgets; it is
@@ -581,9 +591,13 @@ d.dispose();
 
 - **Installed apps and home-screen apps** (Android, `Partial`).
   `DV.Platform.apps.list()` answers the launchable apps (package, name, icon as
-  PNG) and `open`, `openSettings` and `uninstall` act on one;
+  PNG) and `open`, `openSettings` and `uninstall` act on one. `icon(package)`
+  draws one icon, so a launcher can show names first with `list(icons: false)`.
   `dartvel.android.launcher: true` in `pubspec.yaml` makes the app eligible as
-  the phone's home screen. Elsewhere `isSupported` is false:
+  the phone's home screen, over the wallpaper, listed on Android TV, and never
+  closed by Back. `requestDefaultLauncher()` shows Android's own "make this the
+  home app?" question and `isDefaultLauncher()` says whether it is. Elsewhere
+  `isSupported` is false:
 
   ```dart
   final List<DVInstalledApp> apps = await DV.Platform.apps.list();
