@@ -560,6 +560,23 @@ The readable `/data`, `/sitemap` and `/team` aliases under the Studio mount
 preserve existing `/models`, `/routes` and `/access` links. Data record forms
 open at `<mount>/data/<model>/<record>` and report stale links explicitly.
 
+## Agent driver
+
+`DV.Test.driver(pump: tester.pump)` lets a test, or a coding agent, use a page
+the way a person does, through the semantics tree a screen reader reads:
+`tree()`, `find(role:, label:)`, `tap`, `type`, `scroll`, `wait`, `status`
+and `logs`. Password fields are named, never valued, and a stale ref, a
+disabled control or a wait that cannot settle fail with `DV-DRIVER-002`,
+`-003` and `-004`. It runs on the headless test host today; development
+builds on other hosts are designed (`Partial`).
+
+```dart
+final DVDriver d = DV.Test.driver(pump: tester.pump);
+await d.tap(d.find(role: 'button', label: 'Place order')!);
+await d.wait();
+d.dispose();
+```
+
 ## Platform notes
 
 - **Installed apps and home-screen apps** (Android, `Partial`).

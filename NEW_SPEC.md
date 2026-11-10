@@ -16865,6 +16865,138 @@ rest are designed here and have no code:
   pages maintained by hand is a second thing to go stale.
 
 ---
+# Agent Driver
+
+Stability: `Draft` · Status: `Partial`
+
+A coding agent that has built a page should be able to open it, look at it,
+use it, and read what happened, on whatever target the page runs on, through
+one small set of operations that are the same on every one. A framework that
+asks an agent to write code and never shows it running has left the last step
+to a human.
+
+The operations belong to the **driver**: development tooling over a running
+application. It is never part of what an application imports to run.
+
+## One tree, and it is the semantics tree
+
+The driver reports the semantics tree, which is what a screen reader reads and
+what a keyboard reaches. It does not invent a second description of the
+screen, so the accessibility rules Dartvel already enforces (tooltips that name
+controls, labelled inputs, the accessibility audit) are also what make a page
+usable by an agent. A control an agent cannot find is one a screen-reader user
+cannot find either.
+
+```json
+{
+  "treeVersion": 1,
+  "host": "vm",
+  "nodes": [
+    { "ref": "n7", "role": "button", "label": "Place order",
+      "state": { "enabled": true, "focused": false },
+      "actions": ["tap"], "rect": [24, 612, 312, 48], "parent": "n3" },
+    { "ref": "n8", "role": "textField", "label": "Password",
+      "sensitive": true, "state": { "enabled": true, "focused": false },
+      "actions": ["tap", "type"] }
+  ]
+}
+```
+
+- `treeVersion` changes only on a breaking change to this shape.
+- `rect` is in logical pixels, for reading layout, never for aiming.
+- **A sensitive field is named, never valued.** An obscured field appears as a
+  node marked `"sensitive": true` with no `value`, whatever was typed into it.
+
+## The operations
+
+| Operation | What it does |
+|---|---|
+| `status` | the host, how many nodes the tree has, and the warnings and errors logged since the last `status` |
+| `tree` | the semantics tree, whole or from a `ref` |
+| `find` | the `ref` of the first node with a label (and a role, when given) |
+| `tap` | activates a node, as a tap or Enter would |
+| `type` | sets the text of a field, focusing it first when it must be |
+| `scroll` | scrolls the scrollable that holds a node one page toward a direction |
+| `wait` | returns once no frame and no animation is pending; on timeout says what is |
+| `logs` | log records since a cursor, redacted as everywhere else |
+
+Operations take a `ref`, never a coordinate: a tap aimed at pixels passes on
+the screen it was written on and misses on the next. A `ref` names a node; a
+`ref` for a node that is gone is `DV-DRIVER-002` rather than a tap on whatever
+now sits there, and a node that cannot take the action says why
+(`DV-DRIVER-003`: disabled, or the actions it does take). `wait` does not sleep:
+it returns when the app has settled, and on timeout fails with `DV-DRIVER-004`
+naming what was pending, because "timed out" alone sends an agent back to
+adding a longer wait.
+
+The driver acts through semantics actions rather than a test framework's
+taps, so the same code drives the headless test host and, next, a development
+build on a device or in a browser.
+
+## What ships: the headless host
+
+```dart
+testWidgets('a customer places an order', (WidgetTester tester) async {
+  await tester.pumpWidget(createDartvelApp());
+  final DVDriver d = DV.Test.driver(pump: tester.pump);
+  try {
+    await d.tap(d.find(role: 'button', label: 'Place order')!);
+    await d.wait();
+    expect(d.find(label: 'Order confirmed'), isNotNull);
+  } finally {
+    d.dispose(); // the driver keeps the semantics tree alive
+  }
+});
+```
+
+`pump` advances frames on the test host; without it the driver waits in real
+time. Tests: `packages/dartvel_flutter/test/agent_driver_test.dart`, including a
+page built from `DVBox` and `DVText` controls and inputs.
+
+## Designed and not built
+
+- **Development builds on real hosts** (web first, then Android, iOS and
+  desktop), reached through the same Dart VM service `dartvel dev` uses, paired
+  with a fresh key per run. A release build compiles the driver out, and a
+  release artifact carrying driver symbols is a build error (`DV-DRIVER-001`);
+  the driver refuses to attach to a non-development environment
+  (`DV-DRIVER-007`).
+- **`go`** (a typed `DVRoutes` member, never a path string), **`clock`** (read
+  the app's time; advance it on the headless host, `DV-DRIVER-005` elsewhere)
+  and **`screenshot`** (sensitive nodes masked; refused with `DV-DRIVER-006` when
+  one cannot be).
+- **`dartvel mcp` tools** for each operation, in the framework registry, never
+  in the application's own tool registry.
+- **`dartvel agent status|dev|smoke|screenshot|logs`**, built from these
+  operations; `smoke` visits each route that needs no parameters and fails on
+  an empty tree, an unlabelled control (`DV-DRIVER-008`) or a warning.
+- **`DV.Test.scenario`**: one file run on the headless host and, unchanged,
+  against a development build on a real host, reporting a matrix of hosts.
+
+## Diagnostics
+
+| Code | Reason | Built |
+|---|---|---|
+| `DV-DRIVER-001` | a driver was requested of a release build | no |
+| `DV-DRIVER-002` | the `ref` names no node in the current tree | yes |
+| `DV-DRIVER-003` | the node cannot take that action; the reason is named | yes |
+| `DV-DRIVER-004` | `wait` timed out; what was pending is named | yes |
+| `DV-DRIVER-005` | this host does not support the operation | no |
+| `DV-DRIVER-006` | a screenshot was refused because a sensitive node could not be masked | no |
+| `DV-DRIVER-007` | the driver declined to attach to a non-development environment | no |
+| `DV-DRIVER-008` | `smoke` found an interactive node with no label | no |
+
+## Deliberately absent
+
+- Coordinate input, and a tree format of the driver's own.
+- Operations that run application code: an agent that needs the application
+  to do something calls the application's tool; one that needs to see it uses
+  the driver.
+- Reading sensitive values through the driver.
+- `DV.Agent` or any runtime namespace for agents in the application surface.
+
+---
+
 # Roadmap
 
 Accepted 1 October 2026, after comparing Dartvel with Expo SDK 58, Next.js 16.3, Qt 6.11, Flutter Agent Kit
