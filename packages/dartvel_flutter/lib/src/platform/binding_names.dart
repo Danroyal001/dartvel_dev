@@ -36,6 +36,12 @@ const Set<String> dvNativeBindingNames = <String>{
   'sensors.accelerometer',
   'sensors.gyroscope',
 
+  // The device's installed apps that can be launched (DVApps). Android only.
+  'apps.list',
+  'apps.open',
+  'apps.openSettings',
+  'apps.uninstall',
+
   // Feedback and system integration.
   'clipboard.copy',
   'clipboard.paste',

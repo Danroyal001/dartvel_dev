@@ -562,6 +562,17 @@ open at `<mount>/data/<model>/<record>` and report stale links explicitly.
 
 ## Platform notes
 
+- **Installed apps and home-screen apps** (Android, `Partial`).
+  `DV.Platform.apps.list()` answers the launchable apps (package, name, icon as
+  PNG) and `open`, `openSettings` and `uninstall` act on one;
+  `dartvel.android.launcher: true` in `pubspec.yaml` makes the app eligible as
+  the phone's home screen. Elsewhere `isSupported` is false:
+
+  ```dart
+  final List<DVInstalledApp> apps = await DV.Platform.apps.list();
+  await DV.Platform.apps.open(apps.first.packageName);
+  ```
+
 - **Web.** dartvel.dev is built with this package, and runs as a static
   build.
 - **Desktop** (multi-window is `Partial`). `DV.Platform.window.open(route)`

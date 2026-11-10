@@ -36,13 +36,1961 @@ import 'dart:core' show Object, String;
 import 'package:jni/_internal.dart' as jni$_;
 import 'package:jni/jni.dart' as jni$_;
 
+import '../../java/io/File.dart' as file$_;
+
+import '../../java/lang/Comparable.dart' as comparable$_;
+
+import '../os/Parcel.dart' as parcel$_;
+
+import '../os/Parcelable.dart' as parcelable$_;
+
+/// from: `android.net.Uri$Builder`
+extension type Uri$Builder._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'android/net/Uri$Builder');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<Uri$Builder> type = $Uri$Builder$Type$();
+  static final _id_new$ = _class.constructorId(r'()V');
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void <init>()`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory Uri$Builder() {
+    final _$$classRef = _class.reference;
+    return _new$(_$$classRef.pointer, _id_new$.pointer).object<Uri$Builder>();
+  }
+}
+
+extension Uri$Builder$$Methods on Uri$Builder {
+  static final _id_scheme = Uri$Builder._class.instanceMethodId(
+    r'scheme',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _scheme =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder scheme(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? scheme(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _scheme(
+      _$$selfRef.pointer,
+      _id_scheme.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_opaquePart = Uri$Builder._class.instanceMethodId(
+    r'opaquePart',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _opaquePart =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder opaquePart(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? opaquePart(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _opaquePart(
+      _$$selfRef.pointer,
+      _id_opaquePart.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_encodedOpaquePart = Uri$Builder._class.instanceMethodId(
+    r'encodedOpaquePart',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _encodedOpaquePart =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder encodedOpaquePart(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? encodedOpaquePart(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _encodedOpaquePart(
+      _$$selfRef.pointer,
+      _id_encodedOpaquePart.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_authority = Uri$Builder._class.instanceMethodId(
+    r'authority',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _authority =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder authority(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? authority(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _authority(
+      _$$selfRef.pointer,
+      _id_authority.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_encodedAuthority = Uri$Builder._class.instanceMethodId(
+    r'encodedAuthority',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _encodedAuthority =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder encodedAuthority(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? encodedAuthority(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _encodedAuthority(
+      _$$selfRef.pointer,
+      _id_encodedAuthority.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_path = Uri$Builder._class.instanceMethodId(
+    r'path',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _path =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder path(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? path(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _path(
+      _$$selfRef.pointer,
+      _id_path.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_encodedPath = Uri$Builder._class.instanceMethodId(
+    r'encodedPath',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _encodedPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder encodedPath(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? encodedPath(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _encodedPath(
+      _$$selfRef.pointer,
+      _id_encodedPath.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_appendPath = Uri$Builder._class.instanceMethodId(
+    r'appendPath',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _appendPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder appendPath(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? appendPath(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _appendPath(
+      _$$selfRef.pointer,
+      _id_appendPath.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_appendEncodedPath = Uri$Builder._class.instanceMethodId(
+    r'appendEncodedPath',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _appendEncodedPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder appendEncodedPath(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? appendEncodedPath(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _appendEncodedPath(
+      _$$selfRef.pointer,
+      _id_appendEncodedPath.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_query = Uri$Builder._class.instanceMethodId(
+    r'query',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _query =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder query(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? query(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _query(
+      _$$selfRef.pointer,
+      _id_query.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_encodedQuery = Uri$Builder._class.instanceMethodId(
+    r'encodedQuery',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _encodedQuery =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder encodedQuery(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? encodedQuery(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _encodedQuery(
+      _$$selfRef.pointer,
+      _id_encodedQuery.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_fragment = Uri$Builder._class.instanceMethodId(
+    r'fragment',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _fragment =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder fragment(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? fragment(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _fragment(
+      _$$selfRef.pointer,
+      _id_fragment.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_encodedFragment = Uri$Builder._class.instanceMethodId(
+    r'encodedFragment',
+    r'(Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _encodedFragment =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder encodedFragment(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? encodedFragment(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _encodedFragment(
+      _$$selfRef.pointer,
+      _id_encodedFragment.pointer,
+      _$string.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_appendQueryParameter = Uri$Builder._class.instanceMethodId(
+    r'appendQueryParameter',
+    r'(Ljava/lang/String;Ljava/lang/String;)Landroid/net/Uri$Builder;',
+  );
+
+  static final _appendQueryParameter =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder appendQueryParameter(java.lang.String string, java.lang.String string1)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? appendQueryParameter(
+    jni$_.JString? string,
+    jni$_.JString? string1,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    final _$string1 = string1?.reference ?? jni$_.jNullReference;
+    return _appendQueryParameter(
+      _$$selfRef.pointer,
+      _id_appendQueryParameter.pointer,
+      _$string.pointer,
+      _$string1.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_clearQuery = Uri$Builder._class.instanceMethodId(
+    r'clearQuery',
+    r'()Landroid/net/Uri$Builder;',
+  );
+
+  static final _clearQuery =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.net.Uri$Builder clearQuery()`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? clearQuery() {
+    final _$$selfRef = reference;
+    return _clearQuery(
+      _$$selfRef.pointer,
+      _id_clearQuery.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_build = Uri$Builder._class.instanceMethodId(
+    r'build',
+    r'()Landroid/net/Uri;',
+  );
+
+  static final _build =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.net.Uri build()`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri? build() {
+    final _$$selfRef = reference;
+    return _build(_$$selfRef.pointer, _id_build.pointer).object<Uri?>();
+  }
+
+  static final _id_toString$1 = Uri$Builder._class.instanceMethodId(
+    r'toString',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _toString$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String toString()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? toString$1() {
+    final _$$selfRef = reference;
+    return _toString$1(
+      _$$selfRef.pointer,
+      _id_toString$1.pointer,
+    ).object<jni$_.JString?>();
+  }
+}
+
+final class $Uri$Builder$Type$ extends jni$_.JType<Uri$Builder> {
+  @jni$_.internal
+  const $Uri$Builder$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Landroid/net/Uri$Builder;';
+}
+
 /// from: `android.net.Uri`
-///
-/// WARNING: Uri is a stub. To generate bindings for this class, include
-/// android.net.Uri in your config's classes list.
-///
-extension type Uri._(jni$_.JObject _$this) implements jni$_.JObject {
+extension type Uri._(jni$_.JObject _$this)
+    implements jni$_.JObject, parcelable$_.Parcelable, comparable$_.Comparable {
+  static final _class = jni$_.JClass.forName(r'android/net/Uri');
+
+  /// The type which includes information such as the signature of this class.
   static const jni$_.JType<Uri> type = $Uri$Type$();
+  static final _id_CREATOR = _class.staticFieldId(
+    r'CREATOR',
+    r'Landroid/os/Parcelable$Creator;',
+  );
+
+  /// from: `static public final android.os.Parcelable$Creator<android.net.Uri> CREATOR`
+  /// The returned object must be released after use, by calling the [release] method.
+  static parcelable$_.Parcelable$$Creator? get CREATOR =>
+      _id_CREATOR.getNullable(_class, parcelable$_.Parcelable$$Creator.type)
+          as parcelable$_.Parcelable$$Creator?;
+
+  static final _id_EMPTY = _class.staticFieldId(r'EMPTY', r'Landroid/net/Uri;');
+
+  /// from: `static public final android.net.Uri EMPTY`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Uri? get EMPTY => _id_EMPTY.getNullable(_class, Uri.type) as Uri?;
+
+  static final _id_parse = _class.staticMethodId(
+    r'parse',
+    r'(Ljava/lang/String;)Landroid/net/Uri;',
+  );
+
+  static final _parse =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.net.Uri parse(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Uri? parse(jni$_.JString? string) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _parse(
+      _$$classRef.pointer,
+      _id_parse.pointer,
+      _$string.pointer,
+    ).object<Uri?>();
+  }
+
+  static final _id_fromFile = _class.staticMethodId(
+    r'fromFile',
+    r'(Ljava/io/File;)Landroid/net/Uri;',
+  );
+
+  static final _fromFile =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.net.Uri fromFile(java.io.File file)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Uri? fromFile(file$_.File? file) {
+    final _$$classRef = _class.reference;
+    final _$file = file?.reference ?? jni$_.jNullReference;
+    return _fromFile(
+      _$$classRef.pointer,
+      _id_fromFile.pointer,
+      _$file.pointer,
+    ).object<Uri?>();
+  }
+
+  static final _id_fromParts = _class.staticMethodId(
+    r'fromParts',
+    r'(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Landroid/net/Uri;',
+  );
+
+  static final _fromParts =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.net.Uri fromParts(java.lang.String string, java.lang.String string1, java.lang.String string2)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Uri? fromParts(
+    jni$_.JString? string,
+    jni$_.JString? string1,
+    jni$_.JString? string2,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    final _$string1 = string1?.reference ?? jni$_.jNullReference;
+    final _$string2 = string2?.reference ?? jni$_.jNullReference;
+    return _fromParts(
+      _$$classRef.pointer,
+      _id_fromParts.pointer,
+      _$string.pointer,
+      _$string1.pointer,
+      _$string2.pointer,
+    ).object<Uri?>();
+  }
+
+  static final _id_writeToParcel = _class.staticMethodId(
+    r'writeToParcel',
+    r'(Landroid/os/Parcel;Landroid/net/Uri;)V',
+  );
+
+  static final _writeToParcel =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallStaticVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public void writeToParcel(android.os.Parcel parcel, android.net.Uri uri)`
+  static void writeToParcel(parcel$_.Parcel? parcel, Uri? uri) {
+    final _$$classRef = _class.reference;
+    final _$parcel = parcel?.reference ?? jni$_.jNullReference;
+    final _$uri = uri?.reference ?? jni$_.jNullReference;
+    _writeToParcel(
+      _$$classRef.pointer,
+      _id_writeToParcel.pointer,
+      _$parcel.pointer,
+      _$uri.pointer,
+    ).check();
+  }
+
+  static final _id_encode = _class.staticMethodId(
+    r'encode',
+    r'(Ljava/lang/String;)Ljava/lang/String;',
+  );
+
+  static final _encode =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public java.lang.String encode(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JString? encode(jni$_.JString? string) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _encode(
+      _$$classRef.pointer,
+      _id_encode.pointer,
+      _$string.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_encode$1 = _class.staticMethodId(
+    r'encode',
+    r'(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;',
+  );
+
+  static final _encode$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public java.lang.String encode(java.lang.String string, java.lang.String string1)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JString? encode$1(
+    jni$_.JString? string,
+    jni$_.JString? string1,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    final _$string1 = string1?.reference ?? jni$_.jNullReference;
+    return _encode$1(
+      _$$classRef.pointer,
+      _id_encode$1.pointer,
+      _$string.pointer,
+      _$string1.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_decode = _class.staticMethodId(
+    r'decode',
+    r'(Ljava/lang/String;)Ljava/lang/String;',
+  );
+
+  static final _decode =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public java.lang.String decode(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JString? decode(jni$_.JString? string) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _decode(
+      _$$classRef.pointer,
+      _id_decode.pointer,
+      _$string.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_withAppendedPath = _class.staticMethodId(
+    r'withAppendedPath',
+    r'(Landroid/net/Uri;Ljava/lang/String;)Landroid/net/Uri;',
+  );
+
+  static final _withAppendedPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.net.Uri withAppendedPath(android.net.Uri uri, java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Uri? withAppendedPath(Uri? uri, jni$_.JString? string) {
+    final _$$classRef = _class.reference;
+    final _$uri = uri?.reference ?? jni$_.jNullReference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _withAppendedPath(
+      _$$classRef.pointer,
+      _id_withAppendedPath.pointer,
+      _$uri.pointer,
+      _$string.pointer,
+    ).object<Uri?>();
+  }
+}
+
+extension Uri$$Methods on Uri {
+  static final _id_get$isHierarchical = Uri._class.instanceMethodId(
+    r'isHierarchical',
+    r'()Z',
+  );
+
+  static final _get$isHierarchical =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract boolean isHierarchical()`
+  core$_.bool get isHierarchical {
+    final _$$selfRef = reference;
+    return _get$isHierarchical(
+      _$$selfRef.pointer,
+      _id_get$isHierarchical.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$isOpaque = Uri._class.instanceMethodId(
+    r'isOpaque',
+    r'()Z',
+  );
+
+  static final _get$isOpaque =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isOpaque()`
+  core$_.bool get isOpaque {
+    final _$$selfRef = reference;
+    return _get$isOpaque(_$$selfRef.pointer, _id_get$isOpaque.pointer).boolean;
+  }
+
+  static final _id_get$isRelative = Uri._class.instanceMethodId(
+    r'isRelative',
+    r'()Z',
+  );
+
+  static final _get$isRelative =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract boolean isRelative()`
+  core$_.bool get isRelative {
+    final _$$selfRef = reference;
+    return _get$isRelative(
+      _$$selfRef.pointer,
+      _id_get$isRelative.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$isAbsolute = Uri._class.instanceMethodId(
+    r'isAbsolute',
+    r'()Z',
+  );
+
+  static final _get$isAbsolute =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isAbsolute()`
+  core$_.bool get isAbsolute {
+    final _$$selfRef = reference;
+    return _get$isAbsolute(
+      _$$selfRef.pointer,
+      _id_get$isAbsolute.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$scheme = Uri._class.instanceMethodId(
+    r'getScheme',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$scheme =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getScheme()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get scheme {
+    final _$$selfRef = reference;
+    return _get$scheme(
+      _$$selfRef.pointer,
+      _id_get$scheme.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$schemeSpecificPart = Uri._class.instanceMethodId(
+    r'getSchemeSpecificPart',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$schemeSpecificPart =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getSchemeSpecificPart()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get schemeSpecificPart {
+    final _$$selfRef = reference;
+    return _get$schemeSpecificPart(
+      _$$selfRef.pointer,
+      _id_get$schemeSpecificPart.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$encodedSchemeSpecificPart = Uri._class.instanceMethodId(
+    r'getEncodedSchemeSpecificPart',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$encodedSchemeSpecificPart =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getEncodedSchemeSpecificPart()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get encodedSchemeSpecificPart {
+    final _$$selfRef = reference;
+    return _get$encodedSchemeSpecificPart(
+      _$$selfRef.pointer,
+      _id_get$encodedSchemeSpecificPart.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$authority = Uri._class.instanceMethodId(
+    r'getAuthority',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$authority =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getAuthority()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get authority {
+    final _$$selfRef = reference;
+    return _get$authority(
+      _$$selfRef.pointer,
+      _id_get$authority.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$encodedAuthority = Uri._class.instanceMethodId(
+    r'getEncodedAuthority',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$encodedAuthority =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getEncodedAuthority()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get encodedAuthority {
+    final _$$selfRef = reference;
+    return _get$encodedAuthority(
+      _$$selfRef.pointer,
+      _id_get$encodedAuthority.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$userInfo = Uri._class.instanceMethodId(
+    r'getUserInfo',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$userInfo =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getUserInfo()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get userInfo {
+    final _$$selfRef = reference;
+    return _get$userInfo(
+      _$$selfRef.pointer,
+      _id_get$userInfo.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$encodedUserInfo = Uri._class.instanceMethodId(
+    r'getEncodedUserInfo',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$encodedUserInfo =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getEncodedUserInfo()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get encodedUserInfo {
+    final _$$selfRef = reference;
+    return _get$encodedUserInfo(
+      _$$selfRef.pointer,
+      _id_get$encodedUserInfo.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$host = Uri._class.instanceMethodId(
+    r'getHost',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$host =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getHost()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get host {
+    final _$$selfRef = reference;
+    return _get$host(
+      _$$selfRef.pointer,
+      _id_get$host.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$port = Uri._class.instanceMethodId(r'getPort', r'()I');
+
+  static final _get$port =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract int getPort()`
+  core$_.int get port {
+    final _$$selfRef = reference;
+    return _get$port(_$$selfRef.pointer, _id_get$port.pointer).integer;
+  }
+
+  static final _id_get$path = Uri._class.instanceMethodId(
+    r'getPath',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$path =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getPath()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get path {
+    final _$$selfRef = reference;
+    return _get$path(
+      _$$selfRef.pointer,
+      _id_get$path.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$encodedPath = Uri._class.instanceMethodId(
+    r'getEncodedPath',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$encodedPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getEncodedPath()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get encodedPath {
+    final _$$selfRef = reference;
+    return _get$encodedPath(
+      _$$selfRef.pointer,
+      _id_get$encodedPath.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$query = Uri._class.instanceMethodId(
+    r'getQuery',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$query =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getQuery()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get query {
+    final _$$selfRef = reference;
+    return _get$query(
+      _$$selfRef.pointer,
+      _id_get$query.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$encodedQuery = Uri._class.instanceMethodId(
+    r'getEncodedQuery',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$encodedQuery =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getEncodedQuery()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get encodedQuery {
+    final _$$selfRef = reference;
+    return _get$encodedQuery(
+      _$$selfRef.pointer,
+      _id_get$encodedQuery.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$fragment = Uri._class.instanceMethodId(
+    r'getFragment',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$fragment =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getFragment()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get fragment {
+    final _$$selfRef = reference;
+    return _get$fragment(
+      _$$selfRef.pointer,
+      _id_get$fragment.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$encodedFragment = Uri._class.instanceMethodId(
+    r'getEncodedFragment',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$encodedFragment =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getEncodedFragment()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get encodedFragment {
+    final _$$selfRef = reference;
+    return _get$encodedFragment(
+      _$$selfRef.pointer,
+      _id_get$encodedFragment.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$pathSegments = Uri._class.instanceMethodId(
+    r'getPathSegments',
+    r'()Ljava/util/List;',
+  );
+
+  static final _get$pathSegments =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.util.List<java.lang.String> getPathSegments()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JList<jni$_.JString?>? get pathSegments {
+    final _$$selfRef = reference;
+    return _get$pathSegments(
+      _$$selfRef.pointer,
+      _id_get$pathSegments.pointer,
+    ).object<jni$_.JList<jni$_.JString?>?>();
+  }
+
+  static final _id_get$lastPathSegment = Uri._class.instanceMethodId(
+    r'getLastPathSegment',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$lastPathSegment =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String getLastPathSegment()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get lastPathSegment {
+    final _$$selfRef = reference;
+    return _get$lastPathSegment(
+      _$$selfRef.pointer,
+      _id_get$lastPathSegment.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_equals = Uri._class.instanceMethodId(
+    r'equals',
+    r'(Ljava/lang/Object;)Z',
+  );
+
+  static final _equals =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean equals(java.lang.Object object)`
+  core$_.bool equals(jni$_.JObject? object) {
+    final _$$selfRef = reference;
+    final _$object = object?.reference ?? jni$_.jNullReference;
+    return _equals(
+      _$$selfRef.pointer,
+      _id_equals.pointer,
+      _$object.pointer,
+    ).boolean;
+  }
+
+  static final _id_hashCode$1 = Uri._class.instanceMethodId(
+    r'hashCode',
+    r'()I',
+  );
+
+  static final _hashCode$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int hashCode()`
+  core$_.int hashCode$1() {
+    final _$$selfRef = reference;
+    return _hashCode$1(_$$selfRef.pointer, _id_hashCode$1.pointer).integer;
+  }
+
+  static final _id_compareTo = Uri._class.instanceMethodId(
+    r'compareTo',
+    r'(Landroid/net/Uri;)I',
+  );
+
+  static final _compareTo =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public int compareTo(android.net.Uri uri)`
+  core$_.int compareTo(Uri? uri) {
+    final _$$selfRef = reference;
+    final _$uri = uri?.reference ?? jni$_.jNullReference;
+    return _compareTo(
+      _$$selfRef.pointer,
+      _id_compareTo.pointer,
+      _$uri.pointer,
+    ).integer;
+  }
+
+  static final _id_toString$1 = Uri._class.instanceMethodId(
+    r'toString',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _toString$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract java.lang.String toString()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? toString$1() {
+    final _$$selfRef = reference;
+    return _toString$1(
+      _$$selfRef.pointer,
+      _id_toString$1.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_buildUpon = Uri._class.instanceMethodId(
+    r'buildUpon',
+    r'()Landroid/net/Uri$Builder;',
+  );
+
+  static final _buildUpon =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract android.net.Uri$Builder buildUpon()`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri$Builder? buildUpon() {
+    final _$$selfRef = reference;
+    return _buildUpon(
+      _$$selfRef.pointer,
+      _id_buildUpon.pointer,
+    ).object<Uri$Builder?>();
+  }
+
+  static final _id_get$queryParameterNames = Uri._class.instanceMethodId(
+    r'getQueryParameterNames',
+    r'()Ljava/util/Set;',
+  );
+
+  static final _get$queryParameterNames =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.util.Set<java.lang.String> getQueryParameterNames()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JSet<jni$_.JString?>? get queryParameterNames {
+    final _$$selfRef = reference;
+    return _get$queryParameterNames(
+      _$$selfRef.pointer,
+      _id_get$queryParameterNames.pointer,
+    ).object<jni$_.JSet<jni$_.JString?>?>();
+  }
+
+  static final _id_getQueryParameters = Uri._class.instanceMethodId(
+    r'getQueryParameters',
+    r'(Ljava/lang/String;)Ljava/util/List;',
+  );
+
+  static final _getQueryParameters =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public java.util.List<java.lang.String> getQueryParameters(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JList<jni$_.JString?>? getQueryParameters(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _getQueryParameters(
+      _$$selfRef.pointer,
+      _id_getQueryParameters.pointer,
+      _$string.pointer,
+    ).object<jni$_.JList<jni$_.JString?>?>();
+  }
+
+  static final _id_getQueryParameter = Uri._class.instanceMethodId(
+    r'getQueryParameter',
+    r'(Ljava/lang/String;)Ljava/lang/String;',
+  );
+
+  static final _getQueryParameter =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public java.lang.String getQueryParameter(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? getQueryParameter(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _getQueryParameter(
+      _$$selfRef.pointer,
+      _id_getQueryParameter.pointer,
+      _$string.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_getBooleanQueryParameter = Uri._class.instanceMethodId(
+    r'getBooleanQueryParameter',
+    r'(Ljava/lang/String;Z)Z',
+  );
+
+  static final _getBooleanQueryParameter =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public boolean getBooleanQueryParameter(java.lang.String string, boolean z)`
+  core$_.bool getBooleanQueryParameter(jni$_.JString? string, core$_.bool z) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _getBooleanQueryParameter(
+      _$$selfRef.pointer,
+      _id_getBooleanQueryParameter.pointer,
+      _$string.pointer,
+      z ? 1 : 0,
+    ).boolean;
+  }
+
+  static final _id_normalizeScheme = Uri._class.instanceMethodId(
+    r'normalizeScheme',
+    r'()Landroid/net/Uri;',
+  );
+
+  static final _normalizeScheme =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.net.Uri normalizeScheme()`
+  /// The returned object must be released after use, by calling the [release] method.
+  Uri? normalizeScheme() {
+    final _$$selfRef = reference;
+    return _normalizeScheme(
+      _$$selfRef.pointer,
+      _id_normalizeScheme.pointer,
+    ).object<Uri?>();
+  }
+
+  core$_.bool operator <(Uri? uri) {
+    return compareTo(uri) < 0;
+  }
+
+  core$_.bool operator <=(Uri? uri) {
+    return compareTo(uri) <= 0;
+  }
+
+  core$_.bool operator >(Uri? uri) {
+    return compareTo(uri) > 0;
+  }
+
+  core$_.bool operator >=(Uri? uri) {
+    return compareTo(uri) >= 0;
+  }
 }
 
 final class $Uri$Type$ extends jni$_.JType<Uri> {

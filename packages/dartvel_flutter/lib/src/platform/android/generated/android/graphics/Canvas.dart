@@ -36,13 +36,5211 @@ import 'dart:core' show Object, String;
 import 'package:jni/_internal.dart' as jni$_;
 import 'package:jni/jni.dart' as jni$_;
 
+import '../../java/lang/CharSequence.dart' as charsequence$_;
+
+import '../../java/lang/Enum.dart' as enum$_;
+
+import 'Bitmap.dart' as bitmap$_;
+
+import 'BlendMode.dart' as blendmode$_;
+
+import 'DrawFilter.dart' as drawfilter$_;
+
+import 'Matrix.dart' as matrix$_;
+
+import 'Mesh.dart' as mesh$_;
+
+import 'NinePatch.dart' as ninepatch$_;
+
+import 'Paint.dart' as paint$_;
+
+import 'Path.dart' as path$_;
+
+import 'Picture.dart' as picture$_;
+
+import 'PorterDuff.dart' as porterduff$_;
+
+import 'Rect.dart' as rect$_;
+
+import 'RectF.dart' as rectf$_;
+
+import 'Region.dart' as region$_;
+
+import 'RenderNode.dart' as rendernode$_;
+
+import 'fonts/Font.dart' as font$_;
+
+import 'text/MeasuredText.dart' as measuredtext$_;
+
+/// from: `android.graphics.Canvas$EdgeType`
+extension type Canvas$EdgeType._(jni$_.JObject _$this) implements enum$_.Enum {
+  static final _class = jni$_.JClass.forName(
+    r'android/graphics/Canvas$EdgeType',
+  );
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<Canvas$EdgeType> type = $Canvas$EdgeType$Type$();
+  static final _id_BW = _class.staticFieldId(
+    r'BW',
+    r'Landroid/graphics/Canvas$EdgeType;',
+  );
+
+  /// from: `static public final android.graphics.Canvas$EdgeType BW`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Canvas$EdgeType get BW =>
+      _id_BW.get(_class, Canvas$EdgeType.type) as Canvas$EdgeType;
+
+  static final _id_AA = _class.staticFieldId(
+    r'AA',
+    r'Landroid/graphics/Canvas$EdgeType;',
+  );
+
+  /// from: `static public final android.graphics.Canvas$EdgeType AA`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Canvas$EdgeType get AA =>
+      _id_AA.get(_class, Canvas$EdgeType.type) as Canvas$EdgeType;
+
+  static final _id_values = _class.staticMethodId(
+    r'values',
+    r'()[Landroid/graphics/Canvas$EdgeType;',
+  );
+
+  static final _values =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `static public android.graphics.Canvas$EdgeType[] values()`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JArray<Canvas$EdgeType?>? values() {
+    final _$$classRef = _class.reference;
+    return _values(
+      _$$classRef.pointer,
+      _id_values.pointer,
+    ).object<jni$_.JArray<Canvas$EdgeType?>?>();
+  }
+
+  static final _id_valueOf = _class.staticMethodId(
+    r'valueOf',
+    r'(Ljava/lang/String;)Landroid/graphics/Canvas$EdgeType;',
+  );
+
+  static final _valueOf =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.graphics.Canvas$EdgeType valueOf(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Canvas$EdgeType? valueOf(jni$_.JString? string) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _valueOf(
+      _$$classRef.pointer,
+      _id_valueOf.pointer,
+      _$string.pointer,
+    ).object<Canvas$EdgeType?>();
+  }
+}
+
+final class $Canvas$EdgeType$Type$ extends jni$_.JType<Canvas$EdgeType> {
+  @jni$_.internal
+  const $Canvas$EdgeType$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Landroid/graphics/Canvas$EdgeType;';
+}
+
+/// from: `android.graphics.Canvas$VertexMode`
+extension type Canvas$VertexMode._(jni$_.JObject _$this)
+    implements enum$_.Enum {
+  static final _class = jni$_.JClass.forName(
+    r'android/graphics/Canvas$VertexMode',
+  );
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<Canvas$VertexMode> type = $Canvas$VertexMode$Type$();
+  static final _id_TRIANGLES = _class.staticFieldId(
+    r'TRIANGLES',
+    r'Landroid/graphics/Canvas$VertexMode;',
+  );
+
+  /// from: `static public final android.graphics.Canvas$VertexMode TRIANGLES`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Canvas$VertexMode get TRIANGLES =>
+      _id_TRIANGLES.get(_class, Canvas$VertexMode.type) as Canvas$VertexMode;
+
+  static final _id_TRIANGLE_STRIP = _class.staticFieldId(
+    r'TRIANGLE_STRIP',
+    r'Landroid/graphics/Canvas$VertexMode;',
+  );
+
+  /// from: `static public final android.graphics.Canvas$VertexMode TRIANGLE_STRIP`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Canvas$VertexMode get TRIANGLE_STRIP =>
+      _id_TRIANGLE_STRIP.get(_class, Canvas$VertexMode.type)
+          as Canvas$VertexMode;
+
+  static final _id_TRIANGLE_FAN = _class.staticFieldId(
+    r'TRIANGLE_FAN',
+    r'Landroid/graphics/Canvas$VertexMode;',
+  );
+
+  /// from: `static public final android.graphics.Canvas$VertexMode TRIANGLE_FAN`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Canvas$VertexMode get TRIANGLE_FAN =>
+      _id_TRIANGLE_FAN.get(_class, Canvas$VertexMode.type) as Canvas$VertexMode;
+
+  static final _id_values = _class.staticMethodId(
+    r'values',
+    r'()[Landroid/graphics/Canvas$VertexMode;',
+  );
+
+  static final _values =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `static public android.graphics.Canvas$VertexMode[] values()`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JArray<Canvas$VertexMode?>? values() {
+    final _$$classRef = _class.reference;
+    return _values(
+      _$$classRef.pointer,
+      _id_values.pointer,
+    ).object<jni$_.JArray<Canvas$VertexMode?>?>();
+  }
+
+  static final _id_valueOf = _class.staticMethodId(
+    r'valueOf',
+    r'(Ljava/lang/String;)Landroid/graphics/Canvas$VertexMode;',
+  );
+
+  static final _valueOf =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.graphics.Canvas$VertexMode valueOf(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Canvas$VertexMode? valueOf(jni$_.JString? string) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _valueOf(
+      _$$classRef.pointer,
+      _id_valueOf.pointer,
+      _$string.pointer,
+    ).object<Canvas$VertexMode?>();
+  }
+}
+
+final class $Canvas$VertexMode$Type$ extends jni$_.JType<Canvas$VertexMode> {
+  @jni$_.internal
+  const $Canvas$VertexMode$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Landroid/graphics/Canvas$VertexMode;';
+}
+
 /// from: `android.graphics.Canvas`
-///
-/// WARNING: Canvas is a stub. To generate bindings for this class, include
-/// android.graphics.Canvas in your config's classes list.
-///
 extension type Canvas._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'android/graphics/Canvas');
+
+  /// The type which includes information such as the signature of this class.
   static const jni$_.JType<Canvas> type = $Canvas$Type$();
+
+  /// from: `static public final int ALL_SAVE_FLAG`
+  static const ALL_SAVE_FLAG = 31;
+  static final _id_new$ = _class.constructorId(r'()V');
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void <init>()`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory Canvas() {
+    final _$$classRef = _class.reference;
+    return _new$(_$$classRef.pointer, _id_new$.pointer).object<Canvas>();
+  }
+
+  static final _id_new$1 = _class.constructorId(
+    r'(Landroid/graphics/Bitmap;)V',
+  );
+
+  static final _new$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.graphics.Bitmap bitmap)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory Canvas.new$1(bitmap$_.Bitmap? bitmap) {
+    final _$$classRef = _class.reference;
+    final _$bitmap = bitmap?.reference ?? jni$_.jNullReference;
+    return _new$1(
+      _$$classRef.pointer,
+      _id_new$1.pointer,
+      _$bitmap.pointer,
+    ).object<Canvas>();
+  }
+}
+
+extension Canvas$$Methods on Canvas {
+  static final _id_get$isHardwareAccelerated = Canvas._class.instanceMethodId(
+    r'isHardwareAccelerated',
+    r'()Z',
+  );
+
+  static final _get$isHardwareAccelerated =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isHardwareAccelerated()`
+  core$_.bool get isHardwareAccelerated {
+    final _$$selfRef = reference;
+    return _get$isHardwareAccelerated(
+      _$$selfRef.pointer,
+      _id_get$isHardwareAccelerated.pointer,
+    ).boolean;
+  }
+
+  static final _id_set$bitmap = Canvas._class.instanceMethodId(
+    r'setBitmap',
+    r'(Landroid/graphics/Bitmap;)V',
+  );
+
+  static final _set$bitmap =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void setBitmap(android.graphics.Bitmap bitmap)`
+  set bitmap(bitmap$_.Bitmap? bitmap) {
+    final _$$selfRef = reference;
+    final _$bitmap = bitmap?.reference ?? jni$_.jNullReference;
+    _set$bitmap(
+      _$$selfRef.pointer,
+      _id_set$bitmap.pointer,
+      _$bitmap.pointer,
+    ).check();
+  }
+
+  static final _id_enableZ = Canvas._class.instanceMethodId(r'enableZ', r'()V');
+
+  static final _enableZ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void enableZ()`
+  void enableZ() {
+    final _$$selfRef = reference;
+    _enableZ(_$$selfRef.pointer, _id_enableZ.pointer).check();
+  }
+
+  static final _id_disableZ = Canvas._class.instanceMethodId(
+    r'disableZ',
+    r'()V',
+  );
+
+  static final _disableZ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void disableZ()`
+  void disableZ() {
+    final _$$selfRef = reference;
+    _disableZ(_$$selfRef.pointer, _id_disableZ.pointer).check();
+  }
+
+  static final _id_get$isOpaque = Canvas._class.instanceMethodId(
+    r'isOpaque',
+    r'()Z',
+  );
+
+  static final _get$isOpaque =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isOpaque()`
+  core$_.bool get isOpaque {
+    final _$$selfRef = reference;
+    return _get$isOpaque(_$$selfRef.pointer, _id_get$isOpaque.pointer).boolean;
+  }
+
+  static final _id_get$width = Canvas._class.instanceMethodId(
+    r'getWidth',
+    r'()I',
+  );
+
+  static final _get$width =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getWidth()`
+  core$_.int get width {
+    final _$$selfRef = reference;
+    return _get$width(_$$selfRef.pointer, _id_get$width.pointer).integer;
+  }
+
+  static final _id_get$height = Canvas._class.instanceMethodId(
+    r'getHeight',
+    r'()I',
+  );
+
+  static final _get$height =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getHeight()`
+  core$_.int get height {
+    final _$$selfRef = reference;
+    return _get$height(_$$selfRef.pointer, _id_get$height.pointer).integer;
+  }
+
+  static final _id_get$density = Canvas._class.instanceMethodId(
+    r'getDensity',
+    r'()I',
+  );
+
+  static final _get$density =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getDensity()`
+  core$_.int get density {
+    final _$$selfRef = reference;
+    return _get$density(_$$selfRef.pointer, _id_get$density.pointer).integer;
+  }
+
+  static final _id_set$density = Canvas._class.instanceMethodId(
+    r'setDensity',
+    r'(I)V',
+  );
+
+  static final _set$density =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void setDensity(int i)`
+  set density(core$_.int i) {
+    final _$$selfRef = reference;
+    _set$density(_$$selfRef.pointer, _id_set$density.pointer, i).check();
+  }
+
+  static final _id_get$maximumBitmapWidth = Canvas._class.instanceMethodId(
+    r'getMaximumBitmapWidth',
+    r'()I',
+  );
+
+  static final _get$maximumBitmapWidth =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getMaximumBitmapWidth()`
+  core$_.int get maximumBitmapWidth {
+    final _$$selfRef = reference;
+    return _get$maximumBitmapWidth(
+      _$$selfRef.pointer,
+      _id_get$maximumBitmapWidth.pointer,
+    ).integer;
+  }
+
+  static final _id_get$maximumBitmapHeight = Canvas._class.instanceMethodId(
+    r'getMaximumBitmapHeight',
+    r'()I',
+  );
+
+  static final _get$maximumBitmapHeight =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getMaximumBitmapHeight()`
+  core$_.int get maximumBitmapHeight {
+    final _$$selfRef = reference;
+    return _get$maximumBitmapHeight(
+      _$$selfRef.pointer,
+      _id_get$maximumBitmapHeight.pointer,
+    ).integer;
+  }
+
+  static final _id_save = Canvas._class.instanceMethodId(r'save', r'()I');
+
+  static final _save =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int save()`
+  core$_.int save() {
+    final _$$selfRef = reference;
+    return _save(_$$selfRef.pointer, _id_save.pointer).integer;
+  }
+
+  static final _id_saveLayer = Canvas._class.instanceMethodId(
+    r'saveLayer',
+    r'(Landroid/graphics/RectF;Landroid/graphics/Paint;I)I',
+  );
+
+  static final _saveLayer =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public int saveLayer(android.graphics.RectF rectF, android.graphics.Paint paint, int i)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.int saveLayer(
+    rectf$_.RectF? rectF,
+    paint$_.Paint? paint,
+    core$_.int i,
+  ) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    return _saveLayer(
+      _$$selfRef.pointer,
+      _id_saveLayer.pointer,
+      _$rectF.pointer,
+      _$paint.pointer,
+      i,
+    ).integer;
+  }
+
+  static final _id_saveLayer$1 = Canvas._class.instanceMethodId(
+    r'saveLayer',
+    r'(Landroid/graphics/RectF;Landroid/graphics/Paint;)I',
+  );
+
+  static final _saveLayer$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public int saveLayer(android.graphics.RectF rectF, android.graphics.Paint paint)`
+  core$_.int saveLayer$1(rectf$_.RectF? rectF, paint$_.Paint? paint) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    return _saveLayer$1(
+      _$$selfRef.pointer,
+      _id_saveLayer$1.pointer,
+      _$rectF.pointer,
+      _$paint.pointer,
+    ).integer;
+  }
+
+  static final _id_saveLayer$2 = Canvas._class.instanceMethodId(
+    r'saveLayer',
+    r'(FFFFLandroid/graphics/Paint;I)I',
+  );
+
+  static final _saveLayer$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public int saveLayer(float f, float f1, float f2, float f3, android.graphics.Paint paint, int i)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.int saveLayer$2(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+    paint$_.Paint? paint,
+    core$_.int i,
+  ) {
+    final _$$selfRef = reference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    return _saveLayer$2(
+      _$$selfRef.pointer,
+      _id_saveLayer$2.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+      _$paint.pointer,
+      i,
+    ).integer;
+  }
+
+  static final _id_saveLayer$3 = Canvas._class.instanceMethodId(
+    r'saveLayer',
+    r'(FFFFLandroid/graphics/Paint;)I',
+  );
+
+  static final _saveLayer$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public int saveLayer(float f, float f1, float f2, float f3, android.graphics.Paint paint)`
+  core$_.int saveLayer$3(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    return _saveLayer$3(
+      _$$selfRef.pointer,
+      _id_saveLayer$3.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+      _$paint.pointer,
+    ).integer;
+  }
+
+  static final _id_saveLayerAlpha = Canvas._class.instanceMethodId(
+    r'saveLayerAlpha',
+    r'(Landroid/graphics/RectF;II)I',
+  );
+
+  static final _saveLayerAlpha =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Int32, jni$_.Int32)
+                >,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public int saveLayerAlpha(android.graphics.RectF rectF, int i, int i1)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.int saveLayerAlpha(rectf$_.RectF? rectF, core$_.int i, core$_.int i1) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    return _saveLayerAlpha(
+      _$$selfRef.pointer,
+      _id_saveLayerAlpha.pointer,
+      _$rectF.pointer,
+      i,
+      i1,
+    ).integer;
+  }
+
+  static final _id_saveLayerAlpha$1 = Canvas._class.instanceMethodId(
+    r'saveLayerAlpha',
+    r'(Landroid/graphics/RectF;I)I',
+  );
+
+  static final _saveLayerAlpha$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public int saveLayerAlpha(android.graphics.RectF rectF, int i)`
+  core$_.int saveLayerAlpha$1(rectf$_.RectF? rectF, core$_.int i) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    return _saveLayerAlpha$1(
+      _$$selfRef.pointer,
+      _id_saveLayerAlpha$1.pointer,
+      _$rectF.pointer,
+      i,
+    ).integer;
+  }
+
+  static final _id_saveLayerAlpha$2 = Canvas._class.instanceMethodId(
+    r'saveLayerAlpha',
+    r'(FFFFII)I',
+  );
+
+  static final _saveLayerAlpha$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public int saveLayerAlpha(float f, float f1, float f2, float f3, int i, int i1)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.int saveLayerAlpha$2(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+    core$_.int i,
+    core$_.int i1,
+  ) {
+    final _$$selfRef = reference;
+    return _saveLayerAlpha$2(
+      _$$selfRef.pointer,
+      _id_saveLayerAlpha$2.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+      i,
+      i1,
+    ).integer;
+  }
+
+  static final _id_saveLayerAlpha$3 = Canvas._class.instanceMethodId(
+    r'saveLayerAlpha',
+    r'(FFFFI)I',
+  );
+
+  static final _saveLayerAlpha$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Int32,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public int saveLayerAlpha(float f, float f1, float f2, float f3, int i)`
+  core$_.int saveLayerAlpha$3(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+    core$_.int i,
+  ) {
+    final _$$selfRef = reference;
+    return _saveLayerAlpha$3(
+      _$$selfRef.pointer,
+      _id_saveLayerAlpha$3.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+      i,
+    ).integer;
+  }
+
+  static final _id_restore = Canvas._class.instanceMethodId(r'restore', r'()V');
+
+  static final _restore =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void restore()`
+  void restore() {
+    final _$$selfRef = reference;
+    _restore(_$$selfRef.pointer, _id_restore.pointer).check();
+  }
+
+  static final _id_get$saveCount = Canvas._class.instanceMethodId(
+    r'getSaveCount',
+    r'()I',
+  );
+
+  static final _get$saveCount =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getSaveCount()`
+  core$_.int get saveCount {
+    final _$$selfRef = reference;
+    return _get$saveCount(
+      _$$selfRef.pointer,
+      _id_get$saveCount.pointer,
+    ).integer;
+  }
+
+  static final _id_restoreToCount = Canvas._class.instanceMethodId(
+    r'restoreToCount',
+    r'(I)V',
+  );
+
+  static final _restoreToCount =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void restoreToCount(int i)`
+  void restoreToCount(core$_.int i) {
+    final _$$selfRef = reference;
+    _restoreToCount(_$$selfRef.pointer, _id_restoreToCount.pointer, i).check();
+  }
+
+  static final _id_translate = Canvas._class.instanceMethodId(
+    r'translate',
+    r'(FF)V',
+  );
+
+  static final _translate =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Double, jni$_.Double)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+            )
+          >();
+
+  /// from: `public void translate(float f, float f1)`
+  void translate(core$_.double f, core$_.double f1) {
+    final _$$selfRef = reference;
+    _translate(_$$selfRef.pointer, _id_translate.pointer, f, f1).check();
+  }
+
+  static final _id_scale = Canvas._class.instanceMethodId(r'scale', r'(FF)V');
+
+  static final _scale =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Double, jni$_.Double)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+            )
+          >();
+
+  /// from: `public void scale(float f, float f1)`
+  void scale(core$_.double f, core$_.double f1) {
+    final _$$selfRef = reference;
+    _scale(_$$selfRef.pointer, _id_scale.pointer, f, f1).check();
+  }
+
+  static final _id_scale$1 = Canvas._class.instanceMethodId(
+    r'scale',
+    r'(FFFF)V',
+  );
+
+  static final _scale$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Double, jni$_.Double, jni$_.Double, jni$_.Double)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+            )
+          >();
+
+  /// from: `public final void scale(float f, float f1, float f2, float f3)`
+  void scale$1(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+  ) {
+    final _$$selfRef = reference;
+    _scale$1(_$$selfRef.pointer, _id_scale$1.pointer, f, f1, f2, f3).check();
+  }
+
+  static final _id_rotate = Canvas._class.instanceMethodId(r'rotate', r'(F)V');
+
+  static final _rotate =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Double,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+            )
+          >();
+
+  /// from: `public void rotate(float f)`
+  void rotate(core$_.double f) {
+    final _$$selfRef = reference;
+    _rotate(_$$selfRef.pointer, _id_rotate.pointer, f).check();
+  }
+
+  static final _id_rotate$1 = Canvas._class.instanceMethodId(
+    r'rotate',
+    r'(FFF)V',
+  );
+
+  static final _rotate$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Double, jni$_.Double, jni$_.Double)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+            )
+          >();
+
+  /// from: `public final void rotate(float f, float f1, float f2)`
+  void rotate$1(core$_.double f, core$_.double f1, core$_.double f2) {
+    final _$$selfRef = reference;
+    _rotate$1(_$$selfRef.pointer, _id_rotate$1.pointer, f, f1, f2).check();
+  }
+
+  static final _id_skew = Canvas._class.instanceMethodId(r'skew', r'(FF)V');
+
+  static final _skew =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Double, jni$_.Double)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+            )
+          >();
+
+  /// from: `public void skew(float f, float f1)`
+  void skew(core$_.double f, core$_.double f1) {
+    final _$$selfRef = reference;
+    _skew(_$$selfRef.pointer, _id_skew.pointer, f, f1).check();
+  }
+
+  static final _id_concat = Canvas._class.instanceMethodId(
+    r'concat',
+    r'(Landroid/graphics/Matrix;)V',
+  );
+
+  static final _concat =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void concat(android.graphics.Matrix matrix)`
+  void concat(matrix$_.Matrix? matrix) {
+    final _$$selfRef = reference;
+    final _$matrix = matrix?.reference ?? jni$_.jNullReference;
+    _concat(_$$selfRef.pointer, _id_concat.pointer, _$matrix.pointer).check();
+  }
+
+  static final _id_set$matrix = Canvas._class.instanceMethodId(
+    r'setMatrix',
+    r'(Landroid/graphics/Matrix;)V',
+  );
+
+  static final _set$matrix =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void setMatrix(android.graphics.Matrix matrix)`
+  set matrix(matrix$_.Matrix? matrix) {
+    final _$$selfRef = reference;
+    final _$matrix = matrix?.reference ?? jni$_.jNullReference;
+    _set$matrix(
+      _$$selfRef.pointer,
+      _id_set$matrix.pointer,
+      _$matrix.pointer,
+    ).check();
+  }
+
+  static final _id_getMatrix = Canvas._class.instanceMethodId(
+    r'getMatrix',
+    r'(Landroid/graphics/Matrix;)V',
+  );
+
+  static final _getMatrix =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void getMatrix(android.graphics.Matrix matrix)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  void getMatrix(matrix$_.Matrix? matrix) {
+    final _$$selfRef = reference;
+    final _$matrix = matrix?.reference ?? jni$_.jNullReference;
+    _getMatrix(
+      _$$selfRef.pointer,
+      _id_getMatrix.pointer,
+      _$matrix.pointer,
+    ).check();
+  }
+
+  static final _id_get$matrix = Canvas._class.instanceMethodId(
+    r'getMatrix',
+    r'()Landroid/graphics/Matrix;',
+  );
+
+  static final _get$matrix =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final android.graphics.Matrix getMatrix()`
+  /// The returned object must be released after use, by calling the [release] method.
+  @core$_.Deprecated('This Java method is deprecated.')
+  matrix$_.Matrix? get matrix {
+    final _$$selfRef = reference;
+    return _get$matrix(
+      _$$selfRef.pointer,
+      _id_get$matrix.pointer,
+    ).object<matrix$_.Matrix?>();
+  }
+
+  static final _id_clipRect = Canvas._class.instanceMethodId(
+    r'clipRect',
+    r'(Landroid/graphics/RectF;Landroid/graphics/Region$Op;)Z',
+  );
+
+  static final _clipRect =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean clipRect(android.graphics.RectF rectF, android.graphics.Region$Op op)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.bool clipRect(rectf$_.RectF? rectF, region$_.Region$Op? op) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$op = op?.reference ?? jni$_.jNullReference;
+    return _clipRect(
+      _$$selfRef.pointer,
+      _id_clipRect.pointer,
+      _$rectF.pointer,
+      _$op.pointer,
+    ).boolean;
+  }
+
+  static final _id_clipRect$1 = Canvas._class.instanceMethodId(
+    r'clipRect',
+    r'(Landroid/graphics/Rect;Landroid/graphics/Region$Op;)Z',
+  );
+
+  static final _clipRect$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean clipRect(android.graphics.Rect rect, android.graphics.Region$Op op)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.bool clipRect$1(rect$_.Rect? rect, region$_.Region$Op? op) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    final _$op = op?.reference ?? jni$_.jNullReference;
+    return _clipRect$1(
+      _$$selfRef.pointer,
+      _id_clipRect$1.pointer,
+      _$rect.pointer,
+      _$op.pointer,
+    ).boolean;
+  }
+
+  static final _id_clipRect$2 = Canvas._class.instanceMethodId(
+    r'clipRect',
+    r'(Landroid/graphics/RectF;)Z',
+  );
+
+  static final _clipRect$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean clipRect(android.graphics.RectF rectF)`
+  core$_.bool clipRect$2(rectf$_.RectF? rectF) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    return _clipRect$2(
+      _$$selfRef.pointer,
+      _id_clipRect$2.pointer,
+      _$rectF.pointer,
+    ).boolean;
+  }
+
+  static final _id_clipOutRect = Canvas._class.instanceMethodId(
+    r'clipOutRect',
+    r'(Landroid/graphics/RectF;)Z',
+  );
+
+  static final _clipOutRect =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean clipOutRect(android.graphics.RectF rectF)`
+  core$_.bool clipOutRect(rectf$_.RectF? rectF) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    return _clipOutRect(
+      _$$selfRef.pointer,
+      _id_clipOutRect.pointer,
+      _$rectF.pointer,
+    ).boolean;
+  }
+
+  static final _id_clipRect$3 = Canvas._class.instanceMethodId(
+    r'clipRect',
+    r'(Landroid/graphics/Rect;)Z',
+  );
+
+  static final _clipRect$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean clipRect(android.graphics.Rect rect)`
+  core$_.bool clipRect$3(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    return _clipRect$3(
+      _$$selfRef.pointer,
+      _id_clipRect$3.pointer,
+      _$rect.pointer,
+    ).boolean;
+  }
+
+  static final _id_clipOutRect$1 = Canvas._class.instanceMethodId(
+    r'clipOutRect',
+    r'(Landroid/graphics/Rect;)Z',
+  );
+
+  static final _clipOutRect$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean clipOutRect(android.graphics.Rect rect)`
+  core$_.bool clipOutRect$1(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    return _clipOutRect$1(
+      _$$selfRef.pointer,
+      _id_clipOutRect$1.pointer,
+      _$rect.pointer,
+    ).boolean;
+  }
+
+  static final _id_clipRect$4 = Canvas._class.instanceMethodId(
+    r'clipRect',
+    r'(FFFFLandroid/graphics/Region$Op;)Z',
+  );
+
+  static final _clipRect$4 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean clipRect(float f, float f1, float f2, float f3, android.graphics.Region$Op op)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.bool clipRect$4(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+    region$_.Region$Op? op,
+  ) {
+    final _$$selfRef = reference;
+    final _$op = op?.reference ?? jni$_.jNullReference;
+    return _clipRect$4(
+      _$$selfRef.pointer,
+      _id_clipRect$4.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+      _$op.pointer,
+    ).boolean;
+  }
+
+  static final _id_clipRect$5 = Canvas._class.instanceMethodId(
+    r'clipRect',
+    r'(FFFF)Z',
+  );
+
+  static final _clipRect$5 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Double, jni$_.Double, jni$_.Double, jni$_.Double)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+            )
+          >();
+
+  /// from: `public boolean clipRect(float f, float f1, float f2, float f3)`
+  core$_.bool clipRect$5(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+  ) {
+    final _$$selfRef = reference;
+    return _clipRect$5(
+      _$$selfRef.pointer,
+      _id_clipRect$5.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+    ).boolean;
+  }
+
+  static final _id_clipOutRect$2 = Canvas._class.instanceMethodId(
+    r'clipOutRect',
+    r'(FFFF)Z',
+  );
+
+  static final _clipOutRect$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Double, jni$_.Double, jni$_.Double, jni$_.Double)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+            )
+          >();
+
+  /// from: `public boolean clipOutRect(float f, float f1, float f2, float f3)`
+  core$_.bool clipOutRect$2(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+  ) {
+    final _$$selfRef = reference;
+    return _clipOutRect$2(
+      _$$selfRef.pointer,
+      _id_clipOutRect$2.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+    ).boolean;
+  }
+
+  static final _id_clipRect$6 = Canvas._class.instanceMethodId(
+    r'clipRect',
+    r'(IIII)Z',
+  );
+
+  static final _clipRect$6 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Int32, jni$_.Int32, jni$_.Int32, jni$_.Int32)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public boolean clipRect(int i, int i1, int i2, int i3)`
+  core$_.bool clipRect$6(
+    core$_.int i,
+    core$_.int i1,
+    core$_.int i2,
+    core$_.int i3,
+  ) {
+    final _$$selfRef = reference;
+    return _clipRect$6(
+      _$$selfRef.pointer,
+      _id_clipRect$6.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+    ).boolean;
+  }
+
+  static final _id_clipOutRect$3 = Canvas._class.instanceMethodId(
+    r'clipOutRect',
+    r'(IIII)Z',
+  );
+
+  static final _clipOutRect$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Int32, jni$_.Int32, jni$_.Int32, jni$_.Int32)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public boolean clipOutRect(int i, int i1, int i2, int i3)`
+  core$_.bool clipOutRect$3(
+    core$_.int i,
+    core$_.int i1,
+    core$_.int i2,
+    core$_.int i3,
+  ) {
+    final _$$selfRef = reference;
+    return _clipOutRect$3(
+      _$$selfRef.pointer,
+      _id_clipOutRect$3.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+    ).boolean;
+  }
+
+  static final _id_clipPath = Canvas._class.instanceMethodId(
+    r'clipPath',
+    r'(Landroid/graphics/Path;Landroid/graphics/Region$Op;)Z',
+  );
+
+  static final _clipPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean clipPath(android.graphics.Path path, android.graphics.Region$Op op)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.bool clipPath(path$_.Path? path, region$_.Region$Op? op) {
+    final _$$selfRef = reference;
+    final _$path = path?.reference ?? jni$_.jNullReference;
+    final _$op = op?.reference ?? jni$_.jNullReference;
+    return _clipPath(
+      _$$selfRef.pointer,
+      _id_clipPath.pointer,
+      _$path.pointer,
+      _$op.pointer,
+    ).boolean;
+  }
+
+  static final _id_clipPath$1 = Canvas._class.instanceMethodId(
+    r'clipPath',
+    r'(Landroid/graphics/Path;)Z',
+  );
+
+  static final _clipPath$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean clipPath(android.graphics.Path path)`
+  core$_.bool clipPath$1(path$_.Path? path) {
+    final _$$selfRef = reference;
+    final _$path = path?.reference ?? jni$_.jNullReference;
+    return _clipPath$1(
+      _$$selfRef.pointer,
+      _id_clipPath$1.pointer,
+      _$path.pointer,
+    ).boolean;
+  }
+
+  static final _id_clipOutPath = Canvas._class.instanceMethodId(
+    r'clipOutPath',
+    r'(Landroid/graphics/Path;)Z',
+  );
+
+  static final _clipOutPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean clipOutPath(android.graphics.Path path)`
+  core$_.bool clipOutPath(path$_.Path? path) {
+    final _$$selfRef = reference;
+    final _$path = path?.reference ?? jni$_.jNullReference;
+    return _clipOutPath(
+      _$$selfRef.pointer,
+      _id_clipOutPath.pointer,
+      _$path.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$drawFilter = Canvas._class.instanceMethodId(
+    r'getDrawFilter',
+    r'()Landroid/graphics/DrawFilter;',
+  );
+
+  static final _get$drawFilter =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.graphics.DrawFilter getDrawFilter()`
+  /// The returned object must be released after use, by calling the [release] method.
+  drawfilter$_.DrawFilter? get drawFilter {
+    final _$$selfRef = reference;
+    return _get$drawFilter(
+      _$$selfRef.pointer,
+      _id_get$drawFilter.pointer,
+    ).object<drawfilter$_.DrawFilter?>();
+  }
+
+  static final _id_set$drawFilter = Canvas._class.instanceMethodId(
+    r'setDrawFilter',
+    r'(Landroid/graphics/DrawFilter;)V',
+  );
+
+  static final _set$drawFilter =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void setDrawFilter(android.graphics.DrawFilter drawFilter)`
+  set drawFilter(drawfilter$_.DrawFilter? drawFilter) {
+    final _$$selfRef = reference;
+    final _$drawFilter = drawFilter?.reference ?? jni$_.jNullReference;
+    _set$drawFilter(
+      _$$selfRef.pointer,
+      _id_set$drawFilter.pointer,
+      _$drawFilter.pointer,
+    ).check();
+  }
+
+  static final _id_quickReject = Canvas._class.instanceMethodId(
+    r'quickReject',
+    r'(Landroid/graphics/RectF;Landroid/graphics/Canvas$EdgeType;)Z',
+  );
+
+  static final _quickReject =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean quickReject(android.graphics.RectF rectF, android.graphics.Canvas$EdgeType edgeType)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.bool quickReject(rectf$_.RectF? rectF, Canvas$EdgeType? edgeType) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$edgeType = edgeType?.reference ?? jni$_.jNullReference;
+    return _quickReject(
+      _$$selfRef.pointer,
+      _id_quickReject.pointer,
+      _$rectF.pointer,
+      _$edgeType.pointer,
+    ).boolean;
+  }
+
+  static final _id_quickReject$1 = Canvas._class.instanceMethodId(
+    r'quickReject',
+    r'(Landroid/graphics/RectF;)Z',
+  );
+
+  static final _quickReject$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean quickReject(android.graphics.RectF rectF)`
+  core$_.bool quickReject$1(rectf$_.RectF? rectF) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    return _quickReject$1(
+      _$$selfRef.pointer,
+      _id_quickReject$1.pointer,
+      _$rectF.pointer,
+    ).boolean;
+  }
+
+  static final _id_quickReject$2 = Canvas._class.instanceMethodId(
+    r'quickReject',
+    r'(Landroid/graphics/Path;Landroid/graphics/Canvas$EdgeType;)Z',
+  );
+
+  static final _quickReject$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean quickReject(android.graphics.Path path, android.graphics.Canvas$EdgeType edgeType)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.bool quickReject$2(path$_.Path? path, Canvas$EdgeType? edgeType) {
+    final _$$selfRef = reference;
+    final _$path = path?.reference ?? jni$_.jNullReference;
+    final _$edgeType = edgeType?.reference ?? jni$_.jNullReference;
+    return _quickReject$2(
+      _$$selfRef.pointer,
+      _id_quickReject$2.pointer,
+      _$path.pointer,
+      _$edgeType.pointer,
+    ).boolean;
+  }
+
+  static final _id_quickReject$3 = Canvas._class.instanceMethodId(
+    r'quickReject',
+    r'(Landroid/graphics/Path;)Z',
+  );
+
+  static final _quickReject$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean quickReject(android.graphics.Path path)`
+  core$_.bool quickReject$3(path$_.Path? path) {
+    final _$$selfRef = reference;
+    final _$path = path?.reference ?? jni$_.jNullReference;
+    return _quickReject$3(
+      _$$selfRef.pointer,
+      _id_quickReject$3.pointer,
+      _$path.pointer,
+    ).boolean;
+  }
+
+  static final _id_quickReject$4 = Canvas._class.instanceMethodId(
+    r'quickReject',
+    r'(FFFFLandroid/graphics/Canvas$EdgeType;)Z',
+  );
+
+  static final _quickReject$4 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean quickReject(float f, float f1, float f2, float f3, android.graphics.Canvas$EdgeType edgeType)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.bool quickReject$4(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+    Canvas$EdgeType? edgeType,
+  ) {
+    final _$$selfRef = reference;
+    final _$edgeType = edgeType?.reference ?? jni$_.jNullReference;
+    return _quickReject$4(
+      _$$selfRef.pointer,
+      _id_quickReject$4.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+      _$edgeType.pointer,
+    ).boolean;
+  }
+
+  static final _id_quickReject$5 = Canvas._class.instanceMethodId(
+    r'quickReject',
+    r'(FFFF)Z',
+  );
+
+  static final _quickReject$5 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Double, jni$_.Double, jni$_.Double, jni$_.Double)
+                >,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+            )
+          >();
+
+  /// from: `public boolean quickReject(float f, float f1, float f2, float f3)`
+  core$_.bool quickReject$5(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+  ) {
+    final _$$selfRef = reference;
+    return _quickReject$5(
+      _$$selfRef.pointer,
+      _id_quickReject$5.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+    ).boolean;
+  }
+
+  static final _id_getClipBounds = Canvas._class.instanceMethodId(
+    r'getClipBounds',
+    r'(Landroid/graphics/Rect;)Z',
+  );
+
+  static final _getClipBounds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean getClipBounds(android.graphics.Rect rect)`
+  core$_.bool getClipBounds(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    return _getClipBounds(
+      _$$selfRef.pointer,
+      _id_getClipBounds.pointer,
+      _$rect.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$clipBounds = Canvas._class.instanceMethodId(
+    r'getClipBounds',
+    r'()Landroid/graphics/Rect;',
+  );
+
+  static final _get$clipBounds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final android.graphics.Rect getClipBounds()`
+  /// The returned object must be released after use, by calling the [release] method.
+  rect$_.Rect? get clipBounds {
+    final _$$selfRef = reference;
+    return _get$clipBounds(
+      _$$selfRef.pointer,
+      _id_get$clipBounds.pointer,
+    ).object<rect$_.Rect?>();
+  }
+
+  static final _id_drawPicture = Canvas._class.instanceMethodId(
+    r'drawPicture',
+    r'(Landroid/graphics/Picture;)V',
+  );
+
+  static final _drawPicture =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPicture(android.graphics.Picture picture)`
+  void drawPicture(picture$_.Picture? picture) {
+    final _$$selfRef = reference;
+    final _$picture = picture?.reference ?? jni$_.jNullReference;
+    _drawPicture(
+      _$$selfRef.pointer,
+      _id_drawPicture.pointer,
+      _$picture.pointer,
+    ).check();
+  }
+
+  static final _id_drawPicture$1 = Canvas._class.instanceMethodId(
+    r'drawPicture',
+    r'(Landroid/graphics/Picture;Landroid/graphics/RectF;)V',
+  );
+
+  static final _drawPicture$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPicture(android.graphics.Picture picture, android.graphics.RectF rectF)`
+  void drawPicture$1(picture$_.Picture? picture, rectf$_.RectF? rectF) {
+    final _$$selfRef = reference;
+    final _$picture = picture?.reference ?? jni$_.jNullReference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    _drawPicture$1(
+      _$$selfRef.pointer,
+      _id_drawPicture$1.pointer,
+      _$picture.pointer,
+      _$rectF.pointer,
+    ).check();
+  }
+
+  static final _id_drawPicture$2 = Canvas._class.instanceMethodId(
+    r'drawPicture',
+    r'(Landroid/graphics/Picture;Landroid/graphics/Rect;)V',
+  );
+
+  static final _drawPicture$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPicture(android.graphics.Picture picture, android.graphics.Rect rect)`
+  void drawPicture$2(picture$_.Picture? picture, rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$picture = picture?.reference ?? jni$_.jNullReference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    _drawPicture$2(
+      _$$selfRef.pointer,
+      _id_drawPicture$2.pointer,
+      _$picture.pointer,
+      _$rect.pointer,
+    ).check();
+  }
+
+  static final _id_drawArc = Canvas._class.instanceMethodId(
+    r'drawArc',
+    r'(Landroid/graphics/RectF;FFZLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawArc =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.double,
+              core$_.double,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawArc(android.graphics.RectF rectF, float f, float f1, boolean z, android.graphics.Paint paint)`
+  void drawArc(
+    rectf$_.RectF? rectF,
+    core$_.double f,
+    core$_.double f1,
+    core$_.bool z,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawArc(
+      _$$selfRef.pointer,
+      _id_drawArc.pointer,
+      _$rectF.pointer,
+      f,
+      f1,
+      z ? 1 : 0,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawArc$1 = Canvas._class.instanceMethodId(
+    r'drawArc',
+    r'(FFFFFFZLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawArc$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawArc(float f, float f1, float f2, float f3, float f4, float f5, boolean z, android.graphics.Paint paint)`
+  void drawArc$1(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+    core$_.double f4,
+    core$_.double f5,
+    core$_.bool z,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawArc$1(
+      _$$selfRef.pointer,
+      _id_drawArc$1.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+      f4,
+      f5,
+      z ? 1 : 0,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawARGB = Canvas._class.instanceMethodId(
+    r'drawARGB',
+    r'(IIII)V',
+  );
+
+  static final _drawARGB =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Int32, jni$_.Int32, jni$_.Int32, jni$_.Int32)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void drawARGB(int i, int i1, int i2, int i3)`
+  void drawARGB(core$_.int i, core$_.int i1, core$_.int i2, core$_.int i3) {
+    final _$$selfRef = reference;
+    _drawARGB(_$$selfRef.pointer, _id_drawARGB.pointer, i, i1, i2, i3).check();
+  }
+
+  static final _id_drawBitmap = Canvas._class.instanceMethodId(
+    r'drawBitmap',
+    r'(Landroid/graphics/Bitmap;FFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawBitmap =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawBitmap(android.graphics.Bitmap bitmap, float f, float f1, android.graphics.Paint paint)`
+  void drawBitmap(
+    bitmap$_.Bitmap? bitmap,
+    core$_.double f,
+    core$_.double f1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$bitmap = bitmap?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawBitmap(
+      _$$selfRef.pointer,
+      _id_drawBitmap.pointer,
+      _$bitmap.pointer,
+      f,
+      f1,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawBitmap$1 = Canvas._class.instanceMethodId(
+    r'drawBitmap',
+    r'(Landroid/graphics/Bitmap;Landroid/graphics/Rect;Landroid/graphics/RectF;Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawBitmap$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawBitmap(android.graphics.Bitmap bitmap, android.graphics.Rect rect, android.graphics.RectF rectF, android.graphics.Paint paint)`
+  void drawBitmap$1(
+    bitmap$_.Bitmap? bitmap,
+    rect$_.Rect? rect,
+    rectf$_.RectF? rectF,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$bitmap = bitmap?.reference ?? jni$_.jNullReference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawBitmap$1(
+      _$$selfRef.pointer,
+      _id_drawBitmap$1.pointer,
+      _$bitmap.pointer,
+      _$rect.pointer,
+      _$rectF.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawBitmap$2 = Canvas._class.instanceMethodId(
+    r'drawBitmap',
+    r'(Landroid/graphics/Bitmap;Landroid/graphics/Rect;Landroid/graphics/Rect;Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawBitmap$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawBitmap(android.graphics.Bitmap bitmap, android.graphics.Rect rect, android.graphics.Rect rect1, android.graphics.Paint paint)`
+  void drawBitmap$2(
+    bitmap$_.Bitmap? bitmap,
+    rect$_.Rect? rect,
+    rect$_.Rect? rect1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$bitmap = bitmap?.reference ?? jni$_.jNullReference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    final _$rect1 = rect1?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawBitmap$2(
+      _$$selfRef.pointer,
+      _id_drawBitmap$2.pointer,
+      _$bitmap.pointer,
+      _$rect.pointer,
+      _$rect1.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawBitmap$3 = Canvas._class.instanceMethodId(
+    r'drawBitmap',
+    r'([IIIFFIIZLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawBitmap$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              core$_.double,
+              core$_.double,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawBitmap(int[] is, int i, int i1, float f, float f1, int i2, int i3, boolean z, android.graphics.Paint paint)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  void drawBitmap$3(
+    jni$_.JIntArray? is$,
+    core$_.int i,
+    core$_.int i1,
+    core$_.double f,
+    core$_.double f1,
+    core$_.int i2,
+    core$_.int i3,
+    core$_.bool z,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$is$ = is$?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawBitmap$3(
+      _$$selfRef.pointer,
+      _id_drawBitmap$3.pointer,
+      _$is$.pointer,
+      i,
+      i1,
+      f,
+      f1,
+      i2,
+      i3,
+      z ? 1 : 0,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawBitmap$4 = Canvas._class.instanceMethodId(
+    r'drawBitmap',
+    r'([IIIIIIIZLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawBitmap$4 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawBitmap(int[] is, int i, int i1, int i2, int i3, int i4, int i5, boolean z, android.graphics.Paint paint)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  void drawBitmap$4(
+    jni$_.JIntArray? is$,
+    core$_.int i,
+    core$_.int i1,
+    core$_.int i2,
+    core$_.int i3,
+    core$_.int i4,
+    core$_.int i5,
+    core$_.bool z,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$is$ = is$?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawBitmap$4(
+      _$$selfRef.pointer,
+      _id_drawBitmap$4.pointer,
+      _$is$.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+      i4,
+      i5,
+      z ? 1 : 0,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawBitmap$5 = Canvas._class.instanceMethodId(
+    r'drawBitmap',
+    r'(Landroid/graphics/Bitmap;Landroid/graphics/Matrix;Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawBitmap$5 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawBitmap(android.graphics.Bitmap bitmap, android.graphics.Matrix matrix, android.graphics.Paint paint)`
+  void drawBitmap$5(
+    bitmap$_.Bitmap? bitmap,
+    matrix$_.Matrix? matrix,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$bitmap = bitmap?.reference ?? jni$_.jNullReference;
+    final _$matrix = matrix?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawBitmap$5(
+      _$$selfRef.pointer,
+      _id_drawBitmap$5.pointer,
+      _$bitmap.pointer,
+      _$matrix.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawBitmapMesh = Canvas._class.instanceMethodId(
+    r'drawBitmapMesh',
+    r'(Landroid/graphics/Bitmap;II[FI[IILandroid/graphics/Paint;)V',
+  );
+
+  static final _drawBitmapMesh =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawBitmapMesh(android.graphics.Bitmap bitmap, int i, int i1, float[] fs, int i2, int[] is, int i3, android.graphics.Paint paint)`
+  void drawBitmapMesh(
+    bitmap$_.Bitmap? bitmap,
+    core$_.int i,
+    core$_.int i1,
+    jni$_.JFloatArray? fs,
+    core$_.int i2,
+    jni$_.JIntArray? is$,
+    core$_.int i3,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$bitmap = bitmap?.reference ?? jni$_.jNullReference;
+    final _$fs = fs?.reference ?? jni$_.jNullReference;
+    final _$is$ = is$?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawBitmapMesh(
+      _$$selfRef.pointer,
+      _id_drawBitmapMesh.pointer,
+      _$bitmap.pointer,
+      i,
+      i1,
+      _$fs.pointer,
+      i2,
+      _$is$.pointer,
+      i3,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawCircle = Canvas._class.instanceMethodId(
+    r'drawCircle',
+    r'(FFFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawCircle =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawCircle(float f, float f1, float f2, android.graphics.Paint paint)`
+  void drawCircle(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawCircle(
+      _$$selfRef.pointer,
+      _id_drawCircle.pointer,
+      f,
+      f1,
+      f2,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawColor = Canvas._class.instanceMethodId(
+    r'drawColor',
+    r'(I)V',
+  );
+
+  static final _drawColor =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void drawColor(int i)`
+  void drawColor(core$_.int i) {
+    final _$$selfRef = reference;
+    _drawColor(_$$selfRef.pointer, _id_drawColor.pointer, i).check();
+  }
+
+  static final _id_drawColor$1 = Canvas._class.instanceMethodId(
+    r'drawColor',
+    r'(J)V',
+  );
+
+  static final _drawColor$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int64,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void drawColor(long j)`
+  void drawColor$1(core$_.int j) {
+    final _$$selfRef = reference;
+    _drawColor$1(_$$selfRef.pointer, _id_drawColor$1.pointer, j).check();
+  }
+
+  static final _id_drawColor$2 = Canvas._class.instanceMethodId(
+    r'drawColor',
+    r'(ILandroid/graphics/PorterDuff$Mode;)V',
+  );
+
+  static final _drawColor$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawColor(int i, android.graphics.PorterDuff$Mode mode)`
+  void drawColor$2(core$_.int i, porterduff$_.PorterDuff$$Mode? mode) {
+    final _$$selfRef = reference;
+    final _$mode = mode?.reference ?? jni$_.jNullReference;
+    _drawColor$2(
+      _$$selfRef.pointer,
+      _id_drawColor$2.pointer,
+      i,
+      _$mode.pointer,
+    ).check();
+  }
+
+  static final _id_drawColor$3 = Canvas._class.instanceMethodId(
+    r'drawColor',
+    r'(ILandroid/graphics/BlendMode;)V',
+  );
+
+  static final _drawColor$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawColor(int i, android.graphics.BlendMode blendMode)`
+  void drawColor$3(core$_.int i, blendmode$_.BlendMode? blendMode) {
+    final _$$selfRef = reference;
+    final _$blendMode = blendMode?.reference ?? jni$_.jNullReference;
+    _drawColor$3(
+      _$$selfRef.pointer,
+      _id_drawColor$3.pointer,
+      i,
+      _$blendMode.pointer,
+    ).check();
+  }
+
+  static final _id_drawColor$4 = Canvas._class.instanceMethodId(
+    r'drawColor',
+    r'(JLandroid/graphics/BlendMode;)V',
+  );
+
+  static final _drawColor$4 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int64, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawColor(long j, android.graphics.BlendMode blendMode)`
+  void drawColor$4(core$_.int j, blendmode$_.BlendMode? blendMode) {
+    final _$$selfRef = reference;
+    final _$blendMode = blendMode?.reference ?? jni$_.jNullReference;
+    _drawColor$4(
+      _$$selfRef.pointer,
+      _id_drawColor$4.pointer,
+      j,
+      _$blendMode.pointer,
+    ).check();
+  }
+
+  static final _id_drawLine = Canvas._class.instanceMethodId(
+    r'drawLine',
+    r'(FFFFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawLine =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawLine(float f, float f1, float f2, float f3, android.graphics.Paint paint)`
+  void drawLine(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawLine(
+      _$$selfRef.pointer,
+      _id_drawLine.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawLines = Canvas._class.instanceMethodId(
+    r'drawLines',
+    r'([FIILandroid/graphics/Paint;)V',
+  );
+
+  static final _drawLines =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawLines(float[] fs, int i, int i1, android.graphics.Paint paint)`
+  void drawLines(
+    jni$_.JFloatArray? fs,
+    core$_.int i,
+    core$_.int i1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$fs = fs?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawLines(
+      _$$selfRef.pointer,
+      _id_drawLines.pointer,
+      _$fs.pointer,
+      i,
+      i1,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawLines$1 = Canvas._class.instanceMethodId(
+    r'drawLines',
+    r'([FLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawLines$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawLines(float[] fs, android.graphics.Paint paint)`
+  void drawLines$1(jni$_.JFloatArray? fs, paint$_.Paint? paint) {
+    final _$$selfRef = reference;
+    final _$fs = fs?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawLines$1(
+      _$$selfRef.pointer,
+      _id_drawLines$1.pointer,
+      _$fs.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawOval = Canvas._class.instanceMethodId(
+    r'drawOval',
+    r'(Landroid/graphics/RectF;Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawOval =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawOval(android.graphics.RectF rectF, android.graphics.Paint paint)`
+  void drawOval(rectf$_.RectF? rectF, paint$_.Paint? paint) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawOval(
+      _$$selfRef.pointer,
+      _id_drawOval.pointer,
+      _$rectF.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawOval$1 = Canvas._class.instanceMethodId(
+    r'drawOval',
+    r'(FFFFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawOval$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawOval(float f, float f1, float f2, float f3, android.graphics.Paint paint)`
+  void drawOval$1(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawOval$1(
+      _$$selfRef.pointer,
+      _id_drawOval$1.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawPaint = Canvas._class.instanceMethodId(
+    r'drawPaint',
+    r'(Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawPaint =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPaint(android.graphics.Paint paint)`
+  void drawPaint(paint$_.Paint? paint) {
+    final _$$selfRef = reference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawPaint(
+      _$$selfRef.pointer,
+      _id_drawPaint.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawPatch = Canvas._class.instanceMethodId(
+    r'drawPatch',
+    r'(Landroid/graphics/NinePatch;Landroid/graphics/Rect;Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawPatch =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPatch(android.graphics.NinePatch ninePatch, android.graphics.Rect rect, android.graphics.Paint paint)`
+  void drawPatch(
+    ninepatch$_.NinePatch? ninePatch,
+    rect$_.Rect? rect,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$ninePatch = ninePatch?.reference ?? jni$_.jNullReference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawPatch(
+      _$$selfRef.pointer,
+      _id_drawPatch.pointer,
+      _$ninePatch.pointer,
+      _$rect.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawPatch$1 = Canvas._class.instanceMethodId(
+    r'drawPatch',
+    r'(Landroid/graphics/NinePatch;Landroid/graphics/RectF;Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawPatch$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPatch(android.graphics.NinePatch ninePatch, android.graphics.RectF rectF, android.graphics.Paint paint)`
+  void drawPatch$1(
+    ninepatch$_.NinePatch? ninePatch,
+    rectf$_.RectF? rectF,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$ninePatch = ninePatch?.reference ?? jni$_.jNullReference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawPatch$1(
+      _$$selfRef.pointer,
+      _id_drawPatch$1.pointer,
+      _$ninePatch.pointer,
+      _$rectF.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawPath = Canvas._class.instanceMethodId(
+    r'drawPath',
+    r'(Landroid/graphics/Path;Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPath(android.graphics.Path path, android.graphics.Paint paint)`
+  void drawPath(path$_.Path? path, paint$_.Paint? paint) {
+    final _$$selfRef = reference;
+    final _$path = path?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawPath(
+      _$$selfRef.pointer,
+      _id_drawPath.pointer,
+      _$path.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawPoint = Canvas._class.instanceMethodId(
+    r'drawPoint',
+    r'(FFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawPoint =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Double, jni$_.Double, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPoint(float f, float f1, android.graphics.Paint paint)`
+  void drawPoint(core$_.double f, core$_.double f1, paint$_.Paint? paint) {
+    final _$$selfRef = reference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawPoint(
+      _$$selfRef.pointer,
+      _id_drawPoint.pointer,
+      f,
+      f1,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawPoints = Canvas._class.instanceMethodId(
+    r'drawPoints',
+    r'([FIILandroid/graphics/Paint;)V',
+  );
+
+  static final _drawPoints =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPoints(float[] fs, int i, int i1, android.graphics.Paint paint)`
+  void drawPoints(
+    jni$_.JFloatArray? fs,
+    core$_.int i,
+    core$_.int i1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$fs = fs?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawPoints(
+      _$$selfRef.pointer,
+      _id_drawPoints.pointer,
+      _$fs.pointer,
+      i,
+      i1,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawPoints$1 = Canvas._class.instanceMethodId(
+    r'drawPoints',
+    r'([FLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawPoints$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPoints(float[] fs, android.graphics.Paint paint)`
+  void drawPoints$1(jni$_.JFloatArray? fs, paint$_.Paint? paint) {
+    final _$$selfRef = reference;
+    final _$fs = fs?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawPoints$1(
+      _$$selfRef.pointer,
+      _id_drawPoints$1.pointer,
+      _$fs.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawPosText = Canvas._class.instanceMethodId(
+    r'drawPosText',
+    r'([CII[FLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawPosText =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPosText(char[] cs, int i, int i1, float[] fs, android.graphics.Paint paint)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  void drawPosText(
+    jni$_.JCharArray? cs,
+    core$_.int i,
+    core$_.int i1,
+    jni$_.JFloatArray? fs,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$cs = cs?.reference ?? jni$_.jNullReference;
+    final _$fs = fs?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawPosText(
+      _$$selfRef.pointer,
+      _id_drawPosText.pointer,
+      _$cs.pointer,
+      i,
+      i1,
+      _$fs.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawPosText$1 = Canvas._class.instanceMethodId(
+    r'drawPosText',
+    r'(Ljava/lang/String;[FLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawPosText$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawPosText(java.lang.String string, float[] fs, android.graphics.Paint paint)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  void drawPosText$1(
+    jni$_.JString? string,
+    jni$_.JFloatArray? fs,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    final _$fs = fs?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawPosText$1(
+      _$$selfRef.pointer,
+      _id_drawPosText$1.pointer,
+      _$string.pointer,
+      _$fs.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawRect = Canvas._class.instanceMethodId(
+    r'drawRect',
+    r'(Landroid/graphics/RectF;Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawRect =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawRect(android.graphics.RectF rectF, android.graphics.Paint paint)`
+  void drawRect(rectf$_.RectF? rectF, paint$_.Paint? paint) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawRect(
+      _$$selfRef.pointer,
+      _id_drawRect.pointer,
+      _$rectF.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawRect$1 = Canvas._class.instanceMethodId(
+    r'drawRect',
+    r'(Landroid/graphics/Rect;Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawRect$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawRect(android.graphics.Rect rect, android.graphics.Paint paint)`
+  void drawRect$1(rect$_.Rect? rect, paint$_.Paint? paint) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawRect$1(
+      _$$selfRef.pointer,
+      _id_drawRect$1.pointer,
+      _$rect.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawRect$2 = Canvas._class.instanceMethodId(
+    r'drawRect',
+    r'(FFFFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawRect$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawRect(float f, float f1, float f2, float f3, android.graphics.Paint paint)`
+  void drawRect$2(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawRect$2(
+      _$$selfRef.pointer,
+      _id_drawRect$2.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawRGB = Canvas._class.instanceMethodId(
+    r'drawRGB',
+    r'(III)V',
+  );
+
+  static final _drawRGB =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32, jni$_.Int32, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void drawRGB(int i, int i1, int i2)`
+  void drawRGB(core$_.int i, core$_.int i1, core$_.int i2) {
+    final _$$selfRef = reference;
+    _drawRGB(_$$selfRef.pointer, _id_drawRGB.pointer, i, i1, i2).check();
+  }
+
+  static final _id_drawRoundRect = Canvas._class.instanceMethodId(
+    r'drawRoundRect',
+    r'(Landroid/graphics/RectF;FFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawRoundRect =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawRoundRect(android.graphics.RectF rectF, float f, float f1, android.graphics.Paint paint)`
+  void drawRoundRect(
+    rectf$_.RectF? rectF,
+    core$_.double f,
+    core$_.double f1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawRoundRect(
+      _$$selfRef.pointer,
+      _id_drawRoundRect.pointer,
+      _$rectF.pointer,
+      f,
+      f1,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawRoundRect$1 = Canvas._class.instanceMethodId(
+    r'drawRoundRect',
+    r'(FFFFFFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawRoundRect$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawRoundRect(float f, float f1, float f2, float f3, float f4, float f5, android.graphics.Paint paint)`
+  void drawRoundRect$1(
+    core$_.double f,
+    core$_.double f1,
+    core$_.double f2,
+    core$_.double f3,
+    core$_.double f4,
+    core$_.double f5,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawRoundRect$1(
+      _$$selfRef.pointer,
+      _id_drawRoundRect$1.pointer,
+      f,
+      f1,
+      f2,
+      f3,
+      f4,
+      f5,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawDoubleRoundRect = Canvas._class.instanceMethodId(
+    r'drawDoubleRoundRect',
+    r'(Landroid/graphics/RectF;FFLandroid/graphics/RectF;FFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawDoubleRoundRect =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawDoubleRoundRect(android.graphics.RectF rectF, float f, float f1, android.graphics.RectF rectF1, float f2, float f3, android.graphics.Paint paint)`
+  void drawDoubleRoundRect(
+    rectf$_.RectF? rectF,
+    core$_.double f,
+    core$_.double f1,
+    rectf$_.RectF? rectF1,
+    core$_.double f2,
+    core$_.double f3,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$rectF1 = rectF1?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawDoubleRoundRect(
+      _$$selfRef.pointer,
+      _id_drawDoubleRoundRect.pointer,
+      _$rectF.pointer,
+      f,
+      f1,
+      _$rectF1.pointer,
+      f2,
+      f3,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawDoubleRoundRect$1 = Canvas._class.instanceMethodId(
+    r'drawDoubleRoundRect',
+    r'(Landroid/graphics/RectF;[FLandroid/graphics/RectF;[FLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawDoubleRoundRect$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawDoubleRoundRect(android.graphics.RectF rectF, float[] fs, android.graphics.RectF rectF1, float[] fs1, android.graphics.Paint paint)`
+  void drawDoubleRoundRect$1(
+    rectf$_.RectF? rectF,
+    jni$_.JFloatArray? fs,
+    rectf$_.RectF? rectF1,
+    jni$_.JFloatArray? fs1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$rectF = rectF?.reference ?? jni$_.jNullReference;
+    final _$fs = fs?.reference ?? jni$_.jNullReference;
+    final _$rectF1 = rectF1?.reference ?? jni$_.jNullReference;
+    final _$fs1 = fs1?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawDoubleRoundRect$1(
+      _$$selfRef.pointer,
+      _id_drawDoubleRoundRect$1.pointer,
+      _$rectF.pointer,
+      _$fs.pointer,
+      _$rectF1.pointer,
+      _$fs1.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawGlyphs = Canvas._class.instanceMethodId(
+    r'drawGlyphs',
+    r'([II[FIILandroid/graphics/fonts/Font;Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawGlyphs =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawGlyphs(int[] is, int i, float[] fs, int i1, int i2, android.graphics.fonts.Font font, android.graphics.Paint paint)`
+  void drawGlyphs(
+    jni$_.JIntArray? is$,
+    core$_.int i,
+    jni$_.JFloatArray? fs,
+    core$_.int i1,
+    core$_.int i2,
+    font$_.Font? font,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$is$ = is$?.reference ?? jni$_.jNullReference;
+    final _$fs = fs?.reference ?? jni$_.jNullReference;
+    final _$font = font?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawGlyphs(
+      _$$selfRef.pointer,
+      _id_drawGlyphs.pointer,
+      _$is$.pointer,
+      i,
+      _$fs.pointer,
+      i1,
+      i2,
+      _$font.pointer,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawText = Canvas._class.instanceMethodId(
+    r'drawText',
+    r'([CIIFFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawText =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawText(char[] cs, int i, int i1, float f, float f1, android.graphics.Paint paint)`
+  void drawText(
+    jni$_.JCharArray? cs,
+    core$_.int i,
+    core$_.int i1,
+    core$_.double f,
+    core$_.double f1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$cs = cs?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawText(
+      _$$selfRef.pointer,
+      _id_drawText.pointer,
+      _$cs.pointer,
+      i,
+      i1,
+      f,
+      f1,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawText$1 = Canvas._class.instanceMethodId(
+    r'drawText',
+    r'(Ljava/lang/String;FFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawText$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawText(java.lang.String string, float f, float f1, android.graphics.Paint paint)`
+  void drawText$1(
+    jni$_.JString? string,
+    core$_.double f,
+    core$_.double f1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawText$1(
+      _$$selfRef.pointer,
+      _id_drawText$1.pointer,
+      _$string.pointer,
+      f,
+      f1,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawText$2 = Canvas._class.instanceMethodId(
+    r'drawText',
+    r'(Ljava/lang/String;IIFFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawText$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawText(java.lang.String string, int i, int i1, float f, float f1, android.graphics.Paint paint)`
+  void drawText$2(
+    jni$_.JString? string,
+    core$_.int i,
+    core$_.int i1,
+    core$_.double f,
+    core$_.double f1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawText$2(
+      _$$selfRef.pointer,
+      _id_drawText$2.pointer,
+      _$string.pointer,
+      i,
+      i1,
+      f,
+      f1,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawText$3 = Canvas._class.instanceMethodId(
+    r'drawText',
+    r'(Ljava/lang/CharSequence;IIFFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawText$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawText(java.lang.CharSequence charSequence, int i, int i1, float f, float f1, android.graphics.Paint paint)`
+  void drawText$3(
+    charsequence$_.CharSequence? charSequence,
+    core$_.int i,
+    core$_.int i1,
+    core$_.double f,
+    core$_.double f1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$charSequence = charSequence?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawText$3(
+      _$$selfRef.pointer,
+      _id_drawText$3.pointer,
+      _$charSequence.pointer,
+      i,
+      i1,
+      f,
+      f1,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawTextOnPath = Canvas._class.instanceMethodId(
+    r'drawTextOnPath',
+    r'([CIILandroid/graphics/Path;FFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawTextOnPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawTextOnPath(char[] cs, int i, int i1, android.graphics.Path path, float f, float f1, android.graphics.Paint paint)`
+  void drawTextOnPath(
+    jni$_.JCharArray? cs,
+    core$_.int i,
+    core$_.int i1,
+    path$_.Path? path,
+    core$_.double f,
+    core$_.double f1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$cs = cs?.reference ?? jni$_.jNullReference;
+    final _$path = path?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawTextOnPath(
+      _$$selfRef.pointer,
+      _id_drawTextOnPath.pointer,
+      _$cs.pointer,
+      i,
+      i1,
+      _$path.pointer,
+      f,
+      f1,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawTextOnPath$1 = Canvas._class.instanceMethodId(
+    r'drawTextOnPath',
+    r'(Ljava/lang/String;Landroid/graphics/Path;FFLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawTextOnPath$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.double,
+              core$_.double,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawTextOnPath(java.lang.String string, android.graphics.Path path, float f, float f1, android.graphics.Paint paint)`
+  void drawTextOnPath$1(
+    jni$_.JString? string,
+    path$_.Path? path,
+    core$_.double f,
+    core$_.double f1,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    final _$path = path?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawTextOnPath$1(
+      _$$selfRef.pointer,
+      _id_drawTextOnPath$1.pointer,
+      _$string.pointer,
+      _$path.pointer,
+      f,
+      f1,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawTextRun = Canvas._class.instanceMethodId(
+    r'drawTextRun',
+    r'([CIIIIFFZLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawTextRun =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.double,
+              core$_.double,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawTextRun(char[] cs, int i, int i1, int i2, int i3, float f, float f1, boolean z, android.graphics.Paint paint)`
+  void drawTextRun(
+    jni$_.JCharArray? cs,
+    core$_.int i,
+    core$_.int i1,
+    core$_.int i2,
+    core$_.int i3,
+    core$_.double f,
+    core$_.double f1,
+    core$_.bool z,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$cs = cs?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawTextRun(
+      _$$selfRef.pointer,
+      _id_drawTextRun.pointer,
+      _$cs.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+      f,
+      f1,
+      z ? 1 : 0,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawTextRun$1 = Canvas._class.instanceMethodId(
+    r'drawTextRun',
+    r'(Ljava/lang/CharSequence;IIIIFFZLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawTextRun$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.double,
+              core$_.double,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawTextRun(java.lang.CharSequence charSequence, int i, int i1, int i2, int i3, float f, float f1, boolean z, android.graphics.Paint paint)`
+  void drawTextRun$1(
+    charsequence$_.CharSequence? charSequence,
+    core$_.int i,
+    core$_.int i1,
+    core$_.int i2,
+    core$_.int i3,
+    core$_.double f,
+    core$_.double f1,
+    core$_.bool z,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$charSequence = charSequence?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawTextRun$1(
+      _$$selfRef.pointer,
+      _id_drawTextRun$1.pointer,
+      _$charSequence.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+      f,
+      f1,
+      z ? 1 : 0,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawTextRun$2 = Canvas._class.instanceMethodId(
+    r'drawTextRun',
+    r'(Landroid/graphics/text/MeasuredText;IIIIFFZLandroid/graphics/Paint;)V',
+  );
+
+  static final _drawTextRun$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Double,
+                    jni$_.Double,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.double,
+              core$_.double,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawTextRun(android.graphics.text.MeasuredText measuredText, int i, int i1, int i2, int i3, float f, float f1, boolean z, android.graphics.Paint paint)`
+  void drawTextRun$2(
+    measuredtext$_.MeasuredText? measuredText,
+    core$_.int i,
+    core$_.int i1,
+    core$_.int i2,
+    core$_.int i3,
+    core$_.double f,
+    core$_.double f1,
+    core$_.bool z,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$measuredText = measuredText?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawTextRun$2(
+      _$$selfRef.pointer,
+      _id_drawTextRun$2.pointer,
+      _$measuredText.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+      f,
+      f1,
+      z ? 1 : 0,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawVertices = Canvas._class.instanceMethodId(
+    r'drawVertices',
+    r'(Landroid/graphics/Canvas$VertexMode;I[FI[FI[II[SIILandroid/graphics/Paint;)V',
+  );
+
+  static final _drawVertices =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawVertices(android.graphics.Canvas$VertexMode vertexMode, int i, float[] fs, int i1, float[] fs1, int i2, int[] is, int i3, short[] ss, int i4, int i5, android.graphics.Paint paint)`
+  void drawVertices(
+    Canvas$VertexMode? vertexMode,
+    core$_.int i,
+    jni$_.JFloatArray? fs,
+    core$_.int i1,
+    jni$_.JFloatArray? fs1,
+    core$_.int i2,
+    jni$_.JIntArray? is$,
+    core$_.int i3,
+    jni$_.JShortArray? ss,
+    core$_.int i4,
+    core$_.int i5,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$vertexMode = vertexMode?.reference ?? jni$_.jNullReference;
+    final _$fs = fs?.reference ?? jni$_.jNullReference;
+    final _$fs1 = fs1?.reference ?? jni$_.jNullReference;
+    final _$is$ = is$?.reference ?? jni$_.jNullReference;
+    final _$ss = ss?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawVertices(
+      _$$selfRef.pointer,
+      _id_drawVertices.pointer,
+      _$vertexMode.pointer,
+      i,
+      _$fs.pointer,
+      i1,
+      _$fs1.pointer,
+      i2,
+      _$is$.pointer,
+      i3,
+      _$ss.pointer,
+      i4,
+      i5,
+      _$paint.pointer,
+    ).check();
+  }
+
+  static final _id_drawRenderNode = Canvas._class.instanceMethodId(
+    r'drawRenderNode',
+    r'(Landroid/graphics/RenderNode;)V',
+  );
+
+  static final _drawRenderNode =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawRenderNode(android.graphics.RenderNode renderNode)`
+  void drawRenderNode(rendernode$_.RenderNode? renderNode) {
+    final _$$selfRef = reference;
+    final _$renderNode = renderNode?.reference ?? jni$_.jNullReference;
+    _drawRenderNode(
+      _$$selfRef.pointer,
+      _id_drawRenderNode.pointer,
+      _$renderNode.pointer,
+    ).check();
+  }
+
+  static final _id_drawMesh = Canvas._class.instanceMethodId(
+    r'drawMesh',
+    r'(Landroid/graphics/Mesh;Landroid/graphics/BlendMode;Landroid/graphics/Paint;)V',
+  );
+
+  static final _drawMesh =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void drawMesh(android.graphics.Mesh mesh, android.graphics.BlendMode blendMode, android.graphics.Paint paint)`
+  void drawMesh(
+    mesh$_.Mesh? mesh,
+    blendmode$_.BlendMode? blendMode,
+    paint$_.Paint? paint,
+  ) {
+    final _$$selfRef = reference;
+    final _$mesh = mesh?.reference ?? jni$_.jNullReference;
+    final _$blendMode = blendMode?.reference ?? jni$_.jNullReference;
+    final _$paint = paint?.reference ?? jni$_.jNullReference;
+    _drawMesh(
+      _$$selfRef.pointer,
+      _id_drawMesh.pointer,
+      _$mesh.pointer,
+      _$blendMode.pointer,
+      _$paint.pointer,
+    ).check();
+  }
 }
 
 final class $Canvas$Type$ extends jni$_.JType<Canvas> {

@@ -3408,6 +3408,8 @@ Native APIs, including:
 - NFC (`DV.Platform.nfc`, deprecated alias `DV.Platform.nfc`, and `DV.NFC` proxy)
 - Clipboard (`DV.Platform.clipboard`, deprecated alias `DV.Platform.clipboard`, and `DV.Clipboard` proxy)
 - Share (`DV.Platform.share`, deprecated alias `DV.Platform.share`, or `DV.Share` proxy)
+- Installed apps (`DV.Platform.apps`, Android): `list({icons})` answers every app with a launcher activity as `DVInstalledApp` (`packageName`, `label`, `icon` as PNG bytes), sorted by name; `open`, `openSettings` and `uninstall` start the app, its system info page and the system's own uninstall confirmation. Through JNI and PackageManager. Elsewhere `isSupported` is false and the calls throw `UnsupportedError`, never an empty list that reads as a device with no apps.
+  - `dartvel.android.launcher: true` makes the app eligible as the phone's home screen: the build adds MAIN/HOME/DEFAULT to the launcher activity and the MAIN/LAUNCHER `<queries>` entry Android 11+ needs before an app can see others, in marked blocks a later build replaces.
 - Notifications (`DV.Platform.notifications` / `DV.Notifications` proxy) - device-local notifications; mail is `DV.Notifications.mail`
 - Sensors (`DV.Platform.sensors`, deprecated alias `DV.Platform.sensors`, and `DV.Sensors` proxy)
 - Biometrics (`DV.Platform.biometrics`, deprecated alias `DV.Platform.biometrics`, and `DV.Biometrics` proxy)

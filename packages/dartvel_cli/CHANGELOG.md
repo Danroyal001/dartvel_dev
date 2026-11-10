@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel.android.launcher: true` makes an app eligible as the phone's home screen: the build adds HOME/DEFAULT to the launcher activity and the MAIN/LAUNCHER `<queries>` entry Android 11+ needs to see other apps, in marked blocks a later build replaces.
+
 ## 0.13.29 — 2026-11-09
 
 - Generated backend routes answer a thrown `DVRefusal` with its status and `{"error": message}` (not recorded as a crash); any other exception is still a bare 500. Generated typed client functions throw `DVBackendFunctionException` on any answer that is not 2xx, instead of returning the error text as the result.

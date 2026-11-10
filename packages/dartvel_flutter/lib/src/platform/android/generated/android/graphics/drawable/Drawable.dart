@@ -36,13 +36,2957 @@ import 'dart:core' show Object, String;
 import 'package:jni/_internal.dart' as jni$_;
 import 'package:jni/jni.dart' as jni$_;
 
+import '../../../java/io/InputStream.dart' as inputstream$_;
+
+import '../../../java/lang/Runnable.dart' as runnable$_;
+
+import '../../../org/xmlpull/v1/XmlPullParser.dart' as xmlpullparser$_;
+
+import '../../content/res/ColorStateList.dart' as colorstatelist$_;
+
+import '../../content/res/Resources.dart' as resources$_;
+
+import '../../util/AttributeSet.dart' as attributeset$_;
+
+import '../../util/TypedValue.dart' as typedvalue$_;
+
+import '../BitmapFactory.dart' as bitmapfactory$_;
+
+import '../BlendMode.dart' as blendmode$_;
+
+import '../Canvas.dart' as canvas$_;
+
+import '../ColorFilter.dart' as colorfilter$_;
+
+import '../Insets.dart' as insets$_;
+
+import '../Outline.dart' as outline$_;
+
+import '../PorterDuff.dart' as porterduff$_;
+
+import '../Rect.dart' as rect$_;
+
+import '../Region.dart' as region$_;
+
+/// from: `android.graphics.drawable.Drawable$Callback`
+extension type Drawable$Callback._(jni$_.JObject _$this)
+    implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(
+    r'android/graphics/drawable/Drawable$Callback',
+  );
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<Drawable$Callback> type = $Drawable$Callback$Type$();
+
+  /// Maps a specific port to the implemented interface.
+  static final core$_.Map<core$_.int, $Drawable$Callback> _$impls = {};
+  static jni$_.JObjectPtr _$invoke(
+    core$_.int port,
+    jni$_.JObjectPtr descriptor,
+    jni$_.JObjectPtr args,
+  ) {
+    return _$invokeMethod(
+      port,
+      jni$_.MethodInvocation.fromAddresses(0, descriptor.address, args.address),
+    );
+  }
+
+  static final jni$_.Pointer<
+    jni$_.NativeFunction<
+      jni$_.JObjectPtr Function(jni$_.Int64, jni$_.JObjectPtr, jni$_.JObjectPtr)
+    >
+  >
+  _$invokePointer = jni$_.Pointer.fromFunction(_$invoke);
+
+  static jni$_.Pointer<jni$_.Void> _$invokeMethod(
+    core$_.int $p,
+    jni$_.MethodInvocation $i,
+  ) {
+    try {
+      final $d = $i.methodDescriptor.toDartString(releaseOriginal: true);
+      final $a = $i.args;
+      if ($d == r'invalidateDrawable(Landroid/graphics/drawable/Drawable;)V') {
+        _$impls[$p]!.invalidateDrawable(($a![0] as Drawable?));
+        return jni$_.nullptr;
+      }
+      if ($d ==
+          r'scheduleDrawable(Landroid/graphics/drawable/Drawable;Ljava/lang/Runnable;J)V') {
+        _$impls[$p]!.scheduleDrawable(
+          ($a![0] as Drawable?),
+          ($a![1] as runnable$_.Runnable?),
+          ($a![2] as jni$_.JLong).toDartInt(releaseOriginal: true),
+        );
+        return jni$_.nullptr;
+      }
+      if ($d ==
+          r'unscheduleDrawable(Landroid/graphics/drawable/Drawable;Ljava/lang/Runnable;)V') {
+        _$impls[$p]!.unscheduleDrawable(
+          ($a![0] as Drawable?),
+          ($a![1] as runnable$_.Runnable?),
+        );
+        return jni$_.nullptr;
+      }
+    } catch (e) {
+      return jni$_.ProtectedJniExtensions.newDartException(e);
+    }
+    return jni$_.nullptr;
+  }
+
+  static void implementIn(
+    jni$_.JImplementer implementer,
+    $Drawable$Callback $impl,
+  ) {
+    late final jni$_.RawReceivePort $p;
+    $p = jni$_.RawReceivePort(($m) {
+      if ($m == null) {
+        _$impls.remove($p.sendPort.nativePort);
+        $p.close();
+        return;
+      }
+      final $i = jni$_.MethodInvocation.fromMessage($m);
+      final $r = _$invokeMethod($p.sendPort.nativePort, $i);
+      $i.args?.release();
+      jni$_.ProtectedJniExtensions.returnResult($i.result, $r);
+    });
+    implementer.add(
+      r'android.graphics.drawable.Drawable$Callback',
+      $p,
+      _$invokePointer,
+      [
+        if ($impl.invalidateDrawable$async)
+          r'invalidateDrawable(Landroid/graphics/drawable/Drawable;)V',
+        if ($impl.scheduleDrawable$async) r'scheduleDrawable(Landroid/graphics/drawable/Drawable;Ljava/lang/Runnable;J)V',
+        if ($impl.unscheduleDrawable$async) r'unscheduleDrawable(Landroid/graphics/drawable/Drawable;Ljava/lang/Runnable;)V',
+      ],
+    );
+    final $a = $p.sendPort.nativePort;
+    _$impls[$a] = $impl;
+  }
+
+  factory Drawable$Callback.implement($Drawable$Callback $impl) {
+    final $i = jni$_.JImplementer();
+    implementIn($i, $impl);
+    return $i.implement<Drawable$Callback>();
+  }
+}
+
+extension Drawable$Callback$$Methods on Drawable$Callback {
+  static final _id_invalidateDrawable = Drawable$Callback._class
+      .instanceMethodId(
+        r'invalidateDrawable',
+        r'(Landroid/graphics/drawable/Drawable;)V',
+      );
+
+  static final _invalidateDrawable =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public abstract void invalidateDrawable(android.graphics.drawable.Drawable drawable)`
+  void invalidateDrawable(Drawable? drawable) {
+    final _$$selfRef = reference;
+    final _$drawable = drawable?.reference ?? jni$_.jNullReference;
+    _invalidateDrawable(
+      _$$selfRef.pointer,
+      _id_invalidateDrawable.pointer,
+      _$drawable.pointer,
+    ).check();
+  }
+
+  static final _id_scheduleDrawable = Drawable$Callback._class.instanceMethodId(
+    r'scheduleDrawable',
+    r'(Landroid/graphics/drawable/Drawable;Ljava/lang/Runnable;J)V',
+  );
+
+  static final _scheduleDrawable =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Int64,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public abstract void scheduleDrawable(android.graphics.drawable.Drawable drawable, java.lang.Runnable runnable, long j)`
+  void scheduleDrawable(
+    Drawable? drawable,
+    runnable$_.Runnable? runnable,
+    core$_.int j,
+  ) {
+    final _$$selfRef = reference;
+    final _$drawable = drawable?.reference ?? jni$_.jNullReference;
+    final _$runnable = runnable?.reference ?? jni$_.jNullReference;
+    _scheduleDrawable(
+      _$$selfRef.pointer,
+      _id_scheduleDrawable.pointer,
+      _$drawable.pointer,
+      _$runnable.pointer,
+      j,
+    ).check();
+  }
+
+  static final _id_unscheduleDrawable = Drawable$Callback._class
+      .instanceMethodId(
+        r'unscheduleDrawable',
+        r'(Landroid/graphics/drawable/Drawable;Ljava/lang/Runnable;)V',
+      );
+
+  static final _unscheduleDrawable =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public abstract void unscheduleDrawable(android.graphics.drawable.Drawable drawable, java.lang.Runnable runnable)`
+  void unscheduleDrawable(Drawable? drawable, runnable$_.Runnable? runnable) {
+    final _$$selfRef = reference;
+    final _$drawable = drawable?.reference ?? jni$_.jNullReference;
+    final _$runnable = runnable?.reference ?? jni$_.jNullReference;
+    _unscheduleDrawable(
+      _$$selfRef.pointer,
+      _id_unscheduleDrawable.pointer,
+      _$drawable.pointer,
+      _$runnable.pointer,
+    ).check();
+  }
+}
+
+abstract base mixin class $Drawable$Callback {
+  factory $Drawable$Callback({
+    required void Function(Drawable? drawable) invalidateDrawable,
+    core$_.bool invalidateDrawable$async,
+    required void Function(
+      Drawable? drawable,
+      runnable$_.Runnable? runnable,
+      core$_.int j,
+    )
+    scheduleDrawable,
+    core$_.bool scheduleDrawable$async,
+    required void Function(Drawable? drawable, runnable$_.Runnable? runnable)
+    unscheduleDrawable,
+    core$_.bool unscheduleDrawable$async,
+  }) = _$Drawable$Callback;
+
+  void invalidateDrawable(Drawable? drawable);
+  core$_.bool get invalidateDrawable$async => false;
+  void scheduleDrawable(
+    Drawable? drawable,
+    runnable$_.Runnable? runnable,
+    core$_.int j,
+  );
+  core$_.bool get scheduleDrawable$async => false;
+  void unscheduleDrawable(Drawable? drawable, runnable$_.Runnable? runnable);
+  core$_.bool get unscheduleDrawable$async => false;
+}
+
+final class _$Drawable$Callback with $Drawable$Callback {
+  _$Drawable$Callback({
+    required void Function(Drawable? drawable) invalidateDrawable,
+    this.invalidateDrawable$async = false,
+    required void Function(
+      Drawable? drawable,
+      runnable$_.Runnable? runnable,
+      core$_.int j,
+    )
+    scheduleDrawable,
+    this.scheduleDrawable$async = false,
+    required void Function(Drawable? drawable, runnable$_.Runnable? runnable)
+    unscheduleDrawable,
+    this.unscheduleDrawable$async = false,
+  }) : _invalidateDrawable = invalidateDrawable,
+       _scheduleDrawable = scheduleDrawable,
+       _unscheduleDrawable = unscheduleDrawable;
+
+  final void Function(Drawable? drawable) _invalidateDrawable;
+  final core$_.bool invalidateDrawable$async;
+  final void Function(
+    Drawable? drawable,
+    runnable$_.Runnable? runnable,
+    core$_.int j,
+  )
+  _scheduleDrawable;
+  final core$_.bool scheduleDrawable$async;
+  final void Function(Drawable? drawable, runnable$_.Runnable? runnable)
+  _unscheduleDrawable;
+  final core$_.bool unscheduleDrawable$async;
+
+  void invalidateDrawable(Drawable? drawable) {
+    return _invalidateDrawable(drawable);
+  }
+
+  void scheduleDrawable(
+    Drawable? drawable,
+    runnable$_.Runnable? runnable,
+    core$_.int j,
+  ) {
+    return _scheduleDrawable(drawable, runnable, j);
+  }
+
+  void unscheduleDrawable(Drawable? drawable, runnable$_.Runnable? runnable) {
+    return _unscheduleDrawable(drawable, runnable);
+  }
+}
+
+final class $Drawable$Callback$Type$ extends jni$_.JType<Drawable$Callback> {
+  @jni$_.internal
+  const $Drawable$Callback$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Landroid/graphics/drawable/Drawable$Callback;';
+}
+
+/// from: `android.graphics.drawable.Drawable$ConstantState`
+extension type Drawable$ConstantState._(jni$_.JObject _$this)
+    implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(
+    r'android/graphics/drawable/Drawable$ConstantState',
+  );
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<Drawable$ConstantState> type =
+      $Drawable$ConstantState$Type$();
+}
+
+extension Drawable$ConstantState$$Methods on Drawable$ConstantState {
+  static final _id_newDrawable = Drawable$ConstantState._class.instanceMethodId(
+    r'newDrawable',
+    r'()Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _newDrawable =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract android.graphics.drawable.Drawable newDrawable()`
+  /// The returned object must be released after use, by calling the [release] method.
+  Drawable? newDrawable() {
+    final _$$selfRef = reference;
+    return _newDrawable(
+      _$$selfRef.pointer,
+      _id_newDrawable.pointer,
+    ).object<Drawable?>();
+  }
+
+  static final _id_newDrawable$1 = Drawable$ConstantState._class
+      .instanceMethodId(
+        r'newDrawable',
+        r'(Landroid/content/res/Resources;)Landroid/graphics/drawable/Drawable;',
+      );
+
+  static final _newDrawable$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.graphics.drawable.Drawable newDrawable(android.content.res.Resources resources)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Drawable? newDrawable$1(resources$_.Resources? resources) {
+    final _$$selfRef = reference;
+    final _$resources = resources?.reference ?? jni$_.jNullReference;
+    return _newDrawable$1(
+      _$$selfRef.pointer,
+      _id_newDrawable$1.pointer,
+      _$resources.pointer,
+    ).object<Drawable?>();
+  }
+
+  static final _id_newDrawable$2 = Drawable$ConstantState._class
+      .instanceMethodId(
+        r'newDrawable',
+        r'(Landroid/content/res/Resources;Landroid/content/res/Resources$Theme;)Landroid/graphics/drawable/Drawable;',
+      );
+
+  static final _newDrawable$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.graphics.drawable.Drawable newDrawable(android.content.res.Resources resources, android.content.res.Resources$Theme theme)`
+  /// The returned object must be released after use, by calling the [release] method.
+  Drawable? newDrawable$2(
+    resources$_.Resources? resources,
+    resources$_.Resources$Theme? theme,
+  ) {
+    final _$$selfRef = reference;
+    final _$resources = resources?.reference ?? jni$_.jNullReference;
+    final _$theme = theme?.reference ?? jni$_.jNullReference;
+    return _newDrawable$2(
+      _$$selfRef.pointer,
+      _id_newDrawable$2.pointer,
+      _$resources.pointer,
+      _$theme.pointer,
+    ).object<Drawable?>();
+  }
+
+  static final _id_get$changingConfigurations = Drawable$ConstantState._class
+      .instanceMethodId(r'getChangingConfigurations', r'()I');
+
+  static final _get$changingConfigurations =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract int getChangingConfigurations()`
+  core$_.int get changingConfigurations {
+    final _$$selfRef = reference;
+    return _get$changingConfigurations(
+      _$$selfRef.pointer,
+      _id_get$changingConfigurations.pointer,
+    ).integer;
+  }
+
+  static final _id_canApplyTheme = Drawable$ConstantState._class
+      .instanceMethodId(r'canApplyTheme', r'()Z');
+
+  static final _canApplyTheme =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean canApplyTheme()`
+  core$_.bool canApplyTheme() {
+    final _$$selfRef = reference;
+    return _canApplyTheme(
+      _$$selfRef.pointer,
+      _id_canApplyTheme.pointer,
+    ).boolean;
+  }
+}
+
+final class $Drawable$ConstantState$Type$
+    extends jni$_.JType<Drawable$ConstantState> {
+  @jni$_.internal
+  const $Drawable$ConstantState$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Landroid/graphics/drawable/Drawable$ConstantState;';
+}
+
 /// from: `android.graphics.drawable.Drawable`
-///
-/// WARNING: Drawable is a stub. To generate bindings for this class, include
-/// android.graphics.drawable.Drawable in your config's classes list.
-///
 extension type Drawable._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(
+    r'android/graphics/drawable/Drawable',
+  );
+
+  /// The type which includes information such as the signature of this class.
   static const jni$_.JType<Drawable> type = $Drawable$Type$();
+  static final _id_resolveOpacity = _class.staticMethodId(
+    r'resolveOpacity',
+    r'(II)I',
+  );
+
+  static final _resolveOpacity =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallStaticIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `static public int resolveOpacity(int i, int i1)`
+  static core$_.int resolveOpacity(core$_.int i, core$_.int i1) {
+    final _$$classRef = _class.reference;
+    return _resolveOpacity(
+      _$$classRef.pointer,
+      _id_resolveOpacity.pointer,
+      i,
+      i1,
+    ).integer;
+  }
+
+  static final _id_createFromStream = _class.staticMethodId(
+    r'createFromStream',
+    r'(Ljava/io/InputStream;Ljava/lang/String;)Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _createFromStream =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.graphics.drawable.Drawable createFromStream(java.io.InputStream inputStream, java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Drawable? createFromStream(
+    inputstream$_.InputStream? inputStream,
+    jni$_.JString? string,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$inputStream = inputStream?.reference ?? jni$_.jNullReference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _createFromStream(
+      _$$classRef.pointer,
+      _id_createFromStream.pointer,
+      _$inputStream.pointer,
+      _$string.pointer,
+    ).object<Drawable?>();
+  }
+
+  static final _id_createFromResourceStream = _class.staticMethodId(
+    r'createFromResourceStream',
+    r'(Landroid/content/res/Resources;Landroid/util/TypedValue;Ljava/io/InputStream;Ljava/lang/String;)Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _createFromResourceStream =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.graphics.drawable.Drawable createFromResourceStream(android.content.res.Resources resources, android.util.TypedValue typedValue, java.io.InputStream inputStream, java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Drawable? createFromResourceStream(
+    resources$_.Resources? resources,
+    typedvalue$_.TypedValue? typedValue,
+    inputstream$_.InputStream? inputStream,
+    jni$_.JString? string,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$resources = resources?.reference ?? jni$_.jNullReference;
+    final _$typedValue = typedValue?.reference ?? jni$_.jNullReference;
+    final _$inputStream = inputStream?.reference ?? jni$_.jNullReference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _createFromResourceStream(
+      _$$classRef.pointer,
+      _id_createFromResourceStream.pointer,
+      _$resources.pointer,
+      _$typedValue.pointer,
+      _$inputStream.pointer,
+      _$string.pointer,
+    ).object<Drawable?>();
+  }
+
+  static final _id_createFromResourceStream$1 = _class.staticMethodId(
+    r'createFromResourceStream',
+    r'(Landroid/content/res/Resources;Landroid/util/TypedValue;Ljava/io/InputStream;Ljava/lang/String;Landroid/graphics/BitmapFactory$Options;)Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _createFromResourceStream$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.graphics.drawable.Drawable createFromResourceStream(android.content.res.Resources resources, android.util.TypedValue typedValue, java.io.InputStream inputStream, java.lang.String string, android.graphics.BitmapFactory$Options options)`
+  /// The returned object must be released after use, by calling the [release] method.
+  @core$_.Deprecated('This Java method is deprecated.')
+  static Drawable? createFromResourceStream$1(
+    resources$_.Resources? resources,
+    typedvalue$_.TypedValue? typedValue,
+    inputstream$_.InputStream? inputStream,
+    jni$_.JString? string,
+    bitmapfactory$_.BitmapFactory$$Options? options,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$resources = resources?.reference ?? jni$_.jNullReference;
+    final _$typedValue = typedValue?.reference ?? jni$_.jNullReference;
+    final _$inputStream = inputStream?.reference ?? jni$_.jNullReference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    final _$options = options?.reference ?? jni$_.jNullReference;
+    return _createFromResourceStream$1(
+      _$$classRef.pointer,
+      _id_createFromResourceStream$1.pointer,
+      _$resources.pointer,
+      _$typedValue.pointer,
+      _$inputStream.pointer,
+      _$string.pointer,
+      _$options.pointer,
+    ).object<Drawable?>();
+  }
+
+  static final _id_createFromXml = _class.staticMethodId(
+    r'createFromXml',
+    r'(Landroid/content/res/Resources;Lorg/xmlpull/v1/XmlPullParser;)Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _createFromXml =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.graphics.drawable.Drawable createFromXml(android.content.res.Resources resources, org.xmlpull.v1.XmlPullParser xmlPullParser)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Drawable? createFromXml(
+    resources$_.Resources? resources,
+    xmlpullparser$_.XmlPullParser? xmlPullParser,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$resources = resources?.reference ?? jni$_.jNullReference;
+    final _$xmlPullParser = xmlPullParser?.reference ?? jni$_.jNullReference;
+    return _createFromXml(
+      _$$classRef.pointer,
+      _id_createFromXml.pointer,
+      _$resources.pointer,
+      _$xmlPullParser.pointer,
+    ).object<Drawable?>();
+  }
+
+  static final _id_createFromXml$1 = _class.staticMethodId(
+    r'createFromXml',
+    r'(Landroid/content/res/Resources;Lorg/xmlpull/v1/XmlPullParser;Landroid/content/res/Resources$Theme;)Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _createFromXml$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.graphics.drawable.Drawable createFromXml(android.content.res.Resources resources, org.xmlpull.v1.XmlPullParser xmlPullParser, android.content.res.Resources$Theme theme)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Drawable? createFromXml$1(
+    resources$_.Resources? resources,
+    xmlpullparser$_.XmlPullParser? xmlPullParser,
+    resources$_.Resources$Theme? theme,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$resources = resources?.reference ?? jni$_.jNullReference;
+    final _$xmlPullParser = xmlPullParser?.reference ?? jni$_.jNullReference;
+    final _$theme = theme?.reference ?? jni$_.jNullReference;
+    return _createFromXml$1(
+      _$$classRef.pointer,
+      _id_createFromXml$1.pointer,
+      _$resources.pointer,
+      _$xmlPullParser.pointer,
+      _$theme.pointer,
+    ).object<Drawable?>();
+  }
+
+  static final _id_createFromXmlInner = _class.staticMethodId(
+    r'createFromXmlInner',
+    r'(Landroid/content/res/Resources;Lorg/xmlpull/v1/XmlPullParser;Landroid/util/AttributeSet;)Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _createFromXmlInner =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.graphics.drawable.Drawable createFromXmlInner(android.content.res.Resources resources, org.xmlpull.v1.XmlPullParser xmlPullParser, android.util.AttributeSet attributeSet)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Drawable? createFromXmlInner(
+    resources$_.Resources? resources,
+    xmlpullparser$_.XmlPullParser? xmlPullParser,
+    attributeset$_.AttributeSet? attributeSet,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$resources = resources?.reference ?? jni$_.jNullReference;
+    final _$xmlPullParser = xmlPullParser?.reference ?? jni$_.jNullReference;
+    final _$attributeSet = attributeSet?.reference ?? jni$_.jNullReference;
+    return _createFromXmlInner(
+      _$$classRef.pointer,
+      _id_createFromXmlInner.pointer,
+      _$resources.pointer,
+      _$xmlPullParser.pointer,
+      _$attributeSet.pointer,
+    ).object<Drawable?>();
+  }
+
+  static final _id_createFromXmlInner$1 = _class.staticMethodId(
+    r'createFromXmlInner',
+    r'(Landroid/content/res/Resources;Lorg/xmlpull/v1/XmlPullParser;Landroid/util/AttributeSet;Landroid/content/res/Resources$Theme;)Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _createFromXmlInner$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.graphics.drawable.Drawable createFromXmlInner(android.content.res.Resources resources, org.xmlpull.v1.XmlPullParser xmlPullParser, android.util.AttributeSet attributeSet, android.content.res.Resources$Theme theme)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Drawable? createFromXmlInner$1(
+    resources$_.Resources? resources,
+    xmlpullparser$_.XmlPullParser? xmlPullParser,
+    attributeset$_.AttributeSet? attributeSet,
+    resources$_.Resources$Theme? theme,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$resources = resources?.reference ?? jni$_.jNullReference;
+    final _$xmlPullParser = xmlPullParser?.reference ?? jni$_.jNullReference;
+    final _$attributeSet = attributeSet?.reference ?? jni$_.jNullReference;
+    final _$theme = theme?.reference ?? jni$_.jNullReference;
+    return _createFromXmlInner$1(
+      _$$classRef.pointer,
+      _id_createFromXmlInner$1.pointer,
+      _$resources.pointer,
+      _$xmlPullParser.pointer,
+      _$attributeSet.pointer,
+      _$theme.pointer,
+    ).object<Drawable?>();
+  }
+
+  static final _id_createFromPath = _class.staticMethodId(
+    r'createFromPath',
+    r'(Ljava/lang/String;)Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _createFromPath =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.graphics.drawable.Drawable createFromPath(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static Drawable? createFromPath(jni$_.JString? string) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _createFromPath(
+      _$$classRef.pointer,
+      _id_createFromPath.pointer,
+      _$string.pointer,
+    ).object<Drawable?>();
+  }
+}
+
+extension Drawable$$Methods on Drawable {
+  static final _id_draw = Drawable._class.instanceMethodId(
+    r'draw',
+    r'(Landroid/graphics/Canvas;)V',
+  );
+
+  static final _draw =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public abstract void draw(android.graphics.Canvas canvas)`
+  void draw(canvas$_.Canvas? canvas) {
+    final _$$selfRef = reference;
+    final _$canvas = canvas?.reference ?? jni$_.jNullReference;
+    _draw(_$$selfRef.pointer, _id_draw.pointer, _$canvas.pointer).check();
+  }
+
+  static final _id_setBounds = Drawable._class.instanceMethodId(
+    r'setBounds',
+    r'(IIII)V',
+  );
+
+  static final _setBounds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Int32, jni$_.Int32, jni$_.Int32, jni$_.Int32)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void setBounds(int i, int i1, int i2, int i3)`
+  void setBounds(core$_.int i, core$_.int i1, core$_.int i2, core$_.int i3) {
+    final _$$selfRef = reference;
+    _setBounds(
+      _$$selfRef.pointer,
+      _id_setBounds.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+    ).check();
+  }
+
+  static final _id_set$bounds = Drawable._class.instanceMethodId(
+    r'setBounds',
+    r'(Landroid/graphics/Rect;)V',
+  );
+
+  static final _set$bounds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void setBounds(android.graphics.Rect rect)`
+  set bounds(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    _set$bounds(
+      _$$selfRef.pointer,
+      _id_set$bounds.pointer,
+      _$rect.pointer,
+    ).check();
+  }
+
+  static final _id_copyBounds = Drawable._class.instanceMethodId(
+    r'copyBounds',
+    r'(Landroid/graphics/Rect;)V',
+  );
+
+  static final _copyBounds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public final void copyBounds(android.graphics.Rect rect)`
+  void copyBounds(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    _copyBounds(
+      _$$selfRef.pointer,
+      _id_copyBounds.pointer,
+      _$rect.pointer,
+    ).check();
+  }
+
+  static final _id_copyBounds$1 = Drawable._class.instanceMethodId(
+    r'copyBounds',
+    r'()Landroid/graphics/Rect;',
+  );
+
+  static final _copyBounds$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final android.graphics.Rect copyBounds()`
+  /// The returned object must be released after use, by calling the [release] method.
+  rect$_.Rect? copyBounds$1() {
+    final _$$selfRef = reference;
+    return _copyBounds$1(
+      _$$selfRef.pointer,
+      _id_copyBounds$1.pointer,
+    ).object<rect$_.Rect?>();
+  }
+
+  static final _id_get$bounds = Drawable._class.instanceMethodId(
+    r'getBounds',
+    r'()Landroid/graphics/Rect;',
+  );
+
+  static final _get$bounds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final android.graphics.Rect getBounds()`
+  /// The returned object must be released after use, by calling the [release] method.
+  rect$_.Rect? get bounds {
+    final _$$selfRef = reference;
+    return _get$bounds(
+      _$$selfRef.pointer,
+      _id_get$bounds.pointer,
+    ).object<rect$_.Rect?>();
+  }
+
+  static final _id_get$dirtyBounds = Drawable._class.instanceMethodId(
+    r'getDirtyBounds',
+    r'()Landroid/graphics/Rect;',
+  );
+
+  static final _get$dirtyBounds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.graphics.Rect getDirtyBounds()`
+  /// The returned object must be released after use, by calling the [release] method.
+  rect$_.Rect? get dirtyBounds {
+    final _$$selfRef = reference;
+    return _get$dirtyBounds(
+      _$$selfRef.pointer,
+      _id_get$dirtyBounds.pointer,
+    ).object<rect$_.Rect?>();
+  }
+
+  static final _id_set$changingConfigurations = Drawable._class
+      .instanceMethodId(r'setChangingConfigurations', r'(I)V');
+
+  static final _set$changingConfigurations =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void setChangingConfigurations(int i)`
+  set changingConfigurations(core$_.int i) {
+    final _$$selfRef = reference;
+    _set$changingConfigurations(
+      _$$selfRef.pointer,
+      _id_set$changingConfigurations.pointer,
+      i,
+    ).check();
+  }
+
+  static final _id_get$changingConfigurations = Drawable._class
+      .instanceMethodId(r'getChangingConfigurations', r'()I');
+
+  static final _get$changingConfigurations =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getChangingConfigurations()`
+  core$_.int get changingConfigurations {
+    final _$$selfRef = reference;
+    return _get$changingConfigurations(
+      _$$selfRef.pointer,
+      _id_get$changingConfigurations.pointer,
+    ).integer;
+  }
+
+  static final _id_set$dither = Drawable._class.instanceMethodId(
+    r'setDither',
+    r'(Z)V',
+  );
+
+  static final _set$dither =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void setDither(boolean z)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  set dither(core$_.bool z) {
+    final _$$selfRef = reference;
+    _set$dither(_$$selfRef.pointer, _id_set$dither.pointer, z ? 1 : 0).check();
+  }
+
+  static final _id_set$filterBitmap = Drawable._class.instanceMethodId(
+    r'setFilterBitmap',
+    r'(Z)V',
+  );
+
+  static final _set$filterBitmap =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void setFilterBitmap(boolean z)`
+  set filterBitmap(core$_.bool z) {
+    final _$$selfRef = reference;
+    _set$filterBitmap(
+      _$$selfRef.pointer,
+      _id_set$filterBitmap.pointer,
+      z ? 1 : 0,
+    ).check();
+  }
+
+  static final _id_get$isFilterBitmap = Drawable._class.instanceMethodId(
+    r'isFilterBitmap',
+    r'()Z',
+  );
+
+  static final _get$isFilterBitmap =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isFilterBitmap()`
+  core$_.bool get isFilterBitmap {
+    final _$$selfRef = reference;
+    return _get$isFilterBitmap(
+      _$$selfRef.pointer,
+      _id_get$isFilterBitmap.pointer,
+    ).boolean;
+  }
+
+  static final _id_set$callback = Drawable._class.instanceMethodId(
+    r'setCallback',
+    r'(Landroid/graphics/drawable/Drawable$Callback;)V',
+  );
+
+  static final _set$callback =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public final void setCallback(android.graphics.drawable.Drawable$Callback callback)`
+  set callback(Drawable$Callback? callback) {
+    final _$$selfRef = reference;
+    final _$callback = callback?.reference ?? jni$_.jNullReference;
+    _set$callback(
+      _$$selfRef.pointer,
+      _id_set$callback.pointer,
+      _$callback.pointer,
+    ).check();
+  }
+
+  static final _id_get$callback = Drawable._class.instanceMethodId(
+    r'getCallback',
+    r'()Landroid/graphics/drawable/Drawable$Callback;',
+  );
+
+  static final _get$callback =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.graphics.drawable.Drawable$Callback getCallback()`
+  /// The returned object must be released after use, by calling the [release] method.
+  Drawable$Callback? get callback {
+    final _$$selfRef = reference;
+    return _get$callback(
+      _$$selfRef.pointer,
+      _id_get$callback.pointer,
+    ).object<Drawable$Callback?>();
+  }
+
+  static final _id_invalidateSelf = Drawable._class.instanceMethodId(
+    r'invalidateSelf',
+    r'()V',
+  );
+
+  static final _invalidateSelf =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void invalidateSelf()`
+  void invalidateSelf() {
+    final _$$selfRef = reference;
+    _invalidateSelf(_$$selfRef.pointer, _id_invalidateSelf.pointer).check();
+  }
+
+  static final _id_scheduleSelf = Drawable._class.instanceMethodId(
+    r'scheduleSelf',
+    r'(Ljava/lang/Runnable;J)V',
+  );
+
+  static final _scheduleSelf =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Int64)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void scheduleSelf(java.lang.Runnable runnable, long j)`
+  void scheduleSelf(runnable$_.Runnable? runnable, core$_.int j) {
+    final _$$selfRef = reference;
+    final _$runnable = runnable?.reference ?? jni$_.jNullReference;
+    _scheduleSelf(
+      _$$selfRef.pointer,
+      _id_scheduleSelf.pointer,
+      _$runnable.pointer,
+      j,
+    ).check();
+  }
+
+  static final _id_unscheduleSelf = Drawable._class.instanceMethodId(
+    r'unscheduleSelf',
+    r'(Ljava/lang/Runnable;)V',
+  );
+
+  static final _unscheduleSelf =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void unscheduleSelf(java.lang.Runnable runnable)`
+  void unscheduleSelf(runnable$_.Runnable? runnable) {
+    final _$$selfRef = reference;
+    final _$runnable = runnable?.reference ?? jni$_.jNullReference;
+    _unscheduleSelf(
+      _$$selfRef.pointer,
+      _id_unscheduleSelf.pointer,
+      _$runnable.pointer,
+    ).check();
+  }
+
+  static final _id_get$layoutDirection = Drawable._class.instanceMethodId(
+    r'getLayoutDirection',
+    r'()I',
+  );
+
+  static final _get$layoutDirection =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getLayoutDirection()`
+  core$_.int get layoutDirection {
+    final _$$selfRef = reference;
+    return _get$layoutDirection(
+      _$$selfRef.pointer,
+      _id_get$layoutDirection.pointer,
+    ).integer;
+  }
+
+  static final _id_setLayoutDirection = Drawable._class.instanceMethodId(
+    r'setLayoutDirection',
+    r'(I)Z',
+  );
+
+  static final _setLayoutDirection =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public final boolean setLayoutDirection(int i)`
+  core$_.bool setLayoutDirection(core$_.int i) {
+    final _$$selfRef = reference;
+    return _setLayoutDirection(
+      _$$selfRef.pointer,
+      _id_setLayoutDirection.pointer,
+      i,
+    ).boolean;
+  }
+
+  static final _id_onLayoutDirectionChanged = Drawable._class.instanceMethodId(
+    r'onLayoutDirectionChanged',
+    r'(I)Z',
+  );
+
+  static final _onLayoutDirectionChanged =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public boolean onLayoutDirectionChanged(int i)`
+  core$_.bool onLayoutDirectionChanged(core$_.int i) {
+    final _$$selfRef = reference;
+    return _onLayoutDirectionChanged(
+      _$$selfRef.pointer,
+      _id_onLayoutDirectionChanged.pointer,
+      i,
+    ).boolean;
+  }
+
+  static final _id_set$alpha = Drawable._class.instanceMethodId(
+    r'setAlpha',
+    r'(I)V',
+  );
+
+  static final _set$alpha =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public abstract void setAlpha(int i)`
+  set alpha(core$_.int i) {
+    final _$$selfRef = reference;
+    _set$alpha(_$$selfRef.pointer, _id_set$alpha.pointer, i).check();
+  }
+
+  static final _id_get$alpha = Drawable._class.instanceMethodId(
+    r'getAlpha',
+    r'()I',
+  );
+
+  static final _get$alpha =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getAlpha()`
+  core$_.int get alpha {
+    final _$$selfRef = reference;
+    return _get$alpha(_$$selfRef.pointer, _id_get$alpha.pointer).integer;
+  }
+
+  static final _id_set$colorFilter = Drawable._class.instanceMethodId(
+    r'setColorFilter',
+    r'(Landroid/graphics/ColorFilter;)V',
+  );
+
+  static final _set$colorFilter =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public abstract void setColorFilter(android.graphics.ColorFilter colorFilter)`
+  set colorFilter(colorfilter$_.ColorFilter? colorFilter) {
+    final _$$selfRef = reference;
+    final _$colorFilter = colorFilter?.reference ?? jni$_.jNullReference;
+    _set$colorFilter(
+      _$$selfRef.pointer,
+      _id_set$colorFilter.pointer,
+      _$colorFilter.pointer,
+    ).check();
+  }
+
+  static final _id_setColorFilter = Drawable._class.instanceMethodId(
+    r'setColorFilter',
+    r'(ILandroid/graphics/PorterDuff$Mode;)V',
+  );
+
+  static final _setColorFilter =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void setColorFilter(int i, android.graphics.PorterDuff$Mode mode)`
+  @core$_.Deprecated('This Java method is deprecated.')
+  void setColorFilter(core$_.int i, porterduff$_.PorterDuff$$Mode? mode) {
+    final _$$selfRef = reference;
+    final _$mode = mode?.reference ?? jni$_.jNullReference;
+    _setColorFilter(
+      _$$selfRef.pointer,
+      _id_setColorFilter.pointer,
+      i,
+      _$mode.pointer,
+    ).check();
+  }
+
+  static final _id_set$tint = Drawable._class.instanceMethodId(
+    r'setTint',
+    r'(I)V',
+  );
+
+  static final _set$tint =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void setTint(int i)`
+  set tint(core$_.int i) {
+    final _$$selfRef = reference;
+    _set$tint(_$$selfRef.pointer, _id_set$tint.pointer, i).check();
+  }
+
+  static final _id_set$tintList = Drawable._class.instanceMethodId(
+    r'setTintList',
+    r'(Landroid/content/res/ColorStateList;)V',
+  );
+
+  static final _set$tintList =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void setTintList(android.content.res.ColorStateList colorStateList)`
+  set tintList(colorstatelist$_.ColorStateList? colorStateList) {
+    final _$$selfRef = reference;
+    final _$colorStateList = colorStateList?.reference ?? jni$_.jNullReference;
+    _set$tintList(
+      _$$selfRef.pointer,
+      _id_set$tintList.pointer,
+      _$colorStateList.pointer,
+    ).check();
+  }
+
+  static final _id_set$tintMode = Drawable._class.instanceMethodId(
+    r'setTintMode',
+    r'(Landroid/graphics/PorterDuff$Mode;)V',
+  );
+
+  static final _set$tintMode =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void setTintMode(android.graphics.PorterDuff$Mode mode)`
+  set tintMode(porterduff$_.PorterDuff$$Mode? mode) {
+    final _$$selfRef = reference;
+    final _$mode = mode?.reference ?? jni$_.jNullReference;
+    _set$tintMode(
+      _$$selfRef.pointer,
+      _id_set$tintMode.pointer,
+      _$mode.pointer,
+    ).check();
+  }
+
+  static final _id_set$tintBlendMode = Drawable._class.instanceMethodId(
+    r'setTintBlendMode',
+    r'(Landroid/graphics/BlendMode;)V',
+  );
+
+  static final _set$tintBlendMode =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void setTintBlendMode(android.graphics.BlendMode blendMode)`
+  set tintBlendMode(blendmode$_.BlendMode? blendMode) {
+    final _$$selfRef = reference;
+    final _$blendMode = blendMode?.reference ?? jni$_.jNullReference;
+    _set$tintBlendMode(
+      _$$selfRef.pointer,
+      _id_set$tintBlendMode.pointer,
+      _$blendMode.pointer,
+    ).check();
+  }
+
+  static final _id_get$colorFilter = Drawable._class.instanceMethodId(
+    r'getColorFilter',
+    r'()Landroid/graphics/ColorFilter;',
+  );
+
+  static final _get$colorFilter =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.graphics.ColorFilter getColorFilter()`
+  /// The returned object must be released after use, by calling the [release] method.
+  colorfilter$_.ColorFilter? get colorFilter {
+    final _$$selfRef = reference;
+    return _get$colorFilter(
+      _$$selfRef.pointer,
+      _id_get$colorFilter.pointer,
+    ).object<colorfilter$_.ColorFilter?>();
+  }
+
+  static final _id_clearColorFilter = Drawable._class.instanceMethodId(
+    r'clearColorFilter',
+    r'()V',
+  );
+
+  static final _clearColorFilter =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void clearColorFilter()`
+  void clearColorFilter() {
+    final _$$selfRef = reference;
+    _clearColorFilter(_$$selfRef.pointer, _id_clearColorFilter.pointer).check();
+  }
+
+  static final _id_setHotspot = Drawable._class.instanceMethodId(
+    r'setHotspot',
+    r'(FF)V',
+  );
+
+  static final _setHotspot =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Double, jni$_.Double)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.double,
+              core$_.double,
+            )
+          >();
+
+  /// from: `public void setHotspot(float f, float f1)`
+  void setHotspot(core$_.double f, core$_.double f1) {
+    final _$$selfRef = reference;
+    _setHotspot(_$$selfRef.pointer, _id_setHotspot.pointer, f, f1).check();
+  }
+
+  static final _id_setHotspotBounds = Drawable._class.instanceMethodId(
+    r'setHotspotBounds',
+    r'(IIII)V',
+  );
+
+  static final _setHotspotBounds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Int32, jni$_.Int32, jni$_.Int32, jni$_.Int32)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void setHotspotBounds(int i, int i1, int i2, int i3)`
+  void setHotspotBounds(
+    core$_.int i,
+    core$_.int i1,
+    core$_.int i2,
+    core$_.int i3,
+  ) {
+    final _$$selfRef = reference;
+    _setHotspotBounds(
+      _$$selfRef.pointer,
+      _id_setHotspotBounds.pointer,
+      i,
+      i1,
+      i2,
+      i3,
+    ).check();
+  }
+
+  static final _id_getHotspotBounds = Drawable._class.instanceMethodId(
+    r'getHotspotBounds',
+    r'(Landroid/graphics/Rect;)V',
+  );
+
+  static final _getHotspotBounds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void getHotspotBounds(android.graphics.Rect rect)`
+  void getHotspotBounds(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    _getHotspotBounds(
+      _$$selfRef.pointer,
+      _id_getHotspotBounds.pointer,
+      _$rect.pointer,
+    ).check();
+  }
+
+  static final _id_get$isProjected = Drawable._class.instanceMethodId(
+    r'isProjected',
+    r'()Z',
+  );
+
+  static final _get$isProjected =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isProjected()`
+  core$_.bool get isProjected {
+    final _$$selfRef = reference;
+    return _get$isProjected(
+      _$$selfRef.pointer,
+      _id_get$isProjected.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$isStateful = Drawable._class.instanceMethodId(
+    r'isStateful',
+    r'()Z',
+  );
+
+  static final _get$isStateful =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isStateful()`
+  core$_.bool get isStateful {
+    final _$$selfRef = reference;
+    return _get$isStateful(
+      _$$selfRef.pointer,
+      _id_get$isStateful.pointer,
+    ).boolean;
+  }
+
+  static final _id_hasFocusStateSpecified = Drawable._class.instanceMethodId(
+    r'hasFocusStateSpecified',
+    r'()Z',
+  );
+
+  static final _hasFocusStateSpecified =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean hasFocusStateSpecified()`
+  core$_.bool hasFocusStateSpecified() {
+    final _$$selfRef = reference;
+    return _hasFocusStateSpecified(
+      _$$selfRef.pointer,
+      _id_hasFocusStateSpecified.pointer,
+    ).boolean;
+  }
+
+  static final _id_setState = Drawable._class.instanceMethodId(
+    r'setState',
+    r'([I)Z',
+  );
+
+  static final _setState =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean setState(int[] is)`
+  core$_.bool setState(jni$_.JIntArray? is$) {
+    final _$$selfRef = reference;
+    final _$is$ = is$?.reference ?? jni$_.jNullReference;
+    return _setState(
+      _$$selfRef.pointer,
+      _id_setState.pointer,
+      _$is$.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$state = Drawable._class.instanceMethodId(
+    r'getState',
+    r'()[I',
+  );
+
+  static final _get$state =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int[] getState()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JIntArray? get state {
+    final _$$selfRef = reference;
+    return _get$state(
+      _$$selfRef.pointer,
+      _id_get$state.pointer,
+    ).object<jni$_.JIntArray?>();
+  }
+
+  static final _id_jumpToCurrentState = Drawable._class.instanceMethodId(
+    r'jumpToCurrentState',
+    r'()V',
+  );
+
+  static final _jumpToCurrentState =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void jumpToCurrentState()`
+  void jumpToCurrentState() {
+    final _$$selfRef = reference;
+    _jumpToCurrentState(
+      _$$selfRef.pointer,
+      _id_jumpToCurrentState.pointer,
+    ).check();
+  }
+
+  static final _id_get$current = Drawable._class.instanceMethodId(
+    r'getCurrent',
+    r'()Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _get$current =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.graphics.drawable.Drawable getCurrent()`
+  /// The returned object must be released after use, by calling the [release] method.
+  Drawable? get current {
+    final _$$selfRef = reference;
+    return _get$current(
+      _$$selfRef.pointer,
+      _id_get$current.pointer,
+    ).object<Drawable?>();
+  }
+
+  static final _id_setLevel = Drawable._class.instanceMethodId(
+    r'setLevel',
+    r'(I)Z',
+  );
+
+  static final _setLevel =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public final boolean setLevel(int i)`
+  core$_.bool setLevel(core$_.int i) {
+    final _$$selfRef = reference;
+    return _setLevel(_$$selfRef.pointer, _id_setLevel.pointer, i).boolean;
+  }
+
+  static final _id_get$level = Drawable._class.instanceMethodId(
+    r'getLevel',
+    r'()I',
+  );
+
+  static final _get$level =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final int getLevel()`
+  core$_.int get level {
+    final _$$selfRef = reference;
+    return _get$level(_$$selfRef.pointer, _id_get$level.pointer).integer;
+  }
+
+  static final _id_setVisible = Drawable._class.instanceMethodId(
+    r'setVisible',
+    r'(ZZ)Z',
+  );
+
+  static final _setVisible =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public boolean setVisible(boolean z, boolean z1)`
+  core$_.bool setVisible(core$_.bool z, core$_.bool z1) {
+    final _$$selfRef = reference;
+    return _setVisible(
+      _$$selfRef.pointer,
+      _id_setVisible.pointer,
+      z ? 1 : 0,
+      z1 ? 1 : 0,
+    ).boolean;
+  }
+
+  static final _id_get$isVisible = Drawable._class.instanceMethodId(
+    r'isVisible',
+    r'()Z',
+  );
+
+  static final _get$isVisible =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final boolean isVisible()`
+  core$_.bool get isVisible {
+    final _$$selfRef = reference;
+    return _get$isVisible(
+      _$$selfRef.pointer,
+      _id_get$isVisible.pointer,
+    ).boolean;
+  }
+
+  static final _id_set$autoMirrored = Drawable._class.instanceMethodId(
+    r'setAutoMirrored',
+    r'(Z)V',
+  );
+
+  static final _set$autoMirrored =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void setAutoMirrored(boolean z)`
+  set autoMirrored(core$_.bool z) {
+    final _$$selfRef = reference;
+    _set$autoMirrored(
+      _$$selfRef.pointer,
+      _id_set$autoMirrored.pointer,
+      z ? 1 : 0,
+    ).check();
+  }
+
+  static final _id_get$isAutoMirrored = Drawable._class.instanceMethodId(
+    r'isAutoMirrored',
+    r'()Z',
+  );
+
+  static final _get$isAutoMirrored =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isAutoMirrored()`
+  core$_.bool get isAutoMirrored {
+    final _$$selfRef = reference;
+    return _get$isAutoMirrored(
+      _$$selfRef.pointer,
+      _id_get$isAutoMirrored.pointer,
+    ).boolean;
+  }
+
+  static final _id_applyTheme = Drawable._class.instanceMethodId(
+    r'applyTheme',
+    r'(Landroid/content/res/Resources$Theme;)V',
+  );
+
+  static final _applyTheme =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void applyTheme(android.content.res.Resources$Theme theme)`
+  void applyTheme(resources$_.Resources$Theme? theme) {
+    final _$$selfRef = reference;
+    final _$theme = theme?.reference ?? jni$_.jNullReference;
+    _applyTheme(
+      _$$selfRef.pointer,
+      _id_applyTheme.pointer,
+      _$theme.pointer,
+    ).check();
+  }
+
+  static final _id_canApplyTheme = Drawable._class.instanceMethodId(
+    r'canApplyTheme',
+    r'()Z',
+  );
+
+  static final _canApplyTheme =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean canApplyTheme()`
+  core$_.bool canApplyTheme() {
+    final _$$selfRef = reference;
+    return _canApplyTheme(
+      _$$selfRef.pointer,
+      _id_canApplyTheme.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$opacity = Drawable._class.instanceMethodId(
+    r'getOpacity',
+    r'()I',
+  );
+
+  static final _get$opacity =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public abstract int getOpacity()`
+  @core$_.Deprecated('This Java method is deprecated.')
+  core$_.int get opacity {
+    final _$$selfRef = reference;
+    return _get$opacity(_$$selfRef.pointer, _id_get$opacity.pointer).integer;
+  }
+
+  static final _id_get$transparentRegion = Drawable._class.instanceMethodId(
+    r'getTransparentRegion',
+    r'()Landroid/graphics/Region;',
+  );
+
+  static final _get$transparentRegion =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.graphics.Region getTransparentRegion()`
+  /// The returned object must be released after use, by calling the [release] method.
+  region$_.Region? get transparentRegion {
+    final _$$selfRef = reference;
+    return _get$transparentRegion(
+      _$$selfRef.pointer,
+      _id_get$transparentRegion.pointer,
+    ).object<region$_.Region?>();
+  }
+
+  static final _id_get$intrinsicWidth = Drawable._class.instanceMethodId(
+    r'getIntrinsicWidth',
+    r'()I',
+  );
+
+  static final _get$intrinsicWidth =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getIntrinsicWidth()`
+  core$_.int get intrinsicWidth {
+    final _$$selfRef = reference;
+    return _get$intrinsicWidth(
+      _$$selfRef.pointer,
+      _id_get$intrinsicWidth.pointer,
+    ).integer;
+  }
+
+  static final _id_get$intrinsicHeight = Drawable._class.instanceMethodId(
+    r'getIntrinsicHeight',
+    r'()I',
+  );
+
+  static final _get$intrinsicHeight =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getIntrinsicHeight()`
+  core$_.int get intrinsicHeight {
+    final _$$selfRef = reference;
+    return _get$intrinsicHeight(
+      _$$selfRef.pointer,
+      _id_get$intrinsicHeight.pointer,
+    ).integer;
+  }
+
+  static final _id_get$minimumWidth = Drawable._class.instanceMethodId(
+    r'getMinimumWidth',
+    r'()I',
+  );
+
+  static final _get$minimumWidth =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getMinimumWidth()`
+  core$_.int get minimumWidth {
+    final _$$selfRef = reference;
+    return _get$minimumWidth(
+      _$$selfRef.pointer,
+      _id_get$minimumWidth.pointer,
+    ).integer;
+  }
+
+  static final _id_get$minimumHeight = Drawable._class.instanceMethodId(
+    r'getMinimumHeight',
+    r'()I',
+  );
+
+  static final _get$minimumHeight =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getMinimumHeight()`
+  core$_.int get minimumHeight {
+    final _$$selfRef = reference;
+    return _get$minimumHeight(
+      _$$selfRef.pointer,
+      _id_get$minimumHeight.pointer,
+    ).integer;
+  }
+
+  static final _id_getPadding = Drawable._class.instanceMethodId(
+    r'getPadding',
+    r'(Landroid/graphics/Rect;)Z',
+  );
+
+  static final _getPadding =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean getPadding(android.graphics.Rect rect)`
+  core$_.bool getPadding(rect$_.Rect? rect) {
+    final _$$selfRef = reference;
+    final _$rect = rect?.reference ?? jni$_.jNullReference;
+    return _getPadding(
+      _$$selfRef.pointer,
+      _id_getPadding.pointer,
+      _$rect.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$opticalInsets = Drawable._class.instanceMethodId(
+    r'getOpticalInsets',
+    r'()Landroid/graphics/Insets;',
+  );
+
+  static final _get$opticalInsets =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.graphics.Insets getOpticalInsets()`
+  /// The returned object must be released after use, by calling the [release] method.
+  insets$_.Insets? get opticalInsets {
+    final _$$selfRef = reference;
+    return _get$opticalInsets(
+      _$$selfRef.pointer,
+      _id_get$opticalInsets.pointer,
+    ).object<insets$_.Insets?>();
+  }
+
+  static final _id_getOutline = Drawable._class.instanceMethodId(
+    r'getOutline',
+    r'(Landroid/graphics/Outline;)V',
+  );
+
+  static final _getOutline =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void getOutline(android.graphics.Outline outline)`
+  void getOutline(outline$_.Outline? outline) {
+    final _$$selfRef = reference;
+    final _$outline = outline?.reference ?? jni$_.jNullReference;
+    _getOutline(
+      _$$selfRef.pointer,
+      _id_getOutline.pointer,
+      _$outline.pointer,
+    ).check();
+  }
+
+  static final _id_mutate = Drawable._class.instanceMethodId(
+    r'mutate',
+    r'()Landroid/graphics/drawable/Drawable;',
+  );
+
+  static final _mutate =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.graphics.drawable.Drawable mutate()`
+  /// The returned object must be released after use, by calling the [release] method.
+  Drawable? mutate() {
+    final _$$selfRef = reference;
+    return _mutate(_$$selfRef.pointer, _id_mutate.pointer).object<Drawable?>();
+  }
+
+  static final _id_inflate = Drawable._class.instanceMethodId(
+    r'inflate',
+    r'(Landroid/content/res/Resources;Lorg/xmlpull/v1/XmlPullParser;Landroid/util/AttributeSet;)V',
+  );
+
+  static final _inflate =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void inflate(android.content.res.Resources resources, org.xmlpull.v1.XmlPullParser xmlPullParser, android.util.AttributeSet attributeSet)`
+  void inflate(
+    resources$_.Resources? resources,
+    xmlpullparser$_.XmlPullParser? xmlPullParser,
+    attributeset$_.AttributeSet? attributeSet,
+  ) {
+    final _$$selfRef = reference;
+    final _$resources = resources?.reference ?? jni$_.jNullReference;
+    final _$xmlPullParser = xmlPullParser?.reference ?? jni$_.jNullReference;
+    final _$attributeSet = attributeSet?.reference ?? jni$_.jNullReference;
+    _inflate(
+      _$$selfRef.pointer,
+      _id_inflate.pointer,
+      _$resources.pointer,
+      _$xmlPullParser.pointer,
+      _$attributeSet.pointer,
+    ).check();
+  }
+
+  static final _id_inflate$1 = Drawable._class.instanceMethodId(
+    r'inflate',
+    r'(Landroid/content/res/Resources;Lorg/xmlpull/v1/XmlPullParser;Landroid/util/AttributeSet;Landroid/content/res/Resources$Theme;)V',
+  );
+
+  static final _inflate$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void inflate(android.content.res.Resources resources, org.xmlpull.v1.XmlPullParser xmlPullParser, android.util.AttributeSet attributeSet, android.content.res.Resources$Theme theme)`
+  void inflate$1(
+    resources$_.Resources? resources,
+    xmlpullparser$_.XmlPullParser? xmlPullParser,
+    attributeset$_.AttributeSet? attributeSet,
+    resources$_.Resources$Theme? theme,
+  ) {
+    final _$$selfRef = reference;
+    final _$resources = resources?.reference ?? jni$_.jNullReference;
+    final _$xmlPullParser = xmlPullParser?.reference ?? jni$_.jNullReference;
+    final _$attributeSet = attributeSet?.reference ?? jni$_.jNullReference;
+    final _$theme = theme?.reference ?? jni$_.jNullReference;
+    _inflate$1(
+      _$$selfRef.pointer,
+      _id_inflate$1.pointer,
+      _$resources.pointer,
+      _$xmlPullParser.pointer,
+      _$attributeSet.pointer,
+      _$theme.pointer,
+    ).check();
+  }
+
+  static final _id_get$constantState = Drawable._class.instanceMethodId(
+    r'getConstantState',
+    r'()Landroid/graphics/drawable/Drawable$ConstantState;',
+  );
+
+  static final _get$constantState =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.graphics.drawable.Drawable$ConstantState getConstantState()`
+  /// The returned object must be released after use, by calling the [release] method.
+  Drawable$ConstantState? get constantState {
+    final _$$selfRef = reference;
+    return _get$constantState(
+      _$$selfRef.pointer,
+      _id_get$constantState.pointer,
+    ).object<Drawable$ConstantState?>();
+  }
 }
 
 final class $Drawable$Type$ extends jni$_.JType<Drawable> {
@@ -52,24 +2996,4 @@ final class $Drawable$Type$ extends jni$_.JType<Drawable> {
   @jni$_.internal
   @core$_.override
   String get signature => r'Landroid/graphics/drawable/Drawable;';
-}
-
-/// from: `android.graphics.drawable.Drawable$Callback`
-///
-/// WARNING: Drawable$$Callback is a stub. To generate bindings for this class, include
-/// android.graphics.drawable.Drawable$Callback in your config's classes list.
-///
-extension type Drawable$$Callback._(jni$_.JObject _$this)
-    implements jni$_.JObject {
-  static const jni$_.JType<Drawable$$Callback> type =
-      $Drawable$$Callback$Type$();
-}
-
-final class $Drawable$$Callback$Type$ extends jni$_.JType<Drawable$$Callback> {
-  @jni$_.internal
-  const $Drawable$$Callback$Type$();
-
-  @jni$_.internal
-  @core$_.override
-  String get signature => r'Landroid/graphics/drawable/Drawable$Callback;';
 }

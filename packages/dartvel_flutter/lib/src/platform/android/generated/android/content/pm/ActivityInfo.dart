@@ -36,13 +36,865 @@ import 'dart:core' show Object, String;
 import 'package:jni/_internal.dart' as jni$_;
 import 'package:jni/jni.dart' as jni$_;
 
+import '../../os/Parcel.dart' as parcel$_;
+
+import '../../os/Parcelable.dart' as parcelable$_;
+
+import '../../util/Printer.dart' as printer$_;
+
+import 'ComponentInfo.dart' as componentinfo$_;
+
+/// from: `android.content.pm.ActivityInfo$WindowLayout`
+extension type ActivityInfo$WindowLayout._(jni$_.JObject _$this)
+    implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(
+    r'android/content/pm/ActivityInfo$WindowLayout',
+  );
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<ActivityInfo$WindowLayout> type =
+      $ActivityInfo$WindowLayout$Type$();
+  static final _id_new$ = _class.constructorId(r'(IFIFIII)V');
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Int32,
+                    jni$_.Double,
+                    jni$_.Int32,
+                    jni$_.Double,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                    jni$_.Int32,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.double,
+              core$_.int,
+              core$_.double,
+              core$_.int,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void <init>(int i, float f, int i1, float f1, int i2, int i3, int i4)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory ActivityInfo$WindowLayout(
+    core$_.int i,
+    core$_.double f,
+    core$_.int i1,
+    core$_.double f1,
+    core$_.int i2,
+    core$_.int i3,
+    core$_.int i4,
+  ) {
+    final _$$classRef = _class.reference;
+    return _new$(
+      _$$classRef.pointer,
+      _id_new$.pointer,
+      i,
+      f,
+      i1,
+      f1,
+      i2,
+      i3,
+      i4,
+    ).object<ActivityInfo$WindowLayout>();
+  }
+}
+
+extension ActivityInfo$WindowLayout$$Methods on ActivityInfo$WindowLayout {
+  static final _id_gravity = ActivityInfo$WindowLayout._class.instanceFieldId(
+    r'gravity',
+    r'I',
+  );
+
+  /// from: `public final int gravity`
+  core$_.int get gravity =>
+      _id_gravity.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  static final _id_height = ActivityInfo$WindowLayout._class.instanceFieldId(
+    r'height',
+    r'I',
+  );
+
+  /// from: `public final int height`
+  core$_.int get height =>
+      _id_height.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  static final _id_heightFraction = ActivityInfo$WindowLayout._class
+      .instanceFieldId(r'heightFraction', r'F');
+
+  /// from: `public final float heightFraction`
+  core$_.double get heightFraction =>
+      _id_heightFraction.getNullable(this, jni$_.jfloat.type) as core$_.double;
+
+  static final _id_minHeight = ActivityInfo$WindowLayout._class.instanceFieldId(
+    r'minHeight',
+    r'I',
+  );
+
+  /// from: `public final int minHeight`
+  core$_.int get minHeight =>
+      _id_minHeight.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  static final _id_minWidth = ActivityInfo$WindowLayout._class.instanceFieldId(
+    r'minWidth',
+    r'I',
+  );
+
+  /// from: `public final int minWidth`
+  core$_.int get minWidth =>
+      _id_minWidth.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  static final _id_width = ActivityInfo$WindowLayout._class.instanceFieldId(
+    r'width',
+    r'I',
+  );
+
+  /// from: `public final int width`
+  core$_.int get width =>
+      _id_width.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  static final _id_widthFraction = ActivityInfo$WindowLayout._class
+      .instanceFieldId(r'widthFraction', r'F');
+
+  /// from: `public final float widthFraction`
+  core$_.double get widthFraction =>
+      _id_widthFraction.getNullable(this, jni$_.jfloat.type) as core$_.double;
+}
+
+final class $ActivityInfo$WindowLayout$Type$
+    extends jni$_.JType<ActivityInfo$WindowLayout> {
+  @jni$_.internal
+  const $ActivityInfo$WindowLayout$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Landroid/content/pm/ActivityInfo$WindowLayout;';
+}
+
 /// from: `android.content.pm.ActivityInfo`
-///
-/// WARNING: ActivityInfo is a stub. To generate bindings for this class, include
-/// android.content.pm.ActivityInfo in your config's classes list.
-///
-extension type ActivityInfo._(jni$_.JObject _$this) implements jni$_.JObject {
+extension type ActivityInfo._(jni$_.JObject _$this)
+    implements componentinfo$_.ComponentInfo, parcelable$_.Parcelable {
+  static final _class = jni$_.JClass.forName(
+    r'android/content/pm/ActivityInfo',
+  );
+
+  /// The type which includes information such as the signature of this class.
   static const jni$_.JType<ActivityInfo> type = $ActivityInfo$Type$();
+
+  /// from: `static public final int COLOR_MODE_DEFAULT`
+  static const COLOR_MODE_DEFAULT = 0;
+
+  /// from: `static public final int COLOR_MODE_HDR`
+  static const COLOR_MODE_HDR = 2;
+
+  /// from: `static public final int COLOR_MODE_WIDE_COLOR_GAMUT`
+  static const COLOR_MODE_WIDE_COLOR_GAMUT = 1;
+
+  /// from: `static public final int CONFIG_COLOR_MODE`
+  static const CONFIG_COLOR_MODE = 16384;
+
+  /// from: `static public final int CONFIG_DENSITY`
+  static const CONFIG_DENSITY = 4096;
+
+  /// from: `static public final int CONFIG_FONT_SCALE`
+  static const CONFIG_FONT_SCALE = 1073741824;
+
+  /// from: `static public final int CONFIG_FONT_WEIGHT_ADJUSTMENT`
+  static const CONFIG_FONT_WEIGHT_ADJUSTMENT = 268435456;
+
+  /// from: `static public final int CONFIG_GRAMMATICAL_GENDER`
+  static const CONFIG_GRAMMATICAL_GENDER = 32768;
+
+  /// from: `static public final int CONFIG_KEYBOARD`
+  static const CONFIG_KEYBOARD = 16;
+
+  /// from: `static public final int CONFIG_KEYBOARD_HIDDEN`
+  static const CONFIG_KEYBOARD_HIDDEN = 32;
+
+  /// from: `static public final int CONFIG_LAYOUT_DIRECTION`
+  static const CONFIG_LAYOUT_DIRECTION = 8192;
+
+  /// from: `static public final int CONFIG_LOCALE`
+  static const CONFIG_LOCALE = 4;
+
+  /// from: `static public final int CONFIG_MCC`
+  static const CONFIG_MCC = 1;
+
+  /// from: `static public final int CONFIG_MNC`
+  static const CONFIG_MNC = 2;
+
+  /// from: `static public final int CONFIG_NAVIGATION`
+  static const CONFIG_NAVIGATION = 64;
+
+  /// from: `static public final int CONFIG_ORIENTATION`
+  static const CONFIG_ORIENTATION = 128;
+
+  /// from: `static public final int CONFIG_SCREEN_LAYOUT`
+  static const CONFIG_SCREEN_LAYOUT = 256;
+
+  /// from: `static public final int CONFIG_SCREEN_SIZE`
+  static const CONFIG_SCREEN_SIZE = 1024;
+
+  /// from: `static public final int CONFIG_SMALLEST_SCREEN_SIZE`
+  static const CONFIG_SMALLEST_SCREEN_SIZE = 2048;
+
+  /// from: `static public final int CONFIG_TOUCHSCREEN`
+  static const CONFIG_TOUCHSCREEN = 8;
+
+  /// from: `static public final int CONFIG_UI_MODE`
+  static const CONFIG_UI_MODE = 512;
+  static final _id_CREATOR = _class.staticFieldId(
+    r'CREATOR',
+    r'Landroid/os/Parcelable$Creator;',
+  );
+
+  /// from: `static public final android.os.Parcelable$Creator<android.content.pm.ActivityInfo> CREATOR`
+  /// The returned object must be released after use, by calling the [release] method.
+  static parcelable$_.Parcelable$$Creator? get CREATOR =>
+      _id_CREATOR.getNullable(_class, parcelable$_.Parcelable$$Creator.type)
+          as parcelable$_.Parcelable$$Creator?;
+
+  /// from: `static public final int DOCUMENT_LAUNCH_ALWAYS`
+  static const DOCUMENT_LAUNCH_ALWAYS = 2;
+
+  /// from: `static public final int DOCUMENT_LAUNCH_INTO_EXISTING`
+  static const DOCUMENT_LAUNCH_INTO_EXISTING = 1;
+
+  /// from: `static public final int DOCUMENT_LAUNCH_NEVER`
+  static const DOCUMENT_LAUNCH_NEVER = 3;
+
+  /// from: `static public final int DOCUMENT_LAUNCH_NONE`
+  static const DOCUMENT_LAUNCH_NONE = 0;
+
+  /// from: `static public final int FLAG_ALLOW_TASK_REPARENTING`
+  static const FLAG_ALLOW_TASK_REPARENTING = 64;
+
+  /// from: `static public final int FLAG_ALLOW_UNTRUSTED_ACTIVITY_EMBEDDING`
+  static const FLAG_ALLOW_UNTRUSTED_ACTIVITY_EMBEDDING = 268435456;
+
+  /// from: `static public final int FLAG_ALWAYS_RETAIN_TASK_STATE`
+  static const FLAG_ALWAYS_RETAIN_TASK_STATE = 8;
+
+  /// from: `static public final int FLAG_AUTO_REMOVE_FROM_RECENTS`
+  static const FLAG_AUTO_REMOVE_FROM_RECENTS = 8192;
+
+  /// from: `static public final int FLAG_CLEAR_TASK_ON_LAUNCH`
+  static const FLAG_CLEAR_TASK_ON_LAUNCH = 4;
+
+  /// from: `static public final int FLAG_ENABLE_VR_MODE`
+  static const FLAG_ENABLE_VR_MODE = 32768;
+
+  /// from: `static public final int FLAG_EXCLUDE_FROM_RECENTS`
+  static const FLAG_EXCLUDE_FROM_RECENTS = 32;
+
+  /// from: `static public final int FLAG_FINISH_ON_CLOSE_SYSTEM_DIALOGS`
+  static const FLAG_FINISH_ON_CLOSE_SYSTEM_DIALOGS = 256;
+
+  /// from: `static public final int FLAG_FINISH_ON_TASK_LAUNCH`
+  static const FLAG_FINISH_ON_TASK_LAUNCH = 2;
+
+  /// from: `static public final int FLAG_HARDWARE_ACCELERATED`
+  static const FLAG_HARDWARE_ACCELERATED = 512;
+
+  /// from: `static public final int FLAG_IMMERSIVE`
+  static const FLAG_IMMERSIVE = 2048;
+
+  /// from: `static public final int FLAG_MULTIPROCESS`
+  static const FLAG_MULTIPROCESS = 1;
+
+  /// from: `static public final int FLAG_NO_HISTORY`
+  static const FLAG_NO_HISTORY = 128;
+
+  /// from: `static public final int FLAG_PREFER_MINIMAL_POST_PROCESSING`
+  static const FLAG_PREFER_MINIMAL_POST_PROCESSING = 33554432;
+
+  /// from: `static public final int FLAG_RELINQUISH_TASK_IDENTITY`
+  static const FLAG_RELINQUISH_TASK_IDENTITY = 4096;
+
+  /// from: `static public final int FLAG_RESUME_WHILE_PAUSING`
+  static const FLAG_RESUME_WHILE_PAUSING = 16384;
+
+  /// from: `static public final int FLAG_SINGLE_USER`
+  static const FLAG_SINGLE_USER = 1073741824;
+
+  /// from: `static public final int FLAG_STATE_NOT_NEEDED`
+  static const FLAG_STATE_NOT_NEEDED = 16;
+
+  /// from: `static public final int LAUNCH_MULTIPLE`
+  static const LAUNCH_MULTIPLE = 0;
+
+  /// from: `static public final int LAUNCH_SINGLE_INSTANCE`
+  static const LAUNCH_SINGLE_INSTANCE = 3;
+
+  /// from: `static public final int LAUNCH_SINGLE_INSTANCE_PER_TASK`
+  static const LAUNCH_SINGLE_INSTANCE_PER_TASK = 4;
+
+  /// from: `static public final int LAUNCH_SINGLE_TASK`
+  static const LAUNCH_SINGLE_TASK = 2;
+
+  /// from: `static public final int LAUNCH_SINGLE_TOP`
+  static const LAUNCH_SINGLE_TOP = 1;
+
+  /// from: `static public final int PERSIST_ACROSS_REBOOTS`
+  static const PERSIST_ACROSS_REBOOTS = 2;
+
+  /// from: `static public final int PERSIST_NEVER`
+  static const PERSIST_NEVER = 1;
+
+  /// from: `static public final int PERSIST_ROOT_ONLY`
+  static const PERSIST_ROOT_ONLY = 0;
+
+  /// from: `static public final int SCREEN_ORIENTATION_BEHIND`
+  static const SCREEN_ORIENTATION_BEHIND = 3;
+
+  /// from: `static public final int SCREEN_ORIENTATION_FULL_SENSOR`
+  static const SCREEN_ORIENTATION_FULL_SENSOR = 10;
+
+  /// from: `static public final int SCREEN_ORIENTATION_FULL_USER`
+  static const SCREEN_ORIENTATION_FULL_USER = 13;
+
+  /// from: `static public final int SCREEN_ORIENTATION_LANDSCAPE`
+  static const SCREEN_ORIENTATION_LANDSCAPE = 0;
+
+  /// from: `static public final int SCREEN_ORIENTATION_LOCKED`
+  static const SCREEN_ORIENTATION_LOCKED = 14;
+
+  /// from: `static public final int SCREEN_ORIENTATION_NOSENSOR`
+  static const SCREEN_ORIENTATION_NOSENSOR = 5;
+
+  /// from: `static public final int SCREEN_ORIENTATION_PORTRAIT`
+  static const SCREEN_ORIENTATION_PORTRAIT = 1;
+
+  /// from: `static public final int SCREEN_ORIENTATION_REVERSE_LANDSCAPE`
+  static const SCREEN_ORIENTATION_REVERSE_LANDSCAPE = 8;
+
+  /// from: `static public final int SCREEN_ORIENTATION_REVERSE_PORTRAIT`
+  static const SCREEN_ORIENTATION_REVERSE_PORTRAIT = 9;
+
+  /// from: `static public final int SCREEN_ORIENTATION_SENSOR`
+  static const SCREEN_ORIENTATION_SENSOR = 4;
+
+  /// from: `static public final int SCREEN_ORIENTATION_SENSOR_LANDSCAPE`
+  static const SCREEN_ORIENTATION_SENSOR_LANDSCAPE = 6;
+
+  /// from: `static public final int SCREEN_ORIENTATION_SENSOR_PORTRAIT`
+  static const SCREEN_ORIENTATION_SENSOR_PORTRAIT = 7;
+
+  /// from: `static public final int SCREEN_ORIENTATION_UNSPECIFIED`
+  static const SCREEN_ORIENTATION_UNSPECIFIED = -1;
+
+  /// from: `static public final int SCREEN_ORIENTATION_USER`
+  static const SCREEN_ORIENTATION_USER = 2;
+
+  /// from: `static public final int SCREEN_ORIENTATION_USER_LANDSCAPE`
+  static const SCREEN_ORIENTATION_USER_LANDSCAPE = 11;
+
+  /// from: `static public final int SCREEN_ORIENTATION_USER_PORTRAIT`
+  static const SCREEN_ORIENTATION_USER_PORTRAIT = 12;
+
+  /// from: `static public final int UIOPTION_SPLIT_ACTION_BAR_WHEN_NARROW`
+  static const UIOPTION_SPLIT_ACTION_BAR_WHEN_NARROW = 1;
+  static final _id_new$ = _class.constructorId(r'()V');
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void <init>()`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory ActivityInfo() {
+    final _$$classRef = _class.reference;
+    return _new$(_$$classRef.pointer, _id_new$.pointer).object<ActivityInfo>();
+  }
+
+  static final _id_new$3 = _class.constructorId(
+    r'(Landroid/content/pm/ActivityInfo;)V',
+  );
+
+  static final _new$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.content.pm.ActivityInfo activityInfo)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory ActivityInfo.new$3(ActivityInfo? activityInfo) {
+    final _$$classRef = _class.reference;
+    final _$activityInfo = activityInfo?.reference ?? jni$_.jNullReference;
+    return _new$3(
+      _$$classRef.pointer,
+      _id_new$3.pointer,
+      _$activityInfo.pointer,
+    ).object<ActivityInfo>();
+  }
+}
+
+extension ActivityInfo$$Methods on ActivityInfo {
+  static final _id_colorMode = ActivityInfo._class.instanceFieldId(
+    r'colorMode',
+    r'I',
+  );
+
+  /// from: `public int colorMode`
+  core$_.int get colorMode =>
+      _id_colorMode.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int colorMode`
+  set colorMode(core$_.int value) =>
+      _id_colorMode.set(this, jni$_.jint.type, value);
+
+  static final _id_configChanges = ActivityInfo._class.instanceFieldId(
+    r'configChanges',
+    r'I',
+  );
+
+  /// from: `public int configChanges`
+  core$_.int get configChanges =>
+      _id_configChanges.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int configChanges`
+  set configChanges(core$_.int value) =>
+      _id_configChanges.set(this, jni$_.jint.type, value);
+
+  static final _id_documentLaunchMode = ActivityInfo._class.instanceFieldId(
+    r'documentLaunchMode',
+    r'I',
+  );
+
+  /// from: `public int documentLaunchMode`
+  core$_.int get documentLaunchMode =>
+      _id_documentLaunchMode.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int documentLaunchMode`
+  set documentLaunchMode(core$_.int value) =>
+      _id_documentLaunchMode.set(this, jni$_.jint.type, value);
+
+  static final _id_flags = ActivityInfo._class.instanceFieldId(r'flags', r'I');
+
+  /// from: `public int flags`
+  core$_.int get flags =>
+      _id_flags.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int flags`
+  set flags(core$_.int value) => _id_flags.set(this, jni$_.jint.type, value);
+
+  static final _id_launchMode = ActivityInfo._class.instanceFieldId(
+    r'launchMode',
+    r'I',
+  );
+
+  /// from: `public int launchMode`
+  core$_.int get launchMode =>
+      _id_launchMode.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int launchMode`
+  set launchMode(core$_.int value) =>
+      _id_launchMode.set(this, jni$_.jint.type, value);
+
+  static final _id_maxRecents = ActivityInfo._class.instanceFieldId(
+    r'maxRecents',
+    r'I',
+  );
+
+  /// from: `public int maxRecents`
+  core$_.int get maxRecents =>
+      _id_maxRecents.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int maxRecents`
+  set maxRecents(core$_.int value) =>
+      _id_maxRecents.set(this, jni$_.jint.type, value);
+
+  static final _id_parentActivityName = ActivityInfo._class.instanceFieldId(
+    r'parentActivityName',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `public java.lang.String parentActivityName`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get parentActivityName =>
+      _id_parentActivityName.getNullable(this, jni$_.JString.type)
+          as jni$_.JString?;
+
+  /// from: `public java.lang.String parentActivityName`
+  /// The returned object must be released after use, by calling the [release] method.
+  set parentActivityName(jni$_.JString? value) =>
+      _id_parentActivityName.set(this, jni$_.JString.type, value);
+
+  static final _id_permission = ActivityInfo._class.instanceFieldId(
+    r'permission',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `public java.lang.String permission`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get permission =>
+      _id_permission.getNullable(this, jni$_.JString.type) as jni$_.JString?;
+
+  /// from: `public java.lang.String permission`
+  /// The returned object must be released after use, by calling the [release] method.
+  set permission(jni$_.JString? value) =>
+      _id_permission.set(this, jni$_.JString.type, value);
+
+  static final _id_persistableMode = ActivityInfo._class.instanceFieldId(
+    r'persistableMode',
+    r'I',
+  );
+
+  /// from: `public int persistableMode`
+  core$_.int get persistableMode =>
+      _id_persistableMode.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int persistableMode`
+  set persistableMode(core$_.int value) =>
+      _id_persistableMode.set(this, jni$_.jint.type, value);
+
+  static final _id_requiredDisplayCategory = ActivityInfo._class
+      .instanceFieldId(r'requiredDisplayCategory', r'Ljava/lang/String;');
+
+  /// from: `public java.lang.String requiredDisplayCategory`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get requiredDisplayCategory =>
+      _id_requiredDisplayCategory.getNullable(this, jni$_.JString.type)
+          as jni$_.JString?;
+
+  /// from: `public java.lang.String requiredDisplayCategory`
+  /// The returned object must be released after use, by calling the [release] method.
+  set requiredDisplayCategory(jni$_.JString? value) =>
+      _id_requiredDisplayCategory.set(this, jni$_.JString.type, value);
+
+  static final _id_screenOrientation = ActivityInfo._class.instanceFieldId(
+    r'screenOrientation',
+    r'I',
+  );
+
+  /// from: `public int screenOrientation`
+  core$_.int get screenOrientation =>
+      _id_screenOrientation.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int screenOrientation`
+  set screenOrientation(core$_.int value) =>
+      _id_screenOrientation.set(this, jni$_.jint.type, value);
+
+  static final _id_softInputMode = ActivityInfo._class.instanceFieldId(
+    r'softInputMode',
+    r'I',
+  );
+
+  /// from: `public int softInputMode`
+  core$_.int get softInputMode =>
+      _id_softInputMode.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int softInputMode`
+  set softInputMode(core$_.int value) =>
+      _id_softInputMode.set(this, jni$_.jint.type, value);
+
+  static final _id_targetActivity = ActivityInfo._class.instanceFieldId(
+    r'targetActivity',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `public java.lang.String targetActivity`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get targetActivity =>
+      _id_targetActivity.getNullable(this, jni$_.JString.type)
+          as jni$_.JString?;
+
+  /// from: `public java.lang.String targetActivity`
+  /// The returned object must be released after use, by calling the [release] method.
+  set targetActivity(jni$_.JString? value) =>
+      _id_targetActivity.set(this, jni$_.JString.type, value);
+
+  static final _id_taskAffinity = ActivityInfo._class.instanceFieldId(
+    r'taskAffinity',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `public java.lang.String taskAffinity`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get taskAffinity =>
+      _id_taskAffinity.getNullable(this, jni$_.JString.type) as jni$_.JString?;
+
+  /// from: `public java.lang.String taskAffinity`
+  /// The returned object must be released after use, by calling the [release] method.
+  set taskAffinity(jni$_.JString? value) =>
+      _id_taskAffinity.set(this, jni$_.JString.type, value);
+
+  static final _id_theme = ActivityInfo._class.instanceFieldId(r'theme', r'I');
+
+  /// from: `public int theme`
+  core$_.int get theme =>
+      _id_theme.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int theme`
+  set theme(core$_.int value) => _id_theme.set(this, jni$_.jint.type, value);
+
+  static final _id_uiOptions = ActivityInfo._class.instanceFieldId(
+    r'uiOptions',
+    r'I',
+  );
+
+  /// from: `public int uiOptions`
+  core$_.int get uiOptions =>
+      _id_uiOptions.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int uiOptions`
+  set uiOptions(core$_.int value) =>
+      _id_uiOptions.set(this, jni$_.jint.type, value);
+
+  static final _id_windowLayout = ActivityInfo._class.instanceFieldId(
+    r'windowLayout',
+    r'Landroid/content/pm/ActivityInfo$WindowLayout;',
+  );
+
+  /// from: `public android.content.pm.ActivityInfo$WindowLayout windowLayout`
+  /// The returned object must be released after use, by calling the [release] method.
+  ActivityInfo$WindowLayout? get windowLayout =>
+      _id_windowLayout.getNullable(this, ActivityInfo$WindowLayout.type)
+          as ActivityInfo$WindowLayout?;
+
+  /// from: `public android.content.pm.ActivityInfo$WindowLayout windowLayout`
+  /// The returned object must be released after use, by calling the [release] method.
+  set windowLayout(ActivityInfo$WindowLayout? value) =>
+      _id_windowLayout.set(this, ActivityInfo$WindowLayout.type, value);
+
+  static final _id_get$themeResource = ActivityInfo._class.instanceMethodId(
+    r'getThemeResource',
+    r'()I',
+  );
+
+  static final _get$themeResource =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final int getThemeResource()`
+  core$_.int get themeResource {
+    final _$$selfRef = reference;
+    return _get$themeResource(
+      _$$selfRef.pointer,
+      _id_get$themeResource.pointer,
+    ).integer;
+  }
+
+  static final _id_get$knownActivityEmbeddingCerts = ActivityInfo._class
+      .instanceMethodId(
+        r'getKnownActivityEmbeddingCerts',
+        r'()Ljava/util/Set;',
+      );
+
+  static final _get$knownActivityEmbeddingCerts =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.util.Set<java.lang.String> getKnownActivityEmbeddingCerts()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JSet<jni$_.JString?>? get knownActivityEmbeddingCerts {
+    final _$$selfRef = reference;
+    return _get$knownActivityEmbeddingCerts(
+      _$$selfRef.pointer,
+      _id_get$knownActivityEmbeddingCerts.pointer,
+    ).object<jni$_.JSet<jni$_.JString?>?>();
+  }
+
+  static final _id_dump = ActivityInfo._class.instanceMethodId(
+    r'dump',
+    r'(Landroid/util/Printer;Ljava/lang/String;)V',
+  );
+
+  static final _dump =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void dump(android.util.Printer printer, java.lang.String string)`
+  void dump(printer$_.Printer? printer, jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$printer = printer?.reference ?? jni$_.jNullReference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    _dump(
+      _$$selfRef.pointer,
+      _id_dump.pointer,
+      _$printer.pointer,
+      _$string.pointer,
+    ).check();
+  }
+
+  static final _id_toString$1 = ActivityInfo._class.instanceMethodId(
+    r'toString',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _toString$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String toString()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? toString$1() {
+    final _$$selfRef = reference;
+    return _toString$1(
+      _$$selfRef.pointer,
+      _id_toString$1.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_describeContents = ActivityInfo._class.instanceMethodId(
+    r'describeContents',
+    r'()I',
+  );
+
+  static final _describeContents =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int describeContents()`
+  core$_.int describeContents() {
+    final _$$selfRef = reference;
+    return _describeContents(
+      _$$selfRef.pointer,
+      _id_describeContents.pointer,
+    ).integer;
+  }
+
+  static final _id_writeToParcel = ActivityInfo._class.instanceMethodId(
+    r'writeToParcel',
+    r'(Landroid/os/Parcel;I)V',
+  );
+
+  static final _writeToParcel =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void writeToParcel(android.os.Parcel parcel, int i)`
+  void writeToParcel(parcel$_.Parcel? parcel, core$_.int i) {
+    final _$$selfRef = reference;
+    final _$parcel = parcel?.reference ?? jni$_.jNullReference;
+    _writeToParcel(
+      _$$selfRef.pointer,
+      _id_writeToParcel.pointer,
+      _$parcel.pointer,
+      i,
+    ).check();
+  }
 }
 
 final class $ActivityInfo$Type$ extends jni$_.JType<ActivityInfo> {

@@ -81,6 +81,11 @@ const Set<String> dvAndroidImplementedBindings = <String>{
 
   // Intent.ACTION_SEND through a chooser.
   'share.text',
+  // The launchable apps and opening them (DVApps).
+  'apps.list',
+  'apps.open',
+  'apps.openSettings',
+  'apps.uninstall',
 
   // Lock task mode, held on the running Activity. Reached through
   // Application.registerActivityLifecycleCallbacks, because the application

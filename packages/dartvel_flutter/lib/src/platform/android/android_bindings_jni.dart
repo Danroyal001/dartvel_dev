@@ -36,6 +36,7 @@ import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import '../device_runtime.dart';
 import '../file_bindings.dart';
 import 'android_capabilities.dart';
+import 'android_apps_jni.dart';
 import 'android_capture_jni.dart';
 import 'android_fonts.dart';
 import 'android_device.dart';
@@ -212,6 +213,17 @@ class DVAndroidBindings {
     // NFC and Bluetooth, both reached through getSystemService on this same
     // Context. What each can and cannot answer is in that file's header.
     DVAndroidRadios.register(context, DVNativeBridge.register);
+
+    // The launchable apps and opening them (DVApps). PackageManager answers
+    // only for what the manifest's <queries> declares; see android_apps_jni.dart.
+    DVNativeBridge.register('apps.list', (Object? arguments) {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      return DVAndroidApps.list(context, icons: map['icons'] != false);
+    });
+    String packageOf(Object? arguments) => arguments is Map ? '${arguments['package'] ?? ''}' : '';
+    DVNativeBridge.register('apps.open', (Object? arguments) => DVAndroidApps.open(context, packageOf(arguments)));
+    DVNativeBridge.register('apps.openSettings', (Object? arguments) => DVAndroidApps.openSettings(context, packageOf(arguments)));
+    DVNativeBridge.register('apps.uninstall', (Object? arguments) => DVAndroidApps.uninstall(context, packageOf(arguments)));
 
     DVNativeBridge.register('share.text', (Object? arguments) {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
