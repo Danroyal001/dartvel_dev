@@ -1167,6 +1167,9 @@ class DVModifier {
   final AlignmentGeometry? alignmentValue;
   final List<BoxShadow>? shadows;
   final VoidCallback? onTapCallback;
+
+  /// The second thing a control does, on a long press (see [onLongPress]).
+  final VoidCallback? onLongPressCallback;
   final DecorationImage? bgImage;
 
   /// A video behind the box's content, muted and looping.
@@ -1251,6 +1254,7 @@ class DVModifier {
     this.alignmentValue,
     this.shadows,
     this.onTapCallback,
+    this.onLongPressCallback,
     this.bgImage,
     this.bgVideo,
     this.semanticLabelValue,
@@ -1310,6 +1314,7 @@ class DVModifier {
         alignmentValue = null,
         shadows = null,
         onTapCallback = null,
+        onLongPressCallback = null,
         bgImage = null,
         bgVideo = null,
         semanticLabelValue = null,
@@ -1369,6 +1374,7 @@ class DVModifier {
     AlignmentGeometry? alignmentValue,
     List<BoxShadow>? shadows,
     VoidCallback? onTapCallback,
+    VoidCallback? onLongPressCallback,
     DecorationImage? bgImage,
     DVMediaSource? bgVideo,
     String? semanticLabelValue,
@@ -1444,6 +1450,7 @@ class DVModifier {
       shadows: shadows ?? this.shadows,
       onTapCallback:
           clearInteraction ? null : (onTapCallback ?? this.onTapCallback),
+      onLongPressCallback: clearInteraction ? null : (onLongPressCallback ?? this.onLongPressCallback),
       bgImage: bgImage ?? this.bgImage,
       bgVideo: bgVideo ?? this.bgVideo,
       semanticLabelValue: clearInteraction
@@ -1806,6 +1813,7 @@ class DVModifier {
         alignmentValue: other.alignmentValue ?? alignmentValue,
         shadows: other.shadows ?? shadows,
         onTapCallback: other.onTapCallback ?? onTapCallback,
+        onLongPressCallback: other.onLongPressCallback ?? onLongPressCallback,
         bgImage: other.bgImage ?? bgImage,
         semanticLabelValue: other.semanticLabelValue ?? semanticLabelValue,
         tooltipValue: other.tooltipValue ?? tooltipValue,
@@ -1852,6 +1860,13 @@ class DVModifier {
   /// Same as [onTap].
   DVModifier onPressed(VoidCallback callback) =>
       _copyWith(onTapCallback: callback, tapSite: dvCallSite());
+
+  /// The second thing a control does, on a long press: an app icon that opens
+  /// on tap and offers pin, info and uninstall on a long press. A screen
+  /// reader is offered it as a second action. The long press is the
+  /// action's, so the tooltip shows on hover and keyboard focus only. Goes
+  /// with [onTap], which names the control and makes it reachable.
+  DVModifier onLongPress(VoidCallback callback) => _copyWith(onLongPressCallback: callback);
 
   /// What this is, in words: the tooltip on mouse hover, keyboard focus and
   /// long press, and the screen-reader name, and (on the server-rendered page)
@@ -2842,6 +2857,7 @@ class DVBox<T> extends StatelessWidget {
     if (m?.onTapCallback != null) {
       result = _DVPressable(
         onTap: m!.onTapCallback!,
+        onLongPress: m.onLongPressCallback,
         name: m.semanticLabelValue,
         tooltip: m.tooltipValue,
         site: m.tapSite,
@@ -3668,6 +3684,7 @@ extension _DVFormScopeLookup on BuildContext {
 class _DVPressable extends StatefulWidget {
   const _DVPressable({
     required this.onTap,
+    this.onLongPress,
     required this.child,
     required this.name,
     this.tooltip,
@@ -3683,6 +3700,9 @@ class _DVPressable extends StatefulWidget {
   final String? site;
 
   final VoidCallback onTap;
+
+  /// A second action on a long press, or null for none.
+  final VoidCallback? onLongPress;
 
   final Widget child;
 
@@ -3769,6 +3789,7 @@ class _DVPressableState extends State<_DVPressable> {
     return DVTooltipTarget(
       label: widget.tooltip ?? widget.name,
       site: widget.site,
+      longPressShows: widget.onLongPress == null,
       builder: _control,
       child: widget.child,
     );
@@ -3801,6 +3822,7 @@ class _DVPressableState extends State<_DVPressable> {
             // button that a screen reader can see but not press, which is
             // worse than not being a button.
             onTap: widget.onTap,
+            onLongPress: widget.onLongPress,
             // [Focus] is told not to bring a node of its own, so the control
             // says here what a reader needs to hear: that this is focusable,
             // that it is the thing the keyboard is on, and that asking for the
@@ -3819,6 +3841,7 @@ class _DVPressableState extends State<_DVPressable> {
                 // nodes both claiming the tap is one too many.
                 excludeFromSemantics: true,
                 onTap: widget.onTap,
+                onLongPress: widget.onLongPress,
                 child: Container(
                   // Keyed by the control rather than only when it holds the
                   // focus, so the widget under it is the same widget either
@@ -4069,6 +4092,7 @@ class DVText extends StatelessWidget {
       // application reached for.
       result = _DVPressable(
         onTap: modifier.onTapCallback!,
+        onLongPress: modifier.onLongPressCallback,
         // A control with text is named by its text (WCAG 2.5.3); the tooltip
         // still shows on hover, focus and long press.
         name: modifier.semanticLabelValue ?? text,
