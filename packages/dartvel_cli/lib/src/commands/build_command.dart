@@ -52,6 +52,7 @@ import '../build/symbols_bundle.dart';
 import 'symbols_command.dart';
 // dvPurchasesDeclared is the same rule in both bridges; the Apple one is used.
 import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
+import '../build/android_home_launcher.dart';
 import '../build/app_shortcuts.dart';
 import '../build/android_capture_bridge.dart';
 import '../build/android_media_bridge.dart';
@@ -1260,6 +1261,7 @@ class BuildCommand extends Command<void> {
         _writeAndroidHomeWidgets(_projectRoot);
       }
       _writeAndroidAppShortcuts(_projectRoot);
+      _writeAndroidHomeLauncher(_projectRoot);
       _writeAndroidDeepLinks(_projectRoot, deepLinks);
       // Before Gradle resolves dependencies: the billing library is one.
       final String? noPurchases = leftOut[DVPlatformStep.purchases];
@@ -2071,6 +2073,21 @@ class BuildCommand extends Command<void> {
     if (shortcuts.isNotEmpty && result.problems.isEmpty) {
       Logger.log('   App shortcuts: ${shortcuts.length} on the launcher icon.');
     }
+  }
+
+  /// `dartvel.android.launcher: true`: the HOME filter and the `<queries>`
+  /// a home-screen app needs (see android_home_launcher.dart).
+  void _writeAndroidHomeLauncher(String root) {
+    final File manifest = File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    final bool enabled = dvAndroidHomeLauncherEnabled(_dartvelSection(root));
+    if (!manifest.existsSync()) {
+      if (enabled) Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, so dartvel.android.launcher reaches nothing.');
+      return;
+    }
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidHomeLauncherManifest(before, enabled: enabled);
+    if (after != before) manifest.writeAsStringSync(after);
+    if (enabled) Logger.log('   Home screen: this app can be chosen as the phone\'s home app.');
   }
 
   void _writeIosAppShortcuts(String root) {
