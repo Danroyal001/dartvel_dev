@@ -20,6 +20,25 @@ Widget _docsMediaPage(BuildContext context) => const DocsArticle(
       ],
       sections: <DocsSection>[
         DocsSection(
+          id: 'sources',
+          title: 'Where an image comes from',
+          children: <Widget>[
+            DocsText('DVBox.image draws five kinds of image: DVImage.network for an '
+                'address, DVImage.asset for a bundled file, DVImage.file for a path '
+                'on the device (not on the web), DVImage.stored for bytes in '
+                'DV.FileStorage, and DVImage.memory for bytes the app already '
+                'holds, such as an app icon the system handed over or a photo '
+                'just taken.'),
+            DocsShell(<String>[
+              'DVBox.image(DVImage.memory(app.icon!, alt: app.label), width: 52, height: 52)',
+            ]),
+            DocsText('A memory image is kept as a data: URI, so it saves and loads '
+                'like the others, and a rebuild reuses the picture already '
+                'decoded. Empty bytes are refused: they could only draw a broken '
+                'image.'),
+          ],
+        ),
+        DocsSection(
           id: 'variants',
           title: 'Serve each image at the width it needs',
           children: <Widget>[
