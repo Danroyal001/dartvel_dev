@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dartvel_core/dartvel.dart';
 import 'package:flutter/widgets.dart';
 
@@ -113,6 +115,20 @@ class DVImageRender extends StatelessWidget {
   static ImageProvider<Object>? providerFor(DVImage image) =>
       _providerFor(image);
 
+  /// One provider per distinct image, so a rebuild hands Flutter the same key
+  /// and the decoded picture comes from its image cache instead of decoding
+  /// again. Bounded: the oldest entry goes once 256 are held.
+  static final Map<String, MemoryImage> _memoryProviders = <String, MemoryImage>{};
+
+  static MemoryImage? _memoryProvider(String reference) {
+    final MemoryImage? known = _memoryProviders.remove(reference);
+    if (known != null) return _memoryProviders[reference] = known;
+    final Uint8List? bytes = DVImage(source: DVImageSource.memory, reference: reference).bytes;
+    if (bytes == null) return null;
+    if (_memoryProviders.length >= 256) _memoryProviders.remove(_memoryProviders.keys.first);
+    return _memoryProviders[reference] = MemoryImage(bytes);
+  }
+
   static ImageProvider<Object>? _providerFor(DVImage image) {
     switch (image.source) {
       case DVImageSource.network:
@@ -123,6 +139,8 @@ class DVImageRender extends StatelessWidget {
         return fileImageProvider(image.reference);
       case DVImageSource.stored:
         return DVStoredImage(image.reference);
+      case DVImageSource.memory:
+        return _memoryProvider(image.reference);
     }
   }
 }
@@ -133,7 +151,7 @@ class DVImageRender extends StatelessWidget {
 String? dvImageServedPath(DVImage image) => switch (image.source) {
       DVImageSource.asset => 'assets/${image.reference}',
       DVImageSource.network => image.reference,
-      DVImageSource.file || DVImageSource.stored => null,
+      DVImageSource.file || DVImageSource.stored || DVImageSource.memory => null,
     };
 
 /// The provider for [image] drawn [devicePixels] wide, or null when there is

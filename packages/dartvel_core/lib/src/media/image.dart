@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 /// Where a [DVImage]'s bytes come from.
 enum DVImageSource {
   /// A remote URL, fetched at render time.
@@ -18,6 +21,11 @@ enum DVImageSource {
   /// shows broken images a fortnight later. Stored bytes have nothing to
   /// expire, need no build step, and work wherever the storage adapter does.
   stored,
+
+  /// Bytes the application already holds: an app icon the system handed it,
+  /// a photo just taken, a chart drawn in memory. Kept as a `data:` URI so it
+  /// serialises like every other image; [DVImage.bytes] reads it back.
+  memory,
 }
 
 /// An image held by a model field.
@@ -107,6 +115,36 @@ class DVImage {
   ///
   /// A bare string is accepted and read as a network URL, because that is what
   /// an existing API commonly sends for an image column.
+  /// An image from [bytes] in memory (PNG unless [mimeType] says otherwise).
+  ///
+  /// Empty bytes are refused: they can only draw a broken image.
+  factory DVImage.memory(
+    List<int> bytes, {
+    String mimeType = 'image/png',
+    String? alt,
+    int? width,
+    int? height,
+  }) {
+    if (bytes.isEmpty) {
+      throw ArgumentError.value(bytes, 'bytes', 'An image needs at least one byte.');
+    }
+    return DVImage(
+      source: DVImageSource.memory,
+      reference: 'data:$mimeType;base64,${base64Encode(bytes)}',
+      alt: alt,
+      width: width,
+      height: height,
+    );
+  }
+
+  /// The bytes of a [DVImageSource.memory] image; null for every other source.
+  Uint8List? get bytes {
+    if (source != DVImageSource.memory) return null;
+    final int comma = reference.indexOf(',');
+    if (comma < 0) return null;
+    return base64Decode(reference.substring(comma + 1));
+  }
+
   static DVImage? fromJson(Object? json) {
     if (json == null) return null;
     if (json is DVImage) return json;

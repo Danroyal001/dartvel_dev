@@ -4569,8 +4569,11 @@ void startDartvelKiosk() {
     for (final match in typedVariables.allMatches(source)) {
       symbols.add(match.group(1)!);
     }
+    // A return type may be a record, `(String, int)` or `List<(String,
+    // String)>`; one without parentheses in the pattern was never seen, and a
+    // widget calling it was emitted unqualified.
     final functions = RegExp(
-      r'^(?:[A-Za-z_][A-Za-z0-9_<>, ?]*\s+)+([A-Za-z][A-Za-z0-9_]*)\s*\(',
+      r'^(?:(?:[A-Za-z_][A-Za-z0-9_<>, ?]*|[A-Za-z_]*[<(][A-Za-z0-9_<>(), ?]*[>)][?]?)\s+)+([A-Za-z][A-Za-z0-9_]*)\s*\(',
       multiLine: true,
     );
     for (final match in functions.allMatches(source)) {

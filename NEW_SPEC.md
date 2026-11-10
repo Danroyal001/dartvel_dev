@@ -4599,6 +4599,15 @@ Half of this exists and ships today. That half is the web, and it is written
 first so the rest reads as what is missing rather than as a plan with a gap in
 the middle.
 
+An image comes from one of five sources, and `DVBox.image` draws each:
+`DVImage.network(url)`, `DVImage.asset(key)`, `DVImage.file(path)` (not on
+the web), `DVImage.stored(key)` (bytes in `DV.FileStorage`) and
+`DVImage.memory(bytes)` (bytes the application already holds: an app icon the
+system handed over, a photo just taken, a chart drawn in memory). A memory
+image is kept as a `data:` URI, so it serialises like the others, `.bytes`
+reads it back, and a rebuild reuses the picture Flutter already decoded. Empty
+bytes are refused.
+
 ## What ships: image variants on the web
 
 `dartvel build web` writes every declared raster asset at each configured
