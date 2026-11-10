@@ -196,6 +196,10 @@ const Set<String> dvWebUnconditionalBindings = <String>{
 /// name stays out, because a shorter list that is true is worth more than a
 /// longer one that is not.
 const Map<String, String> dvWebUnavailableBindings = <String, String>{
+  'apps.list': 'a web page cannot see which apps are installed on the device; browsers expose no such list, by design',
+  'apps.open': 'a web page cannot start another installed app by its package; only links and intents a page is allowed to follow',
+  'apps.openSettings': 'a web page cannot open the system settings of another app; browsers give pages no route into the operating system\'s settings',
+  'apps.uninstall': 'a web page cannot uninstall apps: removing software is the operating system\'s decision and no browser exposes it',
   'associations.opened': 'A browser has no queue of files to collect at start: '
       'an installed web app is handed each file by launchQueue, which '
       'delivers it to DV.Platform.associations.opened as it arrives.',

@@ -31,6 +31,11 @@ void main() {
         'haptics.lightVibrate',
         'haptics.impact',
         'share.text',
+        // The launchable apps and opening them (DVApps), through PackageManager.
+        'apps.list',
+        'apps.open',
+        'apps.openSettings',
+        'apps.uninstall',
         'kiosk.enforce',
         'kiosk.release',
         // The launch Intent's URI. It belongs to the Activity, so it

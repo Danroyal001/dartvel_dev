@@ -435,11 +435,11 @@ extension type ActivityInfo._(jni$_.JObject _$this)
     return _new$(_$$classRef.pointer, _id_new$.pointer).object<ActivityInfo>();
   }
 
-  static final _id_new$1 = _class.constructorId(
+  static final _id_new$3 = _class.constructorId(
     r'(Landroid/content/pm/ActivityInfo;)V',
   );
 
-  static final _new$1 =
+  static final _new$3 =
       jni$_.ProtectedJniExtensions.lookup<
             jni$_.NativeFunction<
               jni$_.JniResult Function(
@@ -459,12 +459,12 @@ extension type ActivityInfo._(jni$_.JObject _$this)
 
   /// from: `public void <init>(android.content.pm.ActivityInfo activityInfo)`
   /// The returned object must be released after use, by calling the [release] method.
-  factory ActivityInfo.new$1(ActivityInfo? activityInfo) {
+  factory ActivityInfo.new$3(ActivityInfo? activityInfo) {
     final _$$classRef = _class.reference;
     final _$activityInfo = activityInfo?.reference ?? jni$_.jNullReference;
-    return _new$1(
+    return _new$3(
       _$$classRef.pointer,
-      _id_new$1.pointer,
+      _id_new$3.pointer,
       _$activityInfo.pointer,
     ).object<ActivityInfo>();
   }

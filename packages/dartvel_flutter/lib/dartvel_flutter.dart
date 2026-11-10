@@ -6015,6 +6015,79 @@ class DVDeviceControls {
   }
 }
 
+/// An app installed on the device that can be launched.
+class DVInstalledApp {
+  const DVInstalledApp({required this.packageName, required this.label, this.icon});
+
+  /// The package, e.g. `com.termux`: what [DVApps.open] takes.
+  final String packageName;
+
+  /// The name the device shows under the app's icon.
+  final String label;
+
+  /// The app's icon as PNG bytes, or null when it was not asked for or the
+  /// app has none.
+  final Uint8List? icon;
+}
+
+/// The apps installed on this device that can be launched, and opening them.
+///
+/// Android only, through JNI: no other platform lets one app see and start
+/// the others. Elsewhere [isSupported] is false and the calls throw
+/// [UnsupportedError], so an application can show its own message rather
+/// than an empty list that looks like a device with no apps.
+///
+/// Seeing other apps needs the `<queries>` declaration Android 11 requires,
+/// which `dartvel.android.launcher: true` writes into the manifest.
+class DVApps {
+  const DVApps();
+
+  /// Whether this platform can list and open installed apps.
+  bool get isSupported => DVNativeBridge.isRegistered('apps.list');
+
+  /// Every launchable app, sorted by name ignoring case. [icons] false skips
+  /// drawing the icons, which is most of the cost on a phone with many apps.
+  Future<List<DVInstalledApp>> list({bool icons = true}) async {
+    if (!isSupported) {
+      throw UnsupportedError('Listing installed apps is available on Android only.');
+    }
+    final List<Object?> raw = await DVNativeBridge.require<List<Object?>>('apps.list', <String, Object?>{'icons': icons});
+    final List<DVInstalledApp> apps = <DVInstalledApp>[
+      for (final Object? item in raw)
+        if (item is Map && '${item['package'] ?? ''}'.isNotEmpty)
+          DVInstalledApp(
+            packageName: '${item['package']}',
+            // A blank name would be an icon with nothing under it.
+            label: '${item['label'] ?? ''}'.trim().isEmpty ? '${item['package']}' : '${item['label']}'.trim(),
+            icon: item['icon'] is Uint8List && (item['icon'] as Uint8List).isNotEmpty ? item['icon'] as Uint8List : null,
+          ),
+    ];
+    apps.sort((DVInstalledApp a, DVInstalledApp b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+    return apps;
+  }
+
+  /// Starts the app [packageName] the way tapping its icon would.
+  Future<void> open(String packageName) => _ask('apps.open', packageName, 'open');
+
+  /// Opens the system's info page for [packageName]: storage, permissions,
+  /// force stop.
+  Future<void> openSettings(String packageName) => _ask('apps.openSettings', packageName, 'show the settings of');
+
+  /// Asks the system to uninstall [packageName]. The system shows its own
+  /// confirmation; nothing is removed without it.
+  Future<void> uninstall(String packageName) => _ask('apps.uninstall', packageName, 'uninstall');
+
+  Future<void> _ask(String binding, String packageName, String verb) async {
+    if (!DVNativeBridge.isRegistered(binding)) {
+      throw UnsupportedError('Opening installed apps is available on Android only.');
+    }
+    final bool done = await DVNativeBridge.require<bool>(binding, <String, Object?>{'package': packageName});
+    // false is the device saying no: the app was removed, or it has no
+    // launcher activity. Swallowing it would leave a tap that does nothing.
+    if (!done) throw StateError('Could not $verb $packageName.');
+  }
+}
+
 class DVClipboard {
   const DVClipboard();
 
@@ -7481,6 +7554,8 @@ class DVPlatform {
   DVNfc get nfc => const DVNfc();
   DVDeviceControls get device => const DVDeviceControls();
   DVClipboard get clipboard => const DVClipboard();
+  /// The installed apps that can be launched (Android).
+  DVApps get apps => const DVApps();
   DVShare get share => const DVShare();
   DVSensors get sensors => const DVSensors();
   DVBiometrics get biometrics => const DVBiometrics();
