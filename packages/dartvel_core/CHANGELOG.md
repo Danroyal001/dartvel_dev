@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel.hosts`: a host can only redirect (`redirect:` for every path, `redirects:` for exact paths), for a domain whose content moved elsewhere; `DVHostRedirect`, `dvHostRedirectTarget`.
+
 ## 0.13.34 — 2026-11-10
 
 - Version aligned with dartvel_core 0.13.34.

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
+    show DVHostRedirect, dvHostRedirectTarget, DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
@@ -171,6 +171,18 @@ Future<Response> _fromManifest(
   final DVSiteSeo site = DVSiteSeo.parse(manifest['site']);
   final DVWebServerSettings settings = DVWebServerSettings.parse(manifest['server']);
   final String raw = _rawPath(req);
+
+  // dartvel.hosts redirecting hosts: a domain kept for its links that now
+  // lives elsewhere. First of all, since nothing on that host is served.
+  final String? hostTarget = dvHostRedirectTarget(
+    DVHostRedirect.listFromJson(manifest['hostRedirects']),
+    host: _requestHost(req),
+    rawPath: raw,
+  );
+  if (hostTarget != null) {
+    final String target = req.url.hasQuery && !hostTarget.contains('?') ? '$hostTarget?${req.url.query}' : hostTarget;
+    return Response(301, headers: Headers()..set('location', target), body: const Stream<List<int>>.empty());
+  }
 
   // dartvel.redirects: answered before routing, the guard or any rendering, so
   // a declared address never reaches the application's not-found page. On
