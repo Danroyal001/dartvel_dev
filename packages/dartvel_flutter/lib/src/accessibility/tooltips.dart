@@ -148,7 +148,12 @@ class DVTooltipTarget extends StatefulWidget {
     this.site,
     this.required = true,
     this.builder,
+    this.longPressShows = true,
   });
+
+  /// Whether a long press shows the tooltip. False when the control has a
+  /// long-press action of its own, which the tooltip must not take.
+  final bool longPressShows;
 
   /// What the application said this control is. Null to derive it.
   final String? label;
@@ -247,7 +252,7 @@ class _DVTooltipTargetState extends State<DVTooltipTarget> {
         // The name is announced by the control's own semantics node; the
         // tooltip adding it again would read it twice.
         excludeFromSemantics: true,
-        triggerMode: TooltipTriggerMode.longPress,
+        triggerMode: widget.longPressShows ? TooltipTriggerMode.longPress : TooltipTriggerMode.manual,
         waitDuration: const Duration(milliseconds: 400),
         child: inner,
       ),

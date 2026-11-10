@@ -57,4 +57,77 @@ void main() {
     expect(dvAndroidHomeLauncherEnabled(<Object?, Object?>{'android': <Object?, Object?>{}}), isFalse);
     expect(dvAndroidHomeLauncherEnabled(<Object?, Object?>{}), isFalse);
   });
+
+  test('a TV lists it too: the TV launcher category, no touchscreen required, a banner', () {
+    final String out = dvAndroidHomeLauncherManifest(_manifest, enabled: true);
+    expect(out, contains('android.intent.category.LEANBACK_LAUNCHER'));
+    expect(out, contains('<uses-feature android:name="android.software.leanback" android:required="false"/>'));
+    expect(out, contains('<uses-feature android:name="android.hardware.touchscreen" android:required="false"/>'));
+    expect(out, contains('android:banner="@mipmap/ic_launcher"'));
+    expect(dvAndroidHomeLauncherManifest(out, enabled: true), out);
+    final String off = dvAndroidHomeLauncherManifest(out, enabled: false);
+    expect(off, isNot(contains('LEANBACK')));
+    expect(off, isNot(contains('uses-feature')));
+    expect(off, isNot(contains('android:banner')));
+  });
+
+  group('the wallpaper behind a home app', () {
+    const String styles = '''<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
+''';
+    const String activity = '''package com.example.home
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()
+''';
+
+    test('both window themes show the wallpaper and draw no background of their own', () {
+      final String out = dvAndroidHomeLauncherStyles(styles, enabled: true);
+      expect('android:windowShowWallpaper">true'.allMatches(out).length, 2);
+      expect(out, isNot(contains('@drawable/launch_background')), reason: 'a black splash between the press of home and the first frame is the blank screen');
+      expect(out, isNot(contains('?android:colorBackground')));
+      expect('@android:color/transparent'.allMatches(out).length, 2, reason: 'one windowBackground per style; a second would be a duplicate resource');
+    });
+
+    test('writing twice is writing once, and turning it off restores Flutter\'s backgrounds', () {
+      final String once = dvAndroidHomeLauncherStyles(styles, enabled: true);
+      expect(dvAndroidHomeLauncherStyles(once, enabled: true), once);
+      final String off = dvAndroidHomeLauncherStyles(once, enabled: false);
+      expect(off, contains('@drawable/launch_background'));
+      expect(off, contains('?android:colorBackground'));
+      expect(off, isNot(contains('windowShowWallpaper')));
+    });
+
+    test('the Flutter surface is transparent, so the wallpaper is not painted over', () {
+      final String? out = dvAndroidHomeLauncherActivity(activity, enabled: true);
+      expect(out, contains('override fun getBackgroundMode()'));
+      expect(out, contains('BackgroundMode.transparent'));
+      // Back on the home page must not close the home app: the next press of
+      // home would start it cold.
+      expect(out, contains('override fun popSystemNavigator(): Boolean = true'));
+      expect(dvAndroidHomeLauncherActivity(out!, enabled: true), out);
+      expect(dvAndroidHomeLauncherActivity(out, enabled: false), activity);
+    });
+
+    test('a MainActivity someone changed is left alone and reported, not rewritten', () {
+      const String edited = '''package com.example.home
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity() {
+    override fun onResume() { super.onResume() }
+}
+''';
+      expect(dvAndroidHomeLauncherActivity(edited, enabled: true), isNull);
+      expect(dvAndroidHomeLauncherActivity(edited, enabled: false), edited, reason: 'off, there is nothing of ours to remove');
+    });
+  });
 }

@@ -86,6 +86,9 @@ const Set<String> dvAndroidImplementedBindings = <String>{
   'apps.open',
   'apps.openSettings',
   'apps.uninstall',
+  'apps.icon',
+  'apps.isDefaultLauncher',
+  'apps.requestDefaultLauncher',
 
   // Lock task mode, held on the running Activity. Reached through
   // Application.registerActivityLifecycleCallbacks, because the application

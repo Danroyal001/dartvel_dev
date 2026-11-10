@@ -96,8 +96,9 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
               <String>['Effects', 'opacity, blur, backdropBlur, rotate'],
               <String>['Text', 'color, fontSize, fontWeight, fontFamily, '
                   'letterSpacing, lineHeight, maxLines, overflow, decoration'],
-              <String>['Interaction', 'onTap, onPressed, hover, onHoverChanged, '
-                  'input, minimumTapTarget'],
+              <String>['Interaction', 'onTap, onPressed, onLongPress, onDoubleTap, '
+                  'onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown, onGesture, '
+                  'hover, onHoverChanged, input, minimumTapTarget'],
               <String>['Accessibility', 'semanticLabel, semanticHint, '
                   'semanticButton, semanticRole, semanticHeading'],
               <String>['Motion', 'animate, revealOnScroll'],
@@ -116,6 +117,29 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
               'animate(duration) eases between the two, and respects the '
                   'reduced motion setting.',
               'semanticButton() tells assistive technology the text is a button.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'gestures',
+          title: 'Name the gesture',
+          children: <Widget>[
+            DocsText('Each gesture is a modifier, on a box or on text, so there is '
+                'no detector to build.'),
+            DocsShell(<String>[
+              'DVBox(page, DVModifier().onSwipeUp(openDrawer));',
+              'DVText(app.label).modifier(DVModifier().onTap(open).onLongPress(showMenu));',
+              'DVBox(photo, DVModifier().onGesture(DVGesture(onUpdate: zoom)));',
+            ]),
+            Bullets(<String>[
+              'onLongPress runs the action; the tooltip still shows on hover and '
+                  'keyboard focus.',
+              'A swipe is a quick fling. A slow drag is someone reading, so it is '
+                  'not a swipe.',
+              'Each swipe is also offered to a screen reader as a scroll action, so '
+                  'nothing is touch-only.',
+              'onGesture covers anything else: a drag, a pinch or a rotation, with '
+                  'its start, every update and its end.',
             ]),
           ],
         ),
