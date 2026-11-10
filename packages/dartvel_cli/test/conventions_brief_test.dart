@@ -100,4 +100,28 @@ void main() {
       );
     },
   );
+  test(
+    'folders the project\'s .gitignore excludes are not scanned; committed ones are',
+    () {
+      // The build writes android/ (gradlew.bat and all) into a folder the
+      // project ignores; flagging it was flagging Dartvel's own output.
+      final root = Directory.systemTemp.createTempSync('dv-conventions-native-');
+      addTearDown(() => root.deleteSync(recursive: true));
+      File('${root.path}/lib/pages/index.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('// page');
+      File('${root.path}/.gitignore').writeAsStringSync('# Ephemeral native folders\nandroid/\n/ios\nbuild/\n');
+      File('${root.path}/android/gradlew.bat')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('@echo off');
+      File('${root.path}/ios/run.sh')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('exit 0');
+      File('${root.path}/tool/deploy.sh')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('exit 0');
+      final flagged = dvScanProjectForConventions(root.path).where((f) => f.rule == 'nonDartTooling').map((f) => f.path).toList();
+      expect(flagged, ['tool/deploy.sh']);
+    },
+  );
 }
