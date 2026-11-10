@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.32 — 2026-11-10
 
 - A functional widget's own dart: imports (dart:convert, dart:math) reach widgets.g.dart, so jsonEncode or math.max in a widget compiles.
 - The conventions check no longer scans top-level folders the project's .gitignore excludes, such as the generated android/, so a fresh build stops flagging its own gradlew.bat (DV-CONV-016).

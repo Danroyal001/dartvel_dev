@@ -1,3 +1,7 @@
+## 0.13.32 — 2026-11-10
+
+- Version aligned with dartvel_core 0.13.32.
+
 ## 0.13.31 — 2026-11-10
 
 - `DVImage.memory(bytes, {mimeType})`: an image from bytes the app holds (an app icon, a photo just taken), kept as a `data:` URI so it serialises; `.bytes` reads it back. Empty bytes are refused.

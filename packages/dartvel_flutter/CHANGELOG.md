@@ -1,3 +1,7 @@
+## 0.13.32 — 2026-11-10
+
+- Version aligned with dartvel_core 0.13.32.
+
 ## 0.13.31 — 2026-11-10
 
 - `DVBox.image` draws `DVImage.memory` through one `MemoryImage` per distinct image, so a rebuild reuses the decoded picture.
