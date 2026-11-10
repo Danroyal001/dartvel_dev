@@ -119,6 +119,32 @@ Widget _docsAgentsPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'driver',
+          title: 'Let an agent use the page',
+          children: <Widget>[
+            DocsText('The agent driver reads the semantics tree, the same tree a '
+                'screen reader reads, and acts through it: tap, type, scroll, '
+                'wait. In a test it is DV.Test.driver(pump: tester.pump).'),
+            DocsShell(<String>[
+              'final DVDriver d = DV.Test.driver(pump: tester.pump);',
+              "await d.tap(d.find(role: 'button', label: 'Place order')!);",
+              'await d.wait();',
+              "expect(d.find(label: 'Order confirmed'), isNotNull);",
+              'd.dispose();',
+            ]),
+            Bullets(<String>[
+              'Each node has a ref, a role, its label and value, its state and '
+                  'the actions it takes. A password field is named, never '
+                  'valued.',
+              'A ref that is gone, a disabled control, or a wait that cannot '
+                  'settle each fail with a DV-DRIVER code saying why.',
+              'Today it runs on the headless test host. Development builds on '
+                  'the web and devices, the dartvel agent commands and the MCP '
+                  'tools are designed and not built yet.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'status',
           title: 'Status',
           children: <Widget>[
