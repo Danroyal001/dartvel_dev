@@ -1,6 +1,7 @@
-## Unreleased
+## 0.13.30 — 2026-11-10
 
 - `DV.Platform.apps` (Android): `list()` answers every app with a launcher activity (package, name, icon as PNG bytes), sorted by name; `open`, `openSettings` and `uninstall` start the app, its system info page and the system uninstall confirmation. Through JNI and PackageManager. Elsewhere `isSupported` is false and the calls throw `UnsupportedError`, never an empty list that reads as a device with no apps.
+- Version aligned with dartvel_core 0.13.30.
 
 ## 0.13.29 — 2026-11-09
 

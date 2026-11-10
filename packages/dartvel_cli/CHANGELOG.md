@@ -1,6 +1,7 @@
-## Unreleased
+## 0.13.30 — 2026-11-10
 
 - `dartvel.android.launcher: true` makes an app eligible as the phone's home screen: the build adds HOME/DEFAULT to the launcher activity and the MAIN/LAUNCHER `<queries>` entry Android 11+ needs to see other apps, in marked blocks a later build replaces.
+- Version aligned with dartvel_core 0.13.30.
 
 ## 0.13.29 — 2026-11-09
 
