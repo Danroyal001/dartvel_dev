@@ -97,6 +97,9 @@ class MainActivity : FlutterActivity()
       final String? out = dvAndroidHomeLauncherActivity(activity, enabled: true);
       expect(out, contains('override fun getBackgroundMode()'));
       expect(out, contains('BackgroundMode.transparent'));
+      // Back on the home page must not close the home app: the next press of
+      // home would start it cold.
+      expect(out, contains('override fun popSystemNavigator(): Boolean = true'));
       expect(dvAndroidHomeLauncherActivity(out!, enabled: true), out);
       expect(dvAndroidHomeLauncherActivity(out, enabled: false), activity);
     });

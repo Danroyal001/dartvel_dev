@@ -113,6 +113,10 @@ const String _transparentActivity = 'class MainActivity : FlutterActivity() {\n'
     '    // dartvel.android.launcher: the phone\'s wallpaper shows through the app.\n'
     '    override fun getBackgroundMode(): io.flutter.embedding.android.FlutterActivityLaunchConfigs.BackgroundMode =\n'
     '        io.flutter.embedding.android.FlutterActivityLaunchConfigs.BackgroundMode.transparent\n'
+    '\n'
+    '    // The home app is never closed by Back: Back on its first page does nothing,\n'
+    '    // as on every launcher, and the next press of home is not a cold start.\n'
+    '    override fun popSystemNavigator(): Boolean = true\n'
     '}';
 
 /// [activity] (MainActivity.kt) with a transparent Flutter surface, or as
