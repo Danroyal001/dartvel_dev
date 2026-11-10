@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   tearDown(() {
-    for (final String name in const ['apps.list', 'apps.open', 'apps.openSettings', 'apps.uninstall']) {
+    for (final String name in const ['apps.list', 'apps.open', 'apps.openSettings', 'apps.uninstall', 'apps.icon', 'apps.isDefaultLauncher', 'apps.requestDefaultLauncher']) {
       DVNativeBridge.unregister(name);
     }
   });
@@ -76,5 +76,51 @@ void main() {
 
   test('is DV.Platform.apps', () {
     expect(DV.Platform.apps, isA<DVApps>());
+  });
+
+  test('one app\'s icon on its own, so a launcher can show names first', () async {
+    final Uint8List png = Uint8List.fromList(const [137, 80, 78, 71]);
+    Object? sent;
+    DVNativeBridge.register('apps.icon', (Object? arguments) {
+      sent = arguments;
+      return png;
+    });
+    expect(await const DVApps().icon('com.termux'), png);
+    expect(sent, {'package': 'com.termux'});
+  });
+
+  test('an icon that cannot be drawn is null, not an empty image', () async {
+    DVNativeBridge.register('apps.icon', (Object? _) => Uint8List(0));
+    expect(await const DVApps().icon('com.broken'), isNull);
+    DVNativeBridge.register('apps.icon', (Object? _) => null);
+    expect(await const DVApps().icon('com.gone'), isNull);
+  });
+
+  test('says whether this app is the phone\'s home app', () async {
+    DVNativeBridge.register('apps.isDefaultLauncher', (Object? _) => true);
+    expect(await const DVApps().isDefaultLauncher(), isTrue);
+    DVNativeBridge.register('apps.isDefaultLauncher', (Object? _) => false);
+    expect(await const DVApps().isDefaultLauncher(), isFalse);
+  });
+
+  test('asks the system to make this app the home app', () async {
+    int asked = 0;
+    DVNativeBridge.register('apps.requestDefaultLauncher', (Object? _) {
+      asked++;
+      return true;
+    });
+    await const DVApps().requestDefaultLauncher();
+    expect(asked, 1);
+  });
+
+  test('a device with no screen to ask on says so', () async {
+    DVNativeBridge.register('apps.requestDefaultLauncher', (Object? _) => false);
+    await expectLater(const DVApps().requestDefaultLauncher(), throwsA(isA<StateError>()));
+  });
+
+  test('where there is no home app to be, the calls are unsupported, not false', () async {
+    await expectLater(const DVApps().isDefaultLauncher(), throwsA(isA<UnsupportedError>()));
+    await expectLater(const DVApps().requestDefaultLauncher(), throwsA(isA<UnsupportedError>()));
+    await expectLater(const DVApps().icon('com.termux'), throwsA(isA<UnsupportedError>()));
   });
 }

@@ -36,6 +36,9 @@ void main() {
         'apps.open',
         'apps.openSettings',
         'apps.uninstall',
+        'apps.icon',
+        'apps.isDefaultLauncher',
+        'apps.requestDefaultLauncher',
         'kiosk.enforce',
         'kiosk.release',
         // The launch Intent's URI. It belongs to the Activity, so it

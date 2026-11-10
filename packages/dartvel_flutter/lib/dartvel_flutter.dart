@@ -6067,6 +6067,38 @@ class DVApps {
     return apps;
   }
 
+  /// [packageName]'s launcher icon as PNG bytes, or null when it cannot be
+  /// drawn. One at a time, so a launcher can list names with
+  /// `list(icons: false)` at once and fill icons in after the first frame.
+  Future<Uint8List?> icon(String packageName) async {
+    if (!DVNativeBridge.isRegistered('apps.icon')) {
+      throw UnsupportedError('Reading app icons is available on Android only.');
+    }
+    final Object? bytes = await DVNativeBridge.require<Object?>('apps.icon', <String, Object?>{'package': packageName});
+    return bytes is Uint8List && bytes.isNotEmpty ? bytes : null;
+  }
+
+  /// Whether this app is the phone's home app (what the home button opens).
+  /// Needs `dartvel.android.launcher: true` in pubspec.yaml to ever be true.
+  Future<bool> isDefaultLauncher() async {
+    if (!DVNativeBridge.isRegistered('apps.isDefaultLauncher')) {
+      throw UnsupportedError('Being the home app is possible on Android only.');
+    }
+    return DVNativeBridge.require<bool>('apps.isDefaultLauncher');
+  }
+
+  /// Asks the person to make this app the phone's home app. Android has no
+  /// permission for it: the system shows its own question (Android 10 and
+  /// later) or its Home app settings, and the person decides. Check
+  /// [isDefaultLauncher] again when the app is resumed.
+  Future<void> requestDefaultLauncher() async {
+    if (!DVNativeBridge.isRegistered('apps.requestDefaultLauncher')) {
+      throw UnsupportedError('Being the home app is possible on Android only.');
+    }
+    final bool shown = await DVNativeBridge.require<bool>('apps.requestDefaultLauncher');
+    if (!shown) throw StateError('This device has no screen for choosing the home app.');
+  }
+
   /// Starts the app [packageName] the way tapping its icon would.
   Future<void> open(String packageName) => _ask('apps.open', packageName, 'open');
 
