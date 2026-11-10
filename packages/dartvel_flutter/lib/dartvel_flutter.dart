@@ -30,6 +30,7 @@ import 'src/accessibility/keyboard_scroll.dart';
 import 'src/accessibility/page_escape.dart';
 import 'src/accessibility/switch_control.dart';
 import 'src/accessibility/tooltips.dart';
+import 'src/gestures/gestures.dart';
 import 'src/auth/ask_for_code.dart';
 import 'src/auth/auth_frame.dart';
 import 'src/auth/qr_code.dart' show DVQrImage;
@@ -824,6 +825,7 @@ export 'src/kiosk/kiosk_keys.dart';
 export 'src/kiosk/session_clear.dart';
 export 'src/lifecycle/app_lifecycle_bridge.dart';
 export 'src/driver/agent_driver.dart';
+export 'src/gestures/gestures.dart' show DVGesture, dvSwipeVelocity;
 export 'src/logging/logging.dart';
 export 'src/media/camera_view.dart' hide DVCameraView;
 // The renderer behind DVBox.image is not a second image widget, so it is
@@ -1170,6 +1172,9 @@ class DVModifier {
 
   /// The second thing a control does, on a long press (see [onLongPress]).
   final VoidCallback? onLongPressCallback;
+
+  /// Double tap, swipes and a custom gesture (see [onDoubleTap], [onSwipeUp], [onGesture]).
+  final DVGestureSet? gestureSet;
   final DecorationImage? bgImage;
 
   /// A video behind the box's content, muted and looping.
@@ -1255,6 +1260,7 @@ class DVModifier {
     this.shadows,
     this.onTapCallback,
     this.onLongPressCallback,
+    this.gestureSet,
     this.bgImage,
     this.bgVideo,
     this.semanticLabelValue,
@@ -1315,6 +1321,7 @@ class DVModifier {
         shadows = null,
         onTapCallback = null,
         onLongPressCallback = null,
+        gestureSet = null,
         bgImage = null,
         bgVideo = null,
         semanticLabelValue = null,
@@ -1375,6 +1382,7 @@ class DVModifier {
     List<BoxShadow>? shadows,
     VoidCallback? onTapCallback,
     VoidCallback? onLongPressCallback,
+    DVGestureSet? gestureSet,
     DecorationImage? bgImage,
     DVMediaSource? bgVideo,
     String? semanticLabelValue,
@@ -1451,6 +1459,7 @@ class DVModifier {
       onTapCallback:
           clearInteraction ? null : (onTapCallback ?? this.onTapCallback),
       onLongPressCallback: clearInteraction ? null : (onLongPressCallback ?? this.onLongPressCallback),
+      gestureSet: clearInteraction ? null : (gestureSet ?? this.gestureSet),
       bgImage: bgImage ?? this.bgImage,
       bgVideo: bgVideo ?? this.bgVideo,
       semanticLabelValue: clearInteraction
@@ -1814,6 +1823,7 @@ class DVModifier {
         shadows: other.shadows ?? shadows,
         onTapCallback: other.onTapCallback ?? onTapCallback,
         onLongPressCallback: other.onLongPressCallback ?? onLongPressCallback,
+        gestureSet: gestureSet == null ? other.gestureSet : gestureSet!.merge(other.gestureSet),
         bgImage: other.bgImage ?? bgImage,
         semanticLabelValue: other.semanticLabelValue ?? semanticLabelValue,
         tooltipValue: other.tooltipValue ?? tooltipValue,
@@ -1867,6 +1877,30 @@ class DVModifier {
   /// action's, so the tooltip shows on hover and keyboard focus only. Goes
   /// with [onTap], which names the control and makes it reachable.
   DVModifier onLongPress(VoidCallback callback) => _copyWith(onLongPressCallback: callback);
+
+  DVModifier _gesture(DVGestureSet Function(DVGestureSet current) change) =>
+      _copyWith(gestureSet: change(gestureSet ?? const DVGestureSet()));
+
+  /// A double tap.
+  DVModifier onDoubleTap(VoidCallback callback) => _gesture((DVGestureSet g) => g.copyWith(doubleTap: callback));
+
+  /// A fling to the left, faster than [dvSwipeVelocity]. Offered to a screen
+  /// reader as scrolling left.
+  DVModifier onSwipeLeft(VoidCallback callback) => _gesture((DVGestureSet g) => g.copyWith(swipeLeft: callback));
+
+  /// A fling to the right. Offered to a screen reader as scrolling right.
+  DVModifier onSwipeRight(VoidCallback callback) => _gesture((DVGestureSet g) => g.copyWith(swipeRight: callback));
+
+  /// A fling upward: an app drawer, a sheet. Offered to a screen reader as
+  /// scrolling up.
+  DVModifier onSwipeUp(VoidCallback callback) => _gesture((DVGestureSet g) => g.copyWith(swipeUp: callback));
+
+  /// A fling downward. Offered to a screen reader as scrolling down.
+  DVModifier onSwipeDown(VoidCallback callback) => _gesture((DVGestureSet g) => g.copyWith(swipeDown: callback));
+
+  /// Anything the helpers above do not name: a drag, a pinch, a rotation,
+  /// with its start, every update and its end.
+  DVModifier onGesture(DVGesture gesture) => _gesture((DVGestureSet g) => g.copyWith(custom: gesture));
 
   /// What this is, in words: the tooltip on mouse hover, keyboard focus and
   /// long press, and the screen-reader name, and (on the server-rendered page)
@@ -2872,6 +2906,11 @@ class DVBox<T> extends StatelessWidget {
       );
     }
 
+    // Double tap, swipes and a custom gesture, under the control's own tap so
+    // a tap and a swipe can share one box.
+    final DVGestureSet? gestures = m?.gestureSet;
+    if (gestures != null) result = gestures.wrap(result);
+
     final bool dragDrop =
         m?.dropTargetValue != null || m?.draggableValue != null;
     if (m?.onTapCallback == null && (m?.tooltipValue != null || dragDrop)) {
@@ -2941,6 +2980,8 @@ class DVBox<T> extends StatelessWidget {
         result = MergeSemantics(child: result);
       }
     }
+
+    if (gestures != null) result = gestures.announce(result);
 
     return dvWrapDragDrop(result, m?.dropTargetValue, m?.draggableValue);
   }
@@ -4169,6 +4210,11 @@ class DVText extends StatelessWidget {
     // label is the careful one. Left in, the box would carry them too: a
     // callback that runs twice and a screen reader saying "heading" and then
     // "heading".
+    // Double tap, swipes and a custom gesture on text, as on a box; the
+    // swipes are offered to a screen reader outside the text's own label.
+    final DVGestureSet? gestures = modifier?.gestureSet;
+    if (gestures != null) result = gestures.announce(gestures.wrap(result));
+
     if (modifier != null && modifier.hasBoxStyling) {
       result = DVBox(result).modifier(
         modifier._copyWith(clearInteraction: true),
