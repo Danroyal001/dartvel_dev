@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.35 — 2026-11-11
 
 - `dartvel.hosts` redirecting hosts reach the web-server manifest (`hostRedirects`) and `dartvel dev --release` answers them too.
 - `dartvel.android.launcher` declares the dock roles (dial, SMS, browser, camera, email, maps) and the home-app screens in `<queries>`.
