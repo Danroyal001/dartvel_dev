@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.31 — 2026-11-10
 
 - `DVBox.image` draws `DVImage.memory` through one `MemoryImage` per distinct image, so a rebuild reuses the decoded picture.
 

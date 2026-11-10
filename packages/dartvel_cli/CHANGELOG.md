@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.31 — 2026-11-10
 
 - A backend function parameter named `query`, `body` or `headers` stops the build with the file, the parameter and the fix, instead of generating a client function that declares the name twice and does not compile.
 - A functional widget calling a helper whose return type is a record (`List<(String, String)> facts(...)`) now compiles: the helper is qualified like any other.
