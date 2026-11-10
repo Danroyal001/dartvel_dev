@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.33 — 2026-11-10
 
 - Agent driver on the headless host: `DV.Test.driver(pump: tester.pump)` reads the semantics tree (refs, roles, labels, values, state, actions) and taps, types, scrolls and waits through it; sensitive fields are named, never valued; stale refs, disabled controls and waits that cannot settle fail with DV-DRIVER-002/003/004.
 

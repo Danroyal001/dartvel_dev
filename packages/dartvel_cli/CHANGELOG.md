@@ -1,3 +1,7 @@
+## 0.13.33 — 2026-11-10
+
+- Version aligned with dartvel_core 0.13.33.
+
 ## 0.13.32 — 2026-11-10
 
 - A functional widget's own dart: imports (dart:convert, dart:math) reach widgets.g.dart, so jsonEncode or math.max in a widget compiles.
