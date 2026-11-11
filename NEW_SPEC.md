@@ -1039,6 +1039,7 @@ Fluent modifiers include
 .height()
 .opacity()
 .rotate()           // degrees
+.offset()           // dx, dy pixels after layout; slides with .animate()
 .blur()
 .card()
 .input()

@@ -93,7 +93,7 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
                   'maxHeight, minHeight, align, centered'],
               <String>['Surface', 'backgroundColor, gradient, backgroundImage, '
                   'border, rounded, radius, shadow, card, clipContent'],
-              <String>['Effects', 'opacity, blur, backdropBlur, rotate'],
+              <String>['Effects', 'opacity, blur, backdropBlur, rotate, offset'],
               <String>['Text', 'color, fontSize, fontWeight, fontFamily, '
                   'letterSpacing, lineHeight, maxLines, overflow, decoration'],
               <String>['Interaction', 'onTap, onPressed, onLongPress, onDoubleTap, '
