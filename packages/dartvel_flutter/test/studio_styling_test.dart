@@ -88,6 +88,8 @@ void main() {
         'blur': 4, 'backdropBlur': 12,
         // A frame either crops what is in it or does not.
         'clip': true,
+        // A layer either takes the room its siblings leave or does not.
+        'fill': true,
       };
       for (final property in dvStudioProperties) {
         expect(

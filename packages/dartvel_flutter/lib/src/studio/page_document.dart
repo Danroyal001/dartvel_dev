@@ -1416,6 +1416,15 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
     (m, v, p) => v == true ? m.clipContent() : null,
     source: (v, p) => v == true ? '.clipContent()' : null,
   ),
+  // A layer that takes the room its siblings leave: the list under a
+  // header, the label beside an icon. Nothing fixed that a larger font
+  // would overflow.
+  DVStudioProperty(
+    'fill',
+    DVStudioPropertyKind.flag,
+    (m, v, p) => v == true ? m.fill() : null,
+    source: (v, p) => v == true ? '.fill()' : null,
+  ),
   DVStudioProperty(
     'blur',
     DVStudioPropertyKind.number,

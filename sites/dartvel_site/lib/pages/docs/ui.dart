@@ -90,7 +90,7 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
             ], rows: <List<String>>[
               <String>['Spacing and size', 'padding, paddingSymmetric, '
                   'paddingOnly, margin, width, height, maxWidth, minWidth, '
-                  'maxHeight, minHeight, align, centered'],
+                  'maxHeight, minHeight, align, centered, fill'],
               <String>['Surface', 'backgroundColor, gradient, backgroundImage, '
                   'border, rounded, radius, shadow, card, clipContent'],
               <String>['Effects', 'opacity, blur, backdropBlur, rotate, offset'],
