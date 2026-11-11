@@ -89,6 +89,15 @@ void main() {
     expect(dvAndroidHomeLauncherManifest(out, enabled: true), out);
   });
 
+  test('it can see the other home apps, or it cannot tell whether it is the home app', () {
+    // isDefaultLauncher asks which app answers MAIN/HOME. With the others
+    // hidden (Android 11+), the only home app it could see was itself, so it
+    // always said yes and the 'make it my home app' offer never showed.
+    final String out = dvAndroidHomeLauncherManifest(_manifest, enabled: true);
+    final String queries = out.substring(out.indexOf('<queries>'), out.indexOf('</queries>'));
+    expect(queries, contains('android.intent.category.HOME'));
+  });
+
   group('the wallpaper behind a home app', () {
     const String styles = '''<?xml version="1.0" encoding="utf-8"?>
 <resources>

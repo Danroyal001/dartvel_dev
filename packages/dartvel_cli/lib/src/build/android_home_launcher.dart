@@ -72,6 +72,8 @@ String dvAndroidHomeLauncherManifest(String manifest, {required bool enabled}) {
       '            <action android:name="android.intent.action.MAIN"/>\n'
       '            <category android:name="android.intent.category.LAUNCHER"/>\n'
       '        </intent>\n'
+      '        <!-- The other home apps: without them isDefaultLauncher sees only itself. -->\n'
+      '        <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.HOME"/></intent>\n'
       '        <!-- The apps behind each dock role (DV.Platform.apps.defaultFor). -->\n'
       '        <intent><action android:name="android.intent.action.DIAL"/><data android:scheme="tel"/></intent>\n'
       '        <intent><action android:name="android.intent.action.SENDTO"/><data android:scheme="smsto"/></intent>\n'
