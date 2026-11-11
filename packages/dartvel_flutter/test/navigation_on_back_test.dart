@@ -3,6 +3,7 @@
 // never heard it (Dev Launcher's drawer on Android 12, 11 Nov 2026).
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -50,5 +51,29 @@ void main() {
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(find.text('Home'), findsOneWidget);
+  });
+
+  testWidgets('while a handler is registered, Android is told the app handles Back', (WidgetTester tester) async {
+    // At the root, with no page to pop, Flutter tells Android the app does
+    // not handle Back, and Android never sends it: a launcher's drawer stayed
+    // open on Android 12. A handler must claim Back until it is removed.
+    final List<Object?> said = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (MethodCall call) async {
+      if (call.method == 'SystemNavigator.setFrameworkHandlesBack') said.add(call.arguments);
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+    final GoRouter router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const Text('Home'))]);
+    DVNavigation.attach(router);
+    addTearDown(DVNavigation.detach);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    said.clear();
+    final VoidCallback remove = DV.Navigation.onBack(() => true);
+    await tester.pump();
+    expect(said.last, isTrue, reason: 'Back is claimed while the handler is there');
+    remove();
+    await tester.pump();
+    expect(said.last, isFalse, reason: 'with nothing to pop and no handler, Back goes back to Android');
   });
 }
