@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.39 — 2026-11-11
 
 - A text field in `DVBox.row` takes the width the other children leave, and a row holding one never uses the wrapping layout. It had no width limit, and Flutter's TextField fails layout without one (found in Dev Launcher's command line).
 

@@ -1,3 +1,7 @@
+## 0.13.39 — 2026-11-11
+
+- Version aligned with dartvel_core 0.13.39.
+
 ## 0.13.38 — 2026-11-11
 
 - `dartvel.android.launcher` also puts the wallpaper behind the Android 12+ launch theme (values-v31, values-night-v31).
