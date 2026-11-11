@@ -1389,6 +1389,23 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
     source: (v, p) =>
         v is num && v != 0 ? '.rotate(${v.toDouble()})' : null,
   ),
+  // Where the layer is moved to after layout, as an inspector shows it: x
+  // and y, in pixels. One modifier, so either applies the whole offset and
+  // it is exported once: through x when x is set, through y when only y is.
+  // A value that is not a number moves nothing rather than taking the page
+  // down.
+  DVStudioProperty(
+    'offsetX',
+    DVStudioPropertyKind.number,
+    (m, v, p) => _moved(m, p),
+    source: (v, p) => _offsetSource(p),
+  ),
+  DVStudioProperty(
+    'offsetY',
+    DVStudioPropertyKind.number,
+    (m, v, p) => _moved(m, p),
+    source: (v, p) => p['offsetX'] is num ? null : _offsetSource(p),
+  ),
   DVStudioProperty(
     'clip',
     DVStudioPropertyKind.flag,
@@ -2520,4 +2537,23 @@ class DVPageBundleInstaller {
     await DV.Database.records
         .delete(table, where: DVFilter.equals('version', version));
   }
+}
+
+/// The layer's offset from `offsetX` and `offsetY`, a missing one being
+/// nought; null when neither is a number.
+Offset? _offsetOf(Map<String, Object?> properties) {
+  final Object? x = properties['offsetX'];
+  final Object? y = properties['offsetY'];
+  if (x is! num && y is! num) return null;
+  return Offset(x is num ? x.toDouble() : 0, y is num ? y.toDouble() : 0);
+}
+
+DVModifier? _moved(DVModifier modifier, Map<String, Object?> properties) {
+  final Offset? offset = _offsetOf(properties);
+  return offset == null ? null : modifier.offset(offset.dx, offset.dy);
+}
+
+String? _offsetSource(Map<String, Object?> properties) {
+  final Offset? offset = _offsetOf(properties);
+  return offset == null ? null : '.offset(${offset.dx}, ${offset.dy})';
 }

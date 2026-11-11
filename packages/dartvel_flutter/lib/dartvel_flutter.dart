@@ -1116,6 +1116,13 @@ class DVModifier {
   /// radians sees the difference before they run it.
   final double? rotateDegrees;
 
+  /// How far the box is moved from where layout put it, in logical pixels:
+  /// right and down are positive. Moved after layout, so the box keeps its
+  /// size, the boxes around it keep their places, and taps land where it is
+  /// drawn. A panel that waits off-screen sits there whole this way; pushed
+  /// by a margin it is squeezed to nothing instead.
+  final Offset? offsetValue;
+
   /// How far the box and its contents are blurred.
   ///
   /// A standard deviation, which is what ImageFilter.blur takes and
@@ -1247,6 +1254,7 @@ class DVModifier {
     this.animateCurve = Curves.easeOut,
     this.opacityValue,
     this.rotateDegrees,
+    this.offsetValue,
     this.blurSigma,
     this.backdropBlurSigma,
     this.centeredValue = false,
@@ -1308,6 +1316,7 @@ class DVModifier {
         animateCurve = Curves.easeOut,
         opacityValue = null,
         rotateDegrees = null,
+        offsetValue = null,
         blurSigma = null,
         backdropBlurSigma = null,
         centeredValue = false,
@@ -1368,6 +1377,7 @@ class DVModifier {
     Curve? animateCurve,
     double? opacityValue,
     double? rotateDegrees,
+    Offset? offsetValue,
     double? blurSigma,
     double? backdropBlurSigma,
     bool clearInteraction = false,
@@ -1444,6 +1454,7 @@ class DVModifier {
       animateCurve: animateCurve ?? this.animateCurve,
       opacityValue: opacityValue ?? this.opacityValue,
       rotateDegrees: rotateDegrees ?? this.rotateDegrees,
+      offsetValue: offsetValue ?? this.offsetValue,
       blurSigma: blurSigma ?? this.blurSigma,
       backdropBlurSigma: backdropBlurSigma ?? this.backdropBlurSigma,
       centeredValue: centeredValue ?? this.centeredValue,
@@ -1700,6 +1711,7 @@ class DVModifier {
       animateDuration != null ||
       opacityValue != null ||
       rotateDegrees != null ||
+      offsetValue != null ||
       blurSigma != null ||
       backdropBlurSigma != null ||
       minimumTapTargetValue != null ||
@@ -1734,6 +1746,12 @@ class DVModifier {
   /// forty-five degree tilt, and `rotate(math.pi / 4)` is very nearly
   /// nothing.
   DVModifier rotate(double degrees) => _copyWith(rotateDegrees: degrees);
+
+  /// Moves the box [dx] right and [dy] down, in logical pixels, without
+  /// changing its size or anything around it -- see [offsetValue]. With
+  /// [animate], a change of offset slides there.
+  DVModifier offset(double dx, double dy) =>
+      _copyWith(offsetValue: Offset(dx, dy));
 
   /// Centres the box within its parent.
   ///
@@ -1809,6 +1827,7 @@ class DVModifier {
             : animateCurve,
         opacityValue: other.opacityValue ?? opacityValue,
         rotateDegrees: other.rotateDegrees ?? rotateDegrees,
+        offsetValue: other.offsetValue ?? offsetValue,
         blurSigma: other.blurSigma ?? blurSigma,
         backdropBlurSigma:
             other.backdropBlurSigma ?? backdropBlurSigma,
@@ -2984,7 +3003,29 @@ class DVBox<T> extends StatelessWidget {
 
     if (gestures != null) result = gestures.announce(result);
 
-    return dvWrapDragDrop(result, m?.dropTargetValue, m?.draggableValue);
+    result = dvWrapDragDrop(result, m?.dropTargetValue, m?.draggableValue);
+
+    // Moved after layout, and last, so everything the box is -- its taps,
+    // tooltip, semantics and drag -- moves with it: a tap lands where the box
+    // is drawn. Wrapped whenever an offset is set, zero included, so the
+    // panel that slides between off-screen and nought keeps one widget tree
+    // and its state. Animated when the box asks, and not for a reader who
+    // has asked for less movement.
+    final Offset? offset = m?.offsetValue;
+    if (offset != null) {
+      final Widget moved = result;
+      result = animating
+          ? TweenAnimationBuilder<Offset>(
+              tween: Tween<Offset>(end: offset),
+              duration: animate,
+              curve: m?.animateCurve ?? Curves.easeOut,
+              child: moved,
+              builder: (BuildContext context, Offset at, Widget? child) =>
+                  Transform.translate(offset: at, child: child),
+            )
+          : Transform.translate(offset: offset, child: moved);
+    }
+    return result;
   }
 
   Widget? _buildContent(BuildContext context) {
