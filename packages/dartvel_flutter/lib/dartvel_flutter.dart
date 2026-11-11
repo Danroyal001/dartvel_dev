@@ -1143,6 +1143,10 @@ class DVModifier {
   /// Whether the box is centred within its parent.
   final bool centeredValue;
 
+  /// Whether the box takes the room its [DVBox.list] or [DVBox.row] leaves:
+  /// the height left in a list, the width left in a row. See [fill].
+  final bool fillValue;
+
   /// Whether the box crops whatever is in it to its own bounds.
   ///
   /// Its own decision, and nothing to do with corners: a photograph
@@ -1258,6 +1262,7 @@ class DVModifier {
     this.blurSigma,
     this.backdropBlurSigma,
     this.centeredValue = false,
+    this.fillValue = false,
     this.clipValue = false,
     this.onHoverChangedCallback,
     this.hoverValue,
@@ -1320,6 +1325,7 @@ class DVModifier {
         blurSigma = null,
         backdropBlurSigma = null,
         centeredValue = false,
+        fillValue = false,
         clipValue = false,
         onHoverChangedCallback = null,
         hoverValue = null,
@@ -1382,6 +1388,7 @@ class DVModifier {
     double? backdropBlurSigma,
     bool clearInteraction = false,
     bool? centeredValue,
+    bool? fillValue,
     bool? clipValue,
     ValueChanged<bool>? onHoverChangedCallback,
     DVModifier? hoverValue,
@@ -1458,6 +1465,7 @@ class DVModifier {
       blurSigma: blurSigma ?? this.blurSigma,
       backdropBlurSigma: backdropBlurSigma ?? this.backdropBlurSigma,
       centeredValue: centeredValue ?? this.centeredValue,
+      fillValue: fillValue ?? this.fillValue,
       clipValue: clipValue ?? this.clipValue,
       onHoverChangedCallback:
           onHoverChangedCallback ?? this.onHoverChangedCallback,
@@ -1717,7 +1725,8 @@ class DVModifier {
       minimumTapTargetValue != null ||
       revealValue ||
       clipValue ||
-      centeredValue;
+      centeredValue ||
+      fillValue;
 
   /// Crops whatever is in the box to the box.
   ///
@@ -1759,6 +1768,13 @@ class DVModifier {
   /// 400-wide reading column in a full-width tinted band needs this one; with
   /// [align] it stays pinned to the left of the band.
   DVModifier centered() => _copyWith(centeredValue: true);
+
+  /// Takes the room the other children of its [DVBox.list] or [DVBox.row]
+  /// leave: a header over a list that scrolls is the header at the height
+  /// its contents need and the list with `fill()`, with nothing fixed that a
+  /// larger font would overflow. Only for a direct child of a list or row
+  /// whose own size is bounded; two filling children share the room.
+  DVModifier fill() => _copyWith(fillValue: true);
 
   /// Animates changes to this box's decoration and geometry over [duration].
   ///
@@ -1832,6 +1848,7 @@ class DVModifier {
         backdropBlurSigma:
             other.backdropBlurSigma ?? backdropBlurSigma,
         centeredValue: other.centeredValue || centeredValue,
+        fillValue: other.fillValue || fillValue,
         clipValue: other.clipValue || clipValue,
         onHoverChangedCallback:
             other.onHoverChangedCallback ?? onHoverChangedCallback,
@@ -3025,6 +3042,10 @@ class DVBox<T> extends StatelessWidget {
             )
           : Transform.translate(offset: offset, child: moved);
     }
+
+    // Outermost, because Expanded only works as the direct child of the
+    // list or row it fills.
+    if (m?.fillValue ?? false) result = Expanded(child: result);
     return result;
   }
 
@@ -3137,11 +3158,15 @@ class DVBox<T> extends StatelessWidget {
       _responsive &&
       (_crossAlign == DVCrossAlign.stretch ||
           _crossAlign == DVCrossAlign.center) &&
-      !children.any((Widget child) => child is Flexible || _isInput(child));
+      !children.any((Widget child) => child is Flexible || _isInput(child) || _fills(child));
 
   /// A text field: it has no width of its own, so a row gives it the room the
   /// rest leaves, and never wraps it in a box that sizes it to its content.
   static bool _isInput(Widget child) => child is DVText && child._modifier?.inputValue == true;
+
+  /// A box that takes the room the rest leave (DVModifier.fill): a row that
+  /// wrapped it would have no room left over to give it.
+  static bool _fills(Widget child) => child is DVBox && child._modifier?.fillValue == true;
 
   /// A row where the children fit, and a column, in order, where they do not.
   Widget _adaptiveRow(List<Widget> children) {
