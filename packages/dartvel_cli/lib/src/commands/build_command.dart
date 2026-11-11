@@ -2089,7 +2089,7 @@ class BuildCommand extends Command<void> {
     if (after != before) manifest.writeAsStringSync(after);
 
     // The wallpaper behind the app, in both window themes, light and dark.
-    for (final String values in const <String>['values', 'values-night']) {
+    for (final String values in dvAndroidHomeLauncherStylesFolders) {
       final File styles = File(p.join(root, 'android', 'app', 'src', 'main', 'res', values, 'styles.xml'));
       if (!styles.existsSync()) continue;
       final String text = styles.readAsStringSync();

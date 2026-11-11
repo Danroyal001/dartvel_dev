@@ -133,6 +133,23 @@ class MainActivity : FlutterActivity()
       expect(off, isNot(contains('windowShowWallpaper')));
     });
 
+    test('Android 12 and later: the launch theme in values-v31 shows the wallpaper too', () {
+      // From API 31 the launch theme lives in values-v31/styles.xml; leaving
+      // it out kept a full splash on Android 12 phones.
+      const String v31 = '''<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/dartvel_splash_background</item>
+    </style>
+</resources>
+''';
+      final String out = dvAndroidHomeLauncherStyles(v31, enabled: true);
+      expect(out, contains('android:windowShowWallpaper">true'));
+      expect(out, isNot(contains('@drawable/launch_background')));
+      expect(out, contains('windowSplashScreenBackground'), reason: 'the splash colour stays for the system splash');
+      expect(dvAndroidHomeLauncherStylesFolders, containsAll(<String>['values', 'values-night', 'values-v31', 'values-night-v31']));
+    });
+
     test('the Flutter surface is transparent, so the wallpaper is not painted over', () {
       final String? out = dvAndroidHomeLauncherActivity(activity, enabled: true);
       expect(out, contains('override fun getBackgroundMode()'));

@@ -16,6 +16,7 @@ import 'package:flutter/rendering.dart'
     show OrdinalSortKey, Selectable, SelectedContent, SelectionRegistrar;
 import 'package:flutter/services.dart'
     show Clipboard,
+        SystemNavigator,
         ClipboardData,
         KeyDownEvent,
         KeyEvent,
@@ -10804,14 +10805,27 @@ class DVNavigation {
     // parent, and so to the router.
     final BackButtonDispatcher parent = _active.backButtonDispatcher;
     final ChildBackButtonDispatcher child = parent.createChildBackButtonDispatcher();
+    final GoRouter router = _active;
     Future<bool> callback() async => handler();
     child.addCallback(callback);
     child.takePriority();
+    // At the root, with nothing to pop, Flutter tells Android the app does not
+    // handle Back and Android never sends it, so the handler would never run.
+    // Claim Back while any handler is registered.
+    _backHandlers++;
+    SystemNavigator.setFrameworkHandlesBack(true);
+    bool removed = false;
     return () {
+      if (removed) return;
+      removed = true;
       child.removeCallback(callback);
       parent.forget(child);
+      _backHandlers--;
+      if (_backHandlers == 0) SystemNavigator.setFrameworkHandlesBack(router.canPop());
     };
   }
+
+  static int _backHandlers = 0;
 
   /// The current location, as the URL the router resolved.
   String get currentPath =>

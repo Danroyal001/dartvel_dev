@@ -106,6 +106,10 @@ const String _styleBlock = '$_styleStart\n'
     '        <item name="android:windowBackground">@android:color/transparent</item>\n'
     '$_styleEnd\n';
 
+/// The res folders whose styles.xml carries the window themes: light and dark,
+/// and from API 31 (Android 12) the launch theme's own files.
+const List<String> dvAndroidHomeLauncherStylesFolders = <String>['values', 'values-night', 'values-v31', 'values-night-v31'];
+
 /// Flutter's own window backgrounds, put back when the setting is turned off.
 const Map<String, String> _flutterBackgrounds = <String, String>{
   'LaunchTheme': '@drawable/launch_background',
