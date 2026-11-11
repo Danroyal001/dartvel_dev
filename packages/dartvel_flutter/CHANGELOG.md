@@ -1,3 +1,7 @@
+## 0.13.40 — 2026-11-11
+
+- `DVModifier.offset(dx, dy)` moves a box after layout: it keeps its size, its taps, tooltip and semantics move with it, and with `animate(...)` it slides. Studio pages say the same with `offsetX`/`offsetY`, exported as one `.offset()` call. A panel waiting off-screen was pushed there by a margin and squeezed to nothing (found in Dev Launcher's drawer).
+
 ## 0.13.39 — 2026-11-11
 
 - A text field in `DVBox.row` takes the width the other children leave, and a row holding one never uses the wrapping layout. It had no width limit, and Flutter's TextField fails layout without one (found in Dev Launcher's command line).
