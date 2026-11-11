@@ -1,3 +1,7 @@
+## 0.13.37 — 2026-11-11
+
+- Version aligned with dartvel_core 0.13.37.
+
 ## 0.13.36 — 2026-11-11
 
 - `dartvel.android.launcher` declares MAIN/HOME in `<queries>`: with the other home apps hidden (Android 11+), `isDefaultLauncher()` saw only the app itself and always answered yes, so an app never offered to become the home app.
