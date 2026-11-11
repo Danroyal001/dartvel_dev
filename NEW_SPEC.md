@@ -819,7 +819,8 @@ Everything else is built from them, with a `DVModifier` (Styling):
 - Gestures: `.onLongPress(...)`, `.onDoubleTap(...)`, `.onSwipeLeft/Right/Up/Down(...)`, and `.onGesture(DVGesture(onStart:, onUpdate:, onEnd:))` for a custom drag, pinch or rotate. A long press is the action's (the tooltip then shows on hover and focus); each swipe is a fling faster than `dvSwipeVelocity` and is offered to a screen reader as the matching scroll action, so no gesture is touch-only.
 - Rows: `DVBox.row(children)`
 - Columns and lists: `DVBox.list(children)`
-- Grids: `DVBox.grid(children)`
+- Grids: `DVBox.grid(children)`, rows as tall as their tallest cell, never square cells that clip what is taller than it is wide
+- Back: `DV.Navigation.onBack(() => closeDrawer())` lets Back close what is on top (a drawer, a sheet) before it navigates; the handler returns true when it handled Back, and the call returns the function that removes it
 - Masonry: `DVBox.masonry(children)`
 - Two panes, one each side of a foldable's fold: `DVBox.twoPane([first, second])`
 - Forms: `DVForm<T>` (Forms)

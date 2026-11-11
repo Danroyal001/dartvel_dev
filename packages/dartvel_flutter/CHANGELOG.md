@@ -1,3 +1,8 @@
+## Unreleased
+
+- `DVBox.grid` rows grow to fit their tallest cell; square cells clipped anything taller than wide (a launcher icon lost its label).
+- `DV.Navigation.onBack(handler)`: Back closes what is on top (a drawer, a sheet) before it navigates, through a priority child of the router's back dispatcher.
+
 ## 0.13.36 — 2026-11-11
 
 - Version aligned with dartvel_core 0.13.36.
