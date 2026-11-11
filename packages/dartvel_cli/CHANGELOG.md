@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel.android.launcher` declares MAIN/HOME in `<queries>`: with the other home apps hidden (Android 11+), `isDefaultLauncher()` saw only the app itself and always answered yes, so an app never offered to become the home app.
+
 ## 0.13.35 — 2026-11-11
 
 - `dartvel.hosts` redirecting hosts reach the web-server manifest (`hostRedirects`) and `dartvel dev --release` answers them too.
