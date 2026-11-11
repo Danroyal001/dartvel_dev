@@ -177,6 +177,14 @@ off-screen is the box moved by the screen height:
 DVBox(drawer, DVModifier().offset(0, open ? 0 : screenHeight).animate(const Duration(milliseconds: 220)));
 ```
 
+`.fill()` gives a child of `DVBox.list` or `DVBox.row` the room the others
+leave, so a header keeps the height its contents need and the list under it
+takes the rest, with nothing fixed for a larger font to overflow:
+
+```dart
+DVBox.list([header, DVBox(apps, DVModifier().fill())], spacing: 0);
+```
+
 `DVBox` is the one layout primitive and `DVText` the one text primitive. Both
 take a `DVModifier`, an immutable chain of styling, layout, interaction and
 semantics. The chain is Dartvel's own, rendered with Flutter widgets; it is

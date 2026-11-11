@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVModifier.fill()`: a child of `DVBox.list` or `DVBox.row` takes the room the others leave (the list under a header, the label beside an icon), and a row holding one never wraps. Studio pages: the `fill` flag. Dev Launcher's drawer header had a fixed height its contents overflowed.
+
 ## 0.13.40 — 2026-11-11
 
 - `DVModifier.offset(dx, dy)` moves a box after layout: it keeps its size, its taps, tooltip and semantics move with it, and with `animate(...)` it slides. Studio pages say the same with `offsetX`/`offsetY`, exported as one `.offset()` call. A panel waiting off-screen was pushed there by a margin and squeezed to nothing (found in Dev Launcher's drawer).

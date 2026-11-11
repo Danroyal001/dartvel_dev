@@ -1040,6 +1040,7 @@ Fluent modifiers include
 .opacity()
 .rotate()           // degrees
 .offset()           // dx, dy pixels after layout; slides with .animate()
+.fill()             // takes the room a list or row leaves
 .blur()
 .card()
 .input()
