@@ -1,3 +1,7 @@
+## 0.13.36 — 2026-11-11
+
+- Version aligned with dartvel_core 0.13.36.
+
 ## 0.13.35 — 2026-11-11
 
 - `dartvel.hosts`: a host can only redirect (`redirect:` for every path, `redirects:` for exact paths), for a domain whose content moved elsewhere; `DVHostRedirect`, `dvHostRedirectTarget`.
