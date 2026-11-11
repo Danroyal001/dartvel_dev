@@ -3029,7 +3029,12 @@ class DVBox<T> extends StatelessWidget {
           // was turned into centre, which left a page beside a side rail
           // shrink-wrapped and floating mid-screen.
           crossAxisAlignment: _crossAxisAlignment,
-          children: spaced,
+          // A text field has no width of its own and Flutter's throws without
+          // a limit, so an input in a row takes the room the rest leaves.
+          children: <Widget>[
+            for (final Widget child in spaced)
+              _isInput(child) ? Expanded(child: child) : child,
+          ],
         );
         break;
       case _DVBoxLayout.grid:
@@ -3091,7 +3096,11 @@ class DVBox<T> extends StatelessWidget {
       _responsive &&
       (_crossAlign == DVCrossAlign.stretch ||
           _crossAlign == DVCrossAlign.center) &&
-      !children.any((Widget child) => child is Flexible);
+      !children.any((Widget child) => child is Flexible || _isInput(child));
+
+  /// A text field: it has no width of its own, so a row gives it the room the
+  /// rest leaves, and never wraps it in a box that sizes it to its content.
+  static bool _isInput(Widget child) => child is DVText && child._modifier?.inputValue == true;
 
   /// A row where the children fit, and a column, in order, where they do not.
   Widget _adaptiveRow(List<Widget> children) {

@@ -1,3 +1,7 @@
+## Unreleased
+
+- A text field in `DVBox.row` takes the width the other children leave, and a row holding one never uses the wrapping layout. It had no width limit, and Flutter's TextField fails layout without one (found in Dev Launcher's command line).
+
 ## 0.13.38 — 2026-11-11
 
 - `DV.Navigation.onBack` tells Android the app handles Back while a handler is registered; at the root Android otherwise never sent Back and a drawer could not be closed (found on Android 12).
