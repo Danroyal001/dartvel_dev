@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.38 — 2026-11-11
 
 - `DV.Navigation.onBack` tells Android the app handles Back while a handler is registered; at the root Android otherwise never sent Back and a drawer could not be closed (found on Android 12).
 
