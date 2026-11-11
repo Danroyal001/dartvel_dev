@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.41 — 2026-11-11
 
 - `DVModifier.fill()`: a child of `DVBox.list` or `DVBox.row` takes the room the others leave (the list under a header, the label beside an icon), and a row holding one never wraps. Studio pages: the `fill` flag. Dev Launcher's drawer header had a fixed height its contents overflowed.
 
