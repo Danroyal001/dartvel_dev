@@ -169,6 +169,14 @@ DVBox(page, DVModifier().onSwipeUp(openDrawer));
 DVText(app.label).modifier(DVModifier().onTap(open).onLongPress(showMenu));
 ```
 
+`.offset(dx, dy)` moves a box after layout without changing its size, and its
+taps move with it; with `.animate(...)` it slides. A panel that waits
+off-screen is the box moved by the screen height:
+
+```dart
+DVBox(drawer, DVModifier().offset(0, open ? 0 : screenHeight).animate(const Duration(milliseconds: 220)));
+```
+
 `DVBox` is the one layout primitive and `DVText` the one text primitive. Both
 take a `DVModifier`, an immutable chain of styling, layout, interaction and
 semantics. The chain is Dartvel's own, rendered with Flutter widgets; it is
