@@ -110,6 +110,8 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'context.navigateToPage(target) goes there now.',
               'DV.Navigation.to(target) returns a callback for onTap.',
+              'DV.Navigation.onBack(handler) lets Back close a drawer or sheet first; '
+                  'it returns the call that removes the handler.',
               'target.withQuery(...) adds a query and stays a route. '
                   '/sign-in?from=/account is two generated targets in one '
                   'call, so either page moving is a compile error. Values '

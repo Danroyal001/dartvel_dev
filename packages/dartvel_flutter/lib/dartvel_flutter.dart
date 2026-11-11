@@ -3032,14 +3032,22 @@ class DVBox<T> extends StatelessWidget {
         );
         break;
       case _DVBoxLayout.grid:
-        result = GridView.count(
-          crossAxisCount: _columnsFor(context, children.length),
-          mainAxisSpacing: _spacing,
-          crossAxisSpacing: _spacing,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: children,
-        );
+        // Rows that grow to fit their tallest cell. Square cells (a
+        // GridView's default) clipped anything taller than it is wide, such
+        // as an icon with its label under it.
+        final int columns = _columnsFor(context, children.length);
+        final List<Widget> rows = <Widget>[];
+        for (int start = 0; start < children.length; start += columns) {
+          final List<Widget> cells = <Widget>[];
+          for (int column = 0; column < columns; column++) {
+            if (column > 0) cells.add(SizedBox(width: _spacing));
+            final int index = start + column;
+            cells.add(Expanded(child: index < children.length ? children[index] : const SizedBox.shrink()));
+          }
+          if (rows.isNotEmpty) rows.add(SizedBox(height: _spacing));
+          rows.add(Row(crossAxisAlignment: CrossAxisAlignment.start, children: cells));
+        }
+        result = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
         break;
       case _DVBoxLayout.wrap:
         result = Wrap(
@@ -10780,6 +10788,30 @@ class DVNavigation {
 
   /// Whether [back] would do anything.
   bool get canGoBack => _active.canPop();
+
+  /// Lets Back close what is on top (a drawer, a sheet, a panel) before it
+  /// navigates. [handler] returns true when it handled Back; false hands Back
+  /// to the router as if no handler were there. Returns the call that removes
+  /// the handler: register it when the thing opens and remove it when it
+  /// closes. The newest handler is asked first.
+  ///
+  /// An app's own observer of the system's Back never hears it: the router
+  /// answers Back first.
+  VoidCallback onBack(bool Function() handler) {
+    // A child dispatcher that takes priority: Flutter's dispatcher answers
+    // through exactly one callback (the router's), so a second callback on it
+    // would break Back altogether. A child that declines hands Back to the
+    // parent, and so to the router.
+    final BackButtonDispatcher parent = _active.backButtonDispatcher;
+    final ChildBackButtonDispatcher child = parent.createChildBackButtonDispatcher();
+    Future<bool> callback() async => handler();
+    child.addCallback(callback);
+    child.takePriority();
+    return () {
+      child.removeCallback(callback);
+      parent.forget(child);
+    };
+  }
 
   /// The current location, as the URL the router resolved.
   String get currentPath =>
