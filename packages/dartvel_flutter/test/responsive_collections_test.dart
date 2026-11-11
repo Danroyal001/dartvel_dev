@@ -21,10 +21,18 @@ Future<void> render(WidgetTester tester, Size size, Widget child) async {
   await tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
 }
 
+/// How many columns the grid lays out, from where its cells land rather
+/// than which widget draws it: the cells of the first row, empty ones
+/// included, so a padded-out row still counts its empty columns.
 int gridColumns(WidgetTester tester) {
-  final GridView grid = tester.widget<GridView>(find.byType(GridView));
-  return (grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount)
-      .crossAxisCount;
+  final Finder builder = find.byType(GridView);
+  if (builder.evaluate().isNotEmpty) {
+    final GridView grid = tester.widget<GridView>(builder);
+    return (grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount)
+        .crossAxisCount;
+  }
+  final Finder firstRow = find.ancestor(of: find.text('card 0'), matching: find.byType(Row)).first;
+  return find.descendant(of: firstRow, matching: find.byType(Expanded)).evaluate().length;
 }
 
 List<Widget> cards(int n) =>
