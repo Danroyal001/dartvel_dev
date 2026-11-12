@@ -73,6 +73,45 @@ void main() {
     expect(second.top - first.top, 50, reason: '40 px row and 10 px gap');
   });
 
+  testWidgets('a long list inside the scrolling page builds its rows as they come near', (WidgetTester tester) async {
+    final List<int> builds = <int>[];
+    await tester.pumpWidget(screen(DVBox.scrollableList(<Widget>[
+      DVBox.list(<Widget>[for (int i = 0; i < 300; i++) _Counted(i, builds)]),
+    ])));
+    expect(builds.toSet().length, lessThan(80), reason: 'a page holding 300 rows builds about a screen of them');
+    await tester.dragUntilVisible(find.text('Row 200 of the list'), find.byType(Scrollable).first, const Offset(0, -500));
+    expect(find.text('Row 200 of the list'), findsOneWidget, reason: 'rows come in as the reader scrolls');
+  });
+
+  testWidgets('a long grid inside the scrolling page builds its rows as they come near', (WidgetTester tester) async {
+    final List<int> builds = <int>[];
+    await tester.pumpWidget(screen(DVBox.scrollableList(<Widget>[
+      DVBox.grid(<Widget>[for (int i = 0; i < 300; i++) _Counted(i, builds)], columns: 3),
+    ])));
+    expect(builds.toSet().length, lessThan(120));
+  });
+
+  testWidgets('while the build captures, a nested list is built whole too', (WidgetTester tester) async {
+    DVLazyLists.buildWhole = true;
+    final List<int> builds = <int>[];
+    await tester.pumpWidget(screen(DVBox.scrollableList(<Widget>[
+      DVBox.list(<Widget>[for (int i = 0; i < 300; i++) _Counted(i, builds)]),
+    ])));
+    expect(builds.toSet().length, 300);
+  });
+
+  testWidgets('Ctrl+F reaches a row of a nested list not built yet', (WidgetTester tester) async {
+    await tester.pumpWidget(screen(DVBox.scrollableList(<Widget>[
+      DVBox.list(<Widget>[for (int i = 0; i < 300; i++) SizedBox(height: 40, child: Text('Row $i of the list'))]),
+    ])));
+    final Future<bool> revealed = DVFindInPage.reveal('Row 250 of the list');
+    await tester.pumpAndSettle();
+    expect(await revealed, isTrue);
+    final Rect rect = tester.getRect(find.text('Row 250 of the list'));
+    expect(rect.top, greaterThanOrEqualTo(0));
+    expect(rect.bottom, lessThanOrEqualTo(600));
+  });
+
   testWidgets("Ctrl+F reaches a row the list has not built", (WidgetTester tester) async {
     await tester.pumpWidget(screen(DVBox.scrollableList(<Widget>[
       for (int i = 0; i < 500; i++) SizedBox(height: 40, child: Text('Row $i of the list')),

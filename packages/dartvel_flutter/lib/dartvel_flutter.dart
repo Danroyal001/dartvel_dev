@@ -46,6 +46,7 @@ import 'src/display_platform.dart'
     as display_platform;
 import 'src/find/find_in_page.dart';
 import 'src/lists/lazy_lists.dart';
+import 'src/lists/near_screen.dart';
 import 'src/find/find_platform_stub.dart'
     if (dart.library.js_interop) 'src/find/find_platform_web.dart'
     as find_platform;
@@ -3071,6 +3072,9 @@ class DVBox<T> extends StatelessWidget {
     if (_layout == _DVBoxLayout.vertical && _scrollable && !DVLazyLists.buildWhole) {
       return _lazyList(children);
     }
+    // A long collection that does not scroll by itself but sits in a page that
+    // does: rows past the first screenful are built when they come near.
+    if (_layout == _DVBoxLayout.vertical) children = _nearScreen(children, keep: 12);
     final spaced = _spaced(children);
     final Widget result;
     switch (_layout) {
@@ -3120,7 +3124,7 @@ class DVBox<T> extends StatelessWidget {
             cells.add(Expanded(child: index < children.length ? children[index] : const SizedBox.shrink()));
           }
           if (rows.isNotEmpty) rows.add(SizedBox(height: _spacing));
-          rows.add(Row(crossAxisAlignment: CrossAxisAlignment.start, children: cells));
+          rows.add(children.length > 24 && start >= columns * 4 && !DVLazyLists.buildWhole ? DVNearScreen(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: cells)) : Row(crossAxisAlignment: CrossAxisAlignment.start, children: cells));
         }
         result = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
         break;
@@ -3438,6 +3442,16 @@ class DVBox<T> extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  /// [children] with every row after the first [keep] built only when it
+  /// comes near the screen (DVNearScreen), for a collection longer than 24.
+  List<Widget> _nearScreen(List<Widget> children, {required int keep}) {
+    if (children.length <= 24 || DVLazyLists.buildWhole) return children;
+    return <Widget>[
+      for (int index = 0; index < children.length; index++)
+        index < keep ? children[index] : DVNearScreen(child: children[index]),
+    ];
   }
 
   /// [children] as a list that builds, lays out and paints only the rows near
