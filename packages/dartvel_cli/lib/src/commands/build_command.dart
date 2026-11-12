@@ -37,6 +37,7 @@ import 'package:dartvel_core/dartvel.dart'
         dvIosPermissions,
         dvIosUsageKeysFor,
         dvOfflineRoute,
+        dvSitemapForOrigin,
         DVDocsMount,
         DVFileStorageConfig,
         DVCrashBuildMode,
@@ -1580,6 +1581,9 @@ class BuildCommand extends Command<void> {
         // comes from these trees, and a build that skipped the capture would
         // publish whatever the last one produced -- including for a route
         // that has since stopped rendering.
+        // The readable /sitemap page reads sitemap.xml, so it has to exist
+        // when the capture loads that page.
+        await _writeSitemapBeforeCapture(root);
         await _captureSemantics(root);
         await _writePwaManifest(root);
         _writeSeoHead(root);
@@ -4682,6 +4686,55 @@ class BuildCommand extends Command<void> {
         'plain lines from its source.');
   }
 
+  /// sitemap.xml for [routes]. Written before the capture as well as after it:
+  /// the readable /sitemap page reads this file, and a capture that ran before
+  /// it existed recorded that page still loading.
+  void _writeSitemapXml(String root, Directory web, List<String> routes, String siteUrl, DVSitemapConfig sitemapConfig) {
+    File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(dvSitemap(
+      routes: routes,
+      siteUrl: siteUrl,
+      // Sitemap-only: a mount with sitemap: exclude is still answered by
+      // the server and still redirected to, and is not advertised here.
+      federated: dvFederatedSitemapRoutes(root).keys.toList(),
+      guarded: dvGuardedRoutes(_routerSource(root)),
+      entries: dvSitemapEntries(_routerSource(root)),
+      defaults: sitemapConfig.defaults,
+      exclude: sitemapConfig.exclude,
+    ));
+  }
+
+  /// The same sitemap.xml, before the capture loads any page.
+  Future<void> _writeSitemapBeforeCapture(String root) async {
+    final web = Directory(p.join(root, 'build', 'web'));
+    if (!web.existsSync()) return;
+    final seo = _dartvelSection(root)['seo'];
+    final String? siteUrl = seo is Map ? seo['siteUrl'] as String? : null;
+    if (siteUrl == null || siteUrl.isEmpty) return;
+    final DVSitemapConfig sitemapConfig = dvSitemapConfig(_dartvelSection(root));
+    if (!sitemapConfig.enabled) return;
+    final List<String> routes = await _pagesToGenerate(root);
+    final DVHosts hosts = dvHostsConfig(_dartvelSection(root)).hosts;
+    if (hosts.isEmpty) {
+      _writeSitemapXml(root, web, routes, siteUrl, sitemapConfig);
+      return;
+    }
+    // With dartvel.hosts the server answers each host with only its own
+    // entries. The capture reads the page as the primary host is served it,
+    // so it gets the primary host's file; the manifest step writes the full
+    // host-aware one afterwards.
+    final String full = dvSitemap(
+      routes: routes,
+      siteUrl: siteUrl,
+      federated: dvFederatedSitemapRoutes(root).keys.toList(),
+      guarded: dvGuardedRoutes(_routerSource(root)),
+      entries: dvSitemapEntries(_routerSource(root)),
+      defaults: sitemapConfig.defaults,
+      exclude: sitemapConfig.exclude,
+      publicUrl: hosts.publicUrl,
+    );
+    File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(dvSitemapForOrigin(full, hosts.primaryMatch.origin));
+  }
+
   Future<void> _writeStaticPages(String root) async {
     final web = Directory(p.join(root, 'build', 'web'));
     final index = File(p.join(web.path, 'index.html'));
@@ -4768,19 +4821,7 @@ class BuildCommand extends Command<void> {
       // leave out, and what to say about a page that said nothing itself.
       final DVSitemapConfig sitemapConfig =
           dvSitemapConfig(_dartvelSection(root));
-      if (sitemapConfig.enabled) {
-        File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(dvSitemap(
-          routes: routes,
-          siteUrl: siteUrl,
-          // Sitemap-only: a mount with sitemap: exclude is still answered by
-          // the server and still redirected to, and is not advertised here.
-          federated: dvFederatedSitemapRoutes(root).keys.toList(),
-          guarded: dvGuardedRoutes(_routerSource(root)),
-          entries: dvSitemapEntries(_routerSource(root)),
-          defaults: sitemapConfig.defaults,
-          exclude: sitemapConfig.exclude,
-        ));
-      }
+      if (sitemapConfig.enabled) _writeSitemapXml(root, web, routes, siteUrl, sitemapConfig);
       File(p.join(web.path, 'robots.txt')).writeAsStringSync(
         // A robots.txt naming a sitemap the build did not write points a
         // crawler at a 404, which is worse than saying nothing.

@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVSitemapPage`: the site's own sitemap.xml as a readable page (label, site name heading, description, page count, links with dates), in the app theme.
+
 ## 0.13.44 — 2026-11-12
 
 - `DV.lifecycle.app` reaches `ready` on a screen that never changes (the first-frame callback is registered before runApp).

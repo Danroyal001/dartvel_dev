@@ -881,6 +881,7 @@ export 'src/push/device_push.dart';
 export 'src/pwa/install_prompt.dart';
 export 'src/routing/account_pages.dart';
 export 'src/routing/client_hosts.dart';
+export 'src/routing/sitemap_page.dart' show DVSitemapPage, dvSitemapDate;
 export 'src/routing/config_routes.dart';
 export 'src/routing/host_routers.dart';
 export 'src/routing/mount.dart';

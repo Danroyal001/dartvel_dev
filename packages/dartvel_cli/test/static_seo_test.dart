@@ -120,6 +120,12 @@ void main() {
   });
 
   group('the sitemap', () {
+    test('it leaves out the readable /sitemap page, which only restates the file', () {
+      final xml = dvSitemap(routes: <String>['/', '/docs', '/sitemap'], siteUrl: 'https://dartvel.dev');
+      expect(xml, contains('<loc>https://dartvel.dev/docs</loc>'));
+      expect(xml, isNot(contains('/sitemap</loc>')));
+    });
+
     test('it lists every static route, absolute', () {
       final xml = dvSitemap(
         routes: <String>['/', '/docs', '/features'],
