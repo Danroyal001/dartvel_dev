@@ -348,6 +348,9 @@ String dvSitemap({
     // ones. Matched as the whole path, so a page with a slug of 404 -- which
     // is a page somebody wrote -- is left alone.
     if (dvIsErrorPageRoute(route)) continue;
+    // The readable /sitemap page restates this file; listing it here would
+    // send a crawler to a copy of what it is already reading.
+    if (route == '/sitemap') continue;
     if (dvSitemapExcluded(route, exclude)) continue;
     // Same filter as the writer: a route with no file behind it has no URL to
     // advertise, and a crawler following one gets a 404 from the sitemap that
