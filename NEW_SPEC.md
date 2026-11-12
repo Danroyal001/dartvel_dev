@@ -513,7 +513,10 @@ The table is the contract. Each row says which entries a target has, what
   `build/flutter_web_build.log`), reruns the exact dart2wasm command it logged
   with deferred loading and a deferred map, writes the modules beside
   `main.dart.wasm`, and gives `main.dart.mjs` a default module loader (flutter.js
-  passes none). If that fails the one-module app is kept and the build says so;
+  passes none). The loader fetches and instantiates each module once: every
+  page names the shared modules it needs as well as its own, and a link that
+  preloads its page asks again, so a module already loaded (or loading) is
+  reused, and one that failed is tried again on the next ask. If that fails the one-module app is kept and the build says so;
   a build that serves Studio then fails rather than ship Studio's code. Studio's
   modules are moved out of the web root like its dart2js parts and served only
   with the grant. The shell preloads `main.dart.mjs` and `main.dart.wasm` where
@@ -891,6 +894,9 @@ A long list or grid that does not scroll by itself but sits inside a page that
 does -- a catalogue of tools, a grid of products -- builds the same way: past
 the first screenful (more than 24 items), each row stands in at an estimated
 height and is built when the page scrolls within two screens of it.
+Every row of such a list or grid has its own layer, as each row of a Flutter
+`ListView` does, so a scroll moves the rows already built rather than painting
+them again on every frame.
 Two things that read a whole page still see every row: the build's page capture,
 which marks each page before it loads (`window.__dvCapture`) so the HTML for
 crawlers and readers without scripting has every row, and find in page, which
