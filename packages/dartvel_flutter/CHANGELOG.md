@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.43 — 2026-11-12
 
 - Long DVBox lists and grids inside a scrolling page (more than 24 items) build their rows as they come near the screen.
 - Scrollable DVBox lists (`DVBox.scrollableList`, `.list(...).scrollable()`) build only the rows near the screen, with no ListView.builder in the app; whole while the build captures a page. Find in page reaches rows not yet built.

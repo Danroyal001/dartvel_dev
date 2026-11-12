@@ -1,3 +1,7 @@
+## 0.13.43 — 2026-11-12
+
+- Version aligned with dartvel_core 0.13.43.
+
 ## 0.13.42 — 2026-11-12
 
 - `serve(pageContentSecurityPolicy:)`: HTML pages get that policy with `'inline-scripts'` replaced by each page's own inline script hashes (whole pages read; streamed pages from their first part plus the shell). A route's own policy is kept; other types get none.
