@@ -471,6 +471,23 @@ class DVWebBindings {
       await web.document.exitFullscreen().toDart;
       return true;
     });
+
+    // The tab is the one window a page has, so a window going fullscreen is the
+    // document going fullscreen. A display hint has nothing to choose between.
+    register('window.setFullscreen', (Object? arguments) async {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      if (map['fullscreen'] == false) {
+        if (web.document.fullscreenElement == null) return true;
+        await web.document.exitFullscreen().toDart;
+        return true;
+      }
+      try {
+        await root.requestFullscreen().toDart;
+        return true;
+      } on Object catch (error) {
+        dvJsRefused('window.setFullscreen', error);
+      }
+    });
   }
 
   /// WebAuthn with userVerification required: the browser's own platform

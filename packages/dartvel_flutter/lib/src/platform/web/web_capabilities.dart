@@ -33,6 +33,7 @@ const Set<String> dvWebImplementedBindings = <String>{
   // whole screen is asking for. Registered so isRegistered stops saying the
   // browser cannot go fullscreen while the kiosk path does exactly that.
   'display.enterFullscreen',
+  'window.setFullscreen',
   'display.exitFullscreen',
 
   // navigator.clipboard, which needs a secure context and a user gesture for

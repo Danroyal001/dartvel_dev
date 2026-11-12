@@ -198,10 +198,16 @@ void main() {
         ),
       );
 
-      final SliverGridDelegateWithFixedCrossAxisCount delegate =
-          tester.widget<GridView>(find.byType(GridView)).gridDelegate
-              as SliverGridDelegateWithFixedCrossAxisCount;
-      expect(delegate.crossAxisCount, 3);
+      // Three columns means the three cells stand side by side on one row,
+      // left to right, rather than stacked. Measured on the page rather than
+      // read off a GridView: a static grid is laid out as rows of cells since
+      // 0.13.37, and the column count is what the reader sees.
+      final List<Rect> cells = <Rect>[
+        for (final String label in <String>['one', 'two', 'three']) tester.getRect(find.text(label)),
+      ];
+      expect(cells.map((Rect cell) => cell.top.round()).toSet(), hasLength(1), reason: 'one row');
+      expect(cells[0].left, lessThan(cells[1].left));
+      expect(cells[1].left, lessThan(cells[2].left));
     });
 
     test('and the exported source carries it', () {
