@@ -37,6 +37,7 @@ import 'package:dartvel_core/dartvel.dart'
         dvIosPermissions,
         dvIosUsageKeysFor,
         dvOfflineRoute,
+        dvSitemapForOrigin,
         DVDocsMount,
         DVFileStorageConfig,
         DVCrashBuildMode,
@@ -4711,7 +4712,27 @@ class BuildCommand extends Command<void> {
     if (siteUrl == null || siteUrl.isEmpty) return;
     final DVSitemapConfig sitemapConfig = dvSitemapConfig(_dartvelSection(root));
     if (!sitemapConfig.enabled) return;
-    _writeSitemapXml(root, web, await _pagesToGenerate(root), siteUrl, sitemapConfig);
+    final List<String> routes = await _pagesToGenerate(root);
+    final DVHosts hosts = dvHostsConfig(_dartvelSection(root)).hosts;
+    if (hosts.isEmpty) {
+      _writeSitemapXml(root, web, routes, siteUrl, sitemapConfig);
+      return;
+    }
+    // With dartvel.hosts the server answers each host with only its own
+    // entries. The capture reads the page as the primary host is served it,
+    // so it gets the primary host's file; the manifest step writes the full
+    // host-aware one afterwards.
+    final String full = dvSitemap(
+      routes: routes,
+      siteUrl: siteUrl,
+      federated: dvFederatedSitemapRoutes(root).keys.toList(),
+      guarded: dvGuardedRoutes(_routerSource(root)),
+      entries: dvSitemapEntries(_routerSource(root)),
+      defaults: sitemapConfig.defaults,
+      exclude: sitemapConfig.exclude,
+      publicUrl: hosts.publicUrl,
+    );
+    File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(dvSitemapForOrigin(full, hosts.primaryMatch.origin));
   }
 
   Future<void> _writeStaticPages(String root) async {
