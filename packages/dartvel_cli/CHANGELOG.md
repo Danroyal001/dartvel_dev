@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.45 — 2026-11-12
 
 - Every site with `dartvel.seo.siteUrl` gets a `/sitemap` route (unless it defines one); sitemap.xml does not list it.
 
