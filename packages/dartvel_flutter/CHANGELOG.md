@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.46 — 2026-11-12
 
 - `DVSitemapPage`: a "Back to <site name>" link to the home page at the top, so the page is never a dead end.
 
