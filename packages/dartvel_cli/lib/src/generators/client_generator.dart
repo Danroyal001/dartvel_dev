@@ -1783,6 +1783,10 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
       for (final _PageEntry e in pageEntries) e.route,
       for (final DVConfigRoute r in config.routes) r.path,
     };
+    final Object? sitemapSeo = _plain(dv['seo']);
+    final String? sitemapSiteUrl = sitemapSeo is Map && sitemapSeo['siteUrl'] is String && (sitemapSeo['siteUrl'] as String).trim().isNotEmpty
+        ? (sitemapSeo['siteUrl'] as String).trim()
+        : null;
     final String errorRoutesSrc = dvJoinRouteBlocks(<String>[
       if (!applicationRoutes.contains('/404'))
         '''
@@ -1798,6 +1802,17 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
       path: '/offline',
       pageBuilder: (context, state) => NoTransitionPage<void>(
         child: DVOfflinePage(from: state.uri.queryParameters['from']),
+      ),
+    ),''',
+      // The readable /sitemap page, wherever there is a sitemap.xml for it
+      // to read (dartvel.seo.siteUrl). Its site name and description are the
+      // same defaults every other page's SEO starts from.
+      if (sitemapSiteUrl != null && !applicationRoutes.contains('/sitemap'))
+        '''
+    GoRoute(
+      path: '/sitemap',
+      pageBuilder: (context, state) => NoTransitionPage<void>(
+        child: DVSitemapPage(siteName: _defaultSeo.siteName, description: _defaultSeo.description, siteUrl: '${esc(sitemapSiteUrl)}'),
       ),
     ),''',
     ]);
