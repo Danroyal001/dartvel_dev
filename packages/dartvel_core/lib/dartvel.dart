@@ -338,6 +338,7 @@ export 'src/web/inline_script_csp.dart';
 export 'src/web/minify.dart';
 export 'src/web/route_page.dart';
 export 'src/web/site_pages.dart';
+export 'src/web/sitemap_read.dart';
 export 'src/web/structured_data.dart';
 export 'src/web/seo_head.dart';
 export 'src/webhooks/webhooks.dart';
