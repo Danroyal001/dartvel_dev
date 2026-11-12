@@ -90,7 +90,7 @@ and return `DVPageData` with a `document` of headings, paragraphs and links.
 
 | Feature | Description | Status |
 | :--- | :--- | :--- |
-| **UI Primitives** | `DVBox`, `DVText`, `DVNavLink`, and fluent styling through `DVModifier` | ✅ Shipped |
+| **UI Primitives** | `DVBox`, `DVText`, `DVNavLink`, and fluent styling through `DVModifier`; scrollable lists build only the rows on screen with no builder to write | ✅ Shipped |
 | **Routing** | File-based pages with strongly-typed navigation targets, generated onto `go_router`. Path URLs on the web, and `DVNavLink` for links that preload and preview | ✅ Shipped |
 | **State Management** | Riverpod-powered signals (`context.signal`, reactive models, `DV.global`) | ✅ Shipped |
 | **Data models & Forms** | `@DVModel` generates schema, CRUD, validation, serialization, `User.Form()` to create, `user.Form()` to edit, `User.Table(...)` and `User.Page(...)`. Search, import and export are members of the model too | ✅ Shipped |

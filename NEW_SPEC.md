@@ -882,6 +882,16 @@ DVBox.horizontalScrollable([StoryCard(a), StoryCard(b), StoryCard(c)])
 DVBox.list([...]).scrollable()
 ```
 
+A scrollable vertical list -- `DVBox.scrollableList([...])` or
+`DVBox.list([...]).scrollable()` -- builds, lays out and paints only the rows
+near the screen and lets go of the ones scrolled far away, with nothing written
+for it: no `ListView.builder`, no builder function. A page of a few hundred rows
+costs what one screen of them costs. Cross-axis alignment and spacing are kept.
+Two things that read a whole page still see every row: the build's page capture,
+which marks each page before it loads (`window.__dvCapture`) so the HTML for
+crawlers and readers without scripting has every row, and find in page, which
+walks a lazy list a screen at a time when a match is in a row not yet built.
+
 Explicit `DVBox.wrapLine([...])` or `.wrapLine()` is a layout mode for
 collections. It is not the removed automatic wrapper behavior for arbitrary
 widget composition. `wrap` remains a compatibility alias, but new code should
