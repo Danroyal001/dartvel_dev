@@ -532,6 +532,19 @@ The table is the contract. Each row says which entries a target has, what
   refuses their iframes unless they opt in. `dartvel.web.crossOriginIsolated`
   set to true or false decides outright. Static hosts (`.htaccess`, `_headers`)
   do not send them yet.
+- **Content-Security-Policy for pages.** `dartvel.security.pageCsp` is the
+  policy the web-server binary sends with its own HTML pages (a response whose
+  handler set its own policy keeps it; JSON, files and other types get none).
+  The source `'inline-scripts'` in it is replaced, page by page, with the
+  `sha256-` hash of every inline script that page carries (scripts with `src`
+  and data blocks such as JSON-LD are left out), worked out from the HTML being
+  sent: a whole page is read for it, a streamed one from its first part plus
+  the shell it is built from, as built and as minified. A page with no inline
+  script drops the token; it is never widened to `'unsafe-inline'`. So a
+  build whose splash or hand-over scripts change is never refused by a list
+  made for the build before (a proxy that pinned the hashes kept one site from
+  starting for a day, 9 Nov 2026). Without the key no page policy is sent.
+  `dartvel.security.csp` stays the per-route policy for `DVMiddlewares.csp`.
 - **Service worker** registration is phase 7. The service worker is generated
   JavaScript (`push`, `notificationclick`, precache), not a Dart entry; a push
   that must run Dart while no tab is open is out of reach on the web and

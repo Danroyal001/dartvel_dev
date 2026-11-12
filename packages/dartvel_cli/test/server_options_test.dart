@@ -474,6 +474,31 @@ dartvel:
       expect(routes, contains('securityHeaders: dartvelSecurityHeaders'));
     });
 
+    test('dartvel.security.pageCsp reaches serve() as the pages\' own policy',
+        () async {
+      // Queue 6d9: the server works out the inline script hashes itself, so
+      // the policy is written once with 'inline-scripts' and never pinned to
+      // one build's scripts in a proxy.
+      final String routes = await routesFor('''
+name: server_options_app
+dartvel:
+  security:
+    pageCsp: "default-src 'self'; script-src 'self' 'inline-scripts' 'wasm-unsafe-eval'"
+''');
+      expect(
+          routes,
+          contains(
+              "const String? dartvelPageContentSecurityPolicy = 'default-src \\'self\\'; script-src \\'self\\' \\'inline-scripts\\' \\'wasm-unsafe-eval\\'';"));
+      expect(routes,
+          contains('pageContentSecurityPolicy: dartvelPageContentSecurityPolicy'));
+    });
+
+    test('without pageCsp no page policy is sent', () async {
+      final String routes = await routesFor('name: server_options_app\n');
+      expect(routes,
+          contains('const String? dartvelPageContentSecurityPolicy = null;'));
+    });
+
     test('a wasm app that embeds nothing from another site gets them by default',
         () async {
       // WebAssembly is the default web build, and skwasm draws on a worker

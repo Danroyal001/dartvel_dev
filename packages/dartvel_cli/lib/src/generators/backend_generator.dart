@@ -1047,6 +1047,10 @@ $openApiJson\'\'\';
         ? ''
         : "\n  core.DVMiddlewareSettings.contentSecurityPolicy = "
               "'${esc(csp)}';";
+    // dartvel.security.pageCsp: the policy sent with the server's own pages,
+    // its 'inline-scripts' source filled in per page by serve().
+    final String? pageCsp = _dvSecurityString(root, 'pageCsp');
+    final String pageCspLiteral = pageCsp == null ? 'null' : "'${esc(pageCsp)}'";
 
     // Every mounted module's models, for Studio beside the application's:
     // embedded and backend-only modules, whose data this backend serves, and
@@ -1960,6 +1964,11 @@ const bool dartvelCompression = $compressionLiteral;
 /// runtime's defaults, plus COOP and COEP when `dartvel.web.crossOriginIsolated`
 /// asks for them.
 const Map<String, String> dartvelSecurityHeaders = ${server.securityHeadersSource};
+
+/// The Content-Security-Policy sent with the server's own HTML pages, from
+/// `dartvel.security.pageCsp`; its 'inline-scripts' source becomes the hashes
+/// of each page's own inline scripts. Null sends none.
+const String? dartvelPageContentSecurityPolicy = $pageCspLiteral;
 /// Whether Studio is compiled into this backend. A build that does not serve
 /// it passes -Ddartvel.studio=false, and AOT drops every branch behind this.
 const bool dartvelStudio = ${studioOff ? 'false' : "bool.fromEnvironment('dartvel.studio', defaultValue: true)"};
@@ -2258,7 +2267,7 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   final Future<dv.Response> Function(dv.Request) siteHandler = docsServer == null
       ? handler
       : (dv.Request request) async => await docsServer.respond(request) ?? await handler(request);
-  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, securityHeaders: dartvelSecurityHeaders, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
+  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, securityHeaders: dartvelSecurityHeaders, pageContentSecurityPolicy: dartvelPageContentSecurityPolicy, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
     // A patch is larger than a request body usually is.
     if (patchPrefix != null) dv.DVRouteBodyLimit('POST', '\$patchPrefix/_dartvel/publish', $dvPatchPublishMaxBytes),
     ...router.bodyLimits,
@@ -5225,6 +5234,12 @@ void _dartvelConfigureWebhooks() {
 /// configured fails the build, rather than starting a server that sends no
 /// header while the annotation says it sends one.
 String? _dvContentSecurityPolicy(String root) {
+  return _dvSecurityString(root, 'csp');
+}
+
+/// A string under `dartvel.security` in pubspec.yaml, trimmed, or null when it
+/// is missing or empty.
+String? _dvSecurityString(String root, String key) {
   final File pubspec = File(p.join(root, 'pubspec.yaml'));
   if (!pubspec.existsSync()) return null;
   final Object? parsed = loadYaml(pubspec.readAsStringSync());
@@ -5233,9 +5248,9 @@ String? _dvContentSecurityPolicy(String root) {
   if (dartvel is! YamlMap) return null;
   final Object? security = dartvel['security'];
   if (security is! YamlMap) return null;
-  final Object? csp = security['csp'];
-  if (csp is! String || csp.trim().isEmpty) return null;
-  return csp.trim();
+  final Object? value = security[key];
+  if (value is! String || value.trim().isEmpty) return null;
+  return value.trim();
 }
 
 /// The Dart that configures tenancy at startup, from `dartvel.tenancy`.

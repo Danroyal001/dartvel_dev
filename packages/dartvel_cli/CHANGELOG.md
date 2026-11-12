@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel.security.pageCsp` in pubspec.yaml: the web-server binary sends it with every page, filling in `'inline-scripts'` per page, so a proxy never has to pin one build's hashes.
+
 ## 0.13.41 — 2026-11-11
 
 - Version aligned with dartvel_core 0.13.41.

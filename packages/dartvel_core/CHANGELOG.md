@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dvInlineScriptHashes` and `dvPageContentSecurityPolicy`: a page's Content-Security-Policy from the sha256 hashes of its own inline scripts (`'inline-scripts'` source).
+
 ## 0.13.41 — 2026-11-11
 
 - Version aligned with dartvel_core 0.13.41.
