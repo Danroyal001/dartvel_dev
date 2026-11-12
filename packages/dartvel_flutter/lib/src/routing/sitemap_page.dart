@@ -63,7 +63,7 @@ class _DVSitemapPageState extends State<DVSitemapPage> {
       // host with its own entries while the build captures the whole file;
       // listing other hosts made the captured page and the live one disagree.
       if (mounted) setState(() => _links = dvReadSitemap(xml, siteUrl: widget.siteUrl).where((DVSitemapLink link) => !link.external).toList());
-    });
+    }));
   }
 
   @override
