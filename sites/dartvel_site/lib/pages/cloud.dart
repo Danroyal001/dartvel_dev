@@ -159,7 +159,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
           children: <Widget>[
             Eyebrow('WHERE IT STANDS'),
             Heading('What exists today and what is still planned.'),
-            DVBox.wrapLine(<Widget>[
+            DVBox.grid(<Widget>[
               SiteCard(
                 'The --cloud options',
                 '`dartvel build`, deploy and key cloud pack your app, follow the '
@@ -216,7 +216,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
                     'for that project.',
                 built: false,
               ),
-            ], spacing: 16),
+            ], columns: 3, spacing: 16),
             UpstreamCredits(
               ids: <String>['tvos', 'tizen', 'elinux', 'flt', 'vscode'],
             ),
