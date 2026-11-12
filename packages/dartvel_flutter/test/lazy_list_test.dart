@@ -83,6 +83,32 @@ void main() {
     expect(find.text('Row 200 of the list'), findsOneWidget, reason: 'rows come in as the reader scrolls');
   });
 
+  testWidgets('a row it has built is not painted again while the page scrolls', (WidgetTester tester) async {
+    // tools.sigmadev.digital (owner, 13 Nov 2026: severe frame drops when
+    // scrolling fast). Every row built so far sat in one column the scroll
+    // view repainted on each frame, every card and its shadow included. A
+    // Flutter ListView gives each row its own layer; so does this.
+    final Map<int, int> paints = <int, int>{};
+    await tester.pumpWidget(screen(DVBox.scrollableList(<Widget>[
+      DVBox.list(<Widget>[
+        for (int i = 0; i < 300; i++)
+          SizedBox(height: 40, child: CustomPaint(painter: _CountingPainter(i, paints), child: Text('Row $i of the list'))),
+      ]),
+    ])));
+    await tester.dragUntilVisible(find.text('Row 200 of the list'), find.byType(Scrollable).first, const Offset(0, -500));
+    // One drag first: starting a drag repaints once (not per frame), and what
+    // this guards against is a repaint on every frame of a scroll.
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -8));
+    await tester.pumpAndSettle();
+    final int before = paints[200] ?? 0;
+    expect(before, greaterThan(0));
+    for (int step = 0; step < 5; step++) {
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -8));
+      await tester.pump();
+    }
+    expect(paints[200], before, reason: 'scrolling moves the row, it does not redraw it');
+  });
+
   testWidgets('a long grid inside the scrolling page builds its rows as they come near', (WidgetTester tester) async {
     final List<int> builds = <int>[];
     await tester.pumpWidget(screen(DVBox.scrollableList(<Widget>[
@@ -125,4 +151,16 @@ void main() {
     expect(rect.top, greaterThanOrEqualTo(0));
     expect(rect.bottom, lessThanOrEqualTo(600));
   });
+}
+
+class _CountingPainter extends CustomPainter {
+  _CountingPainter(this.index, this.paints);
+  final int index;
+  final Map<int, int> paints;
+
+  @override
+  void paint(Canvas canvas, Size size) => paints[index] = (paints[index] ?? 0) + 1;
+
+  @override
+  bool shouldRepaint(_CountingPainter oldDelegate) => false;
 }

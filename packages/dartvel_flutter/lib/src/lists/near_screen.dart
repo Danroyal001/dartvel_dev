@@ -76,5 +76,8 @@ class _DVNearScreenState extends State<DVNearScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => _built ? widget.child : SizedBox(height: widget.estimatedHeight);
+  // Its own layer, as each row of a Flutter ListView has: once built, the
+  // row stays in the page, and without a boundary the scroll view repainted
+  // every row built so far on every frame of a scroll.
+  Widget build(BuildContext context) => _built ? RepaintBoundary(child: widget.child) : SizedBox(height: widget.estimatedHeight);
 }

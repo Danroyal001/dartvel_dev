@@ -3125,7 +3125,9 @@ class DVBox<T> extends StatelessWidget {
             cells.add(Expanded(child: index < children.length ? children[index] : const SizedBox.shrink()));
           }
           if (rows.isNotEmpty) rows.add(SizedBox(height: _spacing));
-          rows.add(children.length > 24 && start >= columns * 4 && !DVLazyLists.buildWhole ? DVNearScreen(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: cells)) : Row(crossAxisAlignment: CrossAxisAlignment.start, children: cells));
+          final Widget row = Row(crossAxisAlignment: CrossAxisAlignment.start, children: cells);
+          final bool long = children.length > 24 && !DVLazyLists.buildWhole;
+          rows.add(long && start >= columns * 4 ? DVNearScreen(child: row) : (long ? RepaintBoundary(child: row) : row));
         }
         result = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
         break;
@@ -3451,7 +3453,8 @@ class DVBox<T> extends StatelessWidget {
     if (children.length <= 24 || DVLazyLists.buildWhole) return children;
     return <Widget>[
       for (int index = 0; index < children.length; index++)
-        index < keep ? children[index] : DVNearScreen(child: children[index]),
+        // The first rows are built at once, and get a layer of their own too.
+        index < keep ? RepaintBoundary(child: children[index]) : DVNearScreen(child: children[index]),
     ];
   }
 
