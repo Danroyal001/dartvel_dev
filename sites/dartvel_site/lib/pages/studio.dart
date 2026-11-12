@@ -235,7 +235,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       children: <Widget>[
         Eyebrow('IN THE FREE STUDIO'),
         Heading('Records, routes and review in the same place as your pages.'),
-        DVBox.wrapLine(<Widget>[
+        DVBox.grid(<Widget>[
           SiteCard(
             'Pages',
             'Every page, the ones in your code included. Insert, Layers, the '
@@ -307,14 +307,14 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
                 'app has set.',
             section: 'Queues, Jobs, and Signals',
           ),
-        ], spacing: 16),
+        ], columns: 3, spacing: 16),
       ],
     ),
     Section(
       children: <Widget>[
         Eyebrow('FROM THE SAME GRAPH'),
         Heading('Docs and public pages come from what Studio reads.'),
-        DVBox.wrapLine(<Widget>[
+        DVBox.grid(<Widget>[
           SiteCard(
             '`dartvel inspect` and `dartvel mcp`',
             'Print the models, routes, functions and jobs Studio shows, or '
@@ -335,7 +335,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
                 'image does not become its favicon yet.',
             section: 'Generated Model Pages',
           ),
-        ], spacing: 16),
+        ], columns: 3, spacing: 16),
       ],
     ),
     Section(
@@ -444,7 +444,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       children: <Widget>[
         Eyebrow('ALSO IN STUDIO PRO'),
         Heading('Bring in a design, reuse it and review it as a team.'),
-        DVBox.wrapLine(<Widget>[
+        DVBox.grid(<Widget>[
           SiteCard(
             'Figma import',
             'Every top-level frame becomes a page. Auto-layout, type, '
@@ -470,7 +470,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
             'SAML, SCIM provisioning and directory sync for your team.',
             built: false,
           ),
-        ], spacing: 16),
+        ], columns: 3, spacing: 16),
       ],
     ),
     Section(

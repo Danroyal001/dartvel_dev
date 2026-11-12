@@ -43,10 +43,10 @@ Widget _vsIndexPage(BuildContext context) => SingleChildScrollView(
           children: <Widget>[
             const Eyebrow('THE PAGES'),
             const Heading('Eight comparisons.'),
-            DVBox.wrapLine(<Widget>[
+            DVBox.grid(<Widget>[
               for (final VersusPage page in kVersusPages)
                 SiteCard(page.phrase, page.summary, href: page.path),
-            ], spacing: 16),
+            ], columns: 3, spacing: 16),
           ],
         ),
         const Section(

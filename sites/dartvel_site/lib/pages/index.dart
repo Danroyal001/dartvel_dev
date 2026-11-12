@@ -551,7 +551,7 @@ Widget _expoComparison(BuildContext context) => const Section(
   children: <Widget>[
     Eyebrow('COMING FROM EXPO'),
     Heading('Two of the three Expo services you rely on work today.'),
-    DVBox.wrapLine(<Widget>[
+    DVBox.grid(<Widget>[
       SiteCard(
         'Development builds',
         '`dartvel build <target> --profile development`, paired with '
@@ -569,7 +569,7 @@ Widget _expoComparison(BuildContext context) => const Section(
         'There is no hosted build service and no certificate management. '
             'You build on your own machine or in CI.',
       ),
-    ], spacing: 16),
+    ], columns: 3, spacing: 16),
   ],
 );
 
