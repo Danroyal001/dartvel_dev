@@ -18,6 +18,7 @@ import 'dart:async';
 import 'package:dartvel_core/dartvel.dart'
     show DVFindBlock, dvFindMatch, dvHeadingIds;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 /// A page the browser's find can reach: what `DVPageShell` registers.
@@ -126,14 +127,36 @@ abstract final class DVFindInPage {
   /// page has no paragraph that is close: scrolling somewhere plausible and
   /// wrong is worse than staying put.
   static Future<bool> reveal(String section, {int? hint}) async {
-    final List<DVFoundParagraph> found = paragraphs();
-    final int? index = dvFindMatch(
-      section,
-      <String>[for (final DVFoundParagraph p in found) p.block.text],
-      hint: hint,
-    );
+    List<DVFoundParagraph> found = paragraphs();
+    int? match() => dvFindMatch(
+          section,
+          <String>[for (final DVFoundParagraph p in found) p.block.text],
+          hint: hint,
+        );
+    // The matcher forgives small differences, so "Row 420" can settle on a
+    // built "Row 0". When no built paragraph holds the words exactly, look
+    // through the rows a lazy list has not built for one that does first;
+    // only if none does is the nearest built paragraph the answer.
+    final String wanted = _normalised(section);
+    bool exact() => found.any((DVFoundParagraph p) => _normalised(p.block.text).contains(wanted));
+    int? index = match();
+    if (!exact()) {
+      final int? nearest = index;
+      if (await _scanLazyLists(() {
+        found = paragraphs();
+        return exact();
+      })) {
+        found = paragraphs();
+        index = match();
+      } else {
+        // Nothing exact anywhere: the scan put the lists back, and the
+        // nearest built paragraph is the answer, as before.
+        found = paragraphs();
+        index = nearest == null ? null : match();
+      }
+    }
     if (index == null) return false;
-    final BuildContext target = found[index].context;
+    final BuildContext target = found[index!].context;
 
     // The reader's own answer about motion, where they gave one.
     final bool still = MediaQuery.maybeDisableAnimationsOf(target) ?? false;
@@ -147,6 +170,48 @@ abstract final class DVFindInPage {
     );
     if (target.mounted) _highlight(target);
     return true;
+  }
+
+  static String _normalised(String text) => text.toLowerCase().replaceAll(RegExp(r"\s+"), " ").trim();
+
+  /// A match in a row a lazy list has not built (every scrollable DVBox list
+  /// is lazy): walks each vertical scrollable on the page a screen at a time,
+  /// letting each frame build what came into view, until [found] says the
+  /// text is now in the tree. A list that never shows it is put back where
+  /// it was, so a miss moves nothing, as before.
+  static Future<bool> _scanLazyLists(bool Function() found) async {
+    final DVFindPage? page = active;
+    final BuildContext? root = page?.findRoot;
+    if (root is! Element) return false;
+    final List<ScrollableState> lists = <ScrollableState>[];
+    void visit(Element element) {
+      if (element is StatefulElement && element.state is ScrollableState) {
+        final ScrollableState state = element.state as ScrollableState;
+        if (axisDirectionToAxis(state.axisDirection) == Axis.vertical) lists.add(state);
+      }
+      element.visitChildElements(visit);
+    }
+
+    root.visitChildElements(visit);
+    for (final ScrollableState list in lists) {
+      final ScrollPosition position = list.position;
+      if (!position.hasContentDimensions || !position.hasViewportDimension) continue;
+      final double start = position.pixels;
+      final double step = position.viewportDimension * 0.9;
+      // From the top: a match above where the reader is counts as much as
+      // one below.
+      double offset = position.minScrollExtent;
+      while (true) {
+        position.jumpTo(offset.clamp(position.minScrollExtent, position.maxScrollExtent));
+        await SchedulerBinding.instance.endOfFrame;
+        if (found()) return true;
+        if (offset >= position.maxScrollExtent) break;
+        offset += step;
+      }
+      position.jumpTo(start.clamp(position.minScrollExtent, position.maxScrollExtent));
+      await SchedulerBinding.instance.endOfFrame;
+    }
+    return false;
   }
 
   /// Scrolls the page on top to the heading whose id is [id], putting it at

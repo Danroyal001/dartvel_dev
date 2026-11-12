@@ -1,3 +1,7 @@
+## Unreleased
+
+- The page capture marks each page (`window.__dvCapture`) so lazy lists build every row for the page HTML.
+
 ## 0.13.42 — 2026-11-12
 
 - `dartvel.security.pageCsp` in pubspec.yaml: the web-server binary sends it with every page, filling in `'inline-scripts'` per page, so a proxy never has to pin one build's hashes.

@@ -181,8 +181,11 @@ void main() {
     await tester.drag(find.byType(DVRouteAdmin), const Offset(0, -2000));
     await tester.pumpAndSettle();
 
-    // The rest of the list is reachable, which is the whole point.
+    // The rest of the list is reachable, which is the whole point. Scrolled to
+    // rather than merely present: the list is lazy (DVBox, 12 Nov 2026), so a
+    // row below the screen is not built until the reader gets near it.
     expect(position.pixels, greaterThan(0));
+    await tester.dragUntilVisible(find.text('/page39'), find.byType(DVRouteAdmin), const Offset(0, -300));
     expect(find.text('/page39'), findsOneWidget);
   });
 }

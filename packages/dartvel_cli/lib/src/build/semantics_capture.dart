@@ -405,6 +405,10 @@ Future<DVCaptureRun> dvCaptureSemantics({
   return DVCaptureRun(captured: captured, browserAvailable: true);
 }
 
+/// Run in every captured page before it loads: tells the app it is being
+/// captured, so its lazy lists build every row (dartvel_flutter DVLazyLists).
+const String dvCaptureMarkScript = 'window.__dvCapture = true;';
+
 /// One browser tab the semantics read works in: its page, the images the
 /// page has asked for since the route it is on began, and its requests in
 /// flight.
@@ -435,6 +439,10 @@ class _CaptureTab {
     final Target target =
         await browser.waitForTarget((Target candidate) => candidate.targetID == id);
     final _CaptureTab tab = _CaptureTab._(await target.page, base);
+    // Before the app starts: every DVBox list builds whole while the page is
+    // captured, so the HTML carries the rows a lazy list would not have
+    // built (dartvel_flutter DVLazyLists).
+    await tab.page.evaluateOnNewDocument(dvCaptureMarkScript);
     tab._listening.addAll(<StreamSubscription<Object?>>[
       tab.page.onResponse.listen((Response response) {
         final DVCapturedImage? image = dvPageImage(
