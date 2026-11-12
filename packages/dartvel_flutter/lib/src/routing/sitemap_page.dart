@@ -11,6 +11,8 @@
 /// An application that defines its own `/sitemap` page keeps it.
 library;
 
+import 'dart:async' show unawaited;
+
 import 'package:dartvel_core/dartvel.dart' show DVSitemapLink, dvReadSitemap;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -56,7 +58,7 @@ class _DVSitemapPageState extends State<DVSitemapPage> {
   @override
   void initState() {
     super.initState();
-    (widget.load ?? _fetchSitemap)().then((String xml) {
+    unawaited((widget.load ?? _fetchSitemap)().then((String xml) {
       // This site's own pages only. With dartvel.hosts the server answers each
       // host with its own entries while the build captures the whole file;
       // listing other hosts made the captured page and the live one disagree.
@@ -89,7 +91,7 @@ class _DVSitemapPageState extends State<DVSitemapPage> {
               // <a href> in the server-rendered HTML and works before the app
               // loads; the browser's own Back still returns to the page before.
               DVNavLink(
-                to: DVRouteTarget('/'),
+                to: const DVRouteTarget('/'),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Row(mainAxisSize: .min, children: <Widget>[
                   Icon(Icons.arrow_back, size: 18, color: colours.primary),
