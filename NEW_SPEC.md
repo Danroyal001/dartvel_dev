@@ -1557,7 +1557,7 @@ Every site with a `sitemap.xml` (`dartvel.seo.siteUrl` set) also has a readable
 `/sitemap` page, unless the application defines its own. It is a route like
 `/404` and `/offline`, rendered through the one render path, and it reads the
 site's own `sitemap.xml` (one source, so the two never disagree): an "XML
-SITEMAP" label, the site name as the page heading, its description, the number
+SITEMAP" label under a "Back to <site name>" link to the home page (a real link, so it works before the app loads), the site name as the page heading, its description, the number
 of pages, then each page as a link with its last-modified date, in the app's
 theme, light or dark. A long sitemap builds its rows as they scroll into view
 (lazy lists); the build's capture still reads every row. `sitemap.xml` keeps its

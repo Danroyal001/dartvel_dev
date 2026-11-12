@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVSitemapPage`: a "Back to <site name>" link to the home page at the top, so the page is never a dead end.
+
 ## 0.13.45 — 2026-11-12
 
 - `DVSitemapPage`: the site's own sitemap.xml as a readable page (label, site name heading, description, page count, links with dates), in the app theme.
