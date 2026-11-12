@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.47 — 2026-11-13
 
 - Lazy lists and grids: every row has its own layer, so scrolling no longer repaints every row built so far. Fast scrolling on tools.sigmadev.digital: frames over 100 ms went from 21 to 1 on desktop.
 

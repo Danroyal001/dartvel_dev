@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.47 — 2026-11-13
 
 - Web (wasm): each deferred module is fetched and instantiated once. Every page asks for the shared modules too, so preloading links re-downloaded and re-instantiated them: 812 requests in 3 s of scrolling on tools.sigmadev.digital, now 52.
 
