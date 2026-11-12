@@ -1,3 +1,7 @@
+## Unreleased
+
+- Lazy lists and grids: every row has its own layer, so scrolling no longer repaints every row built so far. Fast scrolling on tools.sigmadev.digital: frames over 100 ms went from 21 to 1 on desktop.
+
 ## 0.13.46 — 2026-11-12
 
 - `DVSitemapPage`: a "Back to <site name>" link to the home page at the top, so the page is never a dead end.

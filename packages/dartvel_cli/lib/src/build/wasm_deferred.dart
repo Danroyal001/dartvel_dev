@@ -89,9 +89,17 @@ const String _instantiate =
 
 const String _defaultLoader =
     '\n    // Dartvel: flutter.js passes no module loader; fetch each deferred'
-    '\n    // module from beside this file.'
-    '\n    loadDeferredModules ??= (names, load) => Promise.all(names.map('
-    'async (name) => load(name, await fetch(new URL(name, import.meta.url)))));';
+    '\n    // module from beside this file, once. Every page library names the'
+    '\n    // shared modules it needs as well as its own, so without the map each'
+    '\n    // page preloaded downloaded, compiled and instantiated them again.'
+    '\n    // A module that failed is forgotten, so the next ask tries again.'
+    '\n    loadDeferredModules ??= ((modules) => (names, load) => Promise.all(names.map((name) => {'
+    '\n      if (!modules.has(name)) {'
+    '\n        modules.set(name, (async () => load(name, await fetch(new URL(name, import.meta.url))))()'
+    '\n          .catch((error) => { modules.delete(name); throw error; }));'
+    '\n      }'
+    '\n      return modules.get(name);'
+    '\n    })))(new Map());';
 
 /// [mjs] (a dart2wasm `main.dart.mjs`) with a default deferred-module loader,
 /// or null when it does not have the `instantiate` this knows how to patch.

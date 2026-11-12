@@ -1,3 +1,7 @@
+## Unreleased
+
+- Web (wasm): each deferred module is fetched and instantiated once. Every page asks for the shared modules too, so preloading links re-downloaded and re-instantiated them: 812 requests in 3 s of scrolling on tools.sigmadev.digital, now 52.
+
 ## 0.13.45 — 2026-11-12
 
 - Every site with `dartvel.seo.siteUrl` gets a `/sitemap` route (unless it defines one); sitemap.xml does not list it.

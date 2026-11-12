@@ -93,6 +93,37 @@ void main() {
           greaterThan(patched.indexOf('async instantiate(')));
     });
 
+    test('each deferred module is fetched and instantiated once, however many pages ask for it', () async {
+      // Every page library names the shared modules it needs as well as its
+      // own. Preloading the links on tools.sigmadev.digital asked for the same
+      // shared modules once per page, and each ask downloaded, compiled and
+      // instantiated them again: 812 requests in three seconds of scrolling and
+      // frames of 400 ms. Instantiating a module twice also copies its state.
+      final String patched = dvWithDeferredModuleLoader(
+          'class App {\n  async instantiate(additionalImports, {loadDeferredModules, loadDeferredId} = {}) {\n    return loadDeferredModules;\n  }\n}\nexport { App };\n')!;
+      final Directory temp = Directory.systemTemp.createTempSync('dv_wasm_once_');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      File(p.join(temp.path, 'main.dart.mjs')).writeAsStringSync(patched);
+      File(p.join(temp.path, 'harness.mjs')).writeAsStringSync('''
+const fetched = {}; const loaded = {};
+globalThis.fetch = async (url) => { const name = String(url).split('/').pop(); fetched[name] = (fetched[name] || 0) + 1; return 'bytes'; };
+const { App } = await import('./main.dart.mjs');
+const loader = await new App().instantiate({});
+const load = async (name) => { loaded[name] = (loaded[name] || 0) + 1; await new Promise((r) => setTimeout(r, 5)); };
+await loader(['shared1.wasm', 'page_a.wasm'], load);
+await Promise.all([loader(['shared1.wasm', 'page_b.wasm'], load), loader(['shared1.wasm', 'page_c.wasm'], load)]);
+let failOnce = true;
+await loader(['flaky.wasm'], async (name) => { if (failOnce) { failOnce = false; throw new Error('network'); } loaded[name] = (loaded[name] || 0) + 1; }).catch(() => {});
+await loader(['flaky.wasm'], async (name) => { loaded[name] = (loaded[name] || 0) + 1; });
+console.log(JSON.stringify({ fetched, loaded }));
+''');
+      final ProcessResult run = await Process.run('node', <String>['harness.mjs'], workingDirectory: temp.path);
+      expect(run.exitCode, 0, reason: '${run.stderr}');
+      expect(run.stdout.toString().trim(),
+          '{"fetched":{"shared1.wasm":1,"page_a.wasm":1,"page_b.wasm":1,"page_c.wasm":1,"flaky.wasm":2},"loaded":{"shared1.wasm":1,"page_a.wasm":1,"page_b.wasm":1,"page_c.wasm":1,"flaky.wasm":1}}',
+          reason: 'a module that failed to load is tried again; nothing else twice');
+    });
+
     test('patching twice changes nothing the second time', () {
       final String once = dvWithDeferredModuleLoader(mjs)!;
       expect(dvWithDeferredModuleLoader(once), once);
