@@ -13,7 +13,9 @@ import 'package:dartvel_core/dartvel.dart'
         DVPreviewServer,
         DVWebServerSettings,
         dvConfigureRuntimeLogging,
-        dvDefaultMaxBodyBytes;
+        dvDefaultMaxBodyBytes,
+        dvMinifyHtml,
+        dvPageContentSecurityPolicy;
 
 import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
 import 'package:dartvel_core/http.dart';
@@ -183,6 +185,12 @@ Future<ServerHandle> serve(
   // empty map sends none. See dvDefaultSecurityHeaders for what is in it and
   // why a Content-Security-Policy is not.
   Map<String, String> securityHeaders = dvDefaultSecurityHeaders,
+  // A Content-Security-Policy for the server's own HTML pages, from
+  // dartvel.security.pageCsp. The source 'inline-scripts' in it becomes the
+  // sha256 hash of every inline script the page carries, worked out from the
+  // HTML each page is sent with, so a new build's scripts are never refused
+  // by a list made for the previous one. Null sends none.
+  String? pageContentSecurityPolicy,
 }) async {
   if (requestTimeout <= Duration.zero) {
     throw ArgumentError.value(requestTimeout, 'requestTimeout',
@@ -354,13 +362,25 @@ Future<ServerHandle> serve(
   // router's, so no path is left without them. A WebSocket upgrade has no
   // document to protect.
   final bool overTls = tls != null;
+  // The shell every server-rendered page is built from, as built and as
+  // minified, so a streamed page whose inline scripts come after its first
+  // part is still covered.
+  final List<String> shellScripts = <String>[
+    if (pageContentSecurityPolicy != null && spaRoot != null)
+      if (dvSiteText(spaRoot, 'index.html') case final String shell) ...<String>[shell, dvMinifyHtml(shell)],
+  ];
   Future<Response> routed(Request request) async {
     final Response response = await dispatched(request);
-    if (response is! WebSocketResponse) {
-      dvApplySecurityHeaders(response.headers,
-          baseline: securityHeaders, overTls: overTls);
+    if (response is WebSocketResponse) return response;
+    dvApplySecurityHeaders(response.headers,
+        baseline: securityHeaders, overTls: overTls);
+    final String? pagePolicy = pageContentSecurityPolicy;
+    if (pagePolicy == null ||
+        response.headers.has('content-security-policy') ||
+        !(response.headers.get('content-type') ?? '').toLowerCase().startsWith('text/html')) {
+      return response;
     }
-    return response;
+    return _withPagePolicy(response, pagePolicy, shellScripts);
   }
   // The preview's gate goes outermost, around the site's files and assembled
   // pages as well as the router: installed on the router alone, a link-only
@@ -1133,4 +1153,34 @@ DVAssetHttpPolicy _assetPolicyFor(String root) {
   } on FormatException {
     return const DVAssetHttpPolicy();
   }
+}
+
+/// [response] with its Content-Security-Policy worked out from the HTML it
+/// carries. A whole body is read and sent on unchanged; a streamed one is held
+/// only until its first part arrives (its head, with the page's own scripts),
+/// with the shell's scripts added for anything later. Headers are not on the
+/// wire until this returns, so the header can still be set.
+Future<Response> _withPagePolicy(Response response, String policy, List<String> shellScripts) async {
+  final Stream<List<int>>? body = response.body?.stream;
+  if (body == null) {
+    response.headers.set('content-security-policy', dvPageContentSecurityPolicy(policy, '', extraHtml: shellScripts));
+    return response;
+  }
+  if (!response.isStream) {
+    final List<int> bytes = <int>[for (final List<int> chunk in await body.toList()) ...chunk];
+    response.headers.set('content-security-policy',
+        dvPageContentSecurityPolicy(policy, utf8.decode(bytes, allowMalformed: true), extraHtml: shellScripts));
+    return Response(response.status, headers: response.headers, body: Stream<List<int>>.value(bytes));
+  }
+  final StreamIterator<List<int>> parts = StreamIterator<List<int>>(body);
+  final List<int> first = await parts.moveNext() ? parts.current : const <int>[];
+  response.headers.set('content-security-policy',
+      dvPageContentSecurityPolicy(policy, utf8.decode(first, allowMalformed: true), extraHtml: shellScripts));
+  Stream<List<int>> rest() async* {
+    yield first;
+    while (await parts.moveNext()) {
+      yield parts.current;
+    }
+  }
+  return Response(response.status, headers: response.headers, body: rest(), isStream: true);
 }
