@@ -1,3 +1,9 @@
+## 0.13.44 — 2026-11-12
+
+- `DV.lifecycle.app` reaches `ready` on a screen that never changes (the first-frame callback is registered before runApp).
+- Studio: palette items drag onto a canvas even when the palette has no controller of its own; only a read-only editor refuses the drag.
+- Web: `window.setFullscreen` goes through the Fullscreen API.
+
 ## 0.13.43 — 2026-11-12
 
 - Long DVBox lists and grids inside a scrolling page (more than 24 items) build their rows as they come near the screen.

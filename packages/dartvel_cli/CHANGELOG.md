@@ -1,3 +1,7 @@
+## 0.13.44 — 2026-11-12
+
+- Version aligned with dartvel_core 0.13.44.
+
 ## 0.13.43 — 2026-11-12
 
 - The page capture marks each page (`window.__dvCapture`) so lazy lists build every row for the page HTML.
