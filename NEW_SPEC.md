@@ -887,6 +887,10 @@ A scrollable vertical list -- `DVBox.scrollableList([...])` or
 near the screen and lets go of the ones scrolled far away, with nothing written
 for it: no `ListView.builder`, no builder function. A page of a few hundred rows
 costs what one screen of them costs. Cross-axis alignment and spacing are kept.
+A long list or grid that does not scroll by itself but sits inside a page that
+does -- a catalogue of tools, a grid of products -- builds the same way: past
+the first screenful (more than 24 items), each row stands in at an estimated
+height and is built when the page scrolls within two screens of it.
 Two things that read a whole page still see every row: the build's page capture,
 which marks each page before it loads (`window.__dvCapture`) so the HTML for
 crawlers and readers without scripting has every row, and find in page, which
