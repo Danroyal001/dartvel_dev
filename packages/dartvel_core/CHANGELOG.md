@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dvReadSitemap`: a sitemap.xml read back as `DVSitemapLink`s (path, last modified, external), for the readable /sitemap page.
+
 ## 0.13.44 — 2026-11-12
 
 - Version aligned with dartvel_core 0.13.44.

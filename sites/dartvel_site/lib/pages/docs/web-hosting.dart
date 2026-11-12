@@ -69,6 +69,11 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
                   'seo.siteUrl is set',
             ],
             <String>[
+              'sitemap/index.html',
+              'The same list as a page people can read: every page with '
+                  'its date, in your theme (your own /sitemap page wins)',
+            ],
+            <String>[
               '.htaccess',
               'Apache and LiteSpeed rules: routes, '
                   'caching and security headers',
