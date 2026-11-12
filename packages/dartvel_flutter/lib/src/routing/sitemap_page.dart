@@ -85,6 +85,19 @@ class _DVSitemapPageState extends State<DVSitemapPage> {
           child: Column(
             crossAxisAlignment: .start,
             children: <Widget>[
+              // The way back to the site. A real link to its home page, so it is an
+              // <a href> in the server-rendered HTML and works before the app
+              // loads; the browser's own Back still returns to the page before.
+              DVNavLink(
+                to: DVRouteTarget('/'),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(mainAxisSize: .min, children: <Widget>[
+                  Icon(Icons.arrow_back, size: 18, color: colours.primary),
+                  const SizedBox(width: 8),
+                  Text('Back to $name', style: text.bodyMedium?.copyWith(color: colours.primary, fontWeight: .w600)),
+                ]),
+              ),
+              const SizedBox(height: 16),
               Text('XML SITEMAP', style: text.labelMedium?.copyWith(color: colours.primary, letterSpacing: 1.6, fontWeight: .w700)),
               const SizedBox(height: 10),
               Semantics(container: true, header: true, headingLevel: 1, child: Text(name, style: text.headlineMedium?.copyWith(fontWeight: .w700))),

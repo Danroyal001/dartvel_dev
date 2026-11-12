@@ -53,6 +53,14 @@ void main() {
     expect(find.textContaining('tools.example.com'), findsNothing);
   });
 
+  testWidgets('a way back to the site, as a real link to its home page', (WidgetTester tester) async {
+    await tester.pumpWidget(page(load: () async => sitemap));
+    await tester.pumpAndSettle();
+    final Finder back = find.ancestor(of: find.text('Back to Example Co'), matching: find.byType(DVNavLink));
+    expect(back, findsOneWidget);
+    expect(tester.widget<DVNavLink>(back).to.path, '/');
+  });
+
   testWidgets('no sitemap yet says so instead of an empty table', (WidgetTester tester) async {
     await tester.pumpWidget(page(load: () async => '<html>Not found</html>'));
     await tester.pumpAndSettle();
