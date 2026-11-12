@@ -57,7 +57,10 @@ class _DVSitemapPageState extends State<DVSitemapPage> {
   void initState() {
     super.initState();
     (widget.load ?? _fetchSitemap)().then((String xml) {
-      if (mounted) setState(() => _links = dvReadSitemap(xml, siteUrl: widget.siteUrl));
+      // This site's own pages only. With dartvel.hosts the server answers each
+      // host with its own entries while the build captures the whole file;
+      // listing other hosts made the captured page and the live one disagree.
+      if (mounted) setState(() => _links = dvReadSitemap(xml, siteUrl: widget.siteUrl).where((DVSitemapLink link) => !link.external).toList());
     });
   }
 

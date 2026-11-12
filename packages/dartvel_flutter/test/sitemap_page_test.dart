@@ -43,6 +43,16 @@ void main() {
     expect(find.ancestor(of: find.text('/docs/getting-started'), matching: find.byType(DVNavLink)), findsOneWidget);
   });
 
+  testWidgets('pages on another host are left out, as the server leaves them out of this host sitemap', (WidgetTester tester) async {
+    // With dartvel.hosts the server answers each host with its own pages, while
+    // the build captures the whole file: showing the other hosts too made the
+    // server-rendered page say 209 pages and the live one 31.
+    await tester.pumpWidget(page(load: () async => sitemap.replaceFirst('https://example.com/pricing', 'https://tools.example.com/pricing')));
+    await tester.pumpAndSettle();
+    expect(find.text('2 pages'), findsOneWidget);
+    expect(find.textContaining('tools.example.com'), findsNothing);
+  });
+
   testWidgets('no sitemap yet says so instead of an empty table', (WidgetTester tester) async {
     await tester.pumpWidget(page(load: () async => '<html>Not found</html>'));
     await tester.pumpAndSettle();
