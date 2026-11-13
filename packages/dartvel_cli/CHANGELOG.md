@@ -1,3 +1,7 @@
+## Unreleased
+
+- `pageScroll` is now `pageScrollToTop` on `@DVFunctionalWidget`, DVClassWidget and DartvelLayout (a clearer name; 0.13.50 shipped the old one).
+
 ## 0.13.50 — 2026-11-13
 
 - `@DVFunctionalWidget(pageScroll: true)` generates a widget whose page has the long-page "To the bottom / Back to top" button; the generator reads annotations with attributes.

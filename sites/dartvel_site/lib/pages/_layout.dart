@@ -18,7 +18,7 @@ import '../dartvel_client/dartvel_client.dart';
 class const Layout({super.key, required super.child}) extends DartvelLayout {
   /// The "To the bottom / Back to top" button on long pages.
   @override
-  bool get pageScroll => true;
+  bool get pageScrollToTop => true;
 
   @override
   Widget build(BuildContext context) {
