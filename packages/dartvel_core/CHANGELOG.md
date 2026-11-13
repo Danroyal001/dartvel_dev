@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.51 — 2026-11-13
 
 - `pageScroll` is now `pageScrollToTop` on `@DVFunctionalWidget`, DVClassWidget and DartvelLayout (a clearer name; 0.13.50 shipped the old one).
 

@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.51 — 2026-11-13
 
 - Android: `DV.Platform.apps.list` and `icon` run on a background isolate. Dart runs on the main thread, and a launcher listing every app on a slow 32-bit phone froze long enough for Android's "app isn't responding".
 - `DV.Platform.apps.homePresses`: Home pressed while a home app (`dartvel.android.launcher: true`) is in front, or bringing it back, so a launcher can close its drawer. The generated launcher MainActivity stamps the Home intent; activities written by earlier versions are upgraded.
