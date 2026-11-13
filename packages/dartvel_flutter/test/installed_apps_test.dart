@@ -6,12 +6,13 @@
 // application sees from whatever the binding hands back, and what it sends.
 import 'dart:typed_data';
 
+import 'package:flutter/widgets.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   tearDown(() {
-    for (final String name in const ['apps.list', 'apps.open', 'apps.openSettings', 'apps.uninstall', 'apps.icon', 'apps.isDefaultLauncher', 'apps.requestDefaultLauncher', 'apps.defaultFor']) {
+    for (final String name in const ['apps.list', 'apps.open', 'apps.openSettings', 'apps.uninstall', 'apps.icon', 'apps.isDefaultLauncher', 'apps.requestDefaultLauncher', 'apps.defaultFor', 'apps.homePressedAt']) {
       DVNativeBridge.unregister(name);
     }
   });
@@ -143,5 +144,57 @@ void main() {
 
   test('defaultFor is unsupported where no binding is registered', () async {
     await expectLater(const DVApps().defaultFor(DVAppRole.browser), throwsA(isA<UnsupportedError>()));
+  });
+
+  group('Home pressed on a home app', () {
+    // Android hands Home to the home app that is already in front as a new
+    // intent, with the activity paused and resumed around it; the build's
+    // MainActivity stamps that intent and the binding reads the stamp.
+    testWidgets('each press of Home that lands on the app is one event; resuming from elsewhere is none', (WidgetTester tester) async {
+      int stamp = 0;
+      DVNativeBridge.register('apps.homePressedAt', (Object? _) => stamp);
+      final List<int> presses = <int>[];
+      final subscription = const DVApps().homePresses.listen((_) => presses.add(1));
+      addTearDown(subscription.cancel);
+      await tester.pump();
+
+      Future<void> pauseAndResume() async {
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await tester.pump();
+        await tester.pump();
+      }
+
+      await pauseAndResume();
+      expect(presses, isEmpty, reason: 'back from the notification shade or another app, no Home press');
+
+      stamp = 1000;
+      await pauseAndResume();
+      expect(presses.length, 1);
+
+      await pauseAndResume();
+      expect(presses.length, 1, reason: 'the same stamp is the same press');
+
+      stamp = 2000;
+      await pauseAndResume();
+      expect(presses.length, 2);
+    });
+
+    testWidgets('a stamp already there when listening starts is not a press', (WidgetTester tester) async {
+      DVNativeBridge.register('apps.homePressedAt', (Object? _) => 500);
+      final List<int> presses = <int>[];
+      final subscription = const DVApps().homePresses.listen((_) => presses.add(1));
+      addTearDown(subscription.cancel);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump();
+      expect(presses, isEmpty);
+    });
+
+    test('where no home app can be, the stream is empty rather than an error', () async {
+      expect(await const DVApps().homePresses.isEmpty, isTrue);
+    });
   });
 }

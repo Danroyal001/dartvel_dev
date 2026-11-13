@@ -222,4 +222,18 @@ class DVAndroidApps {
     context.startActivity(intent);
     return true;
   }
+
+  /// The intent extra the launcher MainActivity stamps on each Home press
+  /// that reaches it (android_home_launcher.dart in dartvel_cli writes it).
+  static const String homePressedExtra = 'dev.dartvel.homePressedAt';
+
+  /// When Home last reached [activity] as a new intent (elapsed realtime, in
+  /// milliseconds), or 0 when it has not since the app started.
+  static int homePressedAt(Activity? activity) {
+    try {
+      return activity?.intent?.getLongExtra(homePressedExtra.toJString(), 0) ?? 0;
+    } on Object {
+      return 0;
+    }
+  }
 }

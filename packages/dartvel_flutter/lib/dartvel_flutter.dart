@@ -6324,6 +6324,47 @@ class DVApps {
     return package is String && package.isNotEmpty ? package : null;
   }
 
+  /// One event each time the person presses Home and lands on this app as
+  /// the phone's home app: while it is already in front (where a launcher
+  /// closes its drawer and goes back to its first page) and when Home brings
+  /// it back from another app.
+  ///
+  /// Android hands that press to the home app as a new intent, pausing and
+  /// resuming it around it; the MainActivity `dartvel.android.launcher: true`
+  /// writes stamps the intent, and this reads the stamp when the app resumes.
+  /// Where no binding is registered (not Android, or not a home app) the
+  /// stream is empty.
+  Stream<void> get homePresses {
+    if (!DVNativeBridge.isRegistered('apps.homePressedAt')) return const Stream<void>.empty();
+    late final StreamController<void> controller;
+    AppLifecycleListener? listener;
+    int? seen;
+    Future<int> stamp() async {
+      final Object? value = await DVNativeBridge.invoke<Object?>('apps.homePressedAt');
+      return value is int ? value : 0;
+    }
+
+    Future<void> check() async {
+      final int now = await stamp();
+      final int? before = seen;
+      seen = now;
+      if (before != null && now != before && !controller.isClosed) controller.add(null);
+    }
+
+    controller = StreamController<void>(
+      onListen: () {
+        // What is there before anyone listened is not a press they missed.
+        stamp().then((int value) => seen ??= value);
+        listener = AppLifecycleListener(onResume: () => unawaited(check()));
+      },
+      onCancel: () {
+        listener?.dispose();
+        listener = null;
+      },
+    );
+    return controller.stream;
+  }
+
   /// Starts the app [packageName] the way tapping its icon would.
   Future<void> open(String packageName) => _ask('apps.open', packageName, 'open');
 

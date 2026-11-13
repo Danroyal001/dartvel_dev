@@ -230,6 +230,9 @@ class DVAndroidBindings {
     // The role question is an Activity's (startActivityForResult); without one
     // the Home settings page is started from the application Context.
     DVNativeBridge.register('apps.requestDefaultLauncher', (Object? _) => DVAndroidApps.requestDefaultLauncher(context, DVAndroidActivities.current));
+    // Home pressed while this home app is in front, or bringing it back: the
+    // MainActivity stamps the intent, DVApps.homePresses reads it on resume.
+    DVNativeBridge.register('apps.homePressedAt', (Object? _) => DVAndroidApps.homePressedAt(DVAndroidActivities.current));
 
     DVNativeBridge.register('share.text', (Object? arguments) {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
