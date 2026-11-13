@@ -16,7 +16,11 @@
 /// * a session waiting for its second factor is held in memory, never stored
 ///   or handed to the generated client, and only the rotated token is kept;
 /// * a stored session the server no longer honours is forgotten at launch
-///   (`DV-SESSION-002`).
+///   (`DV-SESSION-002`);
+/// * at launch -- a browser's included, whose cookie outlives a reload -- one
+///   request to `/auth/session` answers both the session and who it belongs
+///   to, so `DV.Auth.currentUser` is the signed-in person from the start; a
+///   browser with no session is answered 401 and stays signed out quietly.
 library;
 
 import 'dart:async';
@@ -290,6 +294,11 @@ class DVSessionClient {
   /// This device's session, or null when nobody is signed in here.
   DVSession? get current => _session.value;
 
+  DVAuthUser? _user;
+
+  /// Who [current] belongs to, as the server last described them, or null.
+  DVAuthUser? get user => _session.value == null ? null : _user;
+
   /// Whether a sign-in is waiting for its second factor.
   bool get awaitingSecondFactor => _pendingUser != null;
 
@@ -381,15 +390,33 @@ class DVSessionClient {
     const String path = DVAuthEndpoints.sessionPath;
     final DVHttpResponse response = await _request('GET', path, bearer: _token);
     if (response.statusCode == 401) {
-      DV.log(
-        'DV-SESSION-002: this device\'s session is no longer live; it was '
-        'signed out.',
-        code: 'DV-SESSION-002',
-      );
+      // A browser with no session cookie is answered 401 too, and that is
+      // somebody signed out, not a session that ended: nothing to report.
+      if (_token != null || current != null) {
+        DV.log(
+          'DV-SESSION-002: this device\'s session is no longer live; it was '
+          'signed out.',
+          code: 'DV-SESSION-002',
+        );
+      }
       await _forget();
       return null;
     }
-    final DVSession session = _sessionOf(_decode(response, path), path);
+    final Map<String, Object?> json = _decode(response, path);
+    final DVSession session = _sessionOf(json, path);
+    final Object? described = json['user'];
+    final Object? name = described is Map ? described['name'] : null;
+    _user = DVAuthUser(
+      id: described is Map && described['id'] is String
+          ? described['id']! as String
+          : session.userId,
+      email: described is Map ? described['email'] as String? : null,
+      provider: 'email',
+      metadata: name is String
+          ? <String, Object?>{'name': name}
+          : const <String, Object?>{},
+      createdAt: session.createdAt,
+    );
     _session.set(session);
     return session;
   }
@@ -656,6 +683,7 @@ class DVSessionClient {
   Future<void> _forget() async {
     final bool held = _token != null;
     _token = null;
+    _user = null;
     try {
       await _tokens?.clear();
     } on Object {

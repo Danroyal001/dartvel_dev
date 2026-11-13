@@ -15,7 +15,7 @@ library dartvel_flutter.routing.account_pages;
 
 import 'package:dartvel_core/dartvel.dart' show DVSession;
 
-import '../../dartvel_flutter.dart' show DVRouteTarget;
+import '../../dartvel_flutter.dart' show DVAuth, DVRouteTarget;
 import '../auth/session_client.dart' show DVSessionClient;
 import 'page_middleware.dart' show dvSignInRoute;
 
@@ -79,6 +79,9 @@ class DVAccountPages {
   /// loaded, whose cookie is the session -- it asks before refusing.
   static Future<String?> requireSession(Object? context, Object? state) async {
     final DVSessionClient? client = DVSessionClient.installed;
+    // The start-up check, when it is on its way, answers this too: waiting
+    // for it is one request where asking again would be two.
+    if (const DVAuth().restoring) await const DVAuth().restored;
     DVSession? session = client?.current;
     if (session == null && client != null) {
       try {

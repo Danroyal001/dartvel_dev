@@ -918,9 +918,11 @@ ${_runtimeInstallSource(runtimePackages, telegramConfigured: dv['telegram'] != n
   // A generated call refused for a missing second factor presents the
   // challenge over the current screen and is sent again once it is presented.
   DVAuth.installStepUp();
-  if (!kIsWeb) {
-    unawaited(dartvelSessions.restore().then<void>((_) {}, onError: (Object _) {}));
-  }
+  // Who is signed in, asked once as the app starts -- in a browser too,
+  // where the HttpOnly session cookie outlives a reload and nothing on the
+  // page can read it. DV.Auth.currentUser and DV.Auth.user are the signed-in
+  // person from then on; a 401 leaves the app signed out without an error.
+  unawaited(const DVAuth().restore().then<void>((_) {}, onError: (Object _) {}));
   // DV.Analytics from dartvel.analytics, over this device's own database:
   // consent belongs to the install. After the bindings, because the database
   // is opened as the runtime starts and on Android the directory it goes in
