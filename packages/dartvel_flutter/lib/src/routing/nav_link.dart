@@ -776,53 +776,60 @@ class _DVLinkPreviewCard extends StatelessWidget {
         ignoring: !custom,
         // It is a picture of a destination, not the destination. A stray tap
         // inside must not activate whatever it happens to be showing.
-        child: Material(
-          key: cardKey,
-          elevation: 12,
-          borderRadius: .circular(12),
-          clipBehavior: .antiAlias,
-          child: SizedBox.fromSize(
-            size: size,
-            child: custom
-                ? child
-                : Column(
-                    crossAxisAlignment: .stretch,
-                    children: <Widget>[
-                      Expanded(
-                        child: FittedBox(
-                          fit: .cover,
-                          alignment: .topLeft,
-                          child: SizedBox(
-                            width: 1200,
-                            height: 850,
-                            child: MediaQuery(
-                              // The destination believes it has a full window, so
-                              // it lays out the way it really would rather than
-                              // collapsing into a card-sized shape.
-                              data: MediaQuery.of(context)
-                                  .copyWith(size: const Size(1200, 850)),
-                              child: child,
+        // Nor may a screen reader read that picture into the middle of this
+        // page. Said outright rather than left to IgnorePointer: on Flutter
+        // 3.51 (main) the card's text reached the semantics tree, which it
+        // did not on 3.47.
+        child: ExcludeSemantics(
+          excluding: !custom,
+          child: Material(
+            key: cardKey,
+            elevation: 12,
+            borderRadius: .circular(12),
+            clipBehavior: .antiAlias,
+            child: SizedBox.fromSize(
+              size: size,
+              child: custom
+                  ? child
+                  : Column(
+                      crossAxisAlignment: .stretch,
+                      children: <Widget>[
+                        Expanded(
+                          child: FittedBox(
+                            fit: .cover,
+                            alignment: .topLeft,
+                            child: SizedBox(
+                              width: 1200,
+                              height: 850,
+                              child: MediaQuery(
+                                // The destination believes it has a full window, so
+                                // it lays out the way it really would rather than
+                                // collapsing into a card-sized shape.
+                                data: MediaQuery.of(context)
+                                    .copyWith(size: const Size(1200, 850)),
+                                child: child,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          child: Text(
+                            path,
+                            maxLines: 1,
+                            overflow: .ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                         ),
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
-                        child: Text(
-                          path,
-                          maxLines: 1,
-                          overflow: .ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+            ),
           ),
         ),
       ),
