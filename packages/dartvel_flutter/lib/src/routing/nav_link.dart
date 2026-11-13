@@ -880,6 +880,24 @@ abstract final class DVPressedLinkTarget {
   }
 }
 
+/// Leaves this page for the host of `dartvel.hosts` that owns the internal
+/// [location], when that is not the host the page was loaded from, and says
+/// whether it did.
+///
+/// A mounted host shows only its mount, and the primary host is not where a
+/// mounted route lives. Routing to such a location here would draw the page
+/// under an address this host does not serve: a reload, a shared link and a
+/// new tab would all be a 404 or a redirect. So it is opened, in this tab,
+/// at its public URL. False without hosts, off the web, and for a route this
+/// host owns, which the router shows.
+bool dvLeaveForOwningHost(String location) {
+  if (dvIsOtherOrigin(location)) return false;
+  final String url = dvPublicLocation(location);
+  if (!dvIsOtherOrigin(url)) return false;
+  DVLinkOpener.open(url);
+  return true;
+}
+
 class DVLinkOpener {
   const DVLinkOpener._();
 

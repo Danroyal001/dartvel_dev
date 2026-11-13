@@ -87,7 +87,8 @@ import 'src/routing/first_frame_gate.dart'
     show dvHoldWebFirstFrame, dvWatchWebFirstFrame;
 import 'src/routing/link_menu.dart' show DVLinkMenuScope, dvLinkMenuItems;
 import 'src/routing/mount.dart' show dvMountedLocation;
-import 'src/routing/nav_link.dart' show DVLinkOpener, DVPressedLinkTarget;
+import 'src/routing/nav_link.dart'
+    show DVLinkOpener, DVPressedLinkTarget, dvLeaveForOwningHost;
 import 'src/routing/nav_link.dart' show DVNavLink;
 import 'src/routing/page_mfa.dart' show DVPageMfa;
 import 'src/routing/url_strategy.dart' show dvOpenUrl;
@@ -10915,7 +10916,10 @@ class DVRouteTarget {
 
 extension DartvelNavigationX on BuildContext {
   void navigateToPage(DVRouteTarget target) {
-    go(DVNavigation.locationOf(target));
+    final String location = DVNavigation.locationOf(target);
+    // A route another host of dartvel.hosts owns is opened there.
+    if (dvLeaveForOwningHost(location)) return;
+    go(location);
   }
 }
 
@@ -11020,11 +11024,23 @@ class DVNavigation {
   VoidCallback to(DVRouteTarget target) => () => navigate(target);
 
   /// Navigates to [target] now, replacing the current location.
-  void navigate(DVRouteTarget target) => _active.go(locationOf(target));
+  ///
+  /// With `dartvel.hosts`, a route another host owns is opened at its public
+  /// URL on that host, in this tab: this host has no page there to show.
+  void navigate(DVRouteTarget target) {
+    final String location = locationOf(target);
+    if (dvLeaveForOwningHost(location)) return;
+    _active.go(location);
+  }
 
   /// Pushes [target] onto the navigation stack, keeping the current page.
-  Future<T?> push<T extends Object?>(DVRouteTarget target) =>
-      _active.push<T>(locationOf(target));
+  /// A route another host of `dartvel.hosts` owns is opened there instead,
+  /// and the future completes with null: this page is being left.
+  Future<T?> push<T extends Object?>(DVRouteTarget target) {
+    final String location = locationOf(target);
+    if (dvLeaveForOwningHost(location)) return Future<T?>.value();
+    return _active.push<T>(location);
+  }
 
   /// Pops the top page when there is one to pop.
   void back<T extends Object?>([T? result]) {
