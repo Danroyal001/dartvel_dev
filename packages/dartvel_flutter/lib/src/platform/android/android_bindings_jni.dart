@@ -233,6 +233,9 @@ class DVAndroidBindings {
     // Home pressed while this home app is in front, or bringing it back: the
     // MainActivity stamps the intent, DVApps.homePresses reads it on resume.
     DVNativeBridge.register('apps.homePressedAt', (Object? _) => DVAndroidApps.homePressedAt(DVAndroidActivities.current));
+    // Recents pressed while it is visible (the system's "recentapps" broadcast,
+    // stamped by the same MainActivity); DVApps.recentsPresses polls it.
+    DVNativeBridge.register('apps.recentsPressedAt', (Object? _) => DVAndroidApps.recentsPressedAt(DVAndroidActivities.current));
 
     DVNativeBridge.register('share.text', (Object? arguments) {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};

@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   tearDown(() {
-    for (final String name in const ['apps.list', 'apps.open', 'apps.openSettings', 'apps.uninstall', 'apps.icon', 'apps.isDefaultLauncher', 'apps.requestDefaultLauncher', 'apps.defaultFor', 'apps.homePressedAt']) {
+    for (final String name in const ['apps.list', 'apps.open', 'apps.openSettings', 'apps.uninstall', 'apps.icon', 'apps.isDefaultLauncher', 'apps.requestDefaultLauncher', 'apps.defaultFor', 'apps.homePressedAt', 'apps.recentsPressedAt']) {
       DVNativeBridge.unregister(name);
     }
   });
@@ -195,6 +195,56 @@ void main() {
 
     test('where no home app can be, the stream is empty rather than an error', () async {
       expect(await const DVApps().homePresses.isEmpty, isTrue);
+    });
+  });
+
+  group('Recents pressed on a home app the system shows nothing over', () {
+    // Phones whose own launcher hosts Recents can show nothing when another
+    // app is the home app. The press still reaches the app (the build's
+    // MainActivity stamps the "recentapps" broadcast); it is an event only
+    // when the app is still in front a moment later, i.e. nothing opened.
+    testWidgets('a press with nothing shown over the app is one event', (WidgetTester tester) async {
+      int stamp = 0;
+      DVNativeBridge.register('apps.recentsPressedAt', (Object? _) => stamp);
+      final List<int> presses = <int>[];
+      final subscription = const DVApps().recentsPresses.listen((_) => presses.add(1));
+      // Cancelled in the test body: the poll is a timer the test must not leave behind.
+      await tester.pump(const Duration(seconds: 1));
+      expect(presses, isEmpty);
+
+      stamp = 100;
+      await tester.pump(const Duration(seconds: 2));
+      expect(presses.length, 1);
+      await tester.pump(const Duration(seconds: 2));
+      expect(presses.length, 1, reason: 'the same stamp is the same press');
+      // Not awaited: cancel() answers with a future from the root zone, which a
+      // widget test's fake clock never runs, and the test would hang.
+      subscription.cancel();
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('a press that opened the system\'s Recents over the app is none', (WidgetTester tester) async {
+      int stamp = 0;
+      DVNativeBridge.register('apps.recentsPressedAt', (Object? _) => stamp);
+      final List<int> presses = <int>[];
+      final subscription = const DVApps().recentsPresses.listen((_) => presses.add(1));
+      // Cancelled in the test body: the poll is a timer the test must not leave behind.
+      await tester.pump(const Duration(seconds: 1));
+      stamp = 100;
+      // The system's Recents covers the app straight away.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump(const Duration(seconds: 2));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump(const Duration(seconds: 2));
+      expect(presses, isEmpty);
+      // Not awaited: cancel() answers with a future from the root zone, which a
+      // widget test's fake clock never runs, and the test would hang.
+      subscription.cancel();
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    test('where no home app can be, the stream is empty', () async {
+      expect(await const DVApps().recentsPresses.isEmpty, isTrue);
     });
   });
 }

@@ -236,4 +236,18 @@ class DVAndroidApps {
       return 0;
     }
   }
+
+  /// The intent extra the launcher MainActivity stamps when the system's
+  /// "recentapps" broadcast arrives while it is visible.
+  static const String recentsPressedExtra = 'dev.dartvel.recentsPressedAt';
+
+  /// When Recents was last pressed while [activity] was visible (elapsed
+  /// realtime, in milliseconds), or 0 when it has not been.
+  static int recentsPressedAt(Activity? activity) {
+    try {
+      return activity?.intent?.getLongExtra(recentsPressedExtra.toJString(), 0) ?? 0;
+    } on Object {
+      return 0;
+    }
+  }
 }

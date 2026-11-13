@@ -6365,6 +6365,80 @@ class DVApps {
     return controller.stream;
   }
 
+  /// One event each time the person presses Recents while this home app is
+  /// in front and the system shows nothing over it.
+  ///
+  /// Phones whose own launcher hosts Recents (HiOS among them) can do nothing
+  /// when another app is the home app; the press still reaches the app as the
+  /// system's "recentapps" broadcast, which the MainActivity
+  /// `dartvel.android.launcher: true` writes stamps. A press after which the
+  /// app is still in front a moment later went unanswered, and the app can
+  /// show its own recent apps; one that opened the system's Recents over the
+  /// app is not an event. Where no binding is registered the stream is empty.
+  Stream<void> get recentsPresses {
+    if (!DVNativeBridge.isRegistered('apps.recentsPressedAt')) return const Stream<void>.empty();
+    late final StreamController<void> controller;
+    AppLifecycleListener? listener;
+    Timer? poll;
+    Timer? pending;
+    int? seen;
+    final AppLifecycleState? now = WidgetsBinding.instance.lifecycleState;
+    bool inFront = now == null || now == AppLifecycleState.resumed;
+    Future<int> stamp() async {
+      final Object? value = await DVNativeBridge.invoke<Object?>('apps.recentsPressedAt');
+      return value is int ? value : 0;
+    }
+
+    Future<void> check() async {
+      if (!inFront || seen == null) return;
+      final int value = await stamp();
+      if (value == seen || !inFront) return;
+      seen = value;
+      // Answered presses cover the app at once; wait to see.
+      pending?.cancel();
+      pending = Timer(const Duration(milliseconds: 600), () {
+        if (inFront && !controller.isClosed) controller.add(null);
+      });
+    }
+
+    void leave() {
+      inFront = false;
+      pending?.cancel();
+    }
+
+    controller = StreamController<void>(
+      onListen: () {
+        stamp().then((int value) => seen ??= value);
+        // A one-shot timer re-armed after each look, so a stopped stream
+        // leaves no timer behind and a slow binding never stacks looks.
+        void next() {
+          if (controller.isClosed || listener == null) return;
+          poll = Timer(const Duration(milliseconds: 250), () => check().whenComplete(next));
+        }
+        listener = AppLifecycleListener(
+          onInactive: leave,
+          onHide: leave,
+          onPause: leave,
+          onResume: () {
+            // A press made while covered was answered by what covered it.
+            stamp().then((int value) {
+              seen = value;
+              inFront = true;
+            });
+          },
+        );
+        next();
+      },
+      onCancel: () {
+        poll?.cancel();
+        pending?.cancel();
+        listener?.dispose();
+        listener = null;
+      },
+    );
+    return controller.stream;
+  }
+
   /// Starts the app [packageName] the way tapping its icon would.
   Future<void> open(String packageName) => _ask('apps.open', packageName, 'open');
 
