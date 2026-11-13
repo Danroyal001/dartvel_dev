@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../components/scroll_jump.dart';
 import '../components/site.dart';
 import '../components/site_search.dart';
 import '../dartvel_client/dartvel_client.dart';
@@ -17,6 +16,10 @@ import '../dartvel_client/dartvel_client.dart';
 /// the rest, so each page's own scroll view is the only scrollable on screen
 /// and the header stays where it is above it.
 class const Layout({super.key, required super.child}) extends DartvelLayout {
+  /// The "To the bottom / Back to top" button on long pages.
+  @override
+  bool get pageScroll => true;
+
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
@@ -24,9 +27,8 @@ class const Layout({super.key, required super.child}) extends DartvelLayout {
       child: Column(
         children: <Widget>[
           const SiteHeader(),
-          // One scroll controller per page, and the button that uses it.
-          // Ctrl+K or Cmd+K opens the search from anywhere on it.
-          Expanded(child: SiteSearchShortcut(child: PageScroll(child: child))),
+          // Ctrl+K or Cmd+K opens the search from anywhere on the page.
+          Expanded(child: SiteSearchShortcut(child: child)),
         ],
       ),
     );

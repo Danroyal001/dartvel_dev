@@ -320,7 +320,7 @@ class ClientGenerator {
         publicName = className;
       } else {
         final mf = RegExp(
-          r'@DVPage\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(',
+          r'@DVPage\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*(?:@DVFunctionalWidget\([^)]*\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(',
         ).firstMatch(maskedSrc);
         if (mf == null) {
           stderr.writeln(
@@ -4029,7 +4029,7 @@ void startDartvelKiosk() {
 
       for (final file in files) {
         final source = file.readAsStringSync();
-        if (!source.contains('@DVFunctionalWidget()')) continue;
+        if (!source.contains('@DVFunctionalWidget(')) continue;
         final rel = p.relative(file.path, from: root).replaceAll('\\', '/');
         final importPath = rel.replaceFirst(
           RegExp(r'^lib/'),
@@ -4362,8 +4362,13 @@ void startDartvelKiosk() {
         '${positional.join(', ')}${positional.isEmpty ? '' : ', '}'
         '{${named.join(', ')}}) extends StatelessWidget {',
       )
-      ..writeln('  @override')
-      ..writeln('  Widget build(BuildContext context) {')
+      // pageScroll: the frame goes round what the function builds, which
+      // keeps its own returns in a method of its own.
+      ..write(entry.pageScroll
+          ? '  @override\n'
+              '  Widget build(BuildContext context) => DVPageScrollFrame(child: _build(context));\n\n'
+              '  Widget _build(BuildContext context) {\n'
+          : '  @override\n  Widget build(BuildContext context) {\n')
       ..write(_promotableLocals(fields, body == null ? null : rendered))
       ..writeln(rendered)
       ..writeln('  }')
@@ -4439,8 +4444,13 @@ void startDartvelKiosk() {
     final entries = <_FunctionalWidgetEntry>[];
     int cursor = 0;
     while (true) {
-      final annotation = source.indexOf('@DVFunctionalWidget()', cursor);
+      final annotation = source.indexOf('@DVFunctionalWidget(', cursor);
       if (annotation == -1) break;
+      // The annotation's attributes: `pageScroll: true` adds the long-page
+      // "To the bottom / Back to top" button around what it builds.
+      final int attributesEnd = _matchingParen(source, annotation + '@DVFunctionalWidget'.length);
+      final bool pageScroll = attributesEnd != -1 &&
+          RegExp(r'\bpageScroll\s*:\s*true\b').hasMatch(source.substring(annotation, attributesEnd));
       final widgetToken = source.indexOf('Widget', annotation);
       if (widgetToken == -1) break;
       final annotationStart = annotation < 240 ? 0 : annotation - 240;
@@ -4503,6 +4513,7 @@ void startDartvelKiosk() {
           expressionBody: expressionBody,
           body: body,
           sourceSymbols: _topLevelSourceSymbols(source),
+          pageScroll: pageScroll,
         ),
       );
       cursor = closeParen + 1;
@@ -5013,7 +5024,11 @@ class _FunctionalWidgetEntry {
   final DVFunctionBody? body;
   final Set<String> sourceSymbols;
 
+  /// `@DVFunctionalWidget(pageScroll: true)`.
+  final bool pageScroll;
+
   const _FunctionalWidgetEntry({
+    this.pageScroll = false,
     required this.importPath,
     required this.sourcePath,
     required this.alias,
@@ -5038,6 +5053,7 @@ class _FunctionalWidgetEntry {
       expressionBody: expressionBody,
       body: body,
       sourceSymbols: sourceSymbols,
+      pageScroll: pageScroll,
     );
   }
 

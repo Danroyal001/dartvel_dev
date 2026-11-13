@@ -230,6 +230,14 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
           'DVClassWidget with @DVPage on it, and a widget is an ordinary '
           'StatelessWidget. Both shapes build and route the same way.',
         ),
+        DocsText(
+          'A long page can have a round "To the bottom / Back to top" '
+          'button at its bottom right: write (pageScroll: '
+          'true), or pass pageScroll: true to a DVClassWidget or a '
+          'DartvelLayout (a layout turns it on for every page inside it). '
+          'It is an attribute, so nothing is nested round the page, and it '
+          'takes the app theme's colours.',
+        ),
       ],
     ),
     DocsSection(

@@ -1128,6 +1128,13 @@ Widget _usersPage(BuildContext context) {
 ```
 
 `@DVPage()` alone is enough for page functions. Using both `@DVPage()` and
+`@DVFunctionalWidget(pageScroll: true)`, and `pageScroll: true` on a
+DVClassWidget or DartvelLayout, give a long page a round "To the bottom / Back
+to top" button at its bottom right, in the app theme: an attribute, not a
+widget the app nests its page in. The generated class (or the class's element)
+puts the framework's frame round what it builds; a page under 400 px of
+scrolling shows no button.
+
 `@DVFunctionalWidget()` remains valid; Dartvel treats them the same for pages
 and performs the generated wrapping internally.
 

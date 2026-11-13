@@ -1,3 +1,8 @@
+## Unreleased
+
+- `pageScroll: true` on DVClassWidget and DartvelLayout: a round "To the bottom / Back to top" button on long pages, in the app theme, as an attribute rather than a widget to nest (dartvel.dev had it as its own component).
+- Link preloads no longer leave a timer behind once the last link is gone (a widget test of any app with links failed on a pending timer).
+
 ## 0.13.49 — 2026-11-13
 
 - Links that come on screen while the page is scrolling preload once it has stopped (250 ms), one at a time, each checked again first. A cold fast scroll down 178 tool cards started about 150 page modules mid-scroll, with an 833 ms freeze.

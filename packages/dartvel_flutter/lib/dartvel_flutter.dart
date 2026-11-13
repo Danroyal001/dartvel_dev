@@ -99,6 +99,7 @@ import 'src/studio/studio_app_shortcuts.dart' show DVStudioAppShortcuts;
 import 'src/studio/studio_host.dart' show DVPagePreviewScope;
 import 'src/widgets/browser_menu.dart';
 import 'src/widgets/password_reveal.dart';
+import 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
 import 'src/windowing/window.dart';
 
 export 'package:dartvel_core/dartvel.dart'
@@ -929,6 +930,7 @@ export 'src/widgets/browser_menu.dart' show DVBrowserMenu;
 export 'src/widgets/context_menu.dart';
 export 'src/widgets/home_widgets.dart';
 export 'src/widgets/shortcuts.dart';
+export 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
 export 'src/windowing/app_launch.dart';
 export 'src/windowing/browser_window.dart';
 export 'src/windowing/displays.dart';
@@ -11092,7 +11094,32 @@ abstract class DartvelPage extends StatelessWidget {
 /// A Dartvel page widget represented as a class.
 abstract class DVClassWidget extends DartvelPage {
   /// Default constructor.
-  const DVClassWidget({super.key});
+  const DVClassWidget({super.key, this.pageScroll = false});
+
+  /// A round "To the bottom / Back to top" button at the bottom right of a
+  /// long page, for the scroll view this widget builds. The same as
+  /// `@DVFunctionalWidget(pageScroll: true)`.
+  final bool pageScroll;
+
+  @override
+  StatelessElement createElement() => _DVPageScrollElement(this);
+}
+
+/// Puts [DVPageScrollFrame] round what a DVClassWidget or DartvelLayout
+/// builds when its `pageScroll` is on: an attribute of the class, not a
+/// widget the app nests its page in.
+class _DVPageScrollElement extends StatelessElement {
+  _DVPageScrollElement(super.widget);
+
+  @override
+  Widget build() {
+    final Widget built = super.build();
+    final Widget owner = widget;
+    final bool on = owner is DVClassWidget
+        ? owner.pageScroll
+        : owner is DartvelLayout && owner.pageScroll;
+    return on ? DVPageScrollFrame(child: built) : built;
+  }
 }
 
 /// Every generated page's cached deferred-library future, so a test can drop
@@ -11132,7 +11159,15 @@ void dvResetDeferredPages() {
 
 abstract class DartvelLayout extends StatelessWidget {
   final Widget child;
-  const DartvelLayout({super.key, required this.child});
+  const DartvelLayout({super.key, required this.child, this.pageScroll = false});
+
+  /// A round "To the bottom / Back to top" button at the bottom right of a
+  /// long page, for the scroll view this layout builds. The same as
+  /// `@DVFunctionalWidget(pageScroll: true)`.
+  final bool pageScroll;
+
+  @override
+  StatelessElement createElement() => _DVPageScrollElement(this);
 }
 
 class DVPageScaffoldSpec {

@@ -130,4 +130,17 @@ void main() {
       }
     }
   });
+
+  testWidgets('nothing of the queue outlives the page: no timer is left when the last link goes', (WidgetTester tester) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await pump(tester, toolList(controller, (int index) async {}));
+    await tester.pump(dvLinkVisibleDelay + dvLinkScrollSettle);
+    // A scroll, then the page goes at once: the settle wait it started must
+    // go with it, or a test of any app with links fails on a pending timer.
+    controller.jumpTo(500);
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.binding.transientCallbackCount, 0);
+  });
 }

@@ -219,6 +219,7 @@ class _DVNavLinkState extends State<DVNavLink> {
     // Flutter's menu rather than the browser's, on a page with no shell to
     // have turned the browser's off: the 404 page is often the first page.
     DVBrowserMenu.install();
+    _VisiblePreloads.attach();
     if (widget.preload == DVLinkPreload.immediate) {
       // After the frame: a build must not start work that could rebuild it.
       WidgetsBinding.instance.addPostFrameCallback(
@@ -242,7 +243,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   @override
   void dispose() {
     _stopWatching();
-    _VisiblePreloads.remove(this);
+    _VisiblePreloads.detach(this);
     _previewTimer?.cancel();
     _previewPending = false;
     _removePreview();
@@ -1138,8 +1139,50 @@ abstract final class _VisiblePreloads {
   static Timer? _settle;
   static bool _running = false;
 
+  /// Links on screen anywhere in the app. When the last goes, so does every
+  /// timer of the queue: nothing of it may outlive the page.
+  static int _links = 0;
+
+  // The wait for one preload and the gap after it, cancellable so the last
+  // link leaving can end them.
+  static Timer? _wait;
+  static Completer<void>? _waiting;
+
   /// A preload that never answers must not hold up every link after it.
   static const Duration _patience = Duration(seconds: 10);
+
+  static void attach() => _links++;
+
+  static void detach(_DVNavLinkState link) {
+    _queue.remove(link);
+    _links--;
+    if (_links <= 0) {
+      _links = 0;
+      _settle?.cancel();
+      _settle = null;
+      _endWait();
+    }
+  }
+
+  static void _endWait() {
+    _wait?.cancel();
+    _wait = null;
+    final Completer<void>? waiting = _waiting;
+    _waiting = null;
+    if (waiting != null && !waiting.isCompleted) waiting.complete();
+  }
+
+  /// [work], or [limit], whichever ends first; or sooner if the last link
+  /// leaves.
+  static Future<void> _within(Duration limit, [Future<void>? work]) {
+    final Completer<void> waiting = Completer<void>();
+    _waiting = waiting;
+    _wait = Timer(limit, _endWait);
+    work?.whenComplete(() {
+      if (identical(_waiting, waiting)) _endWait();
+    });
+    return waiting.future;
+  }
 
   static void scrolled() {
     _settle?.cancel();
@@ -1154,8 +1197,6 @@ abstract final class _VisiblePreloads {
     unawaited(_drain());
   }
 
-  static void remove(_DVNavLinkState link) => _queue.remove(link);
-
   static Future<void> _drain() async {
     if (_running || _settle != null) return;
     _running = true;
@@ -1163,9 +1204,9 @@ abstract final class _VisiblePreloads {
       while (_queue.isNotEmpty && _settle == null) {
         final _DVNavLinkState link = _queue.removeAt(0);
         if (!link.mounted || link._preloaded || !link._isOnScreen()) continue;
-        await link._preload().timeout(_patience, onTimeout: () {});
+        await _within(_patience, link._preload());
         // A frame between one link's work and the next.
-        await Future<void>.delayed(const Duration(milliseconds: 16));
+        if (_queue.isNotEmpty) await _within(const Duration(milliseconds: 16));
       }
     } finally {
       _running = false;

@@ -1,3 +1,7 @@
+## Unreleased
+
+- `@DVFunctionalWidget(pageScroll: true)`: the annotation takes a `pageScroll` attribute.
+
 ## 0.13.45 — 2026-11-12
 
 - `dvReadSitemap`: a sitemap.xml read back as `DVSitemapLink`s (path, last modified, external), for the readable /sitemap page.
