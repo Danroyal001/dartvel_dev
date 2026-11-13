@@ -142,21 +142,43 @@ String dvAndroidHomeLauncherStyles(String styles, {required bool enabled}) {
 }
 
 const String _flutterActivityLine = 'class MainActivity : FlutterActivity()';
-const String _transparentActivity = 'class MainActivity : FlutterActivity() {\n'
-    '    // dartvel.android.launcher: the phone\'s wallpaper shows through the app.\n'
+const String _wallpaperAndBack = '    // dartvel.android.launcher: the phone\'s wallpaper shows through the app.\n'
     '    override fun getBackgroundMode(): io.flutter.embedding.android.FlutterActivityLaunchConfigs.BackgroundMode =\n'
     '        io.flutter.embedding.android.FlutterActivityLaunchConfigs.BackgroundMode.transparent\n'
     '\n'
     '    // The home app is never closed by Back: Back on its first page does nothing,\n'
     '    // as on every launcher, and the next press of home is not a cold start.\n'
-    '    override fun popSystemNavigator(): Boolean = true\n'
+    '    override fun popSystemNavigator(): Boolean = true\n';
+const String _transparentActivity = 'class MainActivity : FlutterActivity() {\n'
+    '$_wallpaperAndBack'
+    '\n'
+    '    // Home pressed while the home app is in front (or bringing it back) arrives\n'
+    '    // as a new intent and nothing else. Stamped here and kept as the intent,\n'
+    '    // DV.Platform.apps.homePresses reads it when the app resumes, so a launcher\n'
+    '    // can close its drawer and go back to its first page.\n'
+    '    override fun onNewIntent(intent: android.content.Intent) {\n'
+    '        if (intent.hasCategory(android.content.Intent.CATEGORY_HOME)) {\n'
+    '            intent.putExtra("dev.dartvel.homePressedAt", android.os.SystemClock.elapsedRealtime())\n'
+    '            setIntent(intent)\n'
+    '        }\n'
+    '        super.onNewIntent(intent)\n'
+    '    }\n'
     '}';
+
+/// What earlier Dartvel versions wrote, recognised as Dartvel's own so a
+/// build brings it up to date rather than reporting it as someone's edit.
+const List<String> _earlierActivities = <String>[
+  'class MainActivity : FlutterActivity() {\n$_wallpaperAndBack}',
+];
 
 /// [activity] (MainActivity.kt) with a transparent Flutter surface, or as
 /// Flutter wrote it when [enabled] is false. Null when [enabled] and the
 /// activity is not Flutter's own any more: Dartvel does not rewrite an
 /// activity someone has changed.
 String? dvAndroidHomeLauncherActivity(String activity, {required bool enabled}) {
+  for (final String earlier in _earlierActivities) {
+    if (activity.contains(earlier)) activity = activity.replaceFirst(earlier, _transparentActivity);
+  }
   final bool ours = activity.contains(_transparentActivity);
   if (!enabled) return ours ? activity.replaceFirst(_transparentActivity, _flutterActivityLine) : activity;
   if (ours) return activity;
