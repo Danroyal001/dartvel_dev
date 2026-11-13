@@ -1,3 +1,8 @@
+## Unreleased
+
+- Links that come on screen while the page is scrolling preload once it has stopped (250 ms), one at a time, each checked again first. A cold fast scroll down 178 tool cards started about 150 page modules mid-scroll, with an 833 ms freeze.
+- A link's own text shows the pointing hand inside a selectable page; it showed the text cursor.
+
 ## 0.13.47 — 2026-11-13
 
 - Lazy lists and grids: every row has its own layer, so scrolling no longer repaints every row built so far. Fast scrolling on tools.sigmadev.digital: frames over 100 ms went from 21 to 1 on desktop.

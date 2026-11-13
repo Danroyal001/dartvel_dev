@@ -516,7 +516,11 @@ The table is the contract. Each row says which entries a target has, what
   passes none). The loader fetches and instantiates each module once: every
   page names the shared modules it needs as well as its own, and a link that
   preloads its page asks again, so a module already loaded (or loading) is
-  reused, and one that failed is tried again on the next ask. If that fails the one-module app is kept and the build says so;
+  reused, and one that failed is tried again on the next ask. Links that come on
+  screen while the page scrolls wait until it has been still for 250 ms, then
+  preload one at a time, each checked again first: a cold scroll down a long
+  list of links no longer instantiates a module per link mid-scroll. A link's
+  own text shows the pointer, not the selection I-beam. If that fails the one-module app is kept and the build says so;
   a build that serves Studio then fails rather than ship Studio's code. Studio's
   modules are moved out of the web root like its dart2js parts and served only
   with the grant. The shell preloads `main.dart.mjs` and `main.dart.wasm` where

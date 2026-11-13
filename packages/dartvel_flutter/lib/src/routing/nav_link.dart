@@ -36,6 +36,11 @@ import 'route_prefetch.dart' show DVRoutePrefetch;
 /// fetches what it points at.
 const Duration dvLinkVisibleDelay = Duration(milliseconds: 300);
 
+/// How long the page must have stopped scrolling before links that came on
+/// screen are preloaded ([DVLinkPreload.visible]). A visitor still scrolling
+/// has not chosen yet, and a page module instantiated mid-scroll drops frames.
+const Duration dvLinkScrollSettle = Duration(milliseconds: 250);
+
 enum DVLinkPreload {
   /// Never. For a link into something expensive that most visitors skip.
   none,
@@ -237,6 +242,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   @override
   void dispose() {
     _stopWatching();
+    _VisiblePreloads.remove(this);
     _previewTimer?.cancel();
     _previewPending = false;
     _removePreview();
@@ -319,6 +325,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   /// link's position is only current after the frame -- checked then, once
   /// per frame however many scroll updates arrived.
   void _onScroll() {
+    _VisiblePreloads.scrolled();
     if (_checkScheduled) return;
     _checkScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -337,7 +344,7 @@ class _DVNavLinkState extends State<DVNavLink> {
         _visibleTimer = null;
         // Checked again at the end: a link that left and the scroll listener
         // has not reported yet is not one to fetch for.
-        if (mounted && _isOnScreen()) unawaited(_preload());
+        if (mounted && _isOnScreen()) _VisiblePreloads.add(this);
       });
     } else {
       _visibleTimer?.cancel();
@@ -691,7 +698,13 @@ class _DVNavLinkState extends State<DVNavLink> {
                   color: _focused ? Theme.of(context).focusColor : null,
                   borderRadius: .circular(4),
                 ),
-                child: Padding(padding: widget.padding, child: widget.child),
+                // Text in a selectable page sets the text cursor on itself, and
+                // the innermost cursor wins: a link's own words showed the
+                // I-beam over the hand ("Verify on Credly", 13 Nov 2026).
+                child: DefaultSelectionStyle.merge(
+                  mouseCursor: widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+                  child: Padding(padding: widget.padding, child: widget.child),
+                ),
               ),
             ),
           ),
@@ -1107,5 +1120,55 @@ class DVGuardedRoutePreview extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// The links [DVLinkPreload.visible] has found worth fetching, held while the
+/// page scrolls and fetched one at a time once it has stopped.
+///
+/// A visitor still scrolling has not chosen anything, and each preload costs
+/// the page's code module (fetched, compiled and instantiated on the main
+/// thread), its document and its images. A list of 178 tool cards on
+/// tools.sigmadev.digital started about 150 of them mid-scroll on a cold
+/// visit, with one 833 ms freeze (13 Nov 2026). Any page scroll postpones the
+/// queue by [dvLinkScrollSettle]; each link is checked again on its way out,
+/// so one the visitor scrolled away from is left for when it returns.
+abstract final class _VisiblePreloads {
+  static final List<_DVNavLinkState> _queue = <_DVNavLinkState>[];
+  static Timer? _settle;
+  static bool _running = false;
+
+  /// A preload that never answers must not hold up every link after it.
+  static const Duration _patience = Duration(seconds: 10);
+
+  static void scrolled() {
+    _settle?.cancel();
+    _settle = Timer(dvLinkScrollSettle, () {
+      _settle = null;
+      unawaited(_drain());
+    });
+  }
+
+  static void add(_DVNavLinkState link) {
+    if (!_queue.contains(link)) _queue.add(link);
+    unawaited(_drain());
+  }
+
+  static void remove(_DVNavLinkState link) => _queue.remove(link);
+
+  static Future<void> _drain() async {
+    if (_running || _settle != null) return;
+    _running = true;
+    try {
+      while (_queue.isNotEmpty && _settle == null) {
+        final _DVNavLinkState link = _queue.removeAt(0);
+        if (!link.mounted || link._preloaded || !link._isOnScreen()) continue;
+        await link._preload().timeout(_patience, onTimeout: () {});
+        // A frame between one link's work and the next.
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+      }
+    } finally {
+      _running = false;
+    }
   }
 }
