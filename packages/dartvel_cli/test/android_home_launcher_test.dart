@@ -173,6 +173,19 @@ class MainActivity : FlutterActivity()
       expect(out, contains('setIntent(intent)'), reason: 'getIntent() is what the binding reads');
     });
 
+
+    test('the Recents button is heard while the home app is in front: the system\'s "recentapps" broadcast is stamped', () {
+      // Phones whose own launcher hosts Recents (HiOS among them) can show
+      // nothing when another app is the home app; the press still arrives as
+      // ACTION_CLOSE_SYSTEM_DIALOGS with reason "recentapps".
+      final String out = dvAndroidHomeLauncherActivity(activity, enabled: true)!;
+      expect(out, contains('android.content.Intent.ACTION_CLOSE_SYSTEM_DIALOGS'));
+      expect(out, contains('"recentapps"'));
+      expect(out, contains('"dev.dartvel.recentsPressedAt"'));
+      expect(out, contains('override fun onStart()'), reason: 'registered while visible');
+      expect(out, contains('unregisterReceiver('), reason: 'and unregistered, or the activity leaks');
+      expect(out, contains('RECEIVER_NOT_EXPORTED'), reason: 'Android 13+ wants the flag; a system broadcast still arrives');
+    });
     test('an activity written by an earlier Dartvel is brought up to date, not reported as edited', () {
       const String earlier = '''package com.example.home
 
