@@ -1,3 +1,8 @@
+## Unreleased
+
+- The generated backend installs the session scope `dartvel.hosts` and `dartvel.auth` describe: one `__Secure-dv_session` for hosts on one registrable domain, refused at build time when `sessionDomain` is a public suffix or not a parent of every host. Where hosts are declared, a state-changing request from an origin that is not one of them (or in `dartvel.server.cors`) is refused with 403.
+- The generated client asks who is signed in at start on every target, the web included (`DV.Auth.restore()`).
+
 ## 0.13.51 — 2026-11-13
 
 - `DV.Platform.apps.homePresses`: Home pressed while a home app (`dartvel.android.launcher: true`) is in front, or bringing it back, so a launcher can close its drawer. The generated launcher MainActivity stamps the Home intent; activities written by earlier versions are upgraded.

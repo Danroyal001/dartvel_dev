@@ -108,3 +108,13 @@ Widget _codePage(BuildContext context) => DV.Auth.AskForCodePage(
 
 /// The backend function that checks it, whatever the project calls it.
 Future<bool> confirmCode(String code) async => code.length == 6;
+
+// docs:start auth-signed-in-user
+/// The account entry in a header: nothing until the start-up check answers,
+/// then the signed-in person, rebuilt on every sign-in and sign-out.
+Widget accountEntry(BuildContext context) {
+  final DVAuthUser? user = DV.Auth.user.watch(context);
+  if (DV.Auth.restoring) return DVText('');
+  return DVText(user == null ? 'Sign in' : user.email ?? 'Account');
+}
+// docs:end

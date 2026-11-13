@@ -165,6 +165,60 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'restore',
+          title: 'Know who is signed in when the app starts',
+          children: <Widget>[
+            DocsText('The app asks the server who is signed in as it starts, '
+                'in a browser after a reload as on a device. '
+                'DV.Auth.currentUser is that person, and DV.Auth.user is the '
+                'same as a signal a widget can watch.'),
+            DocsCode('auth-signed-in-user'),
+            Bullets(<String>[
+              'It is one request to /auth/session. Nobody signed in, or no '
+                  'network, leaves the app signed out without an error.',
+              'DV.Auth.restoring is true until the answer arrives, so a page '
+                  'can show neither state rather than flash "Sign in".',
+              'Guarded pages wait for it before sending anyone to sign in.',
+              'A provider you configured yourself is not asked.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'hosts',
+          title: 'Stay signed in across your hosts',
+          children: <Widget>[
+            DocsText('When dartvel.hosts serves several hosts on one '
+                'registrable domain, such as example.com and '
+                'tools.example.com, signing in on one signs in on all of '
+                'them, and signing out on one signs out on all of them.'),
+            DocsShell(<String>[
+              'hosts:',
+              '  example.com: {}',
+              '  tools.example.com: { mount: /tools, siteUrl: https://tools.example.com }',
+              'auth:',
+              '  sessionScope: site            # the default; host gives each host its own',
+              '  # sessionDomain: example.com  # optional, checked at build time',
+            ]),
+            Bullets(<String>[
+              'The cookie is __Secure-dv_session for that domain, still '
+                  'HttpOnly, Secure and SameSite=Lax. An app with one host '
+                  'keeps __Host-dv_session.',
+              'The domain comes from the Public Suffix List, so co.uk or '
+                  'github.io is never used. A host on another domain, or one '
+                  'that only redirects, keeps a cookie of its own.',
+              'sessionScope: host gives every host its own session. '
+                  'sessionDomain names the domain; the build refuses one that '
+                  'is a public suffix or not above every host.',
+              'A change sent from a host you do not list is refused, even '
+                  'under the same domain.',
+              'People already signed in stay signed in: the old cookie moves '
+                  'to the new one on their next request.',
+              'Every site under the domain receives the cookie. If someone '
+                  'else runs a site there, use sessionScope: host.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'account-pages',
           title: 'Use the generated account pages',
           children: <Widget>[
@@ -194,7 +248,8 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
           id: 'cross-origin',
           title: 'Send credentials to an API on another origin',
           children: <Widget>[
-            DocsText('The session cookie is __Host-dv_session with SameSite=Lax. '
+            DocsText('The session cookie is __Host-dv_session with SameSite=Lax, '
+                'or __Secure-dv_session when your hosts share it. '
                 'When the web app and the API are on different origins, allow '
                 'both sides.'),
             DocsCode('auth-credentialed-origin'),

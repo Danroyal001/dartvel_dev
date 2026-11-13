@@ -179,6 +179,15 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     'final DVAuthUser? me = DV.Auth.currentUser;',
     'await DV.Auth.signOut();',
   ],
+  'auth-signed-in-user': <String>[
+    '/// The account entry in a header: nothing until the start-up check answers,',
+    '/// then the signed-in person, rebuilt on every sign-in and sign-out.',
+    'Widget accountEntry(BuildContext context) {',
+    '  final DVAuthUser? user = DV.Auth.user.watch(context);',
+    '  if (DV.Auth.restoring) return DVText(\'\');',
+    '  return DVText(user == null ? \'Sign in\' : user.email ?? \'Account\');',
+    '}',
+  ],
   'auth-totp': <String>[
     'final DVTotpEnrollment enrollment = await DV.Auth.enrollTotp();',
     '// Show enrollment.uri as a QR code, then confirm with a code from the app.',

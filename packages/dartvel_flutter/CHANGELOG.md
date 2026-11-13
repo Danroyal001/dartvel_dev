@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DV.Auth.restore()`, `DV.Auth.restored`, `DV.Auth.restoring` and `DV.Auth.user` (a signal with `watch(context)`): the signed-in person after a reload, from one request, signed out quietly on 401. Guards wait for it.
+
 ## 0.13.51 — 2026-11-13
 
 - Android: `DV.Platform.apps.list` and `icon` run on a background isolate. Dart runs on the main thread, and a launcher listing every app on a slow 32-bit phone froze long enough for Android's "app isn't responding".

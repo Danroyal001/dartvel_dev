@@ -3186,11 +3186,69 @@ more than one backend process, and the driver is configuration rather than
 code. The memory and database drivers are built; the Redis driver is not.
 Server-rendered targets get a cookie whose attributes are not left to
 the application: `HttpOnly`, `SameSite=Lax`, `Secure` outside development, and
-a host-prefixed name. These are not defaults to be overridden; a project that
+a host-prefixed name (`__Host-`, or `__Secure-` for the session an application's
+hosts share, below). These are not defaults to be overridden; a project that
 wants `SameSite=None` is asking for a cross-site session, and that is a
 deploy-time error naming the setting rather than a silently weaker cookie.
 Today `DVSessionCookie` refuses it when the cookie is built; the deploy-time
 gate is not written.
+
+**One session across an application's hosts.** An application whose
+`dartvel.hosts` serves several hosts is one application, and a person signed
+in on one of them is signed in on all of them. A `__Host-` cookie cannot do
+that — a browser locks it to the exact host — so when the declared hosts share
+a registrable domain the cookie is `__Secure-dv_session` with
+`Domain=<that domain>`, still `HttpOnly`, `Secure` and `SameSite=Lax`:
+
+```yaml
+dartvel:
+  hosts:
+    example.com: {}
+    tools.example.com: { mount: /tools, siteUrl: https://tools.example.com }
+    '*.tools.example.com': { mount: /tools/{label}, siteUrl: 'https://{label}.tools.example.com' }
+  auth:
+    # sessionScope: host          # a session per host instead
+    # sessionDomain: example.com  # name the domain explicitly
+```
+
+- The domain is the hosts' registrable domain by the Public Suffix List (both
+  sections), never "the last two labels". The default spans the hosts that
+  share the primary host's registrable domain, when there are two or more of
+  them or a wildcard; an application with one host keeps `__Host-` exactly.
+- Only a host the application declares, under that domain, gets the shared
+  cookie. A redirecting host and a host on another registrable domain keep a
+  host-only cookie of their own.
+- `sessionDomain` must be a parent of every declared host and not a public
+  suffix; `sessionScope: host` with a `sessionDomain` is a contradiction. Each
+  is refused by `dartvel routes` naming the setting and why, and the start of
+  the generated backend checks the scope again (`DV-SESSION-003`).
+- Where `dartvel.hosts` is declared, a state-changing request whose `Origin`
+  is not one of the application's own hosts (https, any port), the host it was
+  made to, or an origin `dartvel.server.cors` names is refused with 403, on top
+  of the CSRF token. A request with no `Origin` — a native client — is judged
+  by its token and credentials, as before.
+- Sign-out, revoking this device's session, account deletion and every refused
+  session clear the shared cookie and any old `__Host-` cookie.
+- Migration: on a spanned host the old `__Host-dv_session` is still read; the
+  next response moves the same token to the shared cookie and clears the old
+  one, so nobody is signed out by the upgrade. A sign-in on a spanned host
+  clears the old cookie too. One edge remains: a `__Host-` cookie on a host
+  the person has not visited since the upgrade is that host's own session
+  until it is next visited or expires.
+- Every host under the shared domain receives the cookie, including ones the
+  application does not serve. Use `sessionScope: host` when anybody else runs
+  a site under the same registrable domain.
+
+**Who is signed in, from the first frame.** The generated runtime calls
+`DV.Auth.restore()` as the app starts on every target: one `GET /auth/session`,
+whose answer carries the session and the `user` it belongs to, so
+`DV.Auth.currentUser` is the signed-in person after a reload in a browser as on
+a device. `DV.Auth.user` is the same as a read-only signal
+(`DV.Auth.user.watch(context)`), `DV.Auth.restored` is the answer to await and
+`DV.Auth.restoring` says it is still on its way. A 401, or a server that cannot
+be reached, leaves the app signed out without an error. The generated guards
+wait for it, so a signed-in person reloading a guarded page is not sent to sign
+in. A provider the application configured itself is not asked.
 
 **Rotation is not optional.** The session identifier is reissued on sign-in, on
 privilege change, and on second-factor completion. Fixation is the attack that

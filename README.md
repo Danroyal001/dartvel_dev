@@ -791,7 +791,14 @@ await DV.Auth.revokeOthers();             // every device but this one
 
 Session tokens are stored only as hashes and replaced at every privilege
 change. A browser gets a `__Host-` cookie and a native client gets a bearer
-token. Passkeys as a second factor and per-tenant MFA policy are not built yet.
+token. When `dartvel.hosts` serves several hosts on one registrable domain
+(`example.com`, `tools.example.com`, `*.tools.example.com`), the browser
+cookie is `__Secure-dv_session` for that domain, so one sign-in and one
+sign-out cover them all; `dartvel.auth.sessionScope: host` keeps a session per
+host, and a `sessionDomain` that is a public suffix is refused at build time.
+`DV.Auth.currentUser` is the signed-in person from the moment the app starts,
+after a reload too, and `DV.Auth.user.watch(context)` rebuilds on every change.
+Passkeys as a second factor and per-tenant MFA policy are not built yet.
 
 ---
 
