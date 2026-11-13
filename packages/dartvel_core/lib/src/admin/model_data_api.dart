@@ -19,6 +19,7 @@ import 'dart:convert';
 
 import '../../dartvel.dart' show DVAuthAuthorization;
 import '../annotations/model_access.dart';
+import '../auth/session_scope.dart' show DVSessionScope;
 import '../auth/api_scopes.dart' show DVApiScopes;
 import '../auth/session_authentication.dart';
 import '../auth/sessions.dart' show DVSessionCookie;
@@ -144,6 +145,7 @@ class DVModelDataApi {
         ),
         authorization: request.headers.get('authorization'),
         cookie: request.headers.get('cookie'),
+          host: DVSessionScope.requestHost(request),
       );
 
   Future<bool> _signedIn(Request request) async {

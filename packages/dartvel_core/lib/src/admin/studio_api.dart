@@ -25,6 +25,7 @@ import 'dart:math' as math;
 import '../../dartvel.dart'
     show DVCacheTags, DVJobEnvelope, DVJobPayload, DVQueues;
 import '../annotations/model_access.dart';
+import '../auth/session_scope.dart' show DVSessionScope;
 import '../auth/auth.dart'
     show AuthUser, DVAccountDirectory, DVAccountLookup;
 import '../auth/auth_endpoints.dart' show DVAuthEndpoints;
@@ -420,6 +421,7 @@ Future<String?> dvStudioSessionUserId(Request request) async {
     ),
     authorization: request.headers.get('authorization'),
     cookie: request.headers.get('cookie'),
+          host: DVSessionScope.requestHost(request),
   );
   return result.refused ? null : result.principal?.userId;
 }
