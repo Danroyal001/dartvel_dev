@@ -8299,7 +8299,21 @@ class DVAuth {
   /// out without an error, and so does a server that cannot be reached.
   /// Calling it again returns the same answer without another request. A
   /// provider the application configured itself is not asked anything.
-  Future<DVAuthUser?> restore() => _restoring ??= _restore();
+  ///
+  /// It does not depend on when it is called. Asked before the generated
+  /// runtime has installed the session client -- from an application's
+  /// `@DVBoot`, which runs first -- there is nobody to ask yet, and that
+  /// empty answer is not kept: the runtime's own call, made as soon as the
+  /// client exists, is the one that counts. A failure other than "nobody is
+  /// signed in" is logged as a warning, never swallowed.
+  Future<DVAuthUser?> restore() {
+    final Future<DVAuthUser?>? asked = _restoring;
+    if (asked != null) return asked;
+    if (_activeProvider is! DVSessionAuthProvider) {
+      return Future<DVAuthUser?>.value(_currentUser);
+    }
+    return _restoring = _restore();
+  }
 
   /// The start-up [restore]'s answer, or [currentUser] when none was asked
   /// for: what a guard awaits so a signed-in person is not sent to sign in
@@ -8330,9 +8344,9 @@ class DVAuth {
       if (session != null && _currentUser == null) _currentUser = client.user;
     } on Object catch (error) {
       DV.log(
-        'The signed-in person could not be restored (${error.runtimeType}); '
-        'the app starts signed out.',
-        level: DVLogLevel.debug,
+        'The signed-in person could not be restored ($error); the app '
+        'starts signed out.',
+        level: DVLogLevel.warn,
       );
     } finally {
       _restoreRunning = false;
@@ -8345,6 +8359,8 @@ class DVAuth {
   /// backend; [configure] replaces it.
   static void installDefaultProvider(DVAuthProvider? provider) {
     _defaultProvider = provider;
+    // Whatever was asked of an earlier provider is not this one's answer.
+    _restoring = null;
   }
 
   /// Whether this build is served by its own generated server, which signs

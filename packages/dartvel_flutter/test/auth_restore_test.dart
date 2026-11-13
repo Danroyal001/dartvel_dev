@@ -97,6 +97,32 @@ void main() {
     expect((await DV.Auth.restored)?.email, 'ada@example.test');
   });
 
+  // An application's @DVBoot runs before the generated runtime installs the
+  // session client. A restore asked for there found nothing to ask and its
+  // empty answer was the one everybody after it got: reload, signed out.
+  test('asked before the session client exists, it asks again once it does',
+      () async {
+    expect(await DV.Auth.restore(), isNull);
+    expect(requests, isEmpty);
+    install(web: true);
+    expect((await DV.Auth.restore())?.email, 'ada@example.test');
+    expect(DV.Auth.currentUser?.id, 'acc_1');
+    expect(requests, hasLength(1));
+  });
+
+  test('a restore that fails says so in the log, once', () async {
+    install(web: true);
+    answer = (_) => DVHttpResponse(statusCode: 500, body: 'boom');
+    bool said() => const DVLog().recent.any((DVLogRecord record) =>
+        record.level == DVLogLevel.warn &&
+        record.message.contains('could not be restored') &&
+        record.message.contains('DVSessionRequestFailed'));
+    final int before = const DVLog().recent.length;
+    expect(await DV.Auth.restore(), isNull);
+    expect(const DVLog().recent.length, greaterThan(before));
+    expect(said(), isTrue);
+  });
+
   test('somebody signed out stays signed out quietly', () async {
     install(web: true);
     answer = (_) => DVHttpResponse(statusCode: 401, body: 'Unauthorized');
