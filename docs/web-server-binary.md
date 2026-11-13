@@ -115,12 +115,21 @@ How a request is answered:
    (`https://docs.example.com`), as every canonical and sitemap URL Dartvel writes is. A host's `name` is
    the site name there; its `description` is used only where `dartvel.seo.description` would have been,
    for a page that declares no description of its own. A page's own title and description always win.
-5. **Kept pages.** The rendered-page cache keys each document by the effective host's origin as well as
+5. **Links.** The build reads each page once, on the primary host, so the document it captured links a
+   primary route by its path. Before a page is sent, every `<a href>` that is the path of a route is
+   written for the host asked (`DVHosts.linkFrom`, through `DVHostedRequest.withLinks`): a path without
+   the mount when that host owns the route, the route's public URL otherwise. On
+   `docs.example.com` a link to `/pricing` is `https://example.com/pricing` and a link to `/docs/x` is
+   `/x`; on `example.com` a link to `/docs/x` is `https://docs.example.com/x`, so it is followed without
+   the redirect in step 3. A mounted host therefore never serves a relative link to a route outside its
+   mount, which would be a `404` there. A path that is no route (a file, a download) is left as written,
+   and so is anything that is already a URL.
+6. **Kept pages.** The rendered-page cache keys each document by the effective host's origin as well as
    by the request, so two hosts, or one `Host` header reached directly and through a trusted proxy, never
    share a document.
-6. **Guarded pages.** A signed-out reader is sent to the sign-in page's public URL
+7. **Guarded pages.** A signed-out reader is sent to the sign-in page's public URL
    (`https://example.com/sign-in?from=%2Fdocs%2Fprivate` from `docs.example.com/private`); `from` is the route.
-7. **robots.txt and sitemap.xml.** The build writes one sitemap listing every page at its public URL. Each
+8. **robots.txt and sitemap.xml.** The build writes one sitemap listing every page at its public URL. Each
    host is answered with the entries on its own origin and a robots.txt whose `Sitemap:` line is its own.
    A host with no route under its mount -- a wildcard label nothing is published for -- answers `404` to
    both. Which host serves what is read from the hosts in the manifest, not from the files.
@@ -132,9 +141,15 @@ On the client, the generated router installs the same table (`const DVHosts dart
 browser reports outside the mount is mapped into it, so `foo.apps.example.com/` hydrates and reloads into
 the `/apps/foo` page, and the address bar shows a route under the mount without it. `DVNavLink`'s address
 is `dvPublicLocation(route)`: the path without the mount on its own host, or an absolute URL on the host
-that owns the route, which is followed in the same tab rather than routed. The client writes the same
+that owns the route, which is followed in the same tab rather than routed -- the same rule, from the same
+function, as the links in the served document. `DV.Navigation.navigate` and `push`, and
+`context.navigateToPage`, follow it too: a route another host owns is opened at its public URL in this
+tab, a real navigation, because this host has no page there to show (`push` then completes with null).
+On a mounted host a redirect or a guard that sends the router outside the mount, to a sign-in page on the
+primary host for one, leaves for that page the same way and the router stays where it was, so the
+address bar never names a page the host does not serve. The client writes the same
 canonical URL as the server. On the primary host the router and the address bar are unchanged; only links
-to another host's routes differ. Off the web no host served the app, and the table is not used.
+and navigation to another host's routes differ. Off the web no host served the app, and the table is not used.
 
 `dartvel dev --release` serves hosts through the same core functions (`dvHostedRequest`,
 `dvHostSiteFileFor`). It does not install `dartvel.server.trustedProxies`, so it always reads `Host`; set the

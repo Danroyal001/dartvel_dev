@@ -138,6 +138,10 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
               'A redirecting domain serves no pages: every path is sent on with a '
                   'permanent (301) redirect, keeping the query string.',
               'redirects sends exact paths somewhere of their own.',
+              'A link to a page another domain shows is written with that '
+                  'domain, in the page as served and in the running app: on '
+                  'docs.example.com a link to /pricing goes to '
+                  'https://example.com/pricing.',
               'Only the web-server build serves hosts; a static build serves every '
                   'page on every domain.',
             ]),
