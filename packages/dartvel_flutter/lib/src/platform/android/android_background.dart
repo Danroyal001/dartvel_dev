@@ -12,18 +12,28 @@ library dartvel_flutter.platform.android.background;
 import 'dart:async';
 import 'dart:isolate';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
+bool _saidWhere = false;
+
 /// Runs [work] on a background isolate and answers its result.
 ///
 /// [work] must look up what it needs (the Context, through the generated
 /// provider) inside itself: a JNI reference does not cross isolates. A
 /// result is copied back, so it is plain data: strings, numbers, lists, maps
 /// and byte lists. When [work] cannot run in the background isolate it runs
-/// here, as it used to, rather than not at all; an error here is the
-/// caller's.
+/// here, as it used to, rather than not at all, and the log says why; an
+/// error here is the caller's.
 Future<T> dvAndroidOffMainThread<T>(FutureOr<T> Function() work) async {
   try {
-    return await Isolate.run<T>(work);
-  } on Object {
+    final T result = await Isolate.run<T>(work);
+    if (!_saidWhere) {
+      _saidWhere = true;
+      debugPrint('dartvel: platform call ran off the main thread');
+    }
+    return result;
+  } on Object catch (error) {
+    debugPrint('dartvel: platform call could not run off the main thread ($error); running it on the main thread');
     return await work();
   }
 }
