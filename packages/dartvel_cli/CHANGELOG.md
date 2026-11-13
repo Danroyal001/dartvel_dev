@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.50 — 2026-11-13
 
 - `@DVFunctionalWidget(pageScroll: true)` generates a widget whose page has the long-page "To the bottom / Back to top" button; the generator reads annotations with attributes.
 

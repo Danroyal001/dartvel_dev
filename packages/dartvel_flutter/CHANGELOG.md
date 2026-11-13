@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.50 — 2026-11-13
 
 - `pageScroll: true` on DVClassWidget and DartvelLayout: a round "To the bottom / Back to top" button on long pages, in the app theme, as an attribute rather than a widget to nest (dartvel.dev had it as its own component).
 - Link preloads no longer leave a timer behind once the last link is gone (a widget test of any app with links failed on a pending timer).

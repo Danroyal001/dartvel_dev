@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.50 — 2026-11-13
 
 - `@DVFunctionalWidget(pageScroll: true)`: the annotation takes a `pageScroll` attribute.
 
