@@ -614,7 +614,9 @@ d.dispose();
   closed by Back. `requestDefaultLauncher()` shows Android's own "make this the
   home app?" question and `isDefaultLauncher()` says whether it is.
   `homePresses` has one event each time Home lands on the app as the home app,
-  in front already or brought back, so a launcher closes its drawer. Elsewhere
+  in front already or brought back, so a launcher closes its drawer;
+  `recentsPresses` has one when Recents is pressed and the phone shows nothing
+  over the app (HiOS hosts Recents in its own launcher). Elsewhere
   `isSupported` is false:
 
   ```dart
