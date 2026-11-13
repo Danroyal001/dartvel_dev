@@ -42,6 +42,13 @@ String getMimeType(String path) {
       return 'text/csv; charset=utf-8';
     case '.md':
       return 'text/markdown; charset=utf-8';
+    // A contact card and a calendar invite: a phone offers to add them
+    // instead of saving an unknown file.
+    case '.vcf':
+    case '.vcard':
+      return 'text/vcard; charset=utf-8';
+    case '.ics':
+      return 'text/calendar; charset=utf-8';
     case '.mjs':
       return 'application/javascript';
     case '.map':

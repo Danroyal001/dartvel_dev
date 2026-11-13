@@ -25,6 +25,14 @@ void main() {
     expect(getMimeType('/srv/web/main.dart.js.map'), 'application/json');
   });
 
+  test('a contact card and a calendar invite open on a phone instead of downloading as bytes', () {
+    // Served as octet-stream, a phone saves /card.vcf as an unknown file
+    // instead of offering to add the contact (sigmadev.digital, 13 Nov 2026).
+    expect(getMimeType('/srv/web/card.vcf'), 'text/vcard; charset=utf-8');
+    expect(getMimeType('/srv/web/Contact.VCARD'), 'text/vcard; charset=utf-8');
+    expect(getMimeType('/srv/web/call.ics'), 'text/calendar; charset=utf-8');
+  });
+
   test('types that were already right are unchanged', () {
     expect(getMimeType('/srv/web/index.html'), 'text/html');
     expect(getMimeType('/srv/web/main.dart.js'), 'application/javascript');

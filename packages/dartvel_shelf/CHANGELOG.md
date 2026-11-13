@@ -1,3 +1,7 @@
+## Unreleased
+
+- A contact card (`.vcf`, `.vcard`) is served as `text/vcard` and a calendar invite (`.ics`) as `text/calendar`, so a phone offers to add them instead of saving an unknown file.
+
 ## 0.13.44 — 2026-11-12
 
 - Version aligned with dartvel_core 0.13.44.
