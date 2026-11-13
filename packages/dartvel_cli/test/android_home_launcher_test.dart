@@ -161,6 +161,51 @@ class MainActivity : FlutterActivity()
       expect(dvAndroidHomeLauncherActivity(out, enabled: false), activity);
     });
 
+
+    test('Home pressed while the home app is in front reaches the app: the new intent is stamped', () {
+      // Android hands that press to the home app as a new intent and nothing
+      // else; without the stamp the app cannot tell it from any resume, and a
+      // launcher's drawer stays open when Home is pressed.
+      final String out = dvAndroidHomeLauncherActivity(activity, enabled: true)!;
+      expect(out, contains('override fun onNewIntent(intent: android.content.Intent)'));
+      expect(out, contains('intent.hasCategory(android.content.Intent.CATEGORY_HOME)'));
+      expect(out, contains('"dev.dartvel.homePressedAt"'), reason: 'the extra DVApps.homePresses reads');
+      expect(out, contains('setIntent(intent)'), reason: 'getIntent() is what the binding reads');
+    });
+
+
+    test('the Recents button is heard while the home app is in front: the system\'s "recentapps" broadcast is stamped', () {
+      // Phones whose own launcher hosts Recents (HiOS among them) can show
+      // nothing when another app is the home app; the press still arrives as
+      // ACTION_CLOSE_SYSTEM_DIALOGS with reason "recentapps".
+      final String out = dvAndroidHomeLauncherActivity(activity, enabled: true)!;
+      expect(out, contains('android.content.Intent.ACTION_CLOSE_SYSTEM_DIALOGS'));
+      expect(out, contains('"recentapps"'));
+      expect(out, contains('"dev.dartvel.recentsPressedAt"'));
+      expect(out, contains('override fun onStart()'), reason: 'registered while visible');
+      expect(out, contains('unregisterReceiver('), reason: 'and unregistered, or the activity leaks');
+      expect(out, contains('RECEIVER_NOT_EXPORTED'), reason: 'Android 13+ wants the flag; a system broadcast still arrives');
+    });
+    test('an activity written by an earlier Dartvel is brought up to date, not reported as edited', () {
+      const String earlier = '''package com.example.home
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity() {
+    // dartvel.android.launcher: the phone's wallpaper shows through the app.
+    override fun getBackgroundMode(): io.flutter.embedding.android.FlutterActivityLaunchConfigs.BackgroundMode =
+        io.flutter.embedding.android.FlutterActivityLaunchConfigs.BackgroundMode.transparent
+
+    // The home app is never closed by Back: Back on its first page does nothing,
+    // as on every launcher, and the next press of home is not a cold start.
+    override fun popSystemNavigator(): Boolean = true
+}
+''';
+      final String? out = dvAndroidHomeLauncherActivity(earlier, enabled: true);
+      expect(out, isNotNull);
+      expect(out, contains('override fun onNewIntent('));
+      expect(dvAndroidHomeLauncherActivity(out!, enabled: false), activity, reason: 'turning it off still restores Flutter\'s line');
+    });
     test('a MainActivity someone changed is left alone and reported, not rewritten', () {
       const String edited = '''package com.example.home
 

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `DV.Platform.apps.homePresses`: Home pressed while a home app (`dartvel.android.launcher: true`) is in front, or bringing it back, so a launcher can close its drawer. The generated launcher MainActivity stamps the Home intent; activities written by earlier versions are upgraded.
+- `DV.Platform.apps.recentsPresses`: Recents pressed while a home app is in front and the phone showed nothing over it (HiOS hosts Recents in its own launcher), so the app can show its own recent apps. The launcher MainActivity stamps the system's "recentapps" broadcast while visible.
 - `pageScroll` is now `pageScrollToTop` on `@DVFunctionalWidget`, DVClassWidget and DartvelLayout (a clearer name; 0.13.50 shipped the old one).
 
 ## 0.13.50 — 2026-11-13

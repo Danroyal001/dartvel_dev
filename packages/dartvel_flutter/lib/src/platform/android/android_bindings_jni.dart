@@ -28,6 +28,7 @@
 library dartvel_flutter.platform.android.jni;
 
 import 'dart:io' show Platform;
+import 'dart:typed_data';
 
 import 'package:dartvel_core/dartvel.dart' show dvAndroidOpenActivityClass, dvHomeWidgetAndroidClass;
 import 'package:jni/jni.dart';
@@ -37,6 +38,7 @@ import '../device_runtime.dart';
 import '../file_bindings.dart';
 import 'android_capabilities.dart';
 import 'android_apps_jni.dart';
+import 'android_background.dart';
 import 'android_capture_jni.dart';
 import 'android_fonts.dart';
 import 'android_device.dart';
@@ -216,20 +218,26 @@ class DVAndroidBindings {
 
     // The launchable apps and opening them (DVApps). PackageManager answers
     // only for what the manifest's <queries> declares; see android_apps_jni.dart.
-    DVNativeBridge.register('apps.list', (Object? arguments) {
-      final map = arguments is Map ? arguments : const <Object?, Object?>{};
-      return DVAndroidApps.list(context, icons: map['icons'] != false);
-    });
+    // Listing and drawing go off the main thread: Dart runs on it, and a
+    // slow phone with many apps froze the app long enough for "app isn't
+    // responding" (android_background.dart).
+    DVNativeBridge.register('apps.list', (Object? arguments) => _appsListOffMainThread(arguments is Map ? arguments['icons'] != false : true));
     String packageOf(Object? arguments) => arguments is Map ? '${arguments['package'] ?? ''}' : '';
     DVNativeBridge.register('apps.open', (Object? arguments) => DVAndroidApps.open(context, packageOf(arguments)));
     DVNativeBridge.register('apps.openSettings', (Object? arguments) => DVAndroidApps.openSettings(context, packageOf(arguments)));
     DVNativeBridge.register('apps.uninstall', (Object? arguments) => DVAndroidApps.uninstall(context, packageOf(arguments)));
-    DVNativeBridge.register('apps.icon', (Object? arguments) => DVAndroidApps.icon(context, packageOf(arguments)));
+    DVNativeBridge.register('apps.icon', (Object? arguments) => _appIconOffMainThread(packageOf(arguments)));
     DVNativeBridge.register('apps.isDefaultLauncher', (Object? _) => DVAndroidApps.isDefaultLauncher(context));
     DVNativeBridge.register('apps.defaultFor', (Object? arguments) => DVAndroidApps.defaultFor(context, arguments is Map ? '${arguments['role'] ?? ''}' : ''));
     // The role question is an Activity's (startActivityForResult); without one
     // the Home settings page is started from the application Context.
     DVNativeBridge.register('apps.requestDefaultLauncher', (Object? _) => DVAndroidApps.requestDefaultLauncher(context, DVAndroidActivities.current));
+    // Home pressed while this home app is in front, or bringing it back: the
+    // MainActivity stamps the intent, DVApps.homePresses reads it on resume.
+    DVNativeBridge.register('apps.homePressedAt', (Object? _) => DVAndroidApps.homePressedAt(DVAndroidActivities.current));
+    // Recents pressed while it is visible (the system's "recentapps" broadcast,
+    // stamped by the same MainActivity); DVApps.recentsPresses polls it.
+    DVNativeBridge.register('apps.recentsPressedAt', (Object? _) => DVAndroidApps.recentsPressedAt(DVAndroidActivities.current));
 
     DVNativeBridge.register('share.text', (Object? arguments) {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
@@ -621,3 +629,20 @@ class DVAndroidBindings {
     return true;
   }
 }
+
+// The closures handed to another isolate are built here, in scopes holding
+// nothing but plain values: a JNI reference cannot be copied to an isolate,
+// and a closure sharing a scope with one would take it along and fail.
+Future<List<Map<String, Object?>>> _appsListOffMainThread(bool icons) => dvAndroidOffMainThread(() => _appsList(icons));
+
+Future<Uint8List?> _appIconOffMainThread(String package) => dvAndroidOffMainThread(() => _appIcon(package));
+
+Context _contextHere() {
+  final Context? context = DVAndroidBindings.applicationContext;
+  if (context == null) throw StateError('No Android Context in this isolate: ${DVAndroidBindings.lastFailure}');
+  return context;
+}
+
+List<Map<String, Object?>> _appsList(bool icons) => DVAndroidApps.list(_contextHere(), icons: icons);
+
+Uint8List? _appIcon(String package) => DVAndroidApps.icon(_contextHere(), package);
