@@ -11094,19 +11094,19 @@ abstract class DartvelPage extends StatelessWidget {
 /// A Dartvel page widget represented as a class.
 abstract class DVClassWidget extends DartvelPage {
   /// Default constructor.
-  const DVClassWidget({super.key, this.pageScroll = false});
+  const DVClassWidget({super.key, this.pageScrollToTop = false});
 
   /// A round "To the bottom / Back to top" button at the bottom right of a
   /// long page, for the scroll view this widget builds. The same as
-  /// `@DVFunctionalWidget(pageScroll: true)`.
-  final bool pageScroll;
+  /// `@DVFunctionalWidget(pageScrollToTop: true)`.
+  final bool pageScrollToTop;
 
   @override
   StatelessElement createElement() => _DVPageScrollElement(this);
 }
 
 /// Puts [DVPageScrollFrame] round what a DVClassWidget or DartvelLayout
-/// builds when its `pageScroll` is on: an attribute of the class, not a
+/// builds when its `pageScrollToTop` is on: an attribute of the class, not a
 /// widget the app nests its page in.
 class _DVPageScrollElement extends StatelessElement {
   _DVPageScrollElement(super.widget);
@@ -11116,8 +11116,8 @@ class _DVPageScrollElement extends StatelessElement {
     final Widget built = super.build();
     final Widget owner = widget;
     final bool on = owner is DVClassWidget
-        ? owner.pageScroll
-        : owner is DartvelLayout && owner.pageScroll;
+        ? owner.pageScrollToTop
+        : owner is DartvelLayout && owner.pageScrollToTop;
     return on ? DVPageScrollFrame(child: built) : built;
   }
 }
@@ -11159,12 +11159,12 @@ void dvResetDeferredPages() {
 
 abstract class DartvelLayout extends StatelessWidget {
   final Widget child;
-  const DartvelLayout({super.key, required this.child, this.pageScroll = false});
+  const DartvelLayout({super.key, required this.child, this.pageScrollToTop = false});
 
   /// A round "To the bottom / Back to top" button at the bottom right of a
   /// long page, for the scroll view this layout builds. The same as
-  /// `@DVFunctionalWidget(pageScroll: true)`.
-  final bool pageScroll;
+  /// `@DVFunctionalWidget(pageScrollToTop: true)`.
+  final bool pageScrollToTop;
 
   @override
   StatelessElement createElement() => _DVPageScrollElement(this);

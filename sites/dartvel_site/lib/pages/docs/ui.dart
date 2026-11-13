@@ -232,8 +232,8 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
         ),
         DocsText(
           'A long page can have a round "To the bottom / Back to top" '
-          'button at its bottom right: write @DVFunctionalWidget(pageScroll: '
-          'true), or pass pageScroll: true to a DVClassWidget or a '
+          'button at its bottom right: write @DVFunctionalWidget(pageScrollToTop: '
+          'true), or pass pageScrollToTop: true to a DVClassWidget or a '
           'DartvelLayout (a layout turns it on for every page inside it). '
           'It is an attribute, so nothing is nested round the page, and it '
           'takes the colours of the app theme.',

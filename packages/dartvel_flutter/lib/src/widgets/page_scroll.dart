@@ -2,8 +2,8 @@
 ///
 /// dartvel.dev had it as a component of its own, so other Dartvel sites did
 /// not (owner, 13 Nov 2026). An app turns it on with an attribute, not by
-/// nesting a widget: `@DVFunctionalWidget(pageScroll: true)`, or
-/// `pageScroll: true` on a DVClassWidget or DartvelLayout. [DVPageScrollFrame]
+/// nesting a widget: `@DVFunctionalWidget(pageScrollToTop: true)`, or
+/// `pageScrollToTop: true` on a DVClassWidget or DartvelLayout. [DVPageScrollFrame]
 /// is what generated code and those classes put round the page; the button
 /// takes the app theme's colours, light and dark.
 library;
