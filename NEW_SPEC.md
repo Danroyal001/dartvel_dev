@@ -3223,9 +3223,10 @@ dartvel:
   is refused by `dartvel routes` naming the setting and why, and the start of
   the generated backend checks the scope again (`DV-SESSION-003`).
 - Where `dartvel.hosts` is declared, a state-changing request whose `Origin`
-  is not one of the application's own hosts (https, any port), the host it was
-  made to, or an origin `dartvel.server.cors` names is refused with 403, on top
-  of the CSRF token. A request with no `Origin` — a native client — is judged
+  is not the host it was made to, an https origin on one of the application's
+  own hosts (any port), or an origin `dartvel.server.cors` names is refused
+  with 403, on top of the CSRF token. An http origin is only ever the
+  request's own host, on a deployment with no TLS or on this machine. A request with no `Origin` — a native client — is judged
   by its token and credentials, as before.
 - Sign-out, revoking this device's session, account deletion and every refused
   session clear the shared cookie and any old `__Host-` cookie.

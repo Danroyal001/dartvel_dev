@@ -379,6 +379,33 @@ void main() {
           isTrue);
     });
 
+    test('a deployment served over plain http is still its own origin', () {
+      // No TLS anywhere: the page and the request are both http. Refusing
+      // it would break every form on a staging box with hosts declared.
+      expect(
+        scope.allowsOrigin('http://10.0.0.5:8080',
+            host: '10.0.0.5:8080', secure: false),
+        isTrue,
+      );
+      expect(
+        scope.allowsOrigin('http://example.test',
+            host: 'example.test', secure: false),
+        isTrue,
+      );
+      // An http page posting to the https site is not the same origin, and
+      // an http sibling is never the application's own.
+      expect(
+        scope.allowsOrigin('http://example.test',
+            host: 'example.test', secure: true),
+        isFalse,
+      );
+      expect(
+        scope.allowsOrigin('http://tools.example.test',
+            host: 'example.test', secure: false),
+        isFalse,
+      );
+    });
+
     test('origins dartvel.server.cors names are allowed as well', () {
       expect(
         scope.allowsOrigin('https://partner.example.com',

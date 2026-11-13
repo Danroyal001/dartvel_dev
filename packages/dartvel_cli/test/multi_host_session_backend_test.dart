@@ -75,6 +75,7 @@ Future<Map<String, Object?>> call(
       'body': text,
       'json': json,
       'setCookies': response.headers[HttpHeaders.setCookieHeader] ?? <String>[],
+      'cacheControl': response.headers.value('cache-control'),
     };
   } finally {
     http.close(force: true);
@@ -320,6 +321,8 @@ void main() {
               c.startsWith('__Host-dv_session=;') && c.contains('Max-Age=0')),
           isTrue,
           reason: '$cookies');
+      // The response carries the session token, so no cache may keep it.
+      expect(at('whoamiLegacy')['cacheControl'], 'no-store');
     });
 
     test('signing out on one host clears both cookies and every host', () {

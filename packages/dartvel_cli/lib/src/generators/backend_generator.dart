@@ -1288,6 +1288,7 @@ bool _dvValidateCsrf(dv.Request req, Object? body) {
   return dartvelSessionScope.allowsOrigin(
     req.headers.get('origin'),
     host: core.DVSessionScope.requestHost(req),
+    secure: core.DVSessionScope.requestSecure(req),
     alsoAllowed: dartvelConfiguredCors?.origins ?? const <String>[],
   );
 }
@@ -1376,8 +1377,12 @@ Future<dv.Response> _dvAuthenticated(
   final dv.Response response = await core.DVSessionPrincipal.actingAs(signedIn, run);
   // A person on the old __Host- cookie, on a host whose session is now
   // shared, moves to the shared cookie with this response.
-  for (final String moved in session.setCookies) {
-    response.headers.append('set-cookie', moved);
+  if (session.setCookies.isNotEmpty) {
+    for (final String moved in session.setCookies) {
+      response.headers.append('set-cookie', moved);
+    }
+    // The response now carries the session token: no cache may keep it.
+    response.headers.set('cache-control', 'no-store');
   }
   return response;
 }

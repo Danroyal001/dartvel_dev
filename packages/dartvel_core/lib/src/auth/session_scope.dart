@@ -89,15 +89,20 @@ final class DVSessionScope {
   /// the application's own.
   ///
   /// With no declared hosts nothing is checked here, as before: the CSRF
-  /// token is the guard. Otherwise the origin must be https (http only on
-  /// this machine) on one of [hosts], the host the request was made to, or
-  /// one of [alsoAllowed] -- the origins `dartvel.server.cors` names. The
-  /// port is not compared: a browser sends a host's cookies to every port.
+  /// token is the guard. Otherwise the origin must be the host the request
+  /// was made to, an https origin on one of [hosts], or one of
+  /// [alsoAllowed] -- the origins `dartvel.server.cors` names. An http
+  /// origin is the request's own only when the request was not [secure]
+  /// either (a deployment with no TLS, or this machine): an http page is
+  /// never the https site's origin, and an http sibling is never the
+  /// application's own. The port is not compared: a browser sends a host's
+  /// cookies to every port.
   /// A request with no `Origin` -- a native client, a server -- is judged by
   /// its CSRF token and credentials alone. `Origin: null` is refused.
   bool allowsOrigin(
     String? origin, {
     String? host,
+    bool secure = true,
     Iterable<String> alsoAllowed = const <String>[],
   }) {
     if (hosts.isEmpty || origin == null) return true;
@@ -115,13 +120,16 @@ final class DVSessionScope {
       return false;
     }
     final String originHost = uri.host;
-    final bool loopback = originHost == 'localhost' ||
-        originHost == '127.0.0.1' ||
-        originHost == '::1';
-    if (uri.scheme == 'http' && !loopback) return false;
+    final bool https = uri.scheme == 'https';
     final String? requested = dvNormaliseHost(host);
-    if (requested != null && requested == originHost) return true;
-    return _declared(originHost);
+    if (requested != null && requested == originHost) {
+      // This machine's own origin cannot be somebody else's page.
+      final bool loopback = originHost == 'localhost' ||
+          originHost == '127.0.0.1' ||
+          originHost == '::1';
+      return https || !secure || loopback;
+    }
+    return https && _declared(originHost);
   }
 
   static String _bareOrigin(String origin) =>
@@ -276,6 +284,17 @@ final class DVSessionScope {
       peerIsTrustedProxy: DVClientAddress.current.peerIsTrusted(request),
     );
   }
+
+  /// Whether [request] arrived over https, as the proxy in front says
+  /// (`x-forwarded-proto`) or the request's own URL does.
+  static bool requestSecure(Request request) =>
+      (request.headers.get('x-forwarded-proto') ??
+              (request.url.hasScheme ? request.url.scheme : 'http'))
+          .split(',')
+          .first
+          .trim()
+          .toLowerCase() ==
+      'https';
 
   Map<String, Object?> toJson() => <String, Object?>{
         if (domain != null) 'domain': domain,
