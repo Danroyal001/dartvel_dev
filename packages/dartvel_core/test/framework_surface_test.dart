@@ -42,6 +42,15 @@ Future<String> analyzed(String source) async {
   return '${result.stdout}${result.stderr}';
 }
 
+/// The analyzer reporting a name that does not resolve. The diagnostic was
+/// renamed: `undefined_identifier` on Dart 3.13 (Flutter 3.47 stable) and
+/// `undefined_unqualified_name_read` on the Dart 3.15 dev SDK, for the same
+/// error, so the check names both rather than one SDK's spelling.
+final Matcher undefinedName = anyOf(
+  contains('undefined_identifier'),
+  contains('undefined_unqualified_name_read'),
+);
+
 void main() {
   test('what an application reads off a model is there', () async {
     // If this ever stops holding, the checks below start passing because
@@ -61,7 +70,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 Future<void> reset() => DVModelSync.reset();
 ''');
-    expect(output, contains('undefined_identifier'));
+    expect(output, undefinedName);
   });
 
   test('an application cannot name DVSemanticIndex', () async {
@@ -70,7 +79,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 Type get index => DVSemanticIndex;
 ''');
-    expect(output, contains('undefined_identifier'));
+    expect(output, undefinedName);
   });
 
   test('an application cannot name the model sync transport', () async {
@@ -79,7 +88,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 Type get carrier => DVModelSyncTransport;
 ''');
-    expect(output, contains('undefined_identifier'));
+    expect(output, undefinedName);
   });
 
   test('an application cannot name the presence transport', () async {
@@ -88,7 +97,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 Type get carrier => DVPresenceTransport;
 ''');
-    expect(output, contains('undefined_identifier'));
+    expect(output, undefinedName);
   });
 
   test('an application cannot name DVRecordTableRemote', () async {
@@ -97,7 +106,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 Type get remote => DVRecordTableRemote;
 ''');
-    expect(output, contains('undefined_identifier'));
+    expect(output, undefinedName);
   });
 
   test('an application cannot encode a replay outcome', () async {
@@ -109,7 +118,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 Object get encode => dvOutcomeToJson;
 ''');
-    expect(output, contains('undefined_identifier'));
+    expect(output, undefinedName);
   });
 
   test('an application cannot reach the replay route\'s handler', () async {
@@ -121,7 +130,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 Type get replay => DVOfflineReplay;
 ''');
-    expect(output, contains('undefined_identifier'));
+    expect(output, undefinedName);
   });
 
   test('an application cannot name the record layer', () async {
@@ -141,7 +150,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 Type get it => $name;
 ''');
-      expect(output, contains('undefined_identifier'), reason: name);
+      expect(output, undefinedName, reason: name);
     }
   });
 
@@ -225,7 +234,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 Type get machinery => $name;
 ''');
-      expect(output, contains('undefined_identifier'), reason: output);
+      expect(output, undefinedName, reason: output);
     });
   }
 
