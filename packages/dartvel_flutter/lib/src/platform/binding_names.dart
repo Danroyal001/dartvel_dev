@@ -45,6 +45,8 @@ const Set<String> dvNativeBindingNames = <String>{
   'apps.isDefaultLauncher',
   'apps.requestDefaultLauncher',
   'apps.defaultFor',
+  'apps.homePressedAt',
+  'apps.recentsPressedAt',
 
   // Feedback and system integration.
   'clipboard.copy',
